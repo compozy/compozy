@@ -26,7 +26,7 @@ export type WindowManagerRegistrationContext =
     })
   | (WindowManagerRegistrationBase & {
       client: null;
-      error: null;
+      error: Error | null;
       phase: "registering";
       workspaceId: string;
     })
@@ -97,7 +97,6 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
           ...context,
           documentVisible: true,
           epoch: context.epoch + 1,
-          error: null,
           phase: "registering",
           retryCount: context.retryCount + 1,
         };
@@ -110,7 +109,6 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
         ...context,
         client: null,
         epoch: context.epoch + 1,
-        error: null,
         phase: "registering",
         retryCount: 0,
       };
@@ -146,7 +144,6 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
       return {
         ...context,
         epoch: context.epoch + 1,
-        error: null,
         phase: "registering",
         retryCount: context.retryCount + 1,
       };

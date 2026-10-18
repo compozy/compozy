@@ -2,6 +2,7 @@ package modelcatalog
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -91,18 +92,22 @@ func appendResiduesFromFile(
 	if skipResidueGuardFile(rel) {
 		return residues
 	}
-	allowedRanges := removedProviderModelKeyOwnerRanges(t, path, rel)
-	file, err := os.Open(path)
+	content, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("os.Open(%q) error = %v", path, err)
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
 	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			t.Errorf("Close(%q) error = %v", path, closeErr)
+	hasCandidate := false
+	for _, field := range fields {
+		if bytes.Contains(content, []byte(field)) {
+			hasCandidate = true
+			break
 		}
-	}()
-
-	scanner := bufio.NewScanner(file)
+	}
+	if !hasCandidate {
+		return residues
+	}
+	allowedRanges := removedProviderModelKeyOwnerRanges(t, path, rel)
+	scanner := bufio.NewScanner(bytes.NewReader(content))
 	scanner.Buffer(make([]byte, 1024), 1024*1024)
 	lineNo := 0
 	for scanner.Scan() {

@@ -1,54 +1,117 @@
-import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type * as React from "react";
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
   Input,
+  Kbd,
   NativeSelect,
   NativeSelectOption,
-  Pill,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
+  StatusDot,
+  TopbarOverflowIcon,
   cn,
 } from "@compozy/ui";
 
 import type {
   DesktopOverviewItem,
-  DesktopOverviewWindow,
   DesktopsOverviewProps,
   DesktopsOverviewState,
 } from "./desktops-overview";
 
-interface IconActionProps {
-  label: string;
-  disabled?: boolean;
-  destructive?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+interface DesktopActionsProps {
+  desktop: DesktopOverviewItem;
+  desktops: readonly DesktopOverviewItem[];
+  index: number;
+  busy: boolean;
+  onRename: () => void;
+  onDelete: () => void;
+  onReorder: (order: number) => void;
+  onMoveWindow: DesktopsOverviewProps["onMoveWindow"];
 }
 
-function IconAction({ label, disabled, destructive = false, onClick, children }: IconActionProps) {
+/** One overflow menu per card: rename, reorder, move any of its windows, delete. */
+function DesktopActions({
+  desktop,
+  desktops,
+  index,
+  busy,
+  onRename,
+  onDelete,
+  onReorder,
+  onMoveWindow,
+}: DesktopActionsProps) {
+  const count = desktops.length;
+  const destinations = desktops.filter(candidate => candidate.id !== desktop.id);
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            size="icon-sm"
-            className="size-11"
-            variant={destructive ? "destructive" : "ghost"}
-            aria-label={label}
-            disabled={disabled}
-            onClick={onClick}
-          />
-        }
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Actions for ${desktop.name}`}
+        disabled={busy}
+        // Quiet until the card is hovered or focused; always shown without hover.
+        className={cn(
+          "opacity-0 transition-opacity duration-fast group-focus-within/oc:opacity-100 group-hover/oc:opacity-100",
+          "aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"
+        )}
+        render={<Button type="button" variant="quiet" size="icon-sm" />}
       >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+        <TopbarOverflowIcon aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onRename}>
+          <Pencil aria-hidden="true" />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={index === 0} onClick={() => onReorder(index - 1)}>
+          <ChevronLeft aria-hidden="true" />
+          Move left
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={index === count - 1} onClick={() => onReorder(index + 1)}>
+          <ChevronRight aria-hidden="true" />
+          Move right
+        </DropdownMenuItem>
+        {desktop.windows.length > 0 && destinations.length > 0 ? (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Move a window</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {desktop.windows.map(window => (
+                <DropdownMenuSub key={window.id}>
+                  <DropdownMenuSubTrigger>{window.title}</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Move to</DropdownMenuLabel>
+                      {destinations.map(option => (
+                        <DropdownMenuItem
+                          key={option.id}
+                          onClick={() => onMoveWindow(window.id, desktop.id, option.id)}
+                        >
+                          {option.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" disabled={count < 2} onClick={onDelete}>
+          <Trash2 aria-hidden="true" />
+          Delete…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -162,53 +225,10 @@ function DeleteDesktop({
   );
 }
 
-function WindowRow({
-  window,
-  desktop,
-  desktops,
-  busy,
-  onMoveWindow,
-}: {
-  window: DesktopOverviewWindow;
-  desktop: DesktopOverviewItem;
-  desktops: readonly DesktopOverviewItem[];
-  busy: boolean;
-  onMoveWindow: DesktopsOverviewProps["onMoveWindow"];
-}) {
-  return (
-    <li className="flex min-w-0 items-center gap-2 border-t border-line-soft py-2 first:border-t-0">
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-form-label font-medium text-fg">{window.title}</span>
-        {window.detail ? (
-          <span className="block truncate text-form-hint text-subtle">{window.detail}</span>
-        ) : null}
-      </span>
-      <NativeSelect
-        size="sm"
-        className="[&>select]:h-11"
-        value={desktop.id}
-        disabled={busy || desktops.length < 2}
-        aria-label={`Move ${window.title} to another desktop`}
-        onChange={event => {
-          const destinationId = event.currentTarget.value;
-          if (destinationId !== desktop.id) {
-            onMoveWindow(window.id, desktop.id, destinationId);
-          }
-        }}
-      >
-        {desktops.map(option => (
-          <NativeSelectOption key={option.id} value={option.id}>
-            {option.name}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-    </li>
-  );
-}
-
 type DesktopsOverviewGridProps = Pick<
   DesktopsOverviewProps,
   | "onOpenChange"
+  | "onCreateDesktop"
   | "onSwitchDesktop"
   | "onRenameDesktop"
   | "onReorderDesktop"
@@ -221,6 +241,38 @@ type DesktopsOverviewGridProps = Pick<
   initialFocusRef: React.RefObject<HTMLButtonElement | null>;
 };
 
+const CARD_SELECTOR = '[data-slot="desktops-overview-card"]:not(:disabled)';
+const DEFAULT_ASPECT = 16 / 10;
+
+/** Arrows move across the card grid (Up/Down by one row), Home/End jump; Enter is native. */
+function moveCardFocus(event: React.KeyboardEvent<HTMLElement>): void {
+  const grid = event.currentTarget;
+  const cards = Array.from(grid.querySelectorAll<HTMLElement>(CARD_SELECTOR));
+  const index = cards.findIndex(card => card === event.target);
+  if (index < 0) return;
+  const columns = Math.max(
+    1,
+    getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length
+  );
+  const targets: Record<string, number> = {
+    ArrowRight: index + 1,
+    ArrowLeft: index - 1,
+    ArrowDown: index + columns,
+    ArrowUp: index - columns,
+    Home: 0,
+    End: cards.length - 1,
+  };
+  const target = targets[event.key];
+  if (target === undefined) return;
+  event.preventDefault();
+  cards[Math.min(cards.length - 1, Math.max(0, target))]?.focus();
+}
+
+const CARD_CLASS =
+  "group/oc relative flex min-w-0 flex-col gap-2.5 rounded-lg p-2 pb-3 transition-colors duration-fast hover:bg-surface-2";
+const CARD_BUTTON_CLASS =
+  "flex w-full flex-col gap-2.5 rounded-md text-left outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed";
+
 /** Interactive ready-state grid used only after the authoritative snapshot resolves. */
 export function DesktopsOverviewGrid({
   state,
@@ -228,6 +280,7 @@ export function DesktopsOverviewGrid({
   initialFocusDesktopId,
   initialFocusRef,
   onOpenChange,
+  onCreateDesktop,
   onSwitchDesktop,
   onRenameDesktop,
   onReorderDesktop,
@@ -236,76 +289,79 @@ export function DesktopsOverviewGrid({
 }: DesktopsOverviewGridProps) {
   const [editingDesktopId, setEditingDesktopId] = useState<string | null>(null);
   const [deletingDesktopId, setDeletingDesktopId] = useState<string | null>(null);
+  const aspectRatio = state.desktops[0]?.aspectRatio ?? DEFAULT_ASPECT;
 
   return (
-    <ol className="grid grid-cols-1 gap-4 pb-8 md:grid-cols-2 xl:grid-cols-3">
+    <ol
+      aria-label="Desktops"
+      className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5 pb-8"
+      onKeyDown={moveCardFocus}
+    >
       {state.desktops.map((desktop, index) => {
         const active = desktop.id === state.activeDesktopId;
         const destinations = state.desktops.filter(candidate => candidate.id !== desktop.id);
         const windowCount = desktop.windows.length;
+        const needsYou = desktop.needsYou === true && !active;
 
         return (
           <li
             key={desktop.id}
             data-current={active ? "true" : undefined}
-            className={cn(
-              "flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3",
-              active && "bg-row-selected shadow-inset-strong"
-            )}
+            aria-current={active ? "true" : undefined}
+            className={CARD_CLASS}
           >
-            <div className="flex min-w-0 items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <h3 className="truncate text-item-title font-semibold text-fg-strong">
-                    {desktop.name}
-                  </h3>
-                  {active ? (
-                    <Pill size="xs" tone="neutral">
-                      Current
-                    </Pill>
-                  ) : null}
-                </div>
-                <p className="mt-0.5 text-form-hint text-subtle">
+            <button
+              ref={desktop.id === initialFocusDesktopId ? initialFocusRef : undefined}
+              type="button"
+              data-slot="desktops-overview-card"
+              disabled={busy}
+              aria-label={`${active ? "Current desktop" : "Switch to"} ${desktop.name}${needsYou ? " — needs you" : ""}`}
+              className={CARD_BUTTON_CLASS}
+              onClick={() => {
+                if (!active) onSwitchDesktop(desktop.id);
+                onOpenChange(false);
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  // The thumbnail lifts off the overview panel like a card; the
+                  // current desktop trades the hairline for the selection ring.
+                  "relative block w-full overflow-hidden rounded-lg bg-card shadow-card",
+                  active && "shadow-none ring-2 ring-fg"
+                )}
+                style={{ aspectRatio: desktop.aspectRatio ?? aspectRatio }}
+              >
+                {desktop.thumbnail}
+              </span>
+              <span className="flex min-w-0 items-center gap-2 px-1 pr-9">
+                <span className="truncate font-medium text-fg">{desktop.name}</span>
+                <span className="shrink-0 text-meta text-muted">
                   {windowCount} window{windowCount === 1 ? "" : "s"}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center">
-                <IconAction
-                  label={`Move ${desktop.name} left`}
-                  disabled={busy || index === 0}
-                  onClick={() => onReorderDesktop(desktop.id, index - 1)}
-                >
-                  <ChevronLeft aria-hidden="true" />
-                </IconAction>
-                <IconAction
-                  label={`Move ${desktop.name} right`}
-                  disabled={busy || index === state.desktops.length - 1}
-                  onClick={() => onReorderDesktop(desktop.id, index + 1)}
-                >
-                  <ChevronRight aria-hidden="true" />
-                </IconAction>
-                <IconAction
-                  label={`Rename ${desktop.name}`}
-                  disabled={busy}
-                  onClick={() => {
-                    setDeletingDesktopId(null);
-                    setEditingDesktopId(desktop.id);
-                  }}
-                >
-                  <Pencil aria-hidden="true" />
-                </IconAction>
-                <IconAction
-                  label={`Delete ${desktop.name}`}
-                  destructive
-                  disabled={busy || state.desktops.length < 2}
-                  onClick={() => {
-                    setEditingDesktopId(null);
-                    setDeletingDesktopId(desktop.id);
-                  }}
-                >
-                  <Trash2 aria-hidden="true" />
-                </IconAction>
-              </div>
+                </span>
+                {needsYou ? <StatusDot tone="accent" size="sm" label="Needs you" /> : null}
+                {desktop.switchShortcut ? (
+                  <Kbd className="ml-auto">{desktop.switchShortcut}</Kbd>
+                ) : null}
+              </span>
+            </button>
+            <div className="absolute right-2 bottom-2.5">
+              <DesktopActions
+                desktop={desktop}
+                desktops={state.desktops}
+                index={index}
+                busy={busy}
+                onReorder={order => onReorderDesktop(desktop.id, order)}
+                onMoveWindow={onMoveWindow}
+                onRename={() => {
+                  setDeletingDesktopId(null);
+                  setEditingDesktopId(desktop.id);
+                }}
+                onDelete={() => {
+                  setEditingDesktopId(null);
+                  setDeletingDesktopId(desktop.id);
+                }}
+              />
             </div>
 
             {editingDesktopId === desktop.id ? (
@@ -319,45 +375,6 @@ export function DesktopsOverviewGrid({
                 }}
               />
             ) : null}
-
-            <Button
-              ref={desktop.id === initialFocusDesktopId ? initialFocusRef : undefined}
-              type="button"
-              variant="ghost"
-              disabled={busy}
-              aria-label={`${active ? "Current desktop" : "Switch to"} ${desktop.name}`}
-              className={cn(
-                "h-auto w-full flex-col items-stretch gap-2 rounded-md border border-line-soft bg-canvas-tint p-2 text-left whitespace-normal",
-                "tracking-normal hover:bg-row-hover focus-visible:shadow-focus-ring"
-              )}
-              onClick={() => {
-                if (!active) onSwitchDesktop(desktop.id);
-                onOpenChange(false);
-              }}
-            >
-              <span
-                aria-hidden="true"
-                className="flex h-workspace-thumb w-full items-stretch overflow-hidden rounded-sm bg-canvas"
-              >
-                {desktop.thumbnail}
-              </span>
-            </Button>
-
-            <ul aria-label={`Windows on ${desktop.name}`} className="max-h-36 overflow-y-auto">
-              {desktop.windows.map(window => (
-                <WindowRow
-                  key={window.id}
-                  window={window}
-                  desktop={desktop}
-                  desktops={state.desktops}
-                  busy={busy}
-                  onMoveWindow={onMoveWindow}
-                />
-              ))}
-              {desktop.windows.length === 0 ? (
-                <li className="py-2 text-form-hint text-subtle">No windows</li>
-              ) : null}
-            </ul>
 
             {deletingDesktopId === desktop.id ? (
               <DeleteDesktop
@@ -374,6 +391,24 @@ export function DesktopsOverviewGrid({
           </li>
         );
       })}
+      <li className={CARD_CLASS}>
+        <button
+          type="button"
+          data-slot="desktops-overview-card"
+          disabled={busy}
+          className={CARD_BUTTON_CLASS}
+          onClick={onCreateDesktop}
+        >
+          <span
+            aria-hidden="true"
+            className="grid w-full place-items-center rounded-lg border border-dashed border-line-strong text-muted transition-colors duration-fast group-hover/oc:text-fg"
+            style={{ aspectRatio }}
+          >
+            <Plus className="size-4" />
+          </span>
+          <span className="px-1 font-medium text-fg">New desktop</span>
+        </button>
+      </li>
     </ol>
   );
 }

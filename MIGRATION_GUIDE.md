@@ -1,4 +1,6 @@
-# Migrate from CompozyOS v0.2.15 to CompozyOS v0.3
+# CompozyOS Migration Guide
+
+For an existing v0.3 installation, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal) if you are upgrading from a release that predates it. The numbered sections below describe the separate v0.2.15-to-v0.3 clean-state transition.
 
 CompozyOS v0.3 is a hard cut, not an in-place compatibility release. It keeps the `compozy` binary
 and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned
@@ -7,6 +9,210 @@ extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
+
+<a id="memory-removal"></a>
+
+## Memory removal
+
+The memory removal release removes the memory feature family from CompozyOS: agent memory, Dream
+consolidation, the Knowledge app, and the workspace `knowledge/` prompt injector. It also removes
+CompozyOS's own session compaction, which relied on the memory checkpoint service. The removal
+covers the daemon, CLI, HTTP/UDS, native tools, MCP, the extension Host API and SDKs, configuration,
+Web UI, and documentation. This is an intentional breaking change with no compatibility aliases or
+deprecation window. It does not block the upgrade: the daemon starts on an upgraded home without any
+manual step, and leftovers in your own files are archived or ignored instead of rejected.
+
+No replacement memory or knowledge feature is provided. Authored context remains `AGENT.md`,
+`SOUL.md`, `HEARTBEAT.md`, and skills. Sessions, agents, Loops, Tasks, and Goals keep working.
+
+### Before upgrading
+
+Stop the daemon and back up `compozy.db` together with the global state directory, workspace
+`.compozy/` directories, and `config.toml`. Memory database state is dropped permanently and the new
+release has no reader or export command for it: the index, decision log, recall signals, Dream run
+history, and extractor state. Export anything you need to retain with the previous release first.
+The Markdown memory files are not database state and stay on disk. Do not run an older binary against
+the upgraded databases; restore the complete pre-upgrade backup to roll back.
+
+### What the first start changes
+
+Nothing needs editing by hand. On the first start:
+
+- **Global database migration 00130.** `00130_retire_memory.sql` drops the memory tables, their
+  full-text indexes, and `goose_db_version_memory`; deletes `memory.consolidated` automation triggers
+  together with their overlays, catalog rows, gateway ingress bindings, and owned secret refs (run
+  history stays); and deletes legacy `dream` sessions and the `memory-extractor` and
+  `checkpoint-summary` child sessions with their dependent rows. Session directories on disk are not
+  removed.
+- **Session database migration 00009.** `00009_unarchive_compaction_spans.sql` restores the events
+  that the removed CompozyOS compaction had archived, together with their transcript entries and tool
+  routes, so old compacted sessions show their full history again in the transcript, search, outline,
+  and fork and rewind anchors. Events archived by a conversation rewind stay archived.
+- **Config archive.** When the global, profile, or workspace `config.toml` contains `[memory]` (every
+  sub-table), `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`,
+  `[roles.memory_controller]`, `[session.compaction]`, an `[[automation.triggers]]` entry with
+  `event = "memory.consolidated"`, or hook-matcher keys `compaction_reason` / `compaction_strategy`,
+  the daemon removes them and appends them, commented, at the end of the same file under
+  `# Archived retired memory and compaction settings; these values are inactive.`. The rewrite is
+  atomic and lossless, logged once as `config.retired_keys_archived`, and a second start changes
+  nothing. Archiving these memory and compaction settings never blocks a start: if the file changes while it is being rewritten, or the
+  daemon cannot write it (for example a read-only directory), the daemon logs a
+  `config.retired_keys_archive_failed` warning with the path and the reason, loads with the retired
+  values inactive, leaves the file untouched, and tries again on the next load. Explicitly setting a
+  retired key (`compozy config set memory.enabled true`) is still refused.
+- **Ignored leftovers.** `memory_policy` in a `SOUL.md` is ignored: it is not rendered, never raises a
+  diagnostic, and the file is not rewritten (the Web editor drops it on the next save). Retired
+  `compozy__memory*` tool and toolset IDs in an agent, profile, or session tool policy are dropped
+  with a `tools.retired_ids_ignored` warning. An extension manifest that declares `memory.backend`,
+  `memory/recall|store|forget`, or the `memory.read|write` consent still loads with those entries
+  dropped and one `extension.retired_entries_ignored` warning; an extension automation resource whose
+  trigger event is `memory.consolidated` is skipped with the same warning and the rest of the
+  extension loads. The hook-matcher keys `compaction_reason` and `compaction_strategy` in `AGENT.md`
+  and `SKILL.md` hook declarations are ignored with one `agent.retired_entries_ignored` or
+  `skills.retired_entries_ignored` warning per file, and the file is left untouched.
+- **Saved desktop layouts.** The Knowledge window is dropped from saved layouts, including persisted
+  layout resources, a Settings window on `/settings/memory` moves to `/settings`, and the reconciled
+  layout is saved once.
+- **Files stay.** No file is deleted or rewritten: Markdown memory under
+  `~/.compozy/profiles/<name>/memory/`, `<workspace>/.compozy/memory/`, and agent `memory/`
+  directories (including `_inbox/` candidates the extractor never consumed), `<workspace>/knowledge/`
+  directories, and `ledger.jsonl` session files. Nothing reads them any more. Copy what you want to
+  keep and delete the rest whenever you like. The session directories of the deleted legacy sessions
+  also stay in place; the daemon never recatalogs them and logs `observe.session_recovery_skipped`
+  once per session.
+
+### Removed surfaces
+
+- **CLI:** the whole `compozy memory` tree (`list`, `show`, `write`, `edit`, `delete`, `search`,
+  `reindex`, `history`, `health`, `promote`, `reset`, `reload`, `scope-show`, `decisions`, `recall`,
+  `dream`, `daily`, `extractor`, `provider`, `adhoc`). `compozy status -o json` no longer has a
+  `memory` object and its `schema_version` is `2026-10-07`. `compozy roles list` shows `coordinator`
+  and `auto_title` only; `compozy profile delete --dry-run` has no `memory_entries`;
+  `compozy extension init --template memory-backend-ts` is gone.
+- **HTTP/UDS:** the 40 `/api/memory*`, `/api/settings/memory`, and
+  `/api/workspaces/{id}/memory/**` operations answer `404` like any unknown path. `dream` leaves the
+  session `type` enum, the four memory roles leave the settings and roles payloads, and
+  `component=memory` is an invalid event filter.
+- **Native tools and MCP:** the 35 `compozy__memory_*` tools, the `compozy__memory` and
+  `compozy__memory_admin` toolsets, and `compozy_host__memory__recall|store|forget`. These IDs are
+  retired permanently.
+- **Extensions and SDKs:** the Host API `memory/recall|store|forget` (JSON-RPC `-32601`), the
+  `memory.backend` capability, consent atoms `memory:read|write`, the marketplace ceiling
+  `memory.read`, the `memory-backend-ts` scaffold, and the TypeScript and Go SDK memory members and
+  types. Rebuild extensions against the current SDK.
+- **Configuration and automation:** `[memory]`, `[session.compaction]`, the four memory roles, and
+  the `memory.consolidated` trigger event (creating a trigger on it fails validation). The
+  auto-title role keeps working; its deadline is a fixed 60 seconds.
+- **Web:** the Knowledge app and `/knowledge`, Settings → Memory, the Home Memory tile, and the memory
+  role panels. Settings now has 18 sections.
+- **Prompts:** agents no longer receive memory startup content, per-turn recall, or the
+  `<workspace-knowledge-snapshot>` block.
+
+### Compaction changes
+
+CompozyOS no longer compacts a session itself: no threshold, timer, or usage reading makes it
+summarize, archive, or start a child session. The agent owns its context window.
+
+- **Bounded rebuilds.** Every replay of a transcript into a new agent session (resume without native
+  load, runtime or model replacement, account fallback, prompt recovery, continue/fork) is bounded by
+  `[session.derive] max_replay_bytes` and `max_message_bytes`, keeps the newest messages, pins the
+  earliest user message, states that the workspace is authoritative, and points to
+  `compozy__session_history` for the omitted history.
+- **Observed agent compaction (experimental).** When the agent supports the ACP compaction
+  capability, each compaction appears as one `compaction` item in the session transcript and Web
+  timeline, as `compaction` snapshot rows plus one `session.compaction_fired` event with the new
+  payload (`compaction_id`, `trigger`, `context_used`, `context_size`) in `compozy session events`
+  and `compozy session history`, and as one usage marker. `pressure_threshold` and the marker fields
+  `from_sequence`, `to_sequence`, `pressure`, `strategy`, and `span_archived` are removed. Events
+  recorded before the upgrade stay in the ledger as opaque history and never produce a marker.
+- **Compact now (experimental).** `compozy session compact <session-id>`,
+  `POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact`, the native tool
+  `compozy__session_compact`, and the Compact now button in the Web context rail ask the agent to
+  compact through the command it advertises (`/compact` or `/compress`). The Goal executor uses the same command. See
+  [Context compaction](https://compozy.com/docs/sessions/compaction).
+- **Hooks.** `context.pre_compact` and `context.post_compact` are observation-only: only `labels`
+  can be patched, and the `deny`, `summary`, and `context_blocks` patches are removed. The matcher
+  keys `compaction_reason` and `compaction_strategy` become `compaction_trigger`
+  (`requested` or `agent`).
+
+### Update scripts, extensions, and automation
+
+Stop calling the removed commands, routes, tools, and SDK members; there are no aliases. Remove memory
+tool entries from `AGENT.md` `toolsets`/`tools` and from profile and session tool policies when
+convenient, delete `memory_policy` from `SOUL.md`, remove `memory.backend` and `memory/*` entries from
+extension manifests, and replace `compaction_reason` / `compaction_strategy` hook matchers with
+`compaction_trigger`; `AGENT.md` and `SKILL.md` hook matchers are ignored with a warning for now, but
+an `AGENT.md` hook cannot target the context events at all, so declare those hooks in `config.toml`, an
+extension manifest, or a skill. Tool-policy wildcards such as `compozy__memory*` are not rewritten;
+they simply match nothing. The leftovers are tolerated for now but not forever.
+
+### Temporary compatibility
+
+The config archive, the `memory_policy` ignore rule, the retired tool-ID filter, the extension
+manifest and automation-resource filters, and the `AGENT.md` and `SKILL.md` hook-matcher filters are
+one shim generation. They are removed in v0.6.0. Run at least one release that
+contains them before upgrading to v0.6.0, and clean the leftovers listed above so nothing depends on
+them.
+
+<a id="networks-bridges-and-sandbox-removal"></a>
+
+## Networks, Bridges, and Sandbox removal
+
+The package cleanup release removes the CompozyOS Network, Bridges, and managed Sandbox products
+across the daemon, CLI, HTTP/UDS, native tools, SDKs, configuration, Web UI, and documentation. This
+is an intentional breaking change with no compatibility aliases or deprecation window.
+
+### Before upgrading
+
+Stop the daemon and back up its global state directory, workspace `.compozy/` directories, and
+`config.toml`. Export any Network messages or Bridge delivery records you need to retain using the
+previous release. The new release has no reader or recovery command for retired state. Do not run
+an older binary against the upgraded database; restore the complete pre-upgrade backup to roll back.
+
+### Database migration 00121
+
+Opening an existing database applies `00121_retire_network_bridges_sandbox.sql` transactionally.
+It permanently drops Network channels, threads, messages, subscriptions, participation, coordination,
+audit/timeline projections, and wake queues; Bridge instances, routes, delivery history, secret
+bindings, target directories, and task subscriptions; and notification presets and their delivery
+permits. Network wake runs, their dependent records, and triage state owned by retired Network
+actors are removed; triage state belonging to retained actors is preserved. References from retained Tasks
+and task events to those removed runs are cleared. Product-specific Network, Bridge, and Sandbox
+fields are removed from retained runtime records. Historical Loop channel-message events are removed.
+
+Ordinary sessions and their local histories, Tasks and ordinary task runs, execution profiles,
+Loops and Goal nodes, memory, workspaces, attention notifications, and task status cursors remain.
+Agent `SOUL.md` and `HEARTBEAT.md` documents, revisions, schedules, and wake policy remain supported.
+Session supervision and task lease heartbeats also remain supported.
+
+### Update configuration and integrations
+
+Remove product configuration for Network, Bridges, and managed Sandboxes, including default Sandbox
+selection and remote Sandbox drivers. Remove retired fields from session, Task, profile, job, and
+Loop requests. Scripts must stop calling retired CLI commands, routes, native tools, and SDK methods;
+there are no aliases. Rebuild extensions against the current SDK. Agent capability catalogs remain
+local authoring inputs for Task worker selection.
+
+Gateway and webhooks remain supported. Extensions declare their reachability requirement with
+`[gateway]` and explicit permission atoms:
+
+```toml
+[gateway]
+permissions = ["gateway.private", "gateway.public"]
+```
+
+Declare only the permissions the extension needs. Install, update, and development-link callers
+confirm the returned `gateway_requirement_digest` using `--confirm-gateway-requirement` in the CLI
+or `confirm_gateway_digest` in the request. The database migration retains the recorded digest,
+confirmer, and confirmation time under the Gateway names. A changed requirement requires a matching
+confirmation; removal of Network must not grant public ingress implicitly. Legacy
+`network_participation` manifests are not converted or accepted as Gateway declarations. Rebuild
+those extensions with `[gateway]`, inspect the new requirement digest, and confirm it before
+using Gateway capabilities. The retained database tuple preserves the previous consent record;
+it does not authorize a different manifest or bypass confirmation after this hardcut.
+
+Provider-native execution permissions and sandbox policies, operating-system isolation, MCP/ACP
+stdio adapters, and the Herdr hook IPC bridge are independent of the removed products.
 
 <a id="command-map"></a>
 
@@ -70,7 +276,7 @@ The complete v0.2 flag-family disposition is:
 | `--parallel-tasks` and hidden conflict-resolver flags                                                                                                                       | Deferred. The bundled Loop intentionally executes its task fan-out with `max_parallel: 1`.                                                                            |
 | `--include-completed`, `--recursive`, `--skip-validation`, `--force`                                                                                                        | Removed. The bundled importer owns task selection; there is no bypass flag. Fork and publish a custom Loop when a different contract is required.                     |
 | `--attach`, `--ui`, `--stream`, `--detach`                                                                                                                                  | TUI attach is removed. Use the final-line web URL, `loop status`, run events over HTTP/UDS/SSE, or structured output.                                                 |
-| `--add-dir`, `--tail-lines`, `--access-mode`, `--timeout`, `--max-retries`, `--retry-backoff-multiplier`                                                                    | No direct invocation flags. Model execution policy in agent definitions, sandbox/config policy, or a custom Loop node's `timeout` and `retry`.                        |
+| `--add-dir`, `--tail-lines`, `--access-mode`, `--timeout`, `--max-retries`, `--retry-backoff-multiplier`                                                                    | No direct invocation flags. Model execution policy in agent definitions, configuration policy, or a custom Loop node's `timeout` and `retry`.                         |
 | `--recovery`, `--no-recovery`, `--recovery-ide`, `--recovery-model`, `--recovery-reasoning`, `--recovery-max-attempts`                                                      | Removed. The legacy recovery agent has no v0.3 replacement. Use Loop retry/no-progress/terminal state and operator-driven reruns.                                     |
 | `reviews fetch`: `--provider`, `--pr`, `--name`, `--round`                                                                                                                  | External fetch is removed. `task_name` is the only required review target; round allocation is automatic.                                                             |
 | `reviews fix`: `--name`, `--round`, `--agent`, `--batch-size`, `--concurrent`, `--include-resolved`, common runtime/recovery/attach flags                                   | Use `task_name`, optional `fixer`, optional `auto_commit`, and `--runtime`; other flags have no direct replacement.                                                   |
@@ -113,9 +319,11 @@ Explicit `false`, `0`, and valid empty strings remain present values.
 | `sound.{enabled,on_completed,on_failed,on_parked}`                                                                                                             | Dropped; no v0.3 destination.                                                                                                                                        |
 
 Provider mapping is exact: `codex → codex`, `claude → claude`, `cursor-agent → cursor`,
-`opencode → opencode`, `pi → pi`, `gemini → gemini`, `copilot → copilot`, and `kiro → kiro`.
-Drop `droid`, `devin`, and legacy-only reasoning `ultra` as
-`unsupported_destination_value`; never silently alias or weaken them. The v0.2 schema had no
+`opencode → opencode`, `pi → pi`, `gemini → gemini`, and `copilot → copilot`.
+Drop `droid`, `devin`, `kiro`, and legacy-only reasoning `ultra` as
+`unsupported_destination_value`; never silently alias or weaken them. `kiro` is no longer a
+built-in provider; an operator who still uses Kiro CLI can declare it as a
+[custom provider](https://compozy.com/docs/agents/providers#run-another-acp-cli) with `command = "kiro-cli-chat acp"`. The v0.2 schema had no
 persisted `defaults.provider` or `defaults.pr`, so do not fabricate either.
 
 You can manage an input default manually now:
@@ -220,7 +428,7 @@ loader, or hidden fallback ships in v0.3.
 | `runs watch` / `runs purge`                                                                    | Removed                       | Use Loop/session-specific lifecycle surfaces; legacy run history restarts cleanly.                       |
 | `exec` ad-hoc runner                                                                           | Replaced by explicit sessions | Use `session new` plus `session prompt` and lifecycle commands.                                          |
 | `/` legacy workflow dashboard                                                                  | Replaced                      | The v0.3 root is the operating-system home.                                                              |
-| `/memory` and `/memory/:slug`                                                                  | Replaced incompatibly         | Use `/knowledge` and `/settings/memory`; old page URLs do not redirect.                                  |
+| `/memory` and `/memory/:slug`                                                                  | Removed                       | The memory removal release deleted the memory pages; old page URLs do not redirect.                      |
 | `/reviews`, `/reviews/:slug/:round`, `/reviews/:slug/:round/:issueId`                          | Removed                       | Use `/loops/review-and-fix`, `/loop-runs/:runId`, and on-disk review artifacts.                          |
 | `/runs` and `/runs/:runId`                                                                     | Replaced incompatibly         | Use `/loop-runs`, `/loop-runs/:runId`, `/session/:id`, or task-run routes according to owner.            |
 | `/workflows`                                                                                   | Replaced                      | `/loops`.                                                                                                |
@@ -272,7 +480,7 @@ pipeline-era sections have no empty heading stub; their disposition is explicit 
 | 8. Fix review issues          | `#8-fix-review-issues`        | **No successor.** Use the bundled `review-and-fix` Loop.                                   |
 | 9. Iterate and ship           | `#9-iterate-and-ship`         | **No successor.** Shipping policy belongs to each repository.                              |
 | Skills                        | `#-skills`                    | Preserved at README **Skills**.                                                            |
-| Workflow Memory               | `#-workflow-memory`           | Preserved at the current scoped-memory explanation.                                        |
+| Workflow Memory               | `#-workflow-memory`           | Preserved at README **Workflow Memory**, which describes plain repository files.           |
 | Supported Agents              | `#-supported-agents`          | Preserved at the runtime/provider explanation.                                             |
 | CLI Reference                 | `#-cli-reference`             | Preserved at the generated CLI reference link.                                             |
 | Development                   | `#-development`               | Preserved at README **Development**.                                                       |

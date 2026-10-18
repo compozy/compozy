@@ -170,6 +170,34 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 }
 
 func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *testing.T) {
+	t.Run("Should preserve redacted Goal metadata across canonical and UI payloads", func(t *testing.T) {
+		t.Parallel()
+
+		original := acp.AgentEvent{Type: acp.EventTypeUserMessage}.WithGoalPromptMeta(&acp.GoalPromptMeta{
+			Kind:  acp.GoalPromptKindWork,
+			RunID: "run-goal", NodeID: "node-goal", PromptID: "COMPOZY_CLAIM_goal-secret",
+			Generation: 2, ItemIndex: 3, PromptAttempt: 1, Turn: new(4),
+		})
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+		assertNoDisplayLeaks(t, content, []string{"COMPOZY_CLAIM_goal-secret"})
+		decoded, err := UnmarshalAgentEvent(content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		want := original.GoalPromptMeta()
+		want.PromptID = "compozy_claim_[REDACTED]"
+		if got := decoded.GoalPromptMeta(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("decoded Goal metadata = %#v, want %#v", got, want)
+		}
+		ui := UIAgentEventPayloadFromEvent(original)
+		if !reflect.DeepEqual(ui.Goal, want) || original.GoalPromptMeta().PromptID != "COMPOZY_CLAIM_goal-secret" {
+			t.Fatalf("UI Goal metadata = %#v, want preserved redacted metadata and unchanged source", ui.Goal)
+		}
+	})
+
 	t.Run("Should round-trip a delivery receipt and redact display names without mutating input", func(t *testing.T) {
 		t.Parallel()
 		original := acp.AgentEvent{
@@ -210,6 +238,32 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		if !reflect.DeepEqual(ui.Delivery, expected.DeliveryManifest()) ||
 			original.DeliveryManifest().Spans[1].Name != "compozy_claim_secret" {
 			t.Fatal("UI lost receipt or redaction mutated source")
+		}
+	})
+	t.Run("Should keep an empty delivery span list as an array", func(t *testing.T) {
+		t.Parallel()
+		original := acp.AgentEvent{
+			Type:   acp.EventTypePromptDelivery,
+			TurnID: "turn-maintenance",
+		}.WithDelivery(&acp.DeliveryManifest{
+			TurnID:   "turn-maintenance",
+			SentAt:   time.Date(2026, 10, 8, 1, 2, 3, 0, time.UTC),
+			Estimate: acp.TextEstimateMethod,
+			Spans:    []acp.DeliveredSpan{},
+		})
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(content, `"spans":[]`) {
+			t.Fatalf("canonical delivery = %s, want an empty spans array", content)
+		}
+		ui, err := json.Marshal(UIAgentEventPayloadFromEvent(original))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(ui), `"spans":[]`) {
+			t.Fatalf("UI delivery = %s, want an empty spans array", ui)
 		}
 	})
 	t.Run("Should sanitize and round-trip usage metadata with the carrying ledger sequence", func(t *testing.T) {
@@ -565,6 +619,105 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		}
 		if event.ToolError() {
 			t.Fatal("ToolError = true, want false")
+		}
+	})
+}
+
+func TestSubagentCodecContract(t *testing.T) {
+	// UT-037 / UT-038: unknown parent identities survive persistence without requiring a roster.
+	t.Run("Should round-trip native attribution and status through the ledger and stream", func(t *testing.T) {
+		t.Parallel()
+		original := acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			SessionID:  "parent",
+			TurnID:     "turn",
+			ToolCallID: "inner",
+		}.WithProviderToolMetadata(
+			"toolu_missing",
+			"Read",
+			"pending",
+		)
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := UnmarshalAgentEvent(content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded.ParentToolCallID() != original.ParentToolCallID() || decoded.ProviderToolName() != "Read" ||
+			decoded.ToolStatus() != "pending" || decoded.TurnID != original.TurnID {
+			t.Fatalf("decoded = %#v", decoded)
+		}
+		live, replay := UIAgentEventPayloadFromEvent(original), UIAgentEventPayloadFromEvent(decoded)
+		if live.ParentToolCallID != replay.ParentToolCallID || live.ProviderToolName != replay.ProviderToolName ||
+			live.Status != replay.Status || live.TurnID != original.TurnID || replay.TurnID != original.TurnID {
+			t.Fatalf("stream attribution changed: %#v / %#v", live, replay)
+		}
+	})
+	// UT-039: absent fields retain the pre-feature wire contract.
+	t.Run("Should keep legacy canonical events free of attribution fields", func(t *testing.T) {
+		t.Parallel()
+		legacy := `{"schema":"compozy.session.event.v1","type":"agent_message","session_id":"parent","turn_id":"turn","timestamp":"2026-10-08T00:00:00Z","text":"hello"}`
+		event, err := UnmarshalAgentEvent(legacy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if event.ParentToolCallID() != "" || event.ProviderToolName() != "" {
+			t.Fatalf("legacy attribution = %#v", event)
+		}
+		encoded, err := MarshalAgentEvent(event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"parent_tool_call_id", "provider_tool_name"} {
+			if strings.Contains(encoded, key) {
+				t.Fatalf("legacy event gained %s: %s", key, encoded)
+			}
+		}
+	})
+}
+
+// UT-004 UT-007: redact structured origin without treating authored text as attribution.
+func TestPromptOriginCodec(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve attributed authored text through codec and redaction", func(t *testing.T) {
+		t.Parallel()
+		origin := &acp.PromptOriginMeta{
+			Kind:        "session",
+			SessionID:   "sess-a",
+			WorkspaceID: "ws-a",
+			AgentName:   "coder",
+			TitleAtSend: "sender",
+			Hop:         3,
+		}
+		text := `[Message from session "Evil"] authored content`
+		event := (acp.AgentEvent{Type: acp.EventTypeUserMessage, Text: text, TurnID: "turn-a"}).WithPromptOrigin(origin)
+		encoded, err := MarshalAgentEvent(event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := UnmarshalAgentEvent(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded.PromptOrigin(), origin) || decoded.Text != text {
+			t.Fatal(decoded, decoded.PromptOrigin())
+		}
+		redacted := RedactAgentEvent(event).PromptOrigin()
+		if redacted.SessionID != origin.SessionID || redacted.Hop != 3 ||
+			redacted.TitleAtSend != redactDisplayString(origin.TitleAtSend) {
+			t.Fatal(redacted)
+		}
+		secret := *origin
+		secret.TitleAtSend = "token sk-proj-" + strings.Repeat("a", 60)
+		if RedactAgentEvent(
+			event.WithPromptOrigin(&secret),
+		).PromptOrigin().
+			TitleAtSend != redactDisplayString(
+			secret.TitleAtSend,
+		) {
+			t.Fatal("origin title bypasses display redaction")
 		}
 	})
 }

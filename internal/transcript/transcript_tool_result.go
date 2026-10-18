@@ -115,7 +115,7 @@ func extractLegacyContentText(value any) string {
 	case string:
 		return typed
 	case map[string]any:
-		if text := nestedString(typed, "text"); strings.TrimSpace(text) != "" {
+		if text := nestedString(typed, "text"); text != "" {
 			return text
 		}
 		if inner, ok := typed["content"].(map[string]any); ok {

@@ -164,8 +164,8 @@ func curlResolveValue(repository repositoryRef, addresses []netip.Addr) string {
 
 func repositoryName(repository string) string {
 	trimmed := strings.TrimSuffix(strings.TrimSpace(repository), "/")
-	if colon := strings.LastIndex(trimmed, ":"); colon >= 0 && !strings.Contains(trimmed[colon+1:], "/") {
-		trimmed = trimmed[colon+1:]
+	if _, suffix, found := strings.CutLast(trimmed, ":"); found && !strings.Contains(suffix, "/") {
+		trimmed = suffix
 	}
 	name := filepath.Base(trimmed)
 	return strings.TrimSuffix(name, ".git")

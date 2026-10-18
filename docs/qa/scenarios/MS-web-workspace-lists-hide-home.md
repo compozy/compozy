@@ -4,15 +4,15 @@ area: MS
 title: Workspace lists hide the operator home row
 persona: Bruno
 journey: J-operate-workspace-context
-expected: The workspace menu, command palette workspace list, workspaces overview, and workspace command select show project folders only. `$HOME` cannot be registered and never appears as a named row, pin, or Home badge. While Global is on the chip reads Global (`~`). Overview does not mark a Current pill when Global is on (`activeWorkspaceId` is null).
-entry_points: web workspace menu; ⌘K workspace rows; web Workspaces overview; Add workspace / command select
-qa_status: untested
+expected: The project menu and Projects picker (also opened through the command palette) show project folders only, with the same identities in every profile. `$HOME` cannot be registered and never appears as a named row, pin, or Home badge. While Global is on the chip reads Global (`~`) and the picker does not mark any project as current. A real project selection survives refresh; cancelling leaves the current scope intact.
+entry_points: web project menu; ⌘K Workspace picker; Projects picker (⌘⇧O); Add project
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-02
-last_report:
+evidence: docs/qa/evidence/2026-10-02-untested/workspace-visibility-all-profiles.json; docs/qa/evidence/2026-10-02-untested/workspace-visibility-project-selection-and-task-entry.json; docs/qa/evidence/2026-10-02-untested/workspace-visibility-catalog-after.json; docs/qa/evidence/2026-10-02-untested/workspace-visibility-global-picker.png; docs/qa/evidence/2026-10-02-untested/workspace-visibility-entrypoint-reconciliation.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-menubar-global-scope-toggle; MS-web-workspace-add-directory-browser
 ---
 
@@ -32,3 +32,16 @@ in the UI. Already `untested`, so no reset was needed; add one check that the wo
 identically in every profile (workspaces are machine-global and no profile owns, hides, or
 duplicates one). The daemon and structured-surface half of the rule is owned by
 `RT-home-workspace-not-registrable`.
+
+2026-10-02 current-entry reconciliation: `OsWorkspacesOverview` is the visible Projects picker,
+not a separate route. Commit `8040723c9` removed the mounted `WorkspaceCommandSelect` consumers
+from creation forms; the component remains an internal story/test surface. Creation destination
+statements are covered by `MS-web-create-destination-derived`, not an unmounted selector claim.
+This reconciliation happened after the persona walk ended and changes no production behavior.
+
+2026-10-02 walk: Bruno compared all three named project identities across the project menu and
+the picker opened from both menu and command palette in all five active profiles. Global showed
+`~ Global` with no current marker; cancellation retained Research notes; selecting Editorial exited
+Global and persisted after reload. HTTP before and UDS after returned the same full catalog.
+The real Home-registration refusal and retained draft are reused from this cycle's completed
+`MS-web-workspace-add-directory-browser` walk. No new registration or agent task was created.

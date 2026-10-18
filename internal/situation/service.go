@@ -6,7 +6,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -22,7 +21,6 @@ const (
 
 	defaultMaxSpawnDepth       = 1
 	defaultMaxActiveTaskLeases = 1
-	inboxPreviewLimit          = 180
 )
 
 // WorkspaceResolver resolves persisted workspaces into runtime snapshots.
@@ -58,12 +56,6 @@ type TaskStore interface {
 	ListRunReviews(ctx context.Context, query taskpkg.RunReviewQuery) ([]taskpkg.RunReview, error)
 }
 
-// NetworkReader is the narrowed network read surface required by agent context.
-type NetworkReader interface {
-	ListPeers(ctx context.Context, workspaceID string, channel string) ([]network.PeerInfo, error)
-	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
-}
-
 // CoordinatorRoleResolver reads the safe coordinator limits for a workspace.
 type CoordinatorRoleResolver interface {
 	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (compozyconfig.ResolvedCoordinatorRole, error)
@@ -78,7 +70,8 @@ type SoulSnapshotStore interface {
 // evaluated at render time so daemon boot can install the provider before late
 // runtime services are available.
 type Deps struct {
-	Now func() time.Time
+	Subagents func() SubagentProvider
+	Now       func() time.Time
 
 	SectionLimit int
 
@@ -90,16 +83,16 @@ type Deps struct {
 	SkillRegistryFunc     func() SkillRegistry
 	TaskStore             TaskStore
 	TaskStoreFunc         func() TaskStore
-	Network               NetworkReader
-	NetworkFunc           func() NetworkReader
-	CoordinatorRole       CoordinatorRoleResolver
-	CoordinatorRoleFunc   func() CoordinatorRoleResolver
-	SoulSnapshots         SoulSnapshotStore
-	SoulSnapshotsFunc     func() SoulSnapshotStore
+
+	CoordinatorRole     CoordinatorRoleResolver
+	CoordinatorRoleFunc func() CoordinatorRoleResolver
+	SoulSnapshots       SoulSnapshotStore
+	SoulSnapshotsFunc   func() SoulSnapshotStore
 }
 
 // Service assembles contract.AgentContextPayload and renders prompt sections.
 type Service struct {
+	subagents    func() SubagentProvider
 	now          func() time.Time
 	sectionLimit int
 
@@ -111,13 +104,12 @@ type Service struct {
 	skillRegistryFunc     func() SkillRegistry
 	taskStore             TaskStore
 	taskStoreFunc         func() TaskStore
-	network               NetworkReader
-	networkFunc           func() NetworkReader
-	coordinatorRole       CoordinatorRoleResolver
-	coordinatorRoleFunc   func() CoordinatorRoleResolver
-	soulSnapshots         SoulSnapshotStore
-	soulSnapshotsFunc     func() SoulSnapshotStore
-	promptSections        *promptSectionCache
+
+	coordinatorRole     CoordinatorRoleResolver
+	coordinatorRoleFunc func() CoordinatorRoleResolver
+	soulSnapshots       SoulSnapshotStore
+	soulSnapshotsFunc   func() SoulSnapshotStore
+	promptSections      *promptSectionCache
 }
 
 // NewService constructs a deterministic situation context assembler.
@@ -132,6 +124,7 @@ func NewService(deps Deps) *Service {
 	}
 
 	return &Service{
+		subagents:             deps.Subagents,
 		now:                   now,
 		sectionLimit:          limit,
 		workspaceResolver:     deps.WorkspaceResolver,
@@ -142,12 +135,11 @@ func NewService(deps Deps) *Service {
 		skillRegistryFunc:     deps.SkillRegistryFunc,
 		taskStore:             deps.TaskStore,
 		taskStoreFunc:         deps.TaskStoreFunc,
-		network:               deps.Network,
-		networkFunc:           deps.NetworkFunc,
-		coordinatorRole:       deps.CoordinatorRole,
-		coordinatorRoleFunc:   deps.CoordinatorRoleFunc,
-		soulSnapshots:         deps.SoulSnapshots,
-		soulSnapshotsFunc:     deps.SoulSnapshotsFunc,
-		promptSections:        newPromptSectionCache(),
+
+		coordinatorRole:     deps.CoordinatorRole,
+		coordinatorRoleFunc: deps.CoordinatorRoleFunc,
+		soulSnapshots:       deps.SoulSnapshots,
+		soulSnapshotsFunc:   deps.SoulSnapshotsFunc,
+		promptSections:      newPromptSectionCache(),
 	}
 }

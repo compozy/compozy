@@ -27,8 +27,8 @@ describe("GatewayIngressStatus", () => {
 
     render(<GatewayIngressStatus ingress={ingress} subject="this trigger" />);
 
-    expect(screen.queryByText(/delivery URL to hand out/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Open Gateway settings/i })).toHaveAttribute(
+    expect(screen.queryByText(/webhook address to hand out/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open Remote access settings/i })).toHaveAttribute(
       "href",
       "/settings/gateway"
     );

@@ -1,12 +1,12 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
@@ -47,11 +47,11 @@ func (r *reviewRouter) selectExistingRoute(
 	if len(candidates) == 0 {
 		return nil, nil
 	}
-	sort.SliceStable(candidates, func(i int, j int) bool {
-		if candidates[i].score != candidates[j].score {
-			return candidates[i].score > candidates[j].score
-		}
-		return strings.TrimSpace(candidates[i].info.ID) < strings.TrimSpace(candidates[j].info.ID)
+	slices.SortStableFunc(candidates, func(a, b existingReviewCandidate) int {
+		return cmp.Or(
+			cmp.Compare(b.score, a.score),
+			strings.Compare(strings.TrimSpace(a.info.ID), strings.TrimSpace(b.info.ID)),
+		)
 	})
 	return candidates[0].info, nil
 }
@@ -76,11 +76,7 @@ func (r *reviewRouter) existingCandidateScore(
 		return 0, false, nil
 	}
 	agentName := strings.TrimSpace(info.AgentName)
-	channelID := strings.TrimSpace(info.NetworkParticipation.ChannelID)
-	peerID := reviewRouterPeerID(info)
-	if !selectorAllows(review.AgentName, review.AllowedAgentNames, agentName) ||
-		!selectorAllows("", review.AllowedChannelIDs, channelID) ||
-		!selectorAllows("", review.AllowedPeerIDs, peerID) {
+	if !selectorAllows(review.AgentName, review.AllowedAgentNames, agentName) {
 		return 0, false, nil
 	}
 	if ok, err := r.agentHasCapabilities(ctx, resolved, agentName, review.RequiredCapabilities); err != nil {
@@ -95,12 +91,7 @@ func (r *reviewRouter) existingCandidateScore(
 	if slices.Contains(review.PreferredAgentNames, agentName) || strings.TrimSpace(review.AgentName) == agentName {
 		score += 4
 	}
-	if slices.Contains(review.PreferredPeerIDs, peerID) {
-		score += 3
-	}
-	if slices.Contains(review.PreferredChannelIDs, channelID) {
-		score += 2
-	}
+
 	if ok, err := r.agentHasCapabilities(ctx, resolved, agentName, review.PreferredCapabilities); err != nil {
 		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 			return score, true, nil

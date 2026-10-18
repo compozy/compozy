@@ -2,7 +2,6 @@ package hooks
 
 import (
 	"context"
-	"errors"
 )
 
 type dispatchConfig[P any, R any] struct {
@@ -18,9 +17,8 @@ func (h *Hooks) DispatchSessionPreCreate(
 	ctx context.Context,
 	payload SessionPreCreatePayload,
 ) (SessionPreCreatePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPreCreate,
 		payload,
 		dispatchConfig[SessionPreCreatePayload, SessionCreatePatch]{
@@ -39,9 +37,8 @@ func (h *Hooks) DispatchSessionPostCreate(
 	ctx context.Context,
 	payload SessionPostCreatePayload,
 ) (SessionPostCreatePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPostCreate,
 		payload,
 		dispatchConfig[SessionPostCreatePayload, SessionPostCreatePatch]{
@@ -57,9 +54,8 @@ func (h *Hooks) DispatchSessionPreResume(
 	ctx context.Context,
 	payload SessionPreResumePayload,
 ) (SessionPreResumePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPreResume,
 		payload,
 		dispatchConfig[SessionPreResumePayload, SessionPreResumePatch]{
@@ -79,9 +75,8 @@ func (h *Hooks) DispatchSessionPostResume(
 	ctx context.Context,
 	payload SessionPostResumePayload,
 ) (SessionPostResumePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPostResume,
 		payload,
 		dispatchConfig[SessionPostResumePayload, SessionPostResumePatch]{
@@ -97,9 +92,8 @@ func (h *Hooks) DispatchSessionPreStop(
 	ctx context.Context,
 	payload SessionPreStopPayload,
 ) (SessionPreStopPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPreStop,
 		payload,
 		dispatchConfig[SessionPreStopPayload, SessionPreStopPatch]{
@@ -119,113 +113,14 @@ func (h *Hooks) DispatchSessionPostStop(
 	ctx context.Context,
 	payload SessionPostStopPayload,
 ) (SessionPostStopPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPostStop,
 		payload,
 		dispatchConfig[SessionPostStopPayload, SessionPostStopPatch]{
 			match:  matchSessionLifecycle,
 			apply:  applySessionLifecyclePatch,
 			denied: sessionCreatePatchDenied,
-		},
-	)
-}
-
-// DispatchSandboxPrepare runs the sandbox.prepare hook pipeline.
-func (h *Hooks) DispatchSandboxPrepare(
-	ctx context.Context,
-	payload *SandboxPreparePayload,
-) (*SandboxPreparePayload, error) {
-	if payload == nil {
-		return nil, errors.New("hooks: sandbox prepare payload is required")
-	}
-	result, err := executeDispatch(
-		ctx,
-		h,
-		HookSandboxPrepare,
-		*payload,
-		dispatchConfig[SandboxPreparePayload, SandboxPreparePatch]{
-			match: func(matcher HookMatcher, current SandboxPreparePayload) bool {
-				return matchSandboxPrepare(matcher, &current)
-			},
-			apply:  applySandboxPreparePatch,
-			denied: sandboxPreparePatchDenied,
-			denyErr: func(_ SandboxPreparePayload, report dispatchReport) error {
-				return hookDeniedError(HookSandboxPrepare, report.DenyReason)
-			},
-		},
-	)
-	*payload = result
-	return payload, err
-}
-
-// DispatchSandboxReady runs the sandbox.ready hook dispatch.
-func (h *Hooks) DispatchSandboxReady(
-	ctx context.Context,
-	payload SandboxReadyPayload,
-) (SandboxReadyPayload, error) {
-	return executeDispatch(
-		ctx,
-		h,
-		HookSandboxReady,
-		payload,
-		dispatchConfig[SandboxReadyPayload, SandboxReadyPatch]{
-			match: matchSandboxReady,
-			apply: applyNoop[SandboxReadyPayload, SandboxReadyPatch],
-		},
-	)
-}
-
-// DispatchSandboxSyncBefore runs the sandbox.sync.before hook pipeline.
-func (h *Hooks) DispatchSandboxSyncBefore(
-	ctx context.Context,
-	payload SandboxSyncBeforePayload,
-) (SandboxSyncBeforePayload, error) {
-	return executeDispatch(
-		ctx,
-		h,
-		HookSandboxSyncBefore,
-		payload,
-		dispatchConfig[SandboxSyncBeforePayload, SandboxSyncBeforePatch]{
-			match:  matchSandboxSyncBefore,
-			apply:  applySandboxSyncBeforePatch,
-			denied: sandboxSyncBeforePatchDenied,
-		},
-	)
-}
-
-// DispatchSandboxSyncAfter runs the sandbox.sync.after hook dispatch.
-func (h *Hooks) DispatchSandboxSyncAfter(
-	ctx context.Context,
-	payload SandboxSyncAfterPayload,
-) (SandboxSyncAfterPayload, error) {
-	return executeDispatch(
-		ctx,
-		h,
-		HookSandboxSyncAfter,
-		payload,
-		dispatchConfig[SandboxSyncAfterPayload, SandboxSyncAfterPatch]{
-			match: matchSandboxSyncAfter,
-			apply: applyNoop[SandboxSyncAfterPayload, SandboxSyncAfterPatch],
-		},
-	)
-}
-
-// DispatchSandboxStop runs the sandbox.stop hook pipeline.
-func (h *Hooks) DispatchSandboxStop(
-	ctx context.Context,
-	payload SandboxStopPayload,
-) (SandboxStopPayload, error) {
-	return executeDispatch(
-		ctx,
-		h,
-		HookSandboxStop,
-		payload,
-		dispatchConfig[SandboxStopPayload, SandboxStopPatch]{
-			match:  matchSandboxStop,
-			apply:  applySandboxStopPatch,
-			denied: sandboxStopPatchDenied,
 		},
 	)
 }

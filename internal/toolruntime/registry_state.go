@@ -20,8 +20,7 @@ func (r *Registry) validateRecovered(record ProcessRecord) bool {
 }
 
 func (r *Registry) markStale(ctx context.Context, id string, message string) error {
-	completedAt := r.now().UTC()
-	return r.updateState(ctx, id, ProcessStateStale, message, &completedAt)
+	return r.updateState(ctx, id, ProcessStateStale, message, new(r.now().UTC()))
 }
 
 func (r *Registry) updateState(

@@ -4,7 +4,7 @@ description: >-
   Go production discipline for Compozy. Use when writing or editing non-test Go
   files under cmd or internal, including config, logging, CLI, concurrency, and
   process-lifecycle paths. Do not use for Go tests; pair it with the narrower
-  schema, contract, cleanup, or network skill when those domains apply.
+  schema, contract, or cleanup skill when those domains apply.
 trigger: implicit
 ---
 

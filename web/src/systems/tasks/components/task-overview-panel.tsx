@@ -99,9 +99,7 @@ export function TaskOverviewPanel({
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (
-          <DescriptionCard className="border border-line px-4 py-3.5">
-            {description}
-          </DescriptionCard>
+          <DescriptionCard className="px-4 py-3.5">{description}</DescriptionCard>
         ) : (
           <p className="text-small-body text-subtle">No description.</p>
         )}
@@ -116,21 +114,22 @@ export function TaskOverviewPanel({
           label="Recent activity"
           right={
             <Button
-              className="-mr-1.5 min-h-6 px-1.5 py-0.5 text-eyebrow font-medium text-muted"
+              // Optical: the trailing chevron lands on the card's right edge.
+              className="-mr-2"
               data-testid="tasks-detail-view-all-activity"
               onClick={onViewAllActivity}
               size="sm"
               type="button"
-              variant="ghost"
+              variant="link"
             >
               View all
-              <ChevronRight aria-hidden="true" className="size-3" />
+              <ChevronRight aria-hidden="true" data-icon="inline-end" />
             </Button>
           }
         >
           <ul
             aria-label="Recent task activity"
-            className="flex flex-col rounded-lg border border-line bg-canvas-soft px-4 pt-3"
+            className="flex flex-col rounded-lg bg-card shadow-card px-4 pt-3"
           >
             {recent.map(item => (
               <TaskActivityItem

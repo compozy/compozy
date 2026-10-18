@@ -13,7 +13,7 @@ error-path cancellation discipline.
 
 ## Detached Execution
 
-- Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`.
+- Any work that outlives an HTTP/UDS request — prompts and automation jobs — MUST detach via `context.WithoutCancel(ctx)`.
 - Never tie execution lifetime to request lifetime.
 - Expose explicit cancel endpoints (e.g., `POST /api/sessions/:id/prompt/cancel`).
 - `context.WithoutCancel` does NOT preserve deadlines. Re-attach with `WithDeadline` if needed.

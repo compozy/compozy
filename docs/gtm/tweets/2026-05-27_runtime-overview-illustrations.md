@@ -6,7 +6,7 @@ Voice: Pedro on X — informational opening (what Compozy does differently at a 
 
 ---
 
-## 1. `runtime-overview-storyboard-v1.png` — Runtime
+## 1. Runtime
 
 Underneath every Compozy session is the agent CLI binary you already trust. Claude Code, OpenClaw, and Hermes run unchanged, but every run becomes a durable unit with a stable id, replayable history, workspace-scoped memory, and one control surface across CLI, HTTP/SSE, and the web UI.
 
@@ -64,17 +64,9 @@ triggers react to runtime events like `session.stopped`, `memory.consolidated`, 
 
 ## 8. `autonomy-overview-storyboard-v1.png` — Autonomy
 
-Creating a task records intent only. Nothing claims work, nothing spawns. Execution starts when somebody publishes, starts, or approves it, and from that point autonomous flows use the exact same tasks, runs, sessions, hooks, and network channels as manual work.
+Creating a task records intent only. Nothing claims work, nothing spawns. Execution starts when somebody publishes, starts, or approves it, and from that point autonomous flows use the exact same tasks, runs, sessions, hooks as manual work.
 
-one workspace coordinator per workspace. token-fenced leases for claim, heartbeat, complete, fail, release. coordination channels bound at run enqueue carry the conversation; the task service still owns ownership. safe-spawn caps depth at 1 and children at 5, permissions must be a subset.
-
----
-
-## 9. `network-overview-storyboard-v2.png` — Compozy Network
-
-compozy-network/v0 is the open protocol that turns Compozy sessions into peers on a coordination layer, not nodes in an orchestrator. Each peer advertises a small capability card. Public channels carry N-to-N conversation; direct rooms hold restricted 2-party work with a deterministic id derived from `SHA256(workspace_id, channel, sorted_peers)`.
-
-6 message kinds: greet, whois, say, capability, receipt, trace. NATS-backed transport. every send and reject lands on an inspectable audit trail. v0 treats network messages as unverified input and applies local runtime controls; v1 verified peer identity is RFC-only.
+one workspace coordinator per workspace. token-fenced leases for claim, heartbeat, complete, fail, release. the task service owns execution state. safe-spawn caps depth at 1 and children at 5, permissions must be a subset.
 
 ---
 
@@ -86,19 +78,11 @@ executor receives the event on stdin as JSON, returns a JSON patch on stdout, 8K
 
 ---
 
-## 11. `extensions-overview-storyboard-v1.png` — Extensions
+## 11. Extensions
 
-One Compozy extension ships a whole bundle: skills, agents, hooks, bridge providers, MCP servers, and subprocess services together under one manifest, one enable/disable lifecycle, and one trust contract. No piecemeal package management.
+One Compozy extension ships a whole bundle: skills, agents, hooks, MCP servers, and subprocess services together under one manifest, one enable/disable lifecycle, and one trust contract. No piecemeal package management.
 
 three trust tiers: official (registry-verified, default-allowed), community (verified checksum), unverified (blocked without `--allow-unverified --yes`). subprocess code calls the daemon via JSON-RPC, gated by `[security.capabilities]`. marketplace extensions are constrained to a read-oriented capability ceiling.
-
----
-
-## 12. `bridges-overview-storyboard-v1.png` — Bridges
-
-Slack, Discord, and Telegram messages become durable Compozy sessions the moment you wire a bridge. Compozy owns sessions, routing, persistence, delivery order, and 24h idempotency. The provider extension owns the platform API, webhook validation, and payload normalization. Clean responsibility split.
-
-platform identity hashes to a stable route key, 1:1 with one durable session. DMs key on peer_id, channels on group_id, threads on both. bridge instances are workspace-scoped runtime records created via `compozy bridge create`, not config.toml entries.
 
 ---
 
@@ -106,7 +90,7 @@ platform identity hashes to a stable route key, 1:1 with one durable session. DM
 
 Five files cover every Compozy configuration decision, with strict precedence between them. Global `~/.compozy/config.toml` → workspace `.compozy/config.toml` → `AGENT.md` → `SKILL.md` → `mcp.json`. TOML merges field-level; JSON sidecars replace whole objects. No more sprawl across yaml and random .env files.
 
-secrets live in Vault as write-only `vault:<namespace>/...` refs, namespace-scoped (providers, bridges, automation, sessions/<id>). only 3 settings live-reload; everything else flags `restart-required`. `compozy config apply-history` tells you what's pending vs live, with `next_action` per change.
+secrets live in Vault as write-only `vault:<namespace>/...` refs, namespace-scoped (providers, automation, sessions/<id>). only 3 settings live-reload; everything else flags `restart-required`. `compozy config apply-history` tells you what's pending vs live, with `next_action` per change.
 
 ---
 
@@ -130,10 +114,8 @@ three-signal triage clears most fires before going deeper: `compozy status`, `co
   - 6 → `https://compozy.com/runtime/core/skills`
   - 7 → `https://compozy.com/runtime/core/automation`
   - 8 → `https://compozy.com/runtime/core/autonomy`
-  - 9 → `https://compozy.com/runtime/core/network`
   - 10 → `https://compozy.com/runtime/core/hooks`
   - 11 → `https://compozy.com/runtime/core/extensions`
-  - 12 → `https://compozy.com/runtime/core/bridges`
   - 13 → `https://compozy.com/runtime/core/configuration`
   - 14 → `https://compozy.com/runtime/core/operations`
 - These are long-form X posts (require X Premium for >280 chars). Add the doc link inline at the bottom or as a reply.
@@ -152,10 +134,8 @@ To avoid the "X on Compozy is/are…" template, each tweet uses a different open
 | 6 | Skills | indefinite article subject | "A skill in Compozy is a directory…" |
 | 7 | Automation | numeric subject | "Three doors, one dispatcher." |
 | 8 | Autonomy | gerund subject | "Creating a task records intent only…" |
-| 9 | Network | product name subject | "compozy-network/v0 is the open protocol…" |
 | 10 | Hooks | distributive ("each") | "Each hook in Compozy binds exactly one…" |
 | 11 | Extensions | numeral subject | "One Compozy extension ships a whole bundle…" |
-| 12 | Bridges | product name list | "Slack, Discord, and Telegram messages become…" |
 | 13 | Configuration | numeric subject (different) | "Five files cover every Compozy configuration decision…" |
 | 14 | Operations | numeric subject (different) | "Two SQLite databases hold every Compozy operational truth…" |
 
@@ -163,7 +143,7 @@ To avoid the "X on Compozy is/are…" template, each tweet uses a different open
 
 - **Two-paragraph shape** matching T2: sentence-case positioning paragraph (what Compozy does differently at the product level), blank line, lowercase mechanism paragraph (file paths, CLI verbs, exact numbers, algorithms).
 - **Informational lift**: every positioning paragraph names a concrete distinction (markdown over vector db, identity over directory, additive over parallel, one dispatcher over three pipelines, typed lifecycle over event bus, one install over piecemeal) instead of being a take.
-- **Mechanism density**: 3-6 hard runtime facts per tweet. Substance from the 14-subagent exploration: SOUL.md/HEARTBEAT.md alongside AGENT.md, 4 dreaming gates with exact thresholds, 6 message kinds enumerated, 6-tier skill precedence chain, 24h bridge idempotency, lock-file singleton, .corrupt.<timestamp> recovery, `[security.capabilities]` Host API gate, `next_action` in apply-history, `compozy__memory_propose` agent-write path, frozen-snapshot memory semantics, only-3-settings live-reload.
+- **Mechanism density**: 3-6 hard runtime facts per tweet. Substance from the 14-subagent exploration: SOUL.md/HEARTBEAT.md alongside AGENT.md, 4 dreaming gates with exact thresholds, 6-tier skill precedence chain, lock-file singleton, .corrupt.<timestamp> recovery, `[security.capabilities]` Host API gate, `next_action` in apply-history, `compozy__memory_propose` agent-write path, frozen-snapshot memory semantics, only-3-settings live-reload.
 - **Anti-patterns**: zero em dashes, zero AI vocab, zero hedging, zero banlist openers, no sycophancy/signposting/false-ranges/negative-parallelism overuse.
 - **Format**: technical-insight, two-part structure. Char counts run ~300-520 (long-form X, requires Premium).
 - **Topic palette**: all High-tier (founder talking about Compozy, agent orchestration, dogfooding).

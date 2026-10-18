@@ -33,8 +33,7 @@ func contextUsageSequence(usage *ContextUsage) *int64 {
 	if usage == nil || !usage.Known {
 		return nil
 	}
-	sequence := usage.Sequence
-	return &sequence
+	return new(usage.Sequence)
 }
 
 // bindCheckpoint adopts the managed binding before any context observation uses its identity.

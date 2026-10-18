@@ -7,15 +7,15 @@ interface LoopPageLedeProps {
   /** Rendered muted before the name (`Run` on the run form). */
   prefix?: string;
   tags: readonly string[];
-  /** Machine identity, demoted to micro mono — present, never leading. */
+  /** Short plain facts under the name (category, step count, recent success). */
   meta: readonly string[];
   lede?: ReactNode;
   testId?: string;
 }
 
 /**
- * Page lede for a single Loop: what it is called, what it is, and its machine
- * identity at micro scale.
+ * Page lede for a single Loop: what it is called, what it is, and a few plain
+ * facts at small scale.
  *
  * The name repeats the breadcrumb on purpose — the crumb is navigation, this is the
  * subject of the page.
@@ -39,7 +39,7 @@ export function LoopPageLede({ name, prefix, tags, meta, lede, testId }: LoopPag
           {meta.map((entry, index) => (
             <span className="contents" key={entry}>
               {index > 0 ? <span aria-hidden="true">·</span> : null}
-              <span className={index === 0 ? "font-mono" : undefined}>{entry}</span>
+              <span>{entry}</span>
             </span>
           ))}
         </div>

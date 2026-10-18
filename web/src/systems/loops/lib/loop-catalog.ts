@@ -59,6 +59,23 @@ export function successRateLabel(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
 
+/**
+ * The 30-day activity a catalog row or detail lede states. With no runs the
+ * success rate is 0 of 0, so it reads "—" beside "No runs this month" rather
+ * than an alarming "0%".
+ */
+export function loopMonthActivity(
+  runs: number,
+  successRate: number
+): { rate: string; runs: string; hasRuns: boolean } {
+  if (runs <= 0) return { rate: "—", runs: "No runs this month", hasRuns: false };
+  return {
+    rate: successRateLabel(successRate),
+    runs: `${runs} ${runs === 1 ? "run" : "runs"} this month`,
+    hasRuns: true,
+  };
+}
+
 export type LoopStatusFilter = NonNullable<LoopCatalogEntry["last_run"]>["status"];
 
 export interface LoopCatalogFilter {

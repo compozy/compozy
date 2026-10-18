@@ -7,9 +7,8 @@ func (h *Hooks) DispatchSessionAttentionChanged(
 	ctx context.Context,
 	payload SessionAttentionChangedPayload,
 ) (SessionAttentionChangedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionAttentionChanged,
 		payload,
 		dispatchConfig[SessionAttentionChangedPayload, SessionAttentionObservationPatch]{

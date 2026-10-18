@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/task-rollup/; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/task-parent-rollup-completed.png;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: LP-042;TA-012
+overlaps: LP-042; TA-012
 ---
 
 Linear issue Compozy-71 is the named regression target.

@@ -59,7 +59,7 @@ function LoopRosterDurationCell({ row }: { row: LoopRosterRow }) {
     <span className="flex flex-col gap-1">
       <span
         aria-hidden="true"
-        className="h-1 w-full max-w-24 overflow-hidden rounded-pill bg-badge-fill"
+        className="h-1 w-full max-w-24 overflow-hidden rounded-pill bg-surface-2"
       >
         <span
           className={cn(
@@ -168,7 +168,7 @@ export function LoopNodeRoster({
         <TableBody>
           {roster.rows.map(row => (
             <TableRow
-              className={cn(selectedKey === row.key && "bg-canvas-tint")}
+              className={cn(selectedKey === row.key && "bg-selected")}
               data-generation={row.generation}
               data-item-index={row.itemIndex}
               data-node-id={row.nodeId}

@@ -164,6 +164,9 @@ export const activeWorkspaceStore = createStore({
   persist({
     name: ACTIVE_WORKSPACE_PERSIST_KEY,
     version: 1,
+    // Window cleanup is derived from the daemon, not a new navigation preference.
+    // Persisting it would let a background document overwrite another tab's choice.
+    filter: event => event.type !== "worktreeScopesPruned",
     migrate: (persisted: Omit<ActiveWorkspaceContext, "desktopWorkspaceId">) => ({
       ...persisted,
       desktopWorkspaceId: null,

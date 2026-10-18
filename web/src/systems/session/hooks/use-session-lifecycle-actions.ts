@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
 
+import { isSubagentSession } from "../lib/session-hierarchy";
 import type { SessionPayload } from "../types";
 import {
   useArchiveSession,
@@ -57,10 +58,6 @@ export interface UseSessionLifecycleActionsResult {
   renameDialog: SessionRenameConfirmation;
 }
 
-export interface UseSessionLifecycleActionsOptions {
-  workspaceId?: string | null;
-}
-
 /** Preserve the daemon message, falling back only when the failure has no useful text. */
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
@@ -92,14 +89,12 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
  * Owns the mutation and confirmation state behind session-list lifecycle menus.
  * Lists stay presentational and their host keeps one shared delete confirmation.
  */
-export function useSessionLifecycleActions(
-  options: UseSessionLifecycleActionsOptions = {}
-): UseSessionLifecycleActionsResult {
-  const stop = useStopSession(options);
-  const archive = useArchiveSession(options);
-  const unarchive = useUnarchiveSession(options);
+export function useSessionLifecycleActions(): UseSessionLifecycleActionsResult {
+  const stop = useStopSession();
+  const archive = useArchiveSession();
+  const unarchive = useUnarchiveSession();
   const remove = useDeleteSession();
-  const rename = useRenameSession(options);
+  const rename = useRenameSession();
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];
     bulk: boolean;
@@ -124,10 +119,10 @@ export function useSessionLifecycleActions(
     pendingSessionId = stop.variables.id;
   } else if (archive.isPending) {
     pendingAction = "archive";
-    pendingSessionId = archive.variables;
+    pendingSessionId = archive.variables.id;
   } else if (unarchive.isPending) {
     pendingAction = "unarchive";
-    pendingSessionId = unarchive.variables;
+    pendingSessionId = unarchive.variables.id;
   } else if (remove.isPending) {
     pendingAction = "delete";
     pendingSessionId = remove.variables.id;
@@ -150,10 +145,15 @@ export function useSessionLifecycleActions(
       execute: async id => {
         if (action === "delete")
           await remove.mutateAsync(sessions.find(session => session.id === id)!);
-        else if (action === "archive") await archive.mutateAsync(id);
-        else if (action === "unarchive") await unarchive.mutateAsync(id);
+        else if (action === "archive")
+          await archive.mutateAsync(sessions.find(session => session.id === id)!);
+        else if (action === "unarchive")
+          await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
-          const outcome = await stop.mutateAsync({ id, wait: true });
+          const outcome = await stop.mutateAsync({
+            ...sessions.find(session => session.id === id)!,
+            wait: true,
+          });
           if (!outcome.verified || outcome.state !== "stopped") {
             throw new Error(outcome.attention || "Session stop could not be verified.");
           }
@@ -170,12 +170,13 @@ export function useSessionLifecycleActions(
     action: "stop" | "archive" | "unarchive",
     sessions: readonly SessionPayload[]
   ) => {
+    // Subagent sessions archive with their parent (ADR-005), never on their own.
     const eligible = sessions.filter(session =>
       action === "unarchive"
-        ? session.archived_at !== null
+        ? session.archived_at !== null && !isSubagentSession(session)
         : session.archived_at === null &&
           (action === "archive"
-            ? session.state === "stopped"
+            ? session.state === "stopped" && !isSubagentSession(session)
             : session.state === "active" || session.state === "starting")
     );
     const results = await runBatch(action, eligible);
@@ -223,7 +224,7 @@ export function useSessionLifecycleActions(
     if (!renameTarget || rename.isPending) return;
     const { id } = renameTarget;
     rename.mutate(
-      { id, name },
+      { ...renameTarget, name },
       {
         onError: error => reportActionError("rename", error),
         onSuccess: () => {
@@ -242,11 +243,11 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current) setRenameTarget(session);
       },
       onStop: session =>
-        stop.mutate({ id: session.id }, { onError: error => reportActionError("stop", error) }),
+        stop.mutate(session, { onError: error => reportActionError("stop", error) }),
       onArchive: session =>
-        archive.mutate(session.id, { onError: error => reportActionError("archive", error) }),
+        archive.mutate(session, { onError: error => reportActionError("archive", error) }),
       onUnarchive: session =>
-        unarchive.mutate(session.id, { onError: error => reportActionError("unarchive", error) }),
+        unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {
         if (pendingAction === null && !batchRunning.current) {
           setBatchResults([]);

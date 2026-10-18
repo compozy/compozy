@@ -31,7 +31,7 @@ export function GatewayProviderHealthChip({ activation }: GatewayProviderHealthC
       />
       {activation.cause ? (
         <span
-          className="max-w-64 text-right text-form-label text-danger"
+          className="max-w-64 text-right text-eyebrow text-danger"
           data-testid={`gateway-provider-cause-${activation.name}-${tier}`}
         >
           {activation.cause}

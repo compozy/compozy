@@ -15,20 +15,6 @@ import (
 func TestAgentPayloadCategoryPath(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should copy category path from agent definition", func(t *testing.T) {
-		t.Parallel()
-
-		payload := core.AgentPayloadFromDef(compozyconfig.AgentDef{
-			Name:         "coder",
-			Provider:     "fake",
-			CategoryPath: []string{"Marketing", "Sales"},
-			Prompt:       "hello",
-		})
-		if got, want := payload.CategoryPath, []string{"Marketing", "Sales"}; !slices.Equal(got, want) {
-			t.Fatalf("payload category_path = %#v, want %#v", got, want)
-		}
-	})
-
 	t.Run("Should defensively copy category path", func(t *testing.T) {
 		t.Parallel()
 

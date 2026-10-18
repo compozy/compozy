@@ -164,8 +164,8 @@ func testSniffMIMECases(t *testing.T, cases []sniffMIMECase) {
 			t.Parallel()
 			mime, kind, width, height, err := SniffMIME(tc.data, tc.filename)
 			if tc.wantErr {
-				var unsupported *UnsupportedMIMEError
-				if !errors.As(err, &unsupported) || !errors.Is(err, ErrUnsupportedMIME) {
+				unsupported, unsupportedOK := errors.AsType[*UnsupportedMIMEError](err)
+				if !unsupportedOK || !errors.Is(err, ErrUnsupportedMIME) {
 					t.Fatalf("SniffMIME() error = %v, want unsupported MIME", err)
 				}
 				if !strings.Contains(unsupported.Error(), MIMEImagePNG) {

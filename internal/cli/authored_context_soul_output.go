@@ -44,8 +44,7 @@ func agentSoulBundle(record AgentSoulRecord) outputBundle {
 
 func agentSoulMutationBundle(record *AgentSoulMutationRecord) outputBundle {
 	if record == nil {
-		empty := AgentSoulMutationRecord{}
-		record = &empty
+		record = new(AgentSoulMutationRecord{})
 	}
 	return outputBundle{
 		jsonValue: record,

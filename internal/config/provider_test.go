@@ -4,13 +4,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"maps"
+	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	compozylogger "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/reasoning"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"gopkg.in/yaml.v3"
@@ -36,24 +41,12 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		required        bool
 	}{
 		{
-			name:     "blackbox",
-			command:  "blackbox --experimental-acp",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
-		},
-		{
 			name:         "claude",
 			command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: modelClaudeSonnet5ID,
 			loginCommand: "claude auth login",
-		},
-		{
-			name:     "cline",
-			command:  "npx -y cline@latest --acp",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
 		},
 		{
 			name:         "codex",
@@ -77,42 +70,18 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "gemini-3.1-pro-preview",
 		},
-		{name: "goose", command: "goose acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
-		{
-			name:          "hermes",
-			command:       "hermes acp",
-			harness:       ProviderHarnessACP,
-			authMode:      ProviderAuthModeNativeCLI,
-			statusCommand: "hermes acp --check",
-		},
-		{name: "junie", command: "junie --acp true", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
 			name:     "kimi-cli",
 			command:  "kimi acp",
 			harness:  ProviderHarnessACP,
 			authMode: ProviderAuthModeNativeCLI,
 		},
-		{name: "kiro", command: "kiro-cli-chat acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
 			name:         "opencode",
 			command:      "npx -y opencode-ai@latest acp",
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
 			loginCommand: "opencode auth login",
-		},
-		{
-			name:         "openclaw",
-			command:      "openclaw acp",
-			harness:      ProviderHarnessACP,
-			authMode:     ProviderAuthModeNativeCLI,
-			noSessionMCP: true,
-		},
-		{name: "openhands", command: "openhands acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
-		{
-			name:     "qoder",
-			command:  "npx -y @qoder-ai/qodercli@latest --acp",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
 		},
 		{
 			name:         "qwen-code",
@@ -178,36 +147,6 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			runtimeProvider: "xai",
 			defaultModel:    "grok-4-fast-non-reasoning",
 			apiKeyEnv:       "XAI_API_KEY",
-			required:        true,
-		},
-		{
-			name:            "minimax",
-			command:         "npx -y pi-acp@latest",
-			harness:         ProviderHarnessPiACP,
-			authMode:        ProviderAuthModeBoundSecret,
-			runtimeProvider: "minimax",
-			defaultModel:    "MiniMax-M2.1",
-			apiKeyEnv:       "MINIMAX_API_KEY",
-			required:        true,
-		},
-		{
-			name:            "mistral",
-			command:         "npx -y pi-acp@latest",
-			harness:         ProviderHarnessPiACP,
-			authMode:        ProviderAuthModeBoundSecret,
-			runtimeProvider: "mistral",
-			defaultModel:    "devstral-medium-latest",
-			apiKeyEnv:       "MISTRAL_API_KEY",
-			required:        true,
-		},
-		{
-			name:            "groq",
-			command:         "npx -y pi-acp@latest",
-			harness:         ProviderHarnessPiACP,
-			authMode:        ProviderAuthModeBoundSecret,
-			runtimeProvider: "groq",
-			defaultModel:    "openai/gpt-oss-120b",
-			apiKeyEnv:       "GROQ_API_KEY",
 			required:        true,
 		},
 	}
@@ -511,45 +450,6 @@ func repoRootFromConfigTest(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
 
-func TestBuiltinProviderCommandsUseLatestDriverPackages(t *testing.T) {
-	t.Parallel()
-
-	packagePrefixes := []string{
-		"@agentclientprotocol/claude-agent-acp@",
-		"@agentclientprotocol/codex-acp@",
-		"pi-acp@",
-		"opencode-ai@",
-		"cline@",
-		"@qoder-ai/qodercli@",
-		"@qwen-code/qwen-code@",
-	}
-
-	for name, provider := range BuiltinProviders() {
-		t.Run("Should not pin driver package for "+name, func(t *testing.T) {
-			t.Parallel()
-
-			fields := strings.FieldsSeq(provider.Command)
-			for field := range fields {
-				for _, prefix := range packagePrefixes {
-					if !strings.HasPrefix(field, prefix) {
-						continue
-					}
-					version := strings.TrimPrefix(field, prefix)
-					if version != "latest" {
-						t.Fatalf(
-							"BuiltinProviders()[%q].Command = %q pins %s%s, want @latest",
-							name,
-							provider.Command,
-							prefix,
-							version,
-						)
-					}
-				}
-			}
-		})
-	}
-}
-
 func TestCanonicalProviderNameResolvesNewDriverAliases(t *testing.T) {
 	t.Parallel()
 
@@ -557,17 +457,9 @@ func TestCanonicalProviderNameResolvesNewDriverAliases(t *testing.T) {
 		name string
 		want string
 	}{
-		{name: "blackbox-ai", want: "blackbox"},
-		{name: "cline-cli", want: "cline"},
-		{name: "goose-cli", want: "goose"},
-		{name: "hermes-agent", want: "hermes"},
-		{name: "junie-cli", want: "junie"},
 		{name: "kimi", want: "moonshot"},
 		{name: "kimi cli", want: "kimi-cli"},
 		{name: "kimi-code", want: "kimi-cli"},
-		{name: "open-hands", want: "openhands"},
-		{name: "openclaw-cli", want: "openclaw"},
-		{name: "qoder-cli", want: "qoder"},
 		{name: "qwen", want: "qwen-code"},
 		{name: "qwen code", want: "qwen-code"},
 	}
@@ -1051,6 +943,111 @@ func TestResolveAgentModelOverridesProviderDefault(t *testing.T) {
 	}
 }
 
+func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Permissions.ProviderFullAccess = true
+
+	for _, tc := range []struct {
+		name        string
+		provider    string
+		agentMode   string
+		permissions string
+		wantMode    string
+	}{
+		{name: "Should select Codex full access", provider: "codex", wantMode: "agent-full-access"},
+		{name: "Should select Claude bypass permissions", provider: "claude", wantMode: "bypassPermissions"},
+		{name: "Should let an agent narrow the provider mode", provider: "codex", agentMode: "read-only", wantMode: "read-only"},
+		{name: "Should preserve stricter Compozy permissions", provider: "claude", permissions: "approve-reads"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			agent := AgentDef{Name: "qa", Provider: tc.provider, Permissions: tc.permissions, Prompt: "prompt"}
+			if tc.agentMode != "" {
+				agent.SetACPOptions([]ACPOptionSelection{{ID: "mode", ValueID: tc.agentMode}})
+			}
+			resolved, err := cfg.ResolveAgent(agent)
+			if err != nil {
+				t.Fatalf("ResolveAgent() error = %v", err)
+			}
+			options := resolved.ACPOptionsValue()
+			if tc.wantMode == "" && len(options) == 0 {
+				return
+			}
+			if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != tc.wantMode {
+				t.Fatalf("ResolveAgent() ACPOptions = %#v, want mode %q", options, tc.wantMode)
+			}
+		})
+	}
+	t.Run("Should fail clearly for an unsupported provider", func(t *testing.T) {
+		t.Parallel()
+		_, err := cfg.ResolveAgent(AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"})
+		if err == nil || !strings.Contains(err.Error(), "provider_full_access is unsupported") {
+			t.Fatalf("ResolveAgent() error = %v, want unsupported provider", err)
+		}
+	})
+}
+
+func TestLoadProviderFullAccessPreference(t *testing.T) {
+	t.Run("Should apply a provider mode to a resolved agent", func(t *testing.T) {
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `[permissions]
+provider_full_access = true
+
+[defaults]
+provider = "codex"
+`)
+
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "qa", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		options := resolved.ACPOptionsValue()
+		if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != "agent-full-access" {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v, want agent-full-access mode", options)
+		}
+	})
+}
+
+func TestWorkspaceCannotEnableProviderFullAccess(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject enabling provider full access from workspace config", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		workspaceRoot := t.TempDir()
+		workspaceConfig := filepath.Join(workspaceRoot, ".compozy", "config.toml")
+		if err := os.MkdirAll(filepath.Dir(workspaceConfig), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, workspaceConfig, "[permissions]\nprovider_full_access = true\n")
+		_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
+		if err == nil || !strings.Contains(err.Error(), "only be enabled in the global config") {
+			t.Fatalf("LoadForHome() error = %v, want workspace privilege refusal", err)
+		}
+	})
+}
+
 func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -1228,6 +1225,72 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should apply an explicit route command after provider-aware resolution",
+		func(t *testing.T) { // UT-014, UT-033
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			cfg := DefaultWithHome(homePaths)
+			agent := AgentDef{
+				Name: "coder", Provider: "claude", Command: "agent-command", Model: "agent-model", Prompt: "prompt",
+			}
+			codex, err := cfg.ResolveProvider("codex")
+			if err != nil {
+				t.Fatalf("ResolveProvider(codex) error = %v", err)
+			}
+			for _, testCase := range []struct {
+				name         string
+				overrides    RuntimeOverrides
+				wantProvider string
+				wantCommand  string
+			}{
+				{
+					name:         "explicit command on the agent provider",
+					overrides:    RuntimeOverrides{Command: "X claude --acp"},
+					wantProvider: "claude",
+					wantCommand:  "X claude --acp",
+				},
+				{
+					name:         "empty command keeps the agent command on the same provider",
+					overrides:    RuntimeOverrides{Command: ""},
+					wantProvider: "claude",
+					wantCommand:  "agent-command",
+				},
+				{
+					name:         "explicit command on another provider",
+					overrides:    RuntimeOverrides{Provider: "codex", Command: "CODEX_HOME=/x codex acp"},
+					wantProvider: "codex",
+					wantCommand:  "CODEX_HOME=/x codex acp",
+				},
+				{
+					name:         "no command on another provider uses that provider command",
+					overrides:    RuntimeOverrides{Provider: "codex"},
+					wantProvider: "codex",
+					wantCommand:  codex.Command,
+				},
+			} {
+				t.Run("Should resolve "+testCase.name, func(t *testing.T) {
+					t.Parallel()
+
+					resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, testCase.overrides)
+					if err != nil {
+						t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+					}
+					if resolved.Provider != testCase.wantProvider || resolved.Command != testCase.wantCommand {
+						t.Fatalf(
+							"resolved (provider, command) = (%q, %q), want (%q, %q)",
+							resolved.Provider, resolved.Command, testCase.wantProvider, testCase.wantCommand,
+						)
+					}
+				})
+			}
+		},
+	)
+
 	t.Run("Should resolve the selected model default when the model changes within one provider", func(t *testing.T) {
 		t.Parallel()
 
@@ -1339,7 +1402,7 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
 	t.Parallel()
 
-	tests := []string{"blackbox", "cline"}
+	tests := []string{"copilot", "kimi-cli"}
 	for _, provider := range tests {
 		t.Run("Should allow "+provider+" without resolved model", func(t *testing.T) {
 			t.Parallel()
@@ -1398,41 +1461,6 @@ func TestResolveAgentRejectsPiProviderWithoutModel(t *testing.T) {
 	wantErr := `agent model is required when provider "custom-pi" has no default model`
 	if err.Error() != wantErr {
 		t.Fatalf("ResolveAgent() error = %q, want %q", err.Error(), wantErr)
-	}
-}
-
-func TestMCPServersMergeAgentAndProviderLevels(t *testing.T) {
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	cfg := DefaultWithHome(homePaths)
-	cfg.Providers["claude"] = ProviderConfig{
-		MCPServers: []MCPServer{
-			{Name: "github", Command: "npx"},
-		},
-	}
-
-	agent := AgentDef{
-		Name:     "coder",
-		Provider: "claude",
-		Prompt:   "prompt",
-		MCPServers: []MCPServer{
-			{Name: "memory", Command: "memory-server"},
-		},
-	}
-
-	resolved, err := cfg.ResolveAgent(agent)
-	if err != nil {
-		t.Fatalf("ResolveAgent() error = %v", err)
-	}
-
-	if len(resolved.MCPServers) != 2 {
-		t.Fatalf("ResolveAgent() MCPServers = %#v, want 2 entries", resolved.MCPServers)
-	}
-	if resolved.MCPServers[0].Name != "github" || resolved.MCPServers[1].Name != "memory" {
-		t.Fatalf("ResolveAgent() MCPServers = %#v", resolved.MCPServers)
 	}
 }
 
@@ -2571,28 +2599,6 @@ func TestResolveAgentDefaultsToolsAndPermissions(t *testing.T) {
 	}
 }
 
-func TestResolveAgentFallsBackToDefaultsProvider(t *testing.T) {
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	cfg := DefaultWithHome(homePaths)
-	cfg.Defaults.Provider = "claude"
-	agent := AgentDef{
-		Name:   DefaultAgentName,
-		Prompt: "prompt",
-	}
-
-	resolved, err := cfg.ResolveAgent(agent)
-	if err != nil {
-		t.Fatalf("ResolveAgent() error = %v", err)
-	}
-	if resolved.Provider != "claude" {
-		t.Fatalf("ResolveAgent() Provider = %q, want %q", resolved.Provider, "claude")
-	}
-}
-
 func TestResolveSessionAgent(t *testing.T) {
 	t.Parallel()
 
@@ -2918,8 +2924,7 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 	for _, value := range []SteerCapability{"", SteerCapabilityExtension, SteerCapabilityConcurrentPrompt, SteerCapabilityNone} {
 		t.Run("Should resolve steering override "+string(value), func(t *testing.T) {
 			t.Parallel()
-			cfg := Config{}
-			cfg.Providers = map[string]ProviderConfig{"codex": {SteerCapability: value}}
+			cfg := Config{Providers: map[string]ProviderConfig{"codex": {SteerCapability: value}}}
 			provider, err := cfg.ResolveProvider("codex")
 			if err != nil {
 				t.Fatalf("ResolveProvider() error = %v", err)
@@ -2931,8 +2936,7 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 	}
 	t.Run("Should reject an unknown steering mechanism at the config boundary", func(t *testing.T) {
 		t.Parallel()
-		cfg := Config{}
-		cfg.Providers = map[string]ProviderConfig{"codex": {SteerCapability: "auto"}}
+		cfg := Config{Providers: map[string]ProviderConfig{"codex": {SteerCapability: "auto"}}}
 		_, err := cfg.ResolveProvider("codex")
 		if err == nil || !strings.Contains(err.Error(), "providers.codex.steer_capability") {
 			t.Fatalf("ResolveProvider() error = %v", err)
@@ -2950,4 +2954,284 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 			t.Fatalf("steer capability = %q", provider.SteerCapability)
 		}
 	})
+}
+
+func TestRetiredBuiltinProviders(t *testing.T) {
+	t.Parallel()
+
+	retired := []string{
+		"hermes", "openclaw", "blackbox", "cline", "goose", "junie",
+		"kiro", "openhands", "qoder", "mistral", "groq", "minimax",
+	}
+
+	t.Run("Should not expose retired providers as builtins", func(t *testing.T) {
+		t.Parallel()
+
+		builtins := BuiltinProviders()
+		for _, name := range retired {
+			if _, ok := builtins[name]; ok {
+				t.Fatalf("BuiltinProviders() contains retired provider %q", name)
+			}
+		}
+	})
+
+	t.Run("Should keep resolving an undeclared retired reference through the deprecation window", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		for _, name := range retired {
+			got, err := cfg.ResolveProvider(name)
+			if err != nil {
+				t.Fatalf("ResolveProvider(%q) error = %v", name, err)
+			}
+			if want := retiredBuiltinProviders[name]; !reflect.DeepEqual(got, want) {
+				t.Fatalf("ResolveProvider(%q) = %#v, want former builtin %#v", name, got, want)
+			}
+		}
+		mistral, err := cfg.ResolveProvider("mistral")
+		if err != nil {
+			t.Fatalf("ResolveProvider(mistral) error = %v", err)
+		}
+		if mistral.EffectiveHarness() != ProviderHarnessPiACP ||
+			mistral.EffectiveAuthMode() != ProviderAuthModeBoundSecret ||
+			mistral.RuntimeProviderName("mistral") != "mistral" {
+			t.Fatalf("ResolveProvider(mistral) = %#v, want pi_acp bound-secret runtime mistral", mistral)
+		}
+	})
+
+	t.Run("Should resolve agents and defaults that reference a retired provider", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Defaults.Provider = "hermes-agent"
+		if err := cfg.validateProviders(); err != nil {
+			t.Fatalf("validateProviders() error = %v", err)
+		}
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Provider: "openclaw", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent(openclaw) error = %v", err)
+		}
+		if resolved.Provider != "openclaw" || resolved.Command != "openclaw acp" || resolved.SessionMCP {
+			t.Fatalf("ResolveAgent(openclaw) = %#v, want former openclaw launch", resolved)
+		}
+	})
+
+	t.Run("Should merge a partial override onto the former builtin definition", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Providers["mistral"] = ProviderConfig{Models: ProviderModelsConfig{Default: "codestral-latest"}}
+		got, err := cfg.ResolveProvider("mistral")
+		if err != nil {
+			t.Fatalf("ResolveProvider(mistral) error = %v", err)
+		}
+		if got.Command != piACPCommand || got.Models.Default != "codestral-latest" ||
+			len(got.CredentialSlots) != 1 || got.CredentialSlots[0].TargetEnv != "MISTRAL_API_KEY" {
+			t.Fatalf("ResolveProvider(mistral) = %#v, want former definition with overridden default model", got)
+		}
+	})
+
+	t.Run("Should resolve the printed replacement as an equivalent custom provider", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range retired {
+			var document struct {
+				Providers map[string]ProviderConfig `toml:"providers"`
+			}
+			replacement := retiredBuiltinProviderReplacement(name, retiredBuiltinProviders[name])
+			if _, err := toml.Decode(replacement, &document); err != nil {
+				t.Fatalf("decode %q replacement error = %v\n%s", name, err, replacement)
+			}
+			declared := document.Providers[name]
+			if _, retiredBase := retiredProviderBase(name, declared, true); retiredBase {
+				t.Fatalf("replacement for %q still depends on the retired definition:\n%s", name, replacement)
+			}
+			cfg := DefaultWithHome(HomePaths{})
+			cfg.Providers[name] = declared
+			got, err := cfg.ResolveProvider(name)
+			if err != nil {
+				t.Fatalf("ResolveProvider(%q) with replacement error = %v", name, err)
+			}
+			if want := retiredBuiltinProviders[name]; !reflect.DeepEqual(got, want) {
+				t.Fatalf("ResolveProvider(%q) with replacement = %#v, want %#v", name, got, want)
+			}
+		}
+	})
+
+	t.Run("Should resolve a self-declared custom provider without the retired definition", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Providers["hermes"] = ProviderConfig{Command: "hermes acp --profile work"}
+		got, err := cfg.ResolveProvider("hermes")
+		if err != nil {
+			t.Fatalf("ResolveProvider(hermes) error = %v", err)
+		}
+		if got.Command != "hermes acp --profile work" || got.DisplayName != "" || got.AuthStatusCmd != "" {
+			t.Fatalf("ResolveProvider(hermes) = %#v, want only the declared custom provider", got)
+		}
+	})
+}
+
+func TestRetiredBuiltinProviderWarnings(t *testing.T) {
+	tests := []struct {
+		name      string
+		override  string
+		private   []string
+		ownsSlots bool
+	}{
+		{
+			name: "Should guide a partial model and login override",
+			override: `[providers.mistral]
+auth_login_command = "provider login raw-login-secret"
+[providers.mistral.models]
+default = "codestral-latest"`,
+			private: []string{"raw-login-secret", "codestral-latest"},
+		},
+		{
+			name: "Should guide an override that chose native CLI authentication",
+			override: `[providers.mistral]
+auth_mode = "native_cli"`,
+			ownsSlots: true,
+		},
+		{
+			name: "Should guide an override with its own vault credential slot",
+			override: `[[providers.mistral.credential_slots]]
+name = "api_key"
+target_env = "MISTRAL_API_KEY"
+secret_ref = "vault:providers/mistral/api_key"
+kind = "api_key"
+required = true`,
+			private:   []string{"providers/mistral/api_key"},
+			ownsSlots: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			RouteRetiredProviderWarnings(compozylogger.WithRedaction(slog.New(slog.NewJSONHandler(&logs, nil))))
+			t.Cleanup(func() { RouteRetiredProviderWarnings(nil) })
+
+			cfg := DefaultWithHome(HomePaths{})
+			cfg.Defaults.Provider = "hermes-agent"
+			cfg.Providers = decodeRetiredTestProviders(t, tc.override)
+			cfg.WarnRetiredProviderReferences()
+			cfg.WarnRetiredProviderReferences()
+
+			records := retiredWarningRecords(t, logs.String())
+			if len(records) != 2 || records["hermes"] == nil || records["mistral"] == nil {
+				t.Fatalf("warnings = %s, want one each for hermes and mistral", logs.String())
+			}
+			for _, private := range append([]string{"[REDACTED]"}, tc.private...) {
+				if strings.Contains(logs.String(), private) {
+					t.Fatalf("warning log contains %q:\n%s", private, logs.String())
+				}
+			}
+			if action, _ := records["hermes"]["action"].(string); action != "add replacement to config.toml" {
+				t.Fatalf("hermes action = %q, want add instruction for an undeclared reference", action)
+			}
+			action, _ := records["mistral"]["action"].(string)
+			if !strings.Contains(action, "merge replacement into the existing [providers.mistral] tables") {
+				t.Fatalf("mistral action = %q, want merge instructions for an existing override", action)
+			}
+
+			replacement, _ := records["mistral"]["replacement"].(string)
+			if tc.ownsSlots &&
+				(strings.Contains(action, "secret_ref") || strings.Contains(replacement, "credential_slots")) {
+				t.Fatalf("guidance adds credentials the override owns: action=%q replacement=%q", action, replacement)
+			}
+			edited := applyRetiredWarningToTOML(t, tc.override, records["mistral"])
+			declared := DefaultWithHome(HomePaths{})
+			declared.Providers = decodeRetiredTestProviders(t, edited)
+			got, err := declared.ResolveProvider("mistral")
+			if err != nil {
+				t.Fatalf("ResolveProvider(edited mistral) error = %v\n%s", err, edited)
+			}
+			want, err := cfg.ResolveProvider("mistral")
+			if err != nil {
+				t.Fatalf("ResolveProvider(original mistral) error = %v", err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("edited config resolves to %#v, want effective %#v\n%s", got, want, edited)
+			}
+		})
+	}
+}
+
+func decodeRetiredTestProviders(t *testing.T, contents string) map[string]ProviderConfig {
+	t.Helper()
+	var document struct {
+		Providers map[string]ProviderConfig `toml:"providers"`
+	}
+	if _, err := toml.Decode(contents, &document); err != nil {
+		t.Fatalf("decode providers error = %v\n%s", err, contents)
+	}
+	return document.Providers
+}
+
+func retiredWarningRecords(t *testing.T, output string) map[string]map[string]any {
+	t.Helper()
+	records := map[string]map[string]any{}
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode warning %q: %v", line, err)
+		}
+		if record["msg"] != "provider.retired_builtin" || record["removed_in"] != "v0.5.0" {
+			t.Fatalf("warning = %#v, want provider.retired_builtin removed_in v0.5.0", record)
+		}
+		provider, _ := record["provider"].(string)
+		if _, dup := records[provider]; dup {
+			t.Fatalf("provider %q warned twice:\n%s", provider, output)
+		}
+		records[provider] = record
+	}
+	return records
+}
+
+// applyRetiredWarningToTOML performs the operator edit the warning describes on real TOML: merge
+// the replacement into the existing tables keeping set values, then fill the added secret_refs.
+func applyRetiredWarningToTOML(t *testing.T, existing string, record map[string]any) string {
+	t.Helper()
+	replacement, _ := record["replacement"].(string)
+	action, _ := record["action"].(string)
+	var current, added map[string]any
+	if _, err := toml.Decode(existing, &current); err != nil {
+		t.Fatalf("decode existing TOML error = %v", err)
+	}
+	if _, err := toml.Decode(replacement, &added); err != nil {
+		t.Fatalf("decode replacement error = %v\n%s", err, replacement)
+	}
+	fills := regexp.MustCompile(`(\w+) uses scheme "([a-z]+)" and name "([A-Z_]+)"`).FindAllStringSubmatch(action, -1)
+	addedProvider, _ := added["providers"].(map[string]any)["mistral"].(map[string]any)
+	if slots, ok := addedProvider["credential_slots"].([]map[string]any); ok {
+		for _, slot := range slots {
+			for _, fill := range fills {
+				if slot["name"] == fill[1] {
+					slot["secret_ref"] = fill[2] + ":" + fill[3]
+				}
+			}
+		}
+	}
+	merged := mergeRetiredTestTables(added, current)
+	var buffer bytes.Buffer
+	if err := toml.NewEncoder(&buffer).Encode(merged); err != nil {
+		t.Fatalf("encode edited TOML error = %v", err)
+	}
+	return buffer.String()
+}
+
+func mergeRetiredTestTables(base, kept map[string]any) map[string]any {
+	merged := make(map[string]any, len(base)+len(kept))
+	maps.Copy(merged, base)
+	for key, value := range kept {
+		baseTable, baseIsTable := merged[key].(map[string]any)
+		keptTable, keptIsTable := value.(map[string]any)
+		if baseIsTable && keptIsTable {
+			merged[key] = mergeRetiredTestTables(baseTable, keptTable)
+			continue
+		}
+		merged[key] = value
+	}
+	return merged
 }

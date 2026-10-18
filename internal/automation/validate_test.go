@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestScheduleSpecValidate(t *testing.T) {
@@ -400,58 +398,6 @@ func TestDefaultsAndEnumValidation(t *testing.T) {
 	}
 }
 
-func TestValidateTriggerFilter(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name    string
-		filter  map[string]string
-		wantErr string
-	}{
-		{
-			name: "valid built in fields",
-			filter: map[string]string{
-				"kind":       "session.stopped",
-				"data.agent": "researcher",
-			},
-		},
-		{
-			name: "invalid path",
-			filter: map[string]string{
-				"payload.agent": "researcher",
-			},
-			wantErr: "payload.agent",
-		},
-		{
-			name: "empty value",
-			filter: map[string]string{
-				"kind": " ",
-			},
-			wantErr: "kind",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := ValidateTriggerFilter(tc.filter, "trigger.filter")
-			if tc.wantErr == "" {
-				if err != nil {
-					t.Fatalf("ValidateTriggerFilter() error = %v", err)
-				}
-				return
-			}
-			if err == nil {
-				t.Fatal("ValidateTriggerFilter() error = nil, want non-nil")
-			}
-			if got := err.Error(); !strings.Contains(got, tc.wantErr) {
-				t.Fatalf("ValidateTriggerFilter() error = %q, want substring %q", got, tc.wantErr)
-			}
-		})
-	}
-}
-
 func TestJobValidate(t *testing.T) {
 	t.Parallel()
 
@@ -539,23 +485,7 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 			},
 		},
 		{
-			name:    "global direct task with live participation",
-			wantErr: "global direct task has no workspace binding",
-			job: Job{
-				Scope:    AutomationScopeGlobal,
-				Name:     "live-task",
-				Schedule: &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "15m"},
-				Task: &JobTaskConfig{
-					Title:                "Live task",
-					NetworkParticipation: testNamedParticipation("builders"),
-				},
-				Retry:     DefaultRetryConfig(),
-				FireLimit: DefaultFireLimitConfig(),
-				Source:    JobSourceConfig,
-			},
-		},
-		{
-			name:    "agent target with participation-only loop data",
+			name:    "Should reject agent target with loop data",
 			wantErr: `job.loop_target must be empty when target_kind is "agent"`,
 			job: Job{
 				Scope:      AutomationScopeGlobal,
@@ -564,7 +494,7 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 				AgentName:  "researcher",
 				Prompt:     "Generate daily report",
 				Schedule:   &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "15m"},
-				LoopTarget: &LoopTarget{NetworkParticipation: &participation.Request{}},
+				LoopTarget: &LoopTarget{LoopName: "triage"},
 				Retry:      DefaultRetryConfig(),
 				FireLimit:  DefaultFireLimitConfig(),
 				Source:     JobSourceConfig,
@@ -929,7 +859,7 @@ func TestTriggerValidate(t *testing.T) {
 			wantErr: "webhook_id",
 		},
 		{
-			name: "agent target with participation-only loop data",
+			name: "Should reject agent target with loop data",
 			trigger: Trigger{
 				Scope:      AutomationScopeGlobal,
 				Name:       "deploy",
@@ -937,7 +867,7 @@ func TestTriggerValidate(t *testing.T) {
 				AgentName:  "reviewer",
 				Prompt:     `{{ .Kind }}`,
 				Event:      "session.stopped",
-				LoopTarget: &LoopTarget{NetworkParticipation: &participation.Request{}},
+				LoopTarget: &LoopTarget{LoopName: "triage"},
 				Retry:      DefaultRetryConfig(),
 				FireLimit:  DefaultFireLimitConfig(),
 				Source:     JobSourceConfig,
@@ -1095,13 +1025,12 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	t.Parallel()
 
 	startedAt := time.Now().UTC()
-	endedAt := startedAt.Add(-time.Minute)
 
 	run := Run{
 		Status:    RunRunning,
 		Attempt:   1,
 		StartedAt: &startedAt,
-		EndedAt:   &endedAt,
+		EndedAt:   new(startedAt.Add(-time.Minute)),
 	}
 	if err := run.Validate("run"); err == nil {
 		t.Fatal("Run.Validate() error = nil, want non-nil")
@@ -1167,28 +1096,6 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 		t.Fatal("Run.Validate(delegated both targets) error = nil, want non-nil")
 	} else if got := err.Error(); !strings.Contains(got, "run.status requires exactly one of") {
 		t.Fatalf("Run.Validate(delegated both targets) error = %q, want XOR failure", got)
-	}
-
-	if err := (JobTaskConfig{
-		NetworkParticipation: testNamedParticipation("bad channel"),
-	}).Validate("job.task"); err == nil {
-		t.Fatal("JobTaskConfig.Validate(invalid channel) error = nil, want non-nil")
-	} else if got := err.Error(); !strings.Contains(got, "job.task.network_participation is invalid") ||
-		!strings.Contains(got, participation.ErrStrategyInvalid.Error()) {
-		t.Fatalf("JobTaskConfig.Validate(invalid channel) error = %q, want participation validation", got)
-	}
-	loopRunStrategy := participation.StrategyLoopRun
-	liveMode := participation.ModeLive
-	if err := (JobTaskConfig{
-		NetworkParticipation: &participation.Request{
-			Mode:            &liveMode,
-			ChannelStrategy: &loopRunStrategy,
-		},
-	}).Validate("job.task"); err == nil {
-		t.Fatal("JobTaskConfig.Validate(loop run strategy) error = nil, want non-nil")
-	} else if got := err.Error(); !strings.Contains(got, participation.ErrStrategyInvalid.Error()) ||
-		!strings.Contains(got, "direct Automation tasks") {
-		t.Fatalf("JobTaskConfig.Validate(loop run strategy) error = %q, want direct-task strategy failure", got)
 	}
 
 	envelope := ActivationEnvelope{

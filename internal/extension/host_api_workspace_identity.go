@@ -8,20 +8,6 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func (h *HostAPIHandler) resolveWorkspaceRoot(ctx context.Context, rawWorkspace string) (string, error) {
-	if strings.TrimSpace(rawWorkspace) == "" {
-		return "", nil
-	}
-	if h.workspaces == nil {
-		return "", invalidParamsRPCError(errors.New("workspace resolver is not configured"))
-	}
-	resolved, err := h.workspaces.Resolve(ctx, rawWorkspace)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(resolved.RootDir), nil
-}
-
 func (h *HostAPIHandler) resolveWorkspaceRegistrationID(ctx context.Context, rawWorkspace string) (string, error) {
 	trimmed := strings.TrimSpace(rawWorkspace)
 	if trimmed == "" {

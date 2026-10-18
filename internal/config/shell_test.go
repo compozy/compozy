@@ -14,13 +14,35 @@ func TestShellConfig(t *testing.T) {
 		t.Parallel()
 
 		got := DefaultShellConfig()
-		if got.Sessions.Sort != ShellSessionSortLastActivity || got.Sessions.Scope != ShellSessionScopeWorkspace {
-			t.Fatalf("DefaultShellConfig() = %#v, want last_activity/workspace", got)
+		if got.Sessions.Sort != ShellSessionSortCreated || got.Sessions.Scope != ShellSessionScopeWorkspace {
+			t.Fatalf("DefaultShellConfig() = %#v, want created/workspace", got)
 		}
 		if err := got.Validate(); err != nil {
 			t.Fatalf("Validate(defaults) error = %v", err)
 		}
 	})
+
+	for _, sortKey := range []ShellSessionSort{ShellSessionSortCreated, ShellSessionSortName, ShellSessionSortLastActivity, ShellSessionSortAttention} {
+		t.Run("Should preserve explicitly persisted "+string(sortKey)+" ordering", func(t *testing.T) {
+			t.Parallel()
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg := DefaultWithHome(homePaths)
+			overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+			writeFile(t, overlayPath, "[shell.sessions]\nsort = \""+string(sortKey)+"\"\n")
+			if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Shell.Sessions.Sort != sortKey {
+				t.Fatalf("persisted sort = %q, want %q", cfg.Shell.Sessions.Sort, sortKey)
+			}
+			if err := cfg.Shell.Validate(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 
 	t.Run("Should preserve an omitted preference through a pointer overlay", func(t *testing.T) {
 		t.Parallel()
@@ -70,8 +92,8 @@ func TestShellConfig(t *testing.T) {
 				t.Parallel()
 
 				err := testCase.cfg.Validate()
-				var validationErr ValidationError
-				if !errors.As(err, &validationErr) {
+				validationErr, validationErrOK := errors.AsType[ValidationError](err)
+				if !validationErrOK {
 					t.Fatalf("Validate() error = %v, want ValidationError", err)
 				}
 				if validationErr.Path != testCase.path {

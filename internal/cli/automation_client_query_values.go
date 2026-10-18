@@ -17,6 +17,9 @@ func automationJobValues(query AutomationJobQuery) url.Values {
 	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
 		values.Set("source", trimmed)
 	}
+	if trimmed := strings.TrimSpace(query.Target); trimmed != "" {
+		values.Set("target", trimmed)
+	}
 	if query.Enabled != nil {
 		values.Set("enabled", strconv.FormatBool(*query.Enabled))
 	}
@@ -48,6 +51,9 @@ func automationTriggerValues(query AutomationTriggerQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
 		values.Set("source", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Target); trimmed != "" {
+		values.Set("target", trimmed)
 	}
 	if query.Enabled != nil {
 		values.Set("enabled", strconv.FormatBool(*query.Enabled))

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -164,21 +163,21 @@ func (m *Manager) matchExistingCreation(
 		}
 		return false, creationError(EffectUnknown, SessionCreationCodeEffectUnknown, metaErr)
 	}
-	if creationIdentityFromMeta(meta) == nil {
+	if creationIdentityFromMeta(&meta) == nil {
 		return false, creationError(
 			EffectKnownFalse,
 			SessionCreationCodeIdentityMismatch,
 			errors.New("session: existing metadata has no creation identity"),
 		)
 	}
-	if *creationIdentityFromMeta(meta) != expected {
+	if *creationIdentityFromMeta(&meta) != expected {
 		return false, creationError(
 			EffectKnownFalse,
 			SessionCreationCodeIdentityMismatch,
 			store.ErrSessionCreationIdentityMismatch,
 		)
 	}
-	if err := m.persistSessionCatalogFromMeta(ctx, meta); err != nil {
+	if err := m.persistSessionCatalogFromMeta(ctx, &meta); err != nil {
 		return false, creationError(EffectUnknown, SessionCreationCodeEffectUnknown, err)
 	}
 	return m.ensureExistingSessionActive(ctx, sessionID)
@@ -282,18 +281,6 @@ func creationProfileFromStart(
 	spec *sessionStartSpec,
 	resolved compozyconfig.ResolvedAgent,
 ) store.SessionCreationProfile {
-	sandboxMode := store.SessionCreationSandboxRef
-	sandboxRef := strings.TrimSpace(spec.workspace.SandboxRef)
-	if sandboxRef == "" {
-		sandboxRef = strings.TrimSpace(spec.workspace.Config.Defaults.Sandbox)
-	}
-	if sandboxRef == "" && !spec.sandboxDisabled {
-		sandboxRef = strings.TrimSpace(spec.workspace.Sandbox.Profile)
-	}
-	if spec.sandboxDisabled || sandboxRef == "" {
-		sandboxMode = store.SessionCreationSandboxNone
-		sandboxRef = ""
-	}
 	return BuildCreationProfile(CreationProfileInput{
 		AgentName:       resolved.Name,
 		Provider:        resolved.Provider,
@@ -305,8 +292,6 @@ func creationProfileFromStart(
 		WorkspaceID:     spec.workspace.ID,
 		CWD:             spec.cwd,
 		WorktreeRef:     spec.worktreeID,
-		SandboxMode:     sandboxMode,
-		SandboxRef:      sandboxRef,
 		Permissions:     startSpecPermissions(spec, resolved.Permissions),
 		AllowedTools:    spec.allowedToolsOverride,
 		AgentTools:      resolved.Tools,
@@ -353,11 +338,9 @@ func creationOptionsForSpec(spec *sessionStartSpec) *store.SessionCreationOption
 		return cloneCreationOptions(spec.creationOptions)
 	}
 	return &store.SessionCreationOptions{
-		SessionID:            strings.TrimSpace(spec.sessionID),
-		Name:                 strings.TrimSpace(spec.sessionName),
-		NetworkOwnerKey:      strings.TrimSpace(spec.networkOwnerKey),
-		NetworkParticipation: spec.networkParticipation,
-		SessionType:          string(normalizeSessionType(spec.sessionType)),
+		SessionID:   strings.TrimSpace(spec.sessionID),
+		Name:        strings.TrimSpace(spec.sessionName),
+		SessionType: string(normalizeSessionType(spec.sessionType)),
 	}
 }
 
@@ -367,22 +350,10 @@ func validateRequestedCreationIdentity(opts CreateOpts) error {
 	if profile == nil || identity == nil {
 		return errors.New("session: creation profile and identity are required")
 	}
-	networkParticipation := participation.LocalSpec()
-	if opts.ResolvedNetworkParticipation != nil {
-		networkParticipation = *opts.ResolvedNetworkParticipation
-	}
 	spec := &sessionStartSpec{
-		sessionID:            strings.TrimSpace(opts.DesiredSessionID),
-		sessionName:          strings.TrimSpace(opts.Name),
-		networkOwnerKey:      strings.TrimSpace(opts.NetworkOwnerKey),
-		networkParticipation: networkParticipation,
-		sessionType:          normalizeSessionType(opts.Type),
-	}
-	if spec.networkOwnerKey == "" {
-		spec.networkOwnerKey = participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindSession,
-			ID:   spec.sessionID,
-		})
+		sessionID:   strings.TrimSpace(opts.DesiredSessionID),
+		sessionName: strings.TrimSpace(opts.Name),
+		sessionType: normalizeSessionType(opts.Type),
 	}
 	computed, err := identityForCreationProfile(*profile, spec)
 	if err != nil {
@@ -394,7 +365,10 @@ func validateRequestedCreationIdentity(opts CreateOpts) error {
 	return nil
 }
 
-func creationIdentityFromMeta(meta store.SessionMeta) *store.SessionCreationIdentity {
+func creationIdentityFromMeta(meta *store.SessionMeta) *store.SessionCreationIdentity {
+	if meta == nil {
+		return nil
+	}
 	identity := &store.SessionCreationIdentity{
 		CreationProfileRef: strings.TrimSpace(meta.CreationProfileRef),
 		PolicySpecDigest:   strings.TrimSpace(meta.PolicySpecDigest),
@@ -410,24 +384,21 @@ func cloneCreationProfile(profile *store.SessionCreationProfile) *store.SessionC
 	if profile == nil {
 		return nil
 	}
-	cloned := store.NormalizeSessionCreationProfile(*profile)
-	return &cloned
+	return new(store.NormalizeSessionCreationProfile(*profile))
 }
 
 func cloneCreationIdentity(identity *store.SessionCreationIdentity) *store.SessionCreationIdentity {
 	if identity == nil {
 		return nil
 	}
-	cloned := *identity
-	return &cloned
+	return new(*identity)
 }
 
 func cloneCreationOptions(options *store.SessionCreationOptions) *store.SessionCreationOptions {
 	if options == nil {
 		return nil
 	}
-	cloned := *options
-	return &cloned
+	return new(*options)
 }
 
 func creationError(effect EffectCertainty, code string, err error) error {

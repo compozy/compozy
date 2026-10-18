@@ -19,25 +19,17 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-
 	"github.com/compozy/compozy/internal/acp"
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	protocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network/participation"
 	observepkg "github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
-	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -45,7 +37,6 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	transcriptpkg "github.com/compozy/compozy/internal/transcript"
@@ -98,6 +89,70 @@ func TestHostAPIHandlerSessionsListReturnsAuthorizedSessions(t *testing.T) {
 
 func TestHostAPIHandlerBindsWorkspaceScopedExtensionCalls(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: workspace-profile calls retain both owners and reject scope widening.
+	// Owner: Host API workspace binding; canonical suite: Host API handler integration.
+	t.Run("Should bind task creation to the extension workspace and profile", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		const extensionName = "ext-profile-workspace"
+		env.grant(extensionName, []string{"tasks/create"}, []string{"task.write"})
+		key := ProfileInstanceKey(extensionName, env.marketingID, env.workspace.ID)
+		ctx := withHostAPIInstanceKey(t.Context(), key)
+		ctx = withHostAPIResourceSession(ctx, &hostAPIResourceSession{
+			Actor: resources.MutationActor{
+				Kind: resources.MutationActorKindExtension,
+				ID:   key.runtimeID(),
+				MaxScope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspaceProfile,
+					ID:   profileWorkspaceScopeID(env.workspace.ID, "marketing"),
+				},
+			},
+		})
+		result, err := env.callWithContext(ctx, t, extensionName, "tasks/create", map[string]any{
+			"title": "Profile workspace task",
+			"draft": true,
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/create omitted scope) error = %v", err)
+		}
+		var created apicontract.TaskPayload
+		decodeResult(t, result, &created)
+		stored, err := env.registry.GetTask(t.Context(), created.ID)
+		if err != nil {
+			t.Fatalf("GetTask(%q) error = %v", created.ID, err)
+		}
+		if stored.Scope != taskpkg.ScopeWorkspace || stored.WorkspaceID != env.workspace.ID ||
+			stored.ProfileID != env.marketingID {
+			t.Fatalf("stored task ownership = %#v, want bound workspace and marketing profile", stored)
+		}
+
+		foreignWorkspace := env.addForeignWorkspace(t)
+		for _, tc := range []struct {
+			name   string
+			params map[string]any
+		}{
+			{
+				name: "Should reject a foreign workspace",
+				params: map[string]any{
+					"title": "Foreign task", "scope": "workspace", "workspace": foreignWorkspace.ID,
+				},
+			},
+			{
+				name:   "Should reject global scope",
+				params: map[string]any{"title": "Global task", "scope": "global"},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := env.callWithContext(ctx, t, extensionName, "tasks/create", tc.params)
+				assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+				assertErrorContains(t, err, "conflicts with the bound workspace")
+			})
+		}
+	})
 
 	t.Run("Should bind workspace-scoped extension calls", func(t *testing.T) {
 		t.Parallel()
@@ -347,17 +402,12 @@ func TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead(t *
 func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t, withHostAPITestLiveParticipation())
+	env := newHostAPITestEnv(t)
 	env.grant("ext-create", []string{"sessions/create"}, []string{"session.write"})
 
 	result, err := env.call(t, "ext-create", "sessions/create", map[string]any{
 		"agent":     "coder",
 		"workspace": env.workspaceID,
-		"network_participation": map[string]any{
-			"mode":             "live",
-			"channel_strategy": "named",
-			"channel_id":       "builders",
-		},
 	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/create) error = %v", err)
@@ -368,22 +418,15 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	if created.SessionID == "" {
 		t.Fatal("sessions/create session_id = empty, want non-empty")
 	}
-	info := waitForHostAPISessionState(t, env.sessions, created.SessionID, session.StateActive)
-	if info.NetworkParticipation.Mode != participation.ModeLive ||
-		info.NetworkParticipation.ChannelID != "builders" {
-		t.Fatalf(
-			"created session participation = %#v, want Live builders",
-			info.NetworkParticipation,
-		)
-	}
+	waitForHostAPISessionState(t, env.sessions, created.SessionID, session.StateActive)
 
 	_, err = env.call(t, "ext-create", "sessions/create", map[string]any{
-		"agent":           "coder",
-		"workspace":       env.workspaceID,
-		"network_channel": "legacy",
+		"agent":         "coder",
+		"workspace":     env.workspaceID,
+		"unknown_field": "legacy",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "network_channel")
+	assertErrorContains(t, err, "unknown_field")
 }
 
 func TestHostAPIHandlerSessionsCreateUsesDurableLogicalAcceptance(t *testing.T) {
@@ -543,6 +586,8 @@ func TestHostAPIHandlerSessionsStopStopsSession(t *testing.T) {
 }
 
 func TestHostAPIHandlerSessionsArchiveRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should archive and unarchive a stopped session", func(t *testing.T) {
 		t.Parallel()
 
@@ -1106,383 +1151,6 @@ func assertHostAPISessionRuntimePayload(t testing.TB, runtime apicontract.Sessio
 	}
 }
 
-func TestHostAPIHandlerCreateBridgeSessionUsesExplicitEmptyProvider(t *testing.T) {
-	t.Run("Should use an explicit empty provider for bridge sessions", func(t *testing.T) {
-		t.Parallel()
-
-		sessions := &recordingHostAPISessionManager{}
-		handler := &HostAPIHandler{
-			sessions: sessions,
-			workspaces: newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: t.TempDir()},
-				Config: compozyconfig.Config{
-					Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},
-				},
-			}),
-		}
-
-		created, err := handler.createBridgeSession(testutil.Context(t), bridgepkg.BridgeInstance{
-			WorkspaceID: "ws-alpha",
-		})
-		if err != nil {
-			t.Fatalf("createBridgeSession() error = %v", err)
-		}
-		if created == nil {
-			t.Fatal("createBridgeSession() = nil, want session")
-		}
-		if got, want := len(sessions.createCalls), 1; got != want {
-			t.Fatalf("len(createCalls) = %d, want %d", got, want)
-		}
-		createCall := sessions.createCalls[0]
-		if got, want := createCall.AgentName, "coder"; got != want {
-			t.Fatalf("Create().AgentName = %q, want %q", got, want)
-		}
-		if got, want := createCall.Workspace, "ws-alpha"; got != want {
-			t.Fatalf("Create().Workspace = %q, want %q", got, want)
-		}
-		if got := createCall.Provider; got != "" {
-			t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
-		}
-	})
-}
-
-func TestHostAPIHandlerSandboxListReturnsActiveSandboxInstances(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-list", []string{"sandbox/list"}, nil)
-	sess := env.createSession(t)
-
-	result, err := env.call(t, "ext-env-list", "sandbox/list", nil)
-	if err != nil {
-		t.Fatalf("Handle(sandbox/list) error = %v", err)
-	}
-
-	var listed hostAPISandboxListResult
-	decodeResult(t, result, &listed)
-	if len(listed.Sandboxes) != 1 {
-		t.Fatalf("len(sandbox/list) = %d, want 1", len(listed.Sandboxes))
-	}
-	got := listed.Sandboxes[0]
-	if got.SessionID != sess.ID {
-		t.Fatalf("sandbox/list session_id = %q, want %q", got.SessionID, sess.ID)
-	}
-	if got.SandboxID == "" {
-		t.Fatal("sandbox/list sandbox_id = empty, want allocated id")
-	}
-	if got.Backend != string(sandbox.BackendLocal) {
-		t.Fatalf("sandbox/list backend = %q, want local", got.Backend)
-	}
-	if got.SyncState != "synced" {
-		t.Fatalf("sandbox/list sync_state = %q, want synced", got.SyncState)
-	}
-}
-
-func TestHostAPIHandlerSandboxListFiltersWorkspaceAndSkipsStopped(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-list-filtered", []string{"sandbox/list"}, nil)
-	stopped := env.createSession(t)
-	active := env.createSession(t)
-	if err := env.sessions.Stop(testutil.Context(t), stopped.ID); err != nil {
-		t.Fatalf("sessions.Stop(%q) error = %v", stopped.ID, err)
-	}
-
-	result, err := env.call(
-		t,
-		"ext-env-list-filtered",
-		"sandbox/list",
-		map[string]string{"workspace": env.workspace.Name},
-	)
-	if err != nil {
-		t.Fatalf("Handle(sandbox/list filtered) error = %v", err)
-	}
-
-	var listed hostAPISandboxListResult
-	decodeResult(t, result, &listed)
-	if len(listed.Sandboxes) != 1 {
-		t.Fatalf("len(sandbox/list filtered) = %d, want 1", len(listed.Sandboxes))
-	}
-	if got := listed.Sandboxes[0].SessionID; got != active.ID {
-		t.Fatalf("sandbox/list filtered session_id = %q, want active session %q", got, active.ID)
-	}
-}
-
-func TestHostAPIHandlerSandboxInfoReturnsRuntimeState(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-info", []string{"sandbox/info"}, nil)
-	sess := env.createSession(t)
-
-	meta := sess.Info().Sandbox
-	if meta == nil {
-		t.Fatal("session sandbox = nil, want prepared sandbox")
-		return
-	}
-
-	result, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
-		"workspace_id": env.workspaceID,
-		"session_id":   sess.ID,
-	})
-	if err != nil {
-		t.Fatalf("Handle(sandbox/info) error = %v", err)
-	}
-
-	var info hostAPISandboxInfoResult
-	decodeResult(t, result, &info)
-	if info.SandboxID != meta.SandboxID {
-		t.Fatalf("sandbox/info sandbox_id = %q, want %q", info.SandboxID, meta.SandboxID)
-	}
-	if info.RuntimeRoot != meta.RuntimeRootDir {
-		t.Fatalf("sandbox/info runtime_root = %q, want %q", info.RuntimeRoot, meta.RuntimeRootDir)
-	}
-	if info.SyncState != "synced" {
-		t.Fatalf("sandbox/info sync_state = %q, want synced", info.SyncState)
-	}
-	if info.LastSyncError != "" {
-		t.Fatalf("sandbox/info last_sync_error = %q, want empty", info.LastSyncError)
-	}
-	var raw map[string]any
-	decodeResult(t, result, &raw)
-	if _, ok := raw["last_sync_error"]; !ok {
-		t.Fatalf("sandbox/info result keys = %#v, want last_sync_error key", raw)
-	}
-}
-
-func TestHostAPIHandlerSandboxInfoReturnsNotFoundForInvalidSession(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-info", []string{"sandbox/info"}, nil)
-
-	_, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
-		"workspace_id": env.workspaceID,
-		"session_id":   "missing",
-	})
-	assertRPCErrorCode(t, err, HostAPINotFoundCode)
-}
-
-func TestHostAPIHandlerSandboxInfoRejectsForeignWorkspace(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject foreign workspace sandbox info requests", func(t *testing.T) {
-		t.Parallel()
-
-		env := newHostAPITestEnv(t)
-		env.grant("ext-env-info", []string{"sandbox/info"}, nil)
-		sess := env.createSession(t)
-		foreign := env.addForeignWorkspace(t)
-
-		_, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
-			"workspace_id": foreign.WorkspaceID,
-			"session_id":   sess.ID,
-		})
-		assertRPCErrorCode(t, err, HostAPINotFoundCode)
-		assertErrorContains(t, err, "Not found")
-	})
-}
-
-func TestHostAPIHandlerSandboxInfoValidatesSessionID(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-info-invalid", []string{"sandbox/info"}, nil)
-
-	_, err := env.call(t, "ext-env-info-invalid", "sandbox/info", map[string]string{"session_id": " "})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-}
-
-func TestHostAPISandboxSyncStateValues(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now().UTC()
-	tests := []struct {
-		name string
-		meta *store.SessionSandboxMeta
-		want string
-	}{
-		{name: "nil", want: ""},
-		{name: "pending", meta: &store.SessionSandboxMeta{}, want: "pending"},
-		{name: "synced", meta: &store.SessionSandboxMeta{LastSyncAt: &now}, want: "synced"},
-		{name: "error", meta: &store.SessionSandboxMeta{LastSyncError: "failed"}, want: extensionStateError},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := hostAPISandboxSyncState(tc.meta); got != tc.want {
-				t.Fatalf("hostAPISandboxSyncState() = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestHostAPIHandlerResolveSandboxWorkspaceFilter(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-	handler := &HostAPIHandler{}
-	id, root, err := handler.resolveSandboxWorkspaceFilter(ctx, " workspace-raw ")
-	if err != nil {
-		t.Fatalf("resolveSandboxWorkspaceFilter(raw) error = %v", err)
-	}
-	if id != "workspace-raw" || root != "workspace-raw" {
-		t.Fatalf("resolveSandboxWorkspaceFilter(raw) = (%q, %q), want raw fallback", id, root)
-	}
-
-	workspace := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "ws-id",
-			Name:    "workspace-name",
-			RootDir: filepath.Join(t.TempDir(), "workspace"),
-		},
-	}
-	handler.workspaces = newHostAPIFakeWorkspaceResolver(workspace)
-	id, root, err = handler.resolveSandboxWorkspaceFilter(ctx, "workspace-name")
-	if err != nil {
-		t.Fatalf("resolveSandboxWorkspaceFilter(resolved) error = %v", err)
-	}
-	if id != workspace.ID || root != workspace.RootDir {
-		t.Fatalf("resolveSandboxWorkspaceFilter(resolved) = (%q, %q), want (%q, %q)",
-			id,
-			root,
-			workspace.ID,
-			workspace.RootDir,
-		)
-	}
-
-	if _, _, err := handler.resolveSandboxWorkspaceFilter(ctx, "missing"); err == nil {
-		t.Fatal("resolveSandboxWorkspaceFilter(missing) error = nil, want error")
-	}
-}
-
-func TestHostAPIHandlerSandboxMethodsRequireSessionManager(t *testing.T) {
-	t.Parallel()
-
-	handler := &HostAPIHandler{}
-	ctx := testutil.Context(t)
-	for _, method := range []struct {
-		name string
-		call func(context.Context, json.RawMessage) (any, error)
-	}{
-		{name: "list", call: handler.handleSandboxList},
-		{name: "info", call: handler.handleSandboxInfo},
-		{name: "exec", call: handler.handleSandboxExec},
-	} {
-		t.Run(method.name, func(t *testing.T) {
-			if _, err := method.call(ctx, nil); err == nil {
-				t.Fatal("sandbox Host API handler error = nil, want missing session manager error")
-			}
-		})
-	}
-}
-
-func TestHostAPIHandlerSandboxExecRequiresPermission(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-exec-denied", nil, nil)
-	sess := env.createSession(t)
-
-	_, err := env.call(t, "ext-env-exec-denied", "sandbox/exec", map[string]any{
-		"workspace_id": env.workspaceID,
-		"session_id":   sess.ID,
-		"command":      "printf denied",
-		"timeout":      1,
-	})
-	assertCapabilityDenied(t, err, "sandbox/exec")
-}
-
-func TestHostAPIHandlerSandboxExecRunsCommandInSandbox(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-exec", []string{"sandbox/exec"}, []string{"sandbox.exec"})
-	sess := env.createSession(t)
-
-	result, err := env.call(t, "ext-env-exec", "sandbox/exec", map[string]any{
-		"workspace_id": env.workspaceID,
-		"session_id":   sess.ID,
-		"command":      "printf host-api-env",
-		"timeout":      5,
-	})
-	if err != nil {
-		t.Fatalf("Handle(sandbox/exec) error = %v", err)
-	}
-
-	var execResult hostAPISandboxExecResult
-	decodeResult(t, result, &execResult)
-	if execResult.ExitCode != 0 {
-		t.Fatalf("sandbox/exec exit_code = %d, want 0", execResult.ExitCode)
-	}
-	if strings.TrimSpace(execResult.Stdout) != "host-api-env" {
-		t.Fatalf("sandbox/exec stdout = %q, want host-api-env", execResult.Stdout)
-	}
-	if execResult.Stderr != "" {
-		t.Fatalf("sandbox/exec stderr = %q, want empty", execResult.Stderr)
-	}
-}
-
-func TestHostAPIHandlerSandboxExecRejectsForeignWorkspace(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject foreign workspace sandbox exec requests", func(t *testing.T) {
-		t.Parallel()
-
-		env := newHostAPITestEnv(t)
-		env.grant("ext-env-exec", []string{"sandbox/exec"}, []string{"sandbox.exec"})
-		sess := env.createSession(t)
-		foreign := env.addForeignWorkspace(t)
-
-		_, err := env.call(t, "ext-env-exec", "sandbox/exec", map[string]any{
-			"workspace_id": foreign.WorkspaceID,
-			"session_id":   sess.ID,
-			"command":      "printf should-not-run",
-			"timeout":      5,
-		})
-		assertRPCErrorCode(t, err, HostAPINotFoundCode)
-		assertErrorContains(t, err, "Not found")
-	})
-}
-
-func TestHostAPIHandlerSandboxExecValidatesParams(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-exec-invalid", []string{"sandbox/exec"}, []string{"sandbox.exec"})
-
-	tests := []struct {
-		name   string
-		params map[string]any
-	}{
-		{
-			name:   "missing session id",
-			params: map[string]any{"command": "pwd"},
-		},
-		{
-			name:   "missing command",
-			params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"},
-		},
-		{
-			name: "negative timeout",
-			params: map[string]any{
-				"workspace_id": env.workspaceID,
-				"session_id":   "sess-1",
-				"command":      "pwd",
-				"timeout":      -1,
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := env.call(t, "ext-env-exec-invalid", "sandbox/exec", tc.params)
-			assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-		})
-	}
-}
-
 func TestHostAPIHandlerSessionsEventsSupportsSinceFilter(t *testing.T) {
 	t.Parallel()
 
@@ -1532,7 +1200,6 @@ func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIRateLimit(1000, 1000),
 	)
@@ -1574,6 +1241,59 @@ func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
 
 func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: resource calls preserve the complete workspace-profile scope for kernel authorization.
+	// Owner: Host API resource boundary; canonical suite: resource handler integration.
+	t.Run("Should preserve workspace-profile resource scope", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		const extensionName, nonce = "ext-profile-resources", "nonce-profile-resources"
+		env.grantWithResources(t, extensionName,
+			[]string{"resources/list", "resources/snapshot"}, nil,
+			[]string{"tools"}, resources.ResourceScopeKindWorkspaceProfile)
+		env.activateResourceSession(t, extensionName, nonce)
+		scope := resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile,
+			ID:   profileWorkspaceScopeID(env.workspace.ID, "marketing"),
+		}
+		ctx := env.resourceContext(t, extensionName, nonce)
+		resourceSession, ok := hostAPIResourceSessionFromContext(ctx)
+		if !ok {
+			t.Fatal("resource session is missing")
+		}
+		resourceSession.Actor.MaxScope = scope
+		ctx = withHostAPIResourceSession(ctx, resourceSession)
+		ctx = withHostAPIInstanceKey(ctx, ProfileInstanceKey(extensionName, env.marketingID, env.workspace.ID))
+		params := map[string]any{
+			"source_version": 1,
+			"records": []map[string]any{{
+				"kind": "tool", "id": "profile-search", "scope": scope,
+				"spec": hostAPITestToolSpec("profile_search", "Search profile", toolspkg.ToolSourceExtension.String()),
+			}},
+		}
+		if _, err := env.callWithContext(ctx, t, extensionName, "resources/snapshot", params); err != nil {
+			t.Fatalf("Handle(resources/snapshot profile) error = %v, data = %v", err, decodeRPCData(t, err))
+		}
+		result, err := env.callWithContext(ctx, t, extensionName, "resources/list", map[string]any{
+			"kind": "tool", "scope": scope,
+		})
+		if err != nil {
+			t.Fatalf("Handle(resources/list profile) error = %v", err)
+		}
+		var listed []hostAPIResourceRecord
+		decodeResult(t, result, &listed)
+		if len(listed) != 1 || listed[0].Scope != scope {
+			t.Fatalf("resources/list = %#v, want one resource under %#v", listed, scope)
+		}
+		params["source_version"] = 2
+		params["records"].([]map[string]any)[0]["scope"] = resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile,
+			ID:   profileWorkspaceScopeID(env.workspace.ID, "other-profile"),
+		}
+		_, err = env.callWithContext(ctx, t, extensionName, "resources/snapshot", params)
+		assertRPCErrorCode(t, err, 403)
+	})
 
 	env := newHostAPITestEnv(t)
 	env.grantWithResources(
@@ -1650,6 +1370,9 @@ func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *te
 	if got, want := own.ID, "grep"; got != want {
 		t.Fatalf("resources/get own id = %q, want %q", got, want)
 	}
+	if got, want := own.Version, int64(1); got != want {
+		t.Fatalf("resources/get version = %d, want %d", got, want)
+	}
 
 	_, err = env.callResource(t, "ext-resources", sessionNonce, "resources/get", map[string]any{
 		"kind": "tool",
@@ -1706,249 +1429,101 @@ func TestHostAPIHandlerResourcesSnapshotRejectsStaleVersionAndInactiveNonce(t *t
 	assertRPCErrorCode(t, err, 409)
 }
 
-func TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods(t *testing.T) {
+func TestHostAPIHandlerResourceSnapshotRequiresWritePermission(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grantWithResources(
-		t,
-		"telegram-adapter",
-		[]string{"resources/list", "bridges/instances/list", "bridges/instances/get"},
-		[]string{"resources.read", "bridge.read"},
-		[]string{"tools"},
-		resources.ResourceScopeKindWorkspace,
-	)
-
-	sessionNonce := "nonce-bridge"
-	env.activateResourceSession(t, "telegram-adapter", sessionNonce)
-	if _, err := env.callResource(t, "telegram-adapter", sessionNonce, "resources/snapshot", map[string]any{
-		"source_version": 1,
-		"records": []map[string]any{
-			{
-				"kind":  "tool",
-				"id":    "grep",
-				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  hostAPITestToolSpec("grep", "search workspace", toolspkg.ToolSourceExtension.String()),
-			},
-		},
-	}); err == nil {
-		t.Fatal("Handle(resources/snapshot) error = nil, want capability denial without resources/snapshot action")
-	} else {
-		assertRPCErrorCode(t, err, 403)
-	}
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-coexist",
-		ExtensionName: "telegram-adapter",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-
-	listedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/list", nil)
-	if err != nil {
-		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
-	}
-
-	var listed []bridgecontract.BridgeInstance
-	decodeResult(t, listedResult, &listed)
-	if got, want := len(listed), 1; got != want {
-		t.Fatalf("len(bridges/instances/list) = %d, want %d", got, want)
-	}
-
-	_, err = env.callResource(t, "telegram-adapter", sessionNonce, "resources/list", map[string]any{
-		"kind": "bridge.instance",
-	})
-	assertRPCErrorCode(t, err, 403)
-}
-
-func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/store"}, []string{"memory.write"})
-
-	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
-		"key":     "deploy-script",
-		"content": "The deploy script is documented in the release handbook as deploy.sh.",
-		"tags":    []string{"project-knowledge", "reference"},
-	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-
-	content, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "deploy-script.md")
-	if err != nil {
-		t.Fatalf("memory.Read() error = %v", err)
-	}
-	if !strings.Contains(string(content), "deploy.sh") {
-		t.Fatalf("stored content = %q, want deploy script reference", string(content))
-	}
-	if !strings.Contains(string(content), "compozy-tags: project-knowledge, reference") {
-		t.Fatalf("stored content = %q, want persisted tag comment", string(content))
-	}
-}
-
-func TestHostAPIHandlerMemoryRecallReturnsRankedMatches(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/store", "memory/recall"}, []string{"memory.write", "memory.read"})
-
-	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
-		"key":     "deploy-script",
-		"content": "The deploy script is documented in the release handbook as deploy.sh.",
-		"tags":    []string{"reference"},
-	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-
-	result, err := env.call(t, "ext-memory", "memory/recall", map[string]any{
-		"query": "deploy script release handbook",
-		"limit": 5,
-	})
-	if err != nil {
-		t.Fatalf("Handle(memory/recall) error = %v", err)
-	}
-
-	var entries []hostAPIMemoryRecallEntry
-	decodeResult(t, result, &entries)
-	if len(entries) == 0 {
-		t.Fatal("memory/recall entries = 0, want at least one match")
-	}
-	if !strings.Contains(entries[0].Content, "deploy.sh") {
-		t.Fatalf("memory/recall first content = %q, want deploy.sh", entries[0].Content)
-	}
-	if entries[0].Score <= 0 {
-		t.Fatalf("memory/recall first score = %f, want > 0", entries[0].Score)
-	}
-
-	t.Run("Should isolate profile memory by the bridge owner", func(t *testing.T) {
+	t.Run("Should reject snapshots without write permission", func(t *testing.T) {
 		t.Parallel()
 
-		profileEnv := newHostAPITestEnv(t)
-		profileEnv.grant(
-			"ext-memory",
-			[]string{"memory/store", "memory/recall"},
-			[]string{"memory.write", "memory.read"},
+		env := newHostAPITestEnv(t)
+		env.grantWithResources(
+			t,
+			"resource-reader",
+			[]string{"resources/list"},
+			[]string{"resources.read"},
+			[]string{"tools"},
+			resources.ResourceScopeKindWorkspace,
 		)
-		ctx := profileEnv.bridgeContext(t, &bridgepkg.BridgeInstance{
-			ID: "bridge-marketing-memory", ExtensionName: "ext-memory", ProfileID: profileEnv.marketingID,
-		})
-		if _, err := profileEnv.callWithContext(ctx, t, "ext-memory", "memory/store", map[string]any{
-			"key": "campaign", "content": "The marketing campaign uses the aurora launch message.",
-		}); err != nil {
-			t.Fatalf("Handle(marketing memory/store) error = %v", err)
+
+		sessionNonce := "nonce-resource"
+		env.activateResourceSession(t, "resource-reader", sessionNonce)
+		if _, err := env.callResource(t, "resource-reader", sessionNonce, "resources/snapshot", map[string]any{
+			"source_version": 1,
+			"records": []map[string]any{
+				{
+					"kind":  "tool",
+					"id":    "grep",
+					"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+					"spec":  hostAPITestToolSpec("grep", "search workspace", toolspkg.ToolSourceExtension.String()),
+				},
+			},
+		}); err == nil {
+			t.Fatal("Handle(resources/snapshot) error = nil, want capability denial without resources/snapshot action")
+		} else {
+			assertRPCErrorCode(t, err, 403)
 		}
-		if _, err := profileEnv.memory.Read(t.Context(), memcontract.ScopeProfile, "campaign.md"); err == nil {
-			t.Fatal("default profile memory contains marketing campaign, want isolation")
+	})
+}
+
+func TestHostAPIHandlerRetiredMethodReturnsMethodNotFound(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return method-not-found for a retired Host API call", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		marker := filepath.Join(t.TempDir(), "retired-host-api.json")
+		fixture := createManagerTestExtension(t, managerTestManifest("ext-retired", managerManifestOptions{
+			command:      helperCommand(t),
+			args:         helperArgs(),
+			withEnv:      helperEnv("retired_host_call", marker),
+			capabilities: []string{"tool.provider"},
+			permissions:  []string{"logs/list"},
+		}), nil)
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+		manager := NewManager(env.registry)
+		if err := manager.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
 		}
-		result, err := profileEnv.callWithContext(ctx, t, "ext-memory", "memory/recall", map[string]any{
-			"query": "aurora launch campaign", "limit": 5,
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t)); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
 		})
+		manager.mu.RLock()
+		var process processHandle
+		for _, ext := range manager.extensions {
+			process = ext.process
+		}
+		manager.mu.RUnlock()
+		if process == nil {
+			t.Fatal("running extension process is missing")
+		}
+		if err := process.Call(t.Context(), "health_check", nil, nil); err != nil {
+			t.Fatalf("Call(health_check) error = %v", err)
+		}
+		waitForManagerCondition(t, time.Second, func() bool {
+			_, err := os.Stat(marker)
+			return err == nil
+		})
+		response, err := os.ReadFile(marker)
 		if err != nil {
-			t.Fatalf("Handle(marketing memory/recall) error = %v", err)
+			t.Fatalf("ReadFile() error = %v", err)
 		}
-		var profileEntries []hostAPIMemoryRecallEntry
-		decodeResult(t, result, &profileEntries)
-		if len(profileEntries) == 0 || !strings.Contains(profileEntries[0].Content, "aurora") {
-			t.Fatalf("marketing memory/recall entries = %#v, want isolated campaign", profileEntries)
+		var rpcError struct {
+			Code int `json:"code"`
+		}
+		if err := json.Unmarshal(response, &rpcError); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if rpcError.Code != -32601 {
+			t.Fatalf("Host API error = %s, want method-not-found", response)
+		}
+		statuses := manager.Statuses()
+		if len(statuses) != 1 || !statuses[0].Active {
+			t.Fatalf("Statuses() = %#v, want a running extension", statuses)
 		}
 	})
-}
-
-func TestHostAPIHandlerMemoryRecallUsesActiveProvider(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/recall"}, []string{"memory.read"})
-	provider := &recordingHostAPIRecallProvider{
-		packaged: memcontract.Packaged{Blocks: []memcontract.Block{{
-			Scope: memcontract.ScopeWorkspace,
-			Entries: []memcontract.PackagedEntry{{
-				ID:    "provider/chunk-1",
-				Body:  "Provider-backed recall result",
-				Title: "Provider Result",
-			}},
-		}}},
-	}
-	registry := NewMemoryProviderRegistry()
-	if err := registry.Register(testutil.Context(t), MemoryProviderRegistration{
-		Name:          "local",
-		Version:       "test",
-		ExtensionName: "provider-ext",
-		Provider:      provider,
-	}); err != nil {
-		t.Fatalf("Register(provider) error = %v", err)
-	}
-	env.handler.memoryProviders = registry
-
-	result, err := env.call(t, "ext-memory", "memory/recall", map[string]any{
-		"query":     "provider recall result",
-		"workspace": env.workspaceID,
-		"limit":     1,
-	})
-	if err != nil {
-		t.Fatalf("Handle(memory/recall provider) error = %v", err)
-	}
-
-	if got := provider.lastRequest().WorkspaceID; got != env.workspaceID {
-		t.Fatalf("provider workspace_id = %q, want %q", got, env.workspaceID)
-	}
-	var entries []hostAPIMemoryRecallEntry
-	decodeResult(t, result, &entries)
-	if got, want := len(entries), 1; got != want {
-		t.Fatalf("provider recall entries = %d, want %d", got, want)
-	}
-	if entries[0].Content != "Provider-backed recall result" {
-		t.Fatalf("provider recall content = %q", entries[0].Content)
-	}
-}
-
-func TestHostAPIHandlerMemoryRecallRequiresConfiguredStore(t *testing.T) {
-	t.Parallel()
-
-	checker := &CapabilityChecker{}
-	checker.Register("ext-memory", SourceUser, &Manifest{
-		Permissions: PermissionsConfig{Requires: []string{"memory/recall"}},
-	})
-
-	handler := NewHostAPIHandler(
-		nil,
-		nil,
-		nil,
-		nil,
-		WithHostAPICapabilityChecker(checker),
-		WithHostAPIRateLimit(1000, 1000),
-	)
-
-	params, err := marshalParams(map[string]any{"query": "needle"})
-	if err != nil {
-		t.Fatalf("marshalParams() error = %v", err)
-	}
-
-	_, err = handler.Handle(testutil.Context(t), "ext-memory", "memory/recall", params)
-	assertErrorContains(t, err, "memory store is not configured")
-}
-
-func TestHostAPIHandlerMemoryForgetRemovesEntries(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/store", "memory/forget"}, []string{"memory.write"})
-
-	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
-		"key":     "scratch",
-		"content": "temporary note",
-	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-	if _, err := env.call(t, "ext-memory", "memory/forget", map[string]any{"key": "scratch"}); err != nil {
-		t.Fatalf("Handle(memory/forget) error = %v", err)
-	}
-
-	if _, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("memory.Read() error = %v, want os.ErrNotExist", err)
-	}
 }
 
 func TestHostAPIHandlerObserveHealthReturnsSnapshot(t *testing.T) {
@@ -2005,13 +1580,16 @@ func TestHostAPIHandlerListLogsReturnsFilteredEventsWithSince(t *testing.T) {
 func TestHostAPIHandlerListLogsRequiresPermission(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-observe", []string{"observe/health"}, nil)
-
-	_, err := env.call(t, "ext-observe", "logs/list", map[string]any{
-		"workspace_id": env.workspaceID,
-		"limit":        1,
+	checker := &CapabilityChecker{}
+	checker.Register("ext-observe", SourceUser, &Manifest{
+		Permissions: PermissionsConfig{Requires: []string{"observe/health"}},
 	})
+	handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
+
+	_, err := handler.Handle(t.Context(), "ext-observe", "logs/list", mustMarshalRawMessage(t, map[string]any{
+		"workspace_id": "ws-permission-check",
+		"limit":        1,
+	}))
 	assertCapabilityDenied(t, err, "logs/list")
 	data := decodeRPCData(t, err)
 	required, ok := data["required"].([]any)
@@ -2054,805 +1632,6 @@ func TestHostAPIHandlerSkillsListReturnsWorkspaceSkills(t *testing.T) {
 	}
 }
 
-func TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-invalid",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	tests := []struct {
-		name       string
-		params     map[string]any
-		wantText   string
-		wantCode   int
-		promptWant int
-	}{
-		{
-			name: "MissingBridgeInstanceID",
-			params: map[string]any{
-				"scope":               instance.Scope,
-				"workspace_id":        instance.WorkspaceID,
-				"peer_id":             "peer-1",
-				"platform_message_id": "msg-1",
-				"received_at":         env.currentTime().Format(time.RFC3339Nano),
-				"idempotency_key":     "idem-1",
-				"content":             map[string]any{"text": "hello"},
-			},
-			wantText:   "bridge instance id",
-			wantCode:   HostAPIInvalidParamsCode,
-			promptWant: 0,
-		},
-		{
-			name: "MissingPolicyRequiredPeer",
-			params: map[string]any{
-				"bridge_instance_id":  instance.ID,
-				"scope":               instance.Scope,
-				"workspace_id":        instance.WorkspaceID,
-				"platform_message_id": "msg-2",
-				"received_at":         env.currentTime().Format(time.RFC3339Nano),
-				"idempotency_key":     "idem-2",
-				"content":             map[string]any{"text": "hello"},
-			},
-			wantText:   "routing policy requires peer id",
-			wantCode:   HostAPIInvalidParamsCode,
-			promptWant: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := env.bridgeContext(t, instance)
-			_, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", tt.params)
-			assertRPCErrorCode(t, err, tt.wantCode)
-			assertErrorContains(t, err, tt.wantText)
-			if got := env.driver.promptCount(); got != tt.promptWant {
-				t.Fatalf("driver.promptCount() = %d, want %d", got, tt.promptWant)
-			}
-		})
-	}
-}
-
-func TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
-
-	disabled := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-disabled",
-		Enabled:       false,
-		Status:        bridgepkg.BridgeStatusDisabled,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	disabledCtx := env.bridgeContext(t, disabled)
-
-	_, err := env.callWithContext(disabledCtx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
-		"bridge_instance_id":  disabled.ID,
-		"scope":               disabled.Scope,
-		"workspace_id":        disabled.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-disabled",
-		"received_at":         env.currentTime().Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-disabled",
-		"content":             map[string]any{"text": "hello"},
-	})
-	assertRPCErrorCode(t, err, HostAPIUnavailableCode)
-	assertErrorContains(t, err, "disabled")
-	if got := env.driver.promptCount(); got != 0 {
-		t.Fatalf("driver.promptCount() = %d, want 0", got)
-	}
-
-	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-ready",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	readyCtx := env.bridgeContext(t, ready)
-
-	_, err = env.callWithContext(readyCtx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
-		"bridge_instance_id":  "brg-missing",
-		"scope":               ready.Scope,
-		"workspace_id":        ready.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-missing",
-		"received_at":         env.currentTime().Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-missing",
-		"content":             map[string]any{"text": "hello"},
-	})
-	assertRPCErrorCode(t, err, HostAPINotFoundCode)
-	if got := env.driver.promptCount(); got != 0 {
-		t.Fatalf("driver.promptCount() after unknown instance = %d, want 0", got)
-	}
-}
-
-func TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-dedup",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-	params := map[string]any{
-		"bridge_instance_id":  instance.ID,
-		"scope":               instance.Scope,
-		"workspace_id":        instance.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-dedup",
-		"received_at":         env.currentTime().Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-dedup",
-		"content":             map[string]any{"text": "hello"},
-	}
-
-	first, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params)
-	if err != nil {
-		t.Fatalf("first ingest error = %v", err)
-	}
-	var firstResult bridgecontract.BridgesMessagesIngestResult
-	decodeResult(t, first, &firstResult)
-
-	firstRoute, err := env.bridges.ResolveRoute(
-		testutil.Context(t),
-		bridgeRoutingKeyDomain(firstResult.RoutingKey),
-	)
-	if err != nil {
-		t.Fatalf("bridges.ResolveRoute(first) error = %v", err)
-	}
-
-	env.advanceTime(5 * time.Minute)
-
-	second, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params)
-	if err != nil {
-		t.Fatalf("duplicate ingest error = %v", err)
-	}
-	var secondResult bridgecontract.BridgesMessagesIngestResult
-	decodeResult(t, second, &secondResult)
-
-	secondRoute, err := env.bridges.ResolveRoute(
-		testutil.Context(t),
-		bridgeRoutingKeyDomain(secondResult.RoutingKey),
-	)
-	if err != nil {
-		t.Fatalf("bridges.ResolveRoute(second) error = %v", err)
-	}
-
-	routes, err := env.bridges.ListRoutes(testutil.Context(t), instance.ID)
-	if err != nil {
-		t.Fatalf("bridges.ListRoutes() error = %v", err)
-	}
-	if got := len(routes); got != 1 {
-		t.Fatalf("len(routes) = %d, want 1", got)
-	}
-	if got := env.driver.promptCount(); got != 1 {
-		t.Fatalf("driver.promptCount() = %d, want 1", got)
-	}
-	if secondResult.SessionID != firstResult.SessionID {
-		t.Fatalf("duplicate session_id = %q, want %q", secondResult.SessionID, firstResult.SessionID)
-	}
-	if !secondRoute.UpdatedAt.Equal(firstRoute.UpdatedAt) {
-		t.Fatalf("duplicate retry updated route from %s to %s", firstRoute.UpdatedAt, secondRoute.UpdatedAt)
-	}
-}
-
-func TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
-
-	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-report-state-ready",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	readyCtx := env.bridgeContext(t, ready)
-
-	_, err := env.callWithContext(readyCtx, t, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"bridge_instance_id": ready.ID,
-		"status":             "disabled",
-	})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "operator-controlled")
-
-	_, err = env.callWithContext(readyCtx, t, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"bridge_instance_id": ready.ID,
-		"status":             "bogus",
-	})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "unsupported bridge status")
-
-	_, err = env.callWithContext(readyCtx, t, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"status": "ready",
-	})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "bridge_instance_id is required")
-}
-
-func TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationControls(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-report-state-conflict",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-
-	_, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"bridge_instance_id": instance.ID,
-		"status":             "degraded",
-		"clear_degradation":  true,
-		"degradation": map[string]any{
-			"reason": "rate_limited",
-		},
-	})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "cannot be cleared and set together")
-}
-
-func TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant(
-		"telegram-adapter",
-		[]string{"bridges/instances/report_state", "bridges/instances/get"},
-		[]string{"bridge.write", "bridge.read"},
-	)
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID: store.DefaultProfileID,
-		ID:        "brg-report-state-recovery",
-		Enabled:   true,
-		Status:    bridgepkg.BridgeStatusAuthRequired,
-		Degradation: &bridgepkg.BridgeDegradation{
-			Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
-			Message: "expired",
-		},
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-
-	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"bridge_instance_id": instance.ID,
-		"status":             "starting",
-	})
-	if err != nil {
-		t.Fatalf("Handle(bridges/instances/report_state recovery) error = %v", err)
-	}
-
-	var updated bridgecontract.BridgeInstance
-	decodeResult(t, result, &updated)
-	if updated.Degradation != nil {
-		t.Fatalf("updated.Degradation = %#v, want nil", updated.Degradation)
-	}
-
-	fetched, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
-		"bridge_instance_id": instance.ID,
-	})
-	if err != nil {
-		t.Fatalf("Handle(bridges/instances/get recovery) error = %v", err)
-	}
-
-	var loaded bridgecontract.BridgeInstance
-	decodeResult(t, fetched, &loaded)
-	if loaded.Degradation != nil {
-		t.Fatalf("loaded.Degradation = %#v, want nil", loaded.Degradation)
-	}
-}
-
-func TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
-
-	other := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-other-owner",
-		ExtensionName: "discord-adapter",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, other)
-
-	_, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
-		"bridge_instance_id": other.ID,
-	})
-	assertRPCErrorCode(t, err, HostAPINotFoundCode)
-}
-
-func TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-method-handler",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-
-	handlers := env.handler.MethodHandlers()
-	handler, ok := handlers["bridges/instances/get"]
-	if !ok {
-		t.Fatal("MethodHandlers()[bridges/instances/get] = missing, want handler")
-	}
-
-	ctx := withHostAPIExtensionName(env.bridgeContext(t, instance), "telegram-adapter")
-	result, err := handler(ctx, mustMarshalRawMessage(t, map[string]any{
-		"bridge_instance_id": instance.ID,
-	}))
-	if err != nil {
-		t.Fatalf("MethodHandlers()[bridges/instances/get]() error = %v", err)
-	}
-
-	var loaded bridgecontract.BridgeInstance
-	decodeResult(t, result, &loaded)
-	if loaded.ID != instance.ID {
-		t.Fatalf("loaded.ID = %q, want %q", loaded.ID, instance.ID)
-	}
-}
-
-func TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRuntime(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/instances/list", "bridges/instances/get"}, []string{"bridge.read"})
-
-	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-owned-a",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-owned-b",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	_ = env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-foreign",
-		ExtensionName: "discord-adapter",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-
-	ctx := env.bridgeContextForInstances(t, first, second)
-
-	listedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/list", nil)
-	if err != nil {
-		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
-	}
-
-	var listed []bridgecontract.BridgeInstance
-	decodeResult(t, listedResult, &listed)
-	if got := len(listed); got != 2 {
-		t.Fatalf("len(listed) = %d, want 2", got)
-	}
-	if got, want := []string{listed[0].ID, listed[1].ID}, []string{first.ID, second.ID}; !slices.Equal(got, want) {
-		t.Fatalf("listed ids = %#v, want %#v", got, want)
-	}
-
-	fetchedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
-		"bridge_instance_id": second.ID,
-	})
-	if err != nil {
-		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
-	}
-
-	var fetched bridgecontract.BridgeInstance
-	decodeResult(t, fetchedResult, &fetched)
-	if got, want := fetched.ID, second.ID; got != want {
-		t.Fatalf("fetched.ID = %q, want %q", got, want)
-	}
-}
-
-func TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/instances/list"}, []string{"bridge.read"})
-
-	ctx := withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
-		Purpose:        subprocess.BridgeRuntimePurposeService,
-		Provider:       "telegram-adapter",
-		Platform:       "telegram",
-	})
-
-	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/list", nil)
-	if err != nil {
-		t.Fatalf("Handle(bridges/instances/list zero) error = %v", err)
-	}
-
-	var listed []bridgecontract.BridgeInstance
-	decodeResult(t, result, &listed)
-	if len(listed) != 0 {
-		t.Fatalf("len(listed) = %d, want 0", len(listed))
-	}
-}
-
-func TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.useSessionsWithoutObserver(t)
-	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-concurrent",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-
-	type ingestResult struct {
-		result bridgecontract.BridgesMessagesIngestResult
-		err    error
-	}
-
-	results := make([]ingestResult, 2)
-	var wg sync.WaitGroup
-	for idx := range results {
-		wg.Go(func() {
-			res, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
-				"bridge_instance_id":  instance.ID,
-				"scope":               instance.Scope,
-				"workspace_id":        instance.WorkspaceID,
-				"peer_id":             "peer-1",
-				"platform_message_id": fmt.Sprintf("msg-%d", idx),
-				"received_at":         env.currentTime().Format(time.RFC3339Nano),
-				"idempotency_key":     fmt.Sprintf("idem-%d", idx),
-				"content":             map[string]any{"text": fmt.Sprintf("hello-%d", idx)},
-			})
-			if err != nil {
-				results[idx].err = err
-				return
-			}
-			decodeResult(t, res, &results[idx].result)
-		})
-	}
-	wg.Wait()
-
-	for idx, result := range results {
-		if result.err != nil {
-			t.Fatalf("ingest[%d] error = %v", idx, result.err)
-		}
-	}
-
-	routes, err := env.bridges.ListRoutes(testutil.Context(t), instance.ID)
-	if err != nil {
-		t.Fatalf("bridges.ListRoutes() error = %v", err)
-	}
-	if got := len(routes); got != 1 {
-		t.Fatalf("len(routes) = %d, want 1", got)
-	}
-
-	sessions, err := env.sessions.ListAll(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("sessions.ListAll() error = %v", err)
-	}
-	if got := len(sessions); got != 1 {
-		t.Fatalf("len(sessions) = %d, want 1", got)
-	}
-	if results[0].result.SessionID != results[1].result.SessionID {
-		t.Fatalf("session IDs = %q and %q, want same session", results[0].result.SessionID, results[1].result.SessionID)
-	}
-	if got := env.driver.promptCount(); got != 2 {
-		t.Fatalf("driver.promptCount() = %d, want 2", got)
-	}
-}
-
-func TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSession(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-rebind",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-
-	key, err := env.bridges.BuildRoutingKey(testutil.Context(t), bridgepkg.RoutingKey{
-		BridgeInstanceID: instance.ID,
-		Scope:            instance.Scope,
-		WorkspaceID:      instance.WorkspaceID,
-		PeerID:           "peer-1",
-	})
-	if err != nil {
-		t.Fatalf("bridges.BuildRoutingKey() error = %v", err)
-	}
-	if _, err := env.bridges.UpsertRoute(testutil.Context(t), bridgepkg.BridgeRoute{
-		Scope:            key.Scope,
-		WorkspaceID:      key.WorkspaceID,
-		BridgeInstanceID: key.BridgeInstanceID,
-		PeerID:           key.PeerID,
-		SessionID:        "missing-session",
-		AgentName:        "coder",
-	}); err != nil {
-		t.Fatalf("bridges.UpsertRoute() error = %v", err)
-	}
-
-	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
-		"bridge_instance_id":  instance.ID,
-		"scope":               instance.Scope,
-		"workspace_id":        instance.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-rebind",
-		"received_at":         env.currentTime().Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-rebind",
-		"content":             map[string]any{"text": "hello"},
-	})
-	if err != nil {
-		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
-	}
-
-	var ingest bridgecontract.BridgesMessagesIngestResult
-	decodeResult(t, result, &ingest)
-	if ingest.SessionID == "missing-session" {
-		t.Fatal("ingest session_id = missing-session, want replacement session")
-	}
-
-	route, err := env.bridges.ResolveRoute(testutil.Context(t), key)
-	if err != nil {
-		t.Fatalf("bridges.ResolveRoute() error = %v", err)
-	}
-	if route.SessionID != ingest.SessionID {
-		t.Fatalf("route.SessionID = %q, want %q", route.SessionID, ingest.SessionID)
-	}
-	if got := env.driver.promptCount(); got != 1 {
-		t.Fatalf("driver.promptCount() = %d, want 1", got)
-	}
-}
-
-func TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-expiry",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-	params := map[string]any{
-		"bridge_instance_id":  instance.ID,
-		"scope":               instance.Scope,
-		"workspace_id":        instance.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-expiry",
-		"received_at":         env.currentTime().Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-expiry",
-		"content":             map[string]any{"text": "hello"},
-	}
-
-	if _, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params); err != nil {
-		t.Fatalf("first ingest error = %v", err)
-	}
-	if got := env.driver.promptCount(); got != 1 {
-		t.Fatalf("driver.promptCount() after first ingest = %d, want 1", got)
-	}
-
-	env.advanceTime(20 * time.Minute)
-	if _, err := env.registry.GetBridgeIngestDedup(
-		testutil.Context(t),
-		"idem-expiry",
-		env.currentTime(),
-	); !errors.Is(
-		err,
-		bridgepkg.ErrIngestDedupRecordNotFound,
-	) {
-		t.Fatalf("GetBridgeIngestDedup(expired) error = %v, want ErrIngestDedupRecordNotFound", err)
-	}
-
-	if _, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params); err != nil {
-		t.Fatalf("second ingest after expiry error = %v", err)
-	}
-	if got := env.driver.promptCount(); got != 2 {
-		t.Fatalf("driver.promptCount() after reingest = %d, want 2", got)
-	}
-
-	if _, err := env.registry.GetBridgeIngestDedup(testutil.Context(t), "idem-expiry", env.currentTime()); err != nil {
-		t.Fatalf("GetBridgeIngestDedup(refreshed) error = %v", err)
-	}
-}
-
-func TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
-
-	broker := &recordingPromptDeliveryBroker{}
-	env.handler = NewHostAPIHandler(
-		env.sessions,
-		env.memory,
-		env.observer,
-		env.skills,
-		WithHostAPICapabilityChecker(env.checker),
-		WithHostAPIWorkspaceResolver(env.workspaces),
-		WithHostAPIBridgeRegistry(env.bridges),
-		WithHostAPIBridgeDedupStore(env.registry),
-		WithHostAPIDeliveryBroker(broker),
-		WithHostAPINow(func() time.Time { return env.currentTime() }),
-		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
-		WithHostAPIRateLimit(1000, 1000),
-	)
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-ingest-register",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	ctx := env.bridgeContext(t, instance)
-	params := map[string]any{
-		"bridge_instance_id":  instance.ID,
-		"scope":               instance.Scope,
-		"workspace_id":        instance.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-register",
-		"received_at":         env.currentTime().Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-register",
-		"content":             map[string]any{"text": "hello"},
-	}
-
-	if _, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params); err != nil {
-		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
-	}
-
-	regs := broker.snapshotRegistrations()
-	if len(regs) != 1 {
-		t.Fatalf("len(prompt delivery registrations) = %d, want 1", len(regs))
-	}
-	reg := regs[0]
-	if reg.SessionID == "" {
-		t.Fatal("registration session id = empty, want non-empty")
-	}
-	if reg.TurnID == "" {
-		t.Fatal("registration turn id = empty, want non-empty")
-	}
-	if got, want := reg.ExtensionName, instance.ExtensionName; got != want {
-		t.Fatalf("registration extension = %q, want %q", got, want)
-	}
-	if got, want := reg.RoutingKey.BridgeInstanceID, instance.ID; got != want {
-		t.Fatalf("registration routing key instance = %q, want %q", got, want)
-	}
-	if got, want := reg.RoutingKey.PeerID, "peer-1"; got != want {
-		t.Fatalf("registration routing key peer = %q, want %q", got, want)
-	}
-	if got, want := reg.DeliveryTarget.Mode, bridgepkg.DeliveryModeReply; got != want {
-		t.Fatalf("registration delivery mode = %q, want %q", got, want)
-	}
-
-	eventTypes := make([]string, 0, len(reg.SeedEvents))
-	for _, event := range reg.SeedEvents {
-		eventTypes = append(eventTypes, event.Type)
-	}
-	if !slices.Contains(eventTypes, acp.EventTypeUserMessage) {
-		t.Fatalf("registration seed event types = %#v, want user_message from prompt boundary seed", eventTypes)
-	}
-}
-
-func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("delivery-replayer", []string{"sessions/prompt"}, []string{"session.write"})
-	turnEnded := make(chan string, 1)
-	env.sessions.SetTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
-		select {
-		case turnEnded <- identity.SessionID:
-		default:
-		}
-	})
-
-	broker := &recordingPromptDeliveryBroker{}
-	env.handler = NewHostAPIHandler(
-		env.sessions,
-		env.memory,
-		env.observer,
-		env.skills,
-		WithHostAPICapabilityChecker(env.checker),
-		WithHostAPIWorkspaceResolver(env.workspaces),
-		WithHostAPIBridgeRegistry(env.bridges),
-		WithHostAPIBridgeDedupStore(env.registry),
-		WithHostAPIDeliveryBroker(broker),
-		WithHostAPINow(func() time.Time { return env.currentTime() }),
-		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
-		WithHostAPIRateLimit(1000, 1000),
-	)
-
-	sess := env.createSession(t)
-	prompt, err := env.submitPrompt(t, "delivery-replayer", sess.ID, "replay me")
-	if err != nil {
-		t.Fatalf("submitPrompt() error = %v", err)
-	}
-
-	select {
-	case notifiedSessionID := <-turnEnded:
-		if got, want := notifiedSessionID, sess.ID; got != want {
-			t.Fatalf("turn end notifier session id = %q, want %q", got, want)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for prompt completion")
-	}
-
-	promptEvents, err := env.sessions.Events(testutil.Context(t), sess.ID, store.EventQuery{TurnID: prompt.TurnID})
-	if err != nil {
-		t.Fatalf("sessions.Events(%q) error = %v", sess.ID, err)
-	}
-	if !slices.ContainsFunc(promptEvents, func(storedEvent store.SessionEvent) bool {
-		return strings.TrimSpace(storedEvent.Type) == acp.EventTypeDone
-	}) {
-		t.Fatalf("prompt events = %#v, want done event after turn completion notification", promptEvents)
-	}
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-register-replay",
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	routingKey, err := env.bridges.BuildRoutingKey(testutil.Context(t), bridgepkg.RoutingKey{
-		Scope:            instance.Scope,
-		WorkspaceID:      instance.WorkspaceID,
-		BridgeInstanceID: instance.ID,
-		PeerID:           "peer-1",
-	})
-	if err != nil {
-		t.Fatalf("BuildRoutingKey() error = %v", err)
-	}
-
-	if err := env.handler.registerPromptDeliveryAfterSubmission(
-		testutil.Context(t),
-		*instance,
-		routingKey,
-		sess.ID,
-		hostAPIPromptSubmission{
-			TurnID: prompt.TurnID,
-			SeedEvents: []bridgepkg.DeliveryProjectionEvent{{
-				Type:      acp.EventTypeUserMessage,
-				TurnID:    prompt.TurnID,
-				Timestamp: env.currentTime(),
-				Text:      "replay me",
-			}},
-		},
-	); err != nil {
-		t.Fatalf("registerPromptDelivery() error = %v", err)
-	}
-
-	projected := broker.snapshotProjectedEvents()
-	projectedTypes := make([]string, 0, len(projected))
-	for _, event := range projected {
-		projectedTypes = append(projectedTypes, event.Type)
-	}
-	if !slices.Contains(projectedTypes, acp.EventTypeAgentMessage) {
-		t.Fatalf("projected event types = %#v, want agent_message replay", projectedTypes)
-	}
-	if !slices.Contains(projectedTypes, acp.EventTypeDone) {
-		t.Fatalf("projected event types = %#v, want done replay", projectedTypes)
-	}
-}
-
 func TestPromptSubmissionFromStoredEventsUsesSyntheticBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -2884,15 +1663,6 @@ func TestPromptSubmissionFromStoredEventsUsesSyntheticBoundary(t *testing.T) {
 	if got, want := submission.TurnID, "turn-synth"; got != want {
 		t.Fatalf("submission.TurnID = %q, want %q", got, want)
 	}
-	if got, want := len(submission.SeedEvents), 2; got != want {
-		t.Fatalf("len(submission.SeedEvents) = %d, want %d", got, want)
-	}
-	if got, want := submission.SeedEvents[0].Type, acp.EventTypeSyntheticReentry; got != want {
-		t.Fatalf("seedEvents[0].Type = %q, want %q", got, want)
-	}
-	if got, want := submission.SeedEvents[0].Text, "daemon wake-up"; got != want {
-		t.Fatalf("seedEvents[0].Text = %q, want %q", got, want)
-	}
 }
 
 func TestPromptTurnIDFromStoredEventsPrefersFirstPromptBoundary(t *testing.T) {
@@ -2921,79 +1691,6 @@ func TestPromptSubmissionFromStoredEventsRejectsMissingPromptBoundary(t *testing
 	}
 	if !strings.Contains(err.Error(), "turn id not found") {
 		t.Fatalf("promptSubmissionFromStoredEvents() error = %v, want turn id failure", err)
-	}
-}
-
-func TestPromptProjectionEventFromStoredEventUsesStoredFallbacks(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 18, 14, 5, 0, 0, time.UTC)
-	projected, err := promptProjectionEventFromStoredEvent(store.SessionEvent{
-		ID:        "ev-fallback",
-		Type:      acp.EventTypeSyntheticReentry,
-		TurnID:    "turn-synth",
-		Timestamp: now,
-		Content:   `{"schema":"compozy.session.event.v1","text":"daemon wake-up"}`,
-	})
-	if err != nil {
-		t.Fatalf("promptProjectionEventFromStoredEvent() error = %v", err)
-	}
-	if got, want := projected.Type, acp.EventTypeSyntheticReentry; got != want {
-		t.Fatalf("projected.Type = %q, want %q", got, want)
-	}
-	if got, want := projected.TurnID, "turn-synth"; got != want {
-		t.Fatalf("projected.TurnID = %q, want %q", got, want)
-	}
-	if got, want := projected.Text, "daemon wake-up"; got != want {
-		t.Fatalf("projected.Text = %q, want %q", got, want)
-	}
-	if got := projected.Timestamp; !got.Equal(now) {
-		t.Fatalf("projected.Timestamp = %s, want %s", got, now)
-	}
-}
-
-func TestPromptProjectionEventFromStoredEventReturnsDecodeError(t *testing.T) {
-	t.Parallel()
-
-	_, err := promptProjectionEventFromStoredEvent(store.SessionEvent{
-		ID:      "ev-invalid",
-		Type:    acp.EventTypeSyntheticReentry,
-		TurnID:  "turn-synth",
-		Content: "{",
-	})
-	if err == nil {
-		t.Fatal("promptProjectionEventFromStoredEvent() error = nil, want decode error")
-	}
-}
-
-func TestPromptSeedEventsFromStoredEventsFiltersOtherTurns(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 18, 14, 7, 0, 0, time.UTC)
-	events := []store.SessionEvent{
-		mustStoredPromptEvent(t, "ev-other", 1, acp.AgentEvent{
-			Type:      acp.EventTypeUserMessage,
-			TurnID:    "turn-other",
-			Timestamp: now,
-			Text:      "other",
-		}),
-		mustStoredPromptEvent(t, "ev-synth", 2, acp.AgentEvent{
-			Type:      acp.EventTypeSyntheticReentry,
-			TurnID:    "turn-synth",
-			Timestamp: now.Add(time.Second),
-			Text:      "daemon wake-up",
-		}),
-	}
-
-	seedEvents, err := promptSeedEventsFromStoredEvents(events, "turn-synth")
-	if err != nil {
-		t.Fatalf("promptSeedEventsFromStoredEvents() error = %v", err)
-	}
-	if got, want := len(seedEvents), 1; got != want {
-		t.Fatalf("len(seedEvents) = %d, want %d", got, want)
-	}
-	if got, want := seedEvents[0].Type, acp.EventTypeSyntheticReentry; got != want {
-		t.Fatalf("seedEvents[0].Type = %q, want %q", got, want)
 	}
 }
 
@@ -3118,53 +1815,11 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 	}
 }
 
-func TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata(t *testing.T) {
-	t.Parallel()
-
-	attachmentSummary := summarizeInboundAttachment(bridgepkg.MessageAttachment{
-		ID:       "att-1",
-		Name:     "report.pdf",
-		MIMEType: "application/pdf",
-		URL:      "https://example.com/report.pdf",
-	})
-	if !strings.Contains(attachmentSummary, "report.pdf") || !strings.Contains(attachmentSummary, "application/pdf") {
-		t.Fatalf("summarizeInboundAttachment() = %q, want attachment name and mime type", attachmentSummary)
-	}
-
-	prompt := renderInboundMessagePrompt(bridgepkg.InboundMessageEnvelope{
-		PlatformMessageID: "msg-1",
-		ReceivedAt:        time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC),
-		PeerID:            "peer-1",
-		Sender:            bridgepkg.MessageSender{DisplayName: "Alice", Username: "alice"},
-		Content:           bridgepkg.MessageContent{},
-		Attachments: []bridgepkg.MessageAttachment{{
-			Name:     "report.pdf",
-			MIMEType: "application/pdf",
-		}},
-	})
-	if !strings.Contains(prompt, "[No text body]") || !strings.Contains(prompt, "Attachments:") {
-		t.Fatalf("renderInboundMessagePrompt() = %q, want attachment block and empty-body marker", prompt)
-	}
-
-	assertRPCErrorCode(t, mapBridgeLookupError("brg-1", bridgepkg.ErrBridgeInstanceNotFound), HostAPINotFoundCode)
-	assertRPCErrorCode(t, mapBridgeRouteError("brg-1", bridgepkg.ErrBridgeInstanceUnavailable), HostAPIUnavailableCode)
-	assertRPCErrorCode(
-		t,
-		mapBridgeStateUpdateError("brg-1", bridgepkg.ErrInvalidBridgeStateTransition),
-		HostAPIInvalidParamsCode,
-	)
-
-	env := newHostAPITestEnv(t)
-	if err := env.handler.stopBridgeSession(testutil.Context(t), "missing-session"); err != nil {
-		t.Fatalf("stopBridgeSession(missing) error = %v, want nil", err)
-	}
-}
-
 func TestHostAPIHandlerUnknownMethodReturnsMethodNotFound(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	_, err := env.call(t, "ext-any", "sessions/missing", nil)
+	handler := NewHostAPIHandler(nil, nil, nil)
+	_, err := handler.Handle(t.Context(), "ext-any", "sessions/missing", nil)
 	assertRPCErrorCode(t, err, HostAPIMethodNotFoundCode)
 }
 
@@ -3176,7 +1831,6 @@ func TestHostAPIHandlerRateLimitExceededReturnsRetryAfter(t *testing.T) {
 
 	handler := NewHostAPIHandler(
 		env.sessions,
-		env.memory,
 		env.observer,
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
@@ -3208,7 +1862,6 @@ func TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder(t *te
 
 	handler := NewHostAPIHandler(
 		env.sessions,
-		env.memory,
 		env.observer,
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
@@ -3230,33 +1883,43 @@ func TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder(t *te
 func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-denied", nil, nil)
+	checker := &CapabilityChecker{}
+	checker.Register("ext-denied", SourceUser, &Manifest{})
+	handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
 
 	tests := []struct {
 		method string
 		params any
 	}{
 		{method: "sessions/list", params: nil},
-		{method: "sessions/create", params: map[string]any{"agent": "coder", "workspace": env.workspaceID}},
+		{method: "sessions/create", params: map[string]any{"agent": "coder", "workspace": "ws-permission-check"}},
 		{
 			method: "sessions/prompt",
-			params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1", "message": "hello"},
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1", "message": "hello"},
 		},
-		{method: "sessions/stop", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
-		{method: "sessions/status", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
-		{method: "sessions/events", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
-		{method: "memory/recall", params: map[string]any{"query": "needle"}},
-		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
-		{method: "memory/forget", params: map[string]any{"key": "note"}},
+		{
+			method: "sessions/stop",
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"},
+		},
+		{
+			method: "sessions/status",
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"},
+		},
+		{
+			method: "sessions/events",
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"},
+		},
 		{method: "observe/health", params: nil},
 		{method: "logs/list", params: map[string]any{"limit": 1}},
-		{method: "skills/list", params: map[string]any{"workspace": env.workspaceID}},
-		{method: "automation/jobs", params: map[string]any{"scope": "workspace", "workspace_id": env.workspaceID}},
+		{method: "skills/list", params: map[string]any{"workspace": "ws-permission-check"}},
+		{
+			method: "automation/jobs",
+			params: map[string]any{"scope": "workspace", "workspace_id": "ws-permission-check"},
+		},
 		{method: "automation/jobs/create", params: map[string]any{
 			"name":         "host-api-job",
 			"scope":        "workspace",
-			"workspace_id": env.workspaceID,
+			"workspace_id": "ws-permission-check",
 			"agent_name":   "coder",
 			"prompt":       "do work",
 			"schedule": map[string]any{
@@ -3267,30 +1930,15 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 		{method: "automation/triggers/fire", params: map[string]any{
 			"event":        "ext.github.push",
 			"scope":        "workspace",
-			"workspace_id": env.workspaceID,
+			"workspace_id": "ws-permission-check",
 		}},
-		{method: "bridges/messages/ingest", params: map[string]any{
-			"bridge_instance_id":  "brg-1",
-			"scope":               "workspace",
-			"workspace_id":        env.workspaceID,
-			"peer_id":             "peer-1",
-			"platform_message_id": "msg-1",
-			"received_at":         env.currentTime().Format(time.RFC3339Nano),
-			"idempotency_key":     "idem-1",
-		}},
-		{method: "bridges/instances/list", params: nil},
-		{method: "bridges/instances/get", params: map[string]any{"bridge_instance_id": "brg-1"}},
-		{
-			method: "bridges/instances/report_state",
-			params: map[string]any{"bridge_instance_id": "brg-1", "status": "ready"},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.method, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.call(t, "ext-denied", tt.method, tt.params)
+			_, err := handler.Handle(t.Context(), "ext-denied", tt.method, mustMarshalRawMessage(t, tt.params))
 			assertCapabilityDenied(t, err, tt.method)
 		})
 	}
@@ -3301,24 +1949,26 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	t.Run("Should authorize the session grant while preserving the extension name", func(t *testing.T) {
 		t.Parallel()
 
-		env := newHostAPITestEnv(t)
+		checker := &CapabilityChecker{}
+		handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
 		key := GlobalInstanceKey("ext-wrapped")
 		grantID := extensionCapabilityGrantID(key, "session-nonce")
-		env.grant(grantID, []string{"observe/health"}, []string{"observe.read"})
+		checker.Register(grantID, SourceUser, &Manifest{
+			Permissions: PermissionsConfig{Requires: []string{"observe/health"}},
+		})
 
 		var handledExtensionName string
-		env.handler.methods["observe/health"] = func(ctx context.Context, _ json.RawMessage) (any, error) {
+		handler.methods["observe/health"] = func(ctx context.Context, _ json.RawMessage) (any, error) {
 			handledExtensionName = hostAPIExtensionNameFromContext(ctx)
 			return observepkg.Health{Status: "ok"}, nil
 		}
 
-		manager := NewManager(nil, WithCapabilityChecker(env.checker))
+		manager := NewManager(nil, WithCapabilityChecker(checker))
 		wrapped := manager.wrapHostHandler(
 			key,
 			"observe/health",
-			nil,
 			&hostAPIResourceSession{Actor: resources.MutationActor{ID: grantID}},
-			env.handler.HandleMethod("observe/health"),
+			handler.HandleMethod("observe/health"),
 		)
 
 		result, err := wrapped(testutil.Context(t), nil)
@@ -3337,159 +1987,64 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	})
 }
 
-func TestNormalizeHostAPIHandlerDefaultsFillsZeroValues(t *testing.T) {
+func TestHostAPIContextHelpersCloneResourceSession(t *testing.T) {
 	t.Parallel()
 
-	normalizeHostAPIHandlerDefaults(nil)
-
-	handler := &HostAPIHandler{}
-	normalizeHostAPIHandlerDefaults(handler)
-
-	if handler.now == nil {
-		t.Fatal("normalizeHostAPIHandlerDefaults() left now nil")
-	}
-	if handler.capChecker == nil {
-		t.Fatal("normalizeHostAPIHandlerDefaults() left capChecker nil")
-	}
-	if handler.bridgeIngestDedupTTL != defaultHostAPIBridgeIngestDedupTTL {
-		t.Fatalf(
-			"bridgeIngestDedupTTL = %v, want %v",
-			handler.bridgeIngestDedupTTL,
-			defaultHostAPIBridgeIngestDedupTTL,
-		)
-	}
-	if handler.bridgeCleanupInterval != defaultHostAPIBridgeCleanupInterval {
-		t.Fatalf(
-			"bridgeCleanupInterval = %v, want %v",
-			handler.bridgeCleanupInterval,
-			defaultHostAPIBridgeCleanupInterval,
-		)
-	}
-	if handler.bridgeLocks == nil {
-		t.Fatal("normalizeHostAPIHandlerDefaults() left bridgeLocks nil")
-	}
-}
-
-func TestHostAPIContextHelpersCloneBridgeAndResourceSession(t *testing.T) {
-	t.Parallel()
-
-	baseCtx := context.Background()
-	if got := withHostAPIBridgeRuntime(baseCtx, nil); got != baseCtx {
-		t.Fatalf("withHostAPIBridgeRuntime(background, nil) = %#v, want background context", got)
-	}
-	if got := withHostAPIResourceSession(baseCtx, nil); got != baseCtx {
-		t.Fatalf("withHostAPIResourceSession(background, nil) = %#v, want background context", got)
-	}
-	if _, ok := hostAPIResourceSessionFromContext(baseCtx); ok {
-		t.Fatal("hostAPIResourceSessionFromContext(background) = ok, want false")
-	}
-	if runtime := hostAPIBridgeRuntimeFromContext(baseCtx); runtime != nil {
-		t.Fatalf("hostAPIBridgeRuntimeFromContext(background) = %#v, want nil", runtime)
-	}
-
-	runtime := &subprocess.InitializeBridgeRuntime{
-		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
-			{
-				Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
-					ID:            "brg-1",
-					ExtensionName: "ext-runtime",
-				}),
-			},
-		},
-	}
-	session := &hostAPIResourceSession{
-		Actor: resources.MutationActor{
-			Kind:         resources.MutationActorKindExtension,
-			ID:           "ext-runtime",
-			SessionNonce: "nonce-1",
-			Source: resources.ResourceSource{
-				Kind: resources.ResourceSourceKind("extension"),
-				ID:   "ext-runtime",
-			},
-			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
-			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindUser},
-		},
-	}
-
-	ctx := withHostAPIBridgeRuntime(withHostAPIResourceSession(baseCtx, session), runtime)
-
-	session.Actor.GrantedKinds[0] = "tool.call"
-	runtime.ManagedInstances[0].Instance.ID = "mutated"
-
-	storedSession, ok := hostAPIResourceSessionFromContext(ctx)
-	if !ok {
-		t.Fatal("hostAPIResourceSessionFromContext(ctx) = false, want true")
-	}
-	if got, want := storedSession.Actor.GrantedKinds, []resources.ResourceKind{
-		"tool.definition",
-	}; !slices.Equal(
-		got,
-		want,
-	) {
-		t.Fatalf("storedSession.Actor.GrantedKinds = %#v, want %#v", got, want)
-	}
-	storedSession.Actor.GrantedKinds[0] = "tool.call"
-	reloadedSession, ok := hostAPIResourceSessionFromContext(ctx)
-	if !ok {
-		t.Fatal("hostAPIResourceSessionFromContext(ctx) after mutation = false, want true")
-	}
-	if got, want := reloadedSession.Actor.GrantedKinds, []resources.ResourceKind{
-		"tool.definition",
-	}; !slices.Equal(
-		got,
-		want,
-	) {
-		t.Fatalf("reloadedSession.Actor.GrantedKinds = %#v, want %#v", got, want)
-	}
-
-	storedRuntime := hostAPIBridgeRuntimeFromContext(ctx)
-	if storedRuntime == nil {
-		t.Fatal("hostAPIBridgeRuntimeFromContext(ctx) = nil, want runtime")
-		return
-	}
-	if got, want := storedRuntime.ManagedInstances[0].Instance.ID, "brg-1"; got != want {
-		t.Fatalf("storedRuntime.ManagedInstances[0].Instance.ID = %q, want %q", got, want)
-	}
-
-	t.Run("Should preserve workspace identity and deep-copy inbound bridge wire payloads", func(t *testing.T) {
+	t.Run("Should isolate resource session snapshots", func(t *testing.T) {
 		t.Parallel()
 
-		wire := bridgecontract.InboundMessageEnvelope{
-			BridgeInstanceID: "brg-wire", Scope: bridgecontract.ScopeWorkspace,
-			WorkspaceID: "ws-wire", ReceivedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
-			Attachments: []bridgecontract.MessageAttachment{{ID: "att-1", Name: "report.pdf"}},
-			Command:     &bridgecontract.InboundCommand{Command: "/summarize"},
-			Conversation: &bridgecontract.NetworkConversationRef{
-				Channel: "general", Surface: bridgecontract.NetworkConversationSurfaceThread,
-				ThreadID: "thread_1",
+		baseCtx := t.Context()
+
+		if got := withHostAPIResourceSession(baseCtx, nil); got != baseCtx {
+			t.Fatalf("withHostAPIResourceSession(background, nil) = %#v, want background context", got)
+		}
+		if _, ok := hostAPIResourceSessionFromContext(baseCtx); ok {
+			t.Fatal("hostAPIResourceSessionFromContext(background) = ok, want false")
+		}
+
+		session := &hostAPIResourceSession{
+			Actor: resources.MutationActor{
+				Kind:         resources.MutationActorKindExtension,
+				ID:           "ext-runtime",
+				SessionNonce: "nonce-1",
+				Source: resources.ResourceSource{
+					Kind: resources.ResourceSourceKind("extension"),
+					ID:   "ext-runtime",
+				},
+				MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				GrantedKinds:  []resources.ResourceKind{"tool.definition"},
+				GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindUser},
 			},
-			ProviderMetadata: json.RawMessage(`{"update_id":1}`), IdempotencyKey: "idem-wire",
 		}
 
-		domain := bridgeInboundEnvelopeDomain(wire)
-		if got, want := domain.Scope, bridgepkg.ScopeWorkspace; got != want {
-			t.Fatalf("bridgeInboundEnvelopeDomain().Scope = %q, want %q", got, want)
-		}
-		if got, want := domain.WorkspaceID, "ws-wire"; got != want {
-			t.Fatalf("bridgeInboundEnvelopeDomain().WorkspaceID = %q, want %q", got, want)
-		}
+		ctx := withHostAPIResourceSession(baseCtx, session)
 
-		domain.Attachments[0].Name = "mutated"
-		domain.Command.Command = "/mutated"
-		domain.Conversation.Channel = "mutated"
-		domain.ProviderMetadata[0] = '['
-		if got, want := wire.Attachments[0].Name, "report.pdf"; got != want {
-			t.Fatalf("wire.Attachments[0].Name = %q after domain mutation, want %q", got, want)
+		session.Actor.GrantedKinds[0] = "tool.call"
+
+		storedSession, ok := hostAPIResourceSessionFromContext(ctx)
+		if !ok {
+			t.Fatal("hostAPIResourceSessionFromContext(ctx) = false, want true")
 		}
-		if got, want := wire.Command.Command, "/summarize"; got != want {
-			t.Fatalf("wire.Command.Command = %q after domain mutation, want %q", got, want)
+		if got, want := storedSession.Actor.GrantedKinds, []resources.ResourceKind{
+			"tool.definition",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("storedSession.Actor.GrantedKinds = %#v, want %#v", got, want)
 		}
-		if got, want := wire.Conversation.Channel, "general"; got != want {
-			t.Fatalf("wire.Conversation.Channel = %q after domain mutation, want %q", got, want)
+		storedSession.Actor.GrantedKinds[0] = "tool.call"
+		reloadedSession, ok := hostAPIResourceSessionFromContext(ctx)
+		if !ok {
+			t.Fatal("hostAPIResourceSessionFromContext(ctx) after mutation = false, want true")
 		}
-		if got, want := string(wire.ProviderMetadata), `{"update_id":1}`; got != want {
-			t.Fatalf("wire.ProviderMetadata = %q after domain mutation, want %q", got, want)
+		if got, want := reloadedSession.Actor.GrantedKinds, []resources.ResourceKind{
+			"tool.definition",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("reloadedSession.Actor.GrantedKinds = %#v, want %#v", got, want)
 		}
 	})
 }
@@ -3710,6 +2265,9 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 
 	var created automationpkg.Job
 	decodeResult(t, createResult, &created)
+	if created.ID == "" || created.Name != "host-api-job" || created.Source != automationpkg.JobSourceDynamic {
+		t.Fatalf("automation/jobs/create result = %#v, want named dynamic job with an ID", created)
+	}
 	if got, want := created.WorkspaceID, env.workspaceID; got != want {
 		t.Fatalf("created workspace_id = %q, want %q", got, want)
 	}
@@ -3796,133 +2354,6 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 	}
 }
 
-// Invariant: profile-scoped automation reads and writes use the bridge-owned
-// profile identity, so resources never cross profile boundaries.
-// Owner: Host API automation handlers.
-// Canonical suite: extension Host API integration tests.
-func TestHostAPIHandlerAutomationUsesBridgeProfile(t *testing.T) {
-	t.Parallel()
-	t.Run("Should list only automation resources for the bridge profile", func(t *testing.T) {
-		t.Parallel()
-		env := newHostAPITestEnv(t)
-		env.grant(
-			"ext-automation",
-			[]string{
-				"automation/jobs",
-				"automation/jobs/create",
-				"automation/triggers",
-				"automation/triggers/create",
-			},
-			[]string{"automation.read", "automation.write"},
-		)
-		for _, profileID := range []string{store.DefaultProfileID, env.marketingID} {
-			_, err := env.automation.CreateJob(testutil.Context(t), automationpkg.Job{
-				ProfileID: profileID,
-				Scope:     automationpkg.AutomationScopeGlobal,
-				AgentName: "coder",
-				Prompt:    "profile job",
-				Name:      "profile-job-" + profileID,
-				Schedule:  &automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "1h"},
-				Enabled:   true,
-				Retry:     automationpkg.DefaultRetryConfig(),
-				FireLimit: automationpkg.DefaultFireLimitConfig(),
-				Source:    automationpkg.JobSourceDynamic,
-			})
-			if err != nil {
-				t.Fatalf("CreateJob(%q) error = %v", profileID, err)
-			}
-			_, err = env.automation.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
-				ProfileID: profileID,
-				Scope:     automationpkg.AutomationScopeGlobal,
-				AgentName: "coder",
-				Name:      "profile-trigger-" + profileID,
-				Event:     "ext.profile." + profileID,
-				Prompt:    "profile trigger",
-				Enabled:   true,
-				Retry:     automationpkg.DefaultRetryConfig(),
-				FireLimit: automationpkg.DefaultFireLimitConfig(),
-				Source:    automationpkg.JobSourceDynamic,
-			}, automationpkg.WebhookSecretWrite{})
-			if err != nil {
-				t.Fatalf("CreateTrigger(%q) error = %v", profileID, err)
-			}
-		}
-
-		ctx := env.bridgeContext(t, &bridgepkg.BridgeInstance{
-			ID: "bridge-marketing", ExtensionName: "ext-automation", ProfileID: env.marketingID,
-		})
-		jobsResult, err := env.callWithContext(ctx, t, "ext-automation", "automation/jobs", map[string]any{
-			"scope": "global",
-		})
-		if err != nil {
-			t.Fatalf("Handle(automation/jobs profile) error = %v", err)
-		}
-		var jobs extensioncontract.AutomationJobsResult
-		decodeResult(t, jobsResult, &jobs)
-		if len(jobs.Jobs) != 1 || jobs.Jobs[0].ProfileID != env.marketingID {
-			t.Fatalf("profile automation/jobs = %#v, want only profile-marketing", jobs.Jobs)
-		}
-
-		triggersResult, err := env.callWithContext(ctx, t, "ext-automation", "automation/triggers", map[string]any{
-			"scope": "global",
-		})
-		if err != nil {
-			t.Fatalf("Handle(automation/triggers profile) error = %v", err)
-		}
-		var triggers extensioncontract.AutomationTriggersResult
-		decodeResult(t, triggersResult, &triggers)
-		if len(triggers.Triggers) != 1 || triggers.Triggers[0].ProfileID != env.marketingID {
-			t.Fatalf("profile automation/triggers = %#v, want only profile-marketing", triggers.Triggers)
-		}
-
-		createdJobResult, err := env.callWithContext(
-			ctx,
-			t,
-			"ext-automation",
-			"automation/jobs/create",
-			map[string]any{
-				"name":       "marketing-created-job",
-				"scope":      "global",
-				"agent_name": "coder",
-				"prompt":     "marketing job",
-				"schedule": map[string]any{
-					"mode": "every", "interval": "1h",
-				},
-			},
-		)
-		if err != nil {
-			t.Fatalf("Handle(automation/jobs/create profile) error = %v", err)
-		}
-		var createdJob automationpkg.Job
-		decodeResult(t, createdJobResult, &createdJob)
-		if got, want := createdJob.ProfileID, env.marketingID; got != want {
-			t.Fatalf("created job ProfileID = %q, want %q", got, want)
-		}
-
-		createdTriggerResult, err := env.callWithContext(
-			ctx,
-			t,
-			"ext-automation",
-			"automation/triggers/create",
-			map[string]any{
-				"name":       "marketing-created-trigger",
-				"scope":      "global",
-				"agent_name": "coder",
-				"event":      "ext.profile.created",
-				"prompt":     "marketing trigger",
-			},
-		)
-		if err != nil {
-			t.Fatalf("Handle(automation/triggers/create profile) error = %v", err)
-		}
-		var createdTrigger automationpkg.Trigger
-		decodeResult(t, createdTriggerResult, &createdTrigger)
-		if got, want := createdTrigger.ProfileID, env.marketingID; got != want {
-			t.Fatalf("created trigger ProfileID = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
 	t.Parallel()
 
@@ -3944,9 +2375,6 @@ func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
 		},
 		"task": map[string]any{
 			"title": "Scheduled task",
-			"network_participation": map[string]any{
-				"mode": "local",
-			},
 		},
 	})
 	if err != nil {
@@ -3975,7 +2403,6 @@ func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
 				"input_mapping": map[string]string{
 					"commit": "data.sha",
 				},
-				"network_participation": map[string]any{"mode": "local"},
 			},
 		},
 	)
@@ -3989,14 +2416,6 @@ func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
 	}
 	if got, want := trigger.LoopTarget.LoopName, "release"; got != want {
 		t.Fatalf("created loop target name = %q, want %q", got, want)
-	}
-	if trigger.LoopTarget.NetworkParticipation == nil ||
-		trigger.LoopTarget.NetworkParticipation.Mode == nil ||
-		*trigger.LoopTarget.NetworkParticipation.Mode != participation.ModeLocal {
-		t.Fatalf(
-			"created loop target participation = %#v, want local",
-			trigger.LoopTarget.NetworkParticipation,
-		)
 	}
 }
 
@@ -4326,7 +2745,6 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	handler := NewHostAPIHandler(
 		env.sessions,
-		env.memory,
 		env.observer,
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
@@ -4377,8 +2795,9 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-denied", nil, nil)
+	checker := &CapabilityChecker{}
+	checker.Register("ext-denied", SourceUser, &Manifest{})
+	handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
 
 	tests := []struct {
 		name   string
@@ -4406,7 +2825,7 @@ func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.call(t, "ext-denied", tt.method, tt.params)
+			_, err := handler.Handle(t.Context(), "ext-denied", tt.method, mustMarshalRawMessage(t, tt.params))
 			assertCapabilityDenied(t, err, tt.method)
 		})
 	}
@@ -4414,6 +2833,68 @@ func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 
 func TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve draft and creator notification state across create and read", func(t *testing.T) {
+		t.Parallel()
+
+		wakeDisabled := false
+		for _, tc := range []struct {
+			name        string
+			draft       bool
+			wakeCreator *bool
+			wantWake    bool
+		}{
+			{name: "Should report a draft with the default creator notification", draft: true, wantWake: true},
+			{name: "Should report a ready task with creator notification disabled", wakeCreator: &wakeDisabled},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				env := newHostAPITestEnv(t)
+				const extensionName = "ext-task-state"
+				env.grant(extensionName, []string{"tasks/create", "tasks/get"}, []string{"task.read", "task.write"})
+				result, err := env.callFromWorkspace(t, extensionName, "tasks/create", apicontract.CreateTaskRequest{
+					Scope: taskpkg.ScopeWorkspace, Workspace: env.workspace.ID,
+					Title: "Task response state", Draft: tc.draft, WakeCreator: tc.wakeCreator,
+				})
+				if err != nil {
+					t.Fatalf("Handle(tasks/create) error = %v", err)
+				}
+				var created apicontract.TaskPayload
+				decodeResult(t, result, &created)
+				stored, err := env.registry.GetTask(t.Context(), created.ID)
+				if err != nil {
+					t.Fatalf("GetTask(%q) error = %v", created.ID, err)
+				}
+				if gotDraft := stored.Status == taskpkg.TaskStatusDraft; gotDraft != tc.draft ||
+					stored.WakeCreator != tc.wantWake {
+					t.Fatalf("stored task state = draft:%t wake:%t, want draft:%t wake:%t",
+						gotDraft, stored.WakeCreator, tc.draft, tc.wantWake)
+				}
+				if created.Draft != tc.draft || created.WakeCreator != tc.wantWake {
+					t.Errorf("create response state = draft:%t wake:%t, want draft:%t wake:%t",
+						created.Draft, created.WakeCreator, tc.draft, tc.wantWake)
+				}
+				result, err = env.callFromWorkspace(t, extensionName, "tasks/get", map[string]string{"id": created.ID})
+				if err != nil {
+					t.Fatalf("Handle(tasks/get) error = %v", err)
+				}
+				var detail apicontract.TaskDetailPayload
+				decodeResult(t, result, &detail)
+				if stored.LatestEventSeq == 0 || detail.Task.LatestEventSeq != stored.LatestEventSeq ||
+					detail.Summary.LatestEventSeq != stored.LatestEventSeq {
+					t.Errorf("detail event cursors = task:%d summary:%d, want persisted sequence %d > 0",
+						detail.Task.LatestEventSeq, detail.Summary.LatestEventSeq, stored.LatestEventSeq)
+				}
+				if detail.Task.Draft != tc.draft || detail.Task.WakeCreator != tc.wantWake ||
+					detail.Summary.Draft != tc.draft || detail.Summary.WakeCreator != tc.wantWake {
+					t.Fatalf("detail response state = task:%t/%t summary:%t/%t, want draft:%t wake:%t",
+						detail.Task.Draft, detail.Task.WakeCreator, detail.Summary.Draft, detail.Summary.WakeCreator,
+						tc.draft, tc.wantWake)
+				}
+			})
+		}
+	})
 
 	t.Run("Should reject client-supplied identity fields under strict decode", func(t *testing.T) {
 		t.Parallel()
@@ -4489,16 +2970,14 @@ func TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity(t *testing.T) {
 	})
 
 	// Invariant: a Host API task response carries the identity of the profile
-	// bound to the calling bridge. Owner: extension Host API task responses.
+	// bound to the calling extension. Owner: extension Host API task responses.
 	// Canonical suite: extension Host API integration tests.
-	t.Run("Should return the bridge-bound profile identity", func(t *testing.T) {
+	t.Run("Should return the extension-bound profile identity", func(t *testing.T) {
 		t.Parallel()
 
 		env := newHostAPITestEnv(t)
 		env.grant("ext-profile-task", []string{"tasks/create"}, []string{"task.write"})
-		ctx := env.bridgeContext(t, &bridgepkg.BridgeInstance{
-			ID: "bridge-profile-task", ExtensionName: "ext-profile-task", ProfileID: env.marketingID,
-		})
+		ctx := withHostAPIInstanceKey(t.Context(), InstanceKey{Name: "ext-profile-task", ProfileID: env.marketingID})
 		result, err := env.callWithContext(ctx, t, "ext-profile-task", "tasks/create", map[string]any{
 			"scope": taskpkg.ScopeGlobal,
 			"title": "Marketing task",
@@ -4519,308 +2998,360 @@ func TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity(t *testing.T) {
 func TestHostAPIHandlerTaskRunStartAdmitsDirectExecutionWithoutClaimToken(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant(
-		"ext-tasks",
-		[]string{"tasks/create", "tasks/runs/enqueue", "tasks/runs/start"},
-		[]string{"task.write"},
-	)
+	t.Run("Should return the current run after direct execution starts", func(t *testing.T) {
+		t.Parallel()
+		env := newHostAPITestEnv(t)
+		env.grant(
+			"ext-tasks",
+			[]string{"tasks/create", "tasks/get", "tasks/runs/enqueue", "tasks/runs/start"},
+			[]string{"task.read", "task.write"},
+		)
 
-	createResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/create", map[string]any{
-		"scope":     taskpkg.ScopeWorkspace,
-		"title":     "Lifecycle guard task",
-		"workspace": env.workspaceID,
+		createResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/create", map[string]any{
+			"scope":     taskpkg.ScopeWorkspace,
+			"title":     "Lifecycle guard task",
+			"workspace": env.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/create) error = %v", err)
+		}
+
+		var created apicontract.TaskPayload
+		decodeResult(t, createResult, &created)
+
+		enqueueResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
+			"task_id":         created.ID,
+			"idempotency_key": "enqueue-guard",
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/runs/enqueue) error = %v", err)
+		}
+
+		var run apicontract.TaskRunPayload
+		decodeResult(t, enqueueResult, &run)
+
+		startResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/start", map[string]any{
+			"id":              run.ID,
+			"idempotency_key": "start-guard",
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/runs/start) error = %v", err)
+		}
+
+		var started apicontract.TaskRunPayload
+		decodeResult(t, startResult, &started)
+		if got, want := started.Status, taskpkg.TaskRunStatusRunning; got != want {
+			t.Fatalf("tasks/runs/start status = %q, want %q", got, want)
+		}
+		if strings.TrimSpace(started.SessionID) == "" {
+			t.Fatal("tasks/runs/start session_id = empty, want direct execution session")
+		}
+		env.assertDirectExecutionAdmission(t, created.ID, run.ID)
+		getResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/get", map[string]any{"id": created.ID})
+		if err != nil {
+			t.Fatalf("Handle(tasks/get running task) error = %v", err)
+		}
+		var detail apicontract.TaskDetailPayload
+		decodeResult(t, getResult, &detail)
+		if detail.Task.CurrentRunID != run.ID || detail.Summary.CurrentRunID != run.ID {
+			t.Errorf("tasks/get current run = task:%q summary:%q, want %q",
+				detail.Task.CurrentRunID, detail.Summary.CurrentRunID, run.ID)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/create) error = %v", err)
-	}
-
-	var created apicontract.TaskPayload
-	decodeResult(t, createResult, &created)
-
-	enqueueResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
-		"task_id":         created.ID,
-		"idempotency_key": "enqueue-guard",
-	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/runs/enqueue) error = %v", err)
-	}
-
-	var run apicontract.TaskRunPayload
-	decodeResult(t, enqueueResult, &run)
-
-	startResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/start", map[string]any{
-		"id":              run.ID,
-		"idempotency_key": "start-guard",
-	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/runs/start) error = %v", err)
-	}
-
-	var started apicontract.TaskRunPayload
-	decodeResult(t, startResult, &started)
-	if got, want := started.Status, taskpkg.TaskRunStatusRunning; got != want {
-		t.Fatalf("tasks/runs/start status = %q, want %q", got, want)
-	}
-	if strings.TrimSpace(started.SessionID) == "" {
-		t.Fatal("tasks/runs/start session_id = empty, want direct execution session")
-	}
-	env.assertDirectExecutionAdmission(t, created.ID, run.ID)
 }
 
 func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-reader", []string{"tasks", "tasks/get"}, []string{"task.read"})
+	t.Run("Should preserve filtered task detail including direct and inherited pauses", func(t *testing.T) {
+		t.Parallel()
+		env := newHostAPITestEnv(t)
+		env.grant("ext-reader", []string{"tasks", "tasks/get"}, []string{"task.read"})
 
-	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
-	maxAttempts := 3
-	parent, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-		ProfileID:   store.DefaultProfileID,
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: env.workspaceID,
-		Title:       "Parent task",
-		Owner: &taskpkg.Ownership{
-			Kind: taskpkg.OwnerKindExtension,
-			Ref:  "ops",
-		},
-	}, actor)
-	if err != nil {
-		t.Fatalf("tasks.CreateTask(parent) error = %v", err)
-	}
+		actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
+		maxAttempts := 3
+		parent, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: env.workspaceID,
+			Title:       "Parent task",
+			Owner: &taskpkg.Ownership{
+				Kind: taskpkg.OwnerKindExtension,
+				Ref:  "ops",
+			},
+		}, actor)
+		if err != nil {
+			t.Fatalf("tasks.CreateTask(parent) error = %v", err)
+		}
 
-	child, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
-		ProfileID:      store.DefaultProfileID,
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    env.workspaceID,
-		Title:          "Filtered child",
-		Priority:       taskpkg.PriorityHigh,
-		MaxAttempts:    &maxAttempts,
-		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
-		Owner: &taskpkg.Ownership{
-			Kind: taskpkg.OwnerKindExtension,
-			Ref:  "ops",
-		},
-	}, actor)
-	if err != nil {
-		t.Fatalf("tasks.CreateChildTask(filtered) error = %v", err)
-	}
+		child, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+			ProfileID:      store.DefaultProfileID,
+			Scope:          taskpkg.ScopeWorkspace,
+			WorkspaceID:    env.workspaceID,
+			Title:          "Filtered child",
+			Priority:       taskpkg.PriorityHigh,
+			MaxAttempts:    &maxAttempts,
+			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+			Owner: &taskpkg.Ownership{
+				Kind: taskpkg.OwnerKindExtension,
+				Ref:  "ops",
+			},
+		}, actor)
+		if err != nil {
+			t.Fatalf("tasks.CreateChildTask(filtered) error = %v", err)
+		}
 
-	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
-		ProfileID:   store.DefaultProfileID,
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: env.workspaceID,
-		Title:       "Draft child",
-		Draft:       true,
-		Owner: &taskpkg.Ownership{
-			Kind: taskpkg.OwnerKindExtension,
-			Ref:  "ops",
-		},
-	}, actor); err != nil {
-		t.Fatalf("tasks.CreateChildTask(draft) error = %v", err)
-	}
+		if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: env.workspaceID,
+			Title:       "Draft child",
+			Draft:       true,
+			Owner: &taskpkg.Ownership{
+				Kind: taskpkg.OwnerKindExtension,
+				Ref:  "ops",
+			},
+		}, actor); err != nil {
+			t.Fatalf("tasks.CreateChildTask(draft) error = %v", err)
+		}
 
-	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
-		ProfileID:   store.DefaultProfileID,
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: env.workspaceID,
-		Title:       "Other child",
-		Owner: &taskpkg.Ownership{
-			Kind: taskpkg.OwnerKindPool,
-			Ref:  "backlog",
-		},
-	}, actor); err != nil {
-		t.Fatalf("tasks.CreateChildTask(other) error = %v", err)
-	}
+		if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: env.workspaceID,
+			Title:       "Other child",
+			Owner: &taskpkg.Ownership{
+				Kind: taskpkg.OwnerKindPool,
+				Ref:  "backlog",
+			},
+		}, actor); err != nil {
+			t.Fatalf("tasks.CreateChildTask(other) error = %v", err)
+		}
 
-	blocker, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-		ProfileID:   store.DefaultProfileID,
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: env.workspaceID,
-		Title:       "Blocking task",
-	}, actor)
-	if err != nil {
-		t.Fatalf("tasks.CreateTask(blocker) error = %v", err)
-	}
-	if err := env.tasks.AddDependency(testutil.Context(t), taskpkg.AddDependency{
-		TaskID:          child.ID,
-		DependsOnTaskID: blocker.ID,
-		Kind:            taskpkg.DependencyKindBlocks,
-	}, actor); err != nil {
-		t.Fatalf("tasks.AddDependency() error = %v", err)
-	}
+		blocker, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: env.workspaceID,
+			Title:       "Blocking task",
+		}, actor)
+		if err != nil {
+			t.Fatalf("tasks.CreateTask(blocker) error = %v", err)
+		}
+		if err := env.tasks.AddDependency(testutil.Context(t), taskpkg.AddDependency{
+			TaskID:          child.ID,
+			DependsOnTaskID: blocker.ID,
+			Kind:            taskpkg.DependencyKindBlocks,
+		}, actor); err != nil {
+			t.Fatalf("tasks.AddDependency() error = %v", err)
+		}
 
-	run, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
-		TaskID:         child.ID,
-		IdempotencyKey: "seed-list-detail",
-	}, actor)
-	if err != nil {
-		t.Fatalf("tasks.EnqueueRun() error = %v", err)
-	}
+		run, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
+			TaskID:         child.ID,
+			IdempotencyKey: "seed-list-detail",
+		}, actor)
+		if err != nil {
+			t.Fatalf("tasks.EnqueueRun() error = %v", err)
+		}
 
-	listResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
-		"scope":          taskpkg.ScopeWorkspace,
-		"workspace":      env.workspaceID,
-		"priority":       taskpkg.PriorityHigh,
-		"approval_state": taskpkg.ApprovalStatePending,
-		"owner_kind":     taskpkg.OwnerKindExtension,
-		"owner_ref":      "ops",
-		"parent_task_id": parent.ID,
-		"query":          "Filtered",
-		"limit":          10,
+		listResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
+			"scope":          taskpkg.ScopeWorkspace,
+			"workspace":      env.workspaceID,
+			"priority":       taskpkg.PriorityHigh,
+			"approval_state": taskpkg.ApprovalStatePending,
+			"owner_kind":     taskpkg.OwnerKindExtension,
+			"owner_ref":      "ops",
+			"parent_task_id": parent.ID,
+			"query":          "Filtered",
+			"limit":          10,
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks) error = %v", err)
+		}
+
+		var listedPage apicontract.TasksResponse
+		decodeResult(t, listResult, &listedPage)
+		listed := listedPage.Tasks
+		if got, want := len(listed), 1; got != want {
+			t.Fatalf("len(tasks) = %d, want %d", got, want)
+		}
+		if got, want := listedPage.Page.Total, 1; got != want {
+			t.Fatalf("tasks.page.total = %d, want %d", got, want)
+		}
+		if got, want := listedPage.Page.Limit, 10; got != want {
+			t.Fatalf("tasks.page.limit = %d, want %d", got, want)
+		}
+		if listedPage.Page.HasMore {
+			t.Fatal("tasks.page.has_more = true, want false")
+		}
+		if got, want := listed[0].ID, child.ID; got != want {
+			t.Fatalf("tasks[0].ID = %q, want %q", got, want)
+		}
+		if listed[0].Owner == nil {
+			t.Fatal("tasks[0].Owner = nil, want extension owner")
+		}
+		if got, want := listed[0].Owner.Ref, "ops"; got != want {
+			t.Fatalf("tasks[0].Owner.Ref = %q, want %q", got, want)
+		}
+		if got, want := listed[0].Priority, taskpkg.PriorityHigh; got != want {
+			t.Fatalf("tasks[0].Priority = %q, want %q", got, want)
+		}
+		if got, want := listed[0].MaxAttempts, maxAttempts; got != want {
+			t.Fatalf("tasks[0].MaxAttempts = %d, want %d", got, want)
+		}
+		if got, want := listed[0].ApprovalPolicy, taskpkg.ApprovalPolicyManual; got != want {
+			t.Fatalf("tasks[0].ApprovalPolicy = %q, want %q", got, want)
+		}
+		if got, want := listed[0].ApprovalState, taskpkg.ApprovalStatePending; got != want {
+			t.Fatalf("tasks[0].ApprovalState = %q, want %q", got, want)
+		}
+		if listed[0].Draft {
+			t.Fatal("tasks[0].Draft = true, want filtered non-draft task")
+		}
+		if got, want := listed[0].DependencyCount, 1; got != want {
+			t.Fatalf("tasks[0].DependencyCount = %d, want %d", got, want)
+		}
+		if listed[0].ActiveRun == nil {
+			t.Fatal("tasks[0].ActiveRun = nil, want active run summary")
+		}
+		if listed[0].LastActivityAt == nil {
+			t.Fatal("tasks[0].LastActivityAt = nil, want latest activity timestamp")
+		}
+
+		withDraftsResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
+			"scope":          taskpkg.ScopeWorkspace,
+			"workspace":      env.workspaceID,
+			"owner_kind":     taskpkg.OwnerKindExtension,
+			"owner_ref":      "ops",
+			"parent_task_id": parent.ID,
+			"include_drafts": true,
+			"limit":          10,
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks include_drafts) error = %v", err)
+		}
+
+		var withDraftsPage apicontract.TasksResponse
+		decodeResult(t, withDraftsResult, &withDraftsPage)
+		withDrafts := withDraftsPage.Tasks
+		if got, want := len(withDrafts), 2; got != want {
+			t.Fatalf("len(tasks include_drafts) = %d, want %d", got, want)
+		}
+		if got, want := withDraftsPage.Page.Total, 2; got != want {
+			t.Fatalf("tasks include_drafts page.total = %d, want %d", got, want)
+		}
+		if !slices.ContainsFunc(withDrafts, func(item apicontract.TaskCatalogItemPayload) bool {
+			return item.Draft && item.Status == taskpkg.TaskStatusDraft
+		}) {
+			t.Fatal("tasks include_drafts missing draft payload")
+		}
+
+		getResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
+		if err != nil {
+			t.Fatalf("Handle(tasks/get) error = %v", err)
+		}
+
+		var detail apicontract.TaskDetailPayload
+		decodeResult(t, getResult, &detail)
+		if got, want := detail.Summary.ID, child.ID; got != want {
+			t.Fatalf("tasks/get.summary.id = %q, want %q", got, want)
+		}
+		if got, want := detail.Task.ID, child.ID; got != want {
+			t.Fatalf("tasks/get.task.id = %q, want %q", got, want)
+		}
+		if got, want := detail.Task.Priority, taskpkg.PriorityHigh; got != want {
+			t.Fatalf("tasks/get.task.priority = %q, want %q", got, want)
+		}
+		if got, want := detail.Task.MaxAttempts, maxAttempts; got != want {
+			t.Fatalf("tasks/get.task.max_attempts = %d, want %d", got, want)
+		}
+		if got, want := detail.Task.ApprovalPolicy, taskpkg.ApprovalPolicyManual; got != want {
+			t.Fatalf("tasks/get.task.approval_policy = %q, want %q", got, want)
+		}
+		if got, want := detail.Task.ApprovalState, taskpkg.ApprovalStatePending; got != want {
+			t.Fatalf("tasks/get.task.approval_state = %q, want %q", got, want)
+		}
+		if got, want := len(detail.Dependencies), 1; got != want {
+			t.Fatalf("len(tasks/get.dependencies) = %d, want %d", got, want)
+		}
+		if got, want := detail.Dependencies[0].DependsOnTaskID, blocker.ID; got != want {
+			t.Fatalf("tasks/get.dependencies[0].depends_on_task_id = %q, want %q", got, want)
+		}
+		if got, want := len(detail.DependencyReferences), 1; got != want {
+			t.Fatalf("len(tasks/get.dependency_references) = %d, want %d", got, want)
+		}
+		if got, want := detail.DependencyReferences[0].DependsOn.ID, blocker.ID; got != want {
+			t.Fatalf("tasks/get.dependency_references[0].depends_on.id = %q, want %q", got, want)
+		}
+		if got, want := len(detail.Runs), 1; got != want {
+			t.Fatalf("len(tasks/get.runs) = %d, want %d", got, want)
+		}
+		if got, want := detail.Runs[0].ID, run.ID; got != want {
+			t.Fatalf("tasks/get.runs[0].id = %q, want %q", got, want)
+		}
+		if detail.Summary.ActiveRun == nil {
+			t.Fatal("tasks/get.summary.active_run = nil, want run summary")
+		}
+		if len(detail.Events) == 0 {
+			t.Fatal("tasks/get.events = 0, want audit events")
+		}
+
+		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := env.tasks.PauseTask(t.Context(), parent.ID, taskpkg.PauseTaskRequest{
+			Reason: "Awaiting review",
+		}, operator); err != nil {
+			t.Fatalf("PauseTask(parent) error = %v", err)
+		}
+		block, err := env.tasks.BlockTask(t.Context(), taskpkg.BlockRequest{
+			TaskID: child.ID, Kind: taskpkg.BlockKindNeedsInput, Reason: "Missing approval",
+		}, operator)
+		if err != nil {
+			t.Fatalf("BlockTask(child) error = %v", err)
+		}
+		getResult, err = env.callFromWorkspace(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
+		if err != nil {
+			t.Fatalf("Handle(tasks/get paused child) error = %v", err)
+		}
+		detail = apicontract.TaskDetailPayload{}
+		decodeResult(t, getResult, &detail)
+		if detail.Task.Paused || detail.Summary.Paused || !detail.Task.EffectivePaused ||
+			!detail.Summary.EffectivePaused ||
+			detail.Task.PausedByTaskID != parent.ID ||
+			detail.Summary.PausedByTaskID != parent.ID {
+			t.Errorf("tasks/get lost inherited pause: task:%+v summary:%+v", detail.Task, detail.Summary)
+		}
+		for _, reasons := range [][]taskpkg.BlockedReason{detail.Task.BlockedReasons, detail.Summary.BlockedReasons} {
+			if !slices.ContainsFunc(reasons, func(reason taskpkg.BlockedReason) bool {
+				return reason.BlockID == block.ID && reason.Reason == "Missing approval"
+			}) {
+				t.Errorf("tasks/get blocked reasons = %+v, want block %q", reasons, block.ID)
+			}
+		}
+		getResult, err = env.callFromWorkspace(t, "ext-reader", "tasks/get", map[string]any{"id": parent.ID})
+		if err != nil {
+			t.Fatalf("Handle(tasks/get paused parent) error = %v", err)
+		}
+		detail = apicontract.TaskDetailPayload{}
+		decodeResult(t, getResult, &detail)
+		if !detail.Task.Paused ||
+			!detail.Summary.Paused ||
+			detail.Task.PausedAt == nil ||
+			detail.Summary.PausedAt == nil ||
+			detail.Task.PausedBy == "" ||
+			detail.Summary.PausedBy == "" ||
+			detail.Task.PausedReason != "Awaiting review" ||
+			detail.Summary.PausedReason != "Awaiting review" {
+			t.Errorf("tasks/get lost direct pause: task:%+v summary:%+v", detail.Task, detail.Summary)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Handle(tasks) error = %v", err)
-	}
-
-	var listedPage apicontract.TasksResponse
-	decodeResult(t, listResult, &listedPage)
-	listed := listedPage.Tasks
-	if got, want := len(listed), 1; got != want {
-		t.Fatalf("len(tasks) = %d, want %d", got, want)
-	}
-	if got, want := listedPage.Page.Total, 1; got != want {
-		t.Fatalf("tasks.page.total = %d, want %d", got, want)
-	}
-	if got, want := listedPage.Page.Limit, 10; got != want {
-		t.Fatalf("tasks.page.limit = %d, want %d", got, want)
-	}
-	if listedPage.Page.HasMore {
-		t.Fatal("tasks.page.has_more = true, want false")
-	}
-	if got, want := listed[0].ID, child.ID; got != want {
-		t.Fatalf("tasks[0].ID = %q, want %q", got, want)
-	}
-	if listed[0].Owner == nil {
-		t.Fatal("tasks[0].Owner = nil, want extension owner")
-	}
-	if got, want := listed[0].Owner.Ref, "ops"; got != want {
-		t.Fatalf("tasks[0].Owner.Ref = %q, want %q", got, want)
-	}
-	if got, want := listed[0].Priority, taskpkg.PriorityHigh; got != want {
-		t.Fatalf("tasks[0].Priority = %q, want %q", got, want)
-	}
-	if got, want := listed[0].MaxAttempts, maxAttempts; got != want {
-		t.Fatalf("tasks[0].MaxAttempts = %d, want %d", got, want)
-	}
-	if got, want := listed[0].ApprovalPolicy, taskpkg.ApprovalPolicyManual; got != want {
-		t.Fatalf("tasks[0].ApprovalPolicy = %q, want %q", got, want)
-	}
-	if got, want := listed[0].ApprovalState, taskpkg.ApprovalStatePending; got != want {
-		t.Fatalf("tasks[0].ApprovalState = %q, want %q", got, want)
-	}
-	if listed[0].Draft {
-		t.Fatal("tasks[0].Draft = true, want filtered non-draft task")
-	}
-	if got, want := listed[0].DependencyCount, 1; got != want {
-		t.Fatalf("tasks[0].DependencyCount = %d, want %d", got, want)
-	}
-	if listed[0].ActiveRun == nil {
-		t.Fatal("tasks[0].ActiveRun = nil, want active run summary")
-	}
-	if listed[0].LastActivityAt == nil {
-		t.Fatal("tasks[0].LastActivityAt = nil, want latest activity timestamp")
-	}
-
-	withDraftsResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
-		"scope":          taskpkg.ScopeWorkspace,
-		"workspace":      env.workspaceID,
-		"owner_kind":     taskpkg.OwnerKindExtension,
-		"owner_ref":      "ops",
-		"parent_task_id": parent.ID,
-		"include_drafts": true,
-		"limit":          10,
-	})
-	if err != nil {
-		t.Fatalf("Handle(tasks include_drafts) error = %v", err)
-	}
-
-	var withDraftsPage apicontract.TasksResponse
-	decodeResult(t, withDraftsResult, &withDraftsPage)
-	withDrafts := withDraftsPage.Tasks
-	if got, want := len(withDrafts), 2; got != want {
-		t.Fatalf("len(tasks include_drafts) = %d, want %d", got, want)
-	}
-	if got, want := withDraftsPage.Page.Total, 2; got != want {
-		t.Fatalf("tasks include_drafts page.total = %d, want %d", got, want)
-	}
-	if !slices.ContainsFunc(withDrafts, func(item apicontract.TaskCatalogItemPayload) bool {
-		return item.Draft && item.Status == taskpkg.TaskStatusDraft
-	}) {
-		t.Fatal("tasks include_drafts missing draft payload")
-	}
-
-	getResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
-	if err != nil {
-		t.Fatalf("Handle(tasks/get) error = %v", err)
-	}
-
-	var detail apicontract.TaskDetailPayload
-	decodeResult(t, getResult, &detail)
-	if got, want := detail.Summary.ID, child.ID; got != want {
-		t.Fatalf("tasks/get.summary.id = %q, want %q", got, want)
-	}
-	if got, want := detail.Task.ID, child.ID; got != want {
-		t.Fatalf("tasks/get.task.id = %q, want %q", got, want)
-	}
-	if got, want := detail.Task.Priority, taskpkg.PriorityHigh; got != want {
-		t.Fatalf("tasks/get.task.priority = %q, want %q", got, want)
-	}
-	if got, want := detail.Task.MaxAttempts, maxAttempts; got != want {
-		t.Fatalf("tasks/get.task.max_attempts = %d, want %d", got, want)
-	}
-	if got, want := detail.Task.ApprovalPolicy, taskpkg.ApprovalPolicyManual; got != want {
-		t.Fatalf("tasks/get.task.approval_policy = %q, want %q", got, want)
-	}
-	if got, want := detail.Task.ApprovalState, taskpkg.ApprovalStatePending; got != want {
-		t.Fatalf("tasks/get.task.approval_state = %q, want %q", got, want)
-	}
-	if got, want := len(detail.Dependencies), 1; got != want {
-		t.Fatalf("len(tasks/get.dependencies) = %d, want %d", got, want)
-	}
-	if got, want := detail.Dependencies[0].DependsOnTaskID, blocker.ID; got != want {
-		t.Fatalf("tasks/get.dependencies[0].depends_on_task_id = %q, want %q", got, want)
-	}
-	if got, want := len(detail.DependencyReferences), 1; got != want {
-		t.Fatalf("len(tasks/get.dependency_references) = %d, want %d", got, want)
-	}
-	if got, want := detail.DependencyReferences[0].DependsOn.ID, blocker.ID; got != want {
-		t.Fatalf("tasks/get.dependency_references[0].depends_on.id = %q, want %q", got, want)
-	}
-	if got, want := len(detail.Runs), 1; got != want {
-		t.Fatalf("len(tasks/get.runs) = %d, want %d", got, want)
-	}
-	if got, want := detail.Runs[0].ID, run.ID; got != want {
-		t.Fatalf("tasks/get.runs[0].id = %q, want %q", got, want)
-	}
-	if detail.Summary.ActiveRun == nil {
-		t.Fatal("tasks/get.summary.active_run = nil, want run summary")
-	}
-	if len(detail.Events) == 0 {
-		t.Fatal("tasks/get.events = 0, want audit events")
-	}
 }
 
 func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testing.T) {
 	t.Parallel()
 
-	usageStore := &recordingHostAPINetworkUsageStore{
-		report: store.NetworkUsageReport{
-			Total: store.NetworkUsageSummary{
-				WakeCount:       1,
-				ActualWakeCount: 1,
-				ChargedWallTime: 3 * time.Second,
-				InputTokens:     321,
-				OutputTokens:    45,
-			},
-		},
-	}
-	env := newHostAPITestEnv(
-		t,
-		withHostAPITestLiveParticipation(),
-		withHostAPITestNetworkUsageStore(usageStore),
-	)
+	env := newHostAPITestEnv(t)
 	env.grant(
 		"ext-reader",
 		[]string{
@@ -4876,18 +3407,9 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatalf("tasks.CreateTask(approval) error = %v", err)
 	}
 
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	channelID := "builders"
 	queued, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
 		TaskID:         child.ID,
 		IdempotencyKey: "host-api-read-run",
-		NetworkParticipation: &participation.Request{
-			Mode:            &mode,
-			ChannelStrategy: &strategy,
-			ChannelID:       &channelID,
-		},
-		NetworkParticipationSource: participation.SourceExplicitRequest,
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
@@ -4898,29 +3420,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if err != nil {
 		t.Fatalf("tasks.StartRun() error = %v", err)
 	}
-	wantParticipation := started.NetworkSpecSnapshot()
-	if err := participation.ValidateSpec(wantParticipation); err != nil {
-		t.Fatalf("started run participation = %#v, want valid Live snapshot: %v", wantParticipation, err)
-	}
-
-	filteredResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
-		"participation_channel": channelID,
-	})
-	if err != nil {
-		t.Fatalf("Handle(tasks participation channel filter) error = %v", err)
-	}
-	var filteredPage apicontract.TasksResponse
-	decodeResult(t, filteredResult, &filteredPage)
-	if got, want := len(filteredPage.Tasks), 1; got != want {
-		t.Fatalf("len(tasks participation channel filter) = %d, want %d", got, want)
-	}
-	if got, want := filteredPage.Tasks[0].ID, child.ID; got != want {
-		t.Fatalf("tasks participation channel filter id = %q, want %q", got, want)
-	}
-	if got := filteredPage.Tasks[0].ResolvedNetworkParticipation; got == nil || got.ChannelID != channelID {
-		t.Fatalf("tasks participation channel filter snapshot = %#v, want channel %q", got, channelID)
-	}
-
 	runDetailResult, err := env.callFromWorkspace(
 		t,
 		"ext-reader",
@@ -4948,27 +3447,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if got, want := runDetail.Session.SessionID, started.SessionID; got != want {
 		t.Fatalf("tasks/runs/get.session.session_id = %q, want %q", got, want)
 	}
-	if got := runDetail.Run.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
-		t.Fatalf("tasks/runs/get.run.resolved_network_participation = %#v, want %#v", got, wantParticipation)
-	}
-	if runDetail.Network == nil {
-		t.Fatal("tasks/runs/get.network = nil, want Live conversation and usage")
-	}
-	conversation := runDetail.Network.Conversation
-	if conversation.WorkspaceID != env.workspaceID || conversation.Channel != channelID ||
-		conversation.Surface != store.NetworkSurfaceThread ||
-		conversation.ThreadID != apicontract.TaskRunConversationThreadID ||
-		conversation.StreamURL != "/api/task-runs/"+started.ID+"/conversation/stream" {
-		t.Fatalf("tasks/runs/get.network.conversation = %#v, want deterministic Live reference", conversation)
-	}
-	if got := runDetail.Network.Usage.Total; got.InputTokens != 321 || got.OutputTokens != 45 ||
-		got.ActualWakeCount != 1 || got.ChargedWallTime != "3s" {
-		t.Fatalf("tasks/runs/get.network.usage.total = %#v, want nonzero bound usage", got)
-	}
-	usageQuery := usageStore.lastQuery()
-	if usageQuery.WorkspaceID != env.workspaceID || usageQuery.RunID != started.ID {
-		t.Fatalf("tasks/runs/get usage query = %#v, want workspace/run fence", usageQuery)
-	}
 
 	timelineResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/timeline", map[string]any{
 		"id":    child.ID,
@@ -4993,9 +3471,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if timelineRun == nil {
 		t.Fatal("tasks/timeline missing run-linked event for started run")
 	}
-	if got := timelineRun.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
-		t.Fatalf("tasks/timeline run participation = %#v, want %#v", got, wantParticipation)
-	}
 
 	treeResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
 	if err != nil {
@@ -5017,9 +3492,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	}
 	if treeRun == nil {
 		t.Fatal("tasks/tree missing child node with active run")
-	}
-	if got := treeRun.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
-		t.Fatalf("tasks/tree active run participation = %#v, want %#v", got, wantParticipation)
 	}
 
 	dashboardResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/dashboard", map[string]any{
@@ -5046,9 +3518,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if dashboardRun == nil {
 		t.Fatal("tasks/dashboard active runs missing started run")
 	}
-	if got := dashboardRun.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
-		t.Fatalf("tasks/dashboard active run participation = %#v, want %#v", got, wantParticipation)
-	}
+
 	if dashboardRun.LatestEventSeq == 0 {
 		t.Fatal("tasks/dashboard active run latest_event_seq = 0, want durable stream fence")
 	}
@@ -5420,22 +3890,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		t.Fatalf("tasks/runs[0].session_id = %q, want %q", got, want)
 	}
 
-	runsWithMetadataResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs", map[string]any{
-		"id":         completedTask.ID,
-		"status":     taskpkg.TaskRunStatusCompleted,
-		"session_id": boundSession.ID,
-		"limit":      1,
-	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/runs metadata list) error = %v", err)
-	}
-
-	var runsWithMetadata []apicontract.TaskRunPayload
-	decodeResult(t, runsWithMetadataResult, &runsWithMetadata)
-	if got, want := len(runsWithMetadata), 1; got != want {
-		t.Fatalf("len(tasks/runs metadata list) = %d, want %d", got, want)
-	}
-	assertMetadataPhase("tasks/runs list", runsWithMetadata[0].Metadata, "extension")
+	assertMetadataPhase("tasks/runs list", filtered[0].Metadata, "extension")
 }
 
 func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
@@ -5457,7 +3912,6 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 		})
 
 		handler := NewHostAPIHandler(
-			nil,
 			nil,
 			nil,
 			nil,
@@ -5576,15 +4030,7 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				wantCode: HostAPIInvalidParamsCode,
 				wantText: "create_task.workspace",
 			},
-			{
-				name:   "ShouldRejectInvalidListChannel",
-				method: "tasks",
-				params: map[string]any{
-					"participation_channel": "not valid",
-				},
-				wantCode: HostAPIInvalidParamsCode,
-				wantText: "task_query.participation_channel",
-			},
+
 			{
 				name:     "ShouldRequireUpdateChanges",
 				method:   "tasks/update",
@@ -5606,13 +4052,7 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				wantCode: HostAPIInvalidParamsCode,
 				wantText: "task_timeline_query.after_sequence",
 			},
-			{
-				name:     "ShouldRejectInvalidDashboardChannel",
-				method:   "tasks/dashboard",
-				params:   map[string]any{"participation_channel": "not valid"},
-				wantCode: HostAPIInvalidParamsCode,
-				wantText: "task_dashboard_query.participation_channel",
-			},
+
 			{
 				name:     "ShouldRejectInvalidInboxLane",
 				method:   "tasks/inbox",
@@ -6070,67 +4510,91 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 func TestHostAPITaskPayloadsRedactRawClaimTokens(t *testing.T) {
 	t.Parallel()
 
-	run := taskpkg.Run{
-		Error:    "run failed with compozy_claim_error-secret",
-		Metadata: json.RawMessage(`{"claim_token":"compozy_claim_run-field","keep":"run-safe"}`),
-	}
-	run.SetResult(json.RawMessage(`{"note":"compozy_claim_result-secret"}`))
-	view := taskpkg.View{
-		Summary: taskpkg.Summary{Title: "summary compozy_claim_summary-secret"},
-		Task: taskpkg.Task{
-			Title:       "task compozy_claim_title-secret",
-			Description: "description compozy_claim_description-secret",
-			Metadata: json.RawMessage(
-				`{"keep":"safe","claim_token":"compozy_claim_task-field","note":"compozy_claim_task-value"}`,
-			),
-		},
-		Runs: []taskpkg.Run{run},
-		Events: []taskpkg.Event{{
-			Payload: json.RawMessage(`{"note":"compozy_claim_event-secret"}`),
-		}},
-	}
-	timeline := taskTimelineItemPayloadFromItem(taskpkg.TimelineItem{
-		Task:    taskpkg.Reference{Title: "timeline compozy_claim_reference-secret"},
-		Run:     &taskpkg.RunSummary{Error: "summary compozy_claim_run-summary-secret"},
-		Payload: json.RawMessage(`{"note":"compozy_claim_timeline-secret"}`),
+	t.Run("Should retain operational state while redacting raw claim tokens", func(t *testing.T) {
+		t.Parallel()
+		run := taskpkg.Run{
+			Error:    "run failed with compozy_claim_error-secret",
+			Metadata: json.RawMessage(`{"claim_token":"compozy_claim_run-field","keep":"run-safe"}`),
+		}
+		run.SetResult(json.RawMessage(`{"note":"compozy_claim_result-secret"}`))
+		attention := &taskpkg.NeedsAttention{
+			Reason: "Review compozy_claim_attention-secret",
+			At:     time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC),
+			By:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+		}
+		blockedReasons := []taskpkg.BlockedReason{{Reason: "Input compozy_claim_block-secret"}}
+		view := taskpkg.View{
+			Summary: taskpkg.Summary{
+				Title:          "summary compozy_claim_summary-secret",
+				NeedsAttention: attention, BlockedReasons: &blockedReasons,
+				PausedReason: "Wait compozy_claim_pause-secret",
+			},
+			Task: taskpkg.Task{
+				NeedsAttention: attention, PausedReason: "Wait compozy_claim_pause-secret",
+				Title:       "task compozy_claim_title-secret",
+				Description: "description compozy_claim_description-secret",
+				Metadata: json.RawMessage(
+					`{"keep":"safe","claim_token":"compozy_claim_task-field","note":"compozy_claim_task-value"}`,
+				),
+			},
+			Runs: []taskpkg.Run{run},
+			Events: []taskpkg.Event{{
+				Payload: json.RawMessage(`{"note":"compozy_claim_event-secret"}`),
+			}},
+		}
+		timeline := taskTimelineItemPayloadFromItem(taskpkg.TimelineItem{
+			Task:    taskpkg.Reference{Title: "timeline compozy_claim_reference-secret"},
+			Run:     &taskpkg.RunSummary{Error: "summary compozy_claim_run-summary-secret"},
+			Payload: json.RawMessage(`{"note":"compozy_claim_timeline-secret"}`),
+		})
+		payload := struct {
+			Detail   apicontract.TaskDetailPayload       `json:"detail"`
+			Timeline apicontract.TaskTimelineItemPayload `json:"timeline"`
+		}{
+			Detail:   taskDetailPayloadFromView(&view),
+			Timeline: timeline,
+		}
+		if !payload.Detail.Task.NeedsAttention || !payload.Detail.Summary.NeedsAttention ||
+			payload.Detail.Task.NeedsAttentionAt == nil || payload.Detail.Summary.NeedsAttentionAt == nil ||
+			payload.Detail.Task.NeedsAttentionBy == nil || payload.Detail.Summary.NeedsAttentionBy == nil ||
+			payload.Detail.Task.NeedsAttentionReason == "" || payload.Detail.Summary.NeedsAttentionReason == "" ||
+			len(payload.Detail.Task.BlockedReasons) != 1 || len(payload.Detail.Summary.BlockedReasons) != 1 {
+			t.Fatalf("Host task payloads lost attention or blocking state: %+v", payload.Detail)
+		}
+		content, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal(task payloads) error = %v", err)
+		}
+		for _, secret := range []string{
+			"compozy_claim_attention-secret",
+			"compozy_claim_block-secret",
+			"compozy_claim_pause-secret",
+			"compozy_claim_summary-secret",
+			"compozy_claim_title-secret",
+			"compozy_claim_description-secret",
+			"compozy_claim_task-field",
+			"compozy_claim_task-value",
+			"compozy_claim_error-secret",
+			"compozy_claim_run-field",
+			"compozy_claim_result-secret",
+			"compozy_claim_event-secret",
+			"compozy_claim_reference-secret",
+			"compozy_claim_run-summary-secret",
+			"compozy_claim_timeline-secret",
+		} {
+			if strings.Contains(string(content), secret) {
+				t.Fatalf("Host task payloads exposed raw claim token %q: %s", secret, content)
+			}
+		}
+		if strings.Contains(string(content), `"claim_token"`) {
+			t.Fatalf("Host task payloads exposed raw claim token material: %s", content)
+		}
+		for _, want := range []string{`"keep":"safe"`, `"keep":"run-safe"`} {
+			if !strings.Contains(string(content), want) {
+				t.Fatalf("Host task payloads missing safe metadata %s: %s", want, content)
+			}
+		}
 	})
-	payload := struct {
-		Detail   apicontract.TaskDetailPayload       `json:"detail"`
-		Timeline apicontract.TaskTimelineItemPayload `json:"timeline"`
-	}{
-		Detail:   taskDetailPayloadFromView(&view),
-		Timeline: timeline,
-	}
-	content, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("json.Marshal(task payloads) error = %v", err)
-	}
-	for _, secret := range []string{
-		"compozy_claim_summary-secret",
-		"compozy_claim_title-secret",
-		"compozy_claim_description-secret",
-		"compozy_claim_task-field",
-		"compozy_claim_task-value",
-		"compozy_claim_error-secret",
-		"compozy_claim_run-field",
-		"compozy_claim_result-secret",
-		"compozy_claim_event-secret",
-		"compozy_claim_reference-secret",
-		"compozy_claim_run-summary-secret",
-		"compozy_claim_timeline-secret",
-	} {
-		if strings.Contains(string(content), secret) {
-			t.Fatalf("Host task payloads exposed raw claim token %q: %s", secret, content)
-		}
-	}
-	if strings.Contains(string(content), `"claim_token"`) {
-		t.Fatalf("Host task payloads exposed raw claim token material: %s", content)
-	}
-	for _, want := range []string{`"keep":"safe"`, `"keep":"run-safe"`} {
-		if !strings.Contains(string(content), want) {
-			t.Fatalf("Host task payloads missing safe metadata %s: %s", want, content)
-		}
-	}
 }
 
 func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T) {
@@ -6144,12 +4608,12 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 	)
 
 	_, err := env.call(t, "ext-invalid", "tasks/create", map[string]any{
-		"scope":           taskpkg.ScopeGlobal,
-		"title":           "Invalid channel task",
-		"network_channel": "not valid",
+		"scope":         taskpkg.ScopeGlobal,
+		"title":         "Invalid channel task",
+		"unknown_field": "not valid",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "network_channel")
+	assertErrorContains(t, err, "unknown_field")
 
 	createResult, err := env.callFromWorkspace(t, "ext-invalid", "tasks/create", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
@@ -6174,10 +4638,10 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 	_, err = env.callFromWorkspace(t, "ext-invalid", "tasks/runs/enqueue", map[string]any{
 		"task_id":         created.ID,
 		"idempotency_key": "idem-invalid-channel",
-		"network_channel": "not valid",
+		"unknown_field":   "not valid",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "network_channel")
+	assertErrorContains(t, err, "unknown_field")
 }
 
 func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
@@ -6203,23 +4667,18 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 	assertErrorContains(t, err, "cancel_run.metadata")
 
 	query, err := taskRunQueryFromParams(apicontract.TaskRunListQuery{
-		ParticipationChannel: " builders ",
-		Limit:                2,
+		Limit: 2,
 	})
 	if err != nil {
 		t.Fatalf("taskRunQueryFromParams(valid) error = %v", err)
 	}
-	if query.ParticipationChannel != "builders" || query.Limit != 2 {
+	if query.Limit != 2 {
 		t.Fatalf("taskRunQueryFromParams(valid) = %#v, want shared run filters", query)
 	}
 
 	_, err = taskRunQueryFromParams(apicontract.TaskRunListQuery{Limit: -1})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "task_run_query.limit")
-
-	_, err = taskRunQueryFromParams(apicontract.TaskRunListQuery{ParticipationChannel: "not valid"})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "task_run_query.participation_channel")
 
 	t.Run("Should preserve a workspace-bound worktree catalog filter", func(t *testing.T) {
 		t.Parallel()
@@ -6334,12 +4793,10 @@ type hostAPITestEnv struct {
 	workspaceID    string
 	workspace      workspacepkg.ResolvedWorkspace
 	registry       *globaldb.GlobalDB
-	bridges        *bridgepkg.Service
 	sessions       *session.Manager
 	automation     HostAPIAutomationManager
 	tasks          taskpkg.Manager
 	observer       *observepkg.Observer
-	memory         *memory.Store
 	skills         *skillspkg.Registry
 	workspaces     *hostAPIFakeWorkspaceResolver
 	driver         *hostAPIFakeDriver
@@ -6351,25 +4808,11 @@ type hostAPITestEnv struct {
 }
 
 type hostAPITestEnvConfig struct {
-	hooks             *hookspkg.Hooks
-	liveParticipation bool
-	networkUsage      store.NetworkUsageStore
-	loopStarter       automationpkg.LoopStarter
+	hooks       *hookspkg.Hooks
+	loopStarter automationpkg.LoopStarter
 }
 
 type hostAPITestEnvOption func(*hostAPITestEnvConfig)
-
-func withHostAPITestLiveParticipation() hostAPITestEnvOption {
-	return func(cfg *hostAPITestEnvConfig) {
-		cfg.liveParticipation = true
-	}
-}
-
-func withHostAPITestNetworkUsageStore(usageStore store.NetworkUsageStore) hostAPITestEnvOption {
-	return func(cfg *hostAPITestEnvConfig) {
-		cfg.networkUsage = usageStore
-	}
-}
 
 func withHostAPITestLoopStarter(starter automationpkg.LoopStarter) hostAPITestEnvOption {
 	return func(cfg *hostAPITestEnvConfig) {
@@ -6391,91 +4834,6 @@ func (*hostAPITestLoopStarter) StartLoop(
 	automationpkg.LoopStartRequest,
 ) (automationpkg.LoopStartResult, error) {
 	return automationpkg.LoopStartResult{RunID: "looprun-host-api"}, nil
-}
-
-func newHostAPITestParticipationResolver(t testing.TB) participation.Resolver {
-	t.Helper()
-
-	resolver, err := participation.NewResolver(participation.ResolverOptions{
-		Defaults: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
-		Limits: participation.Limits{
-			MaxWakes:          16,
-			MaxWakeWallTime:   "2m",
-			MaxTotalWallTime:  "10m",
-			MaxInputTokens:    65536,
-			MaxOutputTokens:   65536,
-			MaxWakeDepth:      16,
-			MinCoalesceWindow: "100ms",
-			MaxCoalesceWindow: "5s",
-		},
-		Availability: func(context.Context) (bool, error) {
-			return true, nil
-		},
-		ChannelExists: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
-		LiveSupport: func(context.Context, participation.ResolveInput) (bool, error) {
-			return true, nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("participation.NewResolver() error = %v", err)
-	}
-	return resolver
-}
-
-type recordingHostAPINetworkUsageStore struct {
-	mu     sync.Mutex
-	report store.NetworkUsageReport
-	query  store.NetworkUsageQuery
-}
-
-func (s *recordingHostAPINetworkUsageStore) GetNetworkUsage(
-	_ context.Context,
-	query store.NetworkUsageQuery,
-) (store.NetworkUsageReport, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.query = query
-	return s.report, nil
-}
-
-func (s *recordingHostAPINetworkUsageStore) lastQuery() store.NetworkUsageQuery {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.query
-}
-
-type recordingHostAPIRecallProvider struct {
-	stubMemoryProvider
-
-	mu       sync.Mutex
-	request  memcontract.RecallRequest
-	packaged memcontract.Packaged
-}
-
-func (p *recordingHostAPIRecallProvider) Recall(
-	_ context.Context,
-	req memcontract.RecallRequest,
-) (memcontract.RecallResult, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.request = req
-	return memcontract.RecallResult{Packaged: p.packaged}, nil
-}
-
-func (p *recordingHostAPIRecallProvider) lastRequest() memcontract.RecallRequest {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.request
 }
 
 type hostAPITestTaskSessionExecutor struct {
@@ -6502,53 +4860,6 @@ func mustExtensionTaskActorContext(
 	return actor
 }
 
-func mustLocalSandboxRegistry(t testing.TB) *sandbox.Registry {
-	t.Helper()
-
-	registry, err := sandboxlocal.NewRegistry(
-		sandboxlocal.WithTerminalManager(mustHostAPITestTerminalManager(t)),
-	)
-	if err != nil {
-		t.Fatalf("local.NewRegistry() error = %v", err)
-	}
-	return registry
-}
-
-type hostAPITestTerminalJournal struct {
-	terminalpkg.Journal
-}
-
-func (hostAPITestTerminalJournal) RegisterTerminal(
-	terminalpkg.Info,
-	func(bool),
-	func(terminalpkg.Event),
-) {
-}
-func (hostAPITestTerminalJournal) CloseTerminal(context.Context, terminalpkg.Info) error { return nil }
-func (hostAPITestTerminalJournal) ObserveOutput(terminalpkg.Info, []byte)                {}
-func (hostAPITestTerminalJournal) Shutdown(context.Context) error                        { return nil }
-
-func mustHostAPITestTerminalManager(t testing.TB) *terminalpkg.Service {
-	t.Helper()
-	manager, err := terminalpkg.NewManager(
-		terminalpkg.WithJournal(hostAPITestTerminalJournal{}),
-	)
-	if err != nil {
-		t.Fatalf("terminal.NewManager() error = %v", err)
-	}
-	if err := manager.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("terminal.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := manager.Shutdown(shutdownCtx); err != nil {
-			t.Errorf("terminal.Shutdown() error = %v", err)
-		}
-	})
-	return manager
-}
-
 func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 	ctx context.Context,
 	spec *taskpkg.StartTaskSession,
@@ -6560,12 +4871,11 @@ func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 		return nil, fmt.Errorf("%w: start task session spec is required", taskpkg.ErrValidation)
 	}
 
-	networkSpec := spec.Run.NetworkSpecSnapshot()
 	opts := session.CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "task:" + strings.TrimSpace(spec.Task.Title),
-		ResolvedNetworkParticipation: &networkSpec,
-		Type:                         session.SessionTypeSystem,
+		AgentName: "coder",
+		Name:      "task:" + strings.TrimSpace(spec.Task.Title),
+
+		Type: session.SessionTypeSystem,
 	}
 	switch spec.Task.Scope.Normalize() {
 	case taskpkg.ScopeWorkspace:
@@ -6692,11 +5002,9 @@ Review the workspace changes carefully.
 	baseNow := time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC)
 	env := &hostAPITestEnv{now: baseNow, homePaths: homePaths}
 	resolvedWorkspace := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "ws-host-api",
-			RootDir: workspaceRoot,
-			Name:    "host-api-workspace",
-		},
+		ID:          "ws-host-api",
+		RootDir:     workspaceRoot,
+		Name:        "host-api-workspace",
 		WorkspaceID: "ws-host-api",
 		Config: compozyconfig.Config{
 			Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},
@@ -6751,7 +5059,6 @@ Review the workspace changes carefully.
 	if err != nil {
 		t.Fatalf("profiles.Create(marketing) error = %v", err)
 	}
-	bridgeRegistry := bridgepkg.NewRegistry(registry, bridgepkg.WithNow(func() time.Time { return env.currentTime() }))
 	resourceKernel, err := resources.NewKernel(
 		registry.DB(),
 		resources.WithNow(func() time.Time { return env.currentTime() }),
@@ -6800,43 +5107,16 @@ Review the workspace changes carefully.
 		session.WithStore(storeSessionDB),
 		session.WithSessionCatalog(registry),
 		session.WithSessionPromptAdmissionStore(registry),
-		session.WithSandboxRegistry(mustLocalSandboxRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return env.currentTime() }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
 		session.WithTurnIDGenerator(sequentialSessionIDGenerator("turn")),
-	}
-	if cfg.liveParticipation {
-		sessionOptions = append(
-			sessionOptions,
-			session.WithParticipationResolver(newHostAPITestParticipationResolver(t)),
-		)
 	}
 	sessions, err := session.NewManager(sessionOptions...)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
 	source.manager = sessions
-
-	memoryCatalogPath := filepath.Join(homePaths.HomeDir, "memory-catalog.db")
-	if err := extensionTestMemorySeed.Clone(memoryCatalogPath); err != nil {
-		t.Fatalf("memory store seed Clone() error = %v", err)
-	}
-	memoryStore := memory.NewStore(
-		homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(memoryCatalogPath),
-	)
-	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
-		t.Fatalf("memory.OpenCatalog() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := memoryStore.CloseCatalog(testutil.Context(t)); err != nil {
-			t.Errorf("memory.CloseCatalog() error = %v", err)
-		}
-	})
-	if err := memoryStore.EnsureDirs(); err != nil {
-		t.Fatalf("memory.EnsureDirs() error = %v", err)
-	}
 
 	skillsRegistry := skillspkg.NewRegistry(
 		skillspkg.RegistryConfig{},
@@ -6882,61 +5162,33 @@ Review the workspace changes carefully.
 		}),
 		taskpkg.WithManagerNow(func() time.Time { return env.currentTime() }),
 	}
-	if cfg.liveParticipation {
-		taskOptions = append(
-			taskOptions,
-			taskpkg.WithParticipationResolver(newHostAPITestParticipationResolver(t)),
-		)
-	}
 	taskManager, err := taskpkg.NewManager(taskOptions...)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 	handler := NewHostAPIHandler(
 		sessions,
-		memoryStore,
 		observer,
 		skillsRegistry,
 		WithHostAPIAutomationManager(automationManager),
 		WithHostAPITaskManager(taskManager),
 		WithHostAPITaskCatalogFilterMapper(hostAPITestTaskCatalogFilterMapper),
 		WithHostAPIProfileReader(profileManager),
-		WithHostAPIMemoryStoreResolver(func(ctx context.Context, profileID string) (*memory.Store, error) {
-			profiles, err := profileManager.List(ctx)
-			if err != nil {
-				return nil, err
-			}
-			for _, profile := range profiles {
-				if profile.ID == profileID {
-					return memoryStore.ForProfile(
-						profileID,
-						filepath.Join(homePaths.ProfilesDir, profile.Name, compozyconfig.MemoryDirName),
-					), nil
-				}
-			}
-			return nil, fmt.Errorf("test profile %q was not found", profileID)
-		}),
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIWorkspaceResolver(workspaces),
-		WithHostAPIBridgeRegistry(bridgeRegistry),
-		WithHostAPIBridgeDedupStore(registry),
 		WithHostAPIResourceStore(resourceKernel),
 		WithHostAPIResourceCodecRegistry(resourceCodecs),
-		WithHostAPINetworkUsageStore(cfg.networkUsage),
 		WithHostAPINow(func() time.Time { return env.currentTime() }),
-		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
 	)
 
 	env.workspaceID = resolvedWorkspace.WorkspaceID
 	env.workspace = resolvedWorkspace
 	env.registry = registry
-	env.bridges = bridgeRegistry
 	env.sessions = sessions
 	env.automation = automationManager
 	env.tasks = taskManager
 	env.observer = observer
-	env.memory = memoryStore
 	env.skills = skillsRegistry
 	env.workspaces = workspaces
 	env.driver = driver
@@ -7195,43 +5447,6 @@ func (e *hostAPITestEnv) callResource(
 	return e.callWithContext(e.resourceContext(t, extName, sessionNonce), t, extName, method, params)
 }
 
-func (e *hostAPITestEnv) bridgeContext(t testing.TB, instance *bridgepkg.BridgeInstance) context.Context {
-	t.Helper()
-
-	return e.bridgeContextForInstances(t, instance)
-}
-
-func (e *hostAPITestEnv) bridgeContextForInstances(
-	t testing.TB,
-	instances ...*bridgepkg.BridgeInstance,
-) context.Context {
-	t.Helper()
-
-	if len(instances) == 0 {
-		t.Fatal("bridge instances = empty, want at least one")
-		return testutil.Context(t)
-	}
-
-	managed := make([]subprocess.InitializeBridgeManagedInstance, 0, len(instances))
-	for _, instance := range instances {
-		if instance == nil {
-			t.Fatal("bridge instance = nil, want non-nil")
-			return testutil.Context(t)
-		}
-		managed = append(managed, subprocess.InitializeBridgeManagedInstance{
-			Instance: bridgepkg.BridgeInstanceToContract(*instance),
-		})
-	}
-
-	return withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
-		Purpose:          subprocess.BridgeRuntimePurposeService,
-		Provider:         instances[0].ExtensionName,
-		Platform:         instances[0].Platform,
-		ManagedInstances: managed,
-	})
-}
-
 func (e *hostAPITestEnv) submitPrompt(
 	t testing.TB,
 	extName string,
@@ -7343,41 +5558,6 @@ func (e *hostAPITestEnv) assertDirectExecutionAdmission(t testing.TB, taskID str
 	}
 }
 
-func (e *hostAPITestEnv) createBridgeInstance(
-	t *testing.T,
-	req bridgepkg.CreateInstanceRequest,
-) *bridgepkg.BridgeInstance {
-	t.Helper()
-
-	if req.Scope == "" {
-		req.Scope = bridgepkg.ScopeWorkspace
-	}
-	if req.WorkspaceID == "" && req.Scope == bridgepkg.ScopeWorkspace {
-		req.WorkspaceID = e.workspaceID
-	}
-	if req.Platform == "" {
-		req.Platform = "telegram"
-	}
-	if req.ExtensionName == "" {
-		req.ExtensionName = "telegram-adapter"
-	}
-	if req.DisplayName == "" {
-		req.DisplayName = "Telegram Test"
-	}
-	if !req.Enabled && req.Status == "" {
-		req.Enabled = true
-	}
-	if req.Status == "" {
-		req.Status = bridgepkg.BridgeStatusReady
-	}
-
-	instance, err := e.bridges.CreateInstance(testutil.Context(t), req)
-	if err != nil {
-		t.Fatalf("bridges.CreateInstance() error = %v", err)
-	}
-	return instance
-}
-
 func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 	t.Helper()
 
@@ -7388,7 +5568,6 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		session.WithStore(storeSessionDB),
 		session.WithSessionCatalog(e.registry),
 		session.WithSessionPromptAdmissionStore(e.registry),
-		session.WithSandboxRegistry(mustLocalSandboxRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return e.currentTime() }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
@@ -7414,7 +5593,6 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 	e.tasks = taskManager
 	e.handler = NewHostAPIHandler(
 		e.sessions,
-		e.memory,
 		nil,
 		e.skills,
 		WithHostAPITaskManager(e.tasks),
@@ -7422,11 +5600,8 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		WithHostAPIProfileReader(e.profiles),
 		WithHostAPICapabilityChecker(e.checker),
 		WithHostAPIWorkspaceResolver(e.workspaces),
-		WithHostAPIBridgeRegistry(e.bridges),
-		WithHostAPIBridgeDedupStore(e.registry),
 		WithHostAPIResourceStore(e.resources),
 		WithHostAPINow(func() time.Time { return e.currentTime() }),
-		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
 	)
 }
@@ -7504,82 +5679,9 @@ func (*recordingHostAPISessionManager) Prompt(
 	return nil, errors.New("unexpected Prompt call")
 }
 
-func (*recordingHostAPISessionManager) ExecSandbox(
-	context.Context,
-	session.SandboxExecRequest,
-) (session.SandboxExecResult, error) {
-	return session.SandboxExecResult{}, errors.New("unexpected ExecSandbox call")
-}
-
 type hostAPIFakeWorkspaceResolver struct {
 	mu       sync.Mutex
 	resolved map[string]workspacepkg.ResolvedWorkspace
-}
-
-type recordingPromptDeliveryBroker struct {
-	mu            sync.Mutex
-	registrations []bridgepkg.PromptDeliveryRegistration
-	projected     []bridgepkg.DeliveryProjectionEvent
-}
-
-func (b *recordingPromptDeliveryBroker) RegisterPromptDelivery(
-	_ context.Context,
-	reg bridgepkg.PromptDeliveryRegistration,
-) (*bridgepkg.DeliverySnapshot, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	cloned := reg
-	if len(cloned.SeedEvents) > 0 {
-		cloned.SeedEvents = append([]bridgepkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
-	}
-	b.registrations = append(b.registrations, cloned)
-	return &bridgepkg.DeliverySnapshot{
-		DeliveryID:       "del-test",
-		SessionID:        reg.SessionID,
-		TurnID:           reg.TurnID,
-		BridgeInstanceID: reg.RoutingKey.BridgeInstanceID,
-		RoutingKey:       reg.RoutingKey,
-		DeliveryTarget:   reg.DeliveryTarget,
-		LatestEventType:  bridgepkg.DeliveryEventTypeStart,
-		UpdatedAt:        time.Now().UTC(),
-	}, nil
-}
-
-func (b *recordingPromptDeliveryBroker) ProjectEvent(
-	_ context.Context,
-	_ string,
-	event bridgepkg.DeliveryProjectionEvent,
-) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b.projected = append(b.projected, event)
-	return nil
-}
-
-func (b *recordingPromptDeliveryBroker) snapshotRegistrations() []bridgepkg.PromptDeliveryRegistration {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	out := make([]bridgepkg.PromptDeliveryRegistration, 0, len(b.registrations))
-	for _, reg := range b.registrations {
-		cloned := reg
-		if len(cloned.SeedEvents) > 0 {
-			cloned.SeedEvents = append([]bridgepkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
-		}
-		out = append(out, cloned)
-	}
-	return out
-}
-
-func (b *recordingPromptDeliveryBroker) snapshotProjectedEvents() []bridgepkg.DeliveryProjectionEvent {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	out := make([]bridgepkg.DeliveryProjectionEvent, 0, len(b.projected))
-	out = append(out, b.projected...)
-	return out
 }
 
 func newHostAPIFakeWorkspaceResolver(workspace *workspacepkg.ResolvedWorkspace) *hostAPIFakeWorkspaceResolver {
@@ -7785,12 +5887,6 @@ func (d *hostAPIFakeDriver) Stop(_ context.Context, proc *session.AgentProcess) 
 	return nil
 }
 
-func (d *hostAPIFakeDriver) promptCount() int {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return len(d.prompts)
-}
-
 func storeSessionDB(
 	ctx context.Context,
 	owner store.SessionDBOwner,
@@ -7934,13 +6030,6 @@ func (s promptSessionManagerStub) PromotePendingInputToSteer(
 	return s.promotePendingInputFn(ctx, id, entryID, opts)
 }
 
-func (s promptSessionManagerStub) ExecSandbox(
-	context.Context,
-	session.SandboxExecRequest,
-) (session.SandboxExecResult, error) {
-	return session.SandboxExecResult{}, errors.New("unexpected exec call")
-}
-
 func sequentialSessionIDGenerator(prefix string) session.IDGenerator {
 	var counter atomic.Int64
 	return func() (string, error) {
@@ -8050,4 +6139,12 @@ func decodeRPCData(t testing.TB, err error) map[string]any {
 		t.Fatalf("json.Unmarshal(rpcErr.Data) error = %v", unmarshalErr)
 	}
 	return data
+}
+
+func (r *hostAPIFakeWorkspaceResolver) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	resolved, err := r.Resolve(ctx, ref)
+	if err != nil {
+		return workspacepkg.Workspace{}, err
+	}
+	return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
 }

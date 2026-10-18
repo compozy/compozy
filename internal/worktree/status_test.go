@@ -1,7 +1,6 @@
 package worktree
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -18,17 +17,17 @@ func TestServiceStatus(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		dirty := 3
 		cached := Status{WorktreeID: item.ID, DirtyFiles: &dirty}
-		if err := store.SaveStatus(context.Background(), item.WorkspaceID, item.ID, cached); err != nil {
+		if err := store.SaveStatus(t.Context(), item.WorkspaceID, item.ID, cached); err != nil {
 			t.Fatalf("seed cached status: %v", err)
 		}
 		runner := &recordingGitRunner{}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
-		got, err := service.Status(context.Background(), item.WorkspaceID, item.Name, false)
+		got, err := service.Status(t.Context(), item.WorkspaceID, item.Name, false)
 		if err != nil || got.DirtyFiles == nil || *got.DirtyFiles != dirty || len(runner.invocations()) != 0 {
 			t.Fatalf("Status(cached) = %#v, %v calls=%#v, want cached value", got, err, runner.invocations())
 		}
@@ -39,13 +38,13 @@ func TestServiceStatus(t *testing.T) {
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
 		item.State = StateMissing
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed missing worktree: %v", err)
 		}
 		runner := &recordingGitRunner{}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
 		if got, err := service.Status(
-			context.Background(),
+			t.Context(),
 			item.WorkspaceID,
 			item.ID,
 			false,
@@ -54,7 +53,7 @@ func TestServiceStatus(t *testing.T) {
 			t.Fatalf("Status(missing) = %#v, %v, want ErrMissing", got, err)
 		}
 		if got, err := service.Status(
-			context.Background(),
+			t.Context(),
 			"ws-other",
 			item.ID,
 			true,
@@ -71,7 +70,7 @@ func TestServiceStatus(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
@@ -92,7 +91,7 @@ func TestServiceStatus(t *testing.T) {
 		service := NewService(
 			store, runner, WithCapabilityGate(readyCapabilityGate()), WithClock(statusTestClock), WithEvents(events),
 		)
-		status, err := service.Status(context.Background(), item.WorkspaceID, item.Name, true)
+		status, err := service.Status(t.Context(), item.WorkspaceID, item.Name, true)
 		if err != nil {
 			t.Fatalf("Status() error = %v", err)
 		}
@@ -105,7 +104,7 @@ func TestServiceStatus(t *testing.T) {
 		if status.WorktreeID != item.ID || !metricsMatch || !upstreamMatches {
 			t.Fatalf("Status() = %#v, want 3 files +10 -2 and upstream +1 -0", status)
 		}
-		persisted, err := store.GetStatus(context.Background(), item.WorkspaceID, item.ID)
+		persisted, err := store.GetStatus(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil || persisted == nil || persisted.WorktreeID != item.ID || persisted.RefreshedAt == nil ||
 			!persisted.RefreshedAt.Equal(statusTestClock()) {
 			t.Fatalf("persisted status = %#v, %v, want refreshed timestamp", persisted, err)
@@ -119,11 +118,11 @@ func TestServiceStatus(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		known := 7
-		if err := store.SaveStatus(context.Background(), item.WorkspaceID, item.ID, Status{
+		if err := store.SaveStatus(t.Context(), item.WorkspaceID, item.ID, Status{
 			WorktreeID: item.ID, DirtyFiles: &known, Ahead: &known, Behind: &known,
 		}); err != nil {
 			t.Fatalf("seed known status: %v", err)
@@ -132,7 +131,7 @@ func TestServiceStatus(t *testing.T) {
 			return gitResponse{stderr: []byte("fatal: cannot read index"), err: errors.New("exit 128")}
 		}}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithClock(statusTestClock))
-		status, err := service.Status(context.Background(), item.WorkspaceID, item.ID, true)
+		status, err := service.Status(t.Context(), item.WorkspaceID, item.ID, true)
 		if err != nil {
 			t.Fatalf("Status(read failure) error = %v", err)
 		}
@@ -146,14 +145,14 @@ func TestServiceStatus(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		runner := &recordingGitRunner{run: func(gitInvocation) gitResponse {
 			return gitResponse{stdout: []byte("garbled\x00")}
 		}}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithClock(statusTestClock))
-		status, err := service.Status(context.Background(), item.WorkspaceID, item.ID, true)
+		status, err := service.Status(t.Context(), item.WorkspaceID, item.ID, true)
 		if err != nil || status.ReadError == "" || !strings.Contains(status.ReadError, "parse status-v2") {
 			t.Fatalf("Status(garbled) = %#v, %v, want persisted parser diagnostic", status, err)
 		}
@@ -163,7 +162,7 @@ func TestServiceStatus(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
@@ -179,7 +178,7 @@ func TestServiceStatus(t *testing.T) {
 			}
 		}}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithClock(statusTestClock))
-		status, err := service.Status(context.Background(), item.WorkspaceID, item.ID, true)
+		status, err := service.Status(t.Context(), item.WorkspaceID, item.ID, true)
 		if err != nil {
 			t.Fatalf("Status(no upstream) error = %v", err)
 		}
@@ -213,14 +212,14 @@ func TestServiceStatus(t *testing.T) {
 		t.Cleanup(cleanup)
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		runner := &recordingGitRunner{run: func(gitInvocation) gitResponse {
 			return gitResponse{stderr: []byte("token=" + secret), err: errors.New("exit 128")}
 		}}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithClock(statusTestClock))
-		status, err := service.Status(context.Background(), item.WorkspaceID, item.ID, true)
+		status, err := service.Status(t.Context(), item.WorkspaceID, item.ID, true)
 		if err != nil || status == nil || strings.Contains(status.ReadError, secret) ||
 			!strings.Contains(status.ReadError, "[REDACTED]") {
 			t.Fatalf("Status(secret failure) = %#v, %v, want redacted read_error", status, err)
@@ -231,10 +230,10 @@ func TestServiceStatus(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
-		if err := store.SaveStatus(context.Background(), item.WorkspaceID, item.ID, Status{
+		if err := store.SaveStatus(t.Context(), item.WorkspaceID, item.ID, Status{
 			WorktreeID: item.ID,
 		}); err != nil {
 			t.Fatalf("seed cached status: %v", err)
@@ -247,7 +246,7 @@ func TestServiceStatus(t *testing.T) {
 		}}
 		forge := &recordingExitForge{statusErr: ErrForgeUnavailable}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithForge(forge))
-		_, err := service.StatusDetails(context.Background(), item.WorkspaceID, item.ID, false, true)
+		_, err := service.StatusDetails(t.Context(), item.WorkspaceID, item.ID, false, true)
 		if !errors.Is(err, ErrForgeUnavailable) || errors.Is(err, ErrForge) {
 			t.Fatalf("StatusDetails(forge unavailable) error = %v, want only ErrForgeUnavailable", err)
 		}
@@ -257,10 +256,10 @@ func TestServiceStatus(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
-		if err := store.SaveStatus(context.Background(), item.WorkspaceID, item.ID, Status{
+		if err := store.SaveStatus(t.Context(), item.WorkspaceID, item.ID, Status{
 			WorktreeID: item.ID,
 		}); err != nil {
 			t.Fatalf("seed cached status: %v", err)
@@ -279,9 +278,9 @@ func TestServiceStatus(t *testing.T) {
 			WithForge(forge),
 		)
 		details, err := service.StatusDetails(
-			context.Background(), item.WorkspaceID, item.Name, false, true,
+			t.Context(), item.WorkspaceID, item.Name, false, true,
 		)
-		cachedForge, cacheErr := store.GetForgeStatus(context.Background(), item.WorkspaceID, item.ID)
+		cachedForge, cacheErr := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil || details == nil || details.WorktreeID != item.ID ||
 			forge.lastStatus.WorktreeID != item.ID || cacheErr != nil || cachedForge == nil ||
 			cachedForge.WorktreeID != item.ID {

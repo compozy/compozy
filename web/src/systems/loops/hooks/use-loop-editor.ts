@@ -268,7 +268,9 @@ export function useLoopEditor(
     lint,
     loop: loopQuery.data,
     queryError: loopQuery.error,
-    queryLoading: loopQuery.isLoading,
+    // `isPending`, not `isLoading`: a suspended window disables the read, and a
+    // disabled read with no data yet is still waiting, not a missing Loop.
+    queryLoading: loopQuery.isPending,
     nodes,
     selectedNodeId,
     view,

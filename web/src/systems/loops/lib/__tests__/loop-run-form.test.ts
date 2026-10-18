@@ -7,7 +7,6 @@ import {
   initialRunInputs,
   isRunFormValid,
   missingRequiredInputs,
-  participationGist,
   serializeRunInputs,
 } from "../loop-run-form";
 import type { LoopInputSchema } from "../../types";
@@ -66,19 +65,15 @@ describe("loop-run-form model", () => {
     expect(declaredInputCountsGist(schema)).toBe("1 required · 4 optional");
     expect(declaredInputCountsGist(undefined)).toBe("0 required · 0 optional");
   });
+});
 
-  it("Should summarize participation and environment drafts for folded gists", () => {
-    expect(participationGist({ mode: "local", channelId: "", channelStrategy: "" })).toBe("Local");
-    expect(
-      participationGist({ mode: "live", channelId: "release", channelStrategy: "loop_run" })
-    ).toBe("Live · loop_run");
-    expect(environmentGist(null)).toBe("Loop default");
-    expect(environmentGist({ mode: "worktree", worktree_ref: "feat/billing" })).toBe(
-      "worktree · feat/billing"
-    );
-    expect(environmentGist({ mode: "directory", directory: "packages/api" })).toBe(
-      "directory · packages/api"
-    );
-    expect(environmentGist({ mode: "per_run" })).toBe("Per-run");
-  });
+it("Should summarize environment drafts for folded gists", () => {
+  expect(environmentGist(null)).toBe("Loop default");
+  expect(environmentGist({ mode: "worktree", worktree_ref: "feat/billing" })).toBe(
+    "worktree · feat/billing"
+  );
+  expect(environmentGist({ mode: "directory", directory: "packages/api" })).toBe(
+    "directory · packages/api"
+  );
+  expect(environmentGist({ mode: "per_run" })).toBe("Per-run");
 });

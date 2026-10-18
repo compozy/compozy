@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,50 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
+
+func TestAgentHookRetiredMatcherCompatibility(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"YAML", "TOML"} {
+		for _, matcherCase := range []struct {
+			name, yaml, toml string
+			wantError        bool
+		}{
+			{name: "Should retain hooks and ignore retired matcher keys", yaml: "workspace_id: ws-1", toml: "workspace_id = 'ws-1'"},
+			{name: "Should reject unknown matcher keys alongside retired keys", yaml: "unknown_matcher: value", toml: "unknown_matcher = 'value'", wantError: true},
+			{name: "Should reject malformed retained matcher values", yaml: "workspace_id: [invalid]", toml: "workspace_id = ['invalid']", wantError: true},
+		} {
+			t.Run(matcherCase.name+" in "+format, func(t *testing.T) {
+				t.Parallel()
+				body := "---\nname: coder\nhooks:\n  - name: observer\n    event: session.post_stop\n    command: /bin/echo\n    matcher:\n      compaction_reason: old\n      compaction_strategy: [old]\n      " + matcherCase.yaml + "\n---\nKeep this prompt.\n"
+				if format == "TOML" {
+					body = "---\nname = 'coder'\n[[hooks]]\nname = 'observer'\nevent = 'session.post_stop'\ncommand = '/bin/echo'\n[hooks.matcher]\ncompaction_reason = 'old'\ncompaction_strategy = ['old']\n" + matcherCase.toml + "\n---\nKeep this prompt.\n"
+				}
+				file := filepath.Join(t.TempDir(), AgentDefinitionFileName)
+				writeFile(t, file, body)
+				agent, err := LoadAgentDefFile(file)
+				if matcherCase.wantError {
+					if err == nil {
+						t.Fatal("LoadAgentDefFile() error = nil, want strict matcher error")
+					}
+				} else {
+					if err != nil {
+						t.Fatalf("LoadAgentDefFile() error = %v", err)
+					}
+					if len(agent.Hooks) != 1 || agent.Hooks[0].Event != hookspkg.HookSessionPostStop ||
+						agent.Hooks[0].Matcher.WorkspaceID != "ws-1" ||
+						agent.Hooks[0].Matcher.AgentName != "coder" ||
+						agent.Prompt != "Keep this prompt." {
+						t.Fatalf("agent = %#v, want retained hook matcher, event and prompt", agent)
+					}
+				}
+				persisted, err := os.ReadFile(file)
+				if err != nil || string(persisted) != body {
+					t.Fatalf("source changed: error=%v contents=%q", err, persisted)
+				}
+			})
+		}
+	}
+}
 
 func TestProfileConfigHookDispatchIsBoundToOwningProfileIT045(t *testing.T) {
 	t.Parallel()
@@ -49,8 +94,8 @@ args = ["-c", "printf '{\"message\":\"marketing\"}'"]
 			t.Fatalf("Rebuild(%s) error = %v", profileName, err)
 		}
 		result, err := dispatcher.DispatchInputPreSubmit(t.Context(), hookspkg.InputPreSubmitPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookInputPreSubmit},
-			Message:     "original",
+			Event:   hookspkg.HookInputPreSubmit,
+			Message: "original",
 		})
 		if err != nil {
 			t.Fatalf("DispatchInputPreSubmit(%s) error = %v", profileName, err)
@@ -64,11 +109,11 @@ args = ["-c", "printf '{\"message\":\"marketing\"}'"]
 		t.Fatalf("marketing dispatch message = %q, want marketing", got)
 	}
 
-	writeFile(t, profilePath, profileConfig+"\n[sandboxes.dev]\nbackend = \"host\"\n")
+	writeFile(t, profilePath, profileConfig+"\n[observability]\nenabled = false\n")
 	_, err = LoadForHome(homePaths, WithProfile("marketing"))
-	var validation ValidationError
-	if !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" {
-		t.Fatalf("LoadForHome(profile sandbox) error = %#v, want profile_config_key_denied", err)
+	validation, validationOK := errors.AsType[ValidationError](err)
+	if !validationOK || validation.Code != "profile_config_key_denied" {
+		t.Fatalf("LoadForHome(profile observability) error = %#v, want profile_config_key_denied", err)
 	}
 }
 
@@ -182,51 +227,6 @@ command = "/bin/echo"
 	}
 }
 
-func TestLoadParsesNetworkHookMatcherFields(t *testing.T) {
-	t.Run("Should parse network matcher fields", func(t *testing.T) {
-		workspaceRoot, homePaths := prepareHookConfigTestEnv(t)
-		writeFile(t, homePaths.ConfigFile, `
-[[hooks.declarations]]
-name = "network-observer"
-event = "network.message.persisted"
-mode = "async"
-command = "/bin/echo"
-
-[hooks.declarations.matcher]
-channel = "builders"
-surface = "direct"
-kind = "trace"
-direction = "received"
-work_state = "completed"
-`)
-
-		cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
-		if err != nil {
-			t.Fatalf("Load() error = %v", err)
-		}
-
-		decls, err := HookDeclarations(cfg.Hooks, nil)
-		if err != nil {
-			t.Fatalf("HookDeclarations() error = %v", err)
-		}
-		if got, want := len(decls), 1; got != want {
-			t.Fatalf("len(HookDeclarations()) = %d, want %d", got, want)
-		}
-
-		matcher := decls[0].Matcher.NetworkMatcher
-		if matcher == nil {
-			t.Fatal("NetworkMatcher = nil, want parsed matcher")
-		}
-		if matcher.Channel != "builders" ||
-			matcher.Surface != "direct" ||
-			matcher.Kind != "trace" ||
-			matcher.Direction != "received" ||
-			matcher.WorkState != "completed" {
-			t.Fatalf("NetworkMatcher = %#v, want parsed network fields", matcher)
-		}
-	})
-}
-
 func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 	t.Parallel()
 
@@ -237,11 +237,8 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		decl := hookspkg.HookDecl{
 			Matcher: hookspkg.HookMatcher{
 				ToolReadOnly: &toolReadOnly,
-				NetworkMatcher: &hookspkg.NetworkMatcher{
-					Channel: "builders",
-				},
 				CompactionMatcher: &hookspkg.CompactionMatcher{
-					Reason: "size",
+					Trigger: "agent",
 				},
 				Autonomy: &hookspkg.AutonomyMatcher{
 					TaskID: "task-1",
@@ -250,16 +247,12 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		}
 
 		cloned := cloneHookDecl(decl)
-		cloned.Matcher.Channel = "ops"
-		cloned.Matcher.Reason = "time"
+		cloned.Matcher.Trigger = "requested"
 		cloned.Matcher.Autonomy.TaskID = "task-2"
 		*cloned.Matcher.ToolReadOnly = false
 
-		if got, want := decl.Matcher.Channel, "builders"; got != want {
-			t.Fatalf("source NetworkMatcher.Channel = %q, want %q", got, want)
-		}
-		if got, want := decl.Matcher.Reason, "size"; got != want {
-			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
+		if got, want := decl.Matcher.Trigger, "agent"; got != want {
+			t.Fatalf("source CompactionMatcher.Trigger = %q, want %q", got, want)
 		}
 		if got, want := decl.Matcher.Autonomy.TaskID, "task-1"; got != want {
 			t.Fatalf("source Autonomy.TaskID = %q, want %q", got, want)

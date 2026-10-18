@@ -2,8 +2,8 @@ package windowmanager
 
 import (
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -180,11 +180,8 @@ func canonicalStoredShortcutOverrides(
 	if overrides == nil {
 		return nil, nil, nil
 	}
-	actions := make([]string, 0, len(overrides))
-	for action := range overrides {
-		actions = append(actions, action)
-	}
-	sort.Strings(actions)
+	actions := slices.AppendSeq(make([]string, 0, len(overrides)), maps.Keys(overrides))
+	slices.Sort(actions)
 
 	canonical := make(map[string]ShortcutBinding, len(overrides))
 	touchedFamilies := make(map[string]struct{})
@@ -306,11 +303,10 @@ func canonicalShortcutRangeBinding(
 
 func parseShortcutRange(value string) (prefix string, start int, end int, ok bool) {
 	trimmed := strings.TrimSpace(value)
-	separator := strings.LastIndex(trimmed, "..")
-	if separator < 0 {
+	left, right, found := strings.CutLast(trimmed, "..")
+	if !found {
 		return "", 0, 0, false
 	}
-	left, right := trimmed[:separator], trimmed[separator+2:]
 	if len(left) < len("Digit1") || !strings.Contains(left, "Digit") {
 		return "", 0, 0, false
 	}
@@ -346,11 +342,8 @@ func effectiveKeymap(
 }
 
 func validateShortcutConflicts(shortcuts map[string]ShortcutBinding) error {
-	actions := make([]string, 0, len(shortcuts))
-	for action := range shortcuts {
-		actions = append(actions, action)
-	}
-	sort.Strings(actions)
+	actions := slices.AppendSeq(make([]string, 0, len(shortcuts)), maps.Keys(shortcuts))
+	slices.Sort(actions)
 	owners := make(map[string]string)
 	for _, action := range actions {
 		for _, chord := range shortcuts[action] {

@@ -151,8 +151,7 @@ func exposureErrorCode(err error) string {
 	if err == nil {
 		return ""
 	}
-	typed := &ExposureError{}
-	if errors.As(err, &typed) {
+	if typed, ok := errors.AsType[*ExposureError](err); ok {
 		return typed.Code
 	}
 	return "internal"

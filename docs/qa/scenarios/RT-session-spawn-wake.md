@@ -4,12 +4,12 @@ area: RT
 title: Wake a parent when its child settles
 persona: Cora
 journey: J-respond-to-agent-attention
-expected: A governed child that stops, fails, or enters a needs-you state queues one sanitized synthetic turn on its live parent by default, never interrupts an active parent prompt, and explicit notify_creator false suppresses only that child's wake with an auditable reason.
+expected: A governed child that stops, fails, enters a needs-you state, or completes its turn normally queues one sanitized synthetic turn on its live parent by default, never interrupts an active parent prompt, and explicit notify_creator false suppresses only that child's wake with an auditable reason; a canceled child turn delivers no completed wake while its catalog, wait-badge, and attention effects still fire.
 entry_points: compozy spawn --no-notify-creator; POST /api/agent/spawn over HTTP and UDS; compozy__session_spawn; parent session transcript
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; internal/session/manager_lifecycle_contract_test.go
 last_report: docs/qa/reports/2026-08-24-eng-147-ttl-cleanup.md
@@ -28,6 +28,26 @@ opt-out on every spawn surface. Flag only; task_08 owns execution.
 QA impact 2026-08-24: ENG-147 changes the stopped-child wake classification for settled TTL
 cleanup. The focused lifecycle contract verifies one clean stopped wake; a provider-backed
 public-surface walk remains blocked pending an isolated ACP provider and human verification.
+
+QA impact 2026-09-29: PR #685 adds `SpawnWakeReasonCompleted` for a governed child's normal turn
+completion, so `BadgeDone` now maps to a delivered `completed` wake. When the just-finished turn was
+canceled, that completed spawn-wake is suppressed, while the catalog event, wait-badge edge, and
+attention hook still fire; no badge semantics changed. Plan only — the owning unit regressions are
+the `BadgeDone` delivery case and the canceled-turn suppression case in
+`internal/session/spawn_wake_test.go`.
+
+Extend the walk with two turns of a governed child whose parent is idle:
+
+- Let the child finish a normal turn (`done`/`end_turn`). Confirm exactly one `completed` parent wake
+  with the child's identity and badge metadata, that it never interrupts an active parent prompt, and
+  that the existing `NotifyCreator`/opt-out gate still governs delivery.
+- Cancel the child's in-flight turn. Confirm the parent receives NO completed wake, while the
+  catalog event, wait-badge edge, and attention hook for the canceled turn still occur. Confirm
+  `BadgeDone` still computes for the canceled turn — only its wake delivery is suppressed.
+
+Automated evidence: `spawn_wake_test.go` `BadgeDone` delivery case and the canceled-turn suppression
+regression. A provider-backed public-surface walk remains blocked on an isolated ACP provider, as in
+the earlier entries.
 
 QA 2026-08-16 Herdr parity: The isolated browser journey, focused attention Playwright lane, and full Web E2E exercised cross-workspace landing, permission resolution, counts, channel suppression, task canary, catalog scope/order, finished presence clearing, and honest quiet/stale states. The lab browser exposed its real notification capability; deterministic granted and denied branches ran in the canonical browser suite.
 
@@ -53,3 +73,24 @@ Routing-slice verification: [2026-09-09 issue #564 report](../reports/2026-09-09
 `TestSpawnProviderRouteDiagnostics` additionally verifies that a startup auth failure is stopped,
 retained for inspection, and correlated with exactly one fingerprint per selected/error JSON log.
 This slice does not replace the unrelated wake-delivery walkthroughs above.
+
+QA impact 2026-10-09 — Subagents service slice: delegated children use `spawn_role=subagent`,
+`notify_creator=false`, and the dedicated subagent wake reactor. Verify batched wakes, status
+acknowledgement removing a queued result, canceled queued wakes returning to pending, and user/agent
+interrupt disposing delivery without stopping children. Steer delivery must never cancel the parent
+turn; unsupported or failed injection requeues once. Owning automated checks are
+`TestSubagentLifecycle`, `TestSubagentLifecycleBoundaries`, and `TestSubagentPromptCancel` in
+`internal/session`. Real SQLite and ACP subprocess coverage is in
+`internal/daemon/subagent_integration_test.go`: cross-provider delegation and replay, queue priority
+and acknowledgement pruning, steering/refusal fallback, bounded wait, permission waiting, recursive
+completion, synchronous stop, interrupt disposal, provider launch failure, executed pre-create hook
+denial, native Agent/Task rows, and boot-reactor reconciliation of missing inputs and orphan sessions.
+The controller's final public-surface walkthrough remains the CLI/HTTP/Web verification owner. The
+boot-reactor test models an observation gap in a running daemon; the killed-daemon restart is owned by
+IT-012 in the same file, which kills the daemon-hosting process mid child turn and boots it again over
+the same database.
+
+QA impact 2026-10-09 (Subagents tools slice): delegated subagents use separate wake delivery,
+`subagent.settled` observation, and a depth/live situation summary; existing spawn contracts remain.
+Scoped evidence: `TestSubagentHookPayloads` and `TestSubagentSituation`. The lifecycle/service slice
+and final spec QA own the integrated completion, acknowledgement, and wake-suppression walk.

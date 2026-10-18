@@ -397,7 +397,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		configuredServer := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, testServer.URL)
 		target := userMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
-		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
 			Target:                target,
 			DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
 			Issuer:                "https://issuer.example.test",
@@ -599,7 +599,7 @@ func TestMCPCallExecutor(t *testing.T) {
 			},
 		} {
 			fixture.record.DefinitionFingerprint = definitionFingerprint(t, fixture.record.Target, fixture.server)
-			if err := store.SaveMCPAuthToken(context.Background(), fixture.record); err != nil {
+			if err := store.SaveMCPAuthToken(t.Context(), fixture.record); err != nil {
 				t.Fatalf("SaveMCPAuthToken(%#v) error = %v", fixture.record.Target, err)
 			}
 		}
@@ -645,7 +645,7 @@ func TestMCPCallExecutor(t *testing.T) {
 			}
 		}
 
-		if err := store.DeleteMCPAuthToken(context.Background(), workspaceA); err != nil {
+		if err := store.DeleteMCPAuthToken(t.Context(), workspaceA); err != nil {
 			t.Fatalf("DeleteMCPAuthToken(workspace-a) error = %v", err)
 		}
 		_, err = executor.ListTools(testContext(t), toolspkg.SourceRef{
@@ -688,7 +688,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp")
 		target := userMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
-		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
 			Target:                target,
 			DefinitionFingerprint: definitionFingerprint(t, target, server),
 			Issuer:                "https://issuer.example.test",
@@ -757,7 +757,7 @@ func TestMCPCallExecutor(t *testing.T) {
 			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "http://127.0.0.1:1/mcp",
 		})
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := executor.ListTools(ctx, toolspkg.SourceRef{
 			Kind:          toolspkg.SourceMCP,
@@ -852,12 +852,9 @@ func TestMCPRequestSecretLifecycle(t *testing.T) {
 				releaseCanceledRequest := func() {}
 				if test.mode == "canceled" {
 					requestRelease := make(chan struct{})
-					var releaseOnce sync.Once
-					releaseCanceledRequest = func() {
-						releaseOnce.Do(func() {
-							close(requestRelease)
-						})
-					}
+					releaseCanceledRequest = sync.OnceFunc(func() {
+						close(requestRelease)
+					})
 					t.Cleanup(releaseCanceledRequest)
 					sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
 						return func(
@@ -1874,7 +1871,7 @@ func TestListMCPTools(t *testing.T) {
 				return next(ctx, method, request)
 			}
 		})
-		serverCtx, cancelServer := context.WithCancel(t.Context())
+		serverCtx, cancelServer := context.WithCancel(context.Background())
 		serverErr := make(chan error, 1)
 		go func() {
 			serverErr <- server.Run(serverCtx, serverTransport)
@@ -2310,8 +2307,9 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	})
 
 	t.Run("Should expose explicitly bound secret env to stdio MCP processes", func(t *testing.T) {
+		t.Parallel()
+
 		const secret = "q7Z"
-		setMCPTestEnv(t, stdioExplicitSecretSource, secret)
 		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
 			t.Fatalf("diagnostic baseline = %q, want unregistered stdio secret", got)
 		}
@@ -2330,7 +2328,12 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 					stdioExplicitSecretEnv: "env:" + stdioExplicitSecretSource,
 				},
 			},
-			WithSecretLookup(os.Getenv),
+			WithSecretLookup(func(key string) string {
+				if key == stdioExplicitSecretSource {
+					return secret
+				}
+				return ""
+			}),
 		)
 
 		descriptor := requireMCPDescriptor(t, executor, "Local", "mcp__local__echo")
@@ -2384,8 +2387,9 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	})
 
 	t.Run("Should redact secret env values through client close and cleanup failures", func(t *testing.T) {
+		t.Parallel()
+
 		const secret = "m8#"
-		setMCPTestEnv(t, stdioExplicitSecretSource, secret)
 		encodedSecret := base64.StdEncoding.EncodeToString([]byte(secret))
 		hexSecret := hex.EncodeToString([]byte(secret))
 		dataURISecret := "data:application/octet-stream;base64," + encodedSecret
@@ -2404,7 +2408,12 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 				stdioExplicitSecretEnv: "env:" + stdioExplicitSecretSource,
 			},
 		}
-		executor := newTestMCPExecutor(t, server, WithSecretLookup(os.Getenv))
+		executor := newTestMCPExecutor(t, server, WithSecretLookup(func(key string) string {
+			if key == stdioExplicitSecretSource {
+				return secret
+			}
+			return ""
+		}))
 		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
 		client, err := executor.openClient(ctx, resolved, "")
 		if err != nil {
@@ -2912,7 +2921,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		t.Parallel()
 
 		store := newMemoryTokenStore()
-		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
 			Target:      userMCPExecutorTarget("github"),
 			AccessToken: "token",
 			TokenType:   "mac",
@@ -3566,7 +3575,7 @@ func callMCPTool(
 func testContext(t *testing.T) context.Context {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 	return ctx
 }

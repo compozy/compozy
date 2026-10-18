@@ -66,7 +66,17 @@ func (g *SessionRepo) UpdateSessionState(ctx context.Context, update store.Sessi
 		return fmt.Errorf("store: build update session state %q: %w", update.ID, err)
 	}
 	// dynamic-sql: the mutable session-state field set is explicitly partial and alters assignments.
-	result, err := g.db.ExecContext(ctx, query, args...)
+	var result sql.Result
+	err = store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"update session state",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			var execErr error
+			result, execErr = tx.ExecContext(ctx, query, args...)
+			return execErr
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: update session state %q: %w",
@@ -96,9 +106,6 @@ func (g *SessionRepo) ListSessions(
 		return nil, err
 	}
 	now := g.now()
-	if _, err := g.SweepExpiredSessionAttachLocks(ctx, now); err != nil {
-		return nil, err
-	}
 
 	sqlQuery := sessionInfoSelectQuery
 	where, args := store.BuildClauses(
@@ -112,7 +119,9 @@ func (g *SessionRepo) ListSessions(
 		store.StringClause("parent_session_id", query.ParentSessionID),
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("spawn_role", query.SpawnRole),
+		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
+	where = appendSubagentSessionFilter(where, query.Subagents)
 	if query.Resumable {
 		where = append(
 			where,
@@ -141,6 +150,9 @@ func (g *SessionRepo) ListSessions(
 		session, scanErr := scanSessionInfo(rows)
 		if scanErr != nil {
 			return nil, scanErr
+		}
+		if expiry := session.AttachExpiresAtValue(); expiry != nil && !expiry.After(now) {
+			session.SetAttach("", nil)
 		}
 		sessions = append(sessions, session)
 	}
@@ -185,9 +197,6 @@ func (g *SessionRepo) AttachSession(ctx context.Context, req store.SessionAttach
 		normalized.Now = g.now().UTC()
 	}
 	if err := normalized.Validate(); err != nil {
-		return store.SessionAttach{}, err
-	}
-	if _, err := g.SweepExpiredSessionAttachLocks(ctx, normalized.Now); err != nil {
 		return store.SessionAttach{}, err
 	}
 	expiresAt := normalized.Now.Add(normalized.TTL).UTC()
@@ -288,9 +297,6 @@ func (g *SessionRepo) ReconcileSessions(
 				if prior.WorkspaceID != normalized.WorkspaceID {
 					return fmt.Errorf("%w: %s", store.ErrSessionWorkspaceMismatch, normalized.ID)
 				}
-				if prior.NetworkSpecSnapshot() != normalized.NetworkSpecSnapshot() {
-					return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, normalized.ID)
-				}
 				continue
 			}
 			seen[normalized.ID] = normalized
@@ -337,7 +343,7 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	queries := sqlcgen.New(exec)
 	affected, err := queries.UpsertSession(ctx, params)
 	if err != nil {
-		return mapSessionArchivedConstraint(session.ID, err)
+		return mapProfileAdmissionConstraint(session.ProfileID, mapSessionArchivedConstraint(session.ID, err))
 	}
 	if affected == 0 {
 		if availabilityErr := sessionWorktreeAvailabilityError(ctx, queries, session); availabilityErr != nil {
@@ -350,7 +356,7 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 		if existingWorkspaceID != params.WorkspaceID {
 			return fmt.Errorf("%w: %s", store.ErrSessionWorkspaceMismatch, session.ID)
 		}
-		return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, session.ID)
+		return fmt.Errorf("store: session worktree owner does not match: %s", session.ID)
 	}
 	return nil
 }

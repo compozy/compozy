@@ -11,11 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	core "github.com/compozy/compozy/internal/api/core"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -23,9 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/memory/consolidation"
-	"github.com/compozy/compozy/internal/network"
+
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providers"
@@ -46,11 +42,9 @@ import (
 const defaultShutdownTimeout = 10 * time.Second
 
 var (
-	errDaemonBootInProgress         = errors.New("daemon: boot in progress")
-	errDaemonShutdownInProgress     = errors.New("daemon: shutdown in progress")
-	errMissingNetworkBindingSurface = errors.New(
-		"daemon: session manager does not implement the network binding surface",
-	)
+	errDaemonBootInProgress     = errors.New("daemon: boot in progress")
+	errDaemonShutdownInProgress = errors.New("daemon: shutdown in progress")
+
 	errMissingWorkspaceRemovalPreparation = errors.New(
 		"daemon: session manager does not implement workspace removal preparation",
 	)
@@ -78,20 +72,8 @@ type daemonObserveRegistry interface {
 	store.SessionCatalog
 }
 
-type daemonNetworkRegistry interface {
-	store.NetworkAuditStore
-	store.NetworkChannelStore
-	store.NetworkConversationStore
-	store.NetworkMessageStore
-	store.NetworkPreferenceStore
-	store.NetworkAvailabilityStore
-	store.NetworkUsageStore
-}
-
 type daemonWorkspaceRegistry interface {
 	workspacepkg.Store
-	workspacepkg.CoordinationSettings
-	workspacepkg.CoordinationCommandStore
 }
 
 type daemonAttentionWorkspaceMuteRegistry interface {
@@ -104,10 +86,10 @@ type daemonAttentionWorkspaceMuteRegistry interface {
 // Consumers depend on their local narrow interfaces instead of this aggregate.
 type Registry interface {
 	daemonObserveRegistry
-	daemonNetworkRegistry
 	daemonWorkspaceRegistry
 	daemonAttentionWorkspaceMuteRegistry
 	store.SkillExposureRepository
+	core.TaskDesignationStore
 	gateway.Store
 	store.OnboardingStore
 	looppkg.ReconciliationStore
@@ -131,9 +113,6 @@ type GatewayTierServerFactory func(
 	surfaces []gateway.Surface,
 ) (Server, error)
 
-// DreamTrigger exposes consolidation controls and health state to transport layers.
-type DreamTrigger = core.DreamTrigger
-
 type registryOpener func(ctx context.Context, path string) (Registry, error)
 type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
@@ -143,32 +122,6 @@ type resourceReconcileDriverFactory func(
 	ctx context.Context,
 	deps resourceReconcileDriverDeps,
 ) (resources.ReconcileDriver, error)
-
-type networkRuntime interface {
-	core.NetworkService
-	session.NetworkPeerLifecycle
-	Shutdown(context.Context) error
-	OnTurnEnd(string)
-	SendFromRuntimePeer(context.Context, network.RuntimeSendRequest) (string, error)
-}
-
-type networkBindableSessionManager interface {
-	Resume(ctx context.Context, sessionID string) (*session.Session, error)
-	PromptNetwork(
-		ctx context.Context,
-		sessionID string,
-		message string,
-		meta ...acp.PromptNetworkMeta,
-	) (<-chan acp.AgentEvent, error)
-	CancelPrompt(ctx context.Context, sessionID string) (session.PromptCancelResult, error)
-	IsPrompting(sessionID string) bool
-	SetNetworkPeerLifecycle(session.NetworkPeerLifecycle)
-	AddTurnEndNotifier(session.TurnEndNotifier)
-}
-
-type memoryProviderShutdowner interface {
-	Shutdown(context.Context) error
-}
 
 type supportBundleShutdowner interface {
 	Shutdown(context.Context) error
@@ -198,7 +151,6 @@ type resourceReconcileDriverDeps struct {
 	WindowLayoutCatalog *resourceCatalog[windowmanager.LayoutResource]
 	SkillsRegistry      *skills.Registry
 	Automation          automationResourceProjectorTarget
-	Bridges             bridgeResourceProjectorTarget
 }
 
 type extensionRuntime interface {
@@ -222,87 +174,76 @@ type extensionDevRuntime interface {
 }
 
 type extensionManagerDeps struct {
-	Registry               *extensionpkg.Registry
-	HomePaths              compozyconfig.HomePaths
-	Extensions             compozyconfig.ExtensionsConfig
-	Sessions               SessionManager
-	Clarify                toolspkg.ClarifyBroker
-	Automation             func() extensionpkg.HostAPIAutomationManager
-	Tasks                  taskpkg.Manager
-	Network                core.NetworkService
-	NetworkStore           store.NetworkConversationStore
-	ModelCatalog           core.ModelCatalogService
-	MemoryStore            *memory.Store
-	MemoryStoreResolver    memory.RecallStoreResolver
-	MemoryProviderRegistry *extensionpkg.MemoryProviderRegistry
-	Observer               Observer
-	SkillsRegistry         *skills.Registry
-	WorkspaceResolver      workspacepkg.RuntimeResolver
-	Profiles               *profilepkg.Manager
-	Logger                 *slog.Logger
-	BridgeRegistry         bridgepkg.Registry
-	BridgeDedupStore       bridgeDedupStore
-	BridgeBroker           *bridgepkg.Broker
-	BridgeRuntime          extensionpkg.BridgeRuntimeResolver
-	ResourceStore          resources.RawStore
-	SourceSessions         resources.SourceSessionManager
-	ResourceCodecs         *resources.CodecRegistry
-	ResourceTrigger        func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	SoulAuthoring          core.SoulAuthoringService
-	SoulRefresher          core.SoulRefresher
-	HeartbeatAuthor        core.HeartbeatAuthoringService
-	HeartbeatStatus        core.HeartbeatStatusService
-	HeartbeatWake          core.HeartbeatWakeService
-	SessionHealth          core.SessionHealthReader
-	WakeEvents             core.HeartbeatWakeEventReader
-	CmdPalette             cmdpalette.ViewService
-	ViewPatches            extensionpkg.ViewPatchPublisher
-	ProcessRegistry        *toolruntime.Registry
-	SecretResolver         extensionpkg.SecretRefResolver
-	EnvBindings            extensionpkg.EnvBindingStore
-	LifecycleEvents        extensionpkg.LifecycleEventSink
-	CompozyExecutable      func() (string, error)
+	Registry          *extensionpkg.Registry
+	HomePaths         compozyconfig.HomePaths
+	Extensions        compozyconfig.ExtensionsConfig
+	Sessions          SessionManager
+	Clarify           toolspkg.ClarifyBroker
+	Automation        func() extensionpkg.HostAPIAutomationManager
+	Tasks             taskpkg.Manager
+	ModelCatalog      core.ModelCatalogService
+	Observer          Observer
+	SkillsRegistry    *skills.Registry
+	WorkspaceResolver workspacepkg.RuntimeResolver
+	Profiles          *profilepkg.Manager
+	Logger            *slog.Logger
+	ResourceStore     resources.RawStore
+	SourceSessions    resources.SourceSessionManager
+	ResourceCodecs    *resources.CodecRegistry
+	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	SoulAuthoring     core.SoulAuthoringService
+	SoulRefresher     core.SoulRefresher
+	HeartbeatAuthor   core.HeartbeatAuthoringService
+	HeartbeatStatus   core.HeartbeatStatusService
+	HeartbeatWake     core.HeartbeatWakeService
+	SessionHealth     core.SessionHealthReader
+	WakeEvents        core.HeartbeatWakeEventReader
+	CmdPalette        cmdpalette.ViewService
+	ViewPatches       extensionpkg.ViewPatchPublisher
+	ProcessRegistry   *toolruntime.Registry
+	SecretResolver    extensionpkg.SecretRefResolver
+	EnvBindings       extensionpkg.EnvBindingStore
+	LifecycleEvents   extensionpkg.LifecycleEventSink
+	CompozyExecutable func() (string, error)
 }
 
 // Daemon is the sole Compozy composition root.
 type Daemon struct {
 	mu sync.Mutex
 
-	homePaths                    compozyconfig.HomePaths
-	loadConfig                   ConfigLoader
-	logger                       *slog.Logger
-	closeLogger                  func() error
-	now                          func() time.Time
-	pid                          func() int
-	processStartedAt             func(int) (time.Time, error)
-	acquireLock                  func(path string, pid int) (*Lock, error)
-	openRegistry                 registryOpener
-	newSessionManager            sessionManagerFactory
-	newDreamService              consolidation.ServiceFactory
-	newObserver                  observerFactory
-	newExtensionManager          extensionManagerFactory
-	newAutomationManager         automationManagerFactory
-	newResourceReconcile         resourceReconcileDriverFactory
-	httpFactory                  ServerFactory
-	udsFactory                   ServerFactory
-	gatewayTierFactory           GatewayTierServerFactory
-	gatewayProviderEffects       gateway.EffectDriver
-	signalProcess                func(int, syscall.Signal) error
-	processAlive                 func(int) bool
-	executable                   func() (string, error)
-	startDetached                detachedStartFunc
-	signalCh                     <-chan os.Signal
-	verifyBoundaries             bool
-	boundaryRoot                 string
-	getenv                       func(string) string
-	bridgeSecretResolver         BridgeSecretResolver
-	bridgeSecretResolverExplicit bool
-	readyCh                      chan struct{}
-	readyClosed                  bool
-	booting                      bool
-	shutdown                     *daemonShutdownOperation
-	config                       compozyconfig.Config
-	admission                    admission.Gate
-	providerPreStarter           *providers.PreStarter
+	homePaths              compozyconfig.HomePaths
+	loadConfig             ConfigLoader
+	logger                 *slog.Logger
+	closeLogger            func() error
+	now                    func() time.Time
+	pid                    func() int
+	processStartedAt       func(int) (time.Time, error)
+	acquireLock            func(path string, pid int) (*Lock, error)
+	openRegistry           registryOpener
+	newSessionManager      sessionManagerFactory
+	newObserver            observerFactory
+	newExtensionManager    extensionManagerFactory
+	newAutomationManager   automationManagerFactory
+	newResourceReconcile   resourceReconcileDriverFactory
+	httpFactory            ServerFactory
+	udsFactory             ServerFactory
+	gatewayTierFactory     GatewayTierServerFactory
+	gatewayProviderEffects gateway.EffectDriver
+	signalProcess          func(int, syscall.Signal) error
+	processAlive           func(int) bool
+	executable             func() (string, error)
+	startDetached          detachedStartFunc
+	signalCh               <-chan os.Signal
+	verifyBoundaries       bool
+	boundaryRoot           string
+	getenv                 func(string) string
+
+	readyCh            chan struct{}
+	readyClosed        bool
+	booting            bool
+	shutdown           *daemonShutdownOperation
+	config             compozyconfig.Config
+	admission          admission.Gate
+	providerPreStarter *providers.PreStarter
 	daemonRuntimeState
 }

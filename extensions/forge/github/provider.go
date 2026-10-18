@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,7 +21,11 @@ var githubTemplatePaths = []string{
 	"docs/pull_request_template.txt",
 }
 
-const githubProviderName = "github"
+const (
+	githubProviderName    = "github"
+	githubPullLookupPages = 10
+	githubPullPageSize    = 100
+)
 
 type Provider struct {
 	credentials credentialResolver
@@ -36,6 +42,14 @@ type pullPayload struct {
 	HTMLURL  string     `json:"html_url"`
 	State    string     `json:"state"`
 	MergedAt *time.Time `json:"merged_at"`
+	Head     pullRef    `json:"head"`
+	Base     pullRef    `json:"base"`
+	Draft    *bool      `json:"draft"`
+}
+
+type pullRef struct {
+	Ref string `json:"ref"`
+	SHA string `json:"sha"`
 }
 
 func newProvider() *Provider {
@@ -96,7 +110,11 @@ func (p *Provider) Status(
 	if credential.token == "" {
 		return extensioncontract.ForgeStatusResponse{Cause: extensioncontract.ForgeCauseCredentialAbsent}, nil
 	}
-	pulls, err := p.listPulls(ctx, repo, request.Branch, "all", credential.token)
+	stateFilter := "all"
+	if request.Base != "" || request.HeadSHA != "" {
+		stateFilter = "open"
+	}
+	pulls, err := p.listPulls(ctx, repo, request.Branch, stateFilter, credential.token)
 	if err != nil {
 		if cause := githubErrorCause(err); cause != "" {
 			return extensioncontract.ForgeStatusResponse{Cause: cause}, nil
@@ -108,12 +126,21 @@ func (p *Provider) Status(
 		return response, nil
 	}
 	pull := pulls[0]
+	if request.Base != "" || request.HeadSHA != "" {
+		var matchErr error
+		pull, matchErr = exactPull(pulls, request.Branch, request.Base, request.HeadSHA, nil)
+		if matchErr != nil {
+			return extensioncontract.ForgeStatusResponse{}, matchErr
+		}
+	}
 	state, merged := pull.State, pull.MergedAt != nil
 	if merged {
 		state = "merged"
 	}
 	response.PRNumber, response.PRState = &pull.Number, &state
 	response.PRURL, response.Merged = pull.HTMLURL, &merged
+	response.Head, response.Base = pull.Head.Ref, pull.Base.Ref
+	response.HeadSHA, response.Draft = pull.Head.SHA, pull.Draft
 	return response, nil
 }
 
@@ -140,10 +167,17 @@ func (p *Provider) CreatePR(
 		return extensioncontract.ForgePRCreateResponse{}, err
 	}
 	if len(existing) > 0 {
-		if !validPullPayload(existing[0]) {
+		pull := existing[0]
+		if request.HeadSHA != "" {
+			pull, err = exactPull(existing, request.Head, request.Base, request.HeadSHA, &request.Draft)
+			if err != nil {
+				return extensioncontract.ForgePRCreateResponse{}, err
+			}
+		}
+		if !validPullPayload(pull) {
 			return extensioncontract.ForgePRCreateResponse{}, errors.New("github forge: invalid existing pull request")
 		}
-		return pullCreateResponse("opened_existing", existing[0]), nil
+		return pullCreateResponse("opened_existing", pull), nil
 	}
 	var created pullPayload
 	err = p.api.request(ctx, http.MethodPost, repositoryAPIPath(repo, "/pulls"), credential.token, map[string]any{
@@ -159,6 +193,17 @@ func (p *Provider) CreatePR(
 	if !validPullPayload(created) {
 		return extensioncontract.ForgePRCreateResponse{}, errors.New("github forge: invalid created pull request")
 	}
+	if request.HeadSHA != "" {
+		if _, err := exactPull(
+			[]pullPayload{created},
+			request.Head,
+			request.Base,
+			request.HeadSHA,
+			&request.Draft,
+		); err != nil {
+			return extensioncontract.ForgePRCreateResponse{}, err
+		}
+	}
 	return pullCreateResponse("created", created), nil
 }
 
@@ -170,8 +215,46 @@ func (p *Provider) listPulls(
 	token string,
 ) ([]pullPayload, error) {
 	var pulls []pullPayload
-	err := p.api.request(ctx, http.MethodGet, pullListPath(repo, branch, state), token, nil, &pulls)
-	return pulls, err
+	for page := 1; page <= githubPullLookupPages; page++ {
+		path, err := url.Parse(pullListPath(repo, branch, state))
+		if err != nil {
+			return nil, err
+		}
+		query := path.Query()
+		query.Set("page", strconv.Itoa(page))
+		path.RawQuery = query.Encode()
+		var batch []pullPayload
+		if err := p.api.request(ctx, http.MethodGet, path.String(), token, nil, &batch); err != nil {
+			return nil, err
+		}
+		pulls = append(pulls, batch...)
+		if len(batch) < githubPullPageSize {
+			return pulls, nil
+		}
+	}
+	return nil, errors.New(
+		"github forge: pull request lookup exceeds 1000 candidates; narrow the branch before retrying",
+	)
+}
+
+func exactPull(pulls []pullPayload, head, base, headSHA string, draft *bool) (pullPayload, error) {
+	var match *pullPayload
+	for i := range pulls {
+		pull := &pulls[i]
+		if pull.Head.Ref != head || (base != "" && pull.Base.Ref != base) ||
+			(headSHA != "" && pull.Head.SHA != headSHA) ||
+			(draft != nil && (pull.Draft == nil || *pull.Draft != *draft)) {
+			continue
+		}
+		if match != nil {
+			return pullPayload{}, errors.New("github forge: multiple pull requests match the delivery candidate")
+		}
+		match = pull
+	}
+	if match == nil {
+		return pullPayload{}, errors.New("github forge: existing pull request does not match the delivery candidate")
+	}
+	return *match, nil
 }
 
 func pullCreateResponse(status string, pull pullPayload) extensioncontract.ForgePRCreateResponse {

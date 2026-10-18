@@ -12,3 +12,8 @@ export function triggerFilterEntries(
     return path === "" || value === "" ? [] : [[path, value] as const];
   });
 }
+
+/** `data.stop_reason` → `stop reason`: the plain words for a filter path. */
+export function humanizeFilterKey(key: string): string {
+  return key.replace(/^data\./, "").replaceAll(/[._]/g, " ");
+}

@@ -1,13 +1,5 @@
-import {
-  CircleStop,
-  ListPlus,
-  LoaderCircle,
-  Target,
-  TriangleAlert,
-  Users,
-  Wrench,
-} from "lucide-react";
-import { Eyebrow, cn } from "@compozy/ui";
+import { ListPlus, Target, TriangleAlert, Users, Wrench, type LucideIcon } from "lucide-react";
+import { Eyebrow, StateGlyph, cn } from "@compozy/ui";
 import type { SessionActivityView } from "../lib/session-activity-view";
 import { SessionInspectorSection } from "./session-inspector-section";
 
@@ -21,21 +13,26 @@ function splitLead(text: string): { lead: string; rest: string } {
     : { lead: text.slice(0, index), rest: text.slice(index) };
 }
 
+interface ActivityRow {
+  key: string;
+  text?: string;
+  lead?: boolean;
+  /** Absent on the status row, which leads with the state glyph. */
+  Icon?: LucideIcon;
+}
+
 export function SessionActivitySection({ activity = {} }: { activity?: SessionActivityView }) {
   const counts = [activity.tools, activity.thoughts].filter(Boolean).join(" · ");
-  const rows = [
-    {
-      key: "status",
-      text: activity.status,
-      lead: true,
-      Icon: activity.status?.startsWith("Working") ? LoaderCircle : CircleStop,
-    },
+  const working = activity.status?.startsWith("Working") ?? false;
+  const candidates: ActivityRow[] = [
+    { key: "status", text: activity.status, lead: true },
     { key: "agents", text: activity.agents, Icon: Users },
     { key: "counts", text: counts, Icon: Wrench },
     { key: "queued", text: activity.queued, Icon: ListPlus },
     { key: "goal", text: activity.goal, Icon: Target },
     { key: "warning", text: activity.warning, Icon: TriangleAlert },
-  ].filter((row): row is typeof row & { text: string } => !!row.text);
+  ];
+  const rows = candidates.filter((row): row is ActivityRow & { text: string } => !!row.text);
   // A signal that is absent has no row; with no signal at all the section keeps its slot but draws nothing.
   return (
     <SessionInspectorSection data-testid="session-context-activity" hidden={rows.length === 0}>
@@ -48,15 +45,23 @@ export function SessionActivitySection({ activity = {} }: { activity?: SessionAc
               <li
                 key={key}
                 data-kind={key === "warning" ? "warning" : undefined}
-                className="grid grid-cols-[14px_minmax(0,1fr)] items-start gap-2 text-form-label leading-[1.45] text-muted"
+                className="grid grid-cols-[14px_minmax(0,1fr)] items-start gap-2 text-form-label leading-normal text-muted"
               >
-                <Icon
-                  aria-hidden="true"
-                  className={cn(
-                    "mt-0.5 size-3.25",
-                    key === "warning" ? "text-warning" : "text-subtle"
-                  )}
-                />
+                {Icon ? (
+                  <Icon
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-0.5 size-3.25",
+                      key === "warning" ? "text-warning" : "text-subtle"
+                    )}
+                  />
+                ) : (
+                  <StateGlyph
+                    className="mt-0.5"
+                    size="sm"
+                    state={working ? "running" : "stopped"}
+                  />
+                )}
                 <span className="min-w-0 break-words">
                   {headline ? <b className="font-medium text-fg">{headline}</b> : null}
                   {rest}

@@ -5,7 +5,6 @@ package clientstate
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -20,12 +19,12 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
 		applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("live"), 0, ApplyOptions{})
-		subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)
 		}
 		deleted := applyDelete(t, engine, "w1", "os_shell", "desktop", 0)
-		if _, err := engine.Get(context.Background(), "w1", "os_shell", "desktop"); !errors.Is(err, ErrNotFound) {
+		if _, err := engine.Get(t.Context(), "w1", "os_shell", "desktop"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("Get() error = %v, want ErrNotFound", err)
 		}
 		event := receiveEvent(t, subscription)
@@ -39,13 +38,13 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 		engine, _, _ := newTestEngine(t, testLimits())
 		first := applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("one"), 0, ApplyOptions{})
 		second := applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("two"), first.Rev, ApplyOptions{})
-		_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpDelete, Key: "desktop", IfRev: first.Rev,
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrRevConflict) {
 			t.Fatalf("Apply(delete) error = %v, want ErrRevConflict", err)
 		}
-		got, getErr := engine.Get(context.Background(), "w1", "os_shell", "desktop")
+		got, getErr := engine.Get(t.Context(), "w1", "os_shell", "desktop")
 		if getErr != nil {
 			t.Fatalf("Get() error = %v", getErr)
 		}
@@ -57,7 +56,7 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 	t.Run("Should deliver put put delete in increasing revision order (UT-013)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)
 		}
@@ -78,7 +77,7 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 		subscriptions := make([]Subscription, 3)
 		for index := range subscriptions {
 			var err error
-			subscriptions[index], err = engine.Watch(context.Background(), "w1", []string{"os_shell"})
+			subscriptions[index], err = engine.Watch(t.Context(), "w1", []string{"os_shell"})
 			if err != nil {
 				t.Fatalf("Watch(%d) error = %v", index, err)
 			}
@@ -95,11 +94,11 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 	t.Run("Should evict only the slow subscriber without blocking writes (UT-015)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, Limits{MaxValueBytes: 1024, MaxKeysPerWorkspace: 4})
-		slow, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		slow, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(slow) error = %v", err)
 		}
-		healthy, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		healthy, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(healthy) error = %v", err)
 		}
@@ -128,7 +127,7 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 	t.Run("Should preserve mutation origin on published events (UT-016)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)
 		}
@@ -141,11 +140,11 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 	t.Run("Should never leak events across workspaces (UT-021)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		w1, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		w1, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(w1) error = %v", err)
 		}
-		w2, err := engine.Watch(context.Background(), "w2", []string{"os_shell"})
+		w2, err := engine.Watch(t.Context(), "w2", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(w2) error = %v", err)
 		}
@@ -165,14 +164,14 @@ func TestEngineShouldPublishOrderedWorkspaceEvents(t *testing.T) {
 		engine, _, _ := newTestEngine(t, testLimits())
 		applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("desktop"), 0, ApplyOptions{})
 		applyPut(t, engine, "w1", "other", "other", objectValue("other"), 0, ApplyOptions{})
-		filtered, err := engine.Watch(context.Background(), "w1", []string{"os_shell", "os_shell"})
+		filtered, err := engine.Watch(t.Context(), "w1", []string{"os_shell", "os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(filtered) error = %v", err)
 		}
 		if snapshot := filtered.Snapshot(); len(snapshot) != 1 || snapshot[0].Domain != "os_shell" {
 			t.Fatalf("filtered snapshot = %#v, want os_shell only", snapshot)
 		}
-		all, err := engine.Watch(context.Background(), "w1", nil)
+		all, err := engine.Watch(t.Context(), "w1", nil)
 		if err != nil {
 			t.Fatalf("Watch(all) error = %v", err)
 		}
@@ -195,11 +194,11 @@ func TestEngineShouldLinearizeConcurrentCommitsAndWatch(t *testing.T) {
 	t.Run("Should deliver identical total order to independent subscribers (UT-070)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, Limits{MaxValueBytes: 1024, MaxKeysPerWorkspace: 16})
-		first, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		first, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(first) error = %v", err)
 		}
-		second, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		second, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(second) error = %v", err)
 		}
@@ -211,7 +210,7 @@ func TestEngineShouldLinearizeConcurrentCommitsAndWatch(t *testing.T) {
 		for writer := range writers {
 			waitGroup.Go(func() {
 				for write := range writesPerWriter {
-					results, applyErr := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+					results, applyErr := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 						Kind:  OpPut,
 						Key:   fmt.Sprintf("writer:%d", writer),
 						Value: objectValue(fmt.Sprintf("%d", write)),
@@ -286,7 +285,7 @@ func TestEngineShouldLinearizeConcurrentCommitsAndWatch(t *testing.T) {
 		go func() {
 			<-start
 			for index := range 50 {
-				_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+				_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 					Kind: OpPut, Key: fmt.Sprintf("burst:%02d", index), Value: objectValue("burst"),
 				}}, ApplyOptions{})
 				if err != nil {
@@ -297,7 +296,7 @@ func TestEngineShouldLinearizeConcurrentCommitsAndWatch(t *testing.T) {
 			writerDone <- nil
 		}()
 		close(start)
-		subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)
 		}

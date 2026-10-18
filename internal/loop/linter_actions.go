@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"encoding/json"
 	"maps"
 	"strings"
 
@@ -47,13 +48,57 @@ func (c *lintContext) lintRunLoopNode(node dsl.Node) {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params are invalid: %v", err)
 		return
 	}
+	if raw, exists := params.Inputs[dsl.ReviewedWorktreeInput]; exists && raw != nil {
+		data, err := json.Marshal(raw)
+		if err != nil {
+			c.add(node.ID, refs.CodeUnresolvablePath, "run-loop reviewed_worktree is invalid: %v", err)
+		} else if !strings.Contains(string(data), "{{") {
+			if _, err := dsl.DecodeReviewedWorktree(params.Inputs); err != nil {
+				c.add(node.ID, refs.CodeUnresolvablePath, "run-loop reviewed_worktree is invalid: %v", err)
+			}
+		}
+	}
 	if strings.TrimSpace(params.Loop) == "" {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params.loop is required")
 	}
 	if params.Mode != "" && params.Mode != dsl.RunLoopAwait && params.Mode != dsl.RunLoopDetach {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params.mode must be await or detach")
 	}
+	if len(node.Produces) > 0 {
+		if params.Mode == dsl.RunLoopDetach {
+			if len(node.Produces) != 1 || !runLoopOutputFieldIsString(node.Produces["loop_run_id"]) {
+				c.add(
+					node.ID,
+					CodeRunLoopOutputShapeInvalid,
+					"detached run-loop produces must declare only loop_run_id as a string",
+				)
+			}
+		} else if !declaresCompletedRunLoopResult(node) {
+			c.add(
+				node.ID,
+				CodeRunLoopOutputShapeInvalid,
+				"awaited run-loop produces must declare loop_run_id and status as strings",
+			)
+		}
+	}
 	c.lintRunLoopConfigOverrides(node.ID, params.ConfigOverrides)
+}
+
+func declaresCompletedRunLoopResult(node dsl.Node) bool {
+	return len(node.Produces) == 2 &&
+		runLoopOutputFieldIsString(node.Produces["loop_run_id"]) &&
+		runLoopOutputFieldIsString(node.Produces["status"])
+}
+
+func runLoopOutputFieldIsString(value any) bool {
+	switch schema := normalizeSchemaValue(value).(type) {
+	case string:
+		return schema == jsonSchemaStringType
+	case map[string]any:
+		return len(schema) == 1 && schema[jsonSchemaTypeKey] == jsonSchemaStringType
+	default:
+		return false
+	}
 }
 
 func (c *lintContext) lintRunLoopConfigOverrides(nodeID dsl.NodeID, raw map[string]any) {

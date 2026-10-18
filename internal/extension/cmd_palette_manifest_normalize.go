@@ -51,8 +51,7 @@ func normalizeCmdPaletteCommand(command CmdPaletteCommand) CmdPaletteCommand {
 	normalized.Action.App = strings.TrimSpace(command.Action.App)
 	normalized.Action.URL = strings.TrimSpace(command.Action.URL)
 	if command.Action.Args != nil {
-		normalized.Action.Args = make(map[string]any, len(command.Action.Args))
-		maps.Copy(normalized.Action.Args, command.Action.Args)
+		normalized.Action.Args = maps.Clone(command.Action.Args)
 	}
 	if command.Confirmation != nil {
 		normalized.Confirmation = &CmdPaletteConfirmation{
@@ -86,6 +85,5 @@ func cloneBool(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

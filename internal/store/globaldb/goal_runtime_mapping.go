@@ -16,12 +16,10 @@ func goalSessionOutboxFromGenerated(row sqlcgen.LoopGoalSessionOutbox) goal.Sess
 		Cause: goal.SessionOutboxCause(row.Cause), CreatedAt: row.CreatedAt.UTC(),
 	}
 	if row.BoundSessionID.Valid {
-		value := row.BoundSessionID.String
-		event.BoundSessionID = &value
+		event.BoundSessionID = new(row.BoundSessionID.String)
 	}
 	if row.DeliveredAt.Valid {
-		value := row.DeliveredAt.Time.UTC()
-		event.DeliveredAt = &value
+		event.DeliveredAt = new(row.DeliveredAt.Time.UTC())
 	}
 	return event
 }
@@ -34,8 +32,7 @@ func loopSessionCleanupFromGenerated(row sqlcgen.LoopSessionCleanup) loop.Sessio
 		Cause: loop.SessionCleanupCause(row.Cause), CreatedAt: row.CreatedAt.UTC(),
 	}
 	if row.CompletedAt.Valid {
-		value := row.CompletedAt.Time.UTC()
-		obligation.CompletedAt = &value
+		obligation.CompletedAt = new(row.CompletedAt.Time.UTC())
 	}
 	return obligation
 }

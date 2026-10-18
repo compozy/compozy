@@ -84,7 +84,7 @@ const skippedStdioServer: ExtensionInventoryDiagnostic = {
 
 export const extensionFixtures: ExtensionEntry[] = [
   {
-    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
     inputs: [],
     mcp_servers: [],
     missing_inputs: [],
@@ -100,7 +100,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     health_message: "Collector connection healthy",
     missing_env: [],
     name: "otel-bridge",
-    network_confirmation_required: false,
+    gateway_confirmation_required: false,
     permissions: ["observe/health", "sessions/events", "sessions/list"],
     pid: 4812,
     provenance: extensionProvenanceFixtures["otel-bridge"],
@@ -122,7 +122,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     version: "0.5.2",
   },
   {
-    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
     inputs: [],
     mcp_servers: [],
     missing_inputs: [],
@@ -150,8 +150,8 @@ export const extensionFixtures: ExtensionEntry[] = [
     last_error: "SLACK_BOT_TOKEN is not configured",
     missing_env: ["SLACK_BOT_TOKEN"],
     name: "slack-notify",
-    network_confirmation_required: false,
-    permissions: ["network/send", "sessions/list"],
+    gateway_confirmation_required: false,
+    permissions: ["gateway/status", "sessions/list"],
     provenance: extensionProvenanceFixtures["slack-notify"],
     requires_env: ["SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"],
     restart_backoff_ms: 0,
@@ -168,9 +168,9 @@ export const extensionFixtures: ExtensionEntry[] = [
     update_available: false,
     version: "1.1.4",
   },
-  /** Ships a static kit and declares Live network participation the operator has not ratified. */
+  /** Ships a static kit and declares gateway control permissions the operator has not ratified. */
   {
-    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
     inputs: [],
     mcp_servers: [],
     missing_inputs: [],
@@ -185,9 +185,9 @@ export const extensionFixtures: ExtensionEntry[] = [
     format: "compozy",
     missing_env: ["DEP_KIT_WEBHOOK"],
     name: "dep-kit-ops",
-    network_confirmation_required: true,
-    network_requirement_digest: "sha256:6f1c0a94d3b27e58",
-    permissions: ["network/send"],
+    gateway_confirmation_required: true,
+    gateway_requirement_digest: "sha256:6f1c0a94d3b27e58",
+    permissions: ["gateway/status"],
     requires_env: ["DEP_KIT_TOKEN", "DEP_KIT_WEBHOOK"],
     restart_backoff_ms: 0,
     source: "marketplace",
@@ -198,7 +198,7 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Portable package ingested from the Agent Plugins format, with one recorded component skip. */
   {
-    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
     inputs: [],
     mcp_servers: [],
     missing_inputs: [],
@@ -212,7 +212,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     format: "agent-plugin",
     missing_env: [],
     name: "acme.tools",
-    network_confirmation_required: false,
+    gateway_confirmation_required: false,
     permissions: [],
     requires_env: [],
     restart_backoff_ms: 0,
@@ -224,7 +224,7 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Fully degraded: every declared component was skipped, so nothing was ingested. */
   {
-    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+    contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
     inputs: [],
     mcp_servers: [],
     missing_inputs: [],
@@ -238,7 +238,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     format: "agent-plugin",
     missing_env: [],
     name: "legacy-notes",
-    network_confirmation_required: false,
+    gateway_confirmation_required: false,
     permissions: [],
     requires_env: [],
     restart_backoff_ms: 0,
@@ -284,7 +284,7 @@ export const extensionInventoryDiagnosticsFixtures: Record<string, ExtensionInve
 export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";
 
 export const devExtensionFixture: ExtensionEntry = {
-  contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+  contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
   inputs: [],
   mcp_servers: [],
   missing_inputs: [],
@@ -303,7 +303,7 @@ export const devExtensionFixture: ExtensionEntry = {
   last_error: "handler exited with status 1",
   missing_env: [],
   name: "ops-dev-extension",
-  network_confirmation_required: false,
+  gateway_confirmation_required: false,
   origin_path: "/Users/dev/src/ops-dev-extension",
   overrides_published: true,
   permissions: ["sessions/list"],

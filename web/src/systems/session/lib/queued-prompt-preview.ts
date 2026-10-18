@@ -1,3 +1,5 @@
+import { stripMarkdownLineMarkers } from "./markdown-plain-text";
+
 /**
  * One-line preview of a queued follow-up (US-005.EC-3). Multi-line text shows
  * its first meaningful line with leading markdown markers stripped; a message
@@ -10,16 +12,6 @@ export interface QueuedPromptPreview {
 
 const EMPTY_PREVIEW: QueuedPromptPreview = { kind: "text", text: "Queued message" };
 const FENCE_PATTERN = /^(?:`{3,}|~{3,})/;
-
-function stripLineMarkers(line: string): string {
-  return line
-    .replace(/^#{1,6}(?:\s+|$)/, "")
-    .replace(/^>\s?/, "")
-    .replace(/^- \[[ xX]\](?:\s+|$)/, "")
-    .replace(/^[-*+](?:\s+|$)/, "")
-    .replace(/^\d+[.)](?:\s+|$)/, "")
-    .trim();
-}
 
 export function queuedPromptPreview(text: string): QueuedPromptPreview {
   const lines = text.split(/\r?\n/).map(line => line.trim());
@@ -34,6 +26,6 @@ export function queuedPromptPreview(text: string): QueuedPromptPreview {
       .find(line => line.length > 0 && !FENCE_PATTERN.test(line));
     return { kind: "code", text: inside ?? "Code block" };
   }
-  const normalized = stripLineMarkers(first);
+  const normalized = stripMarkdownLineMarkers(first);
   return normalized.length > 0 ? { kind: "text", text: normalized } : EMPTY_PREVIEW;
 }

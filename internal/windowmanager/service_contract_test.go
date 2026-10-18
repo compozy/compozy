@@ -15,6 +15,48 @@ import (
 )
 
 func TestLayoutDocumentContract(t *testing.T) {
+	// Invariant: exported v4 layouts remain importable without mutating input; this contract suite owns it.
+	t.Run("Should validate and replace an exported v4 layout with canonical apps", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		snapshot := validThreeWindowSnapshot()
+		document := LayoutDocument{
+			Version:     PreviousSnapshotVersion,
+			WorkspaceID: "workspace-a",
+			Desktops:    snapshot.Desktops,
+			Windows:     snapshot.Windows,
+		}
+		for id, window := range document.Windows {
+			window.App = "jobs"
+			window.Route = testRoute("/jobs/morning-digest")
+			document.Windows[id] = window
+		}
+		validation, err := environment.manager.ValidateLayout(t.Context(), "workspace-a", document)
+		if err != nil || !validation.Valid {
+			t.Fatalf("validation=%+v err=%v", validation, err)
+		}
+		got, err := environment.manager.ReplaceLayout(
+			t.Context(),
+			ReplaceLayoutRequest{WorkspaceID: "workspace-a", ExpectedRevision: 0, Document: document},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Snapshot.Version != SnapshotVersion || len(got.Snapshot.Windows) != len(document.Windows) {
+			t.Fatalf("import=%+v", got.Snapshot)
+		}
+		for id, window := range got.Snapshot.Windows {
+			if window.App != "automations" || window.Route.Pathname != "/automations/jobs/morning-digest" {
+				t.Fatalf("window=%+v", window)
+			}
+			if document.Windows[id].App != "jobs" || document.Windows[id].Route.Pathname != "/jobs/morning-digest" {
+				t.Fatal("input document mutated")
+			}
+		}
+		if document.Version != PreviousSnapshotVersion {
+			t.Fatal("input version mutated")
+		}
+	})
 	t.Run(
 		"Should export immutable documents, validate diagnostics, and replace through normal revision CAS",
 		func(t *testing.T) {
@@ -278,12 +320,22 @@ func TestLayoutDocumentContract(t *testing.T) {
 				},
 				wantSentinel: ErrInvalidCommand,
 			},
+			{
+				// keep_frames only shapes an inline arrangement; a resource
+				// replaces the topology, so the pair is a caller error on every
+				// transport instead of a silently dropped flag.
+				name:         "keep frames with a resource",
+				payload:      ArrangeLayoutCommand{ResourceID: "focus", KeepFrames: true},
+				wantSentinel: ErrInvalidCommand,
+			},
 		}
 		for _, test := range invalidCommands {
 			t.Run(test.name, func(t *testing.T) {
-				_, executeErr := manager.Execute(t.Context(), CommandRequest{
-					WorkspaceID: "workspace-a", ExpectedRevision: 1, Payload: test.payload,
-				})
+				request := CommandRequest{WorkspaceID: "workspace-a", ExpectedRevision: 1, Payload: test.payload}
+				if _, previewErr := manager.Preview(t.Context(), request); !errors.Is(previewErr, test.wantSentinel) {
+					t.Fatalf("Preview(resource) error = %v, want %v", previewErr, test.wantSentinel)
+				}
+				_, executeErr := manager.Execute(t.Context(), request)
 				if !errors.Is(executeErr, test.wantSentinel) {
 					t.Fatalf("Execute(resource) error = %v, want %v", executeErr, test.wantSentinel)
 				}
@@ -303,7 +355,7 @@ func TestLayoutDocumentContract(t *testing.T) {
 func TestWindowTabLayoutDocumentV3(t *testing.T) {
 	t.Run("Should export v3 tab state without closed entries or history [UT-037]", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
 		executeTestCommand(
 			t,
@@ -338,7 +390,7 @@ func TestWindowTabLayoutDocumentV3(t *testing.T) {
 
 	t.Run("Should replace a v3 document with floating stacks and live navigation [UT-038]", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		created := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
 		executeTestCommand(
 			t,

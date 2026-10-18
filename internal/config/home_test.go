@@ -233,7 +233,6 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.LoopsDir,
 		paths.ProfilesDir,
 		paths.DefaultProfileDir,
-		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
 		paths.SessionAttachmentsDir,
@@ -271,15 +270,6 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 			filepath.Join(userHome, "compozy-test-home"),
 		)
 	}
-	if got, want := paths.MemoryDir, filepath.Join(
-		userHome,
-		"compozy-test-home",
-		ProfilesDirName,
-		DefaultProfileDirName,
-		MemoryDirName,
-	); got != want {
-		t.Fatalf("ResolveHomePathsFrom() MemoryDir = %q, want %q", got, want)
-	}
 	if got, want := paths.SkillsDir, filepath.Join(userHome, "compozy-test-home", SkillsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() SkillsDir = %q, want %q", got, want)
 	}
@@ -288,14 +278,6 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 	}
 	if got, want := paths.RestartsDir, filepath.Join(userHome, "compozy-test-home", RestartsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() RestartsDir = %q, want %q", got, want)
-	}
-	if got, want := paths.NetworkAuditFile, filepath.Join(
-		userHome,
-		"compozy-test-home",
-		LogsDirName,
-		NetworkAuditFileName,
-	); got != want {
-		t.Fatalf("ResolveHomePathsFrom() NetworkAuditFile = %q, want %q", got, want)
 	}
 }
 

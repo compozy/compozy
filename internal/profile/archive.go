@@ -75,19 +75,19 @@ func (m *Manager) archiveProfileWrite(
 		return err
 	}
 	*archived = profile
+	if err := ensureAvailable(ctx, exec, profile, false); err != nil {
+		return err
+	}
 	if profile.State == StateArchived {
 		*idempotent = true
 		result.PausedAutomations, err = m.pausedAutomations(ctx, exec, profile.ID)
-		return err
-	}
-	if err := ensureAvailable(ctx, exec, profile, false); err != nil {
 		return err
 	}
 	plan, err := m.archivePlan(ctx, exec, profile)
 	if err != nil {
 		return err
 	}
-	if err := validateArchivePlan(ctx, exec, profile, plan, name, planRevision); err != nil {
+	if err := validateArchivePlan(plan, name, planRevision); err != nil {
 		return err
 	}
 	now := formatTimestamp(m.now())
@@ -99,11 +99,15 @@ func (m *Manager) archiveProfileWrite(
 	if err := setProfileQueuedRunsPaused(ctx, exec, profile.ID, true, now); err != nil {
 		return fmt.Errorf("profile: freeze queued work for %q: %w", name, err)
 	}
-	if err := pauseProfileAutomations(ctx, exec, profile.ID, plan.AutomationsToPause); err != nil {
+	if err := pauseProfileAutomations(ctx, exec, profile.ID, plan.AutomationsToPause, now); err != nil {
 		return err
 	}
+	var steps []lifecycleStep
+	if len(plan.AutomationsToPause) > 0 {
+		steps = []lifecycleStep{{Seq: len(plan.AutomationsToPause), Action: stepReconcileAutomations}}
+	}
 	if err := m.insertOperation(
-		ctx, exec, opID, "archive", profile.ID, name, name, plan.Revision, nil,
+		ctx, exec, opID, "archive", profile.ID, name, name, plan.Revision, steps,
 	); err != nil {
 		return err
 	}
@@ -117,16 +121,10 @@ func (m *Manager) archiveProfileWrite(
 }
 
 func validateArchivePlan(
-	ctx context.Context,
-	exec globaldb.ProfileWriteExecutor,
-	profile Profile,
 	plan ArchivePlan,
 	name string,
 	planRevision string,
 ) error {
-	if err := validateNoDeliveryPermits(ctx, exec, profile.ID, name); err != nil {
-		return err
-	}
 	if plan.Revision != planRevision {
 		return stalePlanError("archive")
 	}
@@ -148,53 +146,6 @@ func validateArchivePlan(
 	}
 	if len(plan.ApprovalBlockers) > 0 {
 		return approvalsPendingError(plan.ApprovalBlockers)
-	}
-	return nil
-}
-
-func validateNoDeliveryPermits(
-	ctx context.Context,
-	exec globaldb.ProfileWriteExecutor,
-	profileID string,
-	name string,
-) error {
-	var permits int
-	if err := exec.QueryRowContext(
-		ctx, `SELECT COUNT(*) FROM notification_delivery_permits WHERE profile_id = ?`, profileID,
-	).Scan(&permits); err != nil {
-		return fmt.Errorf("profile: count delivery permits: %w", err)
-	}
-	if permits == 0 {
-		return nil
-	}
-	return domainError(
-		"profile_deliveries_in_flight",
-		fmt.Sprintf("profile %q has %d notification deliveries in flight", name, permits),
-		"retry after the deliveries settle",
-		ErrDeliveriesInFlight,
-	)
-}
-
-func pauseProfileAutomations(
-	ctx context.Context,
-	exec globaldb.ProfileWriteExecutor,
-	profileID string,
-	automations []string,
-) error {
-	for _, automation := range automations {
-		kind, id, found := strings.Cut(automation, ":")
-		if !found {
-			return fmt.Errorf("profile: invalid automation identity %q", automation)
-		}
-		table := "automation_jobs"
-		if kind == "trigger" {
-			table = "automation_triggers"
-		}
-		if _, err := exec.ExecContext(
-			ctx, `UPDATE `+table+` SET enabled = 0 WHERE id = ? AND profile_id = ?`, id, profileID,
-		); err != nil {
-			return fmt.Errorf("profile: pause %s %q: %w", kind, id, err)
-		}
 	}
 	return nil
 }

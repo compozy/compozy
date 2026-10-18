@@ -7,11 +7,17 @@ import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import { useMenubarActions } from "../hooks/use-menubar-actions";
 import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-selection";
 import { useDesktop } from "../hooks/use-desktop";
+import { useWindowManagerDiagnostic } from "../hooks/use-window-manager-store";
 import { desktopMenubarScopeModel } from "../lib/desktop-menubar-model";
+import { desktopShellBridge } from "../lib/desktop-shell-bridge";
+import { primaryShortcutModifier, shortcutAriaKeys } from "../lib/window-manager-shortcuts";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
-import { MenubarUpdateIndicator } from "./menubar/menubar-update-indicator";
+import {
+  MenubarUpdateIndicator,
+  type MenubarUpdateModel,
+} from "./menubar/menubar-update-indicator";
 import { CompozyMenu } from "./menubar/compozy-menu";
 import { GoMenu } from "./menubar/go-menu";
 import { HelpMenu } from "./menubar/help-menu";
@@ -50,8 +56,8 @@ export interface DesktopMenubarProps {
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
   attention: OsAttentionModel;
-  /** Whether either update track currently offers an install. */
-  updateAvailable: boolean;
+  /** The one-click product update; `hidden` keeps the control out of the DOM. */
+  update: MenubarUpdateModel;
   /** Same worktree query the switcher reads; omitted, the menu stays flat. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
   userHomeDir?: string;
@@ -64,17 +70,40 @@ export interface DesktopMenubarProps {
   removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
-  /**
-   * Profile switcher, supplied by the shell. It owns its own reads, so it is
-   * injected rather than constructed here — the bar stays presentational.
-   */
-  profileSwitcher?: React.ReactNode;
+  /** Desktop pager, supplied by the shell (it owns the desktop switch wiring). */
+  pager?: React.ReactNode;
+  /** No project is bound, so there is no layout stream to report on. */
+  layoutUnbound?: boolean;
+}
+
+/** Live window-layout status: stream health plus the latest refused-command notice. */
+/** The palette chord as `aria-keyshortcuts`, mapped to this platform's primary modifier. */
+function paletteKeyShortcuts(binding: string | undefined): string | undefined {
+  if (!binding) return undefined;
+  const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+  return shortcutAriaKeys(binding, primaryShortcutModifier(platform)) || undefined;
+}
+
+function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
+  const hydration = useDesktop(state => state.hydration);
+  const loadError = useDesktop(state => state.loadError);
+  const connectionStatus = useDesktop(state => state.connectionStatus);
+  const diagnostic = useWindowManagerDiagnostic();
+  return (
+    <OsHydrationStatus
+      hydration={hydration}
+      loadError={loadError}
+      connectionStatus={connectionStatus}
+      diagnostic={diagnostic}
+      unbound={unbound}
+    />
+  );
 }
 
 /**
- * The wired menubar: the CompozyOS system menu, the workspace switcher, the static
- * Session / Go / Window / Help set, the bell aggregator, the palette button, and the
- * settings cog. All actions are runtime-backed — no menu item renders without a
+ * The wired topbar: the CompozyOS system menu (which holds Settings), the workspace
+ * switcher, the static Session / Go / Window / Help set, then the tray — desktop
+ * pager, All desktops, the bell aggregator, and the palette button. All actions are runtime-backed — no menu item renders without a
  * working mechanism, and none is hidden when its predicate fails (SD-007).
  */
 export function DesktopMenubar({
@@ -94,7 +123,7 @@ export function DesktopMenubar({
   activeOverlay,
   onOverlayOpenChange,
   attention,
-  updateAvailable,
+  update,
   worktreesByWorkspace,
   userHomeDir,
   worktreeSelection,
@@ -105,9 +134,9 @@ export function DesktopMenubar({
   onRemoveWorktree,
   removalProfile,
   onRemoveWorktrees,
-  profileSwitcher,
+  pager,
+  layoutUnbound = false,
 }: DesktopMenubarProps) {
-  const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const paletteOpen = usePaletteCommand("palette.open");
   const scopeModel = desktopMenubarScopeModel({
@@ -130,27 +159,32 @@ export function DesktopMenubar({
   return (
     <OsMenuBar
       className={className}
-      workspace={scopeModel.workspace}
+      workspace={{ ...scopeModel.workspace, warning: scopeModel.fallbackNotice }}
+      // The sentence lives on the chip (warning dot) and atop the project menu;
+      // this live region only announces it.
       scopeNotice={
         scopeModel.fallback ? (
-          <span
-            role="status"
-            data-testid="os-worktree-fallback-notice"
-            className="inline-flex items-center gap-1.5 rounded-md bg-info-tint px-2 py-1 text-form-label text-info"
-          >
+          <span role="status" data-testid="os-worktree-fallback-notice" className="sr-only">
             {scopeModel.fallbackNotice}
           </span>
         ) : null
       }
       // No workspace means no layout stream — there is nothing to be out of sync with.
-      status={<OsHydrationStatus hydration={hydration} />}
+      status={<MenubarLayoutStatus unbound={layoutUnbound} />}
       updateIndicator={
-        <MenubarUpdateIndicator available={updateAvailable} onActivate={actions.openUpdates} />
+        <MenubarUpdateIndicator
+          onOpenUpdates={actions.openUpdates}
+          onUpdate={update.onUpdate}
+          state={update.state}
+        />
       }
       notifications={attention.notificationCount}
       onCommandClick={() => onRunCommand("palette.open")}
-      onSettingsClick={() => onRunCommand("settings.general")}
+      onDesktopsClick={() => onOverlayOpenChange("desktops", activeOverlay !== "desktops")}
+      desktopsOpen={activeOverlay === "desktops"}
+      trafficLights={desktopShellBridge()?.platform === "darwin"}
       commandShortcutLabel={paletteOpen?.chords[0]}
+      commandKeyShortcuts={paletteKeyShortcuts(paletteOpen?.bindings[0])}
       logoMenu={trigger => (
         <CompozyMenu
           trigger={trigger}
@@ -191,6 +225,7 @@ export function DesktopMenubar({
           onRemoveWorktree={onRemoveWorktree}
           removalProfile={removalProfile}
           onRemoveWorktrees={onRemoveWorktrees}
+          notice={scopeModel.fallbackNotice}
         />
       )}
       menus={
@@ -207,7 +242,7 @@ export function DesktopMenubar({
           </>
         ) : null
       }
-      profileSwitcher={profileSwitcher}
+      pager={pager}
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}

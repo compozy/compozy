@@ -85,9 +85,9 @@ Repair the owning production cause, preserve valid assertions, and verify the or
 - When Paper artboards (design references) conflict with daemon truth, **daemon wins**.
 - Paper governs _composition_; `DESIGN.md` governs _grammar_ (tokens, depth, motion).
 - A design reference is **lossy by nature**: demo data, fixture copy, placeholder brand marks, simplified or omitted product content, hand-rolled stand-ins for shipped components, and host chrome redrawn around the named piece are prototype artifacts, never product instructions. Content/data belong to runtime truth, labels/copy to `COPY.md`, marks to the `@compozy/ui` brand inventory, component identity to the `@compozy/ui` inventory + existing domain composites, host chrome to the live surface — record the divergence as an authorized delta (L-032, L-035).
-- No invented controls (per-bridge retry/timeout when runtime doesn't support them).
+- No invented controls (retry/timeout controls when runtime does not support them).
 - No invented metrics (no "pending retry" counts when telemetry doesn't expose them).
-- Observability-only views are allowed (e.g., Network Peers in v1 has no Disconnect/Remove until backend models them).
+- Observability-only views are allowed; add mutation controls only when the backend models those operations.
 
 **Source:** Multiple plans in `.codex/plans/` (automation-bridges-paper-redesign, network-paper-pages, bridge-web-e2e); L-032 (os-shell menubar mark).
 
@@ -120,7 +120,7 @@ When evidence shows an adequate existing data model lacks a consumer, implement 
 
 ## SD-010 — Detached Execution Lifetime
 
-**Posture.** Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`. Never tie execution lifetime to request lifetime.
+**Posture.** Any work that outlives an HTTP/UDS request — prompts, automation jobs — MUST detach via `context.WithoutCancel(ctx)`. Never tie execution lifetime to request lifetime.
 
 **Required behavior:**
 
@@ -137,7 +137,7 @@ When evidence shows an adequate existing data model lacks a consumer, implement 
 
 Runtime capabilities must be extensible and operable by agents through structured surfaces. UI-only manageability is incomplete.
 
-For a feature or contract change, record the affected extension/hook/resource/registry/bridge/MCP surfaces, CLI/HTTP/UDS operations and errors, config lifecycle, workspace isolation, and Web/Docs impact once at the owning artifact (`change-impact.md`). Dependent tasks link to that analysis and update only their deltas.
+For a feature or contract change, record the affected extension/hook/resource/registry/MCP surfaces, CLI/HTTP/UDS operations and errors, config lifecycle, workspace isolation, and Web/Docs impact once at the owning artifact (`change-impact.md`). Dependent tasks link to that analysis and update only their deltas.
 
 Co-ship affected contracts, defaults/overlays/validation, code, generated references, docs, and owning tests. Config and public-surface changes follow SD-013. An unaffected entry names the checked boundary and why the change does not touch it; editorial/internal work does not need a full repeated matrix.
 
@@ -164,7 +164,7 @@ When the full spec-cycle workflow is requested, retain its state/phase schema an
 **Required behavior:**
 
 - **Regime 1 — user state never breaks.** SQLite streams (`compozy.db`, `events.db`, workspace databases), `config.toml`, workspace files, and persisted layouts/profiles always upgrade losslessly. Every shape change ships its migration in the same change, extending the Goose append-only model (L-008, L-021) to every persisted datum. Dropping or truncating user data is allowed only with the user's sign-off recorded in an ADR and a `Migration notes` block in the release note.
-- **Regime 2 — public scripted surfaces deprecate before they delete.** CLI verbs/flags and structured output, HTTP/UDS routes and DTOs, hook events, extension/bridge SDK contracts, `config.toml` keys, and `compozy__*` tool IDs. Decision ladder, in order: (a) auto-migrate losslessly at the boundary — the change is free; (b) otherwise keep the old shape working for one release after the new one ships, emit a deprecation warning naming the replacement, delete in the following release; (c) eternal compat is never an option. A surface documented as `experimental` in its docs and CLI help may break without a window; every other surface shipped in a tagged release is `stable`.
+- **Regime 2 — public scripted surfaces deprecate before they delete.** CLI verbs/flags and structured output, HTTP/UDS routes and DTOs, hook events, extension SDK contracts, `config.toml` keys, and `compozy__*` tool IDs. Decision ladder, in order: (a) auto-migrate losslessly at the boundary — the change is free; (b) otherwise keep the old shape working for one release after the new one ships, emit a deprecation warning naming the replacement, delete in the following release; (c) eternal compat is never an option. A surface documented as `experimental` in its docs and CLI help may break without a window; every other surface shipped in a tagged release is `stable`.
 - **Regime 3 — internal code stays hard-cut.** Go packages, `web/`, `@compozy/ui`, specs, RFCs, `.compozy/tasks/*`: rename every consumer in one change, delete obsolete code, no aliases, dual fields, or `// legacy` branches. SD-002's internal discipline lives on here.
 - **Compat is translation at the boundary.** A shim is a loader/decoder/alias-table entry at the edge (config loader, HTTP/UDS decoder, CLI verb table, migration SQL) — never an `if oldShape` branch in domain code. Only one shim generation exists at a time (N-1, never stacked); each shim's code comment and release note name the release that removes it.
 - **Every breaking-change spec lists its delete targets and the regime of each**, with the ladder outcome (auto-migrate / deprecate N→N+1 / `experimental` break) decided before approval. L-006 still governs the enumeration.

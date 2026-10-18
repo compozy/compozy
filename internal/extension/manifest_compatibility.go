@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"strings"
 
@@ -56,25 +57,23 @@ func ValidateManifestForCompozyVersion(manifest *Manifest, currentVersion string
 
 func normalizeDaemonVersionForCompatibility(value string) string {
 	trimmed := strings.TrimSuffix(strings.TrimSpace(value), "-dirty")
-	commitSep := strings.LastIndex(trimmed, "-g")
-	if commitSep < 0 || commitSep+2 >= len(trimmed) {
+	beforeCommit, commit, found := strings.CutLast(trimmed, "-g")
+	if !found || commit == "" {
 		return trimmed
 	}
-	commit := trimmed[commitSep+2:]
 	if !isGitDescribeShortSHA(commit) {
 		return trimmed
 	}
-	beforeCommit := trimmed[:commitSep]
-	countSep := strings.LastIndex(beforeCommit, "-")
-	if countSep < 0 || countSep+1 >= len(beforeCommit) {
+	version, count, found := strings.CutLast(beforeCommit, "-")
+	if !found || count == "" {
 		return trimmed
 	}
-	for _, char := range beforeCommit[countSep+1:] {
+	for _, char := range count {
 		if char < '0' || char > '9' {
 			return trimmed
 		}
 	}
-	return beforeCommit[:countSep]
+	return version
 }
 
 func isGitDescribeShortSHA(value string) bool {
@@ -164,10 +163,7 @@ func validIdentifierPart(part string) bool {
 }
 
 func providesCapability(values []string, want string) bool {
-	for _, value := range values {
-		if strings.TrimSpace(value) == strings.TrimSpace(want) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(values, func(value string) bool {
+		return strings.TrimSpace(value) == strings.TrimSpace(want)
+	})
 }

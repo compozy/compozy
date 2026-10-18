@@ -320,6 +320,7 @@ func resolvedAgentToolPolicy(resolved compozyconfig.ResolvedAgent) (toolspkg.Age
 		return toolspkg.AgentToolPolicy{}, err
 	}
 	return toolspkg.AgentToolPolicy{
+		Enforced:  resolved.ToolPolicyEnforced,
 		Tools:     tools,
 		Toolsets:  toolsets,
 		DenyTools: denyTools,
@@ -352,6 +353,9 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 		return nil
 	}
 	policy := store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
+	filtered, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{Tools: policy.Tools})
+	toolspkg.WarnRetiredToolReferences("session:"+info.ID, dropped)
+	policy.Tools = filtered.Tools
 	ids := make([]toolspkg.ToolID, 0, len(policy.Tools))
 	for i, raw := range policy.Tools {
 		id := toolspkg.ToolID(strings.TrimSpace(raw))

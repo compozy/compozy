@@ -110,7 +110,7 @@ function ArtifactRows({ artifacts }: { artifacts: LoopArtifactRow[] }) {
               ) : null}
               {artifact.ref ? (
                 <pre
-                  className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-canvas-tint p-3 font-mono text-mono-id text-muted"
+                  className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-sunken p-3 font-mono text-mono-id text-muted"
                   data-testid={`loop-run-artifact-ref-${artifact.name}`}
                 >
                   {artifact.ref}

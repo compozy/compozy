@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Subagents · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="subagents.css">
+<!--
+  subagents index · set map for the three boards named in
+  .compozy/tasks/subagents/_uiux.md (S1–S10). Contract: DESIGN-NOTES.md.
+  Same grammar as automations / session-context: contract block first, numbered callouts +
+  legend per specimen, tag strip, classes named after production components.
+-->
+<style>
+  body{background:var(--canvas);overflow-y:auto}
+  .hub{max-width:1040px;margin:0 auto;padding:52px 36px 80px}
+  .hub h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+  .hub__lede{margin-top:10px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:72ch;text-wrap:pretty}
+  .hub__lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .hub__grp{margin-top:36px}
+  .hub__grp-t{font-size:12px;font-weight:510;color:var(--subtle);padding-bottom:10px}
+  .matrix{width:100%;border-collapse:collapse;font-size:12px}
+  .matrix th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+  .matrix td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+  .matrix td:first-child{font-family:var(--font-mono);color:var(--faint);white-space:nowrap}
+  .matrix td a{color:var(--fg);font-weight:510}
+  .matrix td a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+  .matrix .comp{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .matrix .vc{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .card{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  a.card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .card__mods{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto;padding-top:4px}
+  .card__peek{margin:4px 0 2px;pointer-events:none}
+  .howto{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .howto div{padding:12px 14px;border-radius:var(--radius-md);background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;line-height:1.55;color:var(--muted)}
+  .howto b{display:block;font-size:12px;color:var(--fg-strong);font-weight:600;margin-bottom:3px}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:76ch}
+  .mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+  @media (max-width:860px){.cards,.howto{grid-template-columns:1fr}.hub{padding:36px 20px 64px}.matrix .comp{display:none}}
+</style>
+</head>
+<body>
+<div class="hub" data-od-id="sa-index">
+  <h1 data-od-id="sa-index-title">Subagents</h1>
+  <p class="hub__lede">Three boards for <code>.compozy/tasks/subagents/_uiux.md</code> (S1–S10) and ADR-005. A delegation becomes a live card in the parent's transcript, and cards from the same turn fold into a group. A new <b>HoverCard</b> primitive carries the details the row leaves out. When the parent's turn ends, a strip on the composer says who it is still waiting on. In the sidebar, a parent with ten subagents stays one row with a <code>3/10</code> chip, and the full roster lives in the inspector. Every board opens with <b>what it is</b>, <b>which production components it changes</b>, and <b>the states it covers with their Visual Contract ids</b>. The semantic contract is <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="hub__grp" data-od-id="sa-index-boards">
+    <div class="hub__grp-t">Boards — read in this order</div>
+    <div class="cards">
+      <a class="card" href="subagents-transcript.html" data-od-id="card-transcript">
+        <span class="card__name">01 · Transcript</span>
+        <span class="card__file">subagents-transcript.html · S1 S2 S3 S4 S6 S8</span>
+        <div class="card__peek"><span class="subagent-card" style="min-height:40px;grid-template-columns:24px minmax(0,1fr) auto"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Audit payment webhooks</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Reading webhook.go</span></span><span class="subagent-elapsed">2m 41s</span></span></div>
+        <span class="card__sub">The card in 11 states, the same-turn group, the hover card, provider-native nesting, the subagent tool verbs, and the "Subagent of" divider.</span>
+        <span class="card__mods"><span class="sa-mod sa-mod--new">new ×6</span><span class="sa-mod sa-mod--modify">modify ×3</span></span>
+      </a>
+      <a class="card" href="subagents-composer.html" data-od-id="card-composer">
+        <span class="card__name">02 · Waiting &amp; status</span>
+        <span class="card__file">subagents-composer.html · S5 S7</span>
+        <span class="card__sub">The parent's turn ended while its subagents still work: a strip on the composer with names and Stop. The "N agents running" count now includes provider-native agents.</span>
+        <span class="card__mods"><span class="sa-mod sa-mod--new">new ×1</span><span class="sa-mod sa-mod--modify">modify ×2</span></span>
+      </a>
+      <a class="card" href="subagents-navigation.html" data-od-id="card-navigation">
+        <span class="card__name">03 · Sidebar &amp; inspector</span>
+        <span class="card__file">subagents-navigation.html · S9 S10</span>
+        <span class="card__sub">The parent chip in 8 states, with plain spawn nesting unchanged. The inspector's Subagents section: live first, Previous (N), paging, and Stop on a row.</span>
+        <span class="card__mods"><span class="sa-mod sa-mod--new">new ×2</span><span class="sa-mod sa-mod--modify">modify ×3</span><span class="sa-mod sa-mod--backend">backend ×1</span></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="sa-index-matrix">
+    <div class="hub__grp-t">Surface → board → components</div>
+    <table class="matrix">
+      <thead><tr><th>S#</th><th>Surface</th><th>Board</th><th>Production components</th><th>VC rows</th></tr></thead>
+      <tbody>
+        <tr><td>S1</td><td>Subagent card</td><td><a href="subagents-transcript.html#tr-card">Transcript §02</a></td><td><span class="comp">new SubagentCard · SubagentAvatar · SubagentElapsed · useSubagentRoster · modify session-timeline-work.ts</span></td><td class="vc">transcript VC-01 · VC-02</td></tr>
+        <tr><td>S2</td><td>Subagent group</td><td><a href="subagents-transcript.html#tr-group">Transcript §03</a></td><td><span class="comp">new SubagentGroup · reuse Collapsible · AvatarGroup · AvatarGroupCount</span></td><td class="vc">transcript VC-03</td></tr>
+        <tr><td>S3</td><td>Hover card</td><td><a href="subagents-transcript.html#tr-hover">Transcript §04</a></td><td><span class="comp">new HoverCard (packages/ui) · SubagentHoverContent · reuse PropertyRow · KindIcon · StateGlyph</span></td><td class="vc">transcript VC-04</td></tr>
+        <tr><td>S4</td><td>"Subagent of" divider</td><td><a href="subagents-transcript.html#tr-divider">Transcript §07</a></td><td><span class="comp">modify SessionContinueDivider · session-origin.ts</span></td><td class="vc">transcript VC-07</td></tr>
+        <tr><td>S5</td><td>Composer waiting banner</td><td><a href="subagents-composer.html#cp-live">Waiting §01–02</a></td><td><span class="comp">new SubagentWaitingBanner · modify SessionComposer</span></td><td class="vc">composer VC-01 · VC-02</td></tr>
+        <tr><td>S6</td><td>Subagent tool phrases</td><td><a href="subagents-transcript.html#tr-tools">Transcript §06</a></td><td><span class="comp">modify tool-labels.ts · reuse ToolCallRow</span></td><td class="vc">transcript VC-06</td></tr>
+        <tr><td>S7</td><td>"N agents running"</td><td><a href="subagents-composer.html#cp-status">Waiting §03</a></td><td><span class="comp">modify session-working-status.ts</span></td><td class="vc">composer VC-03</td></tr>
+        <tr><td>S8</td><td>Provider-native nesting</td><td><a href="subagents-transcript.html#tr-native">Transcript §05</a></td><td><span class="comp">modify session-timeline-work.ts (parentToolCallId) · SubagentCard native</span></td><td class="vc">transcript VC-05</td></tr>
+        <tr><td>S9</td><td>Sidebar parent chip</td><td><a href="subagents-navigation.html#nv-chip">Sidebar §01–02</a></td><td><span class="comp">new SubagentChip · modify SessionListRow · SessionListThread · session-hierarchy.ts · list query subagents=exclude</span></td><td class="vc">nav VC-01 · VC-02</td></tr>
+        <tr><td>S10</td><td>Inspector Subagents section</td><td><a href="subagents-navigation.html#nv-roster">Sidebar §01 · §03</a></td><td><span class="comp">new SessionInspectorSubagentsSection · modify SessionInspector</span></td><td class="vc">nav VC-01 · VC-03</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="hub__grp" data-od-id="sa-index-howto">
+    <div class="hub__grp-t">How to read a board</div>
+    <div class="howto">
+      <div><b>1 · Contract block</b>Three columns at the top: the surface in plain words · the production files it adds, modifies or reuses · the states on the page, each linked, each with its VC id.</div>
+      <div><b>2 · Specimen + callouts</b>An interactive session window first (hover, focus, click, Stop), then state grids. Numbered markers point at an element; the legend names the component, the tokens and the rule.</div>
+      <div><b>3 · Tags</b><span class="mono">state</span> · <span class="mono">component</span> · <span class="mono">VC</span> · <span class="mono">tone / accent</span> budget under each specimen. Grep a VC id to find its specimen.</div>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">packages/ui/src/tokens.css</span> through <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> (unmodified). Domain lane <span class="mono">subagents.css</span>, where every class is named after the production component it renders; demo plumbing is in <span class="mono">subagents.js</span>. Provider marks are copied from <span class="mono">packages/ui/src/logos</span> (Claude, OpenAI) into <span class="mono">assets/</span>. Explored first: <span class="mono">.resources/t3code</span> (V2LifecycleRow, SubagentTooltipContent, MessagesTimeline, ChatView, ThreadRelationshipsControl) and the production session system. Fixture: <span class="mono">Ship checkout v2 · dev-loop · 10 subagents</span>. Models, titles and numbers are illustrative; runtime truth owns values. Iterate — never regenerate a delivered board.</p>
+</div>
+</body>
+</html>

@@ -24,6 +24,9 @@ type UpdateSettingsRolesBody = OperationRequestBody<"updateSettingsRoles">;
 describe("settings openapi contract", () => {
   it("keeps generated settings operation types aligned with the API surface", () => {
     expectTypeOf<UpdateSettingsGeneralBody["config"]["session_timeout"]>().toEqualTypeOf<string>();
+    expectTypeOf<UpdateSettingsGeneralBody["config"]["idle_release_after"]>().toEqualTypeOf<
+      string | undefined
+    >();
     expectTypeOf<UpdateSettingsGeneralBody["config"]["permissions"]["mode"]>().toEqualTypeOf<
       "approve-all" | "approve-reads" | "deny-all"
     >();
@@ -32,11 +35,9 @@ describe("settings openapi contract", () => {
       | "general"
       | "persona"
       | "marketplace"
-      | "memory"
       | "roles"
       | "skills"
       | "automation"
-      | "network"
       | "window-manager"
       | "cmd-palette"
       | "attention"
@@ -48,6 +49,9 @@ describe("settings openapi contract", () => {
     expectTypeOf<GetSettingsGeneralResponse["available_scopes"][number]>().toEqualTypeOf<"user">();
     expectTypeOf<GetSettingsGeneralResponse["config_paths"]["log_file"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["config"]["session_timeout"]>().toEqualTypeOf<string>();
+    expectTypeOf<GetSettingsGeneralResponse["config"]["idle_release_after"]>().toEqualTypeOf<
+      string | undefined
+    >();
     expectTypeOf<GetSettingsGeneralResponse["runtime"]["available"]>().toEqualTypeOf<boolean>();
     expectTypeOf<GetSettingsGeneralResponse["runtime"]["started_at"]>().toEqualTypeOf<
       string | null | undefined
@@ -64,12 +68,7 @@ describe("settings openapi contract", () => {
 
     expectTypeOf<GetSettingsRolesResponse["scope"]>().toEqualTypeOf<"user" | "workspace">();
     expectTypeOf<keyof NonNullable<UpdateSettingsRolesBody["config"]>>().toEqualTypeOf<
-      | "auto_title"
-      | "checkpoint_summary"
-      | "coordinator"
-      | "dream"
-      | "memory_controller"
-      | "memory_extractor"
+      "auto_title" | "coordinator"
     >();
 
     expectTypeOf<PutSettingsMCPServerQuery["scope"]>().toEqualTypeOf<
@@ -106,7 +105,7 @@ describe("settings openapi contract", () => {
     >();
 
     expectTypeOf<ListSettingsMCPServersResponse["collection"]>().toEqualTypeOf<
-      "providers" | "mcp-servers" | "sandboxes" | "hooks"
+      "providers" | "mcp-servers" | "hooks"
     >();
     expectTypeOf<ListSettingsMCPServersResponse["scope"]>().toEqualTypeOf<
       "user" | "profile" | "workspace"

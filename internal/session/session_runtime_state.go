@@ -12,20 +12,24 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
-	process         *AgentProcess
-	selection       RuntimeSelection
-	status          RuntimeStatus
-	transition      RuntimeTransitionStrategy
-	failure         string
-	generation      int64
-	recovery        *store.SessionRuntimeRecovery
-	acpSessionID    string
-	acpCaps         acp.Caps
-	acpCapsKnown    bool
-	speedResolution *speedpkg.Resolution
-	liveness        *store.SessionLivenessMeta
-	agentDef        compozyconfig.AgentDef
-	startupManifest acp.StartupManifest
+	process             *AgentProcess
+	selection           RuntimeSelection
+	status              RuntimeStatus
+	transition          RuntimeTransitionStrategy
+	failure             string
+	generation          int64
+	recovery            *store.SessionRuntimeRecovery
+	acpSessionID        string
+	acceptedRoute       *store.SessionAcceptedRoute
+	acceptedCommand     string
+	pendingResumeReplay string
+	acpCaps             acp.Caps
+	acpCapsKnown        bool
+	speedResolution     *speedpkg.Resolution
+	liveness            *store.SessionLivenessMeta
+	agentDef            compozyconfig.AgentDef
+	startupManifest     acp.StartupManifest
+	runtimeRelease      *runtimeRelease
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -43,18 +47,22 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 			Speed:           s.Speed,
 			ACPOptions:      acp.CloneSessionConfigOptionSelections(s.ACPOptions),
 		},
-		status:          s.RuntimeStatus,
-		transition:      s.RuntimeTransition,
-		failure:         s.RuntimeFailure,
-		generation:      s.RuntimeGeneration,
-		recovery:        store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
-		acpSessionID:    s.ACPSessionID,
-		acpCaps:         cloneCaps(s.ACPCaps),
-		acpCapsKnown:    s.ACPCapsKnown,
-		speedResolution: speedpkg.CloneResolution(s.SpeedResolution),
-		liveness:        store.CloneSessionLivenessMeta(s.Liveness),
-		agentDef:        compozyconfig.CloneAgentDef(s.agentDef),
-		startupManifest: acp.CloneStartupManifest(s.startupManifest),
+		status:              s.RuntimeStatus,
+		transition:          s.RuntimeTransition,
+		failure:             s.RuntimeFailure,
+		generation:          s.RuntimeGeneration,
+		recovery:            store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
+		acpSessionID:        s.ACPSessionID,
+		acceptedRoute:       store.CloneSessionAcceptedRoute(s.acceptedRoute),
+		acceptedCommand:     s.acceptedCommand,
+		pendingResumeReplay: s.pendingResumeReplay,
+		acpCaps:             cloneCaps(s.ACPCaps),
+		acpCapsKnown:        s.ACPCapsKnown,
+		speedResolution:     speedpkg.CloneResolution(s.SpeedResolution),
+		liveness:            store.CloneSessionLivenessMeta(s.Liveness),
+		agentDef:            compozyconfig.CloneAgentDef(s.agentDef),
+		startupManifest:     acp.CloneStartupManifest(s.startupManifest),
+		runtimeRelease:      s.runtimeRelease,
 	}
 }
 
@@ -119,6 +127,9 @@ func (s *Session) completeRuntimeTransitionLocked(
 	now time.Time,
 ) *AgentProcess {
 	previous := s.process
+	if proc != nil {
+		s.runtimeRelease = nil
+	}
 	s.Provider = strings.TrimSpace(selection.Provider)
 	s.Model = strings.TrimSpace(selection.Model)
 	s.ReasoningEffort = strings.TrimSpace(selection.ReasoningEffort)
@@ -207,6 +218,7 @@ func (s *Session) restoreRecoveryBinding(
 
 func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
+	s.runtimeRelease = snapshot.runtimeRelease
 	s.Provider = snapshot.selection.Provider
 	s.Model = snapshot.selection.Model
 	s.ReasoningEffort = snapshot.selection.ReasoningEffort
@@ -218,6 +230,9 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.RuntimeGeneration = snapshot.generation
 	s.RuntimeRecovery = store.CloneSessionRuntimeRecovery(snapshot.recovery)
 	s.ACPSessionID = snapshot.acpSessionID
+	s.acceptedRoute = store.CloneSessionAcceptedRoute(snapshot.acceptedRoute)
+	s.acceptedCommand = snapshot.acceptedCommand
+	s.pendingResumeReplay = snapshot.pendingResumeReplay
 	s.ACPCaps = cloneCaps(snapshot.acpCaps)
 	s.ACPCapsKnown = snapshot.acpCapsKnown
 	s.SpeedResolution = speedpkg.CloneResolution(snapshot.speedResolution)

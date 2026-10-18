@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 var _ looppkg.RequestStore = (*LoopRepo)(nil)
 
 type requestCursor struct {
-	NullExpiry bool      `json:"null_expiry,omitempty"`
+	NullExpiry bool      `json:"null_expiry,omitzero"`
 	Primary    time.Time `json:"primary"`
 	Secondary  time.Time `json:"secondary,omitzero"`
 	RowID      int64     `json:"row_id"`
@@ -251,12 +252,9 @@ func scanStoredRequest(scanner rowScanner) (storedRequest, error) {
 }
 
 func requestAllowsDecision(decisions []string, decision string) bool {
-	for _, allowed := range decisions {
-		if strings.TrimSpace(allowed) == decision {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(decisions, func(allowed string) bool {
+		return strings.TrimSpace(allowed) == decision
+	})
 }
 
 func resolvedRequestOutcome(

@@ -46,15 +46,12 @@ type loopRunScanValues struct {
 	originProfileRef  sql.NullString
 	originPolicy      sql.NullString
 	originCreation    sql.NullString
-	networkSpecJSON   string
-	networkMode       string
-	networkChannel    sql.NullString
-	networkSource     string
-	bestGeneration    sql.NullInt64
-	bestScore         sql.NullFloat64
-	completionState   string
-	forkedFromRunID   sql.NullString
-	forkedFromGen     sql.NullInt64
+
+	bestGeneration  sql.NullInt64
+	bestScore       sql.NullFloat64
+	completionState string
+	forkedFromRunID sql.NullString
+	forkedFromGen   sql.NullInt64
 }
 
 func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
@@ -109,10 +106,6 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.originProfileRef,
 		&v.originPolicy,
 		&v.originCreation,
-		&v.networkSpecJSON,
-		&v.networkMode,
-		&v.networkChannel,
-		&v.networkSource,
 		&v.bestGeneration,
 		&v.bestScore,
 		&v.completionState,
@@ -200,17 +193,6 @@ func applyLoopRunPayloadScan(run *looppkg.Run, v *loopRunScanValues) error {
 	if run.StartMetadata == nil {
 		run.StartMetadata = map[string]any{}
 	}
-	networkSpec, err := decodeParticipationSnapshot(
-		string(run.WorkspaceID),
-		v.networkSpecJSON,
-		v.networkMode,
-		v.networkChannel,
-		v.networkSource,
-	)
-	if err != nil {
-		return err
-	}
-	run.SetNetworkSpec(networkSpec)
 	if err := applyLoopRunBest(run, v.bestGeneration, v.bestScore); err != nil {
 		return err
 	}
@@ -280,8 +262,7 @@ func (v loopConfigScanValues) toConfig() (looppkg.LoopConfig, error) {
 		EnabledChecks:    json.RawMessage(v.enabledChecks),
 	}
 	if v.reattempt.Valid {
-		value := looppkg.ReattemptStrategy(v.reattempt.String)
-		cfg.ReattemptStrategy = &value
+		cfg.ReattemptStrategy = new(looppkg.ReattemptStrategy(v.reattempt.String))
 	}
 	if v.iterationCap.Valid {
 		cfg.IterationCap = new(int(v.iterationCap.Int64))
@@ -293,8 +274,7 @@ func (v loopConfigScanValues) toConfig() (looppkg.LoopConfig, error) {
 		cfg.BudgetWallSec = new(int(v.budgetWallSec.Int64))
 	}
 	if v.budgetOnExceeded.Valid {
-		value := dsl.BudgetExceeded(v.budgetOnExceeded.String)
-		cfg.BudgetOnExceeded = &value
+		cfg.BudgetOnExceeded = new(dsl.BudgetExceeded(v.budgetOnExceeded.String))
 	}
 	if v.noProgressWindow.Valid {
 		cfg.NoProgressWindow = new(int(v.noProgressWindow.Int64))

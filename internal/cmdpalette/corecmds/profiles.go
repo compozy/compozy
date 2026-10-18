@@ -46,7 +46,7 @@ func profileFlowCommand(
 	command := coreDescriptor(id, title, coreSectionProfiles, icon, cmdpalette.Action{
 		Kind: cmdpalette.ActionKindNavigate,
 		App:  coreSettingsKey,
-		Args: map[string]any{"pathname": "/settings/profiles", "flow": flow},
+		Args: map[string]any{coreArgPathname: "/settings/profiles", "flow": flow},
 	})
 	command.Arguments = arguments
 	return command

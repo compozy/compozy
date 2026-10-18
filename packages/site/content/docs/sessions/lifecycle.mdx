@@ -87,6 +87,11 @@ Creation never accepts a prompt or runtime selector. It only creates the durable
 The agent definition supplies the defaults that the first prompt can use, but CompozyOS does not launch
 ACP or negotiate provider options until that prompt arrives.
 
+If the agent declares a `fallback_chain`, the first prompt binds the session on the first route the
+provider accepts. Routes refused before ACP acceptance are recorded as `session.fallback.used` events and
+`provider_failure` transcript markers; `runtime.effective` on `GET /api/sessions/{id}` shows the route that
+was accepted. See [provider recovery](/docs/agents/providers#recover-from-a-provider-refusal-before-acceptance).
+
 ### Creation provenance
 
 A session created from inside another session records that origin in its `lineage`:
@@ -105,6 +110,41 @@ budget, or permission narrowing — governed children come only from
 [safe spawn](/docs/autonomy/safe-spawn). Query the hierarchy with the catalog filters `parent=<id>`
 (direct children) and `root=<id>` (the whole tree, root included), exposed as
 `compozy session list --parent/--root` and on `compozy__session_list`.
+
+### Lineage kind
+
+Every session read (`GET …/sessions/{id}`, `compozy session status`, and each row of
+`compozy session list -o json`) carries `lineage.kind`, which says how the session relates to its
+parent:
+
+| Kind         | Meaning                                                            |
+| ------------ | ------------------------------------------------------------------ |
+| `""`         | A root session with no parent relation.                            |
+| `provenance` | A user session created with a parent (the default for `--parent`). |
+| `recovery`   | A user session created to recover a failed parent.                 |
+| `spawn`      | A governed spawned or spawn-role session.                          |
+| `continue`   | A session continued from another session with another agent.       |
+| `fork`       | A session forked from another session.                             |
+
+`continue` and `fork` sessions also carry `origin_agent_name`, and forks carry `origin_message_id`.
+Their `parent_session_id` names the source as provenance only: a continued or forked session is a new
+top-level session, so session lists show it as its own row rather than under its source, and it is not
+counted as the source's child (it never keeps the source alive). Spawned, provenance, and recovery
+sessions are children of their parent. The `parent=`/`root=` catalog filters match the stored fields
+as-is, so they include continued and forked sessions; read `lineage.kind` to tell them apart.
+A plain create accepts only `provenance` or `recovery`, and only together with a parent:
+
+```bash
+compozy session new --agent codex --parent sess-1234 --lineage-kind recovery
+```
+
+The HTTP/UDS equivalent is `"lineage_kind": "recovery"` next to `parent_session_id`; any other value, or
+a kind without a parent, returns `400`.
+
+Sessions created before lineage kinds existed are upgraded automatically: spawned and spawn-role sessions
+read `spawn`, other parented sessions read `provenance`, and root sessions read `""`. The upgrade applies
+both to the session catalog and to each session's metadata file. Reading an older metadata file never
+rewrites it; the kind is saved the next time the session's lifecycle state changes.
 
 ## Running an active session
 
@@ -159,7 +199,8 @@ Two operational details matter here:
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
 - If a snapshot keeps the same provider, CompozyOS configures the existing ACP session in place when
   the provider exposes the needed live options. A provider or harness change replaces the process
-  and replays the canonical stored transcript into the replacement ACP session.
+  and replays the stored transcript into the replacement ACP session as a
+  [bounded replay](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay).
 - A Cursor model, Reasoning, Fast, or Thinking change resolves a different private launch alias and
   atomically replaces the process. Public session data continues to expose only the logical model ID.
 - CompozyOS records `user_message` only after runtime binding or reconfiguration succeeds. If binding,
@@ -188,7 +229,9 @@ running, session reads expose:
   `runtime_recovery_exhausted` events
 
 The replacement process first tries ACP `session/load`. When that is unavailable, CompozyOS rebuilds
-context from the durable transcript. It then replays the interrupted turn with its original turn ID;
+context from the durable transcript as a
+[bounded replay](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay). It then replays the
+interrupted turn with its original turn ID;
 the authored user message is not inserted again. A successful replacement continues the same prompt
 stream. Viewer disconnects remain detached from execution and do not stop recovery.
 
@@ -228,21 +271,22 @@ and current `expected_revision`. Clear the selection with
 `DELETE /api/workspaces/:workspace/sessions/:id/runtime?expected_revision=<revision>`. A stale
 revision returns `409`; read the session again before deciding what to save.
 
-### Workspace knowledge on live turns
+### Negotiated agent capabilities
 
-Put workspace-owned reference material under `<workspace>/knowledge/` as Markdown files. Before an
-accepted user, Network, or synthetic turn reaches the agent, CompozyOS reopens that tree and adds a
-bounded `<workspace-knowledge-snapshot>` to the prompt. The snapshot carries the current file bytes,
-workspace-relative paths, a revision digest, and omission metadata when a safety limit is reached.
+While a session has a live agent process, session reads include `runtime.acp_caps`: what the agent
+advertised during the ACP `initialize` handshake. The field is absent when no process is bound.
 
-CompozyOS reads regular `.md` files only and does not follow symbolic links. The read stays inside the
-session workspace. A file change does not wake a session by itself; the next eligible turn receives
-the new snapshot. This includes task, task-creator, and Heartbeat wakes, so an active worker does not
-need a second operator prompt to observe a knowledge change.
+| Field                                                     | Meaning                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------- |
+| `supports_load_session`                                   | The agent can reopen a stored conversation with `session/load`. |
+| `supports_fork_session`                                   | The agent advertises the unstable `session/fork` capability.    |
+| `supports_resume_session`                                 | The agent advertises the `session/resume` capability.           |
+| `prompt_image`, `prompt_audio`, `prompt_embedded_context` | Prompt content the agent accepts.                               |
+| `supported_modes`, `config_options`                       | Session modes and ACP config options reported at setup.         |
 
-The snapshot is prompt context, not durable CompozyOS memory. Use the [memory
-system](/docs/memory/system) when the information must be curated, searched, or retained across
-workspaces and sessions.
+Each value is `true` only when the agent declared it. Traffic that an agent sends for any ACP session
+other than the one bound to the CompozyOS session is dropped and logged, so it never appears in that
+session's transcript.
 
 ### Busy input modes
 
@@ -255,7 +299,7 @@ The Web composer is available for active and eligible stopped `user`, `system`, 
 `spawned` sessions. While one of these sessions is busy, the Web controls can queue a prompt, steer
 or interrupt the current turn, or stop generation. These are turn-level controls: daemon-managed
 sessions still do not expose user-session lifecycle actions such as rename, clear, attach, delete,
-or stop session. Dream and hidden maintenance sessions remain read-only in the Web session view.
+or stop session. Hidden maintenance sessions remain read-only in the Web session view.
 
 | Mode        | CLI                                                                             | HTTP shape                                                                                                                                                                                                                 | Result                                                                                                                                                                  |
 | ----------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -306,9 +350,13 @@ affect a newer turn.
 
 ### Runtime activity supervision
 
-Supervision inspects every live session, including idle sessions. Any fresh work signal
+Supervision inspects every live session. Any fresh work signal
 keeps the session alive: agent progress, a verified running tool, an active child, a recently
-reconciled Loop run, a held task lease, or a scheduled wait with a future deadline.
+reconciled Loop run, a held task lease, a scheduled wait with a future deadline, or a reply the
+session is awaiting (`awaiting_reply`). A session that sent `compozy__session_prompt` with
+`notify_on_complete: true` stays alive while the session it asked is live, and while the reply
+wake is waiting to be delivered, until the watch expires after `session.messaging.reply_watch_ttl`
+(24 hours by default).
 Opening a session, subscribing to its events, and provider-wait heartbeats do not renew work evidence.
 
 Inspect `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning`
@@ -318,21 +366,64 @@ Expired evidence stops counting as work. A stale tool, stopping child, or Loop r
 a source inspection error is `unknown`, raises attention, and prevents an automatic inactivity stop
 until the source can be inspected again.
 
-After `session.supervision.quiet_after` of observed silence (default `30m`), CompozyOS records
-one `session.supervision_warning` and shows it in the open session. Continued silence for
+Silence supervision is a hung-turn watchdog. Silence accrues only while a turn is in flight and
+waiting on the agent. A session with no turn in flight (the agent finished and is waiting for you)
+never gets a quiet warning and is never stopped for inactivity. A turn blocked on a pending
+permission or clarify request does not accrue silence either. When a turn ends, any quiet warning
+clears.
+
+After `session.supervision.quiet_after` of observed silence in a turn (default `30m`), CompozyOS
+records one `session.supervision_warning` and the open session shows it on the working status line
+under the transcript, for example `Working for 42m · quiet for 12m`. Use **Stop generation** in the
+composer or **Stop** in the topbar to end the turn yourself. Continued silence for
 `session.supervision.stop_grace` (default `10m`) requests the normal stop ladder with cause
 `inactivity`. `session.supervision_stopped` records verified termination. Persisted stop metadata
 uses `stop_reason: "timeout"` and `stop_detail: "inactivity"`. New work clears the warning and
-cancels the pending automatic stop. `quiet_after = "0"` disables both actions;
+cancels the pending automatic stop. `quiet_after = "0"` disables the watchdog;
 `stop_grace = "0"` keeps the warning but disables automatic stop.
+
+### Idle runtime release
+
+An idle session keeps its agent process for `session.supervision.idle_release_after` (default
+`30m`). After that, CompozyOS silently stops the agent process and keeps the session. This happens
+only when the session has no turn in flight, no work signal, no `unknown` signal source, no pending
+permission or clarify request, and its agent advertised ACP `session/load`. Agents without
+`session/load` keep their runtime. `idle_release_after = "0"` disables the release. In the web
+app, Settings → General → **Pause idle agents after** edits this key.
+
+A released session stays `state: "active"` with `runtime.status: "unbound"`. It keeps its
+transcript and ACP session ID and shows the normal `idle` badge. The release records no supervision
+warning or stop event and dispatches no `session.post_stop` hook. The process-level `agent.stopped`
+hook fires, as it does for any runtime replacement.
+
+The next prompt from any surface (composer, CLI, HTTP/UDS, a reply delivery, or a wake) binds a
+runtime again without a Resume step:
+
+- CompozyOS reloads the same ACP session with `session/load`.
+- If the load fails, it starts a fresh ACP session and replays the bounded transcript
+  (`session.derive.max_replay_bytes`).
+- If the prompt selects a different provider or model, it binds that route and carries the
+  transcript, as a live runtime switch does.
+
+If the daemon exits uncleanly while a runtime is released, boot recovery ends that session
+`stopped` with `stop_reason: "shutdown"` and the detail
+`daemon exited while the idle session runtime was released`. It is not recorded as a failure, and a
+later prompt resumes it with `session/load`.
+
+A reply can still arrive after the sender stopped, for example when the asked session was itself
+stopped with the message queued and is resumed later. An idle sender is not stopped while it waits;
+its runtime may be released, and the reply binds it again and delivers the wake once. If CompozyOS
+stopped the sender (an inactivity stop of a hung turn, a timeout, daemon shutdown or an agent
+crash), the reply resumes it and delivers the wake once. A sender you stopped yourself stays
+stopped; the wake is delivered when you resume it.
 
 Event waits without an authored expiry receive the effective admission horizon, normally `168h`.
 Existing expiryless waits use their original creation time and pinned configuration when upgraded.
 An expired wait follows the existing attention path instead of keeping a session alive forever.
 
 `runtime_progress` remains a periodic progress projection. Metadata-only activity heartbeats and
-progress projections do not themselves prove fresh work. Explicit prompt/session wall-clock budgets
-remain opt-in controls separate from silence supervision.
+progress projections do not themselves prove fresh work. An explicit prompt budget
+(`session.supervision.prompt_deadline`) remains an opt-in control separate from silence supervision.
 
 ## Rewinding a conversation
 
@@ -352,9 +443,13 @@ HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/rewind
 same fences.
 An identical `idempotency_key` retry returns the original result. A stale fence, busy session, queued
 input, pending approval, or daemon-managed session returns `409` without cutting the transcript.
+Children created with `--parent` (`provenance`), `recovery` sessions, and continued or forked sessions
+rewind like any user session; only governed `spawn` sessions are refused as daemon-managed.
 
 Rewind changes the conversation only. It does not undo file changes, tool effects, network actions,
-saved memory, or external provider actions. Removed events remain archived for audit:
+or external provider actions. Removed events remain archived for audit, and rewind is the only
+operation that archives events: the agent's own [context compaction](/docs/sessions/compaction) never
+does.
 
 ```bash
 compozy session events sess-1234 --archive archived
@@ -364,6 +459,189 @@ compozy session history sess-1234 --archive all
 The Web action appears on durable user messages. It requires an empty composer, confirms the same
 side-effect boundary, reloads the daemon-owned transcript, and places `draft_text` in the composer.
 
+## Continuing and forking a session
+
+Continue a user session with another agent when the current one cannot go on (most often because its
+provider account hit a limit) or when you want a second agent to pick up the same work. CompozyOS starts
+a **new** session in the same workspace, worktree, and working directory, carries the conversation over
+as historical context, and never changes the source session: no event is appended, no transcript epoch
+or generation changes, and a running turn is not interrupted.
+
+```bash
+compozy session continue sess_01J9R2K7M4T1 --agent claude-code \
+  --message "Carry on with the migration; run the tests first."
+```
+
+```
+Continued sess_01J9R2K7M4T1 (codex) into sess_01J9R2Q0W8YB (claude-code)
+  Origin        continue · from sess_01J9R2K7M4T1 · codex · through turn turn_01J9R2N9C3
+  Context       42 messages · 61.3 KiB · nothing omitted
+  Seed          replay
+  First prompt  admitted
+```
+
+HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/continue` with `agent_name`
+and `idempotency_key` (required), an optional `runtime` **or** `route`, `name`, `message`, and the three
+transcript fences together or none. Agents use the `compozy__session_continue` native tool. Only user
+sessions can be continued (`session_not_derivable` otherwise); archived sources return
+`session_archived`.
+
+The new session reads `lineage.kind = "continue"`, `lineage.origin_agent_name`, and a `derivation`
+object (`kind`, `source_session_id`, `seed`, `first_prompt`); `compozy session status` prints matching
+`Origin` and `Derivation` lines.
+
+### Preview before you continue
+
+`GET /api/workspaces/:workspace_id/sessions/:session_id/derive/preview` reports what a continue would
+carry right now (`message_count`, `replay_bytes`, `truncated`, `omitted_count`,
+`source_turn_in_progress`), the whole source transcript's `source_message_count`, and the transcript
+fences it was measured at. The preview never writes
+anything and never repairs a stopped source.
+
+### The carried context
+
+CompozyOS takes one read-only snapshot of the source and carries its pruned transcript through the last
+settled turn. A later turn that is still running (user or synthetic) is left out, and the carried context
+ends with a note that it was not included and that its tools may have partially executed.
+
+The carried context is stored on the new session and prepended exactly once whenever that session's
+history is rebuilt for an agent: its first prompt, a later provider replacement, a recovery without a
+native session id, or a rewind restart. Every such rebuild uses the same bounded replay described in
+[Context compaction](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay). The first prompt
+reads:
+
+```
+Context rebuilt from log.
+This session continues sess_01J9R2K7M4T1 (agent: codex). Continue this session using the persisted transcript below. It is historical context, not a new user request. Do not repeat completed tool calls solely because they appear in the log. The files and git state in the workspace are authoritative; inspect them before acting on the transcript. Attachments listed in the transcript were not copied to this session.
+<compozy_context_replay>
+[...]
+</compozy_context_replay>
+
+User request:
+
+Carry on with the migration; run the tests first.
+```
+
+Without `--message` the context waits (`first_prompt: staged`) and is composed in front of the first
+prompt you send. With a message, the message is admitted through the ordinary prompt admission
+(`first_prompt: admitted`); delivery and completion are reported by the new session's prompt events.
+If the daemon stops before that admission, the new session keeps `first_prompt: staged`; repeating the
+same request (same `idempotency_key`) admits the message and sends it once.
+Continuing a continued session carries that session's own transcript with its carried context flattened
+in front, once. Clearing the new session's conversation discards the carried context. Attachments are
+carried as metadata only.
+
+The carried context is bounded by `[session.derive]` (see
+[config.toml](/docs/configuration/config-toml#sessionderive)): `max_replay_bytes` (default 131072) is a
+hard bound and `max_message_bytes` (default 16384) caps each message body. The newest 8 messages are
+protected while they fit, and the earliest user message stays pinned ahead of the omission note
+`[N earlier messages omitted to fit the context budget]`. Omissions are stated in the context and
+reported as `truncated` and `omitted_count`. When messages were omitted and the new session can call
+`compozy__session_history`, the header also points the agent at the **source** session
+(`session_id: <source id>`) so it can read the earlier messages on demand.
+
+Omissions accumulate along a chain of continues and forks. When the source itself carries a bounded
+context, the new session's `omitted_count` and `truncated` (in the derivation receipt, the preview,
+and the carried-context metadata) include what the earlier hop already dropped, on top of anything the
+new bound drops. A nested continue never reports a clean context that an ancestor cut.
+
+### Retries
+
+One `(workspace, idempotency_key)` creates at most one session. Repeating the same request returns the
+recorded outcome with `replayed: true` (HTTP `200` instead of `201`, CLI `Replayed  yes`), even when the
+source changed since. If the new session was deleted since, the recorded outcome returns with
+`child_deleted: true` and nothing is created. The same key with a different request is
+`idempotency_conflict`. The CLI generates a key when `--idempotency-key` is omitted. A retry still
+returns its recorded outcome after the source session was deleted: the daemon looks up the key before
+it checks the source.
+
+Some failures happen after the new session already exists, for example when its first message cannot
+be admitted because the runtime is not authenticated (`422`). The error then carries
+`child_session_id`: open that session, or repeat the request with the same key to get it back. The web
+dialog keeps offering **Open new session** for the rest of that dialog, even after you edit the request
+or it is refused again, and the CLI prints the session id and the key to rerun with. When the refusal
+names a provider or model problem, its code is the error's `code` too (for example `model_unavailable`).
+Errors carry a stable `code`: `invalid_request`, `session_not_found`, `session_not_derivable`,
+`session_archived`, `agent_not_found`, `message_not_found`, `route_not_found`,
+`session_turn_in_progress`, `session_fence_conflict`, `idempotency_conflict`,
+`new_work_admission_unavailable`. The CLI prints them as `Error: <code>: <message>` and exits `1`.
+
+When you send fences (`--expected-epoch`, `--expected-generation`, `--expected-max-sequence`, all three
+or none), they must match the snapshot; otherwise the request fails with `session_fence_conflict`.
+Without fence flags the CLI reads the source's current fences first, through the same read-only
+preview the web dialog uses; looking up the source never changes it. A rerun with the same
+`--idempotency-key` still reaches the daemon when the source can no longer be read.
+
+### Continuing on a declared route
+
+`--route <n>` (API `route`) selects the 1-based route of the target agent's `fallback_chain`, that is, a
+specific account. It cannot be combined with any runtime flag. An index the agent does not declare
+returns `route_not_found`. The chosen route is saved on the new session and applied at its first bind;
+if that route was removed or its command changed by then, the bind fails with
+`route_not_found: agent "…" declares N route(s); route M does not exist`, the session stays unbound, and
+nothing runs on the default account. Send a prompt with an explicit runtime or restore the route.
+
+### Forking a session
+
+Fork a user session to try another direction with the **same** agent, runtime, and account. The whole
+conversation is carried through its last settled turn, or pass a durable user message to fork through
+that message **and its turn**: the message, the agent's reply, and its tool work are included; nothing
+after that turn is.
+
+```bash
+compozy session fork sess_01J9R2K7M4T1 --message-id msg_01J9R2N3V0QF
+```
+
+```
+Forked sess_01J9R2K7M4T1 into sess_01J9R2T5H2CD (codex)
+  Origin        fork · from sess_01J9R2K7M4T1 · through msg_01J9R2N3V0QF (turn turn_01J9R2N3V1)
+  Context       17 messages · 22.8 KiB · nothing omitted
+  Seed          replay
+  First prompt  staged
+```
+
+HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/fork` with
+`idempotency_key` (required), an optional `message_id` and `name`, and the three transcript fences
+together or none. Agents use the `compozy__session_fork` native tool. Forks accept no agent or runtime
+fields; retries, fences, and the carried context behave as for continue. The new session reads
+`lineage.kind = "fork"` and, for a message cut, `lineage.origin_message_id`; the response reports the
+cut turn as `through_turn_id`.
+
+A cut turn must have settled: it ended with `done`, an error, or a cancellation. A message whose turn
+is still running returns `session_turn_in_progress`; wait or fork from an earlier message. A message
+that is not a durable user message in the session returns `message_not_found`. Messages remain valid
+fork points after a rewind followed by new turns; only rewind itself refuses those.
+`GET …/derive/preview?message_id=…` reports the cut as `cut.turn_id` and `cut.turn_settled` before you
+fork; `message_count` is what the cut carries and `source_message_count` is the whole source.
+
+When the source runs on an overridden account (an accepted `fallback_chain` route), the fork is created
+on that same declared route when the agent still declares it compatibly; otherwise it binds the agent's
+default route.
+
+#### The agent's own clone
+
+Some agents can clone their own session (ACP `session/fork` together with `session/load`). A
+whole-session fork uses that clone when the source is bound on a live process, idle (no prompt in
+progress and nothing queued), and the fork resolves to the same provider identity. The preview reports
+this as `native_fork_possible` (`false` when not possible or unknown). A fork through a message, a
+running or stopped source, or an agent without both capabilities uses the carried context instead.
+
+A native fork responds with `seed: native_fork`, `native_state: pending`, and the clone's
+`acp_session_id`; the carried context is still stored as a fallback. The clone is loaded by the new
+session's own process at its first prompt, and only under the provider identity it was created with.
+The session read then reports `derivation.native_state` as:
+
+| State     | Meaning                                                                                                                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pending` | The clone exists and has not been loaded yet.                                                                                                                                             |
+| `loaded`  | The first prompt loaded the clone; the carried context was not sent.                                                                                                                      |
+| `failed`  | The clone could not be loaded (`native_fork_error`, for example `session/load: resource not found`) or the route differed from the clone's; the first prompt carried the context instead. |
+
+When the clone request itself fails, the fork is created with `seed: replay` and the redacted error in
+`native_fork_error`. The source never receives the clone's traffic, and its events, fences, and runtime
+stay unchanged. A loaded native session replays its history from the agent, so its log is not empty
+before your first message; a later provider replacement still prepends the carried context.
+
 ## Stopping a session
 
 Request a stop immediately, or wait for its verified result:
@@ -372,6 +650,10 @@ Request a stop immediately, or wait for its verified result:
 compozy session stop sess-1234
 compozy session stop sess-1234 --wait -o json
 ```
+
+For a session in a named profile, add `--profile <name>` to the CLI command or
+`?profile=<name>` to the HTTP/UDS stop route. Web controls use the selected session's own
+workspace and profile, including each target in a bulk selection.
 
 The default command returns the updated session resource. `--wait` returns the stop outcome:
 `state`, `verified`, `escalated`, `stop_cause`, `phase`, and `stopped_after`. A verified result has
@@ -422,7 +704,7 @@ curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/ar
 ```
 
 Archive is catalog metadata, separate from the session lifecycle state. Only a `stopped` session can
-be archived. Its metadata, events, ledger, runtime selection, and direct read operations remain
+be archived. Its metadata, events, runtime selection, and direct read operations remain
 available. Attach, prompt, and resume operations are rejected while it is archived.
 
 Restore the session to the default catalog before restarting it:
@@ -441,15 +723,16 @@ CompozyOS has separate timeout concepts:
 
 | Timeout                                    | What it protects                                                              |
 | ------------------------------------------ | ----------------------------------------------------------------------------- |
-| `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                          |
-| `session.supervision.quiet_after`          | Observed silence before one warning; zero disables silence actions.           |
-| `session.supervision.stop_grace`           | Continued silence after the warning before the standard stop ladder.          |
+| `session.limits.timeout`                   | Deprecated and not enforced; removed in v0.5.0. Ends no session.              |
+| `session.supervision.quiet_after`          | Silence in an in-flight turn before one warning; zero disables the watchdog.  |
+| `session.supervision.stop_grace`           | Continued turn silence after the warning before the standard stop ladder.     |
+| `session.supervision.idle_release_after`   | Idle time before the agent process is released; zero disables the release.    |
 | `session.supervision.prompt_deadline`      | Optional total prompt budget; zero disables it.                               |
 | `session.supervision.timeout_cancel_grace` | Grace after explicit prompt-budget cancellation.                              |
 | `session.stop.cooperative_grace`           | Cooperative phase of the stop ladder, followed by bounded forced/kill phases. |
 | Session lifecycle timeout                  | Recorder close and final cleanup work during stop.                            |
 
-A session may run indefinitely while fresh work exists and no explicit wall-clock budget is set.
+A session may run indefinitely while fresh work exists and no explicit prompt budget is set.
 
 ## Stop reasons
 
@@ -458,15 +741,16 @@ The session manager currently emits these persisted stop classifications:
 | Stop reason       | When CompozyOS uses it                                                                                                                                           |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `completed`       | The agent finished normally.                                                                                                                                     |
+| `owner_released`  | A managed owner, such as a Loop, no longer needs the session. This records automatic retirement; the task and Loop keep their independent outcomes.              |
 | `user_canceled`   | A normal user stop request.                                                                                                                                      |
 | `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                                             |
 | `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                                              |
 | `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                                                            |
-| `timeout`         | An explicit runtime budget expired, or silence supervision completed its warning/grace path (`stop_detail: inactivity`).                                         |
+| `timeout`         | An explicit runtime budget expired, or a silent in-flight turn completed its warning/grace path (`stop_detail: inactivity`).                                     |
 | `error`           | Start or stop failed, or ACP reported a transport failure and the subprocess then exited successfully with code `0`.                                             |
 | `agent_crashed`   | The subprocess exited with a non-zero code, a signal, or a wait error; also used when CompozyOS repairs stale `active`/`stopping` metadata after a daemon crash. |
 | `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                                                   |
-| `shutdown`        | The daemon shut the session down.                                                                                                                                |
+| `shutdown`        | The daemon shut the session down, or exited uncleanly while the idle session runtime was released.                                                               |
 
 Inspect the current session state and stop classification at any time:
 
@@ -565,6 +849,29 @@ That durable store supports [live resume attach](/docs/sessions/resume),
 [approval audit](/docs/sessions/permissions). Attach requires a live, attachable session;
 the other reads remain useful after terminal stop.
 
+### Session directories the daemon does not recover
+
+At boot the daemon reconciles the global catalog with the session directories on disk. It skips a
+directory, and never adds it to the catalog, when its `meta.json` names either of these:
+
+- a session type other than `user`, `system`, `coordinator`, or `spawned`, such as the `dream` type of
+  the removed memory feature (`reason: unknown_session_type`)
+- an internal spawn role of the removed memory feature, `memory-extractor` or `checkpoint-summary`
+  (`reason: retired_spawn_role`)
+
+For each skipped directory the daemon logs one `observe.session_recovery_skipped` warning per daemon
+run, with `session_id`, `session_type`, `spawn_role`, and `reason`. It never deletes, moves, or rewrites
+the directory, so you can copy what you want to keep and delete the rest yourself. A catalog row that
+already exists for a skipped directory is marked `orphaned`, like any directory reconciliation cannot
+recover. Sessions with any other spawn role, including custom advisory roles, recover normally.
+
+The upgrade itself deletes the catalog rows of the legacy `dream` sessions and of the
+`memory-extractor` and `checkpoint-summary` child sessions, whatever their session type. It leaves
+their directories on disk, and this boundary keeps the daemon from cataloging them again.
+
+This is permanent behavior, not a temporary compatibility shim. See
+[Memory removal](/docs/migration#memory-removal) for everything the upgrade deletes.
+
 ## Session types
 
 CompozyOS records why a session exists:
@@ -572,12 +879,12 @@ CompozyOS records why a session exists:
 | Type          | Meaning                                                                  |
 | ------------- | ------------------------------------------------------------------------ |
 | `user`        | Normal interactive work created by a person or client.                   |
-| `dream`       | Background memory consolidation work.                                    |
 | `system`      | Internal CompozyOS-managed work.                                         |
 | `coordinator` | Managed autonomy coordinator for workspace-scoped coordinated task runs. |
 | `spawned`     | Child session created by an agent through safe spawn.                    |
 
-Dream sessions are special for permissions: they always start with `approve-all`.
+A directory whose metadata names any other type is not recovered; see
+[Session directories the daemon does not recover](#session-directories-the-daemon-does-not-recover).
 
 Coordinator sessions are root lineage rows. They are created only after executable coordinated work
 is enqueued, not when a task is merely created. Spawned sessions record parent, root, depth, role,
@@ -593,5 +900,6 @@ lineage; views show it as a root when the recorded parent is no longer available
 
 - Use [Resume Attach and Replay](/docs/sessions/resume) when you need to attach to an eligible live session or reconstruct prior work from durable reads.
 - Use [Event Streaming](/docs/sessions/events) when you need the exact stored and streamed session record.
+- Use [Context compaction](/docs/sessions/compaction) when a session is rebuilt into a new agent session or the agent compacts its own context.
 - Use [Runtime Autonomy](/docs/autonomy) for coordinator, task lease, and safe-spawn behavior.
 - Use [Permissions](/docs/sessions/permissions) when you need to control or approve agent actions.

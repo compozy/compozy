@@ -1,6 +1,5 @@
 import type {
   AgentContextIdentity,
-  TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
   TaskInboxFilter,
   TaskListFilter,
@@ -55,7 +54,6 @@ export const tasksKeys = {
       normalizeText(normalized.owner_kind),
       normalizeText(normalized.owner_ref),
       normalizeText(normalized.parent_task_id),
-      normalizeText(normalized.participation_channel),
       normalizeText(normalized.query),
       normalizeText(normalized.sort),
       normalizeNumber(normalized.limit),
@@ -70,8 +68,10 @@ export const tasksKeys = {
       : ([...tasksKeys.details(), id, profileLens(scope)] as const),
 
   inspectRoot: () => [...tasksKeys.all, "inspect"] as const,
-  inspectTask: (id: string) => [...tasksKeys.inspectRoot(), "task", id] as const,
-  inspectRun: (runId: string) => [...tasksKeys.inspectRoot(), "run", runId] as const,
+  inspectTask: (id: string, scope: ProfileScopeParams) =>
+    [...tasksKeys.inspectRoot(), "task", id, profileLens(scope)] as const,
+  inspectRun: (runId: string, scope: ProfileScopeParams) =>
+    [...tasksKeys.inspectRoot(), "run", runId, profileLens(scope)] as const,
 
   runsRoot: () => [...tasksKeys.all, "runs"] as const,
   runs: (id: string, filters: TaskRunsFilter = {}) =>
@@ -81,6 +81,7 @@ export const tasksKeys = {
       normalizeText(filters.status),
       normalizeText(filters.session_id),
       normalizeNumber(filters.limit),
+      profileLens(filters),
     ] as const,
 
   timelineRoot: () => [...tasksKeys.all, "timeline"] as const,
@@ -90,13 +91,18 @@ export const tasksKeys = {
       id,
       normalizeNumber(filters.after_sequence),
       normalizeNumber(filters.limit),
+      profileLens(filters),
     ] as const,
 
   treeRoot: () => [...tasksKeys.all, "tree"] as const,
-  tree: (id: string) => [...tasksKeys.treeRoot(), id] as const,
+  tree: (id: string, scope: ProfileScopeParams) =>
+    [...tasksKeys.treeRoot(), id, profileLens(scope)] as const,
 
   runDetails: () => [...tasksKeys.all, "run-detail"] as const,
-  runDetail: (runId: string) => [...tasksKeys.runDetails(), runId] as const,
+  runDetail: (runId: string, scope?: ProfileScopeParams) =>
+    scope === undefined
+      ? ([...tasksKeys.runDetails(), runId] as const)
+      : ([...tasksKeys.runDetails(), runId, profileLens(scope)] as const),
 
   runResults: () => [...tasksKeys.all, "run-result"] as const,
   runResult: (
@@ -104,8 +110,18 @@ export const tasksKeys = {
     runId: string,
     resultRef: string,
     offset: number,
-    limit: number
-  ) => [...tasksKeys.runResults(), workspaceId, runId, resultRef, offset, limit] as const,
+    limit: number,
+    scope: ProfileScopeParams
+  ) =>
+    [
+      ...tasksKeys.runResults(),
+      workspaceId,
+      runId,
+      resultRef,
+      offset,
+      limit,
+      profileLens(scope),
+    ] as const,
 
   dashboardRoot: () => [...tasksKeys.all, "dashboard"] as const,
   dashboard: (filters: TaskDashboardFilter = {}) =>
@@ -116,7 +132,6 @@ export const tasksKeys = {
       normalizeText(filters.worktree),
       normalizeText(filters.owner_kind),
       normalizeText(filters.owner_ref),
-      normalizeText(filters.participation_channel),
       normalizeText(filters.origin_kind),
       // The profile axis: a dashboard scoped to one profile is not the machine's.
       profileLens(filters),
@@ -158,6 +173,7 @@ export const tasksKeys = {
       normalizeText(filters.status),
       normalizeText(filters.reviewer_session_id),
       normalizeNumber(filters.limit),
+      profileLens(filters),
     ] as const,
   reviewsByTask: (taskId: string, filters: TaskReviewsFilter = {}) =>
     [
@@ -167,6 +183,7 @@ export const tasksKeys = {
       normalizeText(filters.status),
       normalizeText(filters.reviewer_session_id),
       normalizeNumber(filters.limit),
+      profileLens(filters),
     ] as const,
   reviewDetail: (reviewId: string) => [...tasksKeys.reviewsRoot(), "detail", reviewId] as const,
 
@@ -178,19 +195,10 @@ export const tasksKeys = {
   // SSE stream metadata (resume seed reflects after_sequence + last-event-id intent)
   streamsRoot: () => [...tasksKeys.all, "stream"] as const,
   stream: (taskId: string, filters: TaskStreamFilter = {}) =>
-    [...tasksKeys.streamsRoot(), taskId, normalizeNumber(filters.after_sequence)] as const,
-
-  // Bridge notification diagnostics
-  bridgeNotificationsRoot: () => [...tasksKeys.all, "bridge-notifications"] as const,
-  bridgeNotifications: (taskId: string, filters: TaskBridgeNotificationSubscriptionsFilter = {}) =>
     [
-      ...tasksKeys.bridgeNotificationsRoot(),
+      ...tasksKeys.streamsRoot(),
       taskId,
-      filters.bridge_instance_id ?? null,
-      normalizeText(filters.scope),
-      filters.workspace_id ?? null,
-      normalizeNumber(filters.limit),
+      normalizeNumber(filters.after_sequence),
+      profileLens(filters),
     ] as const,
-  bridgeNotification: (taskId: string, subscriptionId: string) =>
-    [...tasksKeys.bridgeNotificationsRoot(), taskId, "detail", subscriptionId] as const,
 };

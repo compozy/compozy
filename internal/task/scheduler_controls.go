@@ -66,9 +66,9 @@ type schedulerEventPayload struct {
 	Reason          string    `json:"reason,omitempty"`
 	PreviousPaused  bool      `json:"previous_paused"`
 	Paused          bool      `json:"paused"`
-	ActiveClaims    int       `json:"active_claims,omitempty"`
-	RemainingClaims int       `json:"remaining_claims,omitempty"`
-	TimedOut        bool      `json:"timed_out,omitempty"`
+	ActiveClaims    int       `json:"active_claims,omitzero"`
+	RemainingClaims int       `json:"remaining_claims,omitzero"`
+	TimedOut        bool      `json:"timed_out,omitzero"`
 	StartedAt       time.Time `json:"started_at,omitzero"`
 	CompletedAt     time.Time `json:"completed_at,omitzero"`
 }

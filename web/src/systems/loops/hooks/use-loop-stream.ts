@@ -113,7 +113,7 @@ function invalidateLoopRequestQueries(
 /**
  * Subscribes to a Loop run's SSE event stream, mirroring `useTaskStream`: named
  * listeners for every enumerated kind, `onEvent` on each frame, `afterSequence`
- * resume, and query invalidation on the lifecycle kinds (`token_tick`/`channel_msg`
+ * resume, and query invalidation on the lifecycle kinds (`token_tick`
  * are display-only, applied via `onEvent`, never invalidating). `onEvent`/`onError`
  * are stabilized through Effect Events so an inline callback never tears down
  * and reopens the EventSource; only the workspace, run, resume seed, or factory

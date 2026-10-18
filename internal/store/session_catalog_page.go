@@ -16,17 +16,34 @@ const (
 	SessionCatalogAttentionRankNone
 )
 
+// SessionManualRootRank is the manual-sort folder rank of sessions outside
+// any folder; it orders the workspace root after every folder.
+const SessionManualRootRank = 1_000_000_000
+
+// SessionManualUnplacedPosition is the manual-sort position of a session
+// without a placement; unplaced sessions lead their container.
+const SessionManualUnplacedPosition = -1
+
 // SessionCatalogPosition is the stable keyset anchor used by bounded catalog reads.
 type SessionCatalogPosition struct {
-	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
-	PrimaryAt     time.Time                   `json:"primary_at"`
-	SecondaryAt   time.Time                   `json:"secondary_at"`
-	CreatedAt     time.Time                   `json:"created_at"`
-	ID            string                      `json:"id"`
+	Name          *string `json:"name,omitzero"`
+	NavigatorBand *int    `json:"navigator_band,omitzero"`
+	// ManualFolderRank and ManualPosition anchor the manual sort; see
+	// SessionManualRootRank for sessions outside any folder.
+	ManualFolderRank *int                        `json:"manual_folder_rank,omitzero"`
+	ManualPosition   *int                        `json:"manual_position,omitzero"`
+	AttentionRank    SessionCatalogAttentionRank `json:"attention_rank"`
+	PrimaryAt        time.Time                   `json:"primary_at"`
+	SecondaryAt      time.Time                   `json:"secondary_at"`
+	CreatedAt        time.Time                   `json:"created_at"`
+	ID               string                      `json:"id"`
 }
 
 // Validate ensures the keyset anchor is complete.
 func (p SessionCatalogPosition) Validate() error {
+	if p.NavigatorBand != nil && (*p.NavigatorBand < 0 || *p.NavigatorBand > 3) {
+		return fmt.Errorf("store: session catalog navigator band is invalid")
+	}
 	if p.AttentionRank < SessionCatalogAttentionRankNeedsYou ||
 		p.AttentionRank > SessionCatalogAttentionRankNone {
 		return fmt.Errorf("store: session catalog attention rank is invalid: %d", p.AttentionRank)
@@ -41,6 +58,9 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
+	ExcludeVerdictOnly  bool
+	Subagents           string
+	SkipTotal           bool
 	ReadScope           ReadScope
 	WorkspaceID         string
 	WorktreeID          string
@@ -49,7 +69,11 @@ type SessionCatalogPageQuery struct {
 	AgentName           string
 	ParentSessionID     string
 	RootSessionID       string
+	LineageKind         LineageKind
+	SearchFields        string
 	Search              string
+	AttentionOnly       bool
+	Badges              []string
 	Resumable           bool
 	Archive             SessionArchiveFilter
 	Sort                string
@@ -62,14 +86,34 @@ type SessionCatalogPageQuery struct {
 
 // Validate ensures the durable query is bounded and its anchor is usable.
 func (q SessionCatalogPageQuery) Validate() error {
+	switch q.Subagents {
+	case "", "include", "exclude", "only":
+	default:
+		return fmt.Errorf("store: unsupported subagents filter %q", q.Subagents)
+	}
 	if err := q.ReadScope.Validate(); err != nil {
 		return err
+	}
+	if q.SearchFields != "" && q.SearchFields != "title_agent" {
+		return fmt.Errorf("store: unsupported session catalog search_fields %q", q.SearchFields)
 	}
 	if q.Limit <= 0 {
 		return fmt.Errorf("store: session catalog page limit must be positive")
 	}
 	if err := q.Archive.Validate(); err != nil {
 		return err
+	}
+	if !q.LineageKind.Valid() {
+		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
+	}
+	if q.After != nil && q.Sort == "name" && q.After.Name == nil {
+		return fmt.Errorf("store: name cursor key is required")
+	}
+	if q.After != nil && q.Sort == "navigator" && q.After.NavigatorBand == nil {
+		return fmt.Errorf("store: navigator cursor band is required")
+	}
+	if q.After != nil && q.Sort == "manual" && (q.After.ManualFolderRank == nil || q.After.ManualPosition == nil) {
+		return fmt.Errorf("store: manual cursor keys are required")
 	}
 	if q.After != nil {
 		if err := q.After.Validate(); err != nil {

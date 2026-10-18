@@ -20,6 +20,7 @@ import { TerminalConnectingLine } from "./terminal-connecting-line";
 import { TerminalSelectionActions } from "./terminal-quote-block";
 import { TerminalExitBar, TerminalSizeVoteBar } from "./terminal-exit-bar";
 import { TerminalGapSeam, TerminalStreamNotice } from "./terminal-notices";
+import { terminalDisplayTitle } from "../lib/terminal-copy";
 
 export interface TerminalPaneProps {
   terminal: TerminalInfo;
@@ -105,7 +106,7 @@ export function TerminalPane({
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {pane?.gap ? <TerminalGapSeam gap={pane.gap} /> : null}
         <TerminalView
-          aria-label={terminal.title}
+          aria-label={terminalDisplayTitle(terminal)}
           className={
             display.awaitingFirstFrame
               ? "invisible px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"

@@ -4,6 +4,7 @@ interface SessionComposerSyncState {
   hydratedDraftText: string | null;
   hydratedSessionId: string | null;
   suppressedComposerText: string | null;
+  preHydrationComposerText: string | null;
 }
 
 type SessionComposerSyncEvents = {
@@ -36,6 +37,7 @@ export const sessionComposerSyncLogic = createStoreLogic<
     hydratedDraftText: null,
     hydratedSessionId: null,
     suppressedComposerText: null,
+    preHydrationComposerText: null,
   },
   on: {
     draftObserved: (context, event, enqueue) => {
@@ -49,16 +51,20 @@ export const sessionComposerSyncLogic = createStoreLogic<
         hydratedDraftText: event.draftText,
         hydratedSessionId: event.sessionId,
         suppressedComposerText: event.draftText,
+        preHydrationComposerText: event.composerText,
       };
     },
     composerObserved: (context, event, enqueue) => {
-      if (context.suppressedComposerText === event.composerText) {
-        return { ...context, suppressedComposerText: null };
+      // assistant-ui publishes setText on its next commit; stale observations must not
+      // overwrite the persisted draft while that hydration is still pending.
+      if (context.suppressedComposerText !== null) {
+        if (context.suppressedComposerText === event.composerText) {
+          return { ...context, suppressedComposerText: null, preHydrationComposerText: null };
+        }
+        if (context.preHydrationComposerText === event.composerText) return;
       }
       if (event.composerText === event.draftText) {
-        return context.suppressedComposerText === null
-          ? undefined
-          : { ...context, suppressedComposerText: null };
+        return { ...context, suppressedComposerText: null, preHydrationComposerText: null };
       }
       enqueue.effect(() =>
         invoke(
@@ -66,7 +72,7 @@ export const sessionComposerSyncLogic = createStoreLogic<
           "Failed to persist the session composer draft"
         )
       );
-      return { ...context, suppressedComposerText: null };
+      return { ...context, suppressedComposerText: null, preHydrationComposerText: null };
     },
   },
 });

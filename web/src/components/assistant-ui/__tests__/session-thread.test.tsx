@@ -13,8 +13,10 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { OverlayContainerContext } from "@compozy/ui";
 
 import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
+import { useSessionComposerState } from "../hooks/use-session-composer-state";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import {
@@ -24,12 +26,7 @@ import {
   type SessionSendOutcome,
 } from "@/systems/session";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import {
-  primarySessionFixture,
-  quietWarningSessionFixture,
-  sessionTranscriptFixture,
-} from "@/systems/session/mocks/fixtures";
-import { sessionQuietWarning } from "@/systems/session/lib/session-quiet-warning";
+import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import {
   getSessionDebugCounters,
@@ -37,6 +34,7 @@ import {
   resetSessionDebugTelemetry,
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
+import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionFailurePayload, SessionMessage, SessionState } from "@/systems/session/types";
 import { SESSION_TRANSPORT_LIVE } from "@/systems/session/lib/session-transport";
@@ -45,6 +43,16 @@ import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/sessio
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 
+import {
+  SessionOriginContext,
+  type SessionOriginContextValue,
+} from "@/systems/session/contexts/session-origin-context-value";
+import {
+  SessionForkContext,
+  type SessionForkRequest,
+} from "@/systems/session/contexts/session-fork-context-value";
+import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
+import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { SessionThinkingRow } from "@/systems/session/components/session-thinking-row";
@@ -310,7 +318,8 @@ function createFetchMock(options?: {
       pathname ===
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`
     ) {
-      return jsonResponse({ session: primarySessionFixture });
+      // The harness session is idle unless a test serves a running detail itself.
+      return jsonResponse({ session: { ...primarySessionFixture, badge: "idle" } });
     }
 
     if (
@@ -409,7 +418,6 @@ interface ThreadStateOptions {
   statusSession?: ComponentProps<typeof SessionThread>["statusSession"];
   stopCompletionNote?: boolean;
   stopPhase?: ComponentProps<typeof SessionThread>["stopPhase"];
-  quietWarning?: ComponentProps<typeof SessionThread>["quietWarning"];
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
@@ -418,6 +426,10 @@ interface ThreadStateOptions {
   transport?: SessionTransportState;
   liveDataEnabled?: boolean;
   contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
+  subagentControl?: ComponentProps<typeof SessionThread>["subagentControl"];
+  origin?: SessionOriginContextValue | null;
+  /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
+  forkRequest?: SessionForkRequest | null;
 }
 
 function threadStateElement(
@@ -431,7 +443,6 @@ function threadStateElement(
     statusSession = isSessionRunning ? runningStatusSession() : primarySessionFixture,
     stopCompletionNote = false,
     stopPhase = "idle",
-    quietWarning,
     acpSessionId,
     sessionState,
     failure = null,
@@ -440,6 +451,9 @@ function threadStateElement(
     transport,
     liveDataEnabled = true,
     contextControl,
+    subagentControl,
+    origin = null,
+    forkRequest = null,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -483,31 +497,37 @@ function threadStateElement(
           retry={retry}
           transport={transport}
         >
-          <SessionThread
-            sessionId={primarySessionFixture.id}
-            agentName={primarySessionFixture.agent_name}
-            canPrompt
-            onCancelPrompt={() => {}}
-            isSessionRunning={isSessionRunning}
-            statusSession={statusSession}
-            stopCompletionNote={stopCompletionNote}
-            stopPhase={stopPhase}
-            quietWarning={quietWarning}
-            acpSessionId={acpSessionId}
-            sessionState={sessionState}
-            failure={failure}
-            readOnly={readOnly}
-            liveDataEnabled={liveDataEnabled}
-            contextControl={contextControl}
-          />
+          <SessionOriginContext value={origin}>
+            <SessionForkContext value={forkRequest}>
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={() => {}}
+                isSessionRunning={isSessionRunning}
+                statusSession={statusSession}
+                stopCompletionNote={stopCompletionNote}
+                stopPhase={stopPhase}
+                acpSessionId={acpSessionId}
+                sessionState={sessionState}
+                failure={failure}
+                readOnly={readOnly}
+                liveDataEnabled={liveDataEnabled}
+                contextControl={contextControl}
+                subagentControl={subagentControl}
+              />
+            </SessionForkContext>
+          </SessionOriginContext>
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
   );
 }
 
-function renderThreadState(options: ThreadStateOptions) {
-  const queryClient = createQueryClient();
+function renderThreadState(
+  options: ThreadStateOptions,
+  queryClient: QueryClient = createQueryClient()
+) {
   const result = render(threadStateElement(queryClient, options));
   return {
     ...result,
@@ -530,6 +550,27 @@ describe("SessionThread transcript states", () => {
         .getByRole("button", { name: "Inspect context" })
         .closest('[data-testid="composer-shell"]')
     ).not.toBeNull();
+  });
+
+  // Invariant: the subagents control sits after the context ring and before Attach files (#766);
+  // owner: composer toolbar composition.
+  it("Should place the subagents control between the context action and Attach files", () => {
+    renderThreadState({
+      status: "success",
+      contextControl: <button type="button">Inspect context</button>,
+      subagentControl: <button type="button">Subagents</button>,
+    });
+    const order = [
+      screen.getByRole("button", { name: "Inspect context" }),
+      screen.getByRole("button", { name: "Subagents" }),
+      screen.getByRole("button", { name: "Attach files" }),
+    ];
+    for (const [before, after] of [
+      [order[0]!, order[1]!],
+      [order[1]!, order[2]!],
+    ] as const) {
+      expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 
   it("Should preview non-JSON values without returning undefined", () => {
@@ -628,6 +669,168 @@ describe("SessionThread transcript states", () => {
     }
   });
 
+  // Invariant (S18): an observed compaction is a `system` message the thread renders
+  // as one visible row per compaction id, and a later projection of the same id
+  // updates that row in place — never a second row, never a dropped one.
+  // Owner: thread rendering, canonical SessionThread transcript-state suite.
+  it("Should render a compaction message as one row and update it in place by id", async () => {
+    const compaction = (data: Record<string, unknown>): SessionMessage =>
+      ({
+        id: "compaction:c1",
+        role: "system",
+        parts: [
+          {
+            type: "data-compozy-compaction",
+            id: "c1",
+            data: {
+              kind: "compaction",
+              compaction_id: "c1",
+              started_at: "2026-10-08T14:02:11Z",
+              ...data,
+            },
+          },
+        ],
+      }) as SessionMessage;
+    const surrounding = (item: SessionMessage) =>
+      toReadonlyThreadMessages([
+        { id: "ask", role: "user", parts: [{ type: "text", text: "Wrap up." }] } as SessionMessage,
+        item,
+        {
+          id: "after",
+          role: "assistant",
+          parts: [{ type: "text", text: "Ready for more." }],
+        } as SessionMessage,
+      ]);
+
+    const { rerenderWith } = renderThreadState({
+      status: "success",
+      messages: surrounding(compaction({ status: "in_progress" })),
+    });
+    const row = await screen.findByTestId("session-compaction-item");
+    expect(row).toHaveAttribute("data-status", "in_progress");
+    expect(row).toHaveTextContent("Compacting context…");
+    expect(screen.getByText("Ready for more.")).toBeInTheDocument();
+
+    rerenderWith({
+      messages: surrounding(
+        compaction({
+          status: "completed",
+          summary: "Moved invoices to the ledger API.",
+          ended_at: "2026-10-08T14:02:39Z",
+        })
+      ),
+    });
+
+    const updated = await screen.findAllByTestId("session-compaction-item");
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toHaveAttribute("data-status", "completed");
+    expect(updated[0]).toHaveTextContent("Context compacted");
+    expect(updated[0]).not.toHaveTextContent("Compacting context…");
+    expect(within(updated[0]!).getByRole("button", { name: "Summary" })).toBeInTheDocument();
+    expect(
+      document.querySelectorAll(
+        '[data-testid="thread-message-row"][data-message-id="compaction:c1"]'
+      )
+    ).toHaveLength(1);
+  });
+
+  // Invariant (S18): a requested compaction is followed, in the same turn, by the agent's own
+  // reply. The thread shows the compaction row AND that reply; neither hides the other.
+  // Owner: thread rendering over the daemon's real projection (user /compact, the system
+  // compaction message, the quiet fired event, then the assistant text with its maintenance
+  // `prompt_delivery`, whose `spans` is null because `/compact` carries no sections). The
+  // transcript is normalized exactly as the live tail does; a rejected frame hides the reply.
+  it("Should render the assistant text that follows a compaction item in the same turn", async () => {
+    const turn = "turn-955a640065514905";
+    const transcript = [
+      {
+        id: "ask",
+        role: "user",
+        metadata: { turn_id: "turn-afe4f209a549163f" },
+        parts: [{ type: "text", text: "baseline", state: "done" }],
+      },
+      {
+        id: "turn-afe4f209a549163f",
+        role: "assistant",
+        parts: [{ type: "text", text: "baseline ready", state: "done" }],
+      },
+      {
+        id: "ev-compact",
+        role: "user",
+        metadata: { turn_id: turn },
+        parts: [{ type: "text", text: "/compact", state: "done" }],
+      },
+      {
+        id: "compaction:native-1",
+        role: "system",
+        parts: [
+          {
+            type: "data-compozy-compaction",
+            id: "native-1",
+            data: {
+              kind: "compaction",
+              compaction_id: "native-1",
+              status: "completed",
+              summary: "Retain the agreed project constraints.",
+              started_at: "2026-10-08T11:50:54.762Z",
+              ended_at: "2026-10-08T11:50:57.765Z",
+            },
+          },
+        ],
+      },
+      {
+        id: `${turn}-2`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "session.compaction_fired",
+              session_id: "s",
+              turn_id: turn,
+              timestamp: "2026-10-08T11:50:54.762Z",
+              raw: { compaction_id: "native-1", trigger: "requested" },
+            },
+          },
+        ],
+      },
+      {
+        id: `${turn}-3`,
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            id: `${turn}-3-text-1`,
+            text: "Native compaction observed.",
+            state: "done",
+          },
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "prompt_delivery",
+              session_id: "s",
+              turn_id: turn,
+              timestamp: "2026-10-08T11:50:57.821Z",
+              delivery: {
+                turn_id: turn,
+                sent_at: "2026-10-08T11:50:54.762Z",
+                estimate: "bytes_div_4",
+                spans: null,
+              },
+            },
+          },
+        ],
+      },
+    ] as unknown as SessionMessage[];
+    const normalized = await normalizeTranscriptMessages(transcript);
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+    expect(await screen.findByTestId("session-compaction-item")).toHaveTextContent(
+      "Context compacted"
+    );
+    expect(screen.getByText("Native compaction observed.")).toBeInTheDocument();
+  });
+
   it("Should render a retryable transcript error pane and call retry", async () => {
     const user = userEvent.setup();
     const retry = vi.fn();
@@ -646,7 +849,7 @@ describe("SessionThread transcript states", () => {
     );
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /retry transcript/i }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(retry).toHaveBeenCalledTimes(1);
   });
@@ -735,9 +938,105 @@ describe("SessionThread transcript states", () => {
   it("Should render ThreadEmpty only for success with zero messages", async () => {
     renderThreadState({ status: "success" });
 
-    expect(await screen.findByText(/Start the conversation/i)).toBeInTheDocument();
+    expect(await screen.findByText(/to get started/i)).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
+  });
+
+  // Invariant: a transcript that has said nothing yet reads as empty. Hook dispatches and
+  // other status-only events render no row, so a fresh session holding only those keeps
+  // the generic empty state instead of a blank viewport.
+  it("Should keep ThreadEmpty for a fresh session whose transcript holds only status events", async () => {
+    const transcript = [
+      {
+        id: "hook-start",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.start" } }],
+      },
+      {
+        id: "hook-complete",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.complete" } }],
+      },
+    ] as SessionMessage[];
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByText(/to get started/i)).toBeInTheDocument();
+  });
+
+  // Invariant (UT-071): a derived child marks where its own transcript starts — one divider
+  // before its first message, or the divider alone above a compact empty state before any.
+  // Owning layer: the thread message list. Canonical suite: this file.
+  it("Should render the origin divider once, before the derived child's first message", async () => {
+    const user = userEvent.setup();
+    const onOpenSource = vi.fn();
+    const child = continuedSessionFixture();
+    const transcript = [
+      { id: "child-first", role: "user", parts: [{ type: "text", text: "Pick up the tests." }] },
+      { id: "child-reply", role: "assistant", parts: [{ type: "text", text: "On it." }] },
+    ] as SessionMessage[];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      origin: {
+        origin: sessionOriginView(child, { title: "Refactor flaky manager tests" })!,
+        onOpenSource,
+      },
+    });
+
+    const divider = await screen.findByTestId("session-origin-divider");
+    expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
+    expect(divider).toHaveAccessibleName("Continued from Refactor flaky manager tests");
+    const firstRow = document.querySelector('[data-message-id="child-first"]');
+    expect(firstRow).toContainElement(divider);
+    expect(screen.queryByText(/to get started/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("session-origin-divider-link"));
+    expect(onOpenSource).toHaveBeenCalledExactlyOnceWith(child.lineage?.parent_session_id);
+  });
+
+  it("Should show the divider alone above the empty state of an unprompted derived child", async () => {
+    const child = continuedSessionFixture();
+    renderThreadState({
+      status: "success",
+      origin: { origin: sessionOriginView(child, null)! },
+    });
+
+    const empty = await screen.findByTestId("session-thread-empty");
+    expect(empty).toHaveTextContent("Nothing said here yet");
+    expect(empty).toHaveTextContent(
+      "The conversation carried over is sent with your first message."
+    );
+    const divider = screen.getByTestId("session-origin-divider");
+    expect(divider).toHaveAttribute("data-link", "false");
+    expect(divider).toHaveTextContent("Continued from claude");
+    expect(screen.queryByTestId("session-origin-divider-link")).not.toBeInTheDocument();
+    expect(screen.queryByText(/to get started/i)).not.toBeInTheDocument();
+  });
+
+  it("Should keep the empty state of a derived child whose transcript holds only status events", async () => {
+    const child = continuedSessionFixture();
+    const transcript = [
+      {
+        id: "hook-start",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.start" } }],
+      },
+      {
+        id: "hook-complete",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.complete" } }],
+      },
+    ] as SessionMessage[];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      origin: { origin: sessionOriginView(child, null)! },
+    });
+
+    const empty = await screen.findByTestId("session-thread-empty");
+    expect(empty).toHaveTextContent("Nothing said here yet");
+    expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
   });
 
   // Invariant: a dead live stream never poses as an empty session (US-018.AC-2).
@@ -761,7 +1060,7 @@ describe("SessionThread transcript states", () => {
     expect(pane).toHaveTextContent("This conversation didn't sync");
     expect(pane).toHaveTextContent("after 6 tries");
     expect(screen.getAllByRole("button", { name: "Try again" })).toHaveLength(1);
-    expect(screen.queryByText(/Start the conversation/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/to get started/i)).not.toBeInTheDocument();
     await user.click(screen.getByTestId("thread-transcript-sync-failed-retry"));
     expect(retry).toHaveBeenCalledTimes(1);
   });
@@ -792,7 +1091,8 @@ describe("SessionThread transcript states", () => {
 
     const pane = await screen.findByTestId("thread-session-starting");
     expect(pane).toHaveAttribute("role", "status");
-    expect(pane).toHaveTextContent("The session is saved");
+    expect(pane).toHaveTextContent("Your session is saved");
+    expect(pane).not.toHaveTextContent(/runtime/i);
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     // The Lexical composer is inerted (not focusable, not editable) instead of
     // carrying a `disabled` attribute, and renders its placeholder as visible text.
@@ -815,7 +1115,7 @@ describe("SessionThread transcript states", () => {
     const pane = await screen.findByTestId("thread-session-startup-failure");
     expect(pane).toHaveAttribute("role", "alert");
     expect(pane).toHaveTextContent("The configured model is unavailable.");
-    expect(within(pane).getByRole("button", { name: "Review agent runtime" })).toBeInTheDocument();
+    expect(within(pane).getByRole("button", { name: "Check agent settings" })).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
     expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
     expect(screen.getByTestId("composer-send-button")).toBeDisabled();
@@ -835,7 +1135,7 @@ describe("SessionThread transcript states", () => {
 
     const pane = await screen.findByTestId("thread-session-startup-failure");
     expect(pane).toHaveTextContent("The provider process exited before activation.");
-    expect(within(pane).queryByRole("button", { name: "Review agent runtime" })).toBeNull();
+    expect(within(pane).queryByRole("button", { name: "Check agent settings" })).toBeNull();
     expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
   });
 
@@ -855,24 +1155,52 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
   });
 
-  // Invariant (US-014.EC-2): while the daemon reports a quiet episode the
-  // status row reads the quiet clock, not a working timer the daemon's own
-  // signals contradict; both figures derive from the daemon instants.
-  it("Should read the quiet clock instead of the working timer while the daemon reports a quiet episode", async () => {
+  // Invariant: a turn the daemon's watchdog saw go quiet keeps its one working
+  // row, which adds "quiet for {d}" from the supervision episode — no notice, no
+  // second line; the composer Stop stays the action.
+  it("Should keep the working row with a quiet segment while the daemon reports a quiet turn", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-04-17T18:31:00Z"));
+    vi.setSystemTime(new Date("2026-04-17T18:42:00Z"));
     try {
+      const transcript = [
+        {
+          id: "assistant-quiet-turn",
+          role: "assistant",
+          parts: [
+            {
+              type: "reasoning",
+              text: "Waiting on the build.",
+              state: "streaming",
+              turn_id: "turn-live",
+              timestamp: "2026-04-17T18:00:00Z",
+            },
+          ] as unknown as SessionMessage["parts"],
+        } as SessionMessage,
+      ];
       renderThreadState({
         status: "success",
+        messages: toReadonlyThreadMessages(transcript),
         isSessionRunning: true,
-        quietWarning: sessionQuietWarning(quietWarningSessionFixture),
+        statusSession: {
+          ...runningStatusSession("2026-04-17T18:00:00Z"),
+          supervision: {
+            quiet_warning: {
+              quiet_since: "2026-04-17T18:30:00Z",
+              warned_at: "2026-04-17T18:40:00Z",
+              stop_at: "2026-04-17T18:50:00Z",
+            },
+            sources: [],
+            work_signals: [],
+          },
+        },
       });
 
-      const row = await screen.findByRole("status", { name: "Quiet" });
-      expect(row).toHaveAttribute("data-quiet-stop", "scheduled");
-      expect(within(row).getByTestId("session-quiet-elapsed")).toHaveTextContent("31m");
-      expect(within(row).getByTestId("session-quiet-remaining")).toHaveTextContent("9m");
-      expect(screen.queryByRole("status", { name: "Working" })).not.toBeInTheDocument();
+      const workingRow = await screen.findByTestId("session-working-row");
+      expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
+      expect(screen.getByTestId("session-working-timer")).toHaveTextContent("42m");
+      expect(screen.getByTestId("session-working-quiet")).toHaveTextContent("quiet for 12m");
+      expect(workingRow).toHaveTextContent(/Working for 42m.*quiet for 12m/);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -1516,9 +1844,10 @@ describe("SessionThread transcript states", () => {
 
     const fold = await screen.findByTestId("turn-fold-row");
     // Duration spans the turn's own recorded event times (first tool_call tick to
-    // the closing usage event); the daemon's stale "Preparing file…" title is not
-    // re-read as an edit here — the count stays truthful to the name on the wire.
-    expect(fold).toHaveTextContent(/^Worked for 4m 12s · Used 3 tools/);
+    // the closing usage event). The daemon's stale "Preparing file…" title is
+    // never read as prose; the calls' input (a file path plus content) is what
+    // names them as the three file writes they were.
+    expect(fold).toHaveTextContent(/^Worked for 4m 12s · Edited 3 files/);
     // Opened, the fold lists the calls as rows — no second disclosure (VC-05).
     await userEvent.click(fold);
     await waitFor(() => {
@@ -1641,9 +1970,8 @@ describe("SessionThread transcript states", () => {
     expect(cut).toBeDefined();
     expect(within(cut!).getByTestId("tool-call-state-word")).toHaveTextContent("stopped");
     expect(screen.queryByText(/Running Preparing/)).not.toBeInTheDocument();
-    const status = screen.getByTestId("session-stopped-row");
-    expect(status).toHaveAttribute("data-stopped-by", "you");
-    expect(status).toHaveTextContent("Stopped by you after 46s");
+    // The fold is the one owner of "You stopped after 46s": no second status line.
+    expect(screen.queryByTestId("session-stopped-row")).not.toBeInTheDocument();
   });
 
   // Invariant (US-009.EC-2): a stop the daemon answered nothing-in-flight reads
@@ -1681,43 +2009,122 @@ describe("SessionThread transcript states", () => {
     );
   });
 
-  it("Should render rows for success with transcript messages", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
-
-    renderThreadState({ status: "success", messages });
-
-    expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
-    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
-    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
-  });
-
-  it("Should offer rewind only for a durable user message when session input is idle", async () => {
+  // UT-068 (S3, US-007.EC-2/EC-5): "Fork from here" is rewind's twin — present
+  // only on a durable user message under a Fork host, mounted before "Rewind to
+  // here", and it hands that message (id + text) to the host.
+  it("Should offer Fork from here beside Rewind only for a durable user message", async () => {
+    const forkRequest = vi.fn<SessionForkRequest>();
     const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
 
     renderThreadState({
       status: "success",
       messages,
       durableMessageIds: ["transcript_user_001"],
+      forkRequest,
     });
 
-    const rewind = await screen.findByRole("button", { name: "Rewind to here" });
+    const fork = await screen.findByRole("button", { name: "Fork from here" });
+    await waitFor(() => expect(fork).toBeEnabled());
+    expect(screen.getAllByTestId("user-message-fork")).toHaveLength(1);
+    const rewind = screen.getByTestId("user-message-rewind");
+    expect(fork.compareDocumentPosition(rewind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(fork);
+    expect(forkRequest).toHaveBeenCalledExactlyOnceWith(undefined, {
+      messageId: "transcript_user_001",
+      messageText: "Summarize the launch blockers before the 18:30 UTC cutover.",
+    });
+  });
+
+  it("Should not offer Fork from here for an optimistic tail, without a host, or read-only", async () => {
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    const view = renderThreadState({ status: "success", messages, forkRequest: vi.fn() });
+
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+    view.rerenderWith({
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: null,
+    });
+    expect(await screen.findByTestId("user-message-rewind")).toBeInTheDocument();
+    const rewind = screen.getByRole("button", { name: "Rewind to here" });
     await waitFor(() => expect(rewind).toBeEnabled());
     expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
-  });
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
 
-  it("Should hide transcript actions and goal prefill controls in read-only mode", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
-
-    renderThreadState({
-      status: "success",
-      messages,
+    view.rerenderWith({
       durableMessageIds: ["transcript_user_001"],
+      forkRequest: vi.fn(),
       readOnly: true,
     });
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
 
+    view.rerenderWith({
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: null,
+      readOnly: true,
+    });
     expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
     expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument();
     expect(screen.queryByTestId("composer-input")).not.toBeInTheDocument();
+  });
+
+  // A pending rewind anywhere in the workspace moves the transcript under every
+  // row: both actions disable together (the shared gate; VC-05 busy).
+  it("Should disable Fork from here together with Rewind while a rewind is pending", async () => {
+    const forkRequest = vi.fn<SessionForkRequest>();
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    const queryClient = createQueryClient();
+    void queryClient
+      .getMutationCache()
+      .build(queryClient, {
+        mutationKey: sessionKeys.rewindConversation(fixtureWorkspaceId()),
+        mutationFn: () => new Promise<never>(() => undefined),
+      })
+      .execute(undefined);
+
+    renderThreadState(
+      {
+        status: "success",
+        messages,
+        durableMessageIds: ["transcript_user_001"],
+        forkRequest,
+      },
+      queryClient
+    );
+
+    const fork = await screen.findByTestId("user-message-fork");
+    expect(fork).toBeDisabled();
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+    fireEvent.click(fork);
+    expect(forkRequest).not.toHaveBeenCalled();
+  });
+
+  // A turn started outside this page (CLI, another window, before a reload) leaves the
+  // local thread idle; the daemon's running detail still disables both actions.
+  it("Should disable Fork from here together with Rewind while the daemon reports a running turn", async () => {
+    const baseFetch = createFetchMock();
+    const detailPath = `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+        getPathname(input) === detailPath
+          ? jsonResponse({ session: runningStatusSession() })
+          : baseFetch(input, init)
+      )
+    );
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: vi.fn<SessionForkRequest>(),
+    });
+
+    await waitFor(() => expect(screen.getByTestId("user-message-fork")).toBeDisabled());
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
   });
 
   it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
@@ -1887,8 +2294,8 @@ describe("SessionThread transcript states", () => {
     expect(gallery.compareDocumentPosition(bubble) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const imageFrames = screen.getAllByTestId("user-message-attachment-frame");
     expect(imageFrames).toHaveLength(2);
-    expect(imageFrames[0]).toHaveAttribute(
-      "href",
+    expect(within(imageFrames[0]!).getByRole("img")).toHaveAttribute(
+      "src",
       `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-image/bytes`
     );
     expect(imageFrames[0]).not.toHaveAttribute("role");
@@ -1898,14 +2305,81 @@ describe("SessionThread transcript states", () => {
     );
     expect(screen.getByTestId("user-message-attachment-file-card")).not.toHaveAttribute("role");
     expect(screen.getByTestId("user-message-attachment-file-card")).toHaveTextContent("notes.pdf");
+    // Non-image files download, with a separate browsing context if download is unavailable.
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveAttribute(
+      "download",
+      "notes.pdf"
+    );
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveAttribute(
+      "target",
+      "_blank"
+    );
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-    expect(within(gallery).getAllByRole("link")).toHaveLength(3);
+    expect(within(gallery).getAllByRole("link")).toHaveLength(1);
+    expect(within(gallery).getAllByRole("button")).toHaveLength(2);
     const images = screen.getAllByRole("img", { name: "diagram.png" });
     expect(images).toHaveLength(2);
     expect(images[0]).toHaveAttribute("width", "1280");
     expect(images[0]).toHaveAttribute("height", "720");
     expect(images[0]?.getAttribute("src")).not.toMatch(/^data:/);
   });
+
+  // Invariant: image previews preserve the SPA and restore focus after every dismissal.
+  // Owner: session attachment interaction, canonical SessionThread suite.
+  it.each([
+    ["close", false],
+    ["escape", false],
+    ["backdrop", false],
+    ["close", true],
+    ["escape", true],
+    ["backdrop", true],
+  ] as const)(
+    "Should dismiss a transcript image with %s (window scoped: %s) and return to its origin",
+    async (dismissal, windowScoped) => {
+      const user = userEvent.setup();
+      const originalURL = window.location.href;
+      const transcript = [
+        {
+          id: "preview-image",
+          role: "user",
+          parts: [
+            {
+              type: "file",
+              mediaType: "image/png",
+              url: "compozy://session-attachments/att-shot",
+              filename: "shot.png",
+            },
+          ],
+        } as SessionMessage,
+      ];
+      const host = document.createElement("div");
+      document.body.append(host);
+      render(
+        <OverlayContainerContext value={windowScoped ? host : null}>
+          {threadStateElement(createQueryClient(), {
+            status: "success",
+            messages: toReadonlyThreadMessages(transcript),
+          })}
+        </OverlayContainerContext>,
+        { container: host }
+      );
+      const trigger = await screen.findByRole("button", { name: "Preview shot.png" });
+      expect(trigger).not.toHaveAttribute("href");
+      await user.click(trigger);
+      const dialog = await screen.findByRole("dialog", { name: "shot.png" });
+      expect(within(dialog).getByRole("img", { name: "shot.png" })).toHaveAttribute(
+        "src",
+        `/api/workspaces/${fixtureWorkspaceId()}/sessions/${primarySessionFixture.id}/attachments/att-shot/bytes`
+      );
+      if (dismissal === "close")
+        await user.click(within(dialog).getByRole("button", { name: "Close" }));
+      else if (dismissal === "escape") await user.keyboard("{Escape}");
+      else await user.click(document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')!);
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(window.location.href).toBe(originalURL);
+    }
+  );
 
   it("Should skip the empty bubble on an image-only user turn", async () => {
     const transcript = [
@@ -1957,8 +2431,8 @@ describe("SessionThread transcript states", () => {
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
     expect(await screen.findByTestId("user-message-attachment-gallery")).toBeInTheDocument();
-    expect(screen.getByTestId("user-message-attachment-frame")).toHaveAttribute(
-      "href",
+    expect(screen.getByRole("img", { name: "local-shot.png" })).toHaveAttribute(
+      "src",
       `/api/workspaces/${fixtureWorkspaceId()}/sessions/${primarySessionFixture.id}/attachments/att-local-shot/bytes`
     );
     expect(screen.queryByTestId("user-message-bubble")).not.toBeInTheDocument();
@@ -2102,9 +2576,9 @@ describe("SessionThread transcript states", () => {
   });
 
   it.each([
-    ["goal-work", "Goal work"],
-    ["goal-continuation", "Goal continuation"],
-    ["goal-compaction", "Goal compaction"],
+    ["goal-work", "Working on goal"],
+    ["goal-continuation", "Working on goal"],
+    ["goal-compaction", "Tidying up goal notes"],
   ] as const)(
     "Should render persisted %s prompt identity from the transcript",
     async (kind, label) => {
@@ -2138,7 +2612,9 @@ describe("SessionThread transcript states", () => {
 
       const notice = await screen.findByTestId("goal-prompt-meta");
       expect(notice).toHaveTextContent(label);
-      expect(notice).toHaveTextContent("goal · generation 2 · turn 3");
+      expect(notice).toHaveTextContent("step 3");
+      expect(notice).not.toHaveTextContent("generation");
+      expect(notice).toHaveAttribute("data-goal-kind", kind);
       expect(within(notice).getByRole("link", { name: "Open run" })).toBeInTheDocument();
     }
   );
@@ -2289,6 +2765,40 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByText(/\/tmp\/file-1\.ts/)).not.toBeInTheDocument();
   });
 
+  it("Should announce several calls in flight as one running count", async () => {
+    const transcript = [
+      {
+        id: "assistant-parallel",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-Read",
+            toolCallId: "tool-read-a",
+            state: "input-available",
+            turn_id: "turn-parallel",
+            timestamp: "2026-07-07T12:00:00Z",
+            input: { file_path: "/tmp/a.ts" },
+          },
+          {
+            type: "tool-Read",
+            toolCallId: "tool-read-b",
+            state: "input-available",
+            turn_id: "turn-parallel",
+            timestamp: "2026-07-07T12:00:01Z",
+            input: { file_path: "/tmp/b.ts" },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const row = await screen.findByTestId("live-tool");
+    expect(row).toHaveAttribute("data-parallel", "2");
+    // The count sits inside the disclosure button, so a sibling status speaks it.
+    expect(within(row).getByRole("status")).toHaveTextContent("Running 2 tools…");
+  });
+
   it("Should render an empty-args tool mid-stream as the pending row state (not a bordered box)", async () => {
     const transcript = [
       {
@@ -2314,6 +2824,8 @@ describe("SessionThread transcript states", () => {
     // input" box and never a stacked card.
     const row = await screen.findByTestId("live-tool");
     expect(within(row).getByTestId("live-tool-label")).toHaveTextContent("Reading");
+    // The running state is announced, not only shown by the shimmer.
+    expect(within(row).getByRole("status")).toHaveTextContent("Reading");
     expect(row.querySelector('[data-slot="tool-call-row-status"]')).toBeNull();
     expect(screen.queryByTestId("tool-call-row")).not.toBeInTheDocument();
     expect(screen.queryByText(/preparing input/i)).not.toBeInTheDocument();
@@ -2360,9 +2872,11 @@ describe("SessionThread transcript states", () => {
     const row = await screen.findByTestId("live-tool");
     expect(row).toHaveAttribute("data-still", "true");
     const label = within(row).getByTestId("live-tool-label");
-    expect(label).toHaveTextContent("Running shell");
-    expect(label).not.toHaveClass("session-shimmer");
-    expect(label).toHaveClass("text-subtle");
+    expect(label).toHaveTextContent(/^Running/);
+    // The verb carries the motion; the paused window stills it to subtle text.
+    const verb = within(label).getByText("Running");
+    expect(verb).not.toHaveClass("session-shimmer");
+    expect(verb).toHaveClass("text-subtle");
     const working = screen.getByTestId("session-working-row");
     expect(working.querySelector(".session-working-dots")).toBeNull();
     expect(within(working).getByTestId("session-working-as-of")).toHaveTextContent(/as of/);
@@ -2424,7 +2938,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-native-artifact",
             state: "output-available",
             turn_id: "turn-native-artifact",
@@ -2458,7 +2972,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-acp-artifact",
             state: "output-available",
             turn_id: "turn-acp-artifact",
@@ -2466,7 +2980,7 @@ describe("SessionThread transcript states", () => {
             input: { query: "release evidence" },
             output: {
               type: "tool_result",
-              title: "Recall memory",
+              title: "Search sessions",
               raw: {
                 preview: "ACP bounded preview",
                 truncated: true,
@@ -2496,7 +3010,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-persisted-artifact",
             state: "output-available",
             turn_id: "turn-persisted-artifact",
@@ -2504,7 +3018,7 @@ describe("SessionThread transcript states", () => {
             input: { query: "release evidence" },
             output: {
               type: "tool_result",
-              title: "Recall memory",
+              title: "Search sessions",
               raw: {
                 content: "persisted bounded preview",
                 raw_output: {
@@ -3097,12 +3611,13 @@ describe("SessionThread transcript states", () => {
     // Three stepped 4px dots on the duty cycle; the old spinner row is gone.
     expect(workingRow.querySelector('[data-slot="typing-dots"]')?.children).toHaveLength(3);
     expect(workingRow.querySelector(".animate-spin")).toBeNull();
-    // Live "Working for Xs · Running shell": the timer counts from the daemon's
-    // durable turn start, the activity from the session's current tool (US-027).
+    // Live "Working for Xs": the timer counts from the daemon's durable turn
+    // start (US-027); the running tool is the live row's, never repeated here.
     expect(workingRow).toHaveTextContent(/Working for/);
     const timer = screen.getByTestId("session-working-timer");
     expect(timer.textContent).toMatch(/^\d+s$/);
-    expect(screen.getByTestId("session-working-activity")).toHaveTextContent("Running shell");
+    expect(screen.queryByTestId("session-working-activity")).not.toBeInTheDocument();
+    expect(workingRow).not.toHaveTextContent("Running shell");
   });
 
   // Invariant: a pending stop states intent without presenting continued work or
@@ -3266,6 +3781,8 @@ describe("SessionThread transcript states", () => {
     renderThreadState({ status: "success", messages });
 
     expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     const viewport = screen.getByTestId("chat-view");
     const pill = screen.getByTestId("scroll-to-bottom-pill");
     // Following the live edge: the pill is hidden and non-interactive.
@@ -3638,37 +4155,41 @@ async function placeComposerCursor(offset: number) {
   });
 }
 
+/** Mounts the real composer runtime, optionally scoping overlays to its desktop host. */
 function renderComposer(
   overrides: Partial<ComponentProps<typeof SessionThread>>,
-  transport?: SessionTransportState
+  transport?: SessionTransportState,
+  overlayContainer: HTMLElement | null = null
 ) {
   const queryClient = createQueryClient();
   return render(
-    <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <SessionChatRuntimeProvider
-          sessionId={primarySessionFixture.id}
-          workspaceId={fixtureWorkspaceId()}
-        >
-          <ComposerAuiProbe />
-          <SessionTranscriptThreadProvider
-            messages={[]}
-            status="success"
-            error={null}
-            retry={vi.fn()}
-            transport={transport}
+    <OverlayContainerContext value={overlayContainer}>
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <SessionChatRuntimeProvider
+            sessionId={primarySessionFixture.id}
+            workspaceId={fixtureWorkspaceId()}
           >
-            <SessionThread
-              sessionId={primarySessionFixture.id}
-              agentName={primarySessionFixture.agent_name}
-              canPrompt
-              onCancelPrompt={vi.fn()}
-              {...overrides}
-            />
-          </SessionTranscriptThreadProvider>
-        </SessionChatRuntimeProvider>
-      </QueryClientProvider>
-    </StrictMode>
+            <ComposerAuiProbe />
+            <SessionTranscriptThreadProvider
+              messages={[]}
+              status="success"
+              error={null}
+              retry={vi.fn()}
+              transport={transport}
+            >
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={vi.fn()}
+                {...overrides}
+              />
+            </SessionTranscriptThreadProvider>
+          </SessionChatRuntimeProvider>
+        </QueryClientProvider>
+      </StrictMode>
+    </OverlayContainerContext>
   );
 }
 
@@ -3721,6 +4242,34 @@ describe("SessionThread composer running semantics", () => {
       expect(screen.getByTestId("composer-input")).toHaveTextContent("keep this draft")
     );
     expect(composerText()).toBe("keep this draft");
+  });
+
+  it("Should persist an edit committed before saved draft hydration is observed", async () => {
+    const sessionId = primarySessionFixture.id;
+    sessionStore.trigger.composerDraftChanged({ sessionId, text: "saved draft" });
+    function EditingComposer() {
+      const aui = useAui();
+      const { composerText: text } = useSessionComposerState(sessionId);
+      useLayoutEffect(() => {
+        aui.composer.setText("new edit during hydration");
+      }, [aui]);
+      return <output data-testid="hydrating-composer">{text}</output>;
+    }
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <SessionChatRuntimeProvider sessionId={sessionId} workspaceId={fixtureWorkspaceId()}>
+          <EditingComposer />
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("hydrating-composer")).toHaveTextContent(
+        "new edit during hydration"
+      );
+      expect(sessionStore.getSnapshot().context.drafts[sessionId]).toBe(
+        "new edit during hydration"
+      );
+    });
   });
 
   it("Should insert a standalone command token without submitting the prompt", async () => {
@@ -3838,40 +4387,6 @@ describe("SessionThread composer running semantics", () => {
     expect(native.querySelector("[data-slot='composer-command-origin']")).toBeNull();
   });
 
-  it("Should execute the worktree command without leaving it in the prompt", async () => {
-    const user = userEvent.setup();
-    const onCommandAction = vi.fn((token: string) => token === "/worktree");
-    renderComposer({
-      onCommandAction,
-      commandCatalog: {
-        standaloneSections: [
-          {
-            id: "built-in",
-            label: "Built-in",
-            commands: [
-              {
-                id: "worktree",
-                token: "/worktree",
-                label: "Worktree",
-                lane: "builtin" as const,
-              },
-            ],
-          },
-        ],
-        inlineSkills: [],
-      },
-    });
-
-    await screen.findByTestId("composer-input");
-    await setComposerText("/ keep this draft");
-    await placeComposerCursor(1);
-    const menu = await screen.findByTestId("composer-command-menu");
-    await user.click(within(menu).getByRole("option", { name: /Worktree/i }));
-
-    expect(onCommandAction).toHaveBeenCalledWith("/worktree");
-    await waitFor(() => expect(composerText()).toBe(" keep this draft"));
-  });
-
   it("Should remove the selected action token without deleting an earlier mention", async () => {
     const user = userEvent.setup();
     const onCommandAction = vi.fn((token: string) => token === "/worktree");
@@ -3902,6 +4417,7 @@ describe("SessionThread composer running semantics", () => {
     const menu = await screen.findByTestId("composer-command-menu");
     await user.click(within(menu).getByRole("option", { name: /Worktree/i }));
 
+    expect(onCommandAction).toHaveBeenCalledWith("/worktree");
     await waitFor(() => expect(composerText()).toBe(" keep the existing /worktree mention"));
   });
 
@@ -4189,7 +4705,9 @@ describe("SessionThread composer running semantics", () => {
     expect(steerNote).toHaveTextContent(
       "Steering — the agent sees it when the current tool finishes"
     );
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("pending_injection");
+    // The daemon's delivery word is diagnostic: an attribute, never on screen.
+    expect(steerNote).toHaveAttribute("data-detail", "pending_injection");
+    expect(steerNote).not.toHaveTextContent("pending_injection");
     await waitFor(() => expect(composerText()).toBe(""));
 
     await setComposerText("ship it with tests");
@@ -4202,7 +4720,8 @@ describe("SessionThread composer running semantics", () => {
         "Queued #2 — runs after the current turn"
       )
     );
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("inp_4d8");
+    expect(screen.getByTestId("composer-feedback-note")).toHaveAttribute("data-detail", "inp_4d8");
+    expect(screen.getByTestId("composer-feedback-note")).not.toHaveTextContent("inp_4d8");
   });
 
   it("Should admit only one busy-input submission while a queue request is pending", async () => {
@@ -4509,9 +5028,8 @@ describe("SessionThread composer running semantics", () => {
     expect(note).toHaveTextContent(
       "Not sent — the turn changed before this went out. Your draft is back."
     );
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent(
-      "active_turn_mismatch"
-    );
+    expect(note).toHaveAttribute("data-detail", "active_turn_mismatch");
+    expect(note).not.toHaveTextContent("active_turn_mismatch");
     expect(composerText()).toBe("Only touch the lifecycle tests");
     expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
@@ -4950,8 +5468,12 @@ describe("SessionThread composer running semantics", () => {
     const row = await screen.findByTestId("composer-queued-prompt-row");
     expect(row).toHaveAttribute("data-local", "unconfirmed");
     expect(within(row).getByTestId("composer-queued-position")).toHaveTextContent("—");
-    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent("Not confirmed");
-    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent("msg-1");
+    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent(
+      "Not confirmed — retry or discard"
+    );
+    // The message id stays one step deeper, on hover.
+    expect(within(row).getByTestId("composer-queued-state")).not.toHaveTextContent("msg-1");
+    expect(within(row).getByTitle("msg-1")).toBeInTheDocument();
 
     await user.click(within(row).getByTestId("composer-queued-retry"));
     expect(onRetryUnconfirmedSend).toHaveBeenCalledWith("msg-1");
@@ -4960,7 +5482,7 @@ describe("SessionThread composer running semantics", () => {
     expect(note).toHaveAttribute("data-code", "queued");
     expect(note).toHaveTextContent("Queued #2");
     expect(note).toHaveTextContent("nothing was sent twice");
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("replayed");
+    expect(note).toHaveAttribute("data-detail", "replayed");
 
     await user.click(within(row).getByTestId("composer-queued-discard"));
     expect(onDiscardUnconfirmedSend).toHaveBeenCalledWith("msg-1");
@@ -5275,7 +5797,7 @@ describe("SessionThread pending quote ownership", () => {
     holdPendingTerminalQuote(quote);
     renderThreadState({ status: "success", readOnly: true });
 
-    await screen.findByText(/Start the conversation/i);
+    await screen.findByTestId("chat-view");
     expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
     expect(peekSessionTerminalQuote(primarySessionFixture.id)).toBeNull();
     expect(screen.queryByTestId("terminal-quote-block")).not.toBeInTheDocument();
@@ -5321,6 +5843,51 @@ describe("SessionThread composer attachments", () => {
     expect(tile).toHaveTextContent("shot.png");
     await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
   });
+
+  it.each([
+    ["close", false],
+    ["escape", false],
+    ["backdrop", false],
+    ["close", true],
+    ["escape", true],
+    ["backdrop", true],
+  ] as const)(
+    "Should dismiss a composer image with %s (window scoped: %s) and keep the draft",
+    async (dismissal, windowScoped) => {
+      const previewUrls: string[] = [];
+      const MockURL = class extends URL {};
+      MockURL.createObjectURL = vi.fn(() => {
+        const url = `blob:composer-preview-${previewUrls.length}`;
+        previewUrls.push(url);
+        return url;
+      });
+      MockURL.revokeObjectURL = vi.fn();
+      vi.stubGlobal("URL", MockURL);
+      const user = userEvent.setup();
+      const originalURL = window.location.href;
+      const host = document.createElement("div");
+      document.body.append(host);
+      renderComposer({ promptImageCapability: "supported" }, undefined, windowScoped ? host : null);
+      await screen.findByTestId("composer-input");
+      await act(async () => {
+        await requireComposerAui().composer.addAttachment(pngFile());
+      });
+      const trigger = await screen.findByRole("button", { name: "Preview shot.png" });
+      await user.click(trigger);
+      const dialog = await screen.findByRole("dialog", { name: "shot.png" });
+      const source = within(dialog).getByRole("img", { name: "shot.png" }).getAttribute("src");
+      expect(source).toMatch(/^blob:composer-preview-/);
+      if (dismissal === "close")
+        await user.click(within(dialog).getByRole("button", { name: "Close" }));
+      else if (dismissal === "escape") await user.keyboard("{Escape}");
+      else await user.click(document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')!);
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveTextContent("shot.png");
+      expect(MockURL.revokeObjectURL).toHaveBeenCalledWith(source);
+      expect(window.location.href).toBe(originalURL);
+    }
+  );
 
   it("Should add an attachment when browser crypto is unavailable", async () => {
     vi.stubGlobal("crypto", undefined);
@@ -5432,18 +5999,8 @@ describe("SessionThread composer attachments", () => {
       await add;
     });
     await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
-  });
-
-  it("Should enable image-only send when every tile is ready", async () => {
-    renderComposer({ promptImageCapability: "supported" });
-    await screen.findByTestId("composer-input");
-    await act(async () => {
-      await requireComposerAui().composer.addAttachment(pngFile());
-    });
-    const tile = await screen.findByTestId("composer-attachment-tile");
-    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
     expect(composerText()).toBe("");
-    expect(screen.getByTestId("composer-send-button")).toBeEnabled();
+    expect(send).toBeEnabled();
   });
 
   it("Should refuse unsupported files in place and keep send disabled", async () => {
@@ -5712,11 +6269,10 @@ describe("SessionThread thinking guard", () => {
   });
 });
 
-// Invariant: runtime projection retains canonical identity plus exact provider title,
-// and live/working summaries offer keyboard disclosure without losing the timer.
+// Invariant: runtime projection retains canonical identity plus exact provider title
+// (reachable on hover of the plain live line) without losing the timer.
 // Owner: session thread composition; canonical suite: session-thread.
-it("Should preserve provider titles through the runtime and disclose live and Working details", async () => {
-  const user = userEvent.setup();
+it("Should preserve provider titles through the runtime on a plain live line", async () => {
   const title = "Inspect layout\n" + "ação 👩🏽‍💻 ".repeat(100) + "provider-title-tail";
   const transcript = [
     {
@@ -5742,26 +6298,447 @@ it("Should preserve provider titles through the runtime and disclose live and Wo
     statusSession: runningStatusSession("2026-09-06T12:00:00Z", title),
   });
   const live = await screen.findByTestId("live-tool-label");
-  expect(live).toHaveTextContent("Running shell");
+  expect(live).toHaveAccessibleName("Running printf 'input-tail'");
   expect(live).not.toHaveTextContent("provider-title-tail");
-  const trigger = within(live).getByRole("button", { name: "Tool details" });
-  trigger.focus();
-  await user.keyboard("{Enter}");
-  const details = await screen.findByRole("dialog", { name: "Tool details" });
-  expect(details.textContent).toContain(title);
-  expect(details).toHaveTextContent("input-tail");
-  await user.click(within(details).getByRole("button", { name: "Copy tool details" }));
-  expect(await navigator.clipboard.readText()).toBe(
-    `${title}\n\n${JSON.stringify({ tool: "Bash", title, input: { command: "printf 'input-tail'" } }, null, 2)}`
-  );
-  await user.keyboard("{Escape}");
-  expect(trigger).toHaveFocus();
-  const activity = screen.getByRole("button", { name: "Activity details" });
-  await user.click(activity);
-  expect((await screen.findByRole("dialog", { name: "Activity details" })).textContent).toContain(
-    title
-  );
-  await user.click(screen.getByRole("button", { name: "Copy activity details" }));
-  expect(await navigator.clipboard.readText()).toBe(title);
+  // Plain text, not a popover; the exact provider title stays on hover.
+  expect(within(live).queryByRole("button")).toBeNull();
+  expect(live).toHaveAttribute("title", title);
+  // The Working row no longer repeats the tool: the live row is its one owner.
+  expect(screen.queryByRole("button", { name: "Activity details" })).not.toBeInTheDocument();
   expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
+});
+
+// Suite extension: agent-to-agent messages in the thread (agent collaboration `_uiux.md` S1–S3;
+// UT-060, UT-066, UT-067). Invariant: a user turn whose metadata carries a session origin renders
+// as the session message card, never the operator bubble; a system wake renders only when its
+// synthetic kind is `session_reply`; a "Sent to" card resolves its reply state from the reply wake
+// whose watch id it names. Owning layer: SessionThreadMessage routing over the readonly thread.
+describe("SessionThread session messages", () => {
+  const senderId = "sess-7f3a2c11d09e4b58";
+  const targetId = "sess-c03f9d61b2e84a07";
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", createFetchMock());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function clientWithPeers() {
+    const queryClient = createQueryClient();
+    const peer = (id: string, name: string, agent: string) =>
+      queryClient.setQueryData(sessionKeys.detail(fixtureWorkspaceId(), id), {
+        ...primarySessionFixture,
+        id,
+        name,
+        agent_name: agent,
+      });
+    peer(senderId, "Refactor billing", "claude");
+    peer(targetId, "Billing reviewer", "codex");
+    return queryClient;
+  }
+
+  function replyWake(id: string, reason: string, kind = "session_reply"): SessionMessage {
+    return {
+      id,
+      role: "system",
+      metadata: {
+        turn_id: "turn-wake",
+        synthetic: {
+          kind,
+          wake_event_id: "rw-6e2d81a0",
+          child_session_id: targetId,
+          child_workspace_id: fixtureWorkspaceId(),
+          child_agent_name: "codex",
+          reason,
+          summary: "Per job, one shared counter.",
+          reply_truncated: false,
+          hop: 1,
+        },
+      },
+      parts: [
+        {
+          type: "text",
+          text: `Session "Billing reviewer" (${targetId}) replied to your message msg-retry-q: ${reason}.\n---\nWake body text the card never reads.`,
+          state: "done",
+        },
+      ],
+    } as SessionMessage;
+  }
+
+  it("UT-060: Should render an agent-sent user turn as the session message card", async () => {
+    const transcript: SessionMessage[] = [
+      {
+        id: "msg-retry-q",
+        role: "user",
+        metadata: {
+          turn_id: "turn-q",
+          message_id: "msg-retry-q",
+          origin: {
+            kind: "session",
+            session_id: senderId,
+            workspace_id: fixtureWorkspaceId(),
+            agent_name: "claude",
+            title_at_send: "Refactor billing",
+            hop: 1,
+            notify_on_complete: true,
+            reply_watch_id: "rw-6e2d81a0",
+          },
+        },
+        parts: [{ type: "text", text: "Is the retry budget per request or per job?" }],
+      } as SessionMessage,
+      {
+        id: "msg-operator",
+        role: "user",
+        metadata: { turn_id: "turn-o", message_id: "msg-operator" },
+        parts: [{ type: "text", text: "Note that down in the review doc too." }],
+      } as SessionMessage,
+    ];
+    renderThreadState(
+      { status: "success", messages: toReadonlyThreadMessages(transcript) },
+      clientWithPeers()
+    );
+
+    const card = await screen.findByRole("article", { name: "Message from Refactor billing" });
+    expect(within(card).getByText("Is the retry budget per request or per job?")).toBeVisible();
+    expect(within(card).getByText("Reply requested")).toBeInTheDocument();
+    expect(within(card).queryByTestId("user-message-bubble")).not.toBeInTheDocument();
+    // The operator's own prompt keeps its bubble.
+    expect(screen.getAllByTestId("user-message-bubble")).toHaveLength(1);
+  });
+
+  it("UT-066: Should render only session_reply wakes and keep other synthetic kinds hidden", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          replyWake("wake-reply", "completed"),
+          replyWake("wake-subagent", "completed", "subagent_wake"),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    const card = await screen.findByRole("article", {
+      name: "Reply from Billing reviewer, completed",
+    });
+    expect(within(card).getByText("Per job, one shared counter.")).toBeInTheDocument();
+    // The answer is the typed `synthetic.summary`; the wake text is never parsed.
+    expect(
+      within(card).queryByText(/replied to your message|Wake body text/)
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("session-reply-card")).toHaveLength(1);
+  });
+
+  it("UT-067: Should resolve the sent card's reply state from the matching reply wake", async () => {
+    const sender = (withReply: string | null): SessionMessage[] => [
+      {
+        id: "msg-sender-turn",
+        role: "assistant",
+        metadata: { turn_id: "turn-send" },
+        parts: [
+          {
+            type: "tool-compozy__session_prompt",
+            toolCallId: "call-send",
+            state: "output-available",
+            turnId: "turn-send",
+            input: { session_id: targetId, message: "Is the retry budget per request or per job?" },
+            output: { status: "accepted", reply_watch: { id: "rw-6e2d81a0", state: "armed" } },
+          },
+          {
+            type: "data-compozy-session-message",
+            turnId: "turn-send",
+            data: {
+              tool_call_id: "call-send",
+              target_session_id: targetId,
+              target_workspace_id: fixtureWorkspaceId(),
+              message_id: "msg-retry-q",
+              mode: "queue",
+              reply_watch_id: "rw-6e2d81a0",
+              state: "done",
+            },
+          },
+        ],
+      } as unknown as SessionMessage,
+      ...(withReply ? [replyWake("wake-reply", withReply)] : []),
+    ];
+
+    const view = renderThreadState(
+      { status: "success", messages: toReadonlyThreadMessages(sender(null)) },
+      clientWithPeers()
+    );
+    const waiting = await screen.findByRole("article", {
+      name: "Sent to Billing reviewer, waiting for reply",
+    });
+    expect(within(waiting).getByText("Is the retry budget per request or per job?")).toBeVisible();
+    expect(screen.queryByText("Used session prompt")).not.toBeInTheDocument();
+
+    view.rerenderWith({ messages: toReadonlyThreadMessages(sender("dropped")) });
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, dropped" })
+    ).toBeInTheDocument();
+  });
+
+  it("Should show the message a Codex send carried in its MCP call envelope (#742)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-codex-send",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-mcp.compozy-hosted-tools.compozy__session_prompt",
+                toolCallId: "exec-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: {
+                  server: "compozy-hosted-tools",
+                  tool: "compozy__session_prompt",
+                  arguments: { session_id: targetId, message: "PR opened and ready for review." },
+                },
+                output: { status: "queued" },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "exec-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-codex",
+                  mode: "queue",
+                  delivery: "after_turn",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+        ]),
+      },
+      clientWithPeers()
+    );
+    const card = await screen.findByRole("article", { name: "Sent to Billing reviewer" });
+    expect(within(card).getByText("PR opened and ready for review.")).toBeVisible();
+  });
+
+  it("Should draw one Sent to card for a call a queued prompt split across two messages (#742)", async () => {
+    // A prompt queued while the call streamed its arguments ends the first message; the call's
+    // later events and result land in the continuation, so both messages hold its part.
+    const send = (id: string, settled: boolean): SessionMessage =>
+      ({
+        id,
+        role: "assistant",
+        metadata: { turn_id: "turn-send" },
+        parts: [
+          {
+            type: "tool-compozy__session_prompt",
+            toolCallId: "call-send",
+            state: settled ? "output-available" : "input-available",
+            turnId: "turn-send",
+            // The continuation may hold the result without the arguments the first message carried.
+            input: settled
+              ? {}
+              : { session_id: targetId, message: "Is the retry budget per request or per job?" },
+            ...(settled ? { output: { status: "accepted" } } : {}),
+          },
+          {
+            type: "data-compozy-session-message",
+            turnId: "turn-send",
+            data: {
+              tool_call_id: "call-send",
+              target_session_id: targetId,
+              target_workspace_id: fixtureWorkspaceId(),
+              message_id: "msg-retry-q",
+              mode: "queue",
+              ...(settled ? { reply_watch_id: "rw-6e2d81a0" } : {}),
+              state: settled ? "done" : "running",
+            },
+          },
+        ],
+      }) as unknown as SessionMessage;
+
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([send("turn-send", false), send("turn-send-2", true)]),
+      },
+      clientWithPeers()
+    );
+    const card = await screen.findByRole("article", {
+      name: "Sent to Billing reviewer, waiting for reply",
+    });
+    expect(within(card).getByText("Is the retry budget per request or per job?")).toBeVisible();
+    expect(screen.getAllByTestId("session-sent-message-row")).toHaveLength(1);
+  });
+
+  function inboundMessage(
+    id: string,
+    text: string,
+    { from = senderId, inReplyTo }: { from?: string; inReplyTo?: string } = {}
+  ): SessionMessage {
+    return {
+      id,
+      role: "user",
+      metadata: {
+        turn_id: `turn-${id}`,
+        message_id: id,
+        origin: {
+          kind: "session",
+          session_id: from,
+          workspace_id: fixtureWorkspaceId(),
+          hop: 1,
+          ...(inReplyTo ? { in_reply_to: inReplyTo } : {}),
+        },
+      },
+      parts: [{ type: "text", text }],
+    } as SessionMessage;
+  }
+
+  it("Should fold consecutive messages from one sender behind their latest card (#760)", async () => {
+    const user = userEvent.setup();
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          inboundMessage("msg-update-1", "Plan drafted."),
+          inboundMessage("msg-update-2", "Tests written."),
+          inboundMessage("msg-update-3", "PR opened."),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    const toggle = await screen.findByTestId("session-inbound-group-toggle");
+    expect(toggle).toHaveTextContent("Refactor billing · 3 messages");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByTestId("session-message-card")).toHaveLength(1);
+    expect(screen.getByText("PR opened.")).toBeVisible();
+    expect(screen.queryByText("Plan drafted.")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getAllByTestId("session-message-card")).toHaveLength(3);
+    expect(screen.getByTestId("session-inbound-group-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+  });
+
+  it("Should link an explicit reply to its Sent card and read the send as replied (#760)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-sender-turn",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-compozy__session_prompt",
+                toolCallId: "call-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: { session_id: targetId, message: "Approve the plan?" },
+                output: { status: "accepted", reply_watch: { id: "rw-plan", state: "armed" } },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "call-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-plan",
+                  mode: "queue",
+                  reply_watch_id: "rw-plan",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+          inboundMessage("msg-approval", "Approved.", { from: targetId, inReplyTo: "msg-plan" }),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    // The explicit answer reads replied while the armed watch keeps waiting for the turn to settle.
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
+    ).toBeInTheDocument();
+    const card = await screen.findByRole("article", { name: "Message from Billing reviewer" });
+    expect(
+      within(card).getByRole("button", { name: "In reply: show the original message" })
+    ).toHaveAttribute("data-target-message-id", "msg-sender-turn");
+  });
+
+  it("Should read a send as replied when its answer arrived after the watch expired (#760)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-sender-turn",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-compozy__session_prompt",
+                toolCallId: "call-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: { session_id: targetId, message: "Approve the plan?" },
+                output: { status: "accepted", reply_watch: { id: "rw-plan", state: "armed" } },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "call-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-plan",
+                  mode: "queue",
+                  reply_watch_id: "rw-plan",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+          {
+            id: "msg-expired-wake",
+            role: "system",
+            metadata: {
+              turn_id: "turn-wake",
+              synthetic: {
+                kind: "session_reply",
+                wake_event_id: "rw-plan",
+                child_session_id: targetId,
+                child_workspace_id: fixtureWorkspaceId(),
+                child_agent_name: "codex",
+                reason: "expired",
+                summary: "",
+                reply_truncated: false,
+                hop: 1,
+              },
+            },
+            parts: [{ type: "text", text: "No reply arrived in time.", state: "done" }],
+          } as SessionMessage,
+          inboundMessage("msg-approval", "Approved late.", {
+            from: targetId,
+            inReplyTo: "msg-plan",
+          }),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
+    ).toBeInTheDocument();
+  });
 });

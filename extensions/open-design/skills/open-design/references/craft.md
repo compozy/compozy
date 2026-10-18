@@ -28,6 +28,19 @@ Use the sections relevant to the surface being changed. The project's design sys
 - Use approved assets and accurate product imagery. Preserve logos, artwork, and brand identity. Avoid emoji substituting for a coherent icon set, random stock imagery, decorative blobs, and unrelated placeholder URLs. Match icon size, optical weight, and alignment to nearby controls.
 - Write actual task labels: “Start tracking” conveys more than “Get started.” Do not invent metrics, endorsements, customers, screenshots, or product capability. For an authorized mockup, clearly label illustrative content; otherwise work with known content and expose missing material honestly. Do not fill empty space with filler prose.
 
+## Choice, memory, and convention
+
+These composition heuristics come from named UX research. Apply them to the decisions a surface asks of its user; they guide judgment and are not automatic defects.
+
+- Give equivalent affordances identical treatment and reserve visible deviation for the one item meant to stand out, such as the recommended tier, selected navigation, or a warning. Pair that contrast with a non-color cue. Use enclosure only when proximity is not enough; bordering every section destroys the signal.
+- Decision time grows with equivalent options. Keep a single decision to about 3–5 visible primary options at equal weight, distinguish the recommended one, and move the rest behind progressive disclosure without hiding the path forward. Pricing often needs 3–4 tiers with exactly one recommended; settings read better as a few named groups than a flat wall of toggles.
+- Working memory reliably holds about four chunks. Group related fields and controls under clear headings, and prefer recognition to recall: persist prior context, applied filters, and selections instead of making the user remember them across screens.
+- Identify the two or three actions that drive the dominant journey and give them the strongest emphasis; demote the long tail to overflow, secondary navigation, or settings. Reserve the strongest contrast for one goal-relevant action per surface. Repeated badges, red dots, and attention-grabbers train users to ignore them.
+- Complexity that cannot be removed must live somewhere. When it reaches the user, place guidance, smart defaults, or empty-state coaching at the exact step where it appears, because users act before reading instructions. Accept input in natural shapes, such as phone numbers with or without separators, and normalize it.
+- Reuse category conventions for navigation, carts, settings, and primary actions so users do not relearn interaction grammar; novelty must earn its cost. When the brief names a reference product, inherit its interaction model deliberately.
+- Show real progress through multi-step flows (“Step 2 of 5”, completed prerequisites that actually exist). Never fabricate progress, streaks, or quota pressure. Put the emotional peak at the successful end of a flow and keep intermediate steps calm.
+- Target size and distance govern acquisition speed, but speed alone does not set a floor: keep the target guidance below and place frequent mobile controls within easy thumb reach.
+
 ## Color and contrast by state
 
 - Reuse semantic tokens for background, surface, foreground, muted text, border, accent, and status. Keep palette primitives within the existing system instead of scattering raw colors through components.
@@ -68,7 +81,7 @@ Cover states the changed surface can actually reach; do not add workflows merely
 - Set document and mixed-content language correctly. For CJK, start display leading at 1.3–1.4 and body at 1.7–1.8, with zero display tracking; large multiline heroes still need that clearance. Do not inherit tight Latin settings into CJK blocks.
 - For Arabic and other joining scripts, use zero tracking and enough vertical clearance for diacritics; Arabic body often needs 1.5–1.75 leading. For RTL, set `dir` as well as `lang`, use logical spacing and start/end alignment, and preserve meaningful reading order.
 - Use `dir="auto"` for unknown-direction text and `<bdi>` for embedded values. Force LTR for intrinsically LTR email, URL, phone, or account values, including weak-character-heavy numbers. Mirror directional navigation when appropriate, not logos, photos, clocks, or media playback timelines.
-- Animate to confirm feedback, orientation, expansion, or progress. Useful starting durations: 50–100 ms for a press, 150 ms for state feedback, 200–300 ms for entering UI, 300–500 ms for a screen transition. Keep frequent interactions around 200 ms or less, following existing motion tokens.
+- Animate only to confirm feedback, orientation, expansion, or progress, following existing motion tokens. When an artifact adds or changes motion, load [motion.md](motion.md) for the gate, tools, curves, durations, and interruption rules.
 - Honor reduced motion by removing translation, scale, rotation, and parallax; retain a static state cue, with an optional gentle opacity transition. Do not rely on motion alone. Provide pause/stop/hide for nonessential automatic movement lasting over five seconds alongside other content, and avoid rapid flashing. End ambient effects when their surface leaves.
 
 ## Check the changed surface

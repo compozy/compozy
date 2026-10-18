@@ -21,7 +21,6 @@ export {
 
 // Query infrastructure
 export { vaultKeys } from "./lib/query-keys";
-export { vaultNamespaceTone } from "./lib/vault-tones";
 export {
   sessionVaultSecretsOptions,
   vaultSecretDetailOptions,
@@ -47,7 +46,7 @@ export {
   type VaultSecretsRowProps,
 } from "./components";
 
-export { vaultSecretTitle } from "./lib/vault-secret-title";
+export { vaultSecretLocation, vaultSecretTitle } from "./lib/vault-secret-title";
 
 export {
   useVaultPage,

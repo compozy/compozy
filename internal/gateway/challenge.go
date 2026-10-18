@@ -59,10 +59,7 @@ func (r *ChallengeRegistry) Begin(tier Tier) (path string, nonce string, cleanup
 	r.mu.Lock()
 	r.active[tier] = challenge
 	r.mu.Unlock()
-	var once sync.Once
-	return challenge.path, challenge.nonce, func() {
-		once.Do(func() { r.clear(tier, id) })
-	}, nil
+	return challenge.path, challenge.nonce, sync.OnceFunc(func() { r.clear(tier, id) }), nil
 }
 
 // Resolve returns the exact nonce only for the active path on the assigned tier.

@@ -120,7 +120,8 @@ func TestUpdateCommandContract(t *testing.T) {
 			t.Fatalf("json.Unmarshal(update) error = %v", err)
 		}
 		if record.Status != compozyupdate.StatusAvailable || record.Runtime.Status != compozyupdate.StatusAvailable ||
-			record.Runtime.CurrentVersion != "v1.0.0" || record.Runtime.LatestVersion != "v1.1.0" {
+			record.Runtime.CurrentVersion != "v1.0.0" || record.Runtime.LatestVersion != "v1.1.0" ||
+			record.Runtime.Managed || record.Runtime.InstallMethod != "direct-binary" {
 			t.Fatalf("update record = %#v, want nested available runtime", record)
 		}
 	})
@@ -217,10 +218,10 @@ func TestUpdateTerminalProjection(t *testing.T) {
 		}
 		got := completedUpdateRecord(record, compozyupdate.OperationRequest{
 			Runtime: &compozyupdate.RuntimeOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"},
+				ToVersion: "v1.1.0",
 			},
 			App: &compozyupdate.AppOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"}, AttemptID: "attempt-1",
+				ToVersion: "v1.1.0", AttemptID: "attempt-1",
 			},
 		}, nil)
 		if got.Status != compozyupdate.StatusStaged || got.Runtime.Status != compozyupdate.StatusUpdated ||
@@ -295,7 +296,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 		record, err := finalizeUpdateRecord(
 			base,
 			compozyupdate.OperationRequest{App: &compozyupdate.AppOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"}, AttemptID: "attempt-1",
+				ToVersion: "v1.1.0", AttemptID: "attempt-1",
 			}},
 			nil,
 			nil,
@@ -494,13 +495,11 @@ func TestLocalRestartStatusDuringBoot(t *testing.T) {
 			}
 			if phase == compozydaemon.RestartStatusFailed {
 				record.FailureReason = "replacement exited"
-				completed := fixedTestNow
-				record.CompletedAt = &completed
+				record.CompletedAt = new(fixedTestNow)
 			}
 			if phase == compozydaemon.RestartStatusReady {
 				record.NewPID = 2
-				completed := fixedTestNow
-				record.CompletedAt = &completed
+				record.CompletedAt = new(fixedTestNow)
 			}
 			data, err := json.Marshal(record)
 			if err != nil {

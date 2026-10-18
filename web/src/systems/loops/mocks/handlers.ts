@@ -1,10 +1,5 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
-import {
-  buildLiveNetworkParticipationFixture,
-  buildLocalNetworkParticipationFixture,
-  type ResolvedNetworkParticipationFixture,
-} from "@/test/network-participation-fixtures";
 import type {
   LoopAnnotationsUpdateRequest,
   LoopConfigUpdateRequest,
@@ -248,7 +243,6 @@ export const handlers: HttpHandler[] = [
     async ({ request, params }) => {
       const url = new URL(request.url);
       const name = String(params.name);
-      const workspaceId = String(params.workspace_id);
       const entry = catalogByName.get(name);
       if (!entry) {
         return HttpResponse.json({ error: `Loop not found: ${name}` }, { status: 404 });
@@ -256,33 +250,7 @@ export const handlers: HttpHandler[] = [
       const detail = entry.last_run ? loopRunDetailByRunId.get(entry.last_run.id) : undefined;
       const body = (await request.json().catch(() => ({}))) as {
         inputs?: Record<string, unknown>;
-        network_participation?: {
-          mode?: string | null;
-          channel_id?: string | null;
-          channel_strategy?: string | null;
-        } | null;
       };
-      const requested = body.network_participation;
-      let resolvedParticipation: ResolvedNetworkParticipationFixture =
-        buildLocalNetworkParticipationFixture();
-      if (requested?.mode === "live") {
-        const strategy = requested.channel_strategy;
-        const channelId = requested.channel_id?.trim() ?? "";
-        if (strategy === "named" && channelId) {
-          resolvedParticipation = buildLiveNetworkParticipationFixture({ workspaceId, channelId });
-        } else if (strategy === "loop_run") {
-          resolvedParticipation = buildLiveNetworkParticipationFixture({
-            workspaceId,
-            channelId: `loop-${detail?.run.id ?? name}`,
-            channelStrategy: "loop_run",
-          });
-        } else {
-          return HttpResponse.json(
-            { error: "Loop Live participation requires named or loop_run strategy." },
-            { status: 422 }
-          );
-        }
-      }
       if (url.searchParams.get("dry") === "true") {
         const definition = loopDetailByName.get(name)?.definition;
         const inputs = resolveRunInputs(entry, body.inputs ?? {});
@@ -292,7 +260,6 @@ export const handlers: HttpHandler[] = [
             generation: 1,
             resolved_inputs: inputs.resolved,
             input_origins: inputs.origins,
-            resolved_network_participation: resolvedParticipation,
             contract: entry.contract,
             materialized_contract: materializeContractFixture(entry.contract, inputs.resolved),
             nodes: previewNodes(definition),
@@ -331,7 +298,6 @@ export const handlers: HttpHandler[] = [
           run: {
             ...detail.run,
             inputs: resolveRunInputs(entry, body.inputs ?? {}).resolved,
-            resolved_network_participation: resolvedParticipation,
           },
         },
         { status: 201 }
@@ -417,12 +383,13 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.get(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events",
     ({ params, response }) => {
-      const workspaceId = String(params.workspace_id);
       const runId = String(params.run_id);
       if (!runDetailByRunId.has(runId)) {
         return HttpResponse.json({ error: `Loop run not found: ${runId}` }, { status: 404 });
       }
-      return response.untyped(createLoopRunEventsStreamResponse(workspaceId, runId));
+      return response.untyped(
+        createLoopRunEventsStreamResponse(String(params.workspace_id), runId)
+      );
     }
   ),
   compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve", () =>

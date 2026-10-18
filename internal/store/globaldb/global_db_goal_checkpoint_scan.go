@@ -61,16 +61,13 @@ func (fields *goalCheckpointScanFields) apply(checkpoint *goal.Checkpoint) error
 		checkpoint.BindingEpoch = fields.bindingEpoch.Int64
 	}
 	if fields.usageSequence.Valid {
-		value := fields.usageSequence.Int64
-		checkpoint.UsageSequence = &value
+		checkpoint.UsageSequence = new(fields.usageSequence.Int64)
 	}
 	if fields.usagePendingAfterSequence.Valid {
-		value := fields.usagePendingAfterSequence.Int64
-		checkpoint.UsagePendingAfterSequence = &value
+		checkpoint.UsagePendingAfterSequence = new(fields.usagePendingAfterSequence.Int64)
 	}
 	if fields.compactionBaselineUsed.Valid {
-		value := fields.compactionBaselineUsed.Int64
-		checkpoint.CompactionBaselineUsed = &value
+		checkpoint.CompactionBaselineUsed = new(fields.compactionBaselineUsed.Int64)
 	}
 	checkpoint.CompactionRecoveryRequired = fields.compactionRecoveryRequired != 0
 	var err error

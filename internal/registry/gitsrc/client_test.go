@@ -526,7 +526,7 @@ func TestClientSearch(t *testing.T) {
 		t.Parallel()
 
 		client := NewClient()
-		_, err := client.Search(context.Background(), "fixture", registry.SearchOpts{})
+		_, err := client.Search(t.Context(), "fixture", registry.SearchOpts{})
 		if !errors.Is(err, registry.ErrNotSupported) {
 			t.Fatalf("Search() error = %v, want ErrNotSupported", err)
 		}

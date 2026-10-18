@@ -20,6 +20,14 @@ import { ThreadScrollStoreContext } from "./hooks/thread-scroll-context";
 import { SteerProvenanceProvider } from "@/systems/session/lib/steer-provenance-context";
 import { SessionTurnOutcomesProvider } from "@/systems/session/lib/session-turn-outcomes-context";
 import { threadScrollLogic } from "./hooks/thread-scroll-store";
+import { SessionSubagentBanner } from "./session-subagent-banner";
+import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
+import {
+  SubagentNavigationContext,
+  SubagentOriginContext,
+  type SubagentNavigation,
+  type SubagentOriginContextValue,
+} from "@/systems/session/contexts/session-subagents-context-value";
 import {
   SessionDecisionDock,
   SessionTerminalQuoteSlot,
@@ -28,7 +36,6 @@ import {
   SessionTransportHistoryResetNotice,
   type SessionBusyInputHandler,
   type SessionFailurePayload,
-  type SessionQuietWarning,
   type SessionState,
 } from "@/systems/session";
 
@@ -63,12 +70,6 @@ interface SessionThreadProps extends Omit<
   statusSession?: SessionThreadStatusSession | null;
   /** The daemon answered the operator's turn stop with `nothing-in-flight` (US-009.EC-2). */
   stopCompletionNote?: boolean;
-  /**
-   * The daemon's quiet episode (US-014.EC-2). While present the status row
-   * reads the quiet clock instead of "Working for": the daemon has no work
-   * signal for this session, so a working timer would contradict it.
-   */
-  quietWarning?: SessionQuietWarning | null;
   liveDataEnabled?: boolean;
   /**
    * Renders the transcript with no way to act on it.
@@ -79,6 +80,10 @@ interface SessionThreadProps extends Omit<
    * business. Nothing here is a permission check — the daemon owns that.
    */
   readOnly?: boolean;
+  /** Opens sessions from the transcript (subagent drill-in, Open parent); host-owned. */
+  subagentNavigation?: SubagentNavigation | null;
+  /** The parent of a delegated subagent session, for the "Subagent of" divider (S4). */
+  subagentOrigin?: SubagentOriginContextValue | null;
 }
 
 function inactivePlaceholder(
@@ -125,11 +130,11 @@ export function SessionThread({
   failure,
   statusSession = null,
   stopCompletionNote = false,
-  quietWarning = null,
   liveDataEnabled = true,
   runtimeControl,
   environmentControl,
   contextControl,
+  subagentControl,
   commandCatalog,
   commandCatalogStatus,
   onCommandCatalogOpen,
@@ -137,6 +142,8 @@ export function SessionThread({
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
   readOnly = false,
+  subagentNavigation = null,
+  subagentOrigin = null,
 }: SessionThreadProps) {
   const thread = useSessionThreadState({
     acpSessionId,
@@ -158,7 +165,7 @@ export function SessionThread({
         return onSteerPrompt(draft);
       }
     : undefined;
-  return (
+  const content = (
     <ThreadPrimitive.Root
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       data-thread-root=""
@@ -198,7 +205,6 @@ export function SessionThread({
                       stopCompletionNote={stopCompletionNote}
                       stopping={stopPhase === "stopping" || sessionState === "stopping"}
                       running={thread.runtimeRunning}
-                      quietWarning={quietWarning}
                       liveDataEnabled={liveDataEnabled}
                       reducedMotion={thread.reducedMotion}
                     />
@@ -217,6 +223,9 @@ export function SessionThread({
                             workspaceId={workspaceId}
                           />
                         ) : undefined
+                      }
+                      editorBanner={
+                        <SessionSubagentBanner parentTurnRunning={thread.runtimeRunning} />
                       }
                       canPrompt={thread.lifecycleCanPrompt}
                       onCancelPrompt={thread.handleCancelPrompt}
@@ -242,6 +251,7 @@ export function SessionThread({
                       runtimeControl={runtimeControl}
                       environmentControl={environmentControl}
                       contextControl={contextControl}
+                      subagentControl={subagentControl}
                       commandCatalog={commandCatalog}
                       commandCatalogStatus={commandCatalogStatus}
                       onCommandCatalogOpen={onCommandCatalogOpen}
@@ -257,5 +267,15 @@ export function SessionThread({
         </SessionTurnOutcomesProvider>
       </ThreadScrollStoreContext.Provider>
     </ThreadPrimitive.Root>
+  );
+  // One roster subscription for the transcript, the composer banner and the status line.
+  return (
+    <SubagentNavigationContext value={subagentNavigation}>
+      <SubagentOriginContext value={subagentOrigin}>
+        <SessionSubagentsProvider workspaceId={workspaceId ?? ""} sessionId={sessionId}>
+          {content}
+        </SessionSubagentsProvider>
+      </SubagentOriginContext>
+    </SubagentNavigationContext>
   );
 }

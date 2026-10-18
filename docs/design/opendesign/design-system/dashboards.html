@@ -6,7 +6,7 @@
 <title>CompozyOS DS · 07 Dashboards</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <link rel="stylesheet" href="ds-shell.css">
 <link rel="stylesheet" href="ds-docs.css">
@@ -29,7 +29,7 @@ svg.lucide{stroke-width:1.6}
   border-bottom:1px solid var(--line-soft);
   font-size:12px;color:var(--subtle);
 }
-.dsh-pagemeta b{color:var(--muted);font-weight:510}
+.dsh-pagemeta b{color:var(--muted);font-weight:500}
 
 /* --- section head: eyebrow · count · spacer · quiet trailing link --- */
 /* min-height keeps paired heads on one baseline whether they carry a chip, a
@@ -37,7 +37,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-head{display:flex;align-items:center;gap:8px;min-height:24px;margin-bottom:10px;min-width:0}
 .dsh-sp{flex:1;min-width:8px}
 .dsh-note{font-size:var(--text-badge);color:var(--faint)}
-.dsh-act{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:510;color:var(--muted);transition:color var(--dur-fast) var(--ease)}
+.dsh-act{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--muted);transition:color var(--dur-fast) var(--ease)}
 .dsh-act svg.lucide{width:12px;height:12px}
 .dsh-act:hover{color:var(--fg-strong)}
 
@@ -47,7 +47,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-fold>summary{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;list-style:none;min-width:0}
 .dsh-fold>summary::-webkit-details-marker{display:none}
 .dsh-fold>summary:hover{background:var(--row-hover)}
-.dsh-fold>summary svg.lucide{color:var(--muted)}.dsh-fold>summary b{font-size:13px;font-weight:510;color:var(--fg-strong);flex:none}
+.dsh-fold>summary svg.lucide{color:var(--muted)}.dsh-fold>summary b{font-size:13px;font-weight:500;color:var(--fg-strong);flex:none}
 .dsh-fold>summary .gist{font-size:12px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-fold>summary .chev{margin-left:auto;color:var(--faint);transition:transform var(--dur) var(--ease)}
 .dsh-fold[open]>summary .chev{transform:rotate(180deg)}
@@ -104,7 +104,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-aghead{border-top:0;font-size:var(--text-badge);color:var(--subtle)}
 .dsh-aghead span:not(:first-child){text-align:right}
 .dsh-agname{display:flex;align-items:center;gap:8px;min-width:0}
-.dsh-agname b{font-weight:510;color:var(--fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-agname b{font-weight:500;color:var(--fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-num{font-family:var(--font-mono);font-size:11.5px;color:var(--fg);text-align:right;font-variant-numeric:tabular-nums}
 .dsh-num[data-zero]{color:var(--faint)}.dsh-num[data-tone="danger"]{color:var(--danger)}
 .dsh-agrt{display:flex;align-items:center;gap:8px;min-width:0}
@@ -117,7 +117,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-ev__dot{width:7px;height:7px;border-radius:50%;background:var(--faint);margin-top:5px}
 .dsh-ev__dot[data-tone="success"]{background:var(--success)}.dsh-ev__dot[data-tone="warning"]{background:var(--warning)}
 .dsh-ev__dot[data-tone="danger"]{background:var(--danger)}.dsh-ev__dot[data-tone="run"]{background:var(--accent)}
-.dsh-ev__t{font-size:13px;font-weight:510;color:var(--fg);line-height:1.4}
+.dsh-ev__t{font-size:13px;font-weight:500;color:var(--fg);line-height:1.4}
 .dsh-ev__t b{font-weight:600;color:var(--fg-strong)}
 .dsh-ev__d{font-size:12px;line-height:1.5;color:var(--muted);margin-top:2px}
 .dsh-ev__time{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums;margin-top:3px}
@@ -136,7 +136,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-heat-h{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);line-height:12px;text-align:center}
 .dsh-cell{width:15px;height:15px;border-radius:3px;background:var(--viz-cell)}
 .dsh-insights{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--muted)}
-.dsh-insights b{color:var(--fg-strong);font-weight:510}
+.dsh-insights b{color:var(--fg-strong);font-weight:500}
 .dsh-insights .mono{font-size:10.5px;color:var(--faint)}
 .dsh-share{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--canvas-tint)}
 .dsh-share i{display:block;height:100%}
@@ -147,7 +147,7 @@ svg.lucide{stroke-width:1.6}
 /* --- system fold --- */
 .dsh-sysbar{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;text-align:left}
 .dsh-sysbar:hover{background:var(--row-hover)}
-.dsh-sysbar b{font-size:13px;font-weight:510;color:var(--fg-strong);flex:none}
+.dsh-sysbar b{font-size:13px;font-weight:500;color:var(--fg-strong);flex:none}
 .dsh-sysbar .sum{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-sysbar svg.lucide{color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
 .dsh-sysbar[aria-expanded="true"] svg.lucide{transform:rotate(180deg)}
@@ -204,7 +204,7 @@ svg.lucide{stroke-width:1.6}
       <tr><td>0</td><td>Page meta</td><td>Which workspace, how fresh</td><td>Demoted 12px line + hairline</td></tr>
       <tr><td>1</td><td>Needs you</td><td>What is blocked on me</td><td>Attention rows (<code>.att</code>)</td></tr>
       <tr><td>2</td><td>KPI strip</td><td>The four numbers of the day</td><td>4-up <code>.kpi--lg</code></td></tr>
-      <tr><td>3</td><td>Working now │ Network</td><td>What is running right now</td><td>Paired panels</td></tr>
+      <tr><td>3</td><td>Working now</td><td>What is running right now</td><td>Activity panel</td></tr>
       <tr><td>4</td><td>Pulse</td><td>When this workspace is busy</td><td>Full-width heatmap</td></tr>
       <tr><td>5</td><td>Outcomes │ Usage</td><td>How did the last two weeks go</td><td>Paired chart cards</td></tr>
       <tr><td>6</td><td>Agents │ Activity</td><td>Who did the work, in what order</td><td>Paired table + feed</td></tr>
@@ -364,7 +364,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-foot  { <span class="k">margin-top:auto</span>; border-top:1px solid var(--line-soft) }</div>
     <div class="demo demo--col" data-od-id="demo-paired">
       <div class="dsh-grid2" style="width:100%">
-        <section class="dsh-col" data-od-id="panel-working-now">
+        <section class="dsh-col" data-od-id="panel-working-now" style="grid-column:1 / -1">
           <div class="dsh-head"><span class="eyebrow">Working now</span><span class="count-chip">4</span>
             <span class="dsh-sp"></span><a class="dsh-act" href="#">View sessions <i data-lucide="chevron-right"></i></a></div>
           <div class="panelbox">
@@ -395,26 +395,9 @@ svg.lucide{stroke-width:1.6}
           </div>
         </section>
 
-        <section class="dsh-col" data-od-id="panel-network">
-          <div class="dsh-head"><span class="eyebrow">Network</span>
-            <span class="dsh-sp"></span><span class="dsh-note">2 peers reachable</span></div>
-          <div class="panelbox">
-            <div class="dsh-fill" style="padding:6px 14px">
-              <div class="prow"><span class="prow__k">Peers online</span><span class="prow__v"><span class="d d--ok"></span> 2 <span class="mono" style="color:var(--faint)">mac-studio · hermes-vps</span></span></div>
-              <div class="prow"><span class="prow__k">Open work</span><span class="prow__v">3 <span class="dotsep"></span><span class="mono" style="color:var(--warning)">1 needs input</span></span></div>
-              <div class="prow"><span class="prow__k">Messages today</span><span class="prow__v mono">128</span></div>
-              <div class="prow"><span class="prow__k">Last activity</span><span class="prow__v">6m ago</span></div>
-              <div style="margin:12px 0 4px">
-                <div class="dsh-mrow"><span>Wakes this week <span style="color:var(--faint)">· resets Sunday</span></span><span class="mono">12 / 50</span></div>
-                <div class="meter" role="img" aria-label="12 of 50 network wakes used"><i class="meter-fill" style="width:24%"></i></div>
-              </div>
-            </div>
-            <div class="dsh-foot"><a class="dsh-act" href="#">Open Network <i data-lucide="chevron-right"></i></a></div>
-          </div>
-        </section>
+
       </div>
-      <p class="demo-note">both footers sit on the same baseline even though the left panel holds three cards
-      and the right holds four rows plus a meter — <b>no leftover air</b></p>
+      <p class="demo-note">The list fills the panel and keeps its footer at the bottom.</p>
     </div>
   </section>
 
@@ -582,11 +565,11 @@ svg.lucide{stroke-width:1.6}
           <div><div class="dsh-ev__t">You created the trigger <b>docs/**/*.mdx</b></div></div>
           <span class="dsh-ev__time" title="Aug 22, 18:20">15h</span></div>
         <button class="dsh-evmore" type="button" aria-expanded="false" aria-controls="quiet" data-od-id="quiet-fold">
-          <i data-lucide="chevron-right"></i>9 quieter events — tool calls, config reads, memory compaction
+          <i data-lucide="chevron-right"></i>9 quieter events — tool calls, config reads, context compactions
         </button>
         <div id="quiet" hidden>
           <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t"><b>core</b> ran Edit 14 times on <code>internal/acp</code></div></div><span class="dsh-ev__time">16h</span></div>
-          <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t">Memory compaction finished</div></div><span class="dsh-ev__time">18h</span></div>
+          <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t"><b>core</b> compacted its context</div></div><span class="dsh-ev__time">18h</span></div>
         </div>
       </div>
       <p class="demo-note">the fold <b>names its contents</b>, so a user can decide without opening it</p>
@@ -669,7 +652,6 @@ svg.lucide{stroke-width:1.6}
             <div class="tile"><div class="tile__l">Providers</div><div class="tile__v"><span class="d d--ok"></span>3 of 3 <span class="mono" style="color:var(--faint)">claude · codex · hermes</span></div></div>
             <div class="tile"><div class="tile__l">Scheduler</div><div class="tile__v"><span class="d d--ok"></span>Running <span class="mono" style="color:var(--faint)">next 11:00</span></div></div>
             <div class="tile"><div class="tile__l">Triggers</div><div class="tile__v"><span class="d d--ok"></span>4 armed <span class="mono" style="color:var(--faint)">0 misfires</span></div></div>
-            <div class="tile"><div class="tile__l">Memory</div><div class="tile__v"><span class="d d--ok"></span>Healthy <span class="mono" style="color:var(--faint)">compacted 04:12</span></div></div>
             <div class="tile"><div class="tile__l">Retention</div><div class="tile__v">60 days <span class="mono" style="color:var(--faint)">events · usage</span></div></div>
           </div>
           <div class="dsh-code"><span class="c"># the same view, from the CLI</span>

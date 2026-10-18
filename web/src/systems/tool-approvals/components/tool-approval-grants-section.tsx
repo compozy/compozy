@@ -3,6 +3,7 @@ import { Plus, Shield, Trash2 } from "lucide-react";
 import { Button, ConfirmDialog, DataSurface, ListGroup, Section } from "@compozy/ui";
 
 // Narrow entry: this section must not pull the emulator into settings.
+import { humanizeToolId } from "@/systems/session";
 import { TerminalGrantRow, terminalGrantFromToolGrant } from "@/systems/terminal/parts";
 
 import { useToolApprovalGrantsPanel } from "../hooks/use-tool-approval-grants-panel";
@@ -35,10 +36,10 @@ export function ToolApprovalGrantsSection() {
           onClick={set.open}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
-          <Plus aria-hidden="true" className="size-3" />
-          Set broader decision
+          <Plus aria-hidden="true" />
+          Add rule
         </Button>
       }
     >
@@ -49,23 +50,25 @@ export function ToolApprovalGrantsSection() {
         />
         <DataSurface.Error
           action={
-            <Button onClick={onRetry} size="sm" type="button" variant="outline">
+            <Button onClick={onRetry} size="sm" type="button" variant="secondary">
               Retry
             </Button>
           }
           data-testid={`${TEST_ID}-error`}
           description={error?.message}
           icon={Shield}
+          size="compact"
           title="Couldn't load remembered decisions"
         />
         <DataSurface.Empty
           data-testid={`${TEST_ID}-empty`}
-          description="Set a broader decision, or choose Allow always or Reject always on a native-tool prompt in this workspace."
+          description="When you choose Always allow or Never allow on a prompt, it shows up here."
           icon={Shield}
+          size="compact"
           title="No remembered decisions yet"
         />
         <DataSurface.Content
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-testid={`${TEST_ID}-list`}
         >
           {renderGrantRows(grants, revoke.open)}
@@ -159,5 +162,5 @@ function revokeDescription(target: ToolApprovalGrant | null): string | null {
   if (terminal) {
     return "CompozyOS will forget this exact command in this project. The next matching run will ask again.";
   }
-  return `CompozyOS will forget this remembered approval for "${target.tool_id}" in this workspace. The next matching tool call will prompt for approval again.`;
+  return `CompozyOS will forget this remembered decision for "${humanizeToolId(target.tool_id)}" in this project. The next matching request will ask again.`;
 }

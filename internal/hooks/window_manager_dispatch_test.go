@@ -85,10 +85,8 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 
 func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
 	payload := WindowManagerPayload{
-		PayloadBase: PayloadBase{
-			Event:     event,
-			Timestamp: time.Date(2026, time.July, 23, 12, 0, 0, 0, time.UTC),
-		},
+		Event:       event,
+		Timestamp:   time.Date(2026, time.July, 23, 12, 0, 0, 0, time.UTC),
 		WorkspaceID: "workspace-a",
 		Revision:    42,
 		CommandID:   "layout.arrange",

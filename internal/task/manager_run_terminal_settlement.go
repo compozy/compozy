@@ -3,8 +3,6 @@ package task
 import (
 	"context"
 	"fmt"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func (m *Service) settleTerminalRunCommand(
@@ -295,12 +293,11 @@ func (m *Service) settleNeedsAttentionTerminalRunCommand(
 		command.Actor(),
 		command.CommandAt(),
 		RunNeedsAttentionEventPayload{
-			PreviousStatus:               mutation.Previous.Status.Normalize(),
-			Status:                       mutation.Run.Status.Normalize(),
-			SessionID:                    mutation.Run.SessionID,
-			Diagnostic:                   command.diagnostic(),
-			QueuedAt:                     mutation.Run.QueuedAt,
-			ResolvedNetworkParticipation: participation.CloneSpec(mutation.Run.NetworkSpecSnapshot()),
+			PreviousStatus: mutation.Previous.Status.Normalize(),
+			Status:         mutation.Run.Status.Normalize(),
+			SessionID:      mutation.Run.SessionID,
+			Diagnostic:     command.diagnostic(),
+			QueuedAt:       mutation.Run.QueuedAt,
 		},
 	)
 	if err != nil {

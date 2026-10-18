@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,7 +34,7 @@ func BenchmarkRenderToonArrayLarge(b *testing.B) {
 }
 
 func BenchmarkDecodeSSELargeStream(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	handler := func(_ SSEEvent) error { return nil }
 
 	b.ReportAllocs()
@@ -48,7 +47,7 @@ func BenchmarkDecodeSSELargeStream(b *testing.B) {
 }
 
 func BenchmarkDoRequestPostJSON(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	client := &daemonClient{
 		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{

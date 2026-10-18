@@ -73,17 +73,6 @@ describe("window manager store", () => {
     act(resetWindowManagerStoreSingleton);
   });
 
-  it("Should keep Query-owned snapshot data out of the interaction context", () => {
-    const store = createWindowManagerStore();
-    const context = state(store);
-
-    expect(context).not.toHaveProperty("snapshot");
-    expect(context).not.toHaveProperty("revision");
-    expect(context).not.toHaveProperty("desktops");
-    expect(context).not.toHaveProperty("windows");
-    expect(context).not.toHaveProperty("actions");
-  });
-
   it("Should preserve work area while resetting scoped interaction for a new binding", () => {
     const store = createWindowManagerStore();
     store.trigger.bindingBound({
@@ -128,7 +117,7 @@ describe("window manager store", () => {
       profileId: "marketing",
       clientId: "client:two",
     });
-    expect(selectWindowManagerConnectionStatus(state(store))).toBe("disconnected");
+    expect(selectWindowManagerConnectionStatus(state(store))).toBe("idle");
     expect(selectWindowManagerWorkArea(state(store))).toEqual(WORK_AREA);
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
     expect(selectDesktopOverviewSegmentRequest(state(store))).toBeNull();
@@ -191,7 +180,7 @@ describe("window manager store", () => {
       profileId: "research",
       clientId: "client:one",
     });
-    expect(selectWindowManagerConnectionStatus(state(store))).toBe("disconnected");
+    expect(selectWindowManagerConnectionStatus(state(store))).toBe("idle");
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
   });
 

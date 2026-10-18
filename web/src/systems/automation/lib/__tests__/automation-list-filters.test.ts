@@ -1,95 +1,64 @@
 // Suite: Automation list filter chips
-// Invariant: URL-backed filter state round-trips through the chip bar — state
-// projects to one chip per active field, and applying chips dispatches the
-// typed handler per field (invalid values fall back to null). Ports the
-// filter-forwarding coverage lost with the master-detail list panel.
-// Boundary IN: filter state <-> chip projection/application.
-// Boundary OUT: URL persistence (page-base) and chip rendering (@compozy/ui Filters).
+// Invariant: the strip offers Does · Status · Location · Source · Loop (no Event), one value each.
+// Boundary IN: URL filter state and FiltersWithSearch chip changes.
+// Boundary OUT: FiltersWithSearch rendering (packages/ui).
 import { describe, expect, it, vi } from "vitest";
 
 import {
   applyAutomationFilterChips,
   automationFiltersToChips,
   buildAutomationFilterFields,
-  type AutomationFilterHandlers,
+  type AutomationFilterState,
 } from "../automation-list-filters";
 
-function createHandlers(): AutomationFilterHandlers {
-  return {
-    onEnabledChange: vi.fn(),
-    onEventChange: vi.fn(),
-    onScopeChange: vi.fn(),
-    onSourceChange: vi.fn(),
-  };
-}
+const empty: AutomationFilterState = {
+  target: null,
+  enabled: null,
+  scope: null,
+  source: null,
+  loop: null,
+};
 
-describe("buildAutomationFilterFields", () => {
-  it("Should expose the event field only for triggers", () => {
-    const fieldKeys = (kind: "jobs" | "triggers") =>
-      buildAutomationFilterFields(kind).map(field => ("key" in field ? field.key : null));
-
-    expect(fieldKeys("jobs")).toEqual(["scope", "source", "enabled"]);
-    expect(fieldKeys("triggers")).toEqual(["scope", "source", "enabled", "event"]);
+describe("automation list filters", () => {
+  it("Should offer the five facets and no Event filter", () => {
+    expect(
+      buildAutomationFilterFields().map(field => ("label" in field ? field.label : ""))
+    ).toEqual(["Does", "Status", "Location", "Source", "Loop"]);
   });
-});
 
-describe("automationFiltersToChips", () => {
-  it("Should project only active filters as chips and skip defaults", () => {
-    const chips = automationFiltersToChips({
-      enabled: false,
-      event: "ext.github.push",
-      scope: "workspace",
-      source: null,
-    });
-
-    expect(chips.map(chip => [chip.field, chip.values[0]])).toEqual([
-      ["scope", "workspace"],
-      ["enabled", "false"],
-      ["event", "ext.github.push"],
+  it("Should label Does and Location in plain words", () => {
+    const [does, , location] = buildAutomationFilterFields();
+    expect("options" in does ? does.options?.map(option => option.label) : []).toEqual([
+      "Ask an agent",
+      "Start a Loop",
+      "Create a task",
+    ]);
+    expect("options" in location ? location.options?.map(option => option.label) : []).toEqual([
+      "This project",
+      "Global",
     ]);
   });
 
-  it("Should project no chips for the default state", () => {
-    expect(
-      automationFiltersToChips({ enabled: null, event: null, scope: "all", source: null })
-    ).toEqual([]);
-  });
-});
-
-describe("applyAutomationFilterChips", () => {
-  it("Should dispatch each chip to its typed handler", () => {
-    const handlers = createHandlers();
+  it("Should round-trip applied chips and clear a removed one", () => {
+    const state = { ...empty, target: "loop" as const, loop: "software-delivery" };
+    const chips = automationFiltersToChips(state);
+    expect(chips.map(chip => [chip.field, chip.values[0]])).toEqual([
+      ["target", "loop"],
+      ["loop", "software-delivery"],
+    ]);
+    const handlers = {
+      onTargetChange: vi.fn(),
+      onEnabledChange: vi.fn(),
+      onScopeChange: vi.fn(),
+      onSourceChange: vi.fn(),
+      onLoopChange: vi.fn(),
+    };
     applyAutomationFilterChips(
-      [
-        { field: "scope", id: "automation-filter-scope", operator: "is", values: ["global"] },
-        { field: "source", id: "automation-filter-source", operator: "is", values: ["dynamic"] },
-        { field: "enabled", id: "automation-filter-enabled", operator: "is", values: ["true"] },
-        {
-          field: "event",
-          id: "automation-filter-event",
-          operator: "is",
-          values: [" ext.github.push "],
-        },
-      ],
+      chips.filter(chip => chip.field !== "loop"),
       handlers
     );
-
-    expect(handlers.onScopeChange).toHaveBeenCalledWith("global");
-    expect(handlers.onSourceChange).toHaveBeenCalledWith("dynamic");
-    expect(handlers.onEnabledChange).toHaveBeenCalledWith(true);
-    expect(handlers.onEventChange).toHaveBeenCalledWith("ext.github.push");
-  });
-
-  it("Should reset every handler to null when chips are cleared or invalid", () => {
-    const handlers = createHandlers();
-    applyAutomationFilterChips(
-      [{ field: "scope", id: "automation-filter-scope", operator: "is", values: ["bogus"] }],
-      handlers
-    );
-
-    expect(handlers.onScopeChange).toHaveBeenCalledWith(null);
-    expect(handlers.onSourceChange).toHaveBeenCalledWith(null);
+    expect(handlers.onTargetChange).toHaveBeenCalledWith("loop");
+    expect(handlers.onLoopChange).toHaveBeenCalledWith(null);
     expect(handlers.onEnabledChange).toHaveBeenCalledWith(null);
-    expect(handlers.onEventChange).toHaveBeenCalledWith(null);
   });
 });

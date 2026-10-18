@@ -281,51 +281,10 @@
   </div>
 </template>
 
-<!-- ============ APP: BRIDGES — reuses bridges route ============ -->
-<template id="tpl-app-bridges">
-  <div class="app">
-    <p class="app-note">Bridges expose this daemon to external surfaces — editors, chat apps, launchers — over the SDK and UDS.</p>
-    <ul class="list" data-bridge-rows></ul>
-  </div>
-</template>
-
 <!-- ============ APP: KNOWLEDGE — reuses knowledge route ============ -->
 <template id="tpl-app-knowledge">
   <div class="app">
     <ul class="list" data-knowledge-rows></ul>
-  </div>
-</template>
-
-<!-- ============ APP: SANDBOX — Rows|Cards in context strip ============ -->
-<template id="tpl-app-sandbox">
-  <div class="app" data-view="rows">
-    <div class="app-toolbar" data-hoist-toolbar>
-      <span class="toolbar-meta mono" data-sb-count>3 profiles</span>
-      <span class="w2-flex" aria-hidden="true"></span>
-      <div class="pill-group" role="group" aria-label="View mode">
-        <button class="pill-group__item is-on" data-sbview="rows">Rows</button>
-        <button class="pill-group__item" data-sbview="cards">Cards</button>
-      </div>
-    </div>
-    <ul class="list" data-sb-rows></ul>
-    <div class="listing-card-grid" data-sb-cards hidden></div>
-  </div>
-</template>
-
-<!-- ============ APP: NETWORK — Healthy chip lives in the window head trail ============ -->
-<template id="tpl-app-network">
-  <div class="app">
-    <div class="net-head">
-      <div>
-        <h3>compozy-mesh</h3>
-        <p class="prov">4 peers · gossip healthy · last sync 12s ago</p>
-      </div>
-    </div>
-    <ul class="list" data-peer-rows></ul>
-    <section class="panel">
-      <header class="panel-h"><h3>Network budget</h3><span class="prov mono">$1.9 of $5 · resets Mon</span></header>
-      <div class="meter"><span class="meter-fill" style="width:38%"></span></div>
-    </section>
   </div>
 </template>
 
@@ -348,7 +307,7 @@
     <div class="set-panes">
       <section class="set-pane" data-pane-id="general">
         <div class="set-row">
-          <div class="set-copy"><h4>Confirm shell commands</h4><p>Agents ask before running anything outside the sandbox.</p></div>
+          <div class="set-copy"><h4>Confirm shell commands</h4><p>Agents ask before running shell commands.</p></div>
           <button class="switch is-on" role="switch" aria-checked="true" aria-label="Confirm shell commands"><span class="knob"></span></button>
         </div>
         <div class="set-row">

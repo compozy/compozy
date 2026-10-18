@@ -194,14 +194,14 @@ func TestArtifactCollectorCaptureCombinedAndToolHostArtifactsSeparately(t *testi
 	if err := collector.CaptureJSON(
 		ArtifactKindCombinedFlow,
 		CombinedFlowArtifact{
-			Scenario:          "automation-task-resume-network",
-			SessionID:         "sess-1",
-			Channel:           "ops-nightly",
-			AutomationRunID:   "run-1",
-			TaskID:            "task-1",
-			TaskRunID:         "task-run-1",
-			NetworkMessageIDs: []string{"msg-1"},
-			SideEffectPaths:   []string{"/workspace/toolhost/resume.txt"},
+			Scenario:  "automation-task-resume",
+			SessionID: "sess-1",
+
+			AutomationRunID: "run-1",
+			TaskID:          "task-1",
+			TaskRunID:       "task-run-1",
+
+			SideEffectPaths: []string{"/workspace/toolhost/resume.txt"},
 		},
 	); err != nil {
 		t.Fatalf("CaptureJSON(combined_flow) error = %v", err)

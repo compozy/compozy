@@ -1,9 +1,4 @@
-import {
-  storyAgentNames,
-  storyDefaultWorkspaceId,
-  storyHeroNetworkChannel,
-  storySessionIds,
-} from "./fintech-scenario";
+import { storyAgentNames, storySessionIds } from "./fintech-scenario";
 import type { RouteStoryRegistryEntry } from "./route-story-types";
 
 const storyTaskId = "task_001";
@@ -11,10 +6,6 @@ const storyTaskRunId = "run_001";
 const storyLoopName = "implement-tasks";
 const storyLoopRunId = "looprun_running";
 const storyLoopDiffRunId = "looprun_release_train";
-const storyThreadId = "thread_launch_command";
-const storyDirectId = "direct_story_launch_corridor";
-const storyBridgeId = "brg_launch_room";
-const storyNetworkBasePath = `/network/${storyDefaultWorkspaceId}/${storyHeroNetworkChannel}`;
 
 export const appRouteStories = [
   {
@@ -67,25 +58,11 @@ export const appRouteStories = [
     storyName: "DetailExtensionBrowse",
   },
   {
-    system: "automation",
-    routePath: "/triggers",
-    storybookPath: "/triggers",
-    title: "systems/automation/routes/Triggers",
-    storyName: "Default",
-  },
-  {
     system: "tasks",
     routePath: "/tasks",
     storybookPath: "/tasks",
     title: "systems/tasks/routes/Tasks",
     storyName: "DefaultList",
-  },
-  {
-    system: "network",
-    routePath: "/network",
-    storybookPath: "/network",
-    title: "systems/network/routes/Network",
-    storyName: "Overview",
   },
   {
     system: "loops",
@@ -102,46 +79,54 @@ export const appRouteStories = [
     storyName: "RunsList",
   },
   {
-    system: "knowledge",
-    routePath: "/knowledge",
-    storybookPath: "/knowledge",
-    title: "systems/knowledge/routes/Knowledge",
+    system: "automation",
+    routePath: "/automations",
+    storybookPath: "/automations",
+    title: "systems/automation/routes/Automations",
     storyName: "Default",
   },
   {
     system: "automation",
-    routePath: "/jobs",
-    storybookPath: "/jobs",
-    title: "systems/automation/routes/Jobs",
-    storyName: "Default",
-  },
-  {
-    system: "automation",
-    routePath: "/jobs/$jobId",
-    storybookPath: "/jobs/job_launch_command_digest",
-    title: "systems/automation/routes/Jobs",
+    routePath: "/automations/jobs/$jobId",
+    storybookPath: "/automations/jobs/job_launch_command_digest",
+    title: "systems/automation/routes/AutomationDetail",
     storyName: "JobDetail",
   },
   {
     system: "automation",
-    routePath: "/triggers/$triggerId",
-    storybookPath: "/triggers/trg_summarize_failures",
-    title: "systems/automation/routes/Triggers",
+    routePath: "/automations/triggers/$triggerId",
+    storybookPath: "/automations/triggers/trg_summarize_failures",
+    title: "systems/automation/routes/AutomationDetail",
     storyName: "TriggerDetail",
   },
+  // Shim: the four legacy redirect stories go with the `/jobs*` and `/triggers*` stubs in v0.5.0.
   {
-    system: "bridges",
-    routePath: "/bridges",
-    storybookPath: "/bridges",
-    title: "systems/bridges/routes/Bridges",
-    storyName: "Default",
+    system: "automation",
+    routePath: "/jobs",
+    storybookPath: "/jobs?enabled=true",
+    title: "systems/automation/routes/Automations",
+    storyName: "LegacyJobsRedirect",
   },
   {
-    system: "bridges",
-    routePath: "/bridges/$id",
-    storybookPath: `/bridges/${storyBridgeId}`,
-    title: "systems/bridges/routes/Bridges",
-    storyName: "TestDelivery",
+    system: "automation",
+    routePath: "/jobs/$jobId",
+    storybookPath: "/jobs/morning-digest",
+    title: "systems/automation/routes/Automations",
+    storyName: "LegacyJobDetailRedirect",
+  },
+  {
+    system: "automation",
+    routePath: "/triggers",
+    storybookPath: "/triggers?event=session.stopped",
+    title: "systems/automation/routes/Automations",
+    storyName: "LegacyTriggersRedirect",
+  },
+  {
+    system: "automation",
+    routePath: "/triggers/$triggerId",
+    storybookPath: "/triggers/rerun-delivery",
+    title: "systems/automation/routes/Automations",
+    storyName: "LegacyTriggerDetailRedirect",
   },
   {
     system: "tasks",
@@ -256,27 +241,6 @@ export const appRouteStories = [
     storyName: "Running",
   },
   {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/threads",
-    storybookPath: `${storyNetworkBasePath}/threads`,
-    title: "systems/network/routes/Network",
-    storyName: "ThreadsTab",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/directs",
-    storybookPath: `${storyNetworkBasePath}/directs`,
-    title: "systems/network/routes/Network",
-    storyName: "DirectsTab",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/activity",
-    storybookPath: `${storyNetworkBasePath}/activity`,
-    title: "systems/network/routes/Network",
-    storyName: "ActivityTab",
-  },
-  {
     system: "session",
     routePath: "/agents/$name/sessions/$id",
     storybookPath: `/agents/${storyAgentNames.fraud}/sessions/${storySessionIds.fraud}`,
@@ -296,19 +260,5 @@ export const appRouteStories = [
     storybookPath: "/new-tab",
     title: "systems/os/routes/NewTab",
     storyName: "Default",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/threads/$threadId",
-    storybookPath: `${storyNetworkBasePath}/threads/${storyThreadId}`,
-    title: "systems/network/routes/NetworkDetail",
-    storyName: "ThreadDetail",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/directs/$directId",
-    storybookPath: `${storyNetworkBasePath}/directs/${storyDirectId}`,
-    title: "systems/network/routes/NetworkDetail",
-    storyName: "DirectDetail",
   },
 ] as const satisfies RouteStoryRegistryEntry[];

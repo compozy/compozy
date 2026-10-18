@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	goalSessionOutboxBatchSize    = 50
-	goalSessionOutboxPollInterval = 100 * time.Millisecond
+	goalSessionOutboxBatchSize = 50
+	// goalSessionOutboxPollInterval is the fallback sweep; committed enqueues
+	// nudge the relay immediately, so the sweep only covers missed nudges.
+	goalSessionOutboxPollInterval = 2 * time.Second
 	loopSessionCleanupConcurrency = 64
 	loopSessionCleanupStopTimeout = 5 * time.Second
 )
@@ -50,6 +52,8 @@ type goalSessionOutboxRelay struct {
 	now          func() time.Time
 	batchSize    int
 	pollInterval time.Duration
+	nudge        chan struct{}
+	nudgeOnce    sync.Once
 }
 
 type goalSnapshotChangedPayload struct {
@@ -78,8 +82,30 @@ func (r *goalSessionOutboxRelay) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-r.nudgeChannel():
 		}
 	}
+}
+
+// Nudge wakes the relay after a committed Goal session outbox or Loop session
+// cleanup enqueue. It never blocks; concurrent nudges coalesce into one drain.
+func (r *goalSessionOutboxRelay) Nudge() {
+	if r == nil {
+		return
+	}
+	select {
+	case r.nudgeChannel() <- struct{}{}:
+	default:
+	}
+}
+
+func (r *goalSessionOutboxRelay) nudgeChannel() chan struct{} {
+	r.nudgeOnce.Do(func() {
+		if r.nudge == nil {
+			r.nudge = make(chan struct{}, 1)
+		}
+	})
+	return r.nudge
 }
 
 func (r *goalSessionOutboxRelay) DeliverPending(ctx context.Context) error {
@@ -140,7 +166,7 @@ func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) err
 			err := r.stopper.StopWithCause(
 				stopCtx,
 				obligation.SessionID,
-				session.CauseUserRequested,
+				loopSessionCleanupStopCause(obligation.Cause),
 				"Loop session cleanup: "+string(obligation.Cause),
 			)
 			if err != nil && !errors.Is(err, session.ErrSessionNotFound) &&
@@ -176,6 +202,15 @@ func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) err
 		deliveryErrs = append(deliveryErrs, err)
 	}
 	return errors.Join(deliveryErrs...)
+}
+
+func loopSessionCleanupStopCause(cause looppkg.SessionCleanupCause) session.StopCause {
+	switch cause {
+	case looppkg.SessionCleanupCauseStop, looppkg.SessionCleanupCauseOperatorCancel:
+		return session.CauseUserRequested
+	default:
+		return session.CauseOwnerReleased
+	}
 }
 
 func (r *goalSessionOutboxRelay) claimBatchSize() int {
@@ -238,8 +273,7 @@ func cloneGoalSessionID(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := strings.TrimSpace(*value)
-	return &cloned
+	return new(strings.TrimSpace(*value))
 }
 
 func (r *goalSessionOutboxRelay) currentTime() time.Time {

@@ -24,7 +24,7 @@ describe("useAgentCatalogMetrics", () => {
     vi.clearAllMocks();
   });
 
-  it("Should wait for workspace before querying the catalog by exact name", async () => {
+  it("Should wait for scope resolution before querying the catalog by exact name", async () => {
     vi.mocked(fetchAgentCatalog).mockResolvedValue({
       agents: [],
       facets: { active: 0, categories: [], idle: 0, total: 0 },
@@ -32,15 +32,18 @@ describe("useAgentCatalogMetrics", () => {
       sessions_available: true,
     });
 
-    const initialProps: { workspaceId: string | null } = { workspaceId: null };
+    const initialProps: { workspaceId: string | null; enabled: boolean } = {
+      workspaceId: null,
+      enabled: false,
+    };
     const { rerender } = renderHook(
-      ({ workspaceId }: { workspaceId: string | null }) =>
-        useAgentCatalogMetrics(workspaceId, "fraud-ops-agent"),
+      ({ workspaceId, enabled }) =>
+        useAgentCatalogMetrics(workspaceId, "fraud-ops-agent", { enabled }),
       { initialProps, wrapper: createWrapper() }
     );
 
     expect(fetchAgentCatalog).not.toHaveBeenCalled();
-    rerender({ workspaceId: "ws_alpha" });
+    rerender({ workspaceId: "ws_alpha", enabled: true });
 
     await waitFor(() => {
       expect(fetchAgentCatalog).toHaveBeenCalled();
@@ -54,46 +57,49 @@ describe("useAgentCatalogMetrics", () => {
     expect(request.q).toBeUndefined();
   });
 
-  it("Should expose exact catalog session aggregates without page derivation", async () => {
-    vi.mocked(fetchAgentCatalog).mockResolvedValue({
-      agents: [
-        {
-          agent: {
-            name: "fraud-ops-agent",
-            provider: "claude",
-            prompt: "p",
-            origin: "global",
-            definition_digest: "a".repeat(64),
+  it.each(["ws_alpha", null])(
+    "Should expose exact catalog session aggregates in scope %s without page derivation",
+    async workspaceId => {
+      vi.mocked(fetchAgentCatalog).mockResolvedValue({
+        agents: [
+          {
+            agent: {
+              name: "fraud-ops-agent",
+              provider: "claude",
+              prompt: "p",
+              origin: "global",
+              definition_digest: "a".repeat(64),
+            },
+            sessions: {
+              active: 2,
+              failed: 3,
+              runtime_seconds: 90,
+              total: 11,
+              last_activity_at: "2026-04-17T18:10:00Z",
+            },
           },
-          sessions: {
-            active: 2,
-            failed: 3,
-            runtime_seconds: 90,
-            total: 11,
-            last_activity_at: "2026-04-17T18:10:00Z",
-          },
-        },
-      ],
-      facets: { active: 1, categories: [], idle: 0, total: 1 },
-      page: { has_more: false, limit: 1, total: 1 },
-      sessions_available: true,
-    });
+        ],
+        facets: { active: 1, categories: [], idle: 0, total: 1 },
+        page: { has_more: false, limit: 1, total: 1 },
+        sessions_available: true,
+      });
 
-    const { result } = renderHook(() => useAgentCatalogMetrics("ws_alpha", "fraud-ops-agent"), {
-      wrapper: createWrapper(),
-    });
+      const { result } = renderHook(() => useAgentCatalogMetrics(workspaceId, "fraud-ops-agent"), {
+        wrapper: createWrapper(),
+      });
 
-    await waitFor(() => {
-      expect(result.current.sessionsAvailable).toBe(true);
-    });
-    expect(result.current).toMatchObject({
-      total: 11,
-      active: 2,
-      failed: 3,
-      runtimeSeconds: 90,
-      lastActivityAt: "2026-04-17T18:10:00Z",
-    });
-  });
+      await waitFor(() => {
+        expect(result.current.sessionsAvailable).toBe(true);
+      });
+      expect(result.current).toMatchObject({
+        total: 11,
+        active: 2,
+        failed: 3,
+        runtimeSeconds: 90,
+        lastActivityAt: "2026-04-17T18:10:00Z",
+      });
+    }
+  );
 
   it("Should report metrics unavailable when the exact agent name is absent from the page", async () => {
     vi.mocked(fetchAgentCatalog).mockResolvedValue({

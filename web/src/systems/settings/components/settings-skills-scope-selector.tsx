@@ -45,7 +45,7 @@ export function SettingsSkillsScopeSelector({
   if (availableScopes.includes("workspace") && workspaces.length > 0) {
     items.push({
       value: "workspace",
-      label: "Workspace",
+      label: "Project",
       testId: "settings-page-skills-scope-workspace",
     });
   }
@@ -55,9 +55,9 @@ export function SettingsSkillsScopeSelector({
 
   const showContextPickers = selection.scope !== "user";
   return (
-    <SettingsGroup title="Scope">
+    <SettingsGroup title="Applies to">
       <div
-        className="flex flex-wrap items-center gap-2"
+        className="flex flex-wrap items-center gap-2 px-4 py-3"
         data-testid="settings-page-skills-scope-row"
       >
         <PillGroup<SkillsScopeValue>
@@ -74,7 +74,7 @@ export function SettingsSkillsScopeSelector({
       </div>
 
       {showContextPickers ? (
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 border-t border-line-soft px-4 py-3 md:grid-cols-2">
           {selection.scope === "agent" ? (
             <SettingsFieldRow
               data-testid="settings-page-skills-agent-select"
@@ -93,22 +93,20 @@ export function SettingsSkillsScopeSelector({
           ) : null}
           <SettingsFieldRow
             data-testid="settings-page-skills-workspace-context"
-            label="Workspace"
+            label="Project"
             help={
-              selection.scope === "agent"
-                ? "Optional workspace resolver context for the selected agent"
-                : undefined
+              selection.scope === "agent" ? "Optional: the project this agent works in" : undefined
             }
             control={
               <NativeSelect
-                aria-label="Workspace"
+                aria-label="Project"
                 className="w-56"
                 data-testid="settings-page-skills-workspace-context-input"
                 value={selection.workspaceId ?? ""}
                 onChange={event => onSelectWorkspace(event.target.value)}
               >
                 {selection.scope === "agent" ? (
-                  <NativeSelectOption value="">User resolution</NativeSelectOption>
+                  <NativeSelectOption value="">Any project</NativeSelectOption>
                 ) : null}
                 {workspaces.map(workspace => (
                   <NativeSelectOption key={workspace.id} value={workspace.id}>
@@ -128,23 +126,23 @@ export function SettingsSkillsScopeNotice({ kind }: { kind: "agent" | "repositor
   if (kind === "repository-profile") {
     return (
       <SettingsGroup
-        title="Repository profile"
+        title="Set by the active profile"
         data-testid="settings-page-skills-repository-profile-note"
       >
-        <p className="text-sm text-muted">
-          This workspace projection follows the active profile and cannot be edited here.
+        <p className="px-4 py-3 text-small-body text-muted">
+          This project uses the active profile&apos;s settings and can&apos;t be edited here.
         </p>
       </SettingsGroup>
     );
   }
   return (
     <SettingsGroup
-      title="Marketplace & policy"
+      title="Other skill settings"
       data-testid="settings-page-skills-agent-policy-note"
     >
-      <p className="text-sm text-muted">
-        Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
-        poll interval, source policy, and marketplace allowlists remain user settings.
+      <p className="px-4 py-3 text-small-body text-muted">
+        For a single agent you can only turn skills off. Everything else on this page is set for you
+        as a whole.
       </p>
     </SettingsGroup>
   );

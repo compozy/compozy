@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -28,13 +27,13 @@ type taskSQLExecutor interface {
 }
 
 type queuedRunReservationInput struct {
-	taskID                string
-	runID                 string
-	runKind               taskpkg.RunKind
-	loopRunID             string
-	idempotencyKey        string
-	origin                taskpkg.Origin
-	networkSpec           participation.Spec
+	taskID         string
+	runID          string
+	runKind        taskpkg.RunKind
+	loopRunID      string
+	idempotencyKey string
+	origin         taskpkg.Origin
+
 	designationGroupID    string
 	resolvedWorktreeMode  taskpkg.WorktreeMode
 	resolvedWorktreeRef   string

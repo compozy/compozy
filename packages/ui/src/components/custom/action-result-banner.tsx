@@ -21,7 +21,7 @@ const TONE_CHROME: Record<ActionResultBannerTone, string> = {
   danger: "border-danger-tint bg-danger-tint text-danger",
   warning: "border-warning-tint bg-warning-tint text-warning",
   info: "border-info-tint bg-info-tint text-info",
-  neutral: "border-line bg-canvas-soft text-muted",
+  neutral: "border-transparent bg-surface-2 text-muted",
 };
 
 function ActionResultBanner({

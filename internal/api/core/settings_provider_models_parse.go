@@ -73,6 +73,5 @@ func cloneFloat64Ptr(value *float64) *float64 {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

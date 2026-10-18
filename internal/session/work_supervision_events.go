@@ -7,7 +7,6 @@ import (
 	"github.com/compozy/compozy/internal/events"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -72,7 +71,7 @@ func (m *Manager) prepareSupervisionEvent(
 	}
 	event := m.normalizeEvent(target, turnID, acp.AgentEvent{
 		Type: kind, Raw: raw, Timestamp: m.now(),
-		EventCorrelation: store.EventCorrelation{ActorKind: sessionSystemActorKind, ActorID: sessionDaemonActorID},
+		ActorKind: sessionSystemActorKind, ActorID: sessionDaemonActorID,
 	}).WithEventID(kind + ":" + eventID)
 	if kind == events.SessionSupervisionStopped {
 		event = event.WithEventID(kind + ":" + target.ID + ":" + turnID)

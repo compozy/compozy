@@ -17,6 +17,11 @@ export interface SessionRuntimeRenderContextValue {
   resolvedInteractions: ReadonlyMap<string, SessionInteractionRecord>;
   resetRuntime?: () => void;
   rewindBlocked?: boolean;
+  /**
+   * The daemon reports a turn in flight for this session (its detail read model),
+   * including one started outside this page — the CLI, another window, a reload.
+   */
+  sessionRunning?: boolean;
   sessionId: string;
   workspaceId: string;
 }

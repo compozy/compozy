@@ -1,10 +1,11 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 
 	"reflect"
-	"sort"
+	"slices"
 
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func indirectConfigValue(value reflect.Value) (reflect.Value, bool) {
 func configStructNode(value reflect.Value) (any, bool) {
 	result := make(map[string]any)
 	valueType := value.Type()
-	for i := 0; i < value.NumField(); i++ {
+	for i := range value.NumField() {
 		field := valueType.Field(i)
 		if field.PkgPath != "" {
 			continue
@@ -107,15 +108,15 @@ func configMapNode(value reflect.Value, fieldName string) (any, bool) {
 
 func sortedReflectMapKeys(value reflect.Value) []reflect.Value {
 	keys := value.MapKeys()
-	sort.Slice(keys, func(i int, j int) bool {
-		return fmt.Sprint(keys[i].Interface()) < fmt.Sprint(keys[j].Interface())
+	slices.SortFunc(keys, func(left, right reflect.Value) int {
+		return cmp.Compare(fmt.Sprint(left.Interface()), fmt.Sprint(right.Interface()))
 	})
 	return keys
 }
 
 func configSequenceNode(value reflect.Value, fieldName string) (any, bool) {
 	items := make([]any, 0, value.Len())
-	for i := 0; i < value.Len(); i++ {
+	for i := range value.Len() {
 		node, hasValue := configNodeFromValue(value.Index(i), fieldName)
 		if hasValue {
 			items = append(items, node)

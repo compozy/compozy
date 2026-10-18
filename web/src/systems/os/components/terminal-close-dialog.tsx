@@ -40,7 +40,7 @@ export function TerminalCloseDialog({ controller }: { controller: TerminalWindow
           ))}
         </ul>
         <DialogFooter>
-          <Button autoFocus variant="outline" onClick={() => controller.cancel()}>
+          <Button autoFocus variant="secondary" onClick={() => controller.cancel()}>
             Cancel
           </Button>
           <Button variant="destructive" onClick={() => confirmation?.answer(true)}>

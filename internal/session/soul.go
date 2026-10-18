@@ -96,7 +96,7 @@ func (m *Manager) refreshSoulLocked(
 	if err != nil {
 		return SoulRefreshResult{}, err
 	}
-	resolved, err := m.resolveSoul(ctx, artifacts, &workspaceSnapshot)
+	resolved, err := m.resolveSoul(ctx, &artifacts, &workspaceSnapshot)
 	if err != nil {
 		return SoulRefreshResult{}, fmt.Errorf("session: resolve soul for refresh %q: %w", info.ID, err)
 	}

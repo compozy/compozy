@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/retention"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestToolArtifactSweeperLifecycle(t *testing.T) {
@@ -26,7 +27,7 @@ func TestToolArtifactSweeperLifecycle(t *testing.T) {
 				t.Fatalf("Start() error = %v", err)
 			}
 			t.Cleanup(func() {
-				if err := worker.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				if err := worker.Shutdown(testutil.Context(t)); err != nil {
 					t.Errorf("cleanup Shutdown() error = %v", err)
 				}
 			})
@@ -72,7 +73,8 @@ func TestToolArtifactSweeperLifecycle(t *testing.T) {
 			t.Fatalf("Start(zero interval) error = %v, want interval validation error", err)
 		}
 		worker := NewToolArtifactSweeper(store, time.Hour, nil)
-		if err := worker.Start(nil); err == nil || //nolint:staticcheck // exercises the nil-context guard
+		//nolint:staticcheck // exercises the nil-context guard
+		if err := worker.Start(nil); err == nil ||
 			!errors.Is(err, retention.ErrPeriodicWorkerContextRequired) {
 			t.Fatalf("Start(nil context) error = %v, want context-required error", err)
 		}
@@ -80,7 +82,7 @@ func TestToolArtifactSweeperLifecycle(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := worker.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			if err := worker.Shutdown(testutil.Context(t)); err != nil {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})

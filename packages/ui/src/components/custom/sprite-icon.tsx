@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { ICON_STROKE_WIDTH } from "../../lib/icon-stroke";
 import { cn } from "../../lib/utils";
 
 export interface SpriteIconProps extends React.ComponentProps<"svg"> {
@@ -8,12 +9,16 @@ export interface SpriteIconProps extends React.ComponentProps<"svg"> {
   name: string;
 }
 
-/** Renders one icon out of an external SVG sprite; inherits `currentColor`. */
+/**
+ * Renders one icon out of an external SVG sprite; inherits `currentColor`. The
+ * sprite is outside `LucideProvider`, so it takes the shared lucide stroke
+ * explicitly to draw the same line as every other icon.
+ */
 export function SpriteIcon({
   spriteUrl,
   name,
   className,
-  strokeWidth = 2,
+  strokeWidth = ICON_STROKE_WIDTH,
   ...props
 }: SpriteIconProps) {
   return (

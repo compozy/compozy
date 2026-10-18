@@ -70,10 +70,8 @@ func (g *TaskRepo) transitionTerminalRunWithExecutor(
 	if err := transitionTerminalRunRecordWithExecutor(ctx, exec, &normalized, fence); err != nil {
 		return taskpkg.Run{}, err
 	}
-	if normalized.IsTaskAnchored() {
-		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
-			return taskpkg.Run{}, err
-		}
+	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
+		return taskpkg.Run{}, err
 	}
 
 	updated, err := g.getTaskRunWithExecutor(ctx, exec, normalized.ID)

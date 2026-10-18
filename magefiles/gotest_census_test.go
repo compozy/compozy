@@ -3,7 +3,7 @@
 // Suite: Go test shard census
 // Invariant: Census weights load deterministically with positive defaults, the LPT partition
 // covers every item exactly once with input-determined assignment, and census updates fold
-// gotestsum events into stable rounded weights.
+// gotestsum events into stable rounded weights while removing deleted source entries.
 // Boundary IN: Census JSON bytes, shard item lists, and gotestsum test2json events.
 // Boundary OUT: Shard invocation building in gotest_lane.go.
 
@@ -195,7 +195,9 @@ func TestGoTestObservation(t *testing.T) {
 		observed := newGoTestObservation()
 		observed.recordEvent(gotestsumEvent{Action: "pass", Package: "example.com/pkg", Elapsed: 4.2})
 		observed.recordEvent(gotestsumEvent{Action: "fail", Package: "example.com/pkg", Elapsed: 6.8})
-		observed.recordEvent(gotestsumEvent{Action: "pass", Package: goSplitTestPackage, Test: "TestSplit", Elapsed: 3.5})
+		observed.recordEvent(
+			gotestsumEvent{Action: "pass", Package: goSplitTestPackage, Test: "TestSplit", Elapsed: 3.5},
+		)
 		if got := observed.packages["example.com/pkg"]; got != 6.8 {
 			t.Fatalf("package duration = %v, want max 6.8", got)
 		}
@@ -209,8 +211,12 @@ func TestGoTestObservation(t *testing.T) {
 		observed := newGoTestObservation()
 		observed.recordEvent(gotestsumEvent{Action: "pass", Package: "example.com/pkg", Elapsed: 0})
 		observed.recordEvent(gotestsumEvent{Action: "output", Package: "example.com/pkg", Elapsed: 9})
-		observed.recordEvent(gotestsumEvent{Action: "pass", Package: goSplitTestPackage, Test: "TestSplit/sub", Elapsed: 2})
-		observed.recordEvent(gotestsumEvent{Action: "pass", Package: "example.com/pkg", Test: "TestRegular", Elapsed: 2})
+		observed.recordEvent(
+			gotestsumEvent{Action: "pass", Package: goSplitTestPackage, Test: "TestSplit/sub", Elapsed: 2},
+		)
+		observed.recordEvent(
+			gotestsumEvent{Action: "pass", Package: "example.com/pkg", Test: "TestRegular", Elapsed: 2},
+		)
 		if len(observed.packages) != 0 || len(observed.splitTests) != 0 {
 			t.Fatalf("observation recorded ignored events: %+v / %+v", observed.packages, observed.splitTests)
 		}
@@ -244,4 +250,41 @@ func TestGoTestObservation(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestCensusPruneMissingSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should preserve existing source across build tags and discard removed packages and tests",
+		func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeTestFile(t, root, "internal/kept/platform_windows.go", "//go:build windows\n\npackage kept\n")
+			writeTestFile(t, root, "internal/store/globaldb/kept_test.go",
+				"package globaldb\nimport \"testing\"\nfunc TestKept(t *testing.T) {}\n")
+			census := &goTestCensus{
+				DefaultPackageSeconds:   1,
+				DefaultSplitTestSeconds: 1,
+				Packages: map[string]float64{
+					compozyModulePath + "internal/kept":    2,
+					compozyModulePath + "internal/removed": 99,
+				},
+				SplitTests: map[string]float64{"TestKept": 3, "TestRemoved": 99},
+			}
+			if err := census.pruneMissingSource(root); err != nil {
+				t.Fatalf("pruneMissingSource() error = %v", err)
+			}
+			if len(census.Packages) != 1 || census.Packages[compozyModulePath+"internal/kept"] != 2 {
+				t.Fatalf("package weights = %v, want only existing source weight 2", census.Packages)
+			}
+			if len(census.SplitTests) != 1 || census.SplitTests["TestKept"] != 3 {
+				t.Fatalf("split weights = %v, want only existing test weight 3", census.SplitTests)
+			}
+			if census.DefaultPackageSeconds != 2 || census.DefaultSplitTestSeconds != 3 {
+				t.Fatalf("defaults = (%v, %v), want retained medians (2, 3)",
+					census.DefaultPackageSeconds, census.DefaultSplitTestSeconds)
+			}
+		},
+	)
 }

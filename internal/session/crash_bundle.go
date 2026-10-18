@@ -33,19 +33,19 @@ type crashBundleDocument struct {
 	Provider  string               `json:"provider,omitempty"`
 	State     State                `json:"state,omitempty"`
 	Failure   store.SessionFailure `json:"failure"`
-	Process   *crashBundleProcess  `json:"process,omitempty"`
+	Process   *crashBundleProcess  `json:"process,omitzero"`
 	Error     string               `json:"error,omitempty"`
 	Stderr    string               `json:"stderr,omitempty"`
 	CreatedAt time.Time            `json:"created_at"`
 }
 
 type crashBundleProcess struct {
-	PID       int       `json:"pid,omitempty"`
+	PID       int       `json:"pid,omitzero"`
 	Command   string    `json:"command,omitempty"`
 	Args      []string  `json:"args,omitempty"`
 	Cwd       string    `json:"cwd,omitempty"`
 	StartedAt time.Time `json:"started_at"`
-	ExitCode  *int      `json:"exit_code,omitempty"`
+	ExitCode  *int      `json:"exit_code,omitzero"`
 	Signal    string    `json:"signal,omitempty"`
 }
 

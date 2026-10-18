@@ -1,10 +1,11 @@
 package modelcatalog
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -211,6 +212,36 @@ func (s *refreshPlanStore) ListRows(ctx context.Context, opts ListOptions) ([]Mo
 	return cloneModelRows(result), nil
 }
 
+func (s *refreshPlanStore) ListRowOwners(ctx context.Context, opts ListOptions) ([]SourceProviderKey, error) {
+	owners, err := s.base.ListRowOwners(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SourceProviderKey, 0, len(owners))
+	for _, owner := range owners {
+		if !replacementMatchesSourceProvider(s.replacements, opts.SourceContexts, owner.SourceID, owner.ProviderID) {
+			result = append(result, owner)
+		}
+	}
+	for _, replacement := range s.replacements {
+		if !replacementMatchesList(replacement, opts) {
+			continue
+		}
+		if slices.ContainsFunc(replacement.Rows, func(row ModelRow) bool {
+			return !row.Stale || opts.IncludeAll || opts.IncludeStale
+		}) {
+			result = append(result, SourceProviderKey{
+				SourceID:   replacement.SourceID,
+				ProviderID: replacement.ProviderID,
+			})
+		}
+	}
+	slices.SortFunc(result, func(a, b SourceProviderKey) int {
+		return cmp.Or(cmp.Compare(a.SourceID, b.SourceID), cmp.Compare(a.ProviderID, b.ProviderID))
+	})
+	return slices.Compact(result), nil
+}
+
 func (s *refreshPlanStore) ListSourceStatus(
 	ctx context.Context,
 	opts StatusOptions,
@@ -233,21 +264,15 @@ func (s *refreshPlanStore) ListSourceStatus(
 			result = append(result, replacement.Status)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].ProviderID != result[j].ProviderID {
-			return result[i].ProviderID < result[j].ProviderID
-		}
-		return result[i].SourceID < result[j].SourceID
+	slices.SortFunc(result, func(a, b SourceStatus) int {
+		return cmp.Or(cmp.Compare(a.ProviderID, b.ProviderID), cmp.Compare(a.SourceID, b.SourceID))
 	})
 	return cloneSourceStatuses(result), nil
 }
 
 func (s *refreshPlanStore) snapshot() []SourceRowsReplacement {
-	keys := make([]string, 0, len(s.replacements))
-	for key := range s.replacements {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(s.replacements)), maps.Keys(s.replacements))
+	slices.Sort(keys)
 	replacements := make([]SourceRowsReplacement, 0, len(keys))
 	for _, key := range keys {
 		replacement := s.replacements[key]

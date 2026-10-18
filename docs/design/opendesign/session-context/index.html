@@ -52,7 +52,7 @@
 <body>
 <div class="hub" data-od-id="sc-index">
   <h1 data-od-id="sc-index-title">Session context</h1>
-  <p class="hub__lede">Two boards for <code>.compozy/tasks/session-context/_uiux.md</code> (S1–S5). A context meter joins the composer and reads the agent's report; a click opens the right rail, which becomes one tab-less <b>Context</b> body: an honest three-tier bar (Compozy context ≈ · Agent &amp; conversation · Free), what Compozy sent per section, tokens and cost with provenance, the turn history with compaction markers, and the session's activity. Memory, Files and Vault leave the rail. Every board opens with <b>what it is</b>, <b>which production components it changes</b>, and <b>the states it covers with their Visual Contract ids</b>. The semantic contract is <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+  <p class="hub__lede">Two boards for <code>.compozy/tasks/session-context/_uiux.md</code> (S1–S5). A context meter joins the composer and reads the agent's report; a click opens the right rail, which becomes one tab-less <b>Context</b> body: an honest three-tier bar (Compozy context ≈ · Agent &amp; conversation · Free), what Compozy sent per section, tokens and cost with provenance, the turn history with agent-compaction markers, and the session's activity. Memory, Files and Vault leave the rail. Every board opens with <b>what it is</b>, <b>which production components it changes</b>, and <b>the states it covers with their Visual Contract ids</b>. The semantic contract is <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
 
   <div class="hub__grp" data-od-id="sc-index-howto">
     <div class="hub__grp-t">How to read a board</div>
@@ -68,7 +68,7 @@
     <table class="matrix">
       <thead><tr><th>S#</th><th>Surface</th><th>Board</th><th>Production components</th><th>VC rows</th></tr></thead>
       <tbody>
-        <tr><td>S1 · S2</td><td>Composer context control · tooltip</td><td><a href="session-context-composer.html">Composer</a></td><td><span class="comp">new SessionContextControl · useSessionContext · modify SessionComposerActionRow · SessionComposer · SessionThread · SessionWindowContent · useSessionWindowController</span></td><td class="vc">task_03 VC-01..05</td></tr>
+        <tr><td>S1 · S2</td><td>Composer context control · tooltip</td><td><a href="session-context-composer.html">Composer</a></td><td><span class="comp">new SessionContextControl · useSessionContext · modify SessionComposerActionRow · SessionComposer · SessionThread · SessionWindowContent · useSessionWindowController</span></td><td class="vc">task_03 VC-01 · VC-03..05</td></tr>
         <tr><td>S3 · S5</td><td>Context sidebar · removed tabs</td><td><a href="session-context-sidebar.html">Sidebar</a></td><td><span class="comp">modify SessionInspector · SessionInspectorUsageSection · new SessionContextMeterSection · SessionContextInjectedSection · SessionContextTurnsSection · SessionActivitySection · useSessionUsageTurns · delete Memory / Files sections · deriveFileReads · tab strip</span></td><td class="vc">task_03 VC-06..09 · task_04 VC-10..11</td></tr>
         <tr><td>S4</td><td>Topbar inspector toggle (copy only)</td><td>—</td><td><span class="comp">modify SessionPanelToggle aria copy</span></td><td class="vc">none — no named reference</td></tr>
       </tbody>
@@ -80,12 +80,12 @@
     <div class="cards">
       <a class="card" href="session-context-composer.html" data-od-id="card-composer">
         <span class="card__top"><span class="card__name">01 · Composer context control</span><span class="card__file">session-context-composer.html</span></span>
-        <span class="card__sub">The 16px ring in the left cluster: reported 35%; warning at the compaction threshold; unknown drawn as unknown; stale, estimated size, used-only and stopped variants; the three-line tooltip; the copy and state dictionary.</span>
+        <span class="card__sub">The 16px ring in the left cluster: reported 35%; unknown drawn as unknown; stale, estimated size, used-only and stopped variants; the three-line tooltip; the copy and state dictionary.</span>
         <span class="card__mods"><span class="ss-mod ss-mod--new">new ×2</span><span class="ss-mod ss-mod--modify">modify ×3</span></span>
       </a>
       <a class="card" href="session-context-sidebar.html" data-od-id="card-sidebar">
         <span class="card__top"><span class="card__name">02 · Context sidebar</span><span class="card__file">session-context-sidebar.html</span></span>
-        <span class="card__sub">The tab-less rail at 1440; the three-tier bar with Compozy rows expanded and the clamp; rows after a compaction, unchanged stubs, the unknown-agent list; Tokens &amp; cost with cache rows; Turns with a compaction marker; Activity live and stopped; empties; the drawer.</span>
+        <span class="card__sub">The tab-less rail at 1440; the three-tier bar with Compozy rows expanded and the clamp; rows after a compaction, unchanged stubs, the unknown-agent list; Tokens &amp; cost with cache rows; Turns with agent-compaction markers; Activity live and stopped; empties; the drawer.</span>
         <span class="card__mods"><span class="ss-mod ss-mod--new">new ×5</span><span class="ss-mod ss-mod--modify">modify ×2</span><span class="ss-mod ss-mod--delete">delete ×4</span></span>
       </a>
     </div>

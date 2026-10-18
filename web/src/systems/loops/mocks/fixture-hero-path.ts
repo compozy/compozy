@@ -1,5 +1,3 @@
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
-
 import type { LoopDetail, LoopRun } from "../types";
 
 /**
@@ -45,7 +43,6 @@ export const heroRunFixtures: LoopRun[] = [
     budget_wall_sec: 3_600,
     budget_on_exceeded: "halt",
     reattempt_strategy: "failed_only",
-    resolved_network_participation: buildLocalNetworkParticipationFixture(),
     created_at: "2026-07-04T09:10:00Z",
     started_at: "2026-07-04T09:10:00Z",
     last_progress_at: "2026-07-04T09:28:00Z",

@@ -16,7 +16,7 @@ const (
 	logsStreamMinimumPoll        = time.Second
 )
 
-// StreamLogs streams runtime logs over SSE with a bounded retained replay.
+// StreamLogs streams runtime logs as SSE or WebSocket frames with bounded replay.
 func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 	if h.Observer == nil {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: observer is required"))
@@ -42,17 +42,17 @@ func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	cursor, err := ParseLogsCursor(c.GetHeader("Last-Event-ID"))
+	cursor, err := ParseLogsCursor(eventStreamCursor(c))
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
 
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+	writer, closeStream, ok := h.prepareEventStream(c)
+	if !ok {
 		return
 	}
+	defer closeStream()
 	resume := !cursor.Timestamp.IsZero() || cursor.Sequence > 0
 	if streamContextDone(c, h.StreamDoneChannel(), replay || resume) {
 		return
@@ -150,17 +150,11 @@ func normalizeLogsReplayLimit(limit int) int {
 	if limit <= 0 {
 		return logsStreamReplayDefaultLimit
 	}
-	if limit > logsStreamReplayMaxLimit {
-		return logsStreamReplayMaxLimit
-	}
-	return limit
+	return min(limit, logsStreamReplayMaxLimit)
 }
 
 func logsStreamPollInterval(interval time.Duration) time.Duration {
-	if interval < logsStreamMinimumPoll {
-		return logsStreamMinimumPoll
-	}
-	return interval
+	return max(interval, logsStreamMinimumPoll)
 }
 
 func streamContextDone(c *gin.Context, done <-chan struct{}, allowInitial bool) bool {

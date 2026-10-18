@@ -7,7 +7,7 @@ import {
   type EdgeProps,
 } from "@xyflow/react";
 
-import { cn } from "@compozy/ui";
+import { Button, cn } from "@compozy/ui";
 
 const EDGE_INTERACTION_WIDTH = 28;
 
@@ -62,7 +62,7 @@ export function LoopEditorEdge({
             {routeLabel === "" ? null : (
               <span
                 className={cn(
-                  "max-w-36 truncate rounded-xs border border-line bg-elevated px-1 py-px",
+                  "max-w-36 truncate rounded-xs border border-line bg-card px-1 py-px",
                   "font-mono text-pill-group-badge",
                   selected === true ? "text-accent-strong" : "text-subtle"
                 )}
@@ -73,17 +73,17 @@ export function LoopEditorEdge({
               </span>
             )}
             {deletable ? (
-              <button
+              <Button
                 aria-label="Delete connection"
-                className="group/edge-delete grid size-6 shrink-0 place-items-center rounded-full focus-visible:shadow-focus-ring focus-visible:outline-none"
+                className="shrink-0 rounded-full border border-line-strong bg-card text-muted hover:border-transparent hover:bg-danger-tint hover:text-danger"
                 data-testid="loop-editor-edge-delete"
                 onClick={() => onDelete(id)}
+                size="icon-xs"
                 type="button"
+                variant="ghost"
               >
-                <span className="grid size-4.5 place-items-center rounded-full border border-line-strong bg-elevated text-muted transition-colors group-hover/edge-delete:border-transparent group-hover/edge-delete:bg-danger-tint group-hover/edge-delete:text-danger">
-                  <X aria-hidden="true" className="size-2.5" />
-                </span>
-              </button>
+                <X aria-hidden="true" />
+              </Button>
             ) : null}
           </div>
         </EdgeLabelRenderer>

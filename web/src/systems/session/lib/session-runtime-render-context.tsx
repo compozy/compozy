@@ -18,6 +18,7 @@ export function SessionRuntimeRenderProvider({
   resolvedInteractions = noResolvedInteractions,
   resetRuntime = noop,
   rewindBlocked = false,
+  sessionRunning = false,
   sessionId,
   workspaceId,
 }: Partial<
@@ -38,6 +39,7 @@ export function SessionRuntimeRenderProvider({
     resolvedInteractions,
     resetRuntime,
     rewindBlocked,
+    sessionRunning,
     sessionId,
     workspaceId,
   };

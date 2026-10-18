@@ -81,6 +81,5 @@ func (m *Service) runDetailTaskReference(ctx context.Context, taskRecord *Task) 
 		return nil, err
 	}
 
-	reference := taskReferenceFromTask(*taskRecord, status)
-	return &reference, nil
+	return new(taskReferenceFromTask(*taskRecord, status)), nil
 }

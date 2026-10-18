@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync/atomic"
 	"time"
 
 	"modernc.org/sqlite"
@@ -14,6 +15,7 @@ import (
 )
 
 const (
+	defaultWriteOperation         = "sqlite_write"
 	defaultWriteMaxAttempts       = 15
 	defaultWriteMinRetryDelay     = 20 * time.Millisecond
 	defaultWriteMaxRetryDelay     = 150 * time.Millisecond
@@ -23,6 +25,16 @@ const (
 	sqliteCommitStatement         = "COMMIT"
 	sqliteRollbackStatement       = "ROLLBACK"
 )
+
+var errWriteReentry = errors.New("store: nested write transaction on the same database is not supported")
+
+type writeContextKey struct{}
+
+type writeContextOwner struct {
+	db     *sql.DB
+	parent *writeContextOwner
+	active atomic.Bool
+}
 
 // WriteTx is the single-connection transaction handle passed to ExecuteWrite callbacks.
 type WriteTx struct {
@@ -58,12 +70,15 @@ func (tx *WriteTx) QueryRowContext(ctx context.Context, query string, args ...an
 	return tx.conn.QueryRowContext(ctx, query, args...)
 }
 
-// ExecuteWrite runs fn inside a BEGIN IMMEDIATE transaction with bounded SQLITE_BUSY retries.
+// ExecuteWrite runs bounded immediate writes; callbacks propagate ctx and reuse WriteTx for the same database.
 func ExecuteWrite(ctx context.Context, db *sql.DB, fn func(context.Context, *WriteTx) error) error {
-	return executeWrite(ctx, db, defaultExecuteWriteConfig(), fn)
+	cfg := defaultExecuteWriteConfig()
+	cfg.operation = writeCallerOperation()
+	return executeWrite(ctx, db, cfg, fn)
 }
 
 type executeWriteConfig struct {
+	operation     string
 	maxAttempts   int
 	minRetryDelay time.Duration
 	maxRetryDelay time.Duration
@@ -94,20 +109,44 @@ func executeWrite(
 	if fn == nil {
 		return errors.New("store: execute write callback is required")
 	}
+	parent, ok := ctx.Value(writeContextKey{}).(*writeContextOwner)
+	if !ok {
+		parent = nil
+	}
+	for owner := parent; owner != nil; owner = owner.parent {
+		if owner.db == db && owner.active.Load() {
+			return errWriteReentry
+		}
+	}
 	cfg = normalizeExecuteWriteConfig(cfg)
 
+	admission, unregister := registerWriteAdmission(db)
+	defer unregister()
+	started := time.Now()
+	releaseAdmission, err := admission.acquire(ctx)
+	if err != nil {
+		return writeContentionError(db, cfg.operation, 0, started, err)
+	}
+	defer releaseAdmission()
+	owner := &writeContextOwner{db: db, parent: parent}
+	owner.active.Store(true)
+	defer owner.active.Store(false)
+	ctx = context.WithValue(ctx, writeContextKey{}, owner)
 	var lastErr error
 	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
-		err := executeWriteAttempt(ctx, db, fn)
+		err := executeWriteAttempt(ctx, db, cfg.operation, fn)
 		if err == nil {
 			return nil
 		}
 		lastErr = err
-		if !IsSQLiteBusy(err) || attempt == cfg.maxAttempts {
+		if !IsSQLiteBusy(err) {
 			return err
 		}
+		if attempt == cfg.maxAttempts {
+			return writeContentionError(db, cfg.operation, attempt, started, err)
+		}
 		if waitErr := waitForWriteRetry(ctx, cfg.jitter(cfg.minRetryDelay, cfg.maxRetryDelay)); waitErr != nil {
-			return errors.Join(err, waitErr)
+			return writeContentionError(db, cfg.operation, attempt, started, errors.Join(err, waitErr))
 		}
 	}
 
@@ -116,15 +155,16 @@ func executeWrite(
 
 func normalizeExecuteWriteConfig(cfg executeWriteConfig) executeWriteConfig {
 	defaults := defaultExecuteWriteConfig()
+	if cfg.operation == "" {
+		cfg.operation = defaultWriteOperation
+	}
 	if cfg.maxAttempts <= 0 {
 		cfg.maxAttempts = defaults.maxAttempts
 	}
 	if cfg.minRetryDelay <= 0 {
 		cfg.minRetryDelay = defaults.minRetryDelay
 	}
-	if cfg.maxRetryDelay < cfg.minRetryDelay {
-		cfg.maxRetryDelay = cfg.minRetryDelay
-	}
+	cfg.maxRetryDelay = max(cfg.maxRetryDelay, cfg.minRetryDelay)
 	if cfg.jitter == nil {
 		cfg.jitter = defaults.jitter
 	}
@@ -134,6 +174,7 @@ func normalizeExecuteWriteConfig(cfg executeWriteConfig) executeWriteConfig {
 func executeWriteAttempt(
 	ctx context.Context,
 	db *sql.DB,
+	operation string,
 	fn func(context.Context, *WriteTx) error,
 ) (err error) {
 	conn, err := db.Conn(ctx)
@@ -141,7 +182,7 @@ func executeWriteAttempt(
 		return fmt.Errorf("store: acquire sqlite write connection: %w", err)
 	}
 	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
+		if closeErr := conn.Close(); closeErr != nil && !errors.Is(closeErr, sql.ErrConnDone) {
 			closeErr = fmt.Errorf("store: close sqlite write connection: %w", closeErr)
 			if err == nil {
 				err = closeErr
@@ -151,15 +192,21 @@ func executeWriteAttempt(
 		}
 	}()
 
-	if _, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement); err != nil {
+	if err := executeSQLiteWithBusyWait(ctx, conn, func() error {
+		_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
+		return err
+	}); err != nil {
 		return fmt.Errorf("store: begin immediate sqlite write: %w", err)
 	}
+	releaseOwner := trackWriteOwner(db, operation)
+	defer releaseOwner()
 	active := true
 	defer func() {
 		if !active {
 			return
 		}
 		if rollbackErr := rollbackWriteTx(context.WithoutCancel(ctx), conn); rollbackErr != nil {
+			rollbackErr = discardSQLiteConnection(conn, rollbackErr)
 			if err == nil {
 				err = rollbackErr
 				return
@@ -175,7 +222,11 @@ func executeWriteAttempt(
 	if err := validateMutationCommitFence(ctx); err != nil {
 		return fmt.Errorf("store: mutation commit fence: %w", err)
 	}
-	if _, err := conn.ExecContext(ctx, sqliteCommitStatement); err != nil {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("store: commit sqlite write: %w", err)
+	}
+	// Once commit starts, cancellation must not disguise a durable write as retryable failure.
+	if _, err := conn.ExecContext(context.WithoutCancel(ctx), sqliteCommitStatement); err != nil {
 		return fmt.Errorf("store: commit sqlite write: %w", err)
 	}
 	active = false
@@ -221,6 +272,9 @@ func randomWriteRetryDelay(minDelay time.Duration, maxDelay time.Duration) time.
 func IsSQLiteBusy(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, errSQLiteCheckpointBusy) {
+		return true
 	}
 	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
 	if !ok {

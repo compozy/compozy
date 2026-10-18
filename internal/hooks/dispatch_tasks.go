@@ -7,9 +7,8 @@ func (h *Hooks) DispatchTaskBlocked(
 	ctx context.Context,
 	payload TaskBlockedPayload,
 ) (TaskBlockedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskBlocked,
 		payload,
 		dispatchConfig[TaskBlockedPayload, TaskObservationPatch]{
@@ -24,9 +23,8 @@ func (h *Hooks) DispatchTaskUnblocked(
 	ctx context.Context,
 	payload TaskUnblockedPayload,
 ) (TaskUnblockedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskUnblocked,
 		payload,
 		dispatchConfig[TaskUnblockedPayload, TaskObservationPatch]{
@@ -41,9 +39,8 @@ func (h *Hooks) DispatchTaskNeedsAttention(
 	ctx context.Context,
 	payload TaskNeedsAttentionPayload,
 ) (TaskNeedsAttentionPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskNeedsAttention,
 		payload,
 		dispatchConfig[TaskNeedsAttentionPayload, TaskObservationPatch]{
@@ -58,9 +55,8 @@ func (h *Hooks) DispatchTaskRecovered(
 	ctx context.Context,
 	payload TaskRecoveredPayload,
 ) (TaskRecoveredPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRecovered,
 		payload,
 		dispatchConfig[TaskRecoveredPayload, TaskObservationPatch]{
@@ -75,9 +71,8 @@ func (h *Hooks) DispatchTaskRunEnqueued(
 	ctx context.Context,
 	payload TaskRunEnqueuedPayload,
 ) (TaskRunEnqueuedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunEnqueued,
 		payload,
 		dispatchConfig[TaskRunEnqueuedPayload, TaskRunObservationPatch]{
@@ -92,9 +87,8 @@ func (h *Hooks) DispatchTaskRunPreClaim(
 	ctx context.Context,
 	payload TaskRunPreClaimPayload,
 ) (TaskRunPreClaimPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunPreClaim,
 		payload,
 		dispatchConfig[TaskRunPreClaimPayload, TaskRunPreClaimPatch]{
@@ -114,9 +108,8 @@ func (h *Hooks) DispatchTaskRunPostClaim(
 	ctx context.Context,
 	payload TaskRunPostClaimPayload,
 ) (TaskRunPostClaimPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunPostClaim,
 		payload,
 		dispatchConfig[TaskRunPostClaimPayload, TaskRunObservationPatch]{
@@ -131,9 +124,8 @@ func (h *Hooks) DispatchTaskRunLeaseExtended(
 	ctx context.Context,
 	payload TaskRunLeaseExtendedPayload,
 ) (TaskRunLeaseExtendedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunLeaseExtended,
 		payload,
 		dispatchConfig[TaskRunLeaseExtendedPayload, TaskRunObservationPatch]{
@@ -148,9 +140,8 @@ func (h *Hooks) DispatchTaskRunLeaseExpired(
 	ctx context.Context,
 	payload TaskRunLeaseExpiredPayload,
 ) (TaskRunLeaseExpiredPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunLeaseExpired,
 		payload,
 		dispatchConfig[TaskRunLeaseExpiredPayload, TaskRunObservationPatch]{
@@ -165,9 +156,8 @@ func (h *Hooks) DispatchTaskRunLeaseRecovered(
 	ctx context.Context,
 	payload TaskRunLeaseRecoveredPayload,
 ) (TaskRunLeaseRecoveredPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunLeaseRecovered,
 		payload,
 		dispatchConfig[TaskRunLeaseRecoveredPayload, TaskRunObservationPatch]{
@@ -182,9 +172,8 @@ func (h *Hooks) DispatchTaskRunReleased(
 	ctx context.Context,
 	payload TaskRunReleasedPayload,
 ) (TaskRunReleasedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunReleased,
 		payload,
 		dispatchConfig[TaskRunReleasedPayload, TaskRunObservationPatch]{
@@ -199,9 +188,8 @@ func (h *Hooks) DispatchTaskRunCompleted(
 	ctx context.Context,
 	payload TaskRunCompletedPayload,
 ) (TaskRunCompletedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunCompleted,
 		payload,
 		dispatchConfig[TaskRunCompletedPayload, TaskRunObservationPatch]{
@@ -216,9 +204,8 @@ func (h *Hooks) DispatchTaskRunFailed(
 	ctx context.Context,
 	payload TaskRunFailedPayload,
 ) (TaskRunFailedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskRunFailed,
 		payload,
 		dispatchConfig[TaskRunFailedPayload, TaskRunObservationPatch]{

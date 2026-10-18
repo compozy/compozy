@@ -27,7 +27,7 @@ func (h *BaseHandlers) SessionTranscriptSearch(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	_, id, _, ok := h.routeSessionInWorkspace(c)
+	id, _, ok := h.routeSessionRead(c)
 	if !ok {
 		return
 	}
@@ -46,7 +46,7 @@ func (h *BaseHandlers) SessionTranscriptSearch(c *gin.Context) {
 
 // SessionTranscriptOutline returns the full retained operator-message trail.
 func (h *BaseHandlers) SessionTranscriptOutline(c *gin.Context) {
-	_, id, _, ok := h.routeSessionInWorkspace(c)
+	id, _, ok := h.routeSessionRead(c)
 	if !ok {
 		return
 	}

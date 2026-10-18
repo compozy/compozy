@@ -1,7 +1,7 @@
 import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { ArrowUp } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { InputGroupButton } from "@compozy/ui";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 
 import {
@@ -13,13 +13,9 @@ import {
 import { sessionComposerSendBlocker } from "./hooks/use-session-composer-send-gate";
 import { sessionAttachmentTileState } from "./session-attachment-tile-model";
 
-const SEND_BUTTON_CLASS = cn(
-  "inline-flex size-7 items-center justify-center rounded-full",
-  "bg-accent text-accent-ink shadow-highlight transition-colors duration-base ease-out",
-  "hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-btn-default-fill disabled:text-faint disabled:opacity-100 disabled:shadow-none",
-  "focus-visible:shadow-focus-ring focus-visible:outline-none"
-);
-
+// The session surface's one deliberate stroke override: the send arrow (like the
+// transcript's small check / × receipt marks) draws at 2 so it holds its weight
+// inside the filled disc; every other glyph takes the global 1.75.
 export function SessionComposerSendButton({
   canPrompt,
   hasStagedQuote = false,
@@ -56,37 +52,35 @@ export function SessionComposerSendButton({
   if (onDisconnectedSend) {
     // The send button stays a send button (US-018.AC-3): the guard answers the press.
     return (
-      <button
+      <InputGroupButton
         aria-label="Send message"
-        className={SEND_BUTTON_CLASS}
         data-testid="composer-send-button"
         data-transport="disconnected"
         disabled={disabled}
         onClick={onDisconnectedSend}
+        size="send"
         title={blocker ?? undefined}
-        type="button"
       >
-        <ArrowUp className="size-3.5" />
-      </button>
+        <ArrowUp strokeWidth={2} />
+      </InputGroupButton>
     );
   }
 
   if (quoteOnly) {
     return (
-      <button
+      <InputGroupButton
         aria-label="Send message"
-        className={SEND_BUTTON_CLASS}
         data-testid="composer-send-button"
         disabled={disabled}
         onClick={() => {
           aui.thread.append(composeQuotedPrompt("", peekSessionTerminalQuote(sessionId)));
           discardSessionTerminalQuote(sessionId);
         }}
+        size="send"
         title={blocker ?? undefined}
-        type="button"
       >
-        <ArrowUp className="size-3.5" />
-      </button>
+        <ArrowUp strokeWidth={2} />
+      </InputGroupButton>
     );
   }
 
@@ -95,15 +89,10 @@ export function SessionComposerSendButton({
       aria-label="Send message"
       disabled={disabled}
       title={blocker ?? undefined}
-      className={cn(
-        "inline-flex size-7 items-center justify-center rounded-full",
-        "bg-accent text-accent-ink shadow-highlight transition-colors duration-base ease-out",
-        "hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-btn-default-fill disabled:text-faint disabled:opacity-100 disabled:shadow-none",
-        "focus-visible:shadow-focus-ring focus-visible:outline-none"
-      )}
       data-testid="composer-send-button"
+      render={<InputGroupButton size="send" />}
     >
-      <ArrowUp className="size-3.5" />
+      <ArrowUp strokeWidth={2} />
     </ComposerPrimitive.Send>
   );
 }

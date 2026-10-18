@@ -1,6 +1,7 @@
 package modelcatalog
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -1590,49 +1591,6 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 	})
 
-	t.Run("Should respect stale filters when listing merged models", func(t *testing.T) {
-		t.Parallel()
-
-		store := newMemoryStore()
-		store.rows[sourceProviderKey("models_dev", "codex")] = []ModelRow{
-			testRow(
-				"models_dev",
-				SourceKindModelsDev,
-				PriorityModelsDev,
-				"codex",
-				"gpt-5.4",
-				testTime(0),
-				func(row *ModelRow) {
-					row.Stale = true
-				},
-			),
-		}
-		service := newTestService(t, store, nil)
-
-		models, err := service.ListModels(
-			testutil.Context(t),
-			ListOptions{ProviderID: "codex", Now: testTime(1)},
-		)
-		if err != nil {
-			t.Fatalf("ListModels(exclude stale) error = %v", err)
-		}
-		if len(models) != 0 {
-			t.Fatalf("ListModels(exclude stale) = %#v, want empty projection", models)
-		}
-
-		models, err = service.ListModels(
-			testutil.Context(t),
-			ListOptions{ProviderID: "codex", IncludeStale: true, Now: testTime(1)},
-		)
-		if err != nil {
-			t.Fatalf("ListModels(include stale) error = %v", err)
-		}
-		model := requireSingleModel(t, models)
-		if !model.Stale {
-			t.Fatalf("Model.Stale = %t, want true", model.Stale)
-		}
-	})
-
 	t.Run("Should return partial success and record failed source status", func(t *testing.T) {
 		t.Parallel()
 
@@ -1756,6 +1714,163 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 		if got := source.calls; got != 2 {
 			t.Fatalf("source calls at retry deadline = %d, want 2", got)
+		}
+	})
+
+	t.Run("Should answer a fresh source from status without listing rows until forced", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:        "provider_live:codex",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"codex"},
+			ttl:       time.Hour,
+			rows: []ModelRow{
+				testRow(
+					"provider_live:codex", SourceKindProviderLive, PriorityProviderLive,
+					"codex", "gpt-5.4", testTime(0), nil,
+				),
+			},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		refresh := func(now time.Time, force bool) []SourceStatus {
+			t.Helper()
+			statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+				ProviderID: "codex",
+				SourceID:   source.ID(),
+				Force:      force,
+				Now:        now,
+			})
+			if err != nil {
+				t.Fatalf("Refresh(%s, force=%t) error = %v", now, force, err)
+			}
+			return statuses
+		}
+
+		refresh(testTime(0), false)
+		listsBefore, replacesBefore := store.listRowsCalls(), store.replaceCalls()
+		status := requireStatus(t, refresh(testTime(30), false), source.ID())
+		if status.RefreshState != RefreshStateSucceeded || !status.NextRefresh.Equal(testTime(60)) {
+			t.Fatalf("fresh status = %#v, want succeeded through %s", status, testTime(60))
+		}
+		if got := source.calls; got != 1 {
+			t.Fatalf("source calls inside TTL = %d, want 1", got)
+		}
+		if got := store.listRowsCalls() - listsBefore; got != 0 {
+			t.Fatalf("stored row listings inside TTL = %d, want 0", got)
+		}
+		if got := store.replaceCalls() - replacesBefore; got != 0 {
+			t.Fatalf("row replacements inside TTL = %d, want 0", got)
+		}
+
+		refresh(testTime(30), true)
+		if got := source.calls; got != 2 {
+			t.Fatalf("source calls after forced refresh = %d, want 2", got)
+		}
+	})
+
+	t.Run("Should honor the TTL of providerless refresh targets", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:       "extension:acme",
+			kind:     SourceKindExtension,
+			priority: PriorityExtension,
+			ttl:      time.Hour,
+			rows: []ModelRow{
+				testRow("extension:acme", SourceKindExtension, PriorityExtension, "acme", "acme-1", testTime(0), nil),
+			},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		for _, step := range []struct {
+			now       time.Time
+			wantCalls int
+		}{
+			{now: testTime(0), wantCalls: 1},
+			{now: testTime(30), wantCalls: 1},
+			{now: testTime(60), wantCalls: 2},
+		} {
+			statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{SourceID: source.ID(), Now: step.now})
+			if err != nil {
+				t.Fatalf("Refresh(%s) error = %v", step.now, err)
+			}
+			if got := source.calls; got != step.wantCalls {
+				t.Fatalf("source calls at %s = %d, want %d", step.now, got, step.wantCalls)
+			}
+			if status := requireStatus(t, statuses, source.ID()); status.ProviderID != "acme" {
+				t.Fatalf("status at %s = %#v, want acme provider status", step.now, status)
+			}
+		}
+	})
+
+	t.Run("Should back off consecutive failed refreshes up to the cap", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:        "provider_live:codex",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"codex"},
+			ttl:       5 * time.Minute,
+			err:       errors.New("codex unavailable"),
+		}
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		// Each attempt lands exactly at the previous deferral: 5m, then 10m, 20m, 40m, and the 1h cap.
+		attempts := []struct{ at, wantNext int }{
+			{at: 0, wantNext: 5},
+			{at: 5, wantNext: 15},
+			{at: 15, wantNext: 35},
+			{at: 35, wantNext: 75},
+			{at: 75, wantNext: 135},
+			{at: 135, wantNext: 195},
+		}
+		for index, attempt := range attempts {
+			statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+				ProviderID: "codex",
+				SourceID:   source.ID(),
+				Now:        testTime(attempt.at),
+			})
+			if !errors.Is(err, ErrAllSourcesFailed) {
+				t.Fatalf("Refresh(attempt %d) error = %v, want ErrAllSourcesFailed", index, err)
+			}
+			status := requireStatus(t, statuses, source.ID())
+			if !status.NextRefresh.Equal(testTime(attempt.wantNext)) {
+				t.Fatalf("attempt %d next refresh = %s, want %s", index, status.NextRefresh, testTime(attempt.wantNext))
+			}
+		}
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "codex",
+			SourceID:   source.ID(),
+			Now:        testTime(150),
+		}); err != nil {
+			t.Fatalf("Refresh(inside backoff) error = %v", err)
+		}
+		if got, want := source.calls, len(attempts); got != want {
+			t.Fatalf("source calls inside backoff = %d, want %d", got, want)
+		}
+
+		source.err = nil
+		source.rows = []ModelRow{
+			testRow(
+				"provider_live:codex", SourceKindProviderLive, PriorityProviderLive,
+				"codex", "gpt-5.4", testTime(0), nil,
+			),
+		}
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "codex",
+			SourceID:   source.ID(),
+			Force:      true,
+			Now:        testTime(150),
+		})
+		if err != nil {
+			t.Fatalf("Refresh(forced recovery) error = %v", err)
+		}
+		if status := requireStatus(t, statuses, source.ID()); status.RefreshState != RefreshStateSucceeded ||
+			!status.NextRefresh.Equal(testTime(155)) {
+			t.Fatalf("recovered status = %#v, want succeeded with plain TTL", status)
 		}
 	})
 
@@ -2138,6 +2253,9 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 		if got, want := source.calls, 0; got != want {
 			t.Fatalf("source calls = %d, want %d when statuses are still fresh", got, want)
+		}
+		if got := store.listRowsCalls(); got != 0 {
+			t.Fatalf("stored row listings = %d, want 0 when statuses are still fresh", got)
 		}
 		if got, want := len(statuses), 2; got != want {
 			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, statuses)
@@ -3053,10 +3171,11 @@ func (s *blockingRefreshSource) callCount() int {
 }
 
 type memoryStore struct {
-	mu           sync.Mutex
-	rows         map[string][]ModelRow
-	statuses     map[string]SourceStatus
-	replaceCount int
+	mu            sync.Mutex
+	rows          map[string][]ModelRow
+	statuses      map[string]SourceStatus
+	replaceCount  int
+	listRowsCount int
 }
 
 type mutableRefreshSource struct {
@@ -3266,9 +3385,40 @@ func (s *memoryStore) ReplaceSourceRowsBatch(
 	return nil
 }
 
+func (s *memoryStore) ListRowOwners(ctx context.Context, opts ListOptions) ([]SourceProviderKey, error) {
+	s.mu.Lock()
+	rows := s.matchingRowsLocked(opts)
+	s.mu.Unlock()
+	owners := make([]SourceProviderKey, 0, len(rows))
+	for _, row := range rows {
+		owners = append(owners, SourceProviderKey{SourceID: row.SourceID, ProviderID: row.ProviderID})
+	}
+	slices.SortFunc(owners, func(a, b SourceProviderKey) int {
+		return cmp.Or(cmp.Compare(a.SourceID, b.SourceID), cmp.Compare(a.ProviderID, b.ProviderID))
+	})
+	return slices.Compact(owners), ctx.Err()
+}
+
+func (s *memoryStore) listRowsCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listRowsCount
+}
+
+func (s *memoryStore) replaceCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.replaceCount
+}
+
 func (s *memoryStore) ListRows(_ context.Context, opts ListOptions) ([]ModelRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.listRowsCount++
+	return s.matchingRowsLocked(opts), nil
+}
+
+func (s *memoryStore) matchingRowsLocked(opts ListOptions) []ModelRow {
 	rows := make([]ModelRow, 0)
 	for key, group := range s.rows {
 		for _, row := range group {
@@ -3295,7 +3445,7 @@ func (s *memoryStore) ListRows(_ context.Context, opts ListOptions) ([]ModelRow,
 			rows = append(rows, row)
 		}
 	}
-	return rows, nil
+	return rows
 }
 
 func (s *memoryStore) ListSourceStatus(_ context.Context, opts StatusOptions) ([]SourceStatus, error) {

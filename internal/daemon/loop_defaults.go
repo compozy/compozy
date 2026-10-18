@@ -190,6 +190,5 @@ func budgetExceededPtr(value string) *loopdsl.BudgetExceeded {
 	if trimmed == "" {
 		trimmed = string(loopdsl.BudgetExceededHalt)
 	}
-	parsed := loopdsl.BudgetExceeded(trimmed)
-	return &parsed
+	return new(loopdsl.BudgetExceeded(trimmed))
 }

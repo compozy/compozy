@@ -172,7 +172,7 @@ func ownerSurfaceForAuthoredDiagnostic(code string, field string, section string
 		return "AGENT.md"
 	case "task", "tasks", "lease", "claim", "claim_token", "heartbeat":
 		return "task runtime"
-	case "scheduler", "wake", "network":
+	case "scheduler", "wake":
 		return "config"
 	default:
 		return ""
@@ -259,8 +259,7 @@ func authoredTimePtr(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	utc := value.UTC()
-	return &utc
+	return new(value.UTC())
 }
 
 func normalizeAuthoredStrings(values []string) []string {

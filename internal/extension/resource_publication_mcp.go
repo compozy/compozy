@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -34,11 +35,7 @@ func ResolveManifestMCPServerResources(
 		}
 	}
 
-	names := make([]string, 0, len(manifest.Resources.MCPServers))
-	for name := range manifest.Resources.MCPServers {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(manifest.Resources.MCPServers))
 
 	servers := make([]ResolvedManifestMCPServer, 0, len(names))
 	for _, name := range names {

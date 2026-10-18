@@ -29,7 +29,7 @@ func (c *daemonClient) ReplaceSessionInput(
 	inputID string,
 	request ReplaceSessionInputRequest,
 ) (SessionInputRecord, error) {
-	entryID, err := requireNetworkPathValue("queue_entry_id", inputID)
+	entryID, err := requirePathValue("queue_entry_id", inputID)
 	if err != nil {
 		return SessionInputRecord{}, err
 	}
@@ -53,7 +53,7 @@ func (c *daemonClient) PromoteSessionInput(
 	inputID string,
 	request PromoteSessionInputRequest,
 ) (SessionPromptRecord, error) {
-	entryID, err := requireNetworkPathValue("queue_entry_id", inputID)
+	entryID, err := requirePathValue("queue_entry_id", inputID)
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
@@ -70,7 +70,7 @@ func (c *daemonClient) CancelSessionInput(
 	sessionID string,
 	inputID string,
 ) (SessionPromptRecord, error) {
-	entryID, err := requireNetworkPathValue("queue_entry_id", inputID)
+	entryID, err := requirePathValue("queue_entry_id", inputID)
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}

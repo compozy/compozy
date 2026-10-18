@@ -200,14 +200,14 @@ describe("useAgentSettingsPage", () => {
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
     act(() => {
-      result.current.setSection("danger");
+      result.current.setSection("mcp");
       result.current.onBackToDetail();
       result.current.onOpenProviderSettings();
     });
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/agents/$name/settings",
       params: { name: primaryAgentFixture.name },
-      search: { section: "danger" },
+      search: { section: "mcp" },
       replace: true,
     });
     expect(mocks.navigate).toHaveBeenCalledWith({

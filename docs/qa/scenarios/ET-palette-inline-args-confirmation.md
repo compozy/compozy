@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-command-os-from-palette
 expected: An argument-bearing command replaces palette search with its declared text, password, and dropdown fields. Tab follows field order, invalid or missing values block execution and focus the first failing field, password values stay masked and leave no history or personalization trace, and Escape discards every value and restores search. A declared confirmation names the effect with Cancel focused, ignores the triggering key repeat, refuses an invalidated target, and hands successful or failed asynchronous execution to truthful pending and toast feedback with Retry only when the command is safe to repeat.
 entry_points: command palette command row; bound command shortcut; command palette action panel
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-palette-action-panel; ET-palette-registry-driven-root; ET-agent-command-invoke
 ---
 
@@ -39,3 +39,7 @@ Walk (task_11 plan):
 Expected evidence: screenshots of the args bar (pristine, blocked, dropdown), masked password with
 the matching personalization-show output, the confirmation step, and the pending/failure toasts;
 note the chord used for the direct argument-mode entry.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

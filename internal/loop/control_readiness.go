@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -196,21 +195,19 @@ func appendReadyNodeRunsControlAware(
 		output.Status = generationOutputEnqueued
 		output.TaskRunID = runID
 		if output.FirstScheduledAt == nil {
-			firstScheduledAt := scheduledAt.UTC()
-			output.FirstScheduledAt = &firstScheduledAt
+			output.FirstScheduledAt = new(scheduledAt.UTC())
 		}
 		key := generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}
 		if idx, exists := indexes[key]; exists {
 			outputs[idx] = output
 		}
 		plan.NodeRuns = append(plan.NodeRuns, task.EnqueueSpec{
-			TaskID:                       coordinatorNodeTaskID(run.ID, generation, node.ID, output.ItemIndex),
-			RunID:                        runID,
-			RunKind:                      task.RunKindWorker,
-			LoopRunID:                    string(run.ID),
-			IdempotencyKey:               idempotencyKey,
-			ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
-			Metadata:                     metadata,
+			TaskID:         coordinatorNodeTaskID(run.ID, generation, node.ID, output.ItemIndex),
+			RunID:          runID,
+			RunKind:        task.RunKindWorker,
+			LoopRunID:      string(run.ID),
+			IdempotencyKey: idempotencyKey,
+			Metadata:       metadata,
 		})
 	}
 	return nil

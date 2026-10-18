@@ -12,11 +12,6 @@ describe("Checkbox", () => {
     expect(box.querySelector("svg.lucide-minus")).not.toBeNull();
   });
 
-  it("Should render with the data-slot attribute", () => {
-    const { container } = render(<Checkbox aria-label="accept" />);
-    expect(container.querySelector("[data-slot=checkbox]")).not.toBeNull();
-  });
-
   it("Should toggle between unchecked and checked when clicked", async () => {
     const user = userEvent.setup();
     render(<Checkbox aria-label="accept" />);

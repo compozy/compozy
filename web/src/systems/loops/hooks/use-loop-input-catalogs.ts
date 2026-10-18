@@ -3,7 +3,6 @@ import { createContext, useContext, useEffect } from "react";
 import { useAgents } from "@/systems/agent";
 import { useRuntimeModelCatalog } from "@/systems/model-catalog";
 import type { RuntimeProviderOption } from "@/systems/runtime";
-import { useSessions } from "@/systems/session";
 import { useSkills } from "@/systems/skill";
 import { useVaultSecrets } from "@/systems/vault";
 import {
@@ -28,6 +27,7 @@ const EMPTY_ENTITY_CATALOG: LoopEntityCatalog = {
 };
 
 const EMPTY_CATALOGS: LoopInputCatalogs = {
+  sessionWorkspaceId: "",
   agents: [],
   agentLoading: false,
   agentError: null,
@@ -86,11 +86,6 @@ export function useLoopInputCatalogValue(
   const worktreesQuery = useWorktrees(workspaceId, {
     enabled: needs.entities.has("worktree"),
   });
-  const sessionsQuery = useSessions(workspaceId, {
-    enabled: needs.entities.has("session"),
-    filters: { limit: 100 },
-    loadAll: true,
-  });
   const workspacesQuery = useWorkspaces({ enabled: needs.entities.has("workspace") });
   const secretsQuery = useVaultSecrets({}, { enabled: needs.entities.has("secret") });
   const workspaceQuery = useWorkspace(workspaceId, { enabled: needs.runtime });
@@ -104,6 +99,7 @@ export function useLoopInputCatalogValue(
   const worktrees = worktreesQuery.data?.worktrees ?? [];
 
   return {
+    sessionWorkspaceId: workspaceId,
     agents: agentsQuery.data ?? [],
     agentLoading: agentsQuery.isLoading,
     agentError: errorMessage(agentsQuery.error, "Unable to load agents."),
@@ -134,16 +130,7 @@ export function useLoopInputCatalogValue(
         worktreesQuery.error,
         "Unable to load worktrees."
       ),
-      session: catalog(
-        (sessionsQuery.data ?? []).map(session => ({
-          value: session.id,
-          label: session.id,
-          detail: session.agent_name,
-        })),
-        sessionsQuery.isLoading,
-        sessionsQuery.error,
-        "Unable to load sessions."
-      ),
+      session: EMPTY_ENTITY_CATALOG,
       workspace: catalog(
         (workspacesQuery.data ?? []).map(workspace => ({
           value: workspace.id,

@@ -35,7 +35,7 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("NewAdapter() error = %v", err)
 		}
 
-		result, err := adapter.Tick(context.Background(), TickRequest{
+		result, err := adapter.Tick(t.Context(), TickRequest{
 			Spec:                json.RawMessage(`{"kind":"reviews"}`),
 			ExpectedStateDigest: "sha256:prev",
 			LastProgressAt:      settledAt.Add(-time.Minute),
@@ -70,7 +70,7 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("NewAdapter() error = %v", err)
 		}
 
-		result, err := adapter.Tick(context.Background(), TickRequest{
+		result, err := adapter.Tick(t.Context(), TickRequest{
 			Spec:           json.RawMessage(`{"kind":"reviews"}`),
 			LastProgressAt: now.Add(-time.Minute),
 			SilenceWindow:  2 * time.Minute,
@@ -98,7 +98,7 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("NewAdapter() error = %v", err)
 		}
 
-		result, err := adapter.Tick(context.Background(), TickRequest{
+		result, err := adapter.Tick(t.Context(), TickRequest{
 			Spec:           json.RawMessage(`{"kind":"reviews"}`),
 			LastProgressAt: now.Add(-3 * time.Minute),
 			SilenceWindow:  2 * time.Minute,
@@ -121,7 +121,7 @@ func TestAdapterTick(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewAdapter() error = %v", err)
 		}
-		_, err = adapter.Tick(context.Background(), TickRequest{Spec: json.RawMessage(`{"kind":"reviews"}`)})
+		_, err = adapter.Tick(t.Context(), TickRequest{Spec: json.RawMessage(`{"kind":"reviews"}`)})
 		if err == nil || !strings.Contains(err.Error(), "event_key") {
 			t.Fatalf("Tick() error = %v, want event_key validation", err)
 		}
@@ -137,7 +137,7 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("NewAdapter() error = %v", err)
 		}
 		result, err := adapter.Tick(
-			context.Background(),
+			t.Context(),
 			TickRequest{Spec: json.RawMessage(`{"kind":"reviews"}`)},
 		)
 		if err != nil {
@@ -166,7 +166,7 @@ func TestAdapterTick(t *testing.T) {
 				t.Fatalf("NewAdapter() error = %v", err)
 			}
 			_, err = adapter.Tick(
-				context.Background(),
+				t.Context(),
 				TickRequest{Spec: json.RawMessage(`{"kind":"reviews"}`)},
 			)
 			if err == nil || !strings.Contains(err.Error(), testCase.want) {
@@ -186,7 +186,7 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("NewAdapter() error = %v", err)
 		}
 
-		_, err = adapter.Tick(context.Background(), TickRequest{
+		_, err = adapter.Tick(t.Context(), TickRequest{
 			Spec: json.RawMessage(`{"kind":"reviews"}`),
 		})
 		if !errors.Is(err, wantErr) {
@@ -204,10 +204,10 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("NewAdapter() error = %v", err)
 		}
 
-		if _, err := adapter.Tick(context.Background(), TickRequest{}); !errors.Is(err, ErrSpecRequired) {
+		if _, err := adapter.Tick(t.Context(), TickRequest{}); !errors.Is(err, ErrSpecRequired) {
 			t.Fatalf("Tick(empty spec) error = %v, want ErrSpecRequired", err)
 		}
-		_, err = adapter.Tick(context.Background(), TickRequest{Spec: json.RawMessage(`{`)})
+		_, err = adapter.Tick(t.Context(), TickRequest{Spec: json.RawMessage(`{`)})
 		if !errors.Is(err, ErrSpecInvalid) {
 			t.Fatalf("Tick(malformed spec) error = %v, want ErrSpecInvalid", err)
 		}

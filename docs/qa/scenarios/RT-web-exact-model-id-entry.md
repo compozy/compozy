@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-web-network.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-web-config.toml;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-web-provider-settings.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md
 last_report: docs/qa/reports/2026-08-13-issue-389-cursor-model.md
-overlaps: RT-session-runtime-selection-continuity;ET-web-session-prompt-runtime-and-create-navigation
+overlaps: RT-session-runtime-selection-continuity; ET-web-session-prompt-runtime-and-create-navigation
 ---
 
 Keyboard Enter and pointer confirmation are both part of the same interaction. Cancel returns to catalog search without changing the current runtime.

@@ -1,12 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
-
-import {
-  networkParticipationDraftFromValues,
-  networkParticipationValidationMessage,
-  serializeNetworkParticipation,
-} from "@/lib/network-participation";
 import type { AgentPayload } from "@/systems/agent";
 import type { TerminalQuote } from "@/systems/terminal/parts";
 import type { WorkspaceScopeMode } from "@/systems/workspace";
@@ -149,14 +143,8 @@ function validateSessionCreate(
   if (agentName.length === 0 || !agents.some(agent => agent.name === agentName)) {
     return { ok: false, message: "Select an agent before starting the session." };
   }
-  const participation = networkParticipationDraftFromValues(
-    flow.draft.networkParticipationMode,
-    flow.draft.networkChannelId,
-    flow.draft.networkChannelStrategy
-  );
-  const participationError = networkParticipationValidationMessage(participation, ["named"]);
-  if (participationError) return { ok: false, message: participationError };
   const sessionName = flow.draft.sessionName.trim();
+  const folderId = flow.draft.folderId.trim();
   return {
     ok: true,
     agentName,
@@ -165,7 +153,7 @@ function validateSessionCreate(
       agent_name: agentName,
       ...binding,
       ...(sessionName ? { name: sessionName } : {}),
-      network_participation: serializeNetworkParticipation(participation),
+      ...(folderId ? { folder_id: folderId } : {}),
     },
   };
 }

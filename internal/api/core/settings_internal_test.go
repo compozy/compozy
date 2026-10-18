@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
@@ -53,9 +52,6 @@ func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
 	if _, ok := findSettingsProvider([]settingspkg.ProviderItem{{Name: "openai"}}, "openai"); !ok {
 		t.Fatal("findSettingsProvider() = false, want true")
 	}
-	if _, ok := findSettingsSandbox([]settingspkg.SandboxItem{{Name: "local"}}, "local"); !ok {
-		t.Fatal("findSettingsSandbox() = false, want true")
-	}
 
 	if providerSettingsPayloadEmpty(contract.SettingsProviderWritePayload{
 		Models: &contract.SettingsProviderModelsPayload{},
@@ -67,24 +63,6 @@ func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
 	if fireLimit.Max != 5 || fireLimit.Window != "1m" {
 		t.Fatalf("automationFireLimitFromPayload() = %#v", fireLimit)
 	}
-}
-
-func TestSettingsProviderItemRuntimeStrategy(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should project provider-managed strategy from the runtime provider", func(t *testing.T) {
-		t.Parallel()
-
-		payload := settingsProviderItemPayload(&settingspkg.ProviderItem{
-			Name: "gateway-bridge",
-			Settings: settingspkg.ProviderSettings{
-				RuntimeProvider: "openclaw",
-			},
-		})
-		if got, want := payload.RuntimeStrategy, contract.ProviderRuntimeStrategyProviderManaged; got != want {
-			t.Fatalf("RuntimeStrategy = %q, want %q", got, want)
-		}
-	})
 }
 
 func TestSettingsLogTailFileHelpers(t *testing.T) {
@@ -176,20 +154,7 @@ func TestSettingsCollectionResponseFromEnvelopeUsesEmptyArrays(t *testing.T) {
 				}
 			},
 		},
-		{
-			name:     "sandboxes",
-			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionSandboxes},
-			assertList: func(t *testing.T, payload any) {
-				t.Helper()
-				response, ok := payload.(contract.SettingsSandboxesResponse)
-				if !ok {
-					t.Fatalf("payload type = %T, want SettingsSandboxesResponse", payload)
-				}
-				if response.Sandboxes == nil || len(response.Sandboxes) != 0 {
-					t.Fatalf("Sandboxes = %#v, want empty non-nil array", response.Sandboxes)
-				}
-			},
-		},
+
 		{
 			name:     "hooks",
 			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionHooks},
@@ -233,11 +198,6 @@ func TestSettingsSectionResponseFromEnvelopeRequiresConcreteSectionPayload(t *te
 			want:     "settings general section is required",
 		},
 		{
-			name:     "memory",
-			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionMemory},
-			want:     "settings memory section is required",
-		},
-		{
 			name:     "skills",
 			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionSkills},
 			want:     "settings skills section is required",
@@ -247,11 +207,7 @@ func TestSettingsSectionResponseFromEnvelopeRequiresConcreteSectionPayload(t *te
 			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionAutomation},
 			want:     "settings automation section is required",
 		},
-		{
-			name:     "network",
-			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionNetwork},
-			want:     "settings network section is required",
-		},
+
 		{
 			name:     "observability",
 			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionObservability},
@@ -315,17 +271,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		}
 	})
 
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	memoryConfig := compozyconfig.DefaultWithHome(homePaths).Memory
-	memoryPayload := settingsMemoryConfigPayload(&memoryConfig)
-	memoryPayload.Dream.CheckInterval = "bad"
-	if _, err := memoryConfigFromPayload(&memoryPayload); err == nil {
-		t.Fatal("memoryConfigFromPayload(invalid interval) error = nil, want non-nil")
-	}
-
 	if _, err := skillsConfigFromPayload(contract.SettingsSkillsConfigPayload{
 		Enabled:      true,
 		PollInterval: "bad",
@@ -338,12 +283,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		"extensions.resources.snapshot_rate_limit",
 	); err == nil {
 		t.Fatal("extensionRateLimitConfigFromPayload(invalid window) error = nil, want non-nil")
-	}
-
-	if _, err := sandboxProfileFromPayload(contract.SettingsSandboxProfilePayload{
-		Backend: "invalid",
-	}); err == nil {
-		t.Fatal("sandboxProfileFromPayload(invalid backend) error = nil, want non-nil")
 	}
 
 	if _, err := hookDeclarationFromPayload(contract.SettingsHookDeclarationPayload{
@@ -406,33 +345,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("automationSettingsFromPayload(valid) error = %v", err)
 	}
-	if _, err := networkConfigFromPayload(contract.SettingsNetworkConfigPayload{
-		Enabled:      true,
-		MaxReplayAge: 10,
-		Live: contract.SettingsNetworkLiveConfigPayload{
-			Defaults: contract.SettingsNetworkLiveDefaultsPayload{
-				MaxWakes:         8,
-				MaxWakeWallTime:  "5m",
-				MaxTotalWallTime: "30m",
-				MaxInputTokens:   200_000,
-				MaxOutputTokens:  50_000,
-				MaxWakeDepth:     3,
-				CoalesceWindow:   "500ms",
-			},
-			Limits: contract.SettingsNetworkLiveLimitsPayload{
-				MaxWakes:          64,
-				MaxWakeWallTime:   "15m",
-				MaxTotalWallTime:  "2h",
-				MaxInputTokens:    1_000_000,
-				MaxOutputTokens:   200_000,
-				MaxWakeDepth:      5,
-				MinCoalesceWindow: "100ms",
-				MaxCoalesceWindow: "5s",
-			},
-		},
-	}); err != nil {
-		t.Fatalf("networkConfigFromPayload(valid) error = %v", err)
-	}
+
 	if _, err := observabilityConfigFromPayload(contract.SettingsObservabilityConfigPayload{
 		Enabled:        true,
 		RetentionDays:  7,
@@ -521,33 +434,5 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 				t.Fatalf("settingsGeneralConfigPayload().Terminal = %#v, want %#v", got, payload.Terminal)
 			}
 		})
-	}
-}
-
-func TestMemorySettingsPayloadRoundTripIncludesV2Config(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	want := compozyconfig.DefaultWithHome(homePaths).Memory
-	want.GlobalDir = "/tmp/roundtrip-memory"
-	want.Controller.Mode = "rules"
-	want.Controller.Policy.AllowOrigins = []string{"cli", "tool"}
-	want.Recall.IncludeAlreadySurfaced = true
-	want.Extractor.Queue.CoalesceMax = 12
-	want.Dream.MinHours = 18
-	want.Session.UnboundPartition = "_orphans"
-	want.Provider.Name = "local"
-	want.Workspace.AutoCreate = false
-
-	payload := settingsMemoryConfigPayload(&want)
-	got, err := memoryConfigFromPayload(&payload)
-	if err != nil {
-		t.Fatalf("memoryConfigFromPayload() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("memoryConfigFromPayload() = %#v, want %#v", got, want)
 	}
 }

@@ -24,7 +24,7 @@ function HookChunks({ chunks }: { chunks: readonly WorktreeExitHookChunk[] }) {
   return (
     <pre
       aria-live="polite"
-      className="max-h-24 overflow-y-auto rounded-md bg-rail px-2.5 py-2 font-mono text-micro leading-[1.6] whitespace-pre-wrap text-subtle"
+      className="max-h-24 overflow-y-auto rounded-md bg-sunken px-2.5 py-2 font-mono text-eyebrow leading-relaxed whitespace-pre-wrap text-subtle"
       data-slot="worktree-exit-hook-stream"
     >
       {chunks.map((chunk, index) => (
@@ -70,13 +70,13 @@ export function WorktreeExitProgress({
       <WorktreePhaseSteps phases={progress.phases} />
       {streaming?.chunks?.length ? <HookChunks chunks={streaming.chunks} /> : null}
       {progress.message ? (
-        <p className="text-badge leading-[1.45] text-danger" data-slot="worktree-exit-message">
+        <p className="text-eyebrow leading-normal text-danger" data-slot="worktree-exit-message">
           {progress.message}
         </p>
       ) : null}
       {output ? (
         <pre
-          className="max-h-24 overflow-y-auto rounded-md bg-rail px-2.5 py-2 font-mono text-micro leading-[1.6] whitespace-pre-wrap text-subtle"
+          className="max-h-24 overflow-y-auto rounded-md bg-sunken px-2.5 py-2 font-mono text-eyebrow leading-relaxed whitespace-pre-wrap text-subtle"
           data-slot="worktree-exit-output"
         >
           {output}

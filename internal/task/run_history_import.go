@@ -55,12 +55,6 @@ func NewTerminalRunHistoryImport(run Run, actor ActorContext) (TerminalRunHistor
 			run.Status,
 		)
 	}
-	if !run.IsTaskAnchored() {
-		return TerminalRunHistoryImport{}, fmt.Errorf(
-			"%w: history import requires a task-anchored run",
-			ErrValidation,
-		)
-	}
 	if run.EndedAt.IsZero() {
 		return TerminalRunHistoryImport{}, fmt.Errorf("%w: history import requires ended_at", ErrValidation)
 	}
@@ -86,16 +80,10 @@ func (c *TerminalRunHistoryImport) Actor() ActorContext { return c.actor }
 func cloneImportedRun(run Run) Run {
 	cloned := run
 	if run.ClaimedBy != nil {
-		claimedBy := *run.ClaimedBy
-		cloned.ClaimedBy = &claimedBy
-	}
-	if run.RunNetworkState != nil {
-		networkState := *run.RunNetworkState
-		cloned.RunNetworkState = &networkState
+		cloned.ClaimedBy = new(*run.ClaimedBy)
 	}
 	if run.RunWorktreeState != nil {
-		worktreeState := *run.RunWorktreeState
-		cloned.RunWorktreeState = &worktreeState
+		cloned.RunWorktreeState = new(*run.RunWorktreeState)
 	}
 	cloned.RequiredCapabilities = slices.Clone(run.RequiredCapabilities)
 	cloned.PreferredCapabilities = slices.Clone(run.PreferredCapabilities)

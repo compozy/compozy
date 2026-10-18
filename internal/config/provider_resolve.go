@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/runtimeoption"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ErrRuntimeModelRequired identifies providers that cannot resolve a model.
@@ -32,13 +34,23 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	}
 
 	resolved, hasBuiltin := builtinProviders[providerName]
+	var override ProviderConfig
+	overridden := false
+	if c != nil {
+		override, overridden = c.Providers[providerName]
+	}
+	retiredBase := false
 	if hasBuiltin {
 		resolved = cloneProvider(resolved)
+	} else {
+		resolved, retiredBase = retiredProviderBase(providerName, override, overridden)
+		hasBuiltin = retiredBase
 	}
-	if c != nil {
-		if override, ok := c.Providers[providerName]; ok {
-			resolved = mergeProvider(resolved, override)
-		}
+	if overridden {
+		resolved = mergeProvider(resolved, override)
+	}
+	if retiredBase {
+		warnRetiredBuiltinProvider(providerName, override, overridden)
 	}
 
 	if !hasBuiltin {
@@ -60,6 +72,13 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 
 // ResolveAgent resolves a parsed agent definition against provider config and global defaults.
 func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
+	toolPolicyEnforced := len(agent.Tools) > 0 || len(agent.Toolsets) > 0
+	policy, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{
+		Tools: agent.Tools, Toolsets: agent.Toolsets, DenyTools: agent.DenyTools,
+	})
+	agent.Tools, agent.Toolsets, agent.DenyTools = policy.Tools, policy.Toolsets, policy.DenyTools
+	owner := "agent:" + cmp.Or(agent.SourcePath, agent.Name)
+	toolspkg.WarnRetiredToolReferences(owner, dropped)
 	if err := agent.Validate(); err != nil {
 		return ResolvedAgent{}, err
 	}
@@ -102,11 +121,15 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		speed,
 		mcpServers,
 	)
+	resolved.ToolPolicyEnforced = toolPolicyEnforced
 	resolved.RuntimeSources = ResolvedRuntimeSources{
 		Provider:        providerSource,
 		Model:           modelSource,
 		ReasoningEffort: reasoningSource,
 		Speed:           speedSource,
+	}
+	if err := applyProviderFullAccessPreference(&resolved, providerName, provider, permissions); err != nil {
+		return ResolvedAgent{}, err
 	}
 
 	if err := validateResolvedAgentRuntime(providerName, provider, resolved); err != nil {
@@ -249,6 +272,43 @@ func resolvedAgentFromProvider(
 	return resolved
 }
 
+func applyProviderFullAccessPreference(
+	resolved *ResolvedAgent,
+	providerName string,
+	provider ProviderConfig,
+	permissions PermissionsConfig,
+) error {
+	if !permissions.ProviderFullAccess || resolved.Permissions != string(PermissionModeApproveAll) {
+		return nil
+	}
+	for _, option := range resolved.ACPOptionsValue() {
+		if option.ID == "mode" {
+			return nil // The agent explicitly chose its ACP mode.
+		}
+	}
+	if provider.EffectiveHarness() != ProviderHarnessACP {
+		return fmt.Errorf(
+			"permissions.provider_full_access requires an ACP provider; %q uses %q",
+			providerName,
+			provider.EffectiveHarness(),
+		)
+	}
+	var mode string
+	switch providerName {
+	case providerCodexKey:
+		mode = "agent-full-access"
+	case "claude":
+		mode = "bypassPermissions"
+	default:
+		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
+	}
+	options, _ := runtimeoption.MergeSelections(
+		[]ACPOptionSelection{{ID: "mode", ValueID: mode}}, resolved.ACPOptionsValue(),
+	)
+	resolved.SetACPOptions(options)
+	return nil
+}
+
 // ResolveSessionAgent resolves a parsed agent definition for one session.
 // When providerOverride is set, the selected provider becomes canonical and
 // provider-owned runtime fields are re-resolved from that provider to avoid
@@ -262,10 +322,29 @@ type RuntimeOverrides struct {
 	Provider  string
 	Model     string
 	Reasoning string
+	// Command is an explicit launch command for this attempt (a fallback route's account).
+	// It is applied after the provider-aware resolution: when non-empty it replaces the
+	// resolved command on any provider; when empty the existing rule holds (the agent
+	// command is kept only for a same-provider selection, else the selected provider's).
+	Command string
 }
 
 // ResolveSessionAgentWithRuntime resolves one session agent with runtime-level overrides.
 func (c *Config) ResolveSessionAgentWithRuntime(
+	agent AgentDef,
+	overrides RuntimeOverrides,
+) (ResolvedAgent, error) {
+	resolved, err := c.resolveSessionAgentRuntime(agent, overrides)
+	if err != nil {
+		return ResolvedAgent{}, err
+	}
+	if command := strings.TrimSpace(overrides.Command); command != "" {
+		resolved.Command = command
+	}
+	return resolved, nil
+}
+
+func (c *Config) resolveSessionAgentRuntime(
 	agent AgentDef,
 	overrides RuntimeOverrides,
 ) (ResolvedAgent, error) {

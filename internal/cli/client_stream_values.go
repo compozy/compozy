@@ -133,45 +133,6 @@ func hookEventsValues(query HookEventsQuery) url.Values {
 	return values
 }
 
-func memorySelectorValues(query MemorySelectorQuery) url.Values {
-	values := url.Values{}
-	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
-		values.Set("scope", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
-		values.Set("workspace_id", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.AgentName); trimmed != "" {
-		values.Set("agent_name", trimmed)
-	}
-	if trimmed := strings.TrimSpace(string(query.AgentTier)); trimmed != "" {
-		values.Set("agent_tier", trimmed)
-	}
-	if query.IncludeSystem {
-		values.Set("include_system", strconv.FormatBool(query.IncludeSystem))
-	}
-	return values
-}
-
-func memoryHistoryValues(query MemoryHistoryQuery) url.Values {
-	values := memorySelectorValues(MemorySelectorQuery{
-		Scope:       query.Scope,
-		WorkspaceID: query.WorkspaceID,
-		AgentName:   query.AgentName,
-		AgentTier:   query.AgentTier,
-	})
-	if trimmed := strings.TrimSpace(query.Operation); trimmed != "" {
-		values.Set("operation", trimmed)
-	}
-	if !query.Since.IsZero() {
-		values.Set("since", query.Since.UTC().Format(time.RFC3339Nano))
-	}
-	if query.Limit > 0 {
-		values.Set("limit", strconv.Itoa(query.Limit))
-	}
-	return values
-}
-
 func automationRunValues(query AutomationRunQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.JobID); trimmed != "" {

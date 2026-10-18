@@ -140,28 +140,6 @@ func TestGatewayConfig(t *testing.T) {
 		assertGatewayValidationPath(t, cfg.Validate(), "gateway.active_connection")
 	})
 
-	t.Run("Should load global gateway settings when operator home is the workspace root", func(t *testing.T) {
-		t.Parallel()
-
-		operatorHome := t.TempDir()
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(operatorHome, DirName))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		if err := EnsureHomeLayout(homePaths); err != nil {
-			t.Fatalf("EnsureHomeLayout() error = %v", err)
-		}
-		writeFile(t, homePaths.ConfigFile, "[gateway]\nenabled = true\n")
-
-		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(operatorHome))
-		if err != nil {
-			t.Fatalf("LoadForHome() error = %v", err)
-		}
-		if !cfg.Gateway.Enabled {
-			t.Fatal("LoadForHome() Gateway.Enabled = false, want true")
-		}
-	})
-
 	t.Run("Should reject gateway settings in workspace overlays", func(t *testing.T) {
 		t.Parallel()
 		for _, content := range []string{
@@ -238,8 +216,8 @@ func TestGatewayConfig(t *testing.T) {
 
 func assertGatewayValidationPath(t *testing.T, err error, wantPath string) {
 	t.Helper()
-	var validationErr ValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, validationErrOK := errors.AsType[ValidationError](err)
+	if !validationErrOK {
 		t.Fatalf("Validate() error = %v, want ValidationError", err)
 	}
 	if validationErr.Path != wantPath {

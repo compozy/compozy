@@ -8,6 +8,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { ArtifactCollector } from "./artifacts";
+import { seedRuntimeDatabase } from "./runtime-database";
 import {
   closeExtensionRegistryServer,
   startExtensionRegistryServer,
@@ -69,8 +70,8 @@ export interface BrowserRuntimeOptions {
   extensionsAllowUnverified?: boolean;
   host?: string;
   modelsDevEnabled?: boolean;
-  memoryEnabled?: boolean;
-  networkEnabled?: boolean;
+  /** Pins `window_manager.new_window_policy` for specs whose invariants need one placement. */
+  newWindowPolicy?: "floating" | "beside_focus" | "tab";
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
   seedDefaultWorkspace?: boolean;
@@ -89,32 +90,19 @@ export interface BrowserRuntime {
   requestOperatorJSON?<T>(pathname: string, init?: RequestInit): Promise<T>;
   resolveWorkspace(rootDir: string): Promise<WorkspacePayload>;
   replaceMarketplaceCatalog(seed: NonNullable<BrowserRuntimeSeed["marketplaceCatalog"]>): void;
+  replaceExtensionRelease(tag: string, archive: Buffer): void;
   dispose(): Promise<void>;
 }
 export {
   browserAutomationOperatorFlowScenario,
-  browserBridgeOperatorFlowScenario,
   browserSettingsOperatorFlowScenario,
   cleanupBrowserSettingsFixtures,
-  browserNetworkOperatorFlowScenario,
   seedBrowserTasksOperatorFlow,
-  seedBrowserBridgeOperatorFlow,
   seedBrowserAutomationOperatorFlow,
   seedBrowserSettingsFixtures,
-  seedBrowserSandboxProfiles,
-  triggerBrowserBridgeIngress,
-  seedBrowserNetworkOperatorFlow,
   waitForSeedSessionActive,
   type BrowserAutomationOperatorFlowResult,
   type BrowserAutomationOperatorFlowSeed,
-  type BrowserBridgeIngressResult,
-  type BrowserBridgeIngressSeed,
-  type BrowserBridgeOperatorFlowResult,
-  type BrowserBridgeOperatorFlowSeed,
-  type BrowserNetworkOperatorFlowResult,
-  type BrowserNetworkOperatorFlowSeed,
-  type BrowserSandboxProfileSeed,
-  type BrowserSandboxProfilesResult,
   type BrowserSettingsFixturesResult,
   type BrowserSettingsFixturesSeed,
   type BrowserSettingsHookSeed,
@@ -122,7 +110,6 @@ export {
   type BrowserSettingsProviderSeed,
   type BrowserTasksOperatorFlowResult,
   type BrowserTasksOperatorFlowSeed,
-  type BridgeAdapterMarkerPaths,
   seedBrowserRuntimeHome,
   type BrowserRuntimeSeed,
   type BrowserRuntimeSeedResult,
@@ -132,6 +119,7 @@ interface RuntimeLaunchState {
   extensionRegistryServer?: Server;
   marketplaceCatalogServer?: Server;
   replaceMarketplaceCatalog?: BrowserRuntime["replaceMarketplaceCatalog"];
+  replaceExtensionRelease?: BrowserRuntime["replaceExtensionRelease"];
   process: ChildProcessWithoutNullStreams;
   repoRoot: string;
 }
@@ -189,6 +177,7 @@ async function createBrowserRuntimeAttempt(
   let runtime: RuntimeLaunchState | undefined;
 
   try {
+    await seedRuntimeDatabase(repoRoot, paths.homeDir);
     extensionRegistry = await startExtensionRegistryServer(options.seed?.extensionRegistry);
     marketplaceCatalog = await startMarketplaceCatalogServer(
       options.seed?.marketplaceCatalog === undefined
@@ -211,9 +200,8 @@ async function createBrowserRuntimeAttempt(
         host: boundHost,
         includeMockAgentProvider: (options.seed?.mockAgents?.length ?? 0) > 0,
         modelsDevEnabled: options.modelsDevEnabled,
-        memoryEnabled: options.memoryEnabled,
         marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
-        networkEnabled: options.networkEnabled,
+        newWindowPolicy: options.newWindowPolicy,
         port: httpPort,
         socketPath: paths.daemonSocket,
         toolsExternalDefault: options.toolsExternalDefault,
@@ -230,6 +218,7 @@ async function createBrowserRuntimeAttempt(
         catalog.replace(resolveMarketplaceCatalogSeed(seed, extensionRegistry));
     }
     runtime.extensionRegistryServer = extensionRegistry?.server;
+    runtime.replaceExtensionRelease = extensionRegistry?.replaceArchive;
     const baseURL = `http://${DEFAULT_HOST}:${httpPort}`;
     const requireHTTPAPIStatus = requiresHTTPAPIReadinessProbe(boundHost);
     await waitForRuntimeReady(
@@ -349,6 +338,13 @@ class ActiveBrowserRuntime implements BrowserRuntime {
       throw new Error("catalog replacement requires a launch-mode seeded catalog");
     }
     this.launchState.replaceMarketplaceCatalog(seed);
+  }
+
+  replaceExtensionRelease(tag: string, archive: Buffer): void {
+    if (!this.launchState?.replaceExtensionRelease) {
+      throw new Error("release replacement requires a launch-mode seeded extension registry");
+    }
+    this.launchState.replaceExtensionRelease(tag, archive);
   }
 
   async requestJSON<T>(pathname: string, init?: RequestInit): Promise<T> {
@@ -600,7 +596,6 @@ async function createRuntimePaths(): Promise<RuntimePaths> {
 
   await mkdir(path.join(homeDir, "agents"), { recursive: true });
   await mkdir(path.join(homeDir, "skills"), { recursive: true });
-  await mkdir(path.join(homeDir, "memory"), { recursive: true });
   await mkdir(path.join(homeDir, "sessions"), { recursive: true });
   await mkdir(path.join(homeDir, "logs"), { recursive: true });
   await mkdir(path.join(homeDir, "bin"), { recursive: true });

@@ -24,10 +24,10 @@ func IsKnownWaitAheadArrival(value WaitAheadArrival) bool {
 type WaitParams struct {
 	For          string             `json:"for,omitempty"           yaml:"for,omitempty"`
 	Until        string             `json:"until,omitempty"         yaml:"until,omitempty"`
-	Event        *EventSubscription `json:"event,omitempty"         yaml:"event,omitempty"`
+	Event        *EventSubscription `json:"event,omitzero"          yaml:"event,omitempty"`
 	Expect       Schema             `json:"expect,omitempty"        yaml:"expect,omitempty"`
 	AheadArrival WaitAheadArrival   `json:"ahead_arrival,omitempty" yaml:"ahead_arrival,omitempty"`
-	Expires      *WaitExpiry        `json:"expires,omitempty"       yaml:"expires,omitempty"`
+	Expires      *WaitExpiry        `json:"expires,omitzero"        yaml:"expires,omitempty"`
 	Extra        map[string]any     `json:"-"                       yaml:",inline"`
 }
 

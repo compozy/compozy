@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -51,9 +52,9 @@ type lifecycleRecord struct {
 	HomeDir        string   `json:"home_dir,omitempty"`
 	Message        string   `json:"message"`
 	Recommendation string   `json:"recommendation,omitempty"`
-	DaemonStopped  bool     `json:"daemon_stopped,omitempty"`
+	DaemonStopped  bool     `json:"daemon_stopped,omitzero"`
 	Removed        []string `json:"removed,omitempty"`
-	Purged         bool     `json:"purged,omitempty"`
+	Purged         bool     `json:"purged,omitzero"`
 }
 
 func detectManagedState(deps commandDeps) managedState {
@@ -82,10 +83,7 @@ func requireUnmanagedForMutation(deps commandDeps, action string) error {
 
 func managedRecommendation(manager string, action string) string {
 	normalizedManager := strings.ToLower(strings.TrimSpace(manager))
-	normalizedAction := strings.ToLower(strings.TrimSpace(action))
-	if normalizedAction == "" {
-		normalizedAction = "change CompozyOS"
-	}
+	normalizedAction := cmp.Or(strings.ToLower(strings.TrimSpace(action)), "change CompozyOS")
 
 	switch {
 	case strings.Contains(normalizedManager, "brew") || strings.Contains(normalizedManager, "homebrew"):

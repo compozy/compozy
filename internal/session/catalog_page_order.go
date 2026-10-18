@@ -13,6 +13,15 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 		CreatedAt:   info.CreatedAt.UTC(),
 		ID:          strings.TrimSpace(info.ID),
 	}
+	if sortKey == ListSortName {
+		position.Name = new(
+			store.LowerSessionCatalogSearchText(sessionCatalogDisplayTitle(sessionInfoFromCatalog(info))),
+		)
+		position.PrimaryAt = info.CreatedAt.UTC()
+	}
+	if sortKey == ListSortCreated {
+		position.PrimaryAt = info.CreatedAt.UTC()
+	}
 	if sortKey == ListSortLastActivity {
 		position.SecondaryAt = info.UpdatedAt.UTC()
 		if info.Liveness != nil && info.Liveness.LastUpdateAt != nil && !info.Liveness.LastUpdateAt.IsZero() {
@@ -26,6 +35,25 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 			position.PrimaryAt = attention.AttentionChangedAt.UTC()
 		}
 		position.SecondaryAt = info.UpdatedAt.UTC()
+	}
+	if sortKey == ListSortNavigator {
+		band := 3
+		badge := BadgeForInfo(sessionInfoFromCatalog(info))
+		switch ClassForBadge(badge) {
+		case AttentionNeedsYou:
+			band = 0
+		case AttentionFinished:
+			band = 1
+		default:
+			if badge == BadgeRunning {
+				band = 2
+			}
+		}
+		position.NavigatorBand = &band
+		attention := info.AttentionSnapshot()
+		if attention.AttentionChangedAt != nil {
+			position.PrimaryAt = attention.AttentionChangedAt.UTC()
+		}
 	}
 	return position
 }
@@ -42,6 +70,27 @@ func sessionCatalogAttentionRank(info *store.SessionInfo) store.SessionCatalogAt
 }
 
 func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if left.ManualFolderRank != nil && right.ManualFolderRank != nil &&
+		left.ManualPosition != nil && right.ManualPosition != nil {
+		return compareSessionCatalogManualPosition(left, right)
+	}
+	if left.Name != nil && right.Name != nil {
+		if order := strings.Compare(*left.Name, *right.Name); order != 0 {
+			return order
+		}
+	}
+	if left.NavigatorBand != nil && right.NavigatorBand != nil {
+		if *left.NavigatorBand != *right.NavigatorBand {
+			return *left.NavigatorBand - *right.NavigatorBand
+		}
+		if !left.PrimaryAt.Equal(right.PrimaryAt) {
+			if left.PrimaryAt.After(right.PrimaryAt) {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(left.ID, right.ID)
+	}
 	if left.AttentionRank != right.AttentionRank {
 		return int(left.AttentionRank - right.AttentionRank)
 	}
@@ -63,5 +112,9 @@ func compareSessionCatalogPosition(left store.SessionCatalogPosition, right stor
 		}
 		return 1
 	}
-	return strings.Compare(strings.TrimSpace(right.ID), strings.TrimSpace(left.ID))
+	return compareStringsDescending(left.ID, right.ID)
+}
+
+func compareStringsDescending(left string, right string) int {
+	return strings.Compare(strings.TrimSpace(right), strings.TrimSpace(left))
 }

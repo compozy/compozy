@@ -315,24 +315,15 @@ describe("terminalGrantFromToolGrant", () => {
 describe("TerminalGrantRow", () => {
   const [shapeGrant] = TERMINAL_GRANT_FIXTURES;
 
-  it("Should say a remembered command is one exact input, shown by its digest", () => {
-    render(<TerminalGrantRow grant={shapeGrant} onRevoke={vi.fn()} />);
-
-    expect(screen.getByText("Always allowed: this exact command")).toBeInTheDocument();
-    expect(screen.getByText(shapeGrant.inputDigest as string)).toBeInTheDocument();
-  });
-
-  it("Should revoke with a text control, not an icon-only trash", async () => {
-    render(<TerminalGrantRow grant={shapeGrant} onRevoke={vi.fn()} />);
-
-    expect(
-      screen.getByRole("button", { name: "Revoke Always allowed: this exact command" })
-    ).toHaveTextContent("Revoke");
-  });
-
   it("Should let one exact-command grant be revoked on its own", async () => {
     const onRevoke = vi.fn();
     render(<TerminalGrantRow grant={shapeGrant} onRevoke={onRevoke} />);
+
+    expect(screen.getByText("Always allowed: this exact command")).toBeInTheDocument();
+    expect(screen.getByText(shapeGrant.inputDigest as string)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Revoke Always allowed: this exact command" })
+    ).toHaveTextContent("Revoke");
 
     await userEvent.click(screen.getByTestId(`terminal-grant-revoke-${shapeGrant.id}`));
 

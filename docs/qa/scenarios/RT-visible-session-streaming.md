@@ -46,3 +46,15 @@ QA 2026-09-06 integrated verdict: Both visible windows received real ACP checkpo
 The same storm follow-up now also derives required provider-token prefixes without changing regexes or their order. The unchanged one-core real journey passes in 16.83s; the expanded output corpus retains 11,840 identical hashes. See the same report and defect record for the later CI failure that motivated this second measured correction.
 
 The real TCP pressure fixture now sets its unchanged small receive buffer before connection negotiation. Linux socket measurements proved the prior post-connect setup could buffer the entire response without saturating the subscriber. The same 50,000-chunk journey and assertions pass in 16.05s after this setup correction; the report retains the measured boundary and CI failure.
+
+QA impact 2026-10-17 issue 764: while a session's transcript stream holds its live edge, its
+detail, by-id, usage, usage-turns, and prompt-queue reads drop from 5 s polling to a 30 s safety
+read; stream frames and `session_usage_changed` still invalidate them as changes happen. A
+background tab (window without live data) no longer polls its queue and rereads it on
+activation. Lab walk: a CLI prompt to the focused session reached the UI 172 ms after the prompt
+returned; activating a background tab reread its queue immediately.
+
+
+QA impact 2026-10-17 (web performance): Permission and turn-outcome projections now reuse facts from immutable message content; subagent roster readers filter unrelated cache events. Re-walk streamed text, permission resolution, stopped/verified turns, and roster-owner detach/reconnect. No live-provider re-walk is claimed in this change.
+
+Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.

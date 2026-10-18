@@ -95,6 +95,7 @@ func (payload windowManagerWindowOpenPayload) command() windowmanager.Command {
 			DesktopID:           windowmanager.DesktopID(strings.TrimSpace(payload.DesktopID)),
 			FloatingRect:        rect,
 			InsertTiled:         payload.InsertTiled,
+			Floating:            payload.Floating,
 			StackTargetWindowID: windowManagerOptionalString[windowmanager.WindowID](payload.StackTargetWindowID),
 		},
 		RestoreWindowID: windowManagerOptionalString[windowmanager.WindowID](payload.RestoreWindowID),
@@ -218,6 +219,7 @@ func (payload windowManagerLayoutArrangePayload) command() windowmanager.Command
 		Frame:       frame,
 		GroupID:     windowmanager.GroupID(strings.TrimSpace(payload.GroupID)),
 		ResourceID:  strings.TrimSpace(payload.ResourceID),
+		KeepFrames:  payload.KeepFrames,
 	}
 }
 

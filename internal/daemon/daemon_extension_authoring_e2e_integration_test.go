@@ -35,24 +35,35 @@ const (
 )
 
 func TestDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
+	repoRoot := extensionAuthoringE2ERepoRoot(t)
+	buildCtx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+	binaryPath := buildStampedExtensionAuthoringBinary(t, buildCtx, repoRoot)
+
 	t.Run(
 		"Should complete the development loop without trust prompts",
-		testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts,
+		func(t *testing.T) {
+			testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t, binaryPath, repoRoot)
+		},
 	)
 	t.Run(
 		"Should complete the resource-only development loop",
-		testDaemonE2EResourceOnlyExtensionAuthoring,
+		func(t *testing.T) {
+			testDaemonE2EResourceOnlyExtensionAuthoring(t, binaryPath)
+		},
 	)
 }
 
-func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
+func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(
+	t *testing.T,
+	binaryPath string,
+	repoRoot string,
+) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
-	repoRoot := extensionAuthoringE2ERepoRoot(t)
-	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath:   binaryPath,
 		StartTimeout: 30 * time.Second,
@@ -140,14 +151,12 @@ func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 	}
 }
 
-func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T) {
+func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T, binaryPath string) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
-	repoRoot := extensionAuthoringE2ERepoRoot(t)
-	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath:   binaryPath,
 		StartTimeout: 30 * time.Second,
@@ -457,7 +466,7 @@ func TestDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testi
 func testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
 	repoRoot := extensionAuthoringE2ERepoRoot(t)
@@ -573,7 +582,7 @@ func quickstartFencedLines(t *testing.T, block string) []string {
 		t.Fatal("quickstart bash code fence is unterminated")
 	}
 	lines := make([]string, 0, 4)
-	for _, raw := range strings.Split(fence, "\n") {
+	for raw := range strings.SplitSeq(fence, "\n") {
 		line := strings.TrimSpace(raw)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -771,6 +780,17 @@ func configureExtensionAuthoringSDKReplace(
 
 func buildStampedExtensionAuthoringBinary(t *testing.T, ctx context.Context, repoRoot string) string {
 	t.Helper()
+	// The runtime E2E lane prepares the release-compatible binary before test timeouts start.
+	if binaryPath := strings.TrimSpace(os.Getenv("COMPOZY_TEST_STAMPED_DAEMON_BIN")); binaryPath != "" {
+		absoluteBinaryPath, err := filepath.Abs(binaryPath)
+		if err != nil {
+			t.Fatalf("resolve stamped compozy binary path error = %v", err)
+		}
+		if _, err := os.Stat(absoluteBinaryPath); err != nil {
+			t.Fatalf("stamped compozy binary error = %v", err)
+		}
+		return absoluteBinaryPath
+	}
 	binaryPath := filepath.Join(t.TempDir(), "compozy")
 	// #nosec G204 -- the test builds the current checkout with an explicit release-compatible version stamp.
 	command := execabs.CommandContext(

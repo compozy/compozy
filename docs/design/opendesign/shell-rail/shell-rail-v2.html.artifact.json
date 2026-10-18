@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "shell-rail/shell-rail-v2.html",
+  "entry": "shell-rail/shell-rail-v2.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-09-30T03:59:45.738Z",
+  "updatedAt": "2026-09-30T03:59:45.738Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

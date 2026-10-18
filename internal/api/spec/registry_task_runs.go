@@ -1,9 +1,13 @@
 package spec
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
+)
 
 func registryTaskRunOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		inspectRunOperationSpec(),
 		fanOutTaskRunsOperationSpec(),
 		forceReleaseTaskRunOperationSpec(),
@@ -22,7 +26,18 @@ func registryTaskRunOperations() []OperationSpec {
 		getTaskRunReviewOperationSpec(),
 		submitTaskRunReviewVerdictOperationSpec(),
 	}
+	for index := range operations {
+		if strings.HasPrefix(operations[index].Path, "/api/scheduler") {
+			continue
+		}
+		operations[index].Parameters = ensureProfileParameters(
+			operations[index].Parameters,
+			operations[index].Method == httpMethodGet,
+		)
+	}
+	return operations
 }
+
 func inspectRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
@@ -49,7 +64,7 @@ func fanOutTaskRunsOperationSpec() OperationSpec {
 		Path:        specAPITasksIDRunsFanOutPath,
 		OperationID: "fanOutTaskRuns",
 		Summary:     "Enqueue designated sibling runs for one task",
-		Tags:        []string{specTasksKey, specNetworkKey},
+		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("id", "Task id"),

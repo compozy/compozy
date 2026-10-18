@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FORMAT_TIME_FALLBACK, formatUptimeSeconds } from "../format-time";
-
-describe("format-time re-export", () => {
-  it("Should re-export the @compozy/ui sentinel string", () => {
-    expect(FORMAT_TIME_FALLBACK).toBe("—");
-  });
-});
+import { formatUptimeSeconds } from "../format-time";
 
 describe("formatUptimeSeconds", () => {
   it("Should return an em-dash for invalid input", () => {

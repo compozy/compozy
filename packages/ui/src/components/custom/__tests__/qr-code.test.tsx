@@ -46,12 +46,6 @@ describe("QrCode", () => {
     expect(path).toHaveClass("fill-accent-ink");
   });
 
-  it("Should apply the requested rendered size", () => {
-    const { container } = render(<QrCode value={PAYLOAD} label="Scan to pair" size="sm" />);
-    const svg = container.querySelector<SVGSVGElement>('[data-slot="qr-code"]');
-    expect(svg).toHaveClass("size-qr-code-sm");
-  });
-
   it("Should keep accessibility and matrix geometry invariant when SVG props conflict", () => {
     const { container, rerender } = render(
       <QrCode

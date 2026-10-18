@@ -26,9 +26,9 @@ func (s *Scheduler) selectWakeTargets(
 	sessions []SessionSnapshot,
 	active []taskpkg.Run,
 ) selectionResult {
-	orderedPending := append([]RunSnapshot(nil), pending...)
+	orderedPending := slices.Clone(pending)
 	sortRunsForWake(orderedPending)
-	orderedSessions := append([]SessionSnapshot(nil), sessions...)
+	orderedSessions := slices.Clone(sessions)
 	sortSessionsForWake(orderedSessions)
 
 	occupied := activeSessionIDs(active)

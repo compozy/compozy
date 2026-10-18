@@ -18,8 +18,6 @@ type CreationProfileInput struct {
 	WorkspaceID     string
 	CWD             string
 	WorktreeRef     string
-	SandboxMode     string
-	SandboxRef      string
 	Permissions     string
 	AllowedTools    []string
 	AgentTools      []string
@@ -44,8 +42,6 @@ func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfi
 		WorkspaceID:     input.WorkspaceID,
 		CWD:             input.CWD,
 		WorktreeRef:     input.WorktreeRef,
-		SandboxMode:     input.SandboxMode,
-		SandboxRef:      input.SandboxRef,
 		Permissions:     input.Permissions,
 		AllowedTools:    input.AllowedTools,
 		AgentTools:      input.AgentTools,

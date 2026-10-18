@@ -32,18 +32,6 @@ func TestTerminalOpenAPIPublicWireContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve native terminal codes in public tool errors", func(t *testing.T) {
-		t.Parallel()
-		for _, code := range frozenTerminalErrorCodes() {
-			if !slices.Contains(toolErrorCodeValues(), code) {
-				t.Errorf("ToolError.code enum omits %q", code)
-			}
-			if !slices.Contains(toolReasonCodeValues(), code) {
-				t.Errorf("ToolError.reason_codes enum omits %q", code)
-			}
-		}
-	})
-
 	t.Run("Should publish exact terminal request required property sets", func(t *testing.T) {
 		t.Parallel()
 

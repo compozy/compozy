@@ -13,25 +13,23 @@ export interface OsPaletteFallbackRowProps {
   onSelect(query: string): void;
 }
 
-/** Agent delegation is a normal result row, with a distinct informational treatment. */
+/** Agent delegation is a normal result row: a plain agent glyph, the query, and ↵. */
 export function OsPaletteFallbackRow({ fallback, pending, onSelect }: OsPaletteFallbackRowProps) {
   return (
     <CommandItem
       forceMount
       aria-busy={pending || undefined}
-      className={cn(paletteRowClass, "mt-1.5 border-t border-line-soft text-info")}
+      className={cn(paletteRowClass, "mt-1.5 border-t border-line-soft")}
       data-palette-row={fallback.value}
       data-testid="os-palette-agent-fallback"
       value={fallback.value}
       onSelect={() => onSelect(fallback.query)}
     >
-      <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-info-tint text-info">
-        <Bot aria-hidden="true" className="size-3" />
-      </span>
+      <Bot aria-hidden="true" className="size-3.5 text-muted" />
       <span className="min-w-0 truncate leading-none text-fg">
-        Ask agent: <span className="text-info">&apos;{fallback.query}&apos;</span>
+        Ask agent: <span className="text-fg-strong">&apos;{fallback.query}&apos;</span>
       </span>
-      <CommandShortcut>{pending ? "starting…" : "↵"}</CommandShortcut>
+      <CommandShortcut>{pending ? "Starting…" : "↵"}</CommandShortcut>
     </CommandItem>
   );
 }

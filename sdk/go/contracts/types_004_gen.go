@@ -2,6 +2,19 @@
 
 package contracts
 
+type AutomationRunFailedPayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
+	RunID       string `json:"run_id"`
+	JobID       string `json:"job_id,omitempty"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	Error       string `json:"error,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
+	WillRetry   bool   `json:"will_retry,omitempty"`
+}
+
 type AutomationRunsParams struct {
 	JobID     string    `json:"job_id,omitempty"`
 	TriggerID string    `json:"trigger_id,omitempty"`
@@ -111,7 +124,6 @@ type AutonomyMatcher struct {
 	LoopName             string `json:"loop_name,omitempty"`
 	NodeID               string `json:"node_id,omitempty"`
 	WorkflowID           string `json:"workflow_id,omitempty"`
-	ParticipationChannel string `json:"participation_channel,omitempty"`
 	CoordinatorSessionID string `json:"coordinator_session_id,omitempty"`
 	ParentSessionID      string `json:"parent_session_id,omitempty"`
 	RootSessionID        string `json:"root_session_id,omitempty"`
@@ -150,42 +162,20 @@ type BlockedReason struct {
 
 type BlockedSource string
 
-type Bounds struct {
-	MaxWakes         int    `json:"max_wakes"`
-	MaxWakeWallTime  string `json:"max_wake_wall_time"`
-	MaxTotalWallTime string `json:"max_total_wall_time"`
-	MaxInputTokens   int64  `json:"max_input_tokens"`
-	MaxOutputTokens  int64  `json:"max_output_tokens"`
-	MaxWakeDepth     int    `json:"max_wake_depth"`
-	CoalesceWindow   string `json:"coalesce_window"`
+type CatalogScope string
+
+type CatalogSort string
+
+type Chip struct {
+	ID       string            `json:"id"`
+	Label    string            `json:"label"`
+	Count    *int              `json:"count,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
 }
 
-type BoundsRequest struct {
-	MaxWakes         *int    `json:"max_wakes,omitempty"`
-	MaxWakeWallTime  *string `json:"max_wake_wall_time,omitempty"`
-	MaxTotalWallTime *string `json:"max_total_wall_time,omitempty"`
-	MaxInputTokens   *int64  `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens  *int64  `json:"max_output_tokens,omitempty"`
-	MaxWakeDepth     *int    `json:"max_wake_depth,omitempty"`
-	CoalesceWindow   *string `json:"coalesce_window,omitempty"`
-}
-
-type BridgeAggregateHealth struct {
-	TotalInstances        int                `json:"total_instances"`
-	RouteCount            int                `json:"route_count"`
-	DeliveryBacklog       int                `json:"delivery_backlog"`
-	DeliveryDroppedTotal  int                `json:"delivery_dropped_total"`
-	DeliveryFailuresTotal int                `json:"delivery_failures_total"`
-	AuthFailuresTotal     int                `json:"auth_failures_total"`
-	StatusCounts          BridgeStatusCounts `json:"status_counts"`
-}
-
-type BridgeCheckRecord struct {
-	Check       string            `json:"check"`
-	Status      BridgeCheckStatus `json:"status"`
-	Remediation string            `json:"remediation"`
-}
-
-type BridgeCheckRequest struct {
-	BridgeInstanceID string `json:"bridge_instance_id"`
+type ClarifyAnswer struct {
+	Choice   *int   `json:"choice"`
+	Text     string `json:"text"`
+	Fallback bool   `json:"fallback"`
 }

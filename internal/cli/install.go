@@ -1,14 +1,15 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -175,10 +176,7 @@ func resolveNonInteractiveInstallSelection(
 		return installWizardSelection{}, errors.New("cli: install provider is required")
 	}
 
-	selectedModel := strings.TrimSpace(model)
-	if selectedModel == "" {
-		selectedModel = strings.TrimSpace(input.SuggestedModels[selectedProvider])
-	}
+	selectedModel := cmp.Or(strings.TrimSpace(model), strings.TrimSpace(input.SuggestedModels[selectedProvider]))
 	if selectedModel == "" && input.ModelRequired[selectedProvider] {
 		return installWizardSelection{}, fmt.Errorf(
 			"cli: install model is required for provider %q",
@@ -214,7 +212,7 @@ func buildInstallWizardInput(cfg *compozyconfig.Config) installWizardInput {
 		seen[name] = struct{}{}
 		providers = append(providers, name)
 	}
-	sort.Strings(providers)
+	slices.Sort(providers)
 
 	suggestedModels := make(map[string]string, len(providers))
 	modelRequired := make(map[string]bool, len(providers))
@@ -349,7 +347,7 @@ func (m *installWizardModel) Init() tea.Cmd {
 }
 
 func (m *installWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	keyMsg, ok := msg.(tea.KeyMsg)
+	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if ok {
 		if keyMsg.String() == "ctrl+c" {
 			m.canceled = true
@@ -375,7 +373,7 @@ func (m *installWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *installWizardModel) View() string {
+func (m *installWizardModel) View() tea.View {
 	var builder strings.Builder
 
 	builder.WriteString("CompozyOS Install\n")
@@ -418,10 +416,10 @@ func (m *installWizardModel) View() string {
 		builder.WriteString("\nError: " + m.errText + "\n")
 	}
 
-	return builder.String()
+	return tea.NewView(builder.String())
 }
 
-func (m *installWizardModel) updateProviderStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *installWizardModel) updateProviderStep(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
 		if m.selected > 0 {
@@ -446,7 +444,7 @@ func (m *installWizardModel) updateProviderStep(msg tea.KeyMsg) (tea.Model, tea.
 	return m, nil
 }
 
-func (m *installWizardModel) updateModelStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *installWizardModel) updateModelStep(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.errText = ""
@@ -471,7 +469,7 @@ func (m *installWizardModel) modelRequired() bool {
 	return m.input.ModelRequired[strings.TrimSpace(m.provider)]
 }
 
-func (m *installWizardModel) updateConfirmStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *installWizardModel) updateConfirmStep(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.errText = ""

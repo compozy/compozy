@@ -78,12 +78,12 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Args:    slices.Clone(e.definition.Subprocess.Args),
 			Env:     cloneStringMap(e.definition.Subprocess.Env),
 		},
-		NetworkParticipation: normalizeDescribeNetworkParticipation(e.definition.NetworkParticipation),
-		Tools:                tools,
-		CommandGroups:        e.commandGroupsLocked(),
-		HookEvents:           normalizeDescribeHookEvents(e.definition.SupportedHookEvents),
-		WatchSourceKinds:     e.watchSourceKindsLocked(),
-		CmdPaletteViews:      cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
+		Gateway:          normalizeDescribeGateway(e.definition.Gateway),
+		Tools:            tools,
+		CommandGroups:    e.commandGroupsLocked(),
+		HookEvents:       normalizeDescribeHookEvents(e.definition.SupportedHookEvents),
+		WatchSourceKinds: e.watchSourceKindsLocked(),
+		CmdPaletteViews:  cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
 		SDK: contracts.DescribeSDKInfo{
 			Name:              SDKName,
 			Version:           e.sdkVersion,
@@ -190,19 +190,17 @@ func cloneOptionalBool(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
-func normalizeDescribeNetworkParticipation(
-	value *NetworkParticipationRequirement,
-) *contracts.DescribeNetworkParticipation {
+func normalizeDescribeGateway(
+	value *GatewayRequirement,
+) *contracts.DescribeGatewayRequirement {
 	if value == nil {
 		return nil
 	}
-	return &contracts.DescribeNetworkParticipation{
-		Required: value.Required, Mode: strings.TrimSpace(value.Mode),
-		ChannelScopes: normalizeStrings(value.ChannelScopes),
+	return &contracts.DescribeGatewayRequirement{
+		Permissions: normalizeStrings(value.Permissions),
 	}
 }
 

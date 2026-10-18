@@ -3,21 +3,18 @@ import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 import { LOOP_RUN_STATUSES } from "@/generated/loop-enums";
 
 import type { LoopRunStatus } from "../types";
-import type { LoopStatusFilter } from "./loop-catalog";
+import type { LoopCatalogFilter } from "./loop-catalog";
 import { isLoopRunStatus, loopStatusLabel } from "./loop-formatters";
 import type { LoopOutcomeValue } from "./loop-runs-view";
+import { parseLoopCategoryFilter, parseLoopKindFilter } from "./loops-route-search";
 
 export interface LoopStatusFilterOption {
   value: LoopRunStatus;
   label: string;
 }
 
-export interface LoopFilterState {
-  status: LoopStatusFilter | null;
-}
-
 export interface LoopFilterHandlers {
-  onStatusChange: (next: LoopStatusFilter | null) => void;
+  onFiltersChange: (next: LoopCatalogFilter) => void;
 }
 
 /**
@@ -32,19 +29,67 @@ export function loopStatusFilterOptions(): LoopStatusFilterOption[] {
   return LOOP_RUN_STATUSES.map(value => ({ value, label: loopStatusLabel(value) }));
 }
 
-/** Chip-bar field config: one select over the daemon's full latest-run status vocabulary. */
-export function buildLoopFilterFields(): FilterFieldsConfig<string> {
-  return [{ key: "status", label: "Status", type: "select", options: loopStatusFilterOptions() }];
+/** Server-faceted categories and the full kind/status vocabularies. */
+export function buildLoopFilterFields(
+  categories: readonly string[],
+  selectedCategory: string | null
+): FilterFieldsConfig<string> {
+  const categoryOptions = [
+    ...new Set([...categories, ...(selectedCategory ? [selectedCategory] : [])]),
+  ].sort();
+  return [
+    {
+      key: "kind",
+      label: "Kind",
+      type: "select",
+      options: [
+        { value: "read-only", label: "Built-in" },
+        { value: "workspace", label: "Custom" },
+      ],
+    },
+    {
+      key: "category",
+      label: "Category",
+      type: "select",
+      options: categoryOptions.map(value => ({ value, label: value })),
+    },
+    { key: "status", label: "Status", type: "select", options: loopStatusFilterOptions() },
+  ];
 }
 
-export function loopFiltersToChips(state: LoopFilterState): Filter<string>[] {
-  if (!state.status) return [];
-  return [{ id: "loop-filter-status", field: "status", operator: "is", values: [state.status] }];
+export function loopFiltersToChips(state: LoopCatalogFilter): Filter<string>[] {
+  const chips: Filter<string>[] = [];
+  if (state.kind !== "all") {
+    chips.push({ id: "loop-filter-kind", field: "kind", operator: "is", values: [state.kind] });
+  }
+  if (state.category) {
+    chips.push({
+      id: "loop-filter-category",
+      field: "category",
+      operator: "is",
+      values: [state.category],
+    });
+  }
+  if (state.status) {
+    chips.push({
+      id: "loop-filter-status",
+      field: "status",
+      operator: "is",
+      values: [state.status],
+    });
+  }
+  return chips;
 }
 
 export function applyLoopFilterChips(chips: Filter<string>[], handlers: LoopFilterHandlers): void {
+  const kind = chips.find(chip => chip.field === "kind")?.values[0];
+  const category = chips.find(chip => chip.field === "category")?.values[0];
   const status = chips.find(chip => chip.field === "status")?.values[0];
-  handlers.onStatusChange(isLoopRunStatus(status) ? status : null);
+  handlers.onFiltersChange({
+    kind: parseLoopKindFilter(kind) ?? "all",
+    category: parseLoopCategoryFilter(category) ?? null,
+    status: isLoopRunStatus(status) ? status : null,
+  });
 }
 
 export type LoopRunOriginFilter = "catalog" | "session";

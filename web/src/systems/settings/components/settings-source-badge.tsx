@@ -9,18 +9,32 @@ interface SettingsSourceBadgeProps {
 }
 
 const KIND_LABELS: Record<SettingsSourceKind, string> = {
-  extension: "EXTENSION",
-  "builtin-provider": "BUILTIN",
-  "global-config": "CONFIG",
-  "profile-config": "PROFILE",
-  "workspace-config": "WORKSPACE",
-  "workspace-profile-config": "WORKSPACE PROFILE",
-  "global-mcp-sidecar": "MCP.JSON",
-  "profile-mcp-sidecar": "PROFILE MCP.JSON",
-  "workspace-mcp-sidecar": "WS-MCP.JSON",
-  "workspace-profile-mcp-sidecar": "WS-PROFILE MCP.JSON",
-  "global-agent-file": "AGENT",
-  "workspace-agent-file": "WS-AGENT",
+  extension: "From extension",
+  "builtin-provider": "Built in",
+  "global-config": "From settings",
+  "profile-config": "From profile",
+  "workspace-config": "From project",
+  "workspace-profile-config": "From project profile",
+  "global-mcp-sidecar": "From mcp.json",
+  "profile-mcp-sidecar": "From profile",
+  "workspace-mcp-sidecar": "From project",
+  "workspace-profile-mcp-sidecar": "From project profile",
+  "global-agent-file": "From agent file",
+  "workspace-agent-file": "From project agent file",
+};
+
+/** The file behind a source, shown on hover so the label itself stays plain. */
+const KIND_FILES: Partial<Record<SettingsSourceKind, string>> = {
+  "global-config": "config.toml",
+  "profile-config": "profile config.toml",
+  "workspace-config": "project config.toml",
+  "workspace-profile-config": "project profile config.toml",
+  "global-mcp-sidecar": "mcp.json",
+  "profile-mcp-sidecar": "profile mcp.json",
+  "workspace-mcp-sidecar": "project mcp.json",
+  "workspace-profile-mcp-sidecar": "project profile mcp.json",
+  "global-agent-file": "agent file",
+  "workspace-agent-file": "project agent file",
 };
 
 function badgeTone(kind: SettingsSourceKind): PillTone {
@@ -66,22 +80,22 @@ function SettingsSourceBadge({
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
       <Pill
-        mono
         tone={badgeTone(source.kind)}
+        title={KIND_FILES[source.kind]}
         data-testid={testId ? `${testId}-effective` : undefined}
       >
         {sourceLabel(source)}
       </Pill>
       {shadowed && shadowed.length > 0 ? (
         <span
-          className="flex flex-wrap items-center gap-1 font-mono text-badge font-medium tracking-mono text-muted"
+          className="flex flex-wrap items-center gap-1 text-badge font-medium text-muted"
           data-testid={testId ? `${testId}-shadowed` : undefined}
         >
-          <span className="uppercase">shadows</span>
+          <span>replaces</span>
           {shadowed.map(entry => (
             <Pill
-              mono
               tone="neutral"
+              title={KIND_FILES[entry.kind]}
               key={`${entry.kind}-${entry.scope}-${entry.agent_name ?? ""}-${entry.profile ?? ""}-${entry.workspace_id ?? ""}`}
             >
               {sourceLabel(entry)}

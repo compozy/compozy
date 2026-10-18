@@ -23,16 +23,13 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	if dbSource, ok := state.registry.(settingspkg.ApplyRecordDBSource); ok {
 		applyRecords = settingspkg.NewConfigApplyRecordRepository(dbSource.DB(), time.Now)
 	}
-	networkAvailability := networkAvailabilityStoreDependency(state.registry)
 	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
 		WorkspaceResolver:       state.workspaceResolver,
 		ProfileResolver:         state.profiles,
 		AttentionWorkspaceMutes: state.registry,
 		GeneralRuntime:          surface,
-		MemoryRuntime:           surface,
 		SkillsRuntime:           state.skillsRegistry,
 		AutomationRuntime:       surface,
-		NetworkRuntime:          surface,
 		ObservabilityRuntime:    surface,
 		Extensions:              surface,
 		TransportParity:         surface,
@@ -44,17 +41,14 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		MCPDefinitionRetirer:    state.mcpToolProvider,
 		ModelCatalog:            state.modelCatalog,
 		RuntimeApplier: daemonSettingsRuntimeApplier{
-			daemon:              d,
-			state:               state,
-			networkAvailability: networkAvailability,
-			networkWakeRunner:   state.networkWakeRunner,
+			daemon: d,
+			state:  state,
 		},
-		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
-		EventSummaries:             state.registry,
-		ApplyRecords:               applyRecords,
-		RestartActionAvailable:     true,
-		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
-		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
+		ProviderSecrets:        settingsProviderVaultDependency(state.providerVault),
+		EventSummaries:         state.registry,
+		ApplyRecords:           applyRecords,
+		RestartActionAvailable: true,
+		LogTailAvailable:       strings.TrimSpace(d.homePaths.LogFile) != "",
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create settings service: %w", err)

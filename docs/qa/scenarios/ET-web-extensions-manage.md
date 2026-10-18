@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The Extensions Installed scope lists profile-effective inventory, applies per-profile enablement immediately, shows declared profiles, needs-setup and dormant placements, reviews install or update changes before mutation, and permits typed removal with owned-resource cleanup.
 entry_points: /marketplace/extensions; Marketplace Manage actions; /marketplace/extension/{entry_id} install preview; POST /api/extensions/preview-install; compozy extension install|update|enable|disable|remove; compozy --profile <name> extension enable|disable; GET /api/extensions/{name}/inventory?profile=<name>; GET|PUT /api/extensions/{name}/enablement over HTTP and UDS
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/marketplace-extension-evidence.md; /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/spec-cycle-trusted-detail.png
-last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-019; ET-020; ET-021; ET-ext-inventory; ET-ext-preview
 ---
 
@@ -53,3 +53,7 @@ than on the machine, backed by per-profile exception rows (absent row means enab
 on, that toggling in one profile leaves the others untouched, and that the state it shows matches
 the CLI and API for the same profile. The cross-surface contract is owned by
 `ET-extension-profile-enablement`.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

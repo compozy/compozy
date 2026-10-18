@@ -5,7 +5,6 @@ import type {
   SettingsHookListFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerGetFilter,
-  SettingsNotificationPresetFilter,
   SettingsPersonaFilter,
   SettingsSectionName,
   SettingsSectionSlug,
@@ -91,10 +90,6 @@ export const settingsKeys = {
   providersList: () => [...settingsKeys.providersRoot(), "list"] as const,
   providerDetail: (name: string) => [...settingsKeys.providersRoot(), "detail", name] as const,
 
-  sandboxesRoot: () => [...settingsKeys.collections(), "sandboxes"] as const,
-  sandboxesList: () => [...settingsKeys.sandboxesRoot(), "list"] as const,
-  sandboxDetail: (name: string) => [...settingsKeys.sandboxesRoot(), "detail", name] as const,
-
   hooksRoot: () => [...settingsKeys.collections(), "hooks"] as const,
   hooksList: (filter: SettingsHookListFilter = {}) =>
     [
@@ -125,17 +120,6 @@ export const settingsKeys = {
       normalizeText(filter.profile),
     ] as const,
 
-  notificationsRoot: () => [...settingsKeys.all, "notifications"] as const,
-  notificationPresetsList: (filter: SettingsNotificationPresetFilter = {}) =>
-    [
-      ...settingsKeys.notificationsRoot(),
-      "presets",
-      filter.enabled ?? "",
-      filter.built_in ?? "",
-      normalizeText(filter.name),
-      filter.limit ?? "",
-    ] as const,
-
   restartRoot: () => [...settingsKeys.all, "restart"] as const,
   restartStatus: (operationId: string) => [...settingsKeys.restartRoot(), operationId] as const,
 
@@ -150,4 +134,5 @@ export const settingsKeys = {
     ] as const,
 
   updateStatus: () => [...settingsKeys.all, "update"] as const,
+  updateApply: () => [...settingsKeys.all, "update", "apply"] as const,
 };

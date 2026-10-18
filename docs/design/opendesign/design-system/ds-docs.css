@@ -20,7 +20,7 @@ body.ds-doc{background:var(--canvas);overflow-y:auto}
 .docnav a{
   display:inline-flex;align-items:center;gap:6px;
   height:28px;padding:0 10px;border-radius:var(--radius-sm);
-  font-size:var(--text-eyebrow);font-weight:510;color:var(--muted);
+  font-size:var(--text-eyebrow);font-weight:500;color:var(--muted);
   transition:background var(--dur-fast),color var(--dur-fast);
 }
 .docnav a:hover{background:var(--row-hover);color:var(--fg)}
@@ -55,7 +55,7 @@ body.ds-doc{background:var(--canvas);overflow-y:auto}
 /* .demo--col is a 12px-gap flex column — zero the note's own margin there
    so notes sit 12px (not 20px) below their specimen */
 .demo--col>.demo-note{margin-top:0}
-.demo-note b{color:var(--muted);font-weight:510}
+.demo-note b{color:var(--muted);font-weight:500}
 /* measurement chip overlaying a demo */
 .mchip{
   display:inline-flex;align-items:center;gap:5px;

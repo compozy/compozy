@@ -1,6 +1,4 @@
-import { AlertTriangle, WifiOff } from "lucide-react";
-
-import { cn } from "@compozy/ui";
+import { useState } from "react";
 
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
@@ -33,14 +31,15 @@ function overviewState(input: {
 }
 
 /**
- * Management overview and honest daemon-connection feedback. The status pill
- * also carries a refused command's notice while the stream is healthy, so a
- * drop that rolled back never disappears without a word.
+ * Desktop management overview. Connection health and refused-command notices
+ * live in the menubar's single status pill (`OsHydrationStatus`).
  */
 export interface DesktopManagerSurfacesProps {
   model: DesktopManagerSurfacesModel;
-  /** No workspace is bound, so there is no layout stream to report on. */
-  unbound?: boolean;
+  /** Desktops holding a window that needs you (the pager's projection). */
+  needsYouDesktopIds: ReadonlySet<string>;
+  /** Live `desktop.switch.N` chord labels by position (index 0 = ⌃1); null when unbound. */
+  switchShortcuts: readonly (string | null)[];
   onCreateDesktop: () => void;
   onSwitchDesktop: (desktopId: string) => void;
   onRenameDesktop: (desktopId: string, name: string) => void;
@@ -54,7 +53,8 @@ export interface DesktopManagerSurfacesProps {
 
 export function DesktopManagerSurfaces({
   model,
-  unbound = false,
+  needsYouDesktopIds,
+  switchShortcuts,
   onCreateDesktop,
   onSwitchDesktop,
   onRenameDesktop,
@@ -65,28 +65,43 @@ export function DesktopManagerSurfaces({
   onRetry,
   onResolveConflict,
 }: DesktopManagerSurfacesProps) {
-  const desktops: DesktopOverviewItem[] = model.desktops.map(desktop => ({
-    id: desktop.id,
-    name: desktop.name,
-    thumbnail: (
-      <DesktopLayoutThumbnail projection={desktop.projection} windows={desktop.windowRecords} />
-    ),
-    windows: desktop.windows,
-  }));
+  // The overview portals into this desk-sized host so it covers the desk only.
+  const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
+  const desktops: DesktopOverviewItem[] = model.desktops.map((desktop, index) => {
+    const area = desktop.projection?.workArea;
+    return {
+      id: desktop.id,
+      name: desktop.name,
+      thumbnail: (
+        <DesktopLayoutThumbnail projection={desktop.projection} windows={desktop.windowRecords} />
+      ),
+      aspectRatio: area && area.w > 0 && area.h > 0 ? area.w / area.h : undefined,
+      windows: desktop.windows,
+      needsYou: needsYouDesktopIds.has(desktop.id),
+      switchShortcut: switchShortcuts[index] ?? null,
+    };
+  });
   const overview = overviewState({
     hydration: model.hydration,
     activeDesktopId: model.activeDesktopId,
     desktops,
     conflictMessage: model.conflict
-      ? `Revision ${model.conflict.expectedRevision} is stale; CompozyOS is at revision ${model.conflict.currentRevision}.`
+      ? "Your desktops changed somewhere else. Reload to see the latest."
       : null,
     diagnosticMessage: model.diagnostic?.message ?? null,
   });
 
   return (
     <>
+      <div
+        ref={setOverlayHost}
+        data-slot="os-desk-overlays"
+        // contain-paint makes the portaled overview resolve against the desk.
+        className="contain-paint pointer-events-none absolute inset-0 z-40 [&:not(:empty)]:pointer-events-auto"
+      />
       <DesktopsOverview
         open={model.overlay?.kind === "desktops-overview"}
+        container={overlayHost}
         state={overview}
         initialFocusSegment={model.overviewSegmentRequest}
         busy={model.pending !== null}
@@ -103,29 +118,6 @@ export function DesktopManagerSurfaces({
         onRetry={onRetry}
         onResolveConflict={onResolveConflict}
       />
-      {!unbound &&
-      model.hydration !== "pending" &&
-      (model.connectionStatus !== "connected" || model.diagnostic !== null) ? (
-        <div
-          role="status"
-          data-testid="os-window-manager-status"
-          className={cn(
-            "pointer-events-none absolute top-2 right-2 z-30 flex items-center gap-1.5",
-            "rounded-pill border border-line-strong bg-shell-glass px-2.5 py-1",
-            "text-form-hint text-muted backdrop-blur-shell"
-          )}
-        >
-          {model.diagnostic ? (
-            <AlertTriangle aria-hidden="true" className="size-3 text-warning" />
-          ) : (
-            <WifiOff aria-hidden="true" className="size-3 text-subtle" />
-          )}
-          {model.diagnostic?.message ??
-            (model.connectionStatus === "reconnecting"
-              ? "Layout reconnecting"
-              : "Live layout disconnected")}
-        </div>
-      ) : null}
     </>
   );
 }

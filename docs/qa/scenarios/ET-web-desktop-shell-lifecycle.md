@@ -4,19 +4,27 @@ area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A fresh workspace renders one persistent desktop with menubar, dock, wallpaper, and command hint; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
+expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk whose empty-desktop card names the desktop and offers ⌘K and New session; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pass
 fix_commits: c3c50b6; 531b9f5; 538777e; a1baedd3a
 evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-window-manager-stream-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-parity-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/08-daemon-restart-reconnected.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/23-v3-migrated-live.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-09-01-window-manager-hardening.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
 story: As a builder, I can see the authoritative desktop state, understand when it is disconnected, and recover without mixing workspace topology or revisions.
+
+QA impact 2026-10-05 (dependency upgrades): window bodies mount at deferred priority so
+restored frames commit before content performs layout measurements. Re-walk the existing
+11-window restore/drag/convergence envelope (E2E-023, 500 ms restore budget; one distinct window per registered app, no Knowledge), plus the
+shell's window, menu, overlay and peer-navigation journeys. No test threshold changed.
+Re-walk passed through `COMPOZY_E2E_WEB_SHARD=2/4 make test-e2e-web`: all 83
+scenarios passed, including 76.1 ms restoration and the unchanged drag/convergence
+assertions. See `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
 
 qa-impact: 2026-07-22 window-management hard cut replaced key-level hydration with snapshot-fenced Query reconciliation and client-scoped Zustand presentation; 2026-07-24 the win-layer reserves the Dock band (windows, fullscreen fills, and floating clamps stop above the Dock), reconciled active-desktop changes (zoom, cross-desktop focus, remote switches) synthesize the same keyframe slide as an explicit switch, and rapid commands queue behind the in-flight one instead of being silently dropped; the same-day review now remeasures work-area origin after orientation and Dock layout shifts, while queued commands reject an enqueue-time binding that no longer matches the active workspace/client; 2026-07-24 the menubar chrome became a real `role="menubar"` whose items include the Compozy mark and the workspace chip (menu set tracked in `ET-web-menubar-menu-set`), so the workspace trigger is now a menu item rather than a plain button. Flag only; the next QA cycle owns live retesting.
 
@@ -62,3 +70,56 @@ cache from a new snapshot fence" from the current build; liveness assertions liv
 RT-window-manager-stream-liveness.
 
 qa-impact: 2026-09-01 a reconnect fence replaces the cache even at an equal revision, so a daemon that migrated an arrangement at load re-renders without a reload; walked B7 and P5a on the final binary.
+
+qa-impact: 2026-09-29 issue #679 bounds session-catalog wake reconciliation to one window every five
+seconds, retains a final wake after an in-flight read, pauses catalog wakes while hidden or unfocused,
+and waits thirty seconds after catalog errors. Live streams own attention-summary refresh; fallback
+polling pauses when hidden and backs off on errors. Each browser load uses a distinct opaque
+`X-Compozy-Client-ID`, recorded as `client_id` in HTTP request logs.
+
+The automated soak runs in the release desktop nightly lane (`make test-e2e-desktop-nightly`).
+Regression walk for #679: seed at least 300 durable sessions, keep an active Loop and the desktop
+open for sixty minutes, and record `/api/sessions` requests by client and minute. With unchanged
+mounted consumers, require no more than thirteen catalog wake windows per consumer per minute
+and no increasing request trend. Blur/hide the window, then restore focus and verify one pending
+catalog reconciliation; inject a catalog failure and verify thirty-second backoff with the visible
+error retained. Count-free cursor reads (`skip_total=true`) must omit `page.total` while preserving
+cursor, ordering, scope, and the bounded row count. Default requests retain exact totals. Runtime QA
+owns the actual minute counts and final whole-app threshold receipt; unit timer acceleration is not
+sixty-minute runtime evidence.
+
+qa-impact: 2026-09-29 final #679 catalog consumers use one count-free first page per mounted list,
+metadata-only exact facets, and explicit Load more. Seed additional history beyond several pages
+and verify that automatic wake requests and rich hydrated rows do not grow. Load more must preserve
+ordering/completeness through `has_more`; a wake returns to the first page with Load more available.
+Verify All/Needs you/Working/Finished/Idle counts against the scoped population, including active
+sessions counted once and archived/profile-isolated rows excluded. Search visible title/agent,
+including unnamed `New session` rows, while chip counts remain independent of the search text.
+Record final bundle evidence separately from any soak started before this consumer migration.
+
+Final scope preservation for #679: add more than100 newer quiet sessions around an older needs-you,
+finished, and working session. The navigator first page must retain those bands and its ascending-ID
+attention-time tie order. Dock launch must choose the most recently created unarchived session even
+when an older session was updated later. Add more than100 pending terminal permissions and verify
+the exact terminal dock badge, resolving one request and switching workspace/profile; historical,
+archived, internal, and foreign-scope rows must not leak into that counter.
+
+Visible search parity: verify Greek title `ΟΣ` with query `ος` and agent `İ` with query `i̇` across
+durable and active rows. Search remains case-insensitive using the desktop Unicode lowercase
+semantics; no accent stripping or locale-specific alternate search is introduced.
+
+qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The shell grid is now topbar (full width) + rail (left) + desk; the dock band, glass menubar and wallpaper hint are gone and the default desk is flat. Reset for a boot, workspace-switch and reconnect walk in both themes.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.
+
+
+QA impact 2026-10-06: Verify that twelve persisted windows restore within the existing
+500 ms E2E-023 budget when the desktop snapshot arrives before layout configuration.
+Do not mount an empty desktop composer during that interval. Preserve final geometry,
+active window, and the existing drag responsiveness assertion. Focused hook regression
+and throttled browser profiling are recorded in the dependency-upgrades report; the
+full official shard rerun and final CI evidence are recorded separately.
+
+QA impact 2026-10-07 (memory removal): the daemon reconciles every loaded window-manager snapshot and `window_layout` resource: windows whose `app` is no longer registered are dropped, the topology is renormalized, `/settings/memory` window routes are rewritten to `/settings`, and the result is persisted once, after which the daemon logs `windowmanager.snapshot_reconciled` with `workspace_id`, `profile_id`, the sorted `dropped_apps` (here `knowledge`), the `rewritten_routes` count, and the new `revision`, counting the current arrangement, its history, and its closed windows (a reload logs nothing more); the web guards its descriptor lookups and skips unknown apps. Walk (E2E-008): seed the window-manager snapshot with a `knowledge` window beside a session window, including a case where Knowledge is the only window in its frame and one where it is focused, load the desktop, and confirm the session window renders, the console is clean, and a reload keeps the layout stable. The 2026-08-20 Knowledge route-projection note and the 2026-10-06 "twelve persisted windows" restore budget are historical; the budget check now uses the eleven registered apps. Stale skipped verdict reset to untested; no QA session ran.

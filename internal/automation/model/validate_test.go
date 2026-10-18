@@ -309,3 +309,23 @@ func TestSchedulerClaimValidate(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: a new trigger only accepts active event producers.
+// Owner: automation model validation. Canonical suite: validate_test.go.
+func TestValidateRetiredMemoryTriggerEvent(t *testing.T) {
+	t.Parallel()
+	for _, event := range []string{"memory.consolidated", "session.created", "webhook"} {
+		t.Run("Should validate activation event "+event+" [UT-011]", func(t *testing.T) {
+			t.Parallel()
+			err := ValidateTriggerEvent(event, "triggers[0]")
+			if event == "memory.consolidated" {
+				if err == nil || !strings.Contains(err.Error(), "triggers[0].event") ||
+					!strings.Contains(err.Error(), "no activation producer") {
+					t.Fatalf("ValidateTriggerEvent() = %v, want unknown event error", err)
+				}
+			} else if err != nil {
+				t.Fatalf("ValidateTriggerEvent() = %v", err)
+			}
+		})
+	}
+}

@@ -7,9 +7,8 @@ func (h *Hooks) DispatchSessionMessagePersisted(
 	ctx context.Context,
 	payload SessionMessagePersistedPayload,
 ) (SessionMessagePersistedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionMessagePersisted,
 		payload,
 		dispatchConfig[SessionMessagePersistedPayload, AuthoredContextObservationPatch]{
@@ -21,9 +20,8 @@ func (h *Hooks) DispatchSessionMessagePersisted(
 
 // DispatchTurnStart runs the turn.start hook pipeline.
 func (h *Hooks) DispatchTurnStart(ctx context.Context, payload TurnStartPayload) (TurnStartPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTurnStart,
 		payload,
 		dispatchConfig[TurnStartPayload, TurnStartPatch]{
@@ -36,9 +34,8 @@ func (h *Hooks) DispatchTurnStart(ctx context.Context, payload TurnStartPayload)
 
 // DispatchTurnEnd runs the turn.end hook pipeline.
 func (h *Hooks) DispatchTurnEnd(ctx context.Context, payload TurnEndPayload) (TurnEndPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTurnEnd,
 		payload,
 		dispatchConfig[TurnEndPayload, TurnEndPatch]{
@@ -51,9 +48,8 @@ func (h *Hooks) DispatchTurnEnd(ctx context.Context, payload TurnEndPayload) (Tu
 
 // DispatchMessageStart runs the message.start hook pipeline.
 func (h *Hooks) DispatchMessageStart(ctx context.Context, payload MessageStartPayload) (MessageStartPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookMessageStart,
 		payload,
 		dispatchConfig[MessageStartPayload, MessageStartPatch]{
@@ -66,9 +62,8 @@ func (h *Hooks) DispatchMessageStart(ctx context.Context, payload MessageStartPa
 
 // DispatchMessageDelta runs the message.delta hook dispatch.
 func (h *Hooks) DispatchMessageDelta(ctx context.Context, payload MessageDeltaPayload) (MessageDeltaPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookMessageDelta,
 		payload,
 		dispatchConfig[MessageDeltaPayload, MessageDeltaPatch]{
@@ -81,9 +76,8 @@ func (h *Hooks) DispatchMessageDelta(ctx context.Context, payload MessageDeltaPa
 
 // DispatchMessageEnd runs the message.end hook pipeline.
 func (h *Hooks) DispatchMessageEnd(ctx context.Context, payload MessageEndPayload) (MessageEndPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookMessageEnd,
 		payload,
 		dispatchConfig[MessageEndPayload, MessageEndPatch]{

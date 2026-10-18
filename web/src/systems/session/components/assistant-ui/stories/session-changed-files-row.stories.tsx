@@ -22,8 +22,7 @@ function row(expanded: boolean): SessionChangedFilesRow {
 /**
  * The settled-turn changed-files roll-up card in isolation. Collapsed it reads
  * `Edited N files +a/-d`; expanded it lists each modified file with diff stats.
- * Styling per `analysis/07 §4.2 #26`: `--radius-lg` + `border-line` +
- * `bg-canvas-soft` + `<Eyebrow>` header — flat depth, no `bg-card/45` translucency.
+ * The +/− pair takes the diff hues (success / danger).
  * Display-only (no Undo/Review): CompozyOS exposes no checkpoint semantics.
  */
 const meta: Meta<typeof SessionChangedFilesRowView> = {

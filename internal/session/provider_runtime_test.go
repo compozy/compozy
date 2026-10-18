@@ -16,7 +16,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -64,62 +63,6 @@ func (r profileNameResolverMap) ProfileName(ctx context.Context, profileID strin
 	return name, nil
 }
 
-func TestProviderManagedRuntimeRejectsUnsupportedControls(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		opts acp.StartOpts
-		want string
-	}{
-		{name: "model", opts: acp.StartOpts{PreferredModel: "opus-5"}, want: "model selection"},
-		{name: "reasoning", opts: acp.StartOpts{ReasoningEffort: "high"}, want: "reasoning effort"},
-		{name: "Fast", opts: acp.StartOpts{Speed: speedpkg.SpeedFast}, want: "Fast mode"},
-		{
-			name: "ACP option",
-			opts: acp.StartOpts{ACPOptions: []acp.SessionConfigOptionSelection{{
-				ID: "thinking", BoolValue: new(true),
-			}}},
-			want: "ACP options",
-		},
-		{
-			name: "transport binding", opts: acp.StartOpts{LaunchModelID: "private-alias"},
-			want: "transport model binding",
-		},
-	}
-	for _, test := range tests {
-		t.Run("Should reject "+test.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := compileProviderManagedRuntime(test.opts)
-			assertProviderRuntimeErrorContains(t, err, test.want)
-		})
-	}
-
-	t.Run("Should accept the provider-neutral normal speed without emitting a control", func(t *testing.T) {
-		t.Parallel()
-
-		accepted, err := compileProviderManagedRuntime(acp.StartOpts{Speed: speedpkg.SpeedNormal})
-		if err != nil {
-			t.Fatalf("compileProviderManagedRuntime(normal) error = %v", err)
-		}
-		if accepted.Speed != "" || accepted.RuntimeStrategy != "" {
-			t.Fatalf("compileProviderManagedRuntime(normal) = %#v, want provider-owned runtime controls", accepted)
-		}
-	})
-}
-
-func assertProviderRuntimeErrorContains(t *testing.T, err error, want string) {
-	t.Helper()
-
-	if err == nil {
-		t.Fatalf("error = nil, want error containing %q", want)
-	}
-	if !strings.Contains(err.Error(), want) {
-		t.Fatalf("error = %v, want error containing %q", err, want)
-	}
-}
-
 func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 	t.Parallel()
 	t.Run("Should use platform key rules for provider home and credential lookups", func(t *testing.T) {
@@ -163,7 +106,7 @@ func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("Should retain workspace and profile ownership without a sandbox", func(t *testing.T) {
+	t.Run("Should retain workspace and profile ownership", func(t *testing.T) {
 		t.Parallel()
 
 		const profileID = "01PROFILEMARKETING000000000"
@@ -174,9 +117,6 @@ func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 		if scope.WorkspaceID != "ws-marketing" || scope.ProfileID != profileID ||
 			scope.HomeIdentity != "/provider-home" {
 			t.Fatalf("provider pre-start scope = %#v, want workspace/profile/home ownership", scope)
-		}
-		if scope.SandboxID != "" || scope.SandboxBackend != "" || scope.SandboxProfile != "" {
-			t.Fatalf("provider pre-start sandbox scope = %#v, want empty no-sandbox fields", scope)
 		}
 	})
 }
@@ -455,8 +395,8 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 			envKey   string
 		}{
 			{provider: "claude", envKey: "CLAUDE_CONFIG_DIR"},
-			{provider: "hermes", envKey: "HERMES_HOME"},
-			{provider: "openclaw", envKey: "OPENCLAW_STATE_DIR"},
+			{provider: "codex", envKey: "CODEX_HOME"},
+			{provider: "opencode", envKey: "OPENCODE_CONFIG_DIR"},
 		}
 		for _, test := range tests {
 			t.Run("Should override "+test.provider+" native directory for isolated homes", func(t *testing.T) {
@@ -634,7 +574,6 @@ func TestResolveProviderNativeCLIUsesFinalLaunchEnvironment(t *testing.T) {
 		}
 
 		opts, err := resolveProviderNativeCLI(
-			testutil.Context(t),
 			compozyconfig.ResolvedAgent{
 				Provider: "claude",
 				Command:  "npx -y @agentclientprotocol/claude-agent-acp@latest",

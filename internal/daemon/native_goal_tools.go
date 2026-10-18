@@ -266,52 +266,6 @@ func (n *daemonNativeTools) loopTurns(
 	return structuredResult(payload, fmt.Sprintf("%d Goal turns", len(payload.Turns)))
 }
 
-func (n *daemonNativeTools) goalGetAvailability(
-	ctx context.Context,
-	scope toolspkg.Scope,
-) toolspkg.Availability {
-	if n.loopService() == nil {
-		return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
-	}
-	workspaceID, sessionID, ok := nativeGoalScope(scope)
-	if !ok {
-		return toolspkg.Unavailable(toolspkg.ReasonSessionDenied)
-	}
-	snapshot, err := n.visibleGoalSnapshot(ctx, workspaceID, sessionID)
-	if err != nil {
-		if nativeGoalNotActive(err) {
-			return toolspkg.Unavailable(toolspkg.ReasonGoalNotActive)
-		}
-		return toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
-	}
-	if snapshot == nil {
-		return toolspkg.Unavailable(toolspkg.ReasonGoalNotActive)
-	}
-	return toolspkg.Available()
-}
-
-func (n *daemonNativeTools) goalReportAvailability(
-	ctx context.Context,
-	scope toolspkg.Scope,
-) toolspkg.Availability {
-	runtime := n.goalRuntime()
-	if runtime == nil {
-		return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
-	}
-	workspaceID, sessionID, ok := nativeGoalScope(scope)
-	if !ok {
-		return toolspkg.Unavailable(toolspkg.ReasonSessionDenied)
-	}
-	_, found, err := runtime.findGoalReportTarget(ctx, looppkg.WorkspaceID(workspaceID), sessionID)
-	if err != nil {
-		return toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
-	}
-	if !found {
-		return toolspkg.Unavailable(toolspkg.ReasonGoalNotActive)
-	}
-	return toolspkg.Available()
-}
-
 func (n *daemonNativeTools) visibleGoalSnapshot(
 	ctx context.Context,
 	workspaceID string,
@@ -425,14 +379,14 @@ type nativeGoalControlInput struct {
 	Operation     string                                  `json:"operation"`
 	Objective     string                                  `json:"objective,omitempty"`
 	ExpectedRunID string                                  `json:"expected_run_id,omitempty"`
-	Runtime       *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Runtime       *contract.PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
 }
 
 type nativeLoopTurnsInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	NodeID      string `json:"node,omitempty"`
-	ItemIndex   *int   `json:"item,omitempty"`
-	AfterSeq    int64  `json:"after_seq,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	ItemIndex   *int   `json:"item,omitzero"`
+	AfterSeq    int64  `json:"after_seq,omitzero"`
+	Limit       int    `json:"limit,omitzero"`
 }

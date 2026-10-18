@@ -1,9 +1,5 @@
 import {
-  BookOpen,
-  Boxes,
   Bot,
-  Clock3,
-  Globe,
   Home,
   KeyRound,
   ListChecks,
@@ -13,7 +9,6 @@ import {
   Settings,
   SquareTerminal,
   Store,
-  Waypoints,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -93,13 +88,6 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     paths: ["/agents"],
     dock: { group: 2 },
   },
-  network: {
-    id: "network",
-    title: "Network",
-    icon: Globe,
-    paths: ["/network"],
-    dock: { group: 2 },
-  },
   tasks: {
     id: "tasks",
     title: "Tasks",
@@ -115,18 +103,11 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     paths: ["/loops", "/loop-runs"],
     dock: { group: 2 },
   },
-  jobs: {
-    id: "jobs",
-    title: "Jobs",
-    icon: Clock3,
-    paths: ["/jobs"],
-    dock: { group: 2 },
-  },
-  triggers: {
-    id: "triggers",
-    title: "Triggers",
+  automations: {
+    id: "automations",
+    title: "Automations",
     icon: Zap,
-    paths: ["/triggers"],
+    paths: ["/automations"],
     dock: { group: 2 },
   },
   marketplace: {
@@ -135,27 +116,6 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     icon: Store,
     paths: ["/marketplace"],
     dock: { group: 3 },
-  },
-  bridges: {
-    id: "bridges",
-    title: "Bridges",
-    icon: Waypoints,
-    paths: ["/bridges"],
-    dock: { group: 3 },
-  },
-  knowledge: {
-    id: "knowledge",
-    title: "Knowledge",
-    icon: BookOpen,
-    paths: ["/knowledge"],
-    dock: { group: 3 },
-  },
-  sandbox: {
-    id: "sandbox",
-    title: "Sandbox",
-    icon: Boxes,
-    paths: ["/sandbox"],
-    dock: { group: 4 },
   },
   vault: {
     id: "vault",
@@ -175,6 +135,11 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
 
 export function getOsAppDescriptor(id: OsAppId): OsAppDescriptor {
   return OS_APP_DESCRIPTORS[id];
+}
+
+/** Narrows a persisted app string to a registered app; null for apps this build does not know. */
+export function osAppId(value: string): OsAppId | null {
+  return Object.hasOwn(OS_APP_DESCRIPTORS, value) ? (value as OsAppId) : null;
 }
 
 export const OS_WINDOW_CONSERVATIVE_MINIMUM: PixelSize = {

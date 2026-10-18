@@ -14,11 +14,7 @@ export function TaskRunReviewCard({ review }: { review: TaskRunReview }) {
   const body = review.reason ?? review.review_text;
 
   return (
-    <StatusCard
-      className="border border-line-soft"
-      data-testid={`tasks-run-review-${review.review_id}`}
-      tone={presentation.tone}
-    >
+    <StatusCard data-testid={`tasks-run-review-${review.review_id}`} tone={presentation.tone}>
       <StatusCard.Header label={presentation.title}>
         <span className="ml-auto shrink-0 text-eyebrow tabular-nums text-subtle">
           <Time iso={review.reviewed_at} mode="relative" />

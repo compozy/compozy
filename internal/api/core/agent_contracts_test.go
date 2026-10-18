@@ -48,6 +48,38 @@ func TestAgentPayloadDoesNotExposeMCPSecretBindings(t *testing.T) {
 	})
 }
 
+func TestAgentPayloadProjectsFallbackChain(t *testing.T) { // UT-018
+	t.Run("Should fingerprint exactly the routes that declare a command", func(t *testing.T) {
+		t.Parallel()
+
+		const command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		payload := core.AgentPayloadFromDef(compozyconfig.AgentDef{
+			Name:     "reviewer",
+			Provider: "claude",
+			Prompt:   "Review.",
+			FallbackChain: []compozyconfig.RoleFallback{
+				{Provider: "claude", Model: "opus-4-8", Command: command},
+				{Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high"},
+			},
+		})
+		want := []contract.RoleFallbackStatus{
+			{
+				Provider: "claude", Model: "opus-4-8",
+				Command: command, CommandFingerprint: compozyconfig.CommandFingerprint(command),
+			},
+			{Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high"},
+		}
+		if len(payload.FallbackChain) != len(want) ||
+			payload.FallbackChain[0].Command != want[0].Command ||
+			payload.FallbackChain[0].CommandFingerprint != want[0].CommandFingerprint ||
+			!strings.HasPrefix(payload.FallbackChain[0].CommandFingerprint, "sha256:") ||
+			payload.FallbackChain[1].CommandFingerprint != "" ||
+			payload.FallbackChain[1].ReasoningEffort != "high" {
+			t.Fatalf("AgentPayload.FallbackChain = %#v, want %#v", payload.FallbackChain, want)
+		}
+	})
+}
+
 func TestAgentPayloadEffectiveRuntimeUsesRequestedWorkspaceConfig(t *testing.T) {
 	t.Parallel()
 	t.Run(

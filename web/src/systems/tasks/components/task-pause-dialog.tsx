@@ -65,10 +65,8 @@ export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogPr
         <DialogFooter className="gap-2">
           <Button
             aria-busy={isPending || undefined}
-            className="min-h-6"
             disabled={isPending}
             onClick={dialog.close}
-            size="sm"
             type="button"
             variant="neutral"
           >
@@ -76,14 +74,14 @@ export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogPr
           </Button>
           <Button
             aria-busy={isPending || undefined}
-            className="min-h-6"
             data-testid="tasks-detail-pause-confirm"
             disabled={isPending}
             onClick={() => void dialog.confirm()}
-            size="sm"
             type="button"
           >
-            {isPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {isPending ? (
+              <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+            ) : null}
             {isPending ? "Pausing…" : "Pause task"}
           </Button>
         </DialogFooter>

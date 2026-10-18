@@ -52,7 +52,7 @@ const agents = [
     id: "gemini",
     icon: DatabaseIcon,
     title: "Gemini CLI",
-    description: "Bound to the knowledge retrieval workspace.",
+    description: "Bound to the docs search workspace.",
     badge: "idle",
   },
 ];

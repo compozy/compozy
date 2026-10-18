@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 )
@@ -188,12 +189,9 @@ func (m *Service) canonicalTaskStatusReadOnlyWithStore(
 }
 
 func hasOpenRun(runs []Run) bool {
-	for _, run := range runs {
-		if !isTerminalRunStatus(run.Status) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(runs, func(run Run) bool {
+		return !isTerminalRunStatus(run.Status)
+	})
 }
 
 func isTerminalTaskStatus(status Status) bool {

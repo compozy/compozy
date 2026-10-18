@@ -155,7 +155,7 @@ describe("tasks read hooks", () => {
 
     expect(listTaskRuns).toHaveBeenCalledWith(
       "task_001",
-      { status: "running", limit: 5 },
+      { status: "running", limit: 5, profile: "default" },
       expect.any(AbortSignal)
     );
 
@@ -186,11 +186,19 @@ describe("tasks read hooks", () => {
 
     expect(getTaskTimeline).toHaveBeenCalledWith(
       "task_001",
-      { limit: 20 },
+      { limit: 20, profile: "default" },
       expect.any(AbortSignal)
     );
-    expect(getTaskTree).toHaveBeenCalledWith("task_001", expect.any(AbortSignal));
-    expect(getTaskRun).toHaveBeenCalledWith("run_001", expect.any(AbortSignal));
+    expect(getTaskTree).toHaveBeenCalledWith(
+      "task_001",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
+    expect(getTaskRun).toHaveBeenCalledWith(
+      "run_001",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
   });
 
   it("loads dashboard and inbox aggregates", async () => {

@@ -958,7 +958,10 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 					t.Fatalf("GetDevLink(second) error = %v", err)
 				}
 				if secondLink.BundleGeneration != secondHash || len(secondLink.IngestDiagnostics) != 1 {
-					t.Fatalf("second dev link = %#v, want generation and one diagnostic replaced atomically", secondLink)
+					t.Fatalf(
+						"second dev link = %#v, want generation and one diagnostic replaced atomically",
+						secondLink,
+					)
 				}
 
 				writeFile(t, manifestPath, fmt.Sprintf(
@@ -1035,23 +1038,19 @@ func testManagerDevelopmentReloadConcurrency(t *testing.T) {
 	errorsByReload := make(chan error, len(firstHashes)+1)
 	var reloads sync.WaitGroup
 	for _, generationHash := range firstHashes {
-		reloads.Add(1)
-		go func(hash string) {
-			defer reloads.Done()
+		reloads.Go(func() {
 			_, err := manager.ReloadExtension(testutil.Context(t), InstanceKey{
 				Name: "concurrent", WorkspaceID: firstWorkspace.WorkspaceID,
-			}, hash)
+			}, generationHash)
 			errorsByReload <- err
-		}(generationHash)
+		})
 	}
-	reloads.Add(1)
-	go func() {
-		defer reloads.Done()
+	reloads.Go(func() {
 		_, err := manager.ReloadExtension(testutil.Context(t), InstanceKey{
 			Name: "concurrent", WorkspaceID: secondWorkspace.WorkspaceID,
 		}, secondHash)
 		errorsByReload <- err
-	}()
+	})
 	reloads.Wait()
 	close(errorsByReload)
 	for err := range errorsByReload {
@@ -1424,13 +1423,13 @@ func TestManagerStartDevelopmentLinks(t *testing.T) {
 			prepare: func(t *testing.T, workspace *workspacepkg.ResolvedWorkspace) (DevLinkRequest, workspacepkg.RuntimeResolver) {
 				t.Helper()
 				return DevLinkRequest{
-						OriginPath:     filepath.Join(workspace.RootDir, "unused"),
-						GenerationHash: strings.Repeat("a", 64),
-					}, devBootFailureResolver{err: fmt.Errorf(
-						"development origin became unavailable: %s api_key=%s",
-						rawCauseCanary,
-						secretCanary,
-					)}
+					OriginPath:     filepath.Join(workspace.RootDir, "unused"),
+					GenerationHash: strings.Repeat("a", 64),
+				}, devBootFailureResolver{err: fmt.Errorf(
+					"development origin became unavailable: %s api_key=%s",
+					rawCauseCanary,
+					secretCanary,
+				)}
 			},
 		},
 		{
@@ -1457,7 +1456,6 @@ func TestManagerStartDevelopmentLinks(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1758,11 +1756,9 @@ func TestVerifyDevGeneration(t *testing.T) {
 func newDevTestWorkspace(t *testing.T, id string) *workspacepkg.ResolvedWorkspace {
 	t.Helper()
 	return &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      id,
-			Name:    id,
-			RootDir: t.TempDir(),
-		},
+		ID:          id,
+		Name:        id,
+		RootDir:     t.TempDir(),
 		WorkspaceID: id,
 	}
 }

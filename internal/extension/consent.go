@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -27,10 +28,7 @@ func DeriveConsentAreas(methods []string) ([]ConsentArea, error) {
 		areas[ConsentArea{Area: contract.Area, Access: contract.Access}] = struct{}{}
 	}
 
-	result := make([]ConsentArea, 0, len(areas))
-	for area := range areas {
-		result = append(result, area)
-	}
+	result := slices.AppendSeq(make([]ConsentArea, 0, len(areas)), maps.Keys(areas))
 	slices.SortFunc(result, func(left, right ConsentArea) int {
 		if byArea := strings.Compare(left.Area, right.Area); byArea != 0 {
 			return byArea

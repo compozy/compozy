@@ -110,9 +110,25 @@ func worktreeStatusOperationSpec() OperationSpec {
 
 func worktreeExitPlanOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreeExitPath, OperationID: "getWorktreeExitPlan",
-		Summary: "Read the worktree exit plan", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeRouteParams(),
+		Method:      httpMethodGet,
+		Path:        specAPIWorktreeExitPath,
+		OperationID: "getWorktreeExitPlan",
+		Summary:     "Read the worktree exit plan",
+		Tags:        []string{specWorktreesKey},
+		Transports: []Transport{
+			TransportHTTP,
+			TransportUDS,
+		},
+		Parameters: append(
+			worktreeRouteParams(),
+			ParameterSpec{
+				Name: specIncludeKey,
+				In:   "query",
+				Kind: "array",
+				Description: "Exact worktree-relative reviewed file paths; " +
+					"scoped plans return a complete include set and fingerprint.",
+			},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorktreeExitPlanResponse{}},
 			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -237,6 +253,7 @@ func streamWorktreeCatalogOperationSpec() OperationSpec {
 		Summary: "Stream worktree catalog changes across workspaces", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
+			{Status: 101, Description: specEventStreamUpgrade},
 			{Status: 200, Description: "Workspace-identified worktree catalog event stream",
 				Body: contract.WorktreeCatalogEventPayload{}, ContentType: specContentTypeEventStream},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

@@ -16,6 +16,8 @@ import (
 )
 
 func TestExtensionLogsRouteAndSSEFollow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should serve redacted history and follow frames", testExtensionLogsRouteAndSSEFollow)
 	t.Run("Should publish an empty atomic reset for a replaced ring", testExtensionLogsEmptyReset)
 	t.Run("Should publish an atomic reset when the followed ring changes", testExtensionLogsLiveEpochReset)
@@ -23,6 +25,8 @@ func TestExtensionLogsRouteAndSSEFollow(t *testing.T) {
 }
 
 func testExtensionLogsTransportShutdown(t *testing.T) {
+	t.Parallel()
+
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 		"operator",
 		"workspace-a",
@@ -99,7 +103,8 @@ func testExtensionLogsTransportShutdown(t *testing.T) {
 }
 
 func testExtensionLogsRouteAndSSEFollow(t *testing.T) {
-	// Not parallel: newTestRouter changes Gin's process-global mode.
+	t.Parallel()
+
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 		"operator",
 		"workspace-a",
@@ -234,6 +239,8 @@ func testExtensionLogsRouteAndSSEFollow(t *testing.T) {
 }
 
 func testExtensionLogsEmptyReset(t *testing.T) {
+	t.Parallel()
+
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 		"operator",
 		"workspace-a",
@@ -307,6 +314,8 @@ func testExtensionLogsEmptyReset(t *testing.T) {
 }
 
 func testExtensionLogsLiveEpochReset(t *testing.T) {
+	t.Parallel()
+
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 		"operator",
 		"workspace-a",

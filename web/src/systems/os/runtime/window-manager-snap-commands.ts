@@ -6,6 +6,7 @@ import type { GestureRebase, MoveWindowInput, OsFloatingDrop, OsRect } from "../
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import {
   createTileSnapTarget,
+  tileZoneFraction,
   type SnapCorner,
   type SnapSide,
   type SnapTarget,
@@ -90,15 +91,11 @@ export abstract class WindowManagerSnapRuntime extends WindowManagerTabRuntime {
       });
     }
     if (target.kind === "tile") {
-      const config = this.view.windowManagerConfig;
-      if (config === null) return rejectedCommandOutcome();
-      // The frame stores the whole zone: the inner gap is a pixel quantity the
-      // projection re-applies, so baking it into a fraction would compound it
-      // and drift with every viewport size.
-      const frame = pixelRectToNormalized(
-        target.zoneRect,
-        windowManagerLayoutArea(this.workArea(), config.gaps)
-      );
+      if (this.view.windowManagerConfig === null) return rejectedCommandOutcome();
+      // The frame stores the whole zone as an exact fraction: the inner gap is
+      // a pixel quantity the projection re-applies, and the preview's whole-pixel
+      // edge would drift on odd widths, so neither is baked into the frame.
+      const frame = tileZoneFraction(target);
       const outcome = this.dispatch({
         commandId: "layout.arrange",
         payload: {

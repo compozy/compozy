@@ -14,7 +14,7 @@ import (
 //go:embed catalog.json
 var catalogJSON []byte
 
-var familyOrder = []string{"core", "automation", "tasks", "network", "resources", "bridges", "clarify"}
+var familyOrder = []string{"core", "automation", "tasks", "resources", "clarify"}
 
 type namedType struct {
 	Name  string `json:"name"`
@@ -27,7 +27,7 @@ type method struct {
 	Family         string    `json:"family"`
 	Params         namedType `json:"params"`
 	Result         namedType `json:"result"`
-	OptionalParams bool      `json:"optional_params,omitempty"`
+	OptionalParams bool      `json:"optional_params,omitzero"`
 }
 
 func loadCatalog() ([]method, error) {

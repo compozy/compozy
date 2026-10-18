@@ -336,8 +336,13 @@ func (r *RuntimeRegistry) viewFor(
 		return ToolView{}, err
 	}
 	decision = applyAvailabilityDecision(decision, availability)
+	descriptor := entry.descriptor
+	if !entry.owned {
+		// Shared native descriptors must not leak mutable fields; index-owned clones already are private.
+		descriptor = cloneDescriptor(descriptor)
+	}
 	return ToolView{
-		Descriptor:   cloneDescriptor(entry.descriptor),
+		Descriptor:   descriptor,
 		Availability: availability,
 		Decision:     decision,
 	}, nil
@@ -354,6 +359,7 @@ func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entr
 	}
 	handle, ok, err := entry.provider.Resolve(ctx, scope, entry.descriptor.ID)
 	if err != nil {
+		logBackendFailure(ctx, entry.descriptor.ID, "tool_registry_resolve", err)
 		return Availability{
 			Registered:  true,
 			Enabled:     true,
@@ -431,6 +437,7 @@ func cloneDescriptor(src Descriptor) Descriptor {
 	cloned := src
 	cloned.Backend.RequiresCapabilities = slices.Clone(src.Backend.RequiresCapabilities)
 	cloned.ToolPresentation = CloneToolPresentation(src.ToolPresentation)
+	cloned.ToolExecutionMetadata = CloneToolExecutionMetadata(src.ToolExecutionMetadata)
 	cloned.InputSchema = cloneRawMessage(src.InputSchema)
 	cloned.OutputSchema = cloneRawMessage(src.OutputSchema)
 	cloned.Toolsets = append([]ToolsetID(nil), src.Toolsets...)

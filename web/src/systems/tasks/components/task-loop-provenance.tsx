@@ -35,13 +35,13 @@ export function TaskLoopProvenance({ loop }: TaskLoopProvenanceProps) {
         editor={
           runLink ? (
             <Link
-              className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+              className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
               data-testid="task-loop-provenance-open-run"
               params={runLink.params}
               to={runLink.to}
             >
               <span className="truncate">Open run</span>
-              <ArrowUpRight aria-hidden="true" className="size-3" />
+              <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </Link>
           ) : (
             <span className="text-muted" data-testid="task-loop-provenance-run-gone">

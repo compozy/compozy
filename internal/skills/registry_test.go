@@ -18,6 +18,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -36,7 +37,7 @@ func TestRegistryLoadAllLoadsBundledSkills(t *testing.T) {
 		}),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -77,7 +78,7 @@ func TestRegistryLoadAllLoadsUserLevelSkills(t *testing.T) {
 		GlobalAgentsDir:  agentsDir,
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -261,15 +262,15 @@ func TestRegistryForAgentDefUsesConcretePackageAgent(t *testing.T) {
 			"review": "Review code",
 		}),
 	})
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-extension"},
+		ID: "ws-extension",
 	}
 	skillList, err := registry.ForAgentDefSession(
-		context.Background(),
+		t.Context(),
 		resolved,
 		compozyconfig.AgentDef{Name: "code_implementer", Prompt: "Implement code."},
 		"sess-extension",
@@ -309,15 +310,13 @@ func TestRegistryEventSummaries(t *testing.T) {
 		registry := newTestRegistry(t, RegistryConfig{
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		}, WithEventSummaryStore(eventStore))
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 
-		_, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      "ws-shadow",
-				RootDir: workspaceRoot,
-			},
+		_, err := registry.ForWorkspace(t.Context(), &workspacepkg.ResolvedWorkspace{
+			ID:        "ws-shadow",
+			RootDir:   workspaceRoot,
 			ProfileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Skills: []workspacepkg.SkillPath{{
 				Dir:    filepath.Join(workspaceRoot, ".compozy", "skills", "review"),
@@ -413,8 +412,8 @@ func TestRegistryEventSummaries(t *testing.T) {
 			GlobalAgentsDir:  agentsDir,
 		}, WithEventSummaryStore(eventStore))
 
-		skillList, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-load-failed"},
+		skillList, err := registry.ForAgent(t.Context(), &workspacepkg.ResolvedWorkspace{
+			ID:        "ws-load-failed",
 			ProfileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Agents: []compozyconfig.AgentDef{{
 				Name:       "writer",
@@ -495,7 +494,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 			GlobalAgentsDir:  agentsDir,
 		}, WithEventSummaryStore(eventStore))
 
-		skillList, err := registry.ForAgent(context.Background(), nil, "writer")
+		skillList, err := registry.ForAgent(t.Context(), nil, "writer")
 		if err != nil {
 			t.Fatalf("ForAgent() error = %v", err)
 		}
@@ -840,7 +839,7 @@ func TestRegistryLoadAllDetectsMarketplaceSidecarsAndLoadsProvenance(t *testing.
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -900,7 +899,7 @@ func TestRegistryUserSkillOverridesBundledSkill(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -966,18 +965,16 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
-	got, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:             "ws_1",
-			RootDir:        workspace,
-			AdditionalDirs: []string{additional},
-		},
-		ProfileName: "marketing",
-		ProfileRoot: profileRoot,
+	got, err := registry.ForWorkspace(t.Context(), &workspacepkg.ResolvedWorkspace{
+		ID:             "ws_1",
+		RootDir:        workspace,
+		AdditionalDirs: []string{additional},
+		ProfileName:    "marketing",
+		ProfileRoot:    profileRoot,
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
@@ -1047,11 +1044,11 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
-	got, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
+	got, err := registry.ForWorkspace(t.Context(), resolvedWorkspacePtr(
 		"ws_override",
 		workspace,
 		resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "shared"), "workspace"),
@@ -1107,12 +1104,12 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		}, WithLogger(logger))
 
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 		logs.Reset()
 
-		if _, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
+		if _, err := registry.ForWorkspace(t.Context(), resolvedWorkspacePtr(
 			"ws_shadow",
 			workspace,
 			resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "cool-skill"), "workspace"),
@@ -1153,7 +1150,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 
@@ -1162,7 +1159,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 			workspace,
 			resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "shared"), "workspace"),
 		)
-		if _, err := registry.ForWorkspace(context.Background(), resolved); err != nil {
+		if _, err := registry.ForWorkspace(t.Context(), resolved); err != nil {
 			t.Fatalf("first ForWorkspace() error = %v", err)
 		}
 		firstEntry := cacheEntryForWorkspace(t, registry, resolved)
@@ -1182,11 +1179,11 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 			globalPath,
 			skillWithDescription("shared", "Updated global description"),
 		)
-		if err := registry.RefreshGlobal(context.Background()); err != nil {
+		if err := registry.RefreshGlobal(t.Context()); err != nil {
 			t.Fatalf("RefreshGlobal() error = %v", err)
 		}
 
-		if _, err := registry.ForWorkspace(context.Background(), resolved); err != nil {
+		if _, err := registry.ForWorkspace(t.Context(), resolved); err != nil {
 			t.Fatalf("second ForWorkspace() error = %v", err)
 		}
 		secondEntry := cacheEntryForWorkspace(t, registry, resolved)
@@ -1212,7 +1209,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
 		registry := newTestRegistry(t, RegistryConfig{}, WithLogger(logger))
 
-		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
+		if err := registry.ApplyResourceRecords(t.Context(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				Kind: SkillResourceKind,
 				ID:   "global:cool-skill",
@@ -1286,14 +1283,12 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		registry := newTestRegistry(t, RegistryConfig{}, WithLogger(logger))
 
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:             "ws-layered-shadow",
-				RootDir:        workspace,
-				AdditionalDirs: []string{additional},
-			},
+			ID:             "ws-layered-shadow",
+			RootDir:        workspace,
+			AdditionalDirs: []string{additional},
 		}
 
-		got, err := registry.ForWorkspace(context.Background(), resolved)
+		got, err := registry.ForWorkspace(t.Context(), resolved)
 		if err != nil {
 			t.Fatalf("ForWorkspace() error = %v", err)
 		}
@@ -1336,7 +1331,7 @@ func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	first, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace)
+	first, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("first ForWorkspace() error = %v", err)
 	}
@@ -1345,7 +1340,7 @@ func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
 		t.Fatal("cache entry = nil, want populated cache")
 	}
 
-	second, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace)
+	second, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("second ForWorkspace() error = %v", err)
 	}
@@ -1398,11 +1393,11 @@ func TestRegistryForWorkspaceSeparatesProfilesWithSharedWorkspaceIdentity(t *tes
 		sales.ProfileName = "sales"
 		sales.ProfileRoot = salesRoot
 
-		marketingSkills, err := registry.ForWorkspace(context.Background(), &marketing)
+		marketingSkills, err := registry.ForWorkspace(t.Context(), &marketing)
 		if err != nil {
 			t.Fatalf("ForWorkspace(marketing) error = %v", err)
 		}
-		salesSkills, err := registry.ForWorkspace(context.Background(), &sales)
+		salesSkills, err := registry.ForWorkspace(t.Context(), &sales)
 		if err != nil {
 			t.Fatalf("ForWorkspace(sales) error = %v", err)
 		}
@@ -1457,7 +1452,7 @@ func TestRegistryForWorkspaceRescansWhenChanged(t *testing.T) {
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	first, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace)
+	first, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("first ForWorkspace() error = %v", err)
 	}
@@ -1479,7 +1474,7 @@ func TestRegistryForWorkspaceRescansWhenChanged(t *testing.T) {
 		skillWithDescription("rescan", "Updated description with larger size for staleness"),
 	)
 
-	second, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace)
+	second, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("second ForWorkspace() error = %v", err)
 	}
@@ -1523,7 +1518,7 @@ func TestRegistryForWorkspaceReturnsDifferentResultsPerWorkspace(t *testing.T) {
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	first, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
+	first, err := registry.ForWorkspace(t.Context(), resolvedWorkspacePtr(
 		"ws_one",
 		workspaceOne,
 		resolvedSkillPath(filepath.Join(workspaceOne, ".compozy", "skills", "one"), "workspace"),
@@ -1531,7 +1526,7 @@ func TestRegistryForWorkspaceReturnsDifferentResultsPerWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ForWorkspace(workspaceOne) error = %v", err)
 	}
-	second, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
+	second, err := registry.ForWorkspace(t.Context(), resolvedWorkspacePtr(
 		"ws_two",
 		workspaceTwo,
 		resolvedSkillPath(filepath.Join(workspaceTwo, ".compozy", "skills", "two"), "workspace"),
@@ -1568,7 +1563,7 @@ func TestRegistryWorkspaceCacheEvictsEntriesOlderThanTTL(t *testing.T) {
 		return now
 	}))
 
-	if _, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace); err != nil {
+	if _, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace); err != nil {
 		t.Fatalf("first ForWorkspace() error = %v", err)
 	}
 	firstEntry := cacheEntryForWorkspace(t, registry, &resolvedWorkspace)
@@ -1578,7 +1573,7 @@ func TestRegistryWorkspaceCacheEvictsEntriesOlderThanTTL(t *testing.T) {
 
 	now = now.Add(workspaceCacheTTL + time.Minute)
 
-	if _, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace); err != nil {
+	if _, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace); err != nil {
 		t.Fatalf("second ForWorkspace() error = %v", err)
 	}
 	secondEntry := cacheEntryForWorkspace(t, registry, &resolvedWorkspace)
@@ -1602,7 +1597,7 @@ func TestRegistryForWorkspaceUsesTypedWorkspaceRoots(t *testing.T) {
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	got, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
+	got, err := registry.ForWorkspace(t.Context(), resolvedWorkspacePtr(
 		"ws_typed_root",
 		workspaceRoot,
 	))
@@ -1642,7 +1637,7 @@ func TestRegistryVerifyContentBlocksCriticalSkills(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -1674,7 +1669,7 @@ func TestRegistryVerifyContentBypassesCriticalBundledSkills(t *testing.T) {
 		},
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -1767,7 +1762,7 @@ func TestRegistryRefreshGlobalIncrementsVersionOnChange(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 	before := registry.GlobalVersion()
@@ -1778,7 +1773,7 @@ func TestRegistryRefreshGlobalIncrementsVersionOnChange(t *testing.T) {
 		skillWithDescription("refresh", "Version two with different content"),
 	)
 
-	if err := registry.RefreshGlobal(context.Background()); err != nil {
+	if err := registry.RefreshGlobal(t.Context()); err != nil {
 		t.Fatalf("RefreshGlobal() error = %v", err)
 	}
 
@@ -1816,7 +1811,7 @@ func TestRegistryRefreshGlobalDoesNotIncrementVersionWithoutChange(t *testing.T)
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 	before := registry.GlobalVersion()
@@ -1824,7 +1819,7 @@ func TestRegistryRefreshGlobalDoesNotIncrementVersionWithoutChange(t *testing.T)
 	beforeSkill := registry.globalSkills["stable"]
 	registry.mu.RUnlock()
 
-	if err := registry.RefreshGlobal(context.Background()); err != nil {
+	if err := registry.RefreshGlobal(t.Context()); err != nil {
 		t.Fatalf("RefreshGlobal() error = %v", err)
 	}
 
@@ -1858,7 +1853,7 @@ func TestRegistryRefreshGlobalCancellation(t *testing.T) {
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
 
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 		before := registry.GlobalVersion()
@@ -1868,7 +1863,7 @@ func TestRegistryRefreshGlobalCancellation(t *testing.T) {
 			skillWithDescription("refresh", "Version two with different content"),
 		)
 
-		err := registry.RefreshGlobal(newCancelAfterContext(context.Background(), 2))
+		err := registry.RefreshGlobal(newCancelAfterContext(t.Context(), 2))
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("RefreshGlobal() error = %v, want context.Canceled", err)
 		}
@@ -1914,7 +1909,7 @@ func TestRegistryForWorkspaceReloadsWhenSkillMCPSidecarChanges(t *testing.T) {
 		),
 	)
 
-	first, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace)
+	first, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("first ForWorkspace() error = %v", err)
 	}
@@ -1931,7 +1926,7 @@ func TestRegistryForWorkspaceReloadsWhenSkillMCPSidecarChanges(t *testing.T) {
   }
 }`)
 
-	second, err := registry.ForWorkspace(context.Background(), &resolvedWorkspace)
+	second, err := registry.ForWorkspace(t.Context(), &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("second ForWorkspace() error = %v", err)
 	}
@@ -1960,7 +1955,7 @@ func TestRegistryConcurrentGetAndListDoNotDeadlock(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -1969,10 +1964,8 @@ func TestRegistryConcurrentGetAndListDoNotDeadlock(t *testing.T) {
 	go func() {
 		var wg sync.WaitGroup
 		for i := range 16 {
-			wg.Add(1)
-			go func(worker int) {
-				defer wg.Done()
-				name := fmt.Sprintf("skill-%02d", worker%20)
+			wg.Go(func() {
+				name := fmt.Sprintf("skill-%02d", i%20)
 				for range 200 {
 					if _, ok := registry.Get(name); !ok {
 						select {
@@ -1989,7 +1982,7 @@ func TestRegistryConcurrentGetAndListDoNotDeadlock(t *testing.T) {
 						return
 					}
 				}
-			}(i)
+			})
 		}
 		wg.Wait()
 		close(done)
@@ -2026,7 +2019,7 @@ func TestRegistryOverrideCollisionLoggedWithSourceInfo(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -2060,7 +2053,7 @@ func TestRegistryDisabledSkillRemainsPresentButDisabled(t *testing.T) {
 		DisabledSkills:   []string{"disabled"},
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -2105,7 +2098,7 @@ func TestRegistryMarketplaceHashMismatchWarnsAndBlocksTamperedSkill(t *testing.T
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -2163,7 +2156,7 @@ func TestRegistryMarketplaceHashMismatchBlocksCriticalSkill(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -2212,7 +2205,7 @@ func TestRegistryReturnsDeepClonedSkillMetadata(t *testing.T) {
 		}),
 	})
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -2255,99 +2248,6 @@ func TestRegistryReturnsDeepClonedSkillMetadata(t *testing.T) {
 	}
 	if gotItems[0] != "first" {
 		t.Fatalf("second items[0] = %v, want %q", gotItems[0], "first")
-	}
-}
-
-func TestSkillTypesSupportMarketplaceDeclarations(t *testing.T) {
-	t.Parallel()
-
-	installedAt := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
-	mcp := MCPServerDecl{
-		Name:    "filesystem",
-		Command: "npx",
-		Args:    []string{"-y", "@modelcontextprotocol/server-filesystem"},
-		Env: map[string]string{
-			"ROOT": "/workspace",
-		},
-	}
-	hook := hookspkg.HookDecl{
-		Name:        "marketplace-skill",
-		Event:       hookspkg.HookSessionPostCreate,
-		Source:      hookspkg.HookSourceSkill,
-		Mode:        hookspkg.HookModeAsync,
-		Command:     "/bin/sh",
-		Args:        []string{"-c", "echo ready"},
-		Timeout:     5 * time.Second,
-		Env:         map[string]string{"HOOK_ENV": "enabled"},
-		SkillSource: hookspkg.HookSkillSourceMarketplace,
-	}
-	provenance := Provenance{
-		Hash:        "abc123",
-		Registry:    "clawhub",
-		Slug:        "@author/skill",
-		Version:     "1.2.3",
-		InstalledAt: installedAt,
-	}
-	skill := Skill{
-		Meta:          SkillMeta{Name: "marketplace-skill", Description: "Marketplace skill"},
-		MCPServers:    []MCPServerDecl{mcp},
-		Source:        SourceMarketplace,
-		Hooks:         []hookspkg.HookDecl{hook},
-		Provenance:    &provenance,
-		InstalledFrom: "@author/skill",
-	}
-
-	if skill.MCPServers[0].Name != "filesystem" {
-		t.Fatalf("MCPServers[0].Name = %q, want %q", skill.MCPServers[0].Name, "filesystem")
-	}
-	if skill.MCPServers[0].Command != "npx" {
-		t.Fatalf("MCPServers[0].Command = %q, want %q", skill.MCPServers[0].Command, "npx")
-	}
-	if len(skill.MCPServers[0].Args) != 2 ||
-		skill.MCPServers[0].Args[1] != "@modelcontextprotocol/server-filesystem" {
-		t.Fatalf("MCPServers[0].Args = %#v, want populated args", skill.MCPServers[0].Args)
-	}
-	if skill.MCPServers[0].Env["ROOT"] != "/workspace" {
-		t.Fatalf(
-			"MCPServers[0].Env[ROOT] = %q, want %q",
-			skill.MCPServers[0].Env["ROOT"],
-			"/workspace",
-		)
-	}
-	if skill.Hooks[0].Event != hookspkg.HookSessionPostCreate {
-		t.Fatalf(
-			"Hooks[0].Event = %q, want %q",
-			skill.Hooks[0].Event,
-			hookspkg.HookSessionPostCreate,
-		)
-	}
-	if string(skill.Hooks[0].Event) != "session.post_create" {
-		t.Fatalf("Hooks[0].Event = %q, want %q", skill.Hooks[0].Event, "session.post_create")
-	}
-	if skill.Hooks[0].Source != hookspkg.HookSourceSkill {
-		t.Fatalf("Hooks[0].Source = %q, want %q", skill.Hooks[0].Source, hookspkg.HookSourceSkill)
-	}
-	if skill.Hooks[0].SkillSource != hookspkg.HookSkillSourceMarketplace {
-		t.Fatalf(
-			"Hooks[0].SkillSource = %q, want %q",
-			skill.Hooks[0].SkillSource,
-			hookspkg.HookSkillSourceMarketplace,
-		)
-	}
-	if skill.Hooks[0].Timeout != 5*time.Second {
-		t.Fatalf("Hooks[0].Timeout = %s, want %s", skill.Hooks[0].Timeout, 5*time.Second)
-	}
-	if skill.Provenance == nil {
-		t.Fatal("Provenance = nil, want populated provenance")
-	}
-	if skill.Provenance.Hash != "abc123" {
-		t.Fatalf("Provenance.Hash = %q, want %q", skill.Provenance.Hash, "abc123")
-	}
-	if !skill.Provenance.InstalledAt.Equal(installedAt) {
-		t.Fatalf("Provenance.InstalledAt = %s, want %s", skill.Provenance.InstalledAt, installedAt)
-	}
-	if skill.InstalledFrom != "@author/skill" {
-		t.Fatalf("InstalledFrom = %q, want %q", skill.InstalledFrom, "@author/skill")
 	}
 }
 
@@ -2545,7 +2445,7 @@ func TestRegistryLoadContent(t *testing.T) {
 			},
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 
@@ -2553,7 +2453,7 @@ func TestRegistryLoadContent(t *testing.T) {
 		if !ok {
 			t.Fatal("Get(global-skill) ok = false, want true")
 		}
-		globalContent, err := registry.LoadContent(context.Background(), globalSkill)
+		globalContent, err := registry.LoadContent(t.Context(), globalSkill)
 		if err != nil {
 			t.Fatalf("LoadContent(global) error = %v", err)
 		}
@@ -2565,7 +2465,7 @@ func TestRegistryLoadContent(t *testing.T) {
 		if !ok {
 			t.Fatal("Get(bundled) ok = false, want true")
 		}
-		bundledContent, err := registry.LoadContent(context.Background(), bundledSkill)
+		bundledContent, err := registry.LoadContent(t.Context(), bundledSkill)
 		if err != nil {
 			t.Fatalf("LoadContent(bundled) error = %v", err)
 		}
@@ -2594,14 +2494,14 @@ func TestRegistryLoadContent(t *testing.T) {
 			t.Fatalf("ParseSkillFileWithSource(extension bundled) error = %v", err)
 		}
 		extensionSkill.InstalledFromExtension = "spec-cycle"
-		extensionContent, err := registry.LoadContent(context.Background(), extensionSkill)
+		extensionContent, err := registry.LoadContent(t.Context(), extensionSkill)
 		if err != nil {
 			t.Fatalf("LoadContent(extension bundled) error = %v", err)
 		}
 		if extensionContent != "Extension bundled body" {
 			t.Fatalf("LoadContent(extension bundled) = %q, want %q", extensionContent, "Extension bundled body")
 		}
-		extensionResource, err := registry.LoadResource(context.Background(), extensionSkill, "references/guide.md")
+		extensionResource, err := registry.LoadResource(t.Context(), extensionSkill, "references/guide.md")
 		if err != nil {
 			t.Fatalf("LoadResource(extension bundled) error = %v", err)
 		}
@@ -2614,7 +2514,7 @@ func TestRegistryLoadContent(t *testing.T) {
 		}
 
 		workspaceSkills, err := registry.ForWorkspace(
-			context.Background(),
+			t.Context(),
 			resolvedWorkspacePtr(
 				"ws-content",
 				workspaceDir,
@@ -2629,7 +2529,7 @@ func TestRegistryLoadContent(t *testing.T) {
 		}
 
 		workspaceSkill := findSkill(t, workspaceSkills, "workspace-skill")
-		workspaceContent, err := registry.LoadContent(context.Background(), workspaceSkill)
+		workspaceContent, err := registry.LoadContent(t.Context(), workspaceSkill)
 		if err != nil {
 			t.Fatalf("LoadContent(workspace) error = %v", err)
 		}
@@ -2730,7 +2630,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			t.Fatalf("ApplyResourceRecords() error = %v", err)
 		}
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-command-catalog", RootDir: t.TempDir()},
+			ID: "ws-command-catalog", RootDir: t.TempDir(),
 			Config: compozyconfig.Config{
 				Skills: compozyconfig.SkillsConfig{DisabledSkills: []string{"release"}},
 			},
@@ -2827,7 +2727,7 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
 			t.Fatalf("ApplyResourceRecords() error = %v", err)
 		}
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-roots"}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: "ws-roots"}
 		candidates, err := registry.CommandCandidatesForAgentDefSession(
 			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-roots",
 		)
@@ -2935,6 +2835,83 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 			t.Fatalf("collision qualified form = %q, want %q", got, wantQualifiedForm)
 		}
 	})
+
+	t.Run("Should publish distinct commands for same-name definitions nested in one root", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		root := compozyconfig.SkillRootSpec{
+			Dir: rootDir, SourceSlug: "agents", Kind: compozyconfig.RootKindPreset,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-nested"},
+		}
+		outerPath := filepath.Join(rootDir, "postiz", skillFileName)
+		nestedPath := filepath.Join(rootDir, "postiz", "skills", "postiz", skillFileName)
+		registry := newTestRegistry(t, RegistryConfig{})
+		records := make([]resources.Record[SkillResourceSpec], 0, 2)
+		for index, path := range []string{outerPath, nestedPath} {
+			records = append(records, resources.Record[SkillResourceSpec]{
+				ID:    fmt.Sprintf("agents:postiz:%d", index),
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-nested"},
+				Spec: SkillResourceSpec{
+					Name: "postiz", Description: "Schedule posts", Source: skillSourceName(SourceWorkspace),
+					Origin: "agents", RootID: root.RootID(), Dir: filepath.Dir(path), FilePath: path, Enabled: true,
+				},
+			})
+		}
+		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
+			t.Fatalf("ApplyResourceRecords() error = %v", err)
+		}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: "ws-nested"}
+		candidates, err := registry.CommandCandidatesForAgentDefSession(
+			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-nested",
+		)
+		if err != nil {
+			t.Fatalf("CommandCandidatesForAgentDefSession() error = %v", err)
+		}
+
+		qualifierByPath := make(map[string]string)
+		specs := make([]commandpkg.SkillSpec, 0, len(candidates))
+		for _, candidate := range candidates {
+			specs = append(specs, commandpkg.SkillSpec{
+				Name: candidate.Skill.Meta.Name,
+				Source: commandpkg.Source{
+					Kind: candidate.SourceKind, ID: candidate.SourceID, Key: candidate.SourceKey,
+					Scope: candidate.Scope, Origin: candidate.Origin,
+				},
+				Available: candidate.Available,
+				Qualified: candidate.Qualified,
+			})
+			if candidate.Qualified {
+				qualifierByPath[candidate.Skill.FilePath] = candidate.SourceID
+			}
+		}
+		for _, path := range []string{outerPath, nestedPath} {
+			if want := definitionQualifiedSourceID("agents", root.RootID(), path); qualifierByPath[path] != want {
+				t.Fatalf("qualified source for %q = %q, want %q", path, qualifierByPath[path], want)
+			}
+		}
+		if qualifierByPath[outerPath] == qualifierByPath[nestedPath] {
+			t.Fatalf("nested qualifiers = %#v, want distinct invocable tokens", qualifierByPath)
+		}
+		if _, err := commandpkg.BuildCatalog(commandpkg.DefaultBuiltins(), nil, specs); err != nil {
+			t.Fatalf("BuildCatalog() error = %v, want nested same-name skills to coexist", err)
+		}
+
+		winner := &Skill{
+			Meta: SkillMeta{Name: "postiz"}, Origin: "agents", RootID: root.RootID(), FilePath: outerPath,
+			Diagnostics: SkillDiagnostics{ShadowedDefinitions: []SkillDefinitionRef{{
+				Path: nestedPath, Origin: "agents",
+			}}},
+		}
+		status := SkillSourceRootStatus{Spec: root}
+		populateRootRuntimeStatus(&status, []*Skill{winner}, nil)
+		if got, want := len(status.Collisions), 1; got != want {
+			t.Fatalf("collision diagnostics = %#v, want %d nested shadow", status.Collisions, want)
+		}
+		if got, want := status.Collisions[0].QualifiedForm, qualifierByPath[nestedPath]+":postiz"; got != want {
+			t.Fatalf("collision qualified form = %q, want published command %q", got, want)
+		}
+	})
 }
 
 func TestRegistryProtectsBundledRuntimeSkillFromWorkspaceCopies(t *testing.T) {
@@ -2986,7 +2963,7 @@ func TestRegistryProtectsBundledRuntimeSkillFromWorkspaceCopies(t *testing.T) {
 			t.Fatalf("ApplyResourceRecords() error = %v", err)
 		}
 
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: workspaceID}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: workspaceID}
 		effective, err := registry.ForAgentDefSession(
 			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-runtime-skill",
 		)
@@ -3070,7 +3047,7 @@ func TestRegistryLogsNonCriticalVerificationWarnings(t *testing.T) {
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -3099,7 +3076,7 @@ func TestRegistryRejectsCanceledContext(t *testing.T) {
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if err := registry.LoadAll(ctx); err == nil {
@@ -3113,7 +3090,7 @@ func TestRegistryRejectsCanceledContext(t *testing.T) {
 func TestRegistrySetEnabled(t *testing.T) {
 	t.Parallel()
 	workspaceKey := workspaceCacheKey(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-1"},
+		ID: "ws-1",
 	})
 
 	makeRegistry := func() *Registry {
@@ -3250,7 +3227,7 @@ func TestRegistrySetEnabledUsesSkillOnlyWorkspaceCacheKey(t *testing.T) {
 		workspaceDir,
 	)
 
-	if _, err := registry.ForWorkspace(context.Background(), &resolved); err != nil {
+	if _, err := registry.ForWorkspace(t.Context(), &resolved); err != nil {
 		t.Fatalf("ForWorkspace(skill-only) error = %v", err)
 	}
 	if entry := cacheEntryForWorkspace(t, registry, &resolved); entry == nil {
@@ -3286,11 +3263,11 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
-		discovered, _, err := registry.DiscoverGlobal(context.Background())
+		discovered, _, err := registry.DiscoverGlobal(t.Context())
 		if err != nil {
 			t.Fatalf("DiscoverGlobal() error = %v", err)
 		}
-		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
+		if err := registry.ApplyResourceRecords(t.Context(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				ID:    "skill.global-skill",
 				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
@@ -3310,7 +3287,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 			skillWithDescription("global-skill", "Updated global description after rediscovery"),
 		)
 
-		rediscovered, _, err := registry.DiscoverGlobal(context.Background())
+		rediscovered, _, err := registry.DiscoverGlobal(t.Context())
 		if err != nil {
 			t.Fatalf("DiscoverGlobal(after disable) error = %v", err)
 		}
@@ -3322,7 +3299,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 			t.Fatalf("SetEnabled(global-skill, true) error = %v", err)
 		}
 
-		reenabled, _, err := registry.DiscoverGlobal(context.Background())
+		reenabled, _, err := registry.DiscoverGlobal(t.Context())
 		if err != nil {
 			t.Fatalf("DiscoverGlobal(after enable) error = %v", err)
 		}
@@ -3349,11 +3326,11 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{})
-		discovered, _, err := registry.DiscoverWorkspace(context.Background(), &resolved)
+		discovered, _, err := registry.DiscoverWorkspace(t.Context(), &resolved)
 		if err != nil {
 			t.Fatalf("DiscoverWorkspace() error = %v", err)
 		}
-		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
+		if err := registry.ApplyResourceRecords(t.Context(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				ID: "skill.workspace-skill",
 				Scope: resources.ResourceScope{
@@ -3376,7 +3353,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 			skillWithDescription("workspace-skill", "Updated workspace description after rediscovery"),
 		)
 
-		rediscovered, _, err := registry.DiscoverWorkspace(context.Background(), &resolved)
+		rediscovered, _, err := registry.DiscoverWorkspace(t.Context(), &resolved)
 		if err != nil {
 			t.Fatalf("DiscoverWorkspace(after disable) error = %v", err)
 		}
@@ -3388,7 +3365,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 			t.Fatalf("SetEnabled(workspace-skill, true) error = %v", err)
 		}
 
-		reenabled, _, err := registry.DiscoverWorkspace(context.Background(), &resolved)
+		reenabled, _, err := registry.DiscoverWorkspace(t.Context(), &resolved)
 		if err != nil {
 			t.Fatalf("DiscoverWorkspace(after enable) error = %v", err)
 		}
@@ -3402,7 +3379,7 @@ func TestWorkspaceLoadFromResolvedIgnoresStaleResolverSkillPaths(t *testing.T) {
 	t.Parallel()
 
 	registry := newTestRegistry(t, RegistryConfig{})
-	load, err := registry.workspaceLoadFromResolved(context.Background(), resolvedWorkspacePtr(
+	load, err := registry.workspaceLoadFromResolved(t.Context(), resolvedWorkspacePtr(
 		"ws-invalid-source",
 		t.TempDir(),
 		resolvedSkillPath(t.TempDir(), "unknown-source"),
@@ -3439,17 +3416,15 @@ func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecede
 
 		registry := newTestRegistry(t, RegistryConfig{})
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				RootDir:        workspace,
-				AdditionalDirs: []string{additional},
-			},
+			RootDir:        workspace,
+			AdditionalDirs: []string{additional},
 			Skills: []workspacepkg.SkillPath{{
 				Name:   "shared",
 				Dir:    filepath.Dir(workspaceSkillPath),
 				Source: "workspace",
 			}},
 		}
-		load, err := registry.workspaceLoadFromResolved(context.Background(), resolved)
+		load, err := registry.workspaceLoadFromResolved(t.Context(), resolved)
 		if err != nil {
 			t.Fatalf("workspaceLoadFromResolved() error = %v", err)
 		}
@@ -3477,10 +3452,10 @@ func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecede
 			t.Fatalf("sourceTierFor(load.paths[1].root) = %v, want %v", got, want)
 		}
 
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
-		resolvedSkills, err := registry.ForWorkspace(context.Background(), resolved)
+		resolvedSkills, err := registry.ForWorkspace(t.Context(), resolved)
 		if err != nil {
 			t.Fatalf("ForWorkspace() error = %v", err)
 		}
@@ -3628,8 +3603,7 @@ func resolvedWorkspacePtr(
 	root string,
 	skills ...workspacepkg.SkillPath,
 ) *workspacepkg.ResolvedWorkspace {
-	resolved := resolvedWorkspaceForTest(id, root, skills...)
-	return &resolved
+	return new(resolvedWorkspaceForTest(id, root, skills...))
 }
 
 func resolvedWorkspaceForTest(
@@ -3638,11 +3612,9 @@ func resolvedWorkspaceForTest(
 	skills ...workspacepkg.SkillPath,
 ) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      strings.TrimSpace(id),
-			RootDir: strings.TrimSpace(root),
-		},
-		Skills: append([]workspacepkg.SkillPath(nil), skills...),
+		ID:      strings.TrimSpace(id),
+		RootDir: strings.TrimSpace(root),
+		Skills:  append([]workspacepkg.SkillPath(nil), skills...),
 	}
 }
 

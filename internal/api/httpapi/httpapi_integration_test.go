@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,17 +24,11 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/memory"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
-	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -53,13 +48,10 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		held := make(chan acp.AgentEvent, 1)
-		var heldOnce sync.Once
-		release := func() {
-			heldOnce.Do(func() {
-				held <- acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "end_turn"}
-				close(held)
-			})
-		}
+		release := sync.OnceFunc(func() {
+			held <- acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "end_turn"}
+			close(held)
+		})
 		defer release()
 		var calls atomic.Int32
 		runtime.driver.mu.Lock()
@@ -135,6 +127,48 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 			t.Fatalf("dispatches = %d, want held turn plus one replayed input", calls.Load())
 		}
 		stopIntegrationSession(t, runtime, id)
+	})
+}
+
+func TestHTTPStoppedSystemSessionWorkspaceLifecycle(t *testing.T) {
+	t.Run("Should read and remove persisted stopped system sessions in their owning workspace", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
+		created, err := runtime.manager.Create(t.Context(), session.CreateOpts{
+			AgentName: "coder", Workspace: "ws-workspace", Type: session.SessionTypeSystem,
+		})
+		if err != nil {
+			t.Fatalf("Create(system) error = %v", err)
+		}
+		if err := runtime.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatalf("Stop(system) error = %v", err)
+		}
+		info, err := runtime.manager.Status(t.Context(), created.ID)
+		if err != nil || info.State != session.StateStopped || info.Type != session.SessionTypeSystem {
+			t.Fatalf("Status(system) = %#v, %v", info, err)
+		}
+		path := "/api/workspaces/" + info.WorkspaceID + "/sessions/" + created.ID
+		for _, readPath := range []string{"/api/sessions/" + created.ID, path + "?all_profiles=true"} {
+			resp := mustHTTPRequest(t, runtime.client, http.MethodGet,
+				mustURL(runtime.host, runtime.port, readPath), nil, nil)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s status = %d; body=%s", readPath, resp.StatusCode, readAndCloseHTTPBody(t, resp))
+			}
+			var payload contract.SessionResponse
+			decodeHTTPJSON(t, resp, &payload)
+			if payload.Session.ID != created.ID || payload.Session.State != "stopped" {
+				t.Fatalf("GET %s session = %#v", readPath, payload.Session)
+			}
+		}
+		resp := mustHTTPRequest(t, runtime.client, http.MethodDelete,
+			mustURL(runtime.host, runtime.port, path+"?profile=default"), nil, nil)
+		body := readAndCloseHTTPBody(t, resp)
+		if resp.StatusCode != http.StatusNoContent || len(body) != 0 {
+			t.Fatalf("DELETE system status = %d; body=%s", resp.StatusCode, body)
+		}
+		if _, err := runtime.manager.Status(t.Context(), created.ID); !errors.Is(err, session.ErrSessionNotFound) {
+			t.Fatalf("Status(deleted system) error = %v, want session not found", err)
+		}
 	})
 }
 
@@ -255,7 +289,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	if listed.Sessions[0].WorkspaceID == "" || listed.Sessions[0].WorkspacePath != canonicalWorkspace {
 		t.Fatalf("listed session workspace = %#v", listed.Sessions[0])
 	}
-	tasksAfterManualSession, err := runtime.registry.ListTasks(context.Background(), taskpkg.Query{Limit: 10})
+	tasksAfterManualSession, err := runtime.registry.ListTasks(t.Context(), taskpkg.Query{Limit: 10})
 	if err != nil {
 		t.Fatalf("ListTasks(after manual session) error = %v", err)
 	}
@@ -263,7 +297,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("tasks after manual session = %#v, want none", tasksAfterManualSession)
 	}
 	runsAfterManualSession, err := runtime.registry.ListTaskRunsByStatus(
-		context.Background(),
+		t.Context(),
 		[]taskpkg.RunStatus{
 			taskpkg.TaskRunStatusQueued,
 			taskpkg.TaskRunStatusClaimed,
@@ -349,8 +383,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 	completeTool := make(chan struct{})
-	var completeOnce sync.Once
-	releaseTool := func() { completeOnce.Do(func() { close(completeTool) }) }
+	releaseTool := sync.OnceFunc(func() { close(completeTool) })
 	t.Cleanup(releaseTool)
 	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 		events := make(chan acp.AgentEvent, 3)
@@ -445,7 +478,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	releaseTool()
 	waitForIntegrationTerminalToolEvents(t, terminalEvents)
 
-	events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	events, err := runtime.manager.Events(t.Context(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events() error after disconnect = %v", err)
 	}
@@ -460,12 +493,9 @@ func TestHTTPPromptQueuesConcurrentInputWithoutGhostDispatch(t *testing.T) {
 
 	firstPromptEntered := make(chan struct{})
 	releaseFirstPrompt := make(chan struct{})
-	var releaseFirstPromptOnce sync.Once
-	releaseFirstPromptWorker := func() {
-		releaseFirstPromptOnce.Do(func() {
-			close(releaseFirstPrompt)
-		})
-	}
+	releaseFirstPromptWorker := sync.OnceFunc(func() {
+		close(releaseFirstPrompt)
+	})
 	t.Cleanup(releaseFirstPromptWorker)
 	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 		events := make(chan acp.AgentEvent, 2)
@@ -584,7 +614,7 @@ func TestHTTPPromptQueuesConcurrentInputWithoutGhostDispatch(t *testing.T) {
 		t.Fatalf("second prompt = %#v, want durable queued input", accepted.Prompt)
 	}
 
-	eventsWhileBusy, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	eventsWhileBusy, err := runtime.manager.Events(t.Context(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events(while busy) error = %v", err)
 	}
@@ -641,7 +671,7 @@ func TestHTTPPromptQueuesConcurrentInputWithoutGhostDispatch(t *testing.T) {
 			t.Fatalf("wait for queued prompt completion: %v", completionCtx.Err())
 		}
 	}
-	eventsAfterRelease, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	eventsAfterRelease, err := runtime.manager.Events(t.Context(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events(after release) error = %v", err)
 	}
@@ -738,17 +768,12 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 
 	const promptTimeout = 5 * time.Second
 
-	userCtx, cancelUser := context.WithTimeout(context.Background(), promptTimeout)
+	userCtx, cancelUser := context.WithTimeout(t.Context(), promptTimeout)
 	userEvents, userErr := runtime.manager.Prompt(userCtx, sessionID, "hello")
 	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, userEvents, userErr), promptTimeout)
 	cancelUser()
 
-	networkCtx, cancelNetwork := context.WithTimeout(context.Background(), promptTimeout)
-	networkEvents, networkErr := runtime.manager.PromptNetwork(networkCtx, sessionID, "network hello")
-	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, networkEvents, networkErr), promptTimeout)
-	cancelNetwork()
-
-	syntheticCtx, cancelSynthetic := context.WithTimeout(context.Background(), promptTimeout)
+	syntheticCtx, cancelSynthetic := context.WithTimeout(t.Context(), promptTimeout)
 	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(
 		syntheticCtx,
 		sessionID,
@@ -780,8 +805,8 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	var payload contract.SessionTranscriptResponse
 	decodeHTTPJSON(t, resp, &payload)
 	messages := transcript.MessagesFromEntries(payload.Entries)
-	if len(messages) != 7 {
-		t.Fatalf("len(messages) = %d, want 7", len(messages))
+	if len(messages) != 5 {
+		t.Fatalf("len(messages) = %d, want 5", len(messages))
 	}
 	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
@@ -789,20 +814,14 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	if got := transcript.UIMessageText(messages[0]); got != "hello" {
 		t.Fatalf("messages[0] text = %q, want %q", got, "hello")
 	}
-	if got := messages[2].Role; got != transcript.UIRoleUser {
-		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleUser)
+	if got := messages[2].Role; got != transcript.UIRoleSystem {
+		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleSystem)
 	}
-	if got := transcript.UIMessageText(messages[2]); got != "network hello" {
-		t.Fatalf("messages[2] text = %q, want %q", got, "network hello")
-	}
-	if got := messages[4].Role; got != transcript.UIRoleSystem {
-		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.UIRoleSystem)
-	}
-	if got := transcript.UIMessageText(messages[4]); got != "daemon wake-up" {
-		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
+	if got := transcript.UIMessageText(messages[2]); got != "daemon wake-up" {
+		t.Fatalf("messages[2] text = %q, want %q", got, "daemon wake-up")
 	}
 	// Dispatch acknowledgment and agent output are persisted by independent owners.
-	dispatchReceipt, syntheticReply := messages[5], messages[6]
+	dispatchReceipt, syntheticReply := messages[3], messages[4]
 	if len(dispatchReceipt.Parts) != 1 || dispatchReceipt.Parts[0].Type != "data-compozy-event" {
 		dispatchReceipt, syntheticReply = syntheticReply, dispatchReceipt
 	}
@@ -1395,7 +1414,7 @@ func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	stopIntegrationSession(t, runtime, sessionID)
 
 	sessions, err := runtime.registry.ListSessions(
-		context.Background(),
+		t.Context(),
 		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
 	)
 	if err != nil {
@@ -1455,136 +1474,6 @@ func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	}
 	if detail.Session.StopReason != store.StopUserCanceled {
 		t.Fatalf("detail.Session.StopReason = %q, want %q", detail.Session.StopReason, store.StopUserCanceled)
-	}
-}
-
-func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)
-
-	createResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions"),
-		[]byte(
-			`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}}`,
-		),
-		nil,
-	)
-	if createResp.StatusCode != http.StatusCreated {
-		body := readAndCloseHTTPBody(t, createResp)
-		t.Fatalf(
-			"create session status = %d, want %d; body=%s",
-			createResp.StatusCode,
-			http.StatusCreated,
-			string(body),
-		)
-	}
-	var created struct {
-		Session sessionPayload `json:"session"`
-	}
-	decodeHTTPJSON(t, createResp, &created)
-	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		created.Session.ResolvedNetworkParticipation,
-		created.Session.WorkspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-
-	listResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions?all_workspaces=true"),
-		nil,
-		nil,
-	)
-	if listResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, listResp)
-		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
-	}
-	var listed struct {
-		Sessions []sessionPayload `json:"sessions"`
-	}
-	decodeHTTPJSON(t, listResp, &listed)
-	if got, want := len(listed.Sessions), 1; got != want {
-		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
-	}
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		listed.Sessions[0].ResolvedNetworkParticipation,
-		created.Session.WorkspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-
-	stopIntegrationSession(t, runtime, created.Session.ID)
-
-	statusResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID),
-		nil,
-		nil,
-	)
-	if statusResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, statusResp)
-		t.Fatalf("status after stop = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
-	}
-	var stopped struct {
-		Session sessionPayload `json:"session"`
-	}
-	decodeHTTPJSON(t, statusResp, &stopped)
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		stopped.Session.ResolvedNetworkParticipation,
-		created.Session.WorkspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-	if stopped.Session.State != session.StateStopped {
-		t.Fatalf("stopped session state = %q, want %q", stopped.Session.State, session.StateStopped)
-	}
-
-	indexed, err := runtime.registry.ListSessions(
-		context.Background(),
-		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
-	)
-	if err != nil {
-		t.Fatalf("runtime.registry.ListSessions() error = %v", err)
-	}
-	if got, want := len(indexed), 1; got != want {
-		t.Fatalf("len(indexed stopped sessions) = %d, want %d", got, want)
-	}
-	indexedParticipation := indexed[0].NetworkSpecSnapshot()
-	apitestutil.AssertResolvedParticipationChannel(
-		t,
-		&indexedParticipation,
-		created.Session.WorkspaceID,
-		"builders",
-		participation.SourceExplicitRequest,
-	)
-
-	resumeResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID+"/attach"),
-		nil,
-		nil,
-	)
-	if resumeResp.StatusCode != http.StatusConflict {
-		body := readAndCloseHTTPBody(t, resumeResp)
-		t.Fatalf(
-			"attach stopped session status = %d, want %d; body=%s",
-			resumeResp.StatusCode,
-			http.StatusConflict,
-			string(body),
-		)
 	}
 }
 
@@ -1855,315 +1744,289 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 	}
 }
 
-func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-
-	writeResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/memory"),
-		[]byte(
-			`{"scope":"profile","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
-		),
-		nil,
-	)
-	if writeResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, writeResp)
-		t.Fatalf("write status = %d, want %d; body=%s", writeResp.StatusCode, http.StatusOK, string(body))
-	}
-	var writePayload memoryMutationDecisionResponse
-	decodeHTTPJSON(t, writeResp, &writePayload)
-	targetFilename := writePayload.Decision.TargetFilename
-	if targetFilename == "" {
-		t.Fatalf("write payload = %#v, want target filename", writePayload)
-	}
-
-	readResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=profile"),
-		nil,
-		nil,
-	)
-	if readResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, readResp)
-		t.Fatalf("read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
-	}
-	var readPayload memoryEntryResponse
-	decodeHTTPJSON(t, readResp, &readPayload)
-	if !strings.Contains(readPayload.Memory.Content, "hello integration") {
-		t.Fatalf("content = %q, want written body", readPayload.Memory.Content)
-	}
-
-	listResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory?scope=profile"),
-		nil,
-		nil,
-	)
-	if listResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, listResp)
-		t.Fatalf("list status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
-	}
-	var listPayload memoryListResponse
-	decodeHTTPJSON(t, listResp, &listPayload)
-	if len(listPayload.Memories) != 1 || listPayload.Memories[0].Filename != targetFilename {
-		t.Fatalf("memories = %#v, want %s", listPayload.Memories, targetFilename)
-	}
-
-	deleteResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=profile"),
-		nil,
-		nil,
-	)
-	if deleteResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, deleteResp)
-		t.Fatalf("delete status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusOK, string(body))
-	}
-	closeHTTPBody(t, deleteResp.Body)
-
-	emptyList := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory?scope=profile"),
-		nil,
-		nil,
-	)
-	if emptyList.StatusCode != http.StatusOK {
-		t.Fatalf("post-delete list status = %d, want %d", emptyList.StatusCode, http.StatusOK)
-	}
-	decodeHTTPJSON(t, emptyList, &listPayload)
-	if len(listPayload.Memories) != 0 {
-		t.Fatalf("memories = %#v, want empty list after delete", listPayload.Memories)
-	}
-}
-
-func TestHTTPMemoryDreamTriggerIntegration(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-
-	resp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/memory/dreams/trigger"),
-		mustIntegrationJSON(map[string]any{
-			"scope":        "workspace",
-			"workspace_id": runtime.workspace,
-		}),
-		nil,
-	)
-	if resp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, resp)
-		t.Fatalf("dream trigger status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
-	}
-
-	var payload memoryDreamTriggerResponse
-	decodeHTTPJSON(t, resp, &payload)
-	if !payload.Triggered || runtime.dream.calls != 1 || runtime.dream.recordedWorkspace != runtime.workspace {
-		t.Fatalf(
-			"payload = %#v dream.calls=%d workspace=%q, want triggered once for %q",
-			payload,
-			runtime.dream.calls,
-			runtime.dream.recordedWorkspace,
-			runtime.workspace,
-		)
-	}
-	if payload.Dream.Scope != memcontract.ScopeWorkspace || payload.Dream.WorkspaceID != runtime.workspace {
-		t.Fatalf("dream payload = %#v, want workspace-scoped dream for %q", payload.Dream, runtime.workspace)
-	}
-}
-
 func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
+	t.Run("Should round trip jobs with the latest failed run", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
 
-	createResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
-		[]byte(
-			`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`,
-		),
-		nil,
-	)
-	if createResp.StatusCode != http.StatusCreated {
-		body := readAndCloseHTTPBody(t, createResp)
-		t.Fatalf("create job status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
-	}
-	var created contract.JobResponse
-	decodeHTTPJSON(t, createResp, &created)
-	if created.Job.ID == "" {
-		t.Fatal("expected created automation job id")
-	}
-	if created.Job.Source != automationpkg.JobSourceDynamic {
-		t.Fatalf("created job source = %q, want %q", created.Job.Source, automationpkg.JobSourceDynamic)
-	}
+		createResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
+			[]byte(
+				`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`,
+			),
+			nil,
+		)
+		if createResp.StatusCode != http.StatusCreated {
+			body := readAndCloseHTTPBody(t, createResp)
+			t.Fatalf(
+				"create job status = %d, want %d; body=%s",
+				createResp.StatusCode,
+				http.StatusCreated,
+				string(body),
+			)
+		}
+		var created contract.JobResponse
+		decodeHTTPJSON(t, createResp, &created)
+		if created.Job.ID == "" {
+			t.Fatal("expected created automation job id")
+		}
+		if created.Job.Source != automationpkg.JobSourceDynamic {
+			t.Fatalf("created job source = %q, want %q", created.Job.Source, automationpkg.JobSourceDynamic)
+		}
 
-	getResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
-		nil,
-		nil,
-	)
-	if getResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, getResp)
-		t.Fatalf("get job status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
-	}
-	var fetched contract.JobResponse
-	decodeHTTPJSON(t, getResp, &fetched)
-	if fetched.Job.NextRun == nil {
-		t.Fatalf("expected next_run for fetched job: %#v", fetched.Job)
-	}
+		getResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+			nil,
+			nil,
+		)
+		if getResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, getResp)
+			t.Fatalf("get job status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
+		}
+		var fetched contract.JobResponse
+		decodeHTTPJSON(t, getResp, &fetched)
+		if fetched.Job.LastRun != nil {
+			t.Fatalf("never-run job last_run = %#v, want absent", fetched.Job.LastRun)
+		}
+		if fetched.Job.NextRun == nil {
+			t.Fatalf("expected next_run for fetched job: %#v", fetched.Job)
+		}
 
-	listResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs?scope=global&source=dynamic"),
-		nil,
-		nil,
-	)
-	if listResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, listResp)
-		t.Fatalf("list jobs status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
-	}
-	var listed contract.JobsResponse
-	decodeHTTPJSON(t, listResp, &listed)
-	if len(listed.Jobs) != 1 || listed.Jobs[0].ID != created.Job.ID {
-		t.Fatalf("listed jobs = %#v", listed.Jobs)
-	}
+		listResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs?scope=global&source=dynamic"),
+			nil,
+			nil,
+		)
+		if listResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, listResp)
+			t.Fatalf("list jobs status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+		}
+		var listed contract.JobsResponse
+		decodeHTTPJSON(t, listResp, &listed)
+		if len(listed.Jobs) != 1 || listed.Jobs[0].ID != created.Job.ID {
+			t.Fatalf("listed jobs = %#v", listed.Jobs)
+		}
 
-	updateResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPatch,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
-		[]byte(`{"prompt":"review repo now"}`),
-		nil,
-	)
-	if updateResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, updateResp)
-		t.Fatalf("update job status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
-	}
-	var updated contract.JobResponse
-	decodeHTTPJSON(t, updateResp, &updated)
-	if updated.Job.Prompt != "review repo now" {
-		t.Fatalf("updated job prompt = %q, want %q", updated.Job.Prompt, "review repo now")
-	}
+		if listed.Jobs[0].LastRun != nil {
+			t.Fatalf("never-run listed job last_run = %#v, want absent", listed.Jobs[0].LastRun)
+		}
 
-	triggerResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"),
-		nil,
-		nil,
-	)
-	if triggerResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, triggerResp)
-		t.Fatalf("trigger job status = %d, want %d; body=%s", triggerResp.StatusCode, http.StatusOK, string(body))
-	}
-	var run contract.RunResponse
-	decodeHTTPJSON(t, triggerResp, &run)
-	if run.Run.ID == "" || run.Run.JobID != created.Job.ID {
-		t.Fatalf("trigger run = %#v", run.Run)
-	}
+		updateResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPatch,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+			[]byte(`{"prompt":"review repo now"}`),
+			nil,
+		)
+		if updateResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, updateResp)
+			t.Fatalf("update job status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+		}
+		var updated contract.JobResponse
+		decodeHTTPJSON(t, updateResp, &updated)
+		if updated.Job.Prompt != "review repo now" {
+			t.Fatalf("updated job prompt = %q, want %q", updated.Job.Prompt, "review repo now")
+		}
 
-	jobRunsResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/runs"),
-		nil,
-		nil,
-	)
-	if jobRunsResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, jobRunsResp)
-		t.Fatalf("job runs status = %d, want %d; body=%s", jobRunsResp.StatusCode, http.StatusOK, string(body))
-	}
-	var jobRuns contract.RunsResponse
-	decodeHTTPJSON(t, jobRunsResp, &jobRuns)
-	if !containsAutomationRun(jobRuns.Runs, run.Run.ID) {
-		t.Fatalf("job run history missing %q: %#v", run.Run.ID, jobRuns.Runs)
-	}
+		triggerResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"),
+			nil,
+			nil,
+		)
+		if triggerResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, triggerResp)
+			t.Fatalf("trigger job status = %d, want %d; body=%s", triggerResp.StatusCode, http.StatusOK, string(body))
+		}
+		var run contract.RunResponse
+		decodeHTTPJSON(t, triggerResp, &run)
+		if run.Run.ID == "" || run.Run.JobID != created.Job.ID {
+			t.Fatalf("trigger run = %#v", run.Run)
+		}
 
-	runsResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/runs?job_id="+created.Job.ID),
-		nil,
-		nil,
-	)
-	if runsResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, runsResp)
-		t.Fatalf("list runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
-	}
-	var runs contract.RunsResponse
-	decodeHTTPJSON(t, runsResp, &runs)
-	if !containsAutomationRun(runs.Runs, run.Run.ID) {
-		t.Fatalf("runs list missing %q: %#v", run.Run.ID, runs.Runs)
-	}
+		jobRunsResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/runs"),
+			nil,
+			nil,
+		)
+		if jobRunsResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, jobRunsResp)
+			t.Fatalf("job runs status = %d, want %d; body=%s", jobRunsResp.StatusCode, http.StatusOK, string(body))
+		}
+		var jobRuns contract.RunsResponse
+		decodeHTTPJSON(t, jobRunsResp, &jobRuns)
+		if !containsAutomationRun(jobRuns.Runs, run.Run.ID) {
+			t.Fatalf("job run history missing %q: %#v", run.Run.ID, jobRuns.Runs)
+		}
 
-	runResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/runs/"+run.Run.ID),
-		nil,
-		nil,
-	)
-	if runResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, runResp)
-		t.Fatalf("get run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
-	}
-	var fetchedRun contract.RunResponse
-	decodeHTTPJSON(t, runResp, &fetchedRun)
-	if fetchedRun.Run.ID != run.Run.ID || fetchedRun.Run.JobID != created.Job.ID {
-		t.Fatalf("fetched run = %#v", fetchedRun.Run)
-	}
+		runsResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/runs?job_id="+created.Job.ID),
+			nil,
+			nil,
+		)
+		if runsResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, runsResp)
+			t.Fatalf("list runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
+		}
+		var runs contract.RunsResponse
+		decodeHTTPJSON(t, runsResp, &runs)
+		if !containsAutomationRun(runs.Runs, run.Run.ID) {
+			t.Fatalf("runs list missing %q: %#v", run.Run.ID, runs.Runs)
+		}
 
-	deleteResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
-		nil,
-		nil,
-	)
-	if deleteResp.StatusCode != http.StatusNoContent {
-		body := readAndCloseHTTPBody(t, deleteResp)
-		t.Fatalf("delete job status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
-	}
-	closeHTTPBody(t, deleteResp.Body)
+		runResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/runs/"+run.Run.ID),
+			nil,
+			nil,
+		)
+		if runResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, runResp)
+			t.Fatalf("get run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
+		}
+		var fetchedRun contract.RunResponse
+		decodeHTTPJSON(t, runResp, &fetchedRun)
+		if fetchedRun.Run.ID != run.Run.ID || fetchedRun.Run.JobID != created.Job.ID {
+			t.Fatalf("fetched run = %#v", fetchedRun.Run)
+		}
 
-	emptyResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
-		nil,
-		nil,
-	)
-	if emptyResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, emptyResp)
-		t.Fatalf("final list jobs status = %d, want %d; body=%s", emptyResp.StatusCode, http.StatusOK, string(body))
-	}
-	var empty contract.JobsResponse
-	decodeHTTPJSON(t, emptyResp, &empty)
-	if len(empty.Jobs) != 0 {
-		t.Fatalf("expected no remaining jobs, got %#v", empty.Jobs)
-	}
+		waitForRun := func(id string, status automationpkg.RunStatus) contract.RunPayload {
+			t.Helper()
+			deadline := time.After(2 * time.Second)
+			ticker := time.NewTicker(25 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				response := mustHTTPRequest(
+					t,
+					runtime.client,
+					http.MethodGet,
+					mustURL(
+						runtime.host,
+						runtime.port,
+						"/api/automation/jobs/"+created.Job.ID+"/runs?limit=1",
+					),
+					nil,
+					nil,
+				)
+				if response.StatusCode != http.StatusOK {
+					body := readAndCloseHTTPBody(t, response)
+					t.Fatalf("latest job run status = %d; body=%s", response.StatusCode, body)
+				}
+				var latest contract.RunsResponse
+				decodeHTTPJSON(t, response, &latest)
+				if len(latest.Runs) == 1 && (id == "" || latest.Runs[0].ID == id) && latest.Runs[0].Status == status {
+					return latest.Runs[0]
+				}
+				select {
+				case <-deadline:
+					t.Fatalf("expected latest run %q with status %q, got %#v", id, status, latest.Runs)
+				case <-ticker.C:
+				}
+			}
+		}
+		waitForRun(run.Run.ID, automationpkg.RunCompleted)
+		if err := os.Remove(filepath.Join(runtime.server.homePaths.AgentsDir, "coder", "AGENT.md")); err != nil {
+			t.Fatalf("remove agent definition before the second run: %v", err)
+		}
+		failedResp := mustHTTPRequest(t, runtime.client, http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"), nil, nil)
+		if failedResp.StatusCode != http.StatusInternalServerError {
+			body := readAndCloseHTTPBody(t, failedResp)
+			t.Fatalf("trigger unavailable agent status = %d; body=%s", failedResp.StatusCode, body)
+		}
+		var failure contract.ErrorPayload
+		decodeHTTPJSON(t, failedResp, &failure)
+		if failure.Error == "" {
+			t.Fatal("expected unavailable agent failure message")
+		}
+		latest := waitForRun("", automationpkg.RunFailed)
+		if latest.ID == "" || latest.ID == run.Run.ID {
+			t.Fatalf("expected a new failed run, got %#v", latest)
+		}
+		for _, path := range []string{"/api/automation/jobs", "/api/automation/jobs/" + created.Job.ID} {
+			response := mustHTTPRequest(t, runtime.client, http.MethodGet,
+				mustURL(runtime.host, runtime.port, path), nil, nil)
+			if response.StatusCode != http.StatusOK {
+				body := readAndCloseHTTPBody(t, response)
+				t.Fatalf("job summary status = %d; body=%s", response.StatusCode, body)
+			}
+			var summary *contract.AutomationLastRunPayload
+			if path == "/api/automation/jobs" {
+				var result contract.JobsResponse
+				decodeHTTPJSON(t, response, &result)
+				if len(result.Jobs) != 1 {
+					t.Fatalf("listed jobs = %#v", result.Jobs)
+				}
+				summary = result.Jobs[0].LastRun
+			} else {
+				var result contract.JobResponse
+				decodeHTTPJSON(t, response, &result)
+				summary = result.Job.LastRun
+			}
+			if summary == nil || summary.ID != latest.ID || summary.Status != latest.Status ||
+				summary.StartedAt == nil || latest.StartedAt == nil || !summary.StartedAt.Equal(*latest.StartedAt) ||
+				summary.EndedAt == nil || latest.EndedAt == nil || !summary.EndedAt.Equal(*latest.EndedAt) || summary.SkipReason != "" {
+				t.Fatalf("%s last_run = %#v, latest run = %#v", path, summary, latest)
+			}
+		}
+
+		deleteResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodDelete,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+			nil,
+			nil,
+		)
+		if deleteResp.StatusCode != http.StatusNoContent {
+			body := readAndCloseHTTPBody(t, deleteResp)
+			t.Fatalf(
+				"delete job status = %d, want %d; body=%s",
+				deleteResp.StatusCode,
+				http.StatusNoContent,
+				string(body),
+			)
+		}
+		closeHTTPBody(t, deleteResp.Body)
+
+		emptyResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
+			nil,
+			nil,
+		)
+		if emptyResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, emptyResp)
+			t.Fatalf("final list jobs status = %d, want %d; body=%s", emptyResp.StatusCode, http.StatusOK, string(body))
+		}
+		var empty contract.JobsResponse
+		decodeHTTPJSON(t, emptyResp, &empty)
+		if len(empty.Jobs) != 0 {
+			t.Fatalf("expected no remaining jobs, got %#v", empty.Jobs)
+		}
+	})
 }
 
 func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
@@ -2428,7 +2291,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	released := false
@@ -2436,7 +2299,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 		if !released {
 			close(release)
 		}
-		if err := server.Shutdown(context.Background()); err != nil {
+		if err := server.Shutdown(t.Context()); err != nil {
 			t.Errorf("server.Shutdown() error = %v", err)
 		}
 	}()
@@ -2462,7 +2325,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 	shutdownDone := make(chan error, 1)
 	shutdownStarted := registerServerShutdownSignal(t, server)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		shutdownDone <- server.Shutdown(ctx)
 	}()
@@ -2597,12 +2460,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 	if created.Scope != taskpkg.ScopeGlobal {
 		t.Fatalf("created scope = %q, want %q", created.Scope, taskpkg.ScopeGlobal)
 	}
-	if created.ResolvedNetworkParticipation != nil {
-		t.Fatalf(
-			"created resolved_network_participation = %#v, want nil without an active run",
-			created.ResolvedNetworkParticipation,
-		)
-	}
+
 	if created.Owner == nil || created.Owner.Kind != taskpkg.OwnerKindPool || created.Owner.Ref != "ops" {
 		t.Fatalf("created owner = %#v, want pool/ops", created.Owner)
 	}
@@ -2683,12 +2541,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 	if updated.Task.Description != "Expose the task and run transports everywhere" {
 		t.Fatalf("updated description = %q", updated.Task.Description)
 	}
-	if updated.Task.ResolvedNetworkParticipation != nil {
-		t.Fatalf(
-			"updated resolved_network_participation = %#v, want nil without an active run",
-			updated.Task.ResolvedNetworkParticipation,
-		)
-	}
+
 	if updated.Task.Owner != nil {
 		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
 	}
@@ -2750,7 +2603,6 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		if queued.Run.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("queued status = %q, want %q", queued.Run.Status, taskpkg.TaskRunStatusQueued)
 		}
-		apitestutil.AssertLocalResolvedParticipation(t, queued.Run.ResolvedNetworkParticipation)
 
 		listQueuedResp := mustHTTPRequest(
 			t,
@@ -3347,9 +3199,6 @@ type integrationRuntime struct {
 	driver              *integrationDriver
 	observer            *observe.Observer
 	registry            *globaldb.GlobalDB
-	bridges             *integrationBridgeService
-	memory              *memory.Store
-	dream               *integrationDreamTrigger
 	streamSubscriptions *integrationStreamSubscriptionRecorder
 	host                string
 	port                int
@@ -3385,304 +3234,6 @@ func (*integrationTaskSessionExecutor) RequestTaskStop(context.Context, string, 
 
 func (*integrationTaskSessionExecutor) ForceTaskStop(context.Context, string, taskpkg.StopReason) error {
 	return nil
-}
-
-type integrationDreamTrigger struct {
-	enabled           bool
-	triggered         bool
-	reason            string
-	last              time.Time
-	calls             int
-	recordedWorkspace string
-}
-
-type integrationBridgeSecretStore interface {
-	ListBridgeSecretBindings(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
-	PutBridgeSecretBinding(context.Context, bridgepkg.BridgeSecretBinding) error
-	DeleteBridgeSecretBinding(context.Context, string, string) error
-}
-
-type integrationBridgeCatalogStore interface {
-	CountBridgeRoutes(context.Context, []string) (map[string]int, error)
-	ListBridgeSecretBindingsForInstances(
-		context.Context,
-		[]string,
-	) (map[string][]bridgepkg.BridgeSecretBinding, error)
-}
-
-type integrationBridgeService struct {
-	*bridgepkg.Service
-	store             integrationBridgeSecretStore
-	catalogStore      integrationBridgeCatalogStore
-	taskSubscriptions bridgepkg.BridgeTaskSubscriptionStore
-	broker            *bridgepkg.Broker
-	providers         []bridgepkg.BridgeProvider
-}
-
-var _ core.BridgeService = (*integrationBridgeService)(nil)
-
-func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
-	taskSubscriptions, _ := store.(bridgepkg.BridgeTaskSubscriptionStore)
-	catalogStore, _ := store.(integrationBridgeCatalogStore)
-	return &integrationBridgeService{
-		Service:           bridgepkg.NewRegistry(store),
-		store:             bridgeSecretStore(store),
-		catalogStore:      catalogStore,
-		taskSubscriptions: taskSubscriptions,
-		broker:            bridgepkg.NewBroker(nil),
-	}
-}
-
-func bridgeSecretStore(store bridgepkg.RegistryStore) integrationBridgeSecretStore {
-	secretStore, _ := store.(integrationBridgeSecretStore)
-	return secretStore
-}
-
-func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusStarting,
-	}); err != nil {
-		return nil, fmt.Errorf("start bridge instance %q: %w", id, err)
-	}
-	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusReady,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("mark bridge instance %q ready: %w", id, err)
-	}
-	return instance, nil
-}
-
-func (s *integrationBridgeService) StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: false,
-		Status:  bridgepkg.BridgeStatusDisabled,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("stop bridge instance %q: %w", id, err)
-	}
-	return instance, nil
-}
-
-func (s *integrationBridgeService) RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusStarting,
-	}); err != nil {
-		return nil, fmt.Errorf("restart bridge instance %q: %w", id, err)
-	}
-	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusReady,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("mark restarted bridge instance %q ready: %w", id, err)
-	}
-	return instance, nil
-}
-
-func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
-	providers := make([]bridgepkg.BridgeProvider, 0, len(s.providers))
-	providers = append(providers, s.providers...)
-	return providers, nil
-}
-
-func (s *integrationBridgeService) CheckBridge(
-	context.Context,
-	string,
-	bridgepkg.BridgeCheckRequest,
-) (bridgepkg.BridgeCheckResponse, error) {
-	return bridgepkg.BridgeCheckResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
-}
-
-func (s *integrationBridgeService) RegisterBridgeWebhook(
-	context.Context,
-	string,
-	bridgepkg.BridgeWebhookRegistrationRequest,
-) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
-	return bridgepkg.BridgeWebhookRegistrationResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
-}
-
-func (s *integrationBridgeService) DeliverBridge(
-	context.Context,
-	string,
-	bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
-}
-
-func (s *integrationBridgeService) ListSecretBindings(
-	ctx context.Context,
-	bridgeInstanceID string,
-) ([]bridgepkg.BridgeSecretBinding, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
-}
-
-func (s *integrationBridgeService) PutSecretBinding(
-	ctx context.Context,
-	binding bridgepkg.BridgeSecretBinding,
-	secretValue *string,
-) error {
-	if s == nil || s.store == nil {
-		return errors.New("integration bridge secret store is not configured")
-	}
-	if secretValue != nil {
-		return errors.New("integration bridge secret store should not receive raw secret values")
-	}
-	return s.store.PutBridgeSecretBinding(ctx, binding)
-}
-
-func (s *integrationBridgeService) DeleteSecretBinding(
-	ctx context.Context,
-	bridgeInstanceID string,
-	bindingName string,
-) error {
-	if s == nil || s.store == nil {
-		return errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.DeleteBridgeSecretBinding(ctx, bridgeInstanceID, bindingName)
-}
-
-func (s *integrationBridgeService) PutBridgeTaskSubscription(
-	ctx context.Context,
-	subscription bridgepkg.BridgeTaskSubscription,
-) error {
-	if s == nil || s.taskSubscriptions == nil {
-		return errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.PutBridgeTaskSubscription(ctx, subscription)
-}
-
-func (s *integrationBridgeService) GetBridgeTaskSubscription(
-	ctx context.Context,
-	readScope store.ReadScope,
-	subscriptionID string,
-) (bridgepkg.BridgeTaskSubscription, error) {
-	if s == nil || s.taskSubscriptions == nil {
-		return bridgepkg.BridgeTaskSubscription{}, errors.New(
-			"integration bridge task subscription store is not configured",
-		)
-	}
-	return s.taskSubscriptions.GetBridgeTaskSubscription(ctx, readScope, subscriptionID)
-}
-
-func (s *integrationBridgeService) ListBridgeTaskSubscriptions(
-	ctx context.Context,
-	query bridgepkg.BridgeTaskSubscriptionQuery,
-) ([]bridgepkg.BridgeTaskSubscription, error) {
-	if s == nil || s.taskSubscriptions == nil {
-		return nil, errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.ListBridgeTaskSubscriptions(ctx, query)
-}
-
-func (s *integrationBridgeService) DeleteBridgeTaskSubscription(ctx context.Context, subscriptionID string) error {
-	if s == nil || s.taskSubscriptions == nil {
-		return errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.DeleteBridgeTaskSubscription(ctx, subscriptionID)
-}
-
-func (s *integrationBridgeService) CountBridgeRoutes(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string]int, error) {
-	if s == nil || s.catalogStore == nil {
-		return nil, errors.New("integration bridge catalog store is not configured")
-	}
-	return s.catalogStore.CountBridgeRoutes(ctx, bridgeInstanceIDs)
-}
-
-func (s *integrationBridgeService) ListSecretBindingsForInstances(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string][]bridgepkg.BridgeSecretBinding, error) {
-	if s == nil || s.catalogStore == nil {
-		return nil, errors.New("integration bridge catalog store is not configured")
-	}
-	return s.catalogStore.ListBridgeSecretBindingsForInstances(ctx, bridgeInstanceIDs)
-}
-
-func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
-	if s == nil || s.broker == nil {
-		return nil
-	}
-	return s.broker.DeliveryMetrics()
-}
-
-func (s *integrationBridgeService) DeliveryMetricsFor(
-	bridgeInstanceIDs []string,
-) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
-	if s == nil || s.broker == nil {
-		return nil, nil
-	}
-	return s.broker.DeliveryMetricsFor(bridgeInstanceIDs)
-}
-
-func (s *integrationBridgeService) Broker() *bridgepkg.Broker {
-	if s == nil {
-		return nil
-	}
-	return s.broker
-}
-
-func TestIntegrationBridgeServiceLifecycleTransitionsReachReady(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-
-	created, err := runtime.bridges.CreateInstance(context.Background(), bridgepkg.CreateInstanceRequest{
-		ProfileID:     store.DefaultProfileID,
-		ID:            "brg-lifecycle-ready",
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "ext-telegram",
-		DisplayName:   "Lifecycle Ready",
-		Enabled:       false,
-		Status:        bridgepkg.BridgeStatusDisabled,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	if err != nil {
-		t.Fatalf("CreateInstance() error = %v", err)
-	}
-
-	started, err := runtime.bridges.StartInstance(context.Background(), created.ID)
-	if err != nil {
-		t.Fatalf("StartInstance() error = %v", err)
-	}
-	if !started.Enabled || started.Status != bridgepkg.BridgeStatusReady {
-		t.Fatalf("StartInstance() = %#v, want enabled ready instance", started)
-	}
-
-	restarted, err := runtime.bridges.RestartInstance(context.Background(), created.ID)
-	if err != nil {
-		t.Fatalf("RestartInstance() error = %v", err)
-	}
-	if !restarted.Enabled || restarted.Status != bridgepkg.BridgeStatusReady {
-		t.Fatalf("RestartInstance() = %#v, want enabled ready instance", restarted)
-	}
-}
-
-func (t *integrationDreamTrigger) Trigger(_ context.Context, workspaceID string) (bool, string, error) {
-	t.calls++
-	t.recordedWorkspace = workspaceID
-	return t.triggered, t.reason, nil
-}
-
-func (t *integrationDreamTrigger) LastConsolidatedAt() (time.Time, error) {
-	return t.last, nil
-}
-
-func (t *integrationDreamTrigger) Enabled() bool {
-	return t.enabled
 }
 
 type integrationNotifierFanout struct {
@@ -4060,20 +3611,19 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
-	cfg.Network.Enabled = false
 	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"codex": {Command: "fake-agent"},
 	}
 	// Profile-aware resolution reads the fixture's actual home configuration.
 	if err := os.WriteFile(
 		homePaths.ConfigFile,
-		[]byte("[providers.codex]\ncommand = \"fake-agent\"\n[network]\nenabled = false\n"),
+		[]byte("[providers.codex]\ncommand = \"fake-agent\"\n"),
 		0o600,
 	); err != nil {
 		t.Fatalf("write integration provider config: %v", err)
 	}
 
-	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -4101,29 +3651,23 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
-	if _, err := resolver.Register(context.Background(), workspacepkg.RegisterOptions{
+	if _, err := resolver.Register(t.Context(), workspacepkg.RegisterOptions{
 		RootDir: workspace,
 		Name:    "ws-workspace",
 	}); err != nil {
 		t.Fatalf("workspace.Register(%q) error = %v", workspace, err)
 	}
 	driver := newIntegrationDriver(permissionWait)
-	sandboxRegistry, err := sandboxlocal.NewRegistry()
-	if err != nil {
-		t.Fatalf("local.NewRegistry() error = %v", err)
-	}
-	participationResolver := apitestutil.NewIntegrationParticipationResolver(t, registry)
+
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(driver),
 		session.WithNotifier(fanout),
-		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
 		session.WithSessionPromptAdmissionStore(registry),
 		session.WithSessionInputQueueStore(registry),
-		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
@@ -4135,19 +3679,12 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 			t.Errorf("manager.Shutdown() error = %v", err)
 		}
 	})
-	bridgeService := newIntegrationBridgeService(registry)
-	t.Cleanup(func() {
-		if broker := bridgeService.Broker(); broker != nil {
-			broker.Close()
-		}
-	})
 
 	observer, err := observe.New(
-		context.Background(),
+		t.Context(),
 		observe.WithHomePaths(homePaths),
 		observe.WithRegistry(registry),
 		observe.WithSessionSource(manager),
-		observe.WithBridgeSource(bridgeService),
 		observe.WithLogger(discardLogger()),
 	)
 	if err != nil {
@@ -4155,26 +3692,6 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
 
-	memoryStore := memory.NewStore(
-		homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
-	)
-	if err := memoryStore.EnsureDirs(); err != nil {
-		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
-	}
-	if err := memoryStore.OpenCatalog(t.Context()); err != nil {
-		t.Fatalf("memoryStore.OpenCatalog() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := memoryStore.CloseCatalog(context.Background()); err != nil {
-			t.Errorf("memoryStore.CloseCatalog() error = %v", err)
-		}
-	})
-	dreamTrigger := &integrationDreamTrigger{
-		enabled:   true,
-		triggered: true,
-		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
-	}
 	lookupEnv := func(key string) (string, bool) {
 		value, ok := os.LookupEnv(key)
 		return value, ok && strings.TrimSpace(value) != ""
@@ -4200,7 +3717,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("automation.New() error = %v", err)
 	}
-	if err := automationManager.Start(context.Background()); err != nil {
+	if err := automationManager.Start(t.Context()); err != nil {
 		t.Fatalf("automationManager.Start() error = %v", err)
 	}
 	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
@@ -4216,7 +3733,6 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(taskExecutor),
-		taskpkg.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
@@ -4243,17 +3759,14 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		WithObserver(observer),
 		WithResourceService(resourceService),
 		WithAutomation(automationManager),
-		WithBridgeService(bridgeService),
 		WithVaultService(vaultService),
 		WithWorkspaceResolver(resolver),
-		WithMemoryStore(memoryStore),
-		WithDreamTrigger(dreamTrigger),
 		WithPollInterval(10*time.Millisecond),
 	)
 	if err != nil {
 		t.Fatalf("httpapi.New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("server.Start() error = %v", err)
 	}
 	t.Cleanup(func() {
@@ -4272,9 +3785,6 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		driver:              driver,
 		observer:            observer,
 		registry:            registry,
-		bridges:             bridgeService,
-		memory:              memoryStore,
-		dream:               dreamTrigger,
 		streamSubscriptions: streamSubscriptions,
 		host:                cfg.HTTP.Host,
 		port:                server.Port(),
@@ -4545,11 +4055,6 @@ func createLiveIntegrationSession(t *testing.T, runtime integrationRuntime) stri
 	return createIntegrationSessionFromRequest(t, runtime, map[string]any{
 		"agent_name":     "coder",
 		"workspace_path": runtime.workspace,
-		"network_participation": map[string]any{
-			"mode":             "live",
-			"channel_strategy": "named",
-			"channel_id":       "builders",
-		},
 	})
 }
 
@@ -4583,7 +4088,7 @@ func createIntegrationSessionFromRequest(
 func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, sessionID string) {
 	t.Helper()
 
-	info, err := manager.Status(context.Background(), sessionID)
+	info, err := manager.Status(t.Context(), sessionID)
 	if err != nil {
 		t.Fatalf("Status(%q) error = %v", sessionID, err)
 	}
@@ -4600,7 +4105,7 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 	}
 	defer cancel()
 
-	info, err = manager.Status(context.Background(), sessionID)
+	info, err = manager.Status(t.Context(), sessionID)
 	if err != nil {
 		t.Fatalf("Status(%q) after catalog subscription error = %v", sessionID, err)
 	}
@@ -4620,7 +4125,7 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 				continue
 			}
 
-			info, err = manager.Status(context.Background(), sessionID)
+			info, err = manager.Status(t.Context(), sessionID)
 			if err != nil {
 				t.Fatalf("Status(%q) after catalog event error = %v", sessionID, err)
 			}
@@ -4928,7 +4433,7 @@ func integrationRegistryHasStopReason(
 	t.Helper()
 
 	sessions, err := runtime.registry.ListSessions(
-		context.Background(),
+		t.Context(),
 		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
 	)
 	if err != nil {
@@ -4940,4 +4445,98 @@ func integrationRegistryHasStopReason(
 		}
 	}
 	return false
+}
+
+func TestHTTPSessionLayoutRoundTripWithRealSessionManager(t *testing.T) {
+	t.Run("Should persist folders, moves, and manual order through the real catalog", func(t *testing.T) {
+		runtime := newIntegrationRuntime(t)
+		origin := fmt.Sprintf("http://%s:%d", runtime.host, runtime.port)
+		call := func(method string, path string, body string, wantStatus int, target any) {
+			t.Helper()
+			var payload []byte
+			if body != "" {
+				payload = []byte(body)
+			}
+			resp := mustHTTPRequest(t, runtime.client, method, mustURL(runtime.host, runtime.port, path), payload,
+				map[string]string{"Origin": origin})
+			if resp.StatusCode != wantStatus {
+				t.Fatalf("%s %s status = %d, want %d; body=%s", method, path, resp.StatusCode, wantStatus,
+					readAndCloseHTTPBody(t, resp))
+			}
+			if target == nil {
+				closeHTTPBody(t, resp.Body)
+				return
+			}
+			decodeHTTPJSON(t, resp, target)
+		}
+		createSession := func(name string, folderID string) contract.SessionPayload {
+			t.Helper()
+			body := `{"agent_name":"coder","name":"` + name + `","workspace_path":"` + runtime.workspace + `"`
+			if folderID != "" {
+				body += `,"folder_id":"` + folderID + `"`
+			}
+			var created contract.SessionResponse
+			call(http.MethodPost, "/api/sessions", body+`}`, http.StatusCreated, &created)
+			return created.Session
+		}
+
+		first := createSession("first", "")
+		second := createSession("second", "")
+		layoutPath := "/api/workspaces/" + first.WorkspaceID
+		var folder contract.SessionFolderResponse
+		call(http.MethodPost, layoutPath+"/session-folders", `{"name":"Release"}`, http.StatusCreated, &folder)
+		if folder.Folder.ID == "" || folder.Folder.Name != "Release" {
+			t.Fatalf("created folder = %#v", folder.Folder)
+		}
+
+		var folders contract.SessionFoldersResponse
+		call(http.MethodPost, layoutPath+"/sessions/"+first.ID+"/move",
+			`{"folder_id":"`+folder.Folder.ID+`"}`, http.StatusOK, &folders)
+		if len(folders.Folders) != 1 || folders.Folders[0].SessionCount != 1 {
+			t.Fatalf("folders after move = %#v, want one folder with one session", folders.Folders)
+		}
+		inFolder := createSession("third", folder.Folder.ID)
+		if inFolder.FolderID != folder.Folder.ID {
+			t.Fatalf("created session folder_id = %q, want %q", inFolder.FolderID, folder.Folder.ID)
+		}
+		call(http.MethodPost, "/api/sessions",
+			`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","folder_id":"sfold-missing"}`,
+			http.StatusNotFound, nil)
+		call(http.MethodPut, layoutPath+"/session-order/sessions",
+			`{"folder_id":"`+folder.Folder.ID+`","session_ids":["`+inFolder.ID+`","`+first.ID+`"]}`,
+			http.StatusOK, nil)
+		call(http.MethodPut, layoutPath+"/session-order/sessions",
+			`{"session_ids":["`+second.ID+`"]}`, http.StatusOK, nil)
+
+		var catalog contract.SessionCatalogResponse
+		call(http.MethodGet, layoutPath+"/sessions?sort=manual", "", http.StatusOK, &catalog)
+		gotOrder := make([]string, 0, len(catalog.Sessions))
+		gotFolders := map[string]string{}
+		for _, item := range catalog.Sessions {
+			gotOrder = append(gotOrder, item.ID)
+			gotFolders[item.ID] = item.FolderID
+		}
+		wantOrder := []string{inFolder.ID, first.ID, second.ID}
+		if !slices.Equal(gotOrder, wantOrder) {
+			t.Fatalf("manual catalog order = %v, want %v", gotOrder, wantOrder)
+		}
+		if gotFolders[first.ID] != folder.Folder.ID || gotFolders[second.ID] != "" {
+			t.Fatalf("catalog folder ids = %v", gotFolders)
+		}
+
+		call(http.MethodDelete, layoutPath+"/session-folders/"+folder.Folder.ID, "", http.StatusOK, &folders)
+		if len(folders.Folders) != 0 {
+			t.Fatalf("folders after delete = %#v, want none", folders.Folders)
+		}
+		var afterDelete contract.SessionCatalogResponse
+		call(http.MethodGet, layoutPath+"/sessions?sort=manual", "", http.StatusOK, &afterDelete)
+		if len(afterDelete.Sessions) != 3 {
+			t.Fatalf("sessions after folder delete = %d, want all 3 kept", len(afterDelete.Sessions))
+		}
+		for _, item := range afterDelete.Sessions {
+			if item.FolderID != "" {
+				t.Fatalf("session %s folder_id = %q after folder delete, want root", item.ID, item.FolderID)
+			}
+		}
+	})
 }

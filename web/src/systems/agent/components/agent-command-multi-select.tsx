@@ -57,7 +57,7 @@ export function AgentCommandMultiSelect({
           {value.length === 0 ? (
             <span className="truncate text-muted">{placeholder}</span>
           ) : (
-            <span className="truncate text-sm text-fg">{value.length} selected</span>
+            <span className="truncate text-small-body text-fg">{value.length} selected</span>
           )}
         </span>
         <Pill mono data-testid={countTestId}>

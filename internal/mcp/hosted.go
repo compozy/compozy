@@ -58,9 +58,17 @@ type HostedConfig struct {
 	HomePaths            compozyconfig.HomePaths
 	Registry             HostedRegistry
 	ProjectionGeneration HostedProjectionGeneration
-	Logger               *slog.Logger
-	Now                  func() time.Time
-	NonceReader          func([]byte) error
+	// ProjectionEpoch reports the daemon invalidation epoch that forces a stream rebuild without a generation.
+	ProjectionEpoch func() uint64
+	Logger          *slog.Logger
+	Now             func() time.Time
+	NonceReader     func([]byte) error
+
+	// ProjectionChanges returns a channel closed by the next daemon epoch advance; streams block on it.
+	ProjectionChanges func() <-chan struct{}
+	// StreamRefresh is the projection stream fallback re-read interval; zero selects
+	// HostedProjectionFallbackRefresh.
+	StreamRefresh time.Duration
 }
 
 // HostedService owns session-scoped hosted MCP launch and bind lifecycle.
@@ -73,6 +81,9 @@ type HostedService struct {
 	homePaths            compozyconfig.HomePaths
 	registry             HostedRegistry
 	projectionGeneration HostedProjectionGeneration
+	projectionEpoch      func() uint64
+	projectionChanges    func() <-chan struct{}
+	streamRefresh        time.Duration
 	logger               *slog.Logger
 	now                  func() time.Time
 	nonceReader          func([]byte) error
@@ -80,6 +91,8 @@ type HostedService struct {
 	launches        map[string]*hostedLaunchRecord
 	binds           map[string]*hostedBindRecord
 	projectionCache hostedProjectionCache
+	// bindReleases wakes projection streams when binds are released so they end promptly.
+	bindReleases changeSignal
 }
 
 // HostedLaunchRequest describes one session-bound MCP launch.
@@ -194,6 +207,9 @@ func NewHostedService(cfg *HostedConfig) (*HostedService, error) {
 		homePaths:            cfg.HomePaths,
 		registry:             cfg.Registry,
 		projectionGeneration: cfg.ProjectionGeneration,
+		projectionEpoch:      cfg.ProjectionEpoch,
+		projectionChanges:    cfg.ProjectionChanges,
+		streamRefresh:        cfg.StreamRefresh,
 		logger:               cfg.Logger,
 		now:                  now,
 		nonceReader:          nonceReader,
@@ -244,9 +260,7 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 	}
 	s.launches[sessionID] = record
 	s.mu.Unlock()
-	for _, bindID := range releasedBindIDs {
-		s.projectionCache.remove(bindID)
-	}
+	s.releaseProjectionCaches(releasedBindIDs)
 
 	env := map[string]string{}
 	if home := strings.TrimSpace(s.homePaths.HomeDir); home != "" {
@@ -340,7 +354,5 @@ func (s *HostedService) ReleaseSession(sessionID string) {
 		}
 	}
 	s.mu.Unlock()
-	for _, bindID := range releasedBindIDs {
-		s.projectionCache.remove(bindID)
-	}
+	s.releaseProjectionCaches(releasedBindIDs)
 }

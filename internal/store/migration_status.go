@@ -57,9 +57,7 @@ func readStreamStatus(
 			continue
 		}
 		status.AppliedCount++
-		if version > status.Version {
-			status.Version = version
-		}
+		status.Version = max(status.Version, version)
 	}
 	return status, nil
 }

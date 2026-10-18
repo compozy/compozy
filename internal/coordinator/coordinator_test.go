@@ -8,7 +8,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -29,13 +28,6 @@ func TestDecideBootstrap(t *testing.T) {
 		Status:   taskpkg.TaskRunStatusQueued,
 		Metadata: json.RawMessage(`{"workflow_id":"wf-1"}`),
 	}
-	baseRun.SetNetworkState(participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       "ch-run-1",
-		Source:          participation.SourceExplicitRequest,
-	}, "", "", "")
 	enabled := compozyconfig.DefaultResolvedCoordinatorRole()
 	enabled.Enabled = true
 
@@ -72,17 +64,6 @@ func TestDecideBootstrap(t *testing.T) {
 			run:  baseRun,
 			cfg:  enabled,
 			want: DecisionGlobalScope,
-		},
-		{
-			name: "Should bootstrap local run without a channel",
-			task: baseTask,
-			run: func() taskpkg.Run {
-				run := baseRun
-				run.SetNetworkState(participation.LocalSpec(), "", "", "")
-				return run
-			}(),
-			cfg:  enabled,
-			want: DecisionBootstrap, should: true,
 		},
 		{
 			name: "Should skip completed run",
@@ -140,21 +121,12 @@ func TestDecideBootstrap(t *testing.T) {
 func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should restrict local coordinator permissions to task tools", func(t *testing.T) {
+	t.Run("Should restrict coordinator permissions to task tools", func(t *testing.T) {
 		t.Parallel()
 
-		policy := PermissionPolicy(participation.LocalSpec())
+		policy := PermissionPolicy()
 		if !slices.Contains(policy.Tools, toolspkg.ToolIDTaskRunClaimNext.String()) {
 			t.Fatalf("policy tools = %#v, want %q", policy.Tools, toolspkg.ToolIDTaskRunClaimNext)
-		}
-		for _, networkTool := range []string{
-			toolspkg.ToolIDNetworkChannels.String(),
-			toolspkg.ToolIDNetworkInbox.String(),
-			toolspkg.ToolIDNetworkSend.String(),
-		} {
-			if slices.Contains(policy.Tools, networkTool) {
-				t.Fatalf("policy tools = %#v, want no local network tool %q", policy.Tools, networkTool)
-			}
 		}
 		if err := store.ValidateSessionLineage("coord-1", &store.SessionLineage{
 			SpawnRole:        "coordinator",
@@ -169,7 +141,7 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 			toolspkg.ToolIDToolInfo.String(),
 			"agent.spawn.coordinator",
 		} {
-			if ToolAllowed(participation.LocalSpec(), denied) {
+			if ToolAllowed(denied) {
 				t.Fatalf("ToolAllowed(%q) = true, want false", denied)
 			}
 		}
@@ -178,7 +150,7 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 			toolspkg.ToolIDTaskRunComplete.String(),
 			toolspkg.ToolIDTaskCreate.String(),
 		} {
-			if !ToolAllowed(participation.LocalSpec(), allowed) {
+			if !ToolAllowed(allowed) {
 				t.Fatalf("ToolAllowed(%q) = false, want true", allowed)
 			}
 		}
@@ -187,35 +159,6 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 		}
 		if !SpawnRoleAllowed("worker") {
 			t.Fatal("SpawnRoleAllowed(worker) = false, want true")
-		}
-		if got, want := policy.NetworkChannels, []string(nil); !slices.Equal(got, want) {
-			t.Fatalf("NetworkChannels = %#v, want %#v", got, want)
-		}
-	})
-
-	t.Run("Should add the network trio only for live participation", func(t *testing.T) {
-		t.Parallel()
-
-		live := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-1",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "ch-1",
-			Source:          participation.SourceExplicitRequest,
-		}
-		policy := PermissionPolicy(live)
-		for _, networkTool := range []string{
-			toolspkg.ToolIDNetworkChannels.String(),
-			toolspkg.ToolIDNetworkInbox.String(),
-			toolspkg.ToolIDNetworkSend.String(),
-		} {
-			if !slices.Contains(policy.Tools, networkTool) {
-				t.Fatalf("policy tools = %#v, want live network tool %q", policy.Tools, networkTool)
-			}
-		}
-		if got, want := policy.NetworkChannels, []string{"ch-1"}; !slices.Equal(got, want) {
-			t.Fatalf("NetworkChannels = %#v, want %#v", got, want)
 		}
 	})
 }
@@ -226,27 +169,17 @@ func TestCoordinatorListAccessorsReturnCopies(t *testing.T) {
 	t.Run("Should protect coordinator allowlists from caller mutation", func(t *testing.T) {
 		t.Parallel()
 
-		tools := ToolAllowlist(participation.LocalSpec())
+		tools := ToolAllowlist()
 		if len(tools) == 0 {
 			t.Fatal("ToolAllowlist() returned empty list, want coordinator tools")
 		}
 		tools[0] = toolspkg.ToolIDTaskCancel.String()
-		if ToolAllowed(participation.LocalSpec(), toolspkg.ToolIDTaskCancel.String()) {
+		if ToolAllowed(toolspkg.ToolIDTaskCancel.String()) {
 			t.Fatal("ToolAllowed(task.cancel) = true after caller mutation, want immutable allowlist")
 		}
-		policy := PermissionPolicy(participation.LocalSpec())
+		policy := PermissionPolicy()
 		if slices.Contains(policy.Tools, toolspkg.ToolIDTaskCancel.String()) {
 			t.Fatalf("PermissionPolicy() Tools = %#v, want no caller-mutated task.cancel", policy.Tools)
-		}
-
-		kinds := OperationalMessageKinds()
-		if len(kinds) == 0 {
-			t.Fatal("OperationalMessageKinds() returned empty list, want message kinds")
-		}
-		kinds[0] = "mutated-kind"
-		overlay := PromptOverlay(PromptInput{NetworkParticipation: participation.LocalSpec()})
-		if strings.Contains(overlay, "mutated-kind") {
-			t.Fatalf("PromptOverlay() used caller-mutated message kind:\n%s", overlay)
 		}
 	})
 }
@@ -262,11 +195,7 @@ func TestLineageAndHealthySession(t *testing.T) {
 		cfg.Enabled = true
 		cfg.TTL = 2 * time.Hour
 		cfg.MaxChildren = 3
-		policy := PermissionPolicy(participation.Spec{
-			Version: participation.SpecVersion, Mode: participation.ModeLive,
-			WorkspaceID: "ws-1", ChannelStrategy: participation.StrategyNamed,
-			ChannelID: "ch-1", Source: participation.SourceExplicitRequest,
-		})
+		policy := PermissionPolicy()
 
 		lineage := Lineage(now, cfg, policy)
 		if lineage.SpawnRole != string(session.SessionTypeCoordinator) {
@@ -278,8 +207,8 @@ func TestLineageAndHealthySession(t *testing.T) {
 		if lineage.SpawnBudget.MaxChildren != 3 || lineage.SpawnBudget.MaxDepth != session.DefaultSpawnMaxDepth {
 			t.Fatalf("SpawnBudget = %#v, want max children 3 and default depth", lineage.SpawnBudget)
 		}
-		if !slices.Equal(lineage.PermissionPolicy.NetworkChannels, []string{"ch-1"}) {
-			t.Fatalf("PermissionPolicy.NetworkChannels = %#v, want ch-1", lineage.PermissionPolicy.NetworkChannels)
+		if !slices.Equal(lineage.PermissionPolicy.Tools, policy.Tools) {
+			t.Fatalf("PermissionPolicy.Tools = %#v, want %#v", lineage.PermissionPolicy.Tools, policy.Tools)
 		}
 
 		info := &session.Info{
@@ -308,17 +237,16 @@ func TestLineageAndHealthySession(t *testing.T) {
 	})
 }
 
-func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
+func TestPromptOverlayUsesPublicAPIs(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should name active worker worktrees in stable run order", func(t *testing.T) {
 		t.Parallel()
 
 		overlay := PromptOverlay(PromptInput{
-			WorkspaceID:          "ws-1",
-			TaskID:               "task-1",
-			RunID:                "run-1",
-			NetworkParticipation: participation.LocalSpec(),
+			WorkspaceID: "ws-1",
+			TaskID:      "task-1",
+			RunID:       "run-1",
 			WorkerWorktrees: []WorkerWorktreeBinding{
 				{RunID: " run-z ", WorktreeID: " wt-z "},
 				{RunID: "run-a", WorktreeID: "wt-a"},
@@ -335,15 +263,14 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 		}
 	})
 
-	t.Run("Should omit channel guidance for local coordinators", func(t *testing.T) {
+	t.Run("Should describe the bounded coordinator API surface", func(t *testing.T) {
 		t.Parallel()
 
 		overlay := PromptOverlay(PromptInput{
-			WorkspaceID:          "ws-1",
-			TaskID:               "task-1",
-			RunID:                "run-1",
-			WorkflowID:           "wf-1",
-			NetworkParticipation: participation.LocalSpec(),
+			WorkspaceID: "ws-1",
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			WorkflowID:  "wf-1",
 		})
 		for _, required := range []string{
 			toolspkg.ToolIDSessionDescribe.String(),
@@ -363,37 +290,9 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 		}
 		for _, forbidden := range []string{
 			"compozy task",
-			"compozy ch",
-			"participation_channel",
-			"coordination_channel_id",
-			"Channel communication",
 		} {
 			if strings.Contains(overlay, forbidden) {
-				t.Fatalf("PromptOverlay contains local-only forbidden guidance %q:\n%s", forbidden, overlay)
-			}
-		}
-	})
-
-	t.Run("Should include channel guidance for live coordinators", func(t *testing.T) {
-		t.Parallel()
-
-		overlay := PromptOverlay(PromptInput{
-			WorkspaceID: "ws-1", TaskID: "task-1", RunID: "run-1", WorkflowID: "wf-1",
-			NetworkParticipation: participation.Spec{
-				Version: participation.SpecVersion, Mode: participation.ModeLive,
-				WorkspaceID: "ws-1", ChannelStrategy: participation.StrategyNamed,
-				ChannelID: "ch-run-1", Source: participation.SourceExplicitRequest,
-			},
-		})
-		for _, required := range []string{
-			toolspkg.ToolIDNetworkChannels.String(),
-			toolspkg.ToolIDNetworkInbox.String(),
-			toolspkg.ToolIDNetworkSend.String(),
-			"participation_channel: ch-run-1",
-			"Channel communication",
-		} {
-			if !strings.Contains(overlay, required) {
-				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
+				t.Fatalf("PromptOverlay contains forbidden guidance %q:\n%s", forbidden, overlay)
 			}
 		}
 	})

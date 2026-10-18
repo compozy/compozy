@@ -74,7 +74,7 @@ export function PaletteConfirmation({
           </p>
         )}
       </div>
-      <div className="flex justify-end gap-2 border-t border-line bg-canvas-tint px-5 py-3">
+      <div className="flex justify-end gap-2 border-t border-line-soft px-5 py-3">
         <Button
           data-testid="os-palette-confirm-cancel"
           ref={cancelRef}

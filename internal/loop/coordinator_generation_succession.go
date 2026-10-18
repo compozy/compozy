@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func (r *CoordinatorRunner) finishSucceededGenerationPlan(
@@ -163,7 +164,13 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 	if deferTargetUnavailableFailure(&plan, failed, live) {
 		return plan, nil
 	}
-	if !live {
+	terminal, terminalErr := r.terminalForFailedGeneration(
+		ctx, run, generation, effective.NoProgressWindow, def.Graph, normalized, failed,
+	)
+	if terminalErr != nil {
+		return task.CoordinatorCompletionPlan{}, terminalErr
+	}
+	if !live && terminal.Status != string(StatusStalled) {
 		if evaluations == nil || len(evaluations.routeCauses()) == 0 {
 			loaded, err := r.loadPersistedRouteCauses(ctx, run, generation, def.Graph, normalized)
 			if err != nil {
@@ -178,14 +185,7 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 			)
 		}
 	}
-	terminal, terminalErr := r.terminalForFailedGeneration(
-		ctx, run, generation, effective.NoProgressWindow, def.Graph, normalized, failed,
-	)
-	if terminalErr != nil {
-		return task.CoordinatorCompletionPlan{}, terminalErr
-	}
-	if live || terminal.Status != string(StatusFailed) ||
-		normalizeReattemptStrategy(run.ReattemptStrategy) == ReattemptHalt {
+	if shouldTerminalizeFailedGeneration(run, failed, terminal.Status, live) {
 		plan.Terminal = terminal
 		return plan, nil
 	}
@@ -245,4 +245,10 @@ func deferTargetUnavailableFailure(
 	plan.GenerationInFlight = true
 	plan.Yield = true
 	return true
+}
+
+func shouldTerminalizeFailedGeneration(run Run, failed GenerationOutput, status string, live bool) bool {
+	return live || status != string(StatusFailed) ||
+		normalizeReattemptStrategy(run.ReattemptStrategy) == ReattemptHalt ||
+		classifyGenerationOutputFailure(failed, task.Run{}).Code == string(tools.ErrorCodeInvalidInput)
 }

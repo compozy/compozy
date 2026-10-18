@@ -18,7 +18,7 @@ charter:
     must_try:
       - "Round-trip every named extensions.trust, extensions.sources, extensions.dev, and extensions.resources key through TOML, CLI, native config tools, HTTP/UDS settings, and Web where represented. Validate defaults and exact live/restart-required lifecycle."
       - "Use invalid URL, boolean, duration, resource kind, scope, and rate-limit values. Each rejection must preserve the prior applied value and identify the exact key without accepting an unknown extension config field."
-      - "Build twice and byte-compare manifest v2. Add unknown provides/permissions, installed bridge.adapter, malformed command paths/groups/flags, and unsupported schema projections; build and load must fail before mutation with --input remediation where applicable."
+      - "Build twice and byte-compare manifest v2. Add unknown provides/permissions, malformed command paths/groups/flags, and unsupported schema projections; build and load must fail before mutation with --input remediation where applicable."
       - "Load a valid extension hook and command tree. Hook introspection must report source extension and priority 300; command discovery must retain groups, leaves, risk, approval, and projected flags without granting execution authority."
     must_avoid:
       - "Hand-editing generated manifests, guessing wildcard config coverage, accepting an unknown declaration as ignored, or inferring command authority from presentation metadata."
@@ -29,7 +29,7 @@ charter:
 
 ## Selection rationale
 
-Targeted tier. ADR-004, ADR-006, ADR-007, and ADR-008 own the permissions list, public bridge
+Targeted tier. ADR-004, ADR-006, ADR-007, and ADR-008 own the permissions list, public extension
 boundary, consolidated config, and command metadata. Safety Invariants 6, 10–12, and 17 are explicit
 targets. The exact key list in ET-045 prevents wildcard claims from hiding a missing config surface.
 

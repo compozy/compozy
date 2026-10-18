@@ -4,7 +4,7 @@ area: RT
 title: Run a session inside a selected worktree
 persona: Ada
 journey: J-worktree-management
-expected: Starting through CLI, HTTP, UDS, or native tools persists one ready-worktree binding, runs the agent and local tools inside that checkout, rejects cwd changes outside it, shares parent workspace memory, inherits the binding on child spawn, and exposes the same identity through filtered session reads without cross-workspace leakage.
+expected: Starting through CLI, HTTP, UDS, or native tools persists one ready-worktree binding, runs the agent and local tools inside that checkout, rejects cwd changes outside it, inherits the binding on child spawn, and exposes the same identity through filtered session reads without cross-workspace leakage.
 entry_points: compozy session new --worktree|--new-worktree; compozy session list --worktree; HTTP/UDS POST /api/sessions; GET /api/sessions?worktree=; compozy__session_create.worktree|new_worktree; compozy__session_list.worktree
 qa_status: pass
 bug_ids:
@@ -17,7 +17,7 @@ overlaps: RT-worktree-api-surface-parity; RT-worktree-cli-lifecycle
 ---
 
 QA impact: Task 03 adds structural worktree binding to session creation, containment, persistence,
-spawn, memory context, and list filtering. The Phase C walk must compare the same bound session over
+spawn, and list filtering. The Phase C walk must compare the same bound session over
 every structured surface and prove that sibling and parent checkout files stay outside its tool root.
 It must also prove a hook cannot rewrite the resolved cwd and a child cannot select or fall back to
 another checkout.
@@ -40,3 +40,5 @@ and owner-checked stop exited with code 0 and closed the port. Public evidence i
 relative, parent/sibling, symlink and agent-pipe allowed-root containment coverage;
 `TestDaemonTerminalExecutionRoot` owns worktree-profile and native/HTTP error projection coverage.
 Review follow-up results and current-head delivery gates are recorded on the same PR.
+
+QA impact 2026-10-07 (memory removal): worktree sessions no longer share a parent workspace memory (the feature was removed); every other binding, containment, spawn, and filtering check is unchanged. No verdict change.

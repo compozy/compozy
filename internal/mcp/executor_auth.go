@@ -188,8 +188,7 @@ func unavailableAuthError(reason toolspkg.ReasonCode) error {
 func redactedAuthStatus(status mcpauth.Status) toolspkg.MCPAuthStatus {
 	var expiresAt *time.Time
 	if status.ExpiresAt != nil {
-		cloned := status.ExpiresAt.UTC()
-		expiresAt = &cloned
+		expiresAt = new(status.ExpiresAt.UTC())
 	}
 	return toolspkg.MCPAuthStatus{
 		Owner: status.Owner, Scope: string(status.Scope), WorkspaceID: status.WorkspaceID,

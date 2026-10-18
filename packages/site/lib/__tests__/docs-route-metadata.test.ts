@@ -52,18 +52,18 @@ const mockedDocs = vi.hoisted(() => {
       description: "Choose the right CompozyOS docs path for your goal.",
     },
     {
-      slugs: ["network", "protocol"],
-      url: "/docs/network/protocol-model",
-      path: "network/protocol-model.mdx",
-      title: "Compozy Network Protocol",
-      description: "Understand the public compozy-network/v0 protocol surface.",
+      slugs: ["loops", "reference"],
+      url: "/docs/loops/reference-model",
+      path: "loops/reference-model.mdx",
+      title: "Loop Reference",
+      description: "Understand the public Loop reference.",
     },
     {
-      slugs: ["network", "protocol", "implementation-status"],
-      url: "/docs/network/protocol/implementation-status",
-      path: "network/protocol/implementation-status.mdx",
+      slugs: ["loops", "reference", "grammar"],
+      url: "/docs/loops/reference/grammar",
+      path: "loops/reference/grammar.mdx",
       title: "Implementation Status",
-      description: "Understand the current compozy-network/v0 reference implementation.",
+      description: "Understand the current Loop grammar.",
     },
   ];
 
@@ -162,19 +162,19 @@ describe("docs route metadata", () => {
     mockedPageRender.breadcrumbs.length = 0;
     mockedPageRender.articles.length = 0;
 
-    render(await DocsRoutePage(pageProps(["network", "protocol"])));
+    render(await DocsRoutePage(pageProps(["loops", "reference"])));
 
     expect(mockedPageRender.mastheads.at(-1)?.pageUrl).toBe(
-      "https://compozy.com/docs/network/protocol-model/"
+      "https://compozy.com/docs/loops/reference-model/"
     );
     expect(mockedPageRender.breadcrumbs.at(-1)?.items).toEqual([
       { name: "Home", path: "/" },
       { name: "Docs", path: "/docs/" },
-      { name: "Network", path: "/docs/network/" },
-      { name: "Compozy Network Protocol", path: "/docs/network/protocol-model/" },
+      { name: "Loops", path: "/docs/loops/" },
+      { name: "Loop Reference", path: "/docs/loops/reference-model/" },
     ]);
     expect(mockedPageRender.articles.at(-1)?.imageUrl).toBe(
-      "/og/docs/network/protocol-model/image.png"
+      "/og/docs/loops/reference-model/image.png"
     );
   });
 });

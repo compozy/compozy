@@ -55,8 +55,6 @@ func TestGenerate(t *testing.T) {
 			[]byte("LoopProvenanceRoleCell"),
 			[]byte("type ProvideConformanceFixture struct"),
 			[]byte("func PublicProvideConformanceFixtures()"),
-			[]byte("OriginKind identifies the actor or task source kind that started the loop."),
-			[]byte("Outcome is the machine result already computed when the hook observes the gate."),
 		} {
 			if !bytes.Contains(generated, symbol) {
 				t.Fatalf("Generate() output missing %q", symbol)
@@ -72,15 +70,9 @@ func TestGenerate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose generated required methods for bridge and model provides", func(t *testing.T) {
+	t.Run("Should expose generated required methods for model provides", func(t *testing.T) {
 		t.Parallel()
 
-		bridgeMethods := contracts.RequiredMethods("bridge.adapter")
-		for _, method := range []string{"bridges/deliver", "bridges/targets/snapshot"} {
-			if !slices.Contains(bridgeMethods, method) {
-				t.Fatalf("RequiredMethods(bridge.adapter) = %v, want %q", bridgeMethods, method)
-			}
-		}
 		if got := contracts.RequiredMethods("model.source"); !slices.Contains(got, "models/list") {
 			t.Fatalf("RequiredMethods(model.source) = %v, want models/list", got)
 		}

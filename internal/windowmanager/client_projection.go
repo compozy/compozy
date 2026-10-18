@@ -49,48 +49,92 @@ func projectDurableClientView(
 	request CommandRequest,
 	clientID ClientID,
 ) ClientView {
+	issuing := request.ClientID != nil && clientID == *request.ClientID
+	var peerStack stackActivePin
+	if !issuing {
+		peerStack = peerOpenedStackActive(view, snapshot, request.Payload)
+	}
 	view = repairClientView(view, snapshot)
-	if request.ClientID != nil && clientID == *request.ClientID {
-		switch command := request.Payload.(type) {
-		case ZoomWindowCommand:
-			if window, exists := snapshot.Windows[command.WindowID]; exists {
-				view.ActiveDesktopID = window.DesktopID
-				view.FocusedWindowID = &command.WindowID
-				view.FocusOrder = prependFocus(view.FocusOrder, command.WindowID)
-			}
-		case OpenWindowCommand:
-			windowID := command.Window.ID
-			if command.RestoreWindowID != nil {
-				windowID = *command.RestoreWindowID
-			}
-			if window, exists := snapshot.Windows[windowID]; exists && !window.Minimized {
-				// Restoring a minimized window activates its desktop.
-				if command.RestoreWindowID != nil {
-					view.ActiveDesktopID = window.DesktopID
-				}
-				if window.DesktopID == view.ActiveDesktopID {
-					view = projectWindowActivation(view, snapshot, windowID)
-				}
-			}
-		case NavigateWindowCommand:
-			if window, exists := snapshot.Windows[command.WindowID]; exists && !window.Minimized {
-				view = projectWindowActivation(view, snapshot, command.WindowID)
-			}
-		case GroupWindowsCommand:
-			if len(command.WindowIDs) > 0 {
-				activeID := command.WindowIDs[len(command.WindowIDs)-1]
-				view = projectWindowActivation(view, snapshot, activeID)
-			}
-		case SetStackActiveCommand:
-			if location, stacked := findStackByWindow(&snapshot, command.WindowID); stacked {
-				if view.StackActive == nil {
-					view.StackActive = make(map[NodeID]WindowID)
-				}
-				view.StackActive[location.id()] = command.WindowID
-			}
-		}
+	if peerStack.stackID != "" {
+		view.StackActive[peerStack.stackID] = peerStack.windowID
+	}
+	if issuing {
+		view = projectIssuedCommand(view, snapshot, request.Payload)
 	}
 	return repairClientView(view, snapshot)
+}
+
+// projectIssuedCommand applies the activation a command implies for the
+// client that issued it.
+func projectIssuedCommand(view ClientView, snapshot Snapshot, payload Command) ClientView {
+	switch command := payload.(type) {
+	case ZoomWindowCommand:
+		if window, exists := snapshot.Windows[command.WindowID]; exists {
+			view.ActiveDesktopID = window.DesktopID
+			view.FocusedWindowID = &command.WindowID
+			view.FocusOrder = prependFocus(view.FocusOrder, command.WindowID)
+		}
+	case OpenWindowCommand:
+		windowID := command.Window.ID
+		if command.RestoreWindowID != nil {
+			windowID = *command.RestoreWindowID
+		}
+		if window, exists := snapshot.Windows[windowID]; exists && !window.Minimized {
+			// Restoring a minimized window activates its desktop.
+			if command.RestoreWindowID != nil {
+				view.ActiveDesktopID = window.DesktopID
+			}
+			if window.DesktopID == view.ActiveDesktopID {
+				view = projectWindowActivation(view, snapshot, windowID)
+			}
+		}
+	case NavigateWindowCommand:
+		if window, exists := snapshot.Windows[command.WindowID]; exists && !window.Minimized {
+			view = projectWindowActivation(view, snapshot, command.WindowID)
+		}
+	case GroupWindowsCommand:
+		if len(command.WindowIDs) > 0 {
+			activeID := command.WindowIDs[len(command.WindowIDs)-1]
+			view = projectWindowActivation(view, snapshot, activeID)
+		}
+	case SetStackActiveCommand:
+		if location, stacked := findStackByWindow(&snapshot, command.WindowID); stacked {
+			if view.StackActive == nil {
+				view.StackActive = make(map[NodeID]WindowID)
+			}
+			view.StackActive[location.id()] = command.WindowID
+		}
+	}
+	return view
+}
+
+type stackActivePin struct {
+	stackID  NodeID
+	windowID WindowID
+}
+
+// peerOpenedStackActive keeps a peer's picture of a frame that an open just
+// created around a window the peer was already showing: that window stays the
+// peer's active tab. Only the issuing client's open is a focusing open; without
+// the pin the peer would fall back to the durable active tab, the new window.
+func peerOpenedStackActive(view ClientView, snapshot Snapshot, payload Command) stackActivePin {
+	command, isOpen := payload.(OpenWindowCommand)
+	if !isOpen || command.RestoreWindowID != nil || command.Window.ID == "" {
+		return stackActivePin{}
+	}
+	location, stacked := findStackByWindow(&snapshot, command.Window.ID)
+	if !stacked {
+		return stackActivePin{}
+	}
+	if _, known := view.StackActive[location.id()]; known {
+		return stackActivePin{}
+	}
+	for _, member := range location.members() {
+		if member != command.Window.ID {
+			return stackActivePin{stackID: location.id(), windowID: member}
+		}
+	}
+	return stackActivePin{}
 }
 
 func projectWindowActivation(view ClientView, snapshot Snapshot, windowID WindowID) ClientView {
@@ -209,19 +253,37 @@ func repairedStackActive(
 	return members[0]
 }
 
+// focusForDesktop picks the window a client's focus falls back to: the most
+// recently focused one still showing on its active desktop. A candidate that is
+// a background tab resolves to its frame's active tab for this client, so focus
+// — and every shortcut that acts on it, such as close — lands on the tab the
+// operator sees, never on one hidden behind it.
 func focusForDesktop(view ClientView, snapshot Snapshot) *WindowID {
 	for _, windowID := range view.FocusOrder {
 		if window, exists := snapshot.Windows[windowID]; exists &&
 			window.DesktopID == view.ActiveDesktopID &&
 			!window.Minimized {
-			return &windowID
+			visible := visibleStackMember(view, &snapshot, windowID)
+			return &visible
 		}
 	}
 	windowID := firstVisibleWindow(snapshot, view.ActiveDesktopID)
 	if windowID == "" {
 		return nil
 	}
+	windowID = visibleStackMember(view, &snapshot, windowID)
 	return &windowID
+}
+
+// visibleStackMember is the tab a client shows for windowID's frame: the
+// window itself when it is not stacked.
+func visibleStackMember(view ClientView, snapshot *Snapshot, windowID WindowID) WindowID {
+	if location, stacked := findStackByWindow(snapshot, windowID); stacked {
+		if active, known := view.StackActive[location.id()]; known {
+			return active
+		}
+	}
+	return windowID
 }
 
 func firstVisibleWindow(snapshot Snapshot, desktopID DesktopID) WindowID {

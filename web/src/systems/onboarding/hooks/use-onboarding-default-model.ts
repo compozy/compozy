@@ -1,20 +1,23 @@
 import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 import { useSelector } from "@xstate/store-react";
 
+import {
+  defaultAuthModeForHarness,
+  describeError,
+  onboardingConfigurationState,
+  onboardingModelSelection,
+  onboardingRuntimeProviders,
+  requireLoaded,
+} from "../lib/default-model-view";
 import { onboardingModelFacts, type OnboardingModelFact } from "../lib/model-facts";
-import { buildOnboardingProviderRequest } from "../lib/provider-request";
+import { buildOnboardingProviderRequest, existingApiKeyTargetEnv } from "../lib/provider-request";
 import {
   onboardingDraftStore,
   type OnboardingAuthMode,
 } from "../stores/use-onboarding-draft-store";
-import {
-  providerNeedsAuth,
-  type RuntimeCatalogProvider,
-  useRuntimeModelCatalog,
-} from "@/systems/model-catalog";
+import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
 import { useProviders } from "@/systems/providers";
 import {
-  reasoningEffortLabel,
   type RuntimeModelOption,
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
@@ -66,24 +69,8 @@ export interface OnboardingDefaultModelApi {
   commit: () => Promise<void>;
 }
 
-function describeError(fallback: string, error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-}
-
 function normalizeEffort(effort: string): ReasoningEffort | "" {
   return effort === "" ? "" : isReasoningEffort(effort) ? effort : "";
-}
-
-/**
- * Providers reached through a key-bound harness (`pi_acp`) have no CLI sign-in
- * to reuse, so the API-key mode is their honest default; every other harness
- * spawns a CLI that already carries its own session.
- */
-export function defaultAuthModeForHarness(harness: string | null): OnboardingAuthMode {
-  return harness?.trim().toLowerCase() === "pi_acp" ? "bound_secret" : "native_cli";
 }
 
 function updateRuntime(next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed): void {
@@ -114,8 +101,6 @@ function updateApiKey(apiKey: string): void {
 export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
   const draft = useSelector(onboardingDraftStore, state => state.context);
   const providersQuery = useProviders();
-  const providers = providersQuery.data?.providers ?? [];
-
   const provider = draft.provider;
 
   const personaQuery = useSettingsPersona(ONBOARDING_PERSONA_FILTER);
@@ -123,23 +108,12 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
   const updatePersona = useUpdateSettingsPersona();
   const putProvider = usePutSettingsProvider();
 
-  const existingApiKeyTargetEnv =
-    providerDetailQuery.data?.settings.credential_slots
-      ?.find(slot => slot.name === "api_key")
-      ?.target_env.trim() ?? "";
-
-  const harness = providerDetailQuery.data?.settings.harness?.trim() || null;
+  const providerSettings = providerDetailQuery.data?.settings;
+  const harness = providerSettings?.harness?.trim() || null;
   // Derived, never an effect: the harness default holds until the operator picks.
   const authMode = draft.authModeTouched ? draft.authMode : defaultAuthModeForHarness(harness);
 
-  const runtimeProviders: RuntimeProviderOption[] = providers.map(entry => ({
-    id: entry.name,
-    name: entry.display_name?.trim() || entry.name,
-    runtime_provider: entry.name,
-    runtime_strategy: entry.runtime_strategy,
-    needs_auth: providerNeedsAuth(entry.auth_status?.state),
-  }));
-
+  const runtimeProviders = onboardingRuntimeProviders(providersQuery.data?.providers ?? []);
   // Onboarding lets the operator browse every configured provider's catalog via
   // the single aggregate query, filtered to the configured providers.
   const catalogProviders: RuntimeCatalogProvider[] = runtimeProviders.map(entry => ({
@@ -148,51 +122,30 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
   }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: true });
   const runtimeModels = catalog.models;
+  const selection = onboardingModelSelection(draft, runtimeProviders, runtimeModels);
 
-  const runtimeValue: RuntimeSelectorValue = {
-    provider: draft.provider,
-    model: draft.model,
-    reasoning_effort: draft.reasoning,
-  };
-
-  const selectedModel = runtimeModels.find(
-    entry => entry.provider === draft.provider && entry.id === draft.model
-  );
-  const providerName =
-    runtimeProviders.find(entry => entry.id === draft.provider)?.name ?? draft.provider;
-  const modelName = selectedModel?.name ?? draft.model;
-  // `none` is not a selectable stop, so a model advertising only it has no levels.
-  const selectableEfforts = selectedModel?.efforts.filter(effort => effort !== "none") ?? [];
-  const reasoningLabel =
-    selectableEfforts.length === 0
-      ? null
-      : draft.reasoning === ""
-        ? "Default effort"
-        : reasoningEffortLabel(draft.reasoning);
-
-  const onRefreshCatalog = catalog.refresh;
+  const configuration = onboardingConfigurationState({
+    provider,
+    authMode,
+    envVar: draft.envVar,
+    apiKeyTargetEnv: providerSettings ? existingApiKeyTargetEnv(providerSettings) : "",
+    providerDetail: providerDetailQuery,
+    persona: personaQuery,
+  });
 
   const commit = async () => {
     const trimmedProvider = draft.provider.trim();
     if (trimmedProvider.length === 0) {
       throw new Error("Select a provider before continuing.");
     }
-    const detail = providerDetailQuery.data;
-    if (!detail) {
-      throw new Error(
-        providerDetailQuery.error
-          ? describeError("Failed to load provider settings.", providerDetailQuery.error)
-          : "Provider settings are still loading."
-      );
-    }
-    const config = personaQuery.data?.config;
-    if (!config) {
-      throw new Error(
-        personaQuery.error
-          ? describeError("Failed to load profile defaults.", personaQuery.error)
-          : "Profile defaults are still loading."
-      );
-    }
+    const detail = requireLoaded(providerDetailQuery.data, providerDetailQuery.error, {
+      failed: "Failed to load provider settings.",
+      loading: "Provider settings are still loading.",
+    });
+    const config = requireLoaded(personaQuery.data?.config, personaQuery.error, {
+      failed: "Failed to load profile defaults.",
+      loading: "Profile defaults are still loading.",
+    });
     const body = buildOnboardingProviderRequest(detail.settings, {
       model: draft.model.trim(),
       reasoning: draft.reasoning,
@@ -209,58 +162,37 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     });
   };
 
-  const providerSettingsError =
-    provider.length > 0 && providerDetailQuery.error
-      ? describeError("Failed to load provider settings.", providerDetailQuery.error)
-      : null;
-  const personaSettingsError = personaQuery.error
-    ? describeError("Failed to load profile defaults.", personaQuery.error)
-    : null;
-  const missingBoundSecretTarget =
-    authMode === "bound_secret" &&
-    draft.envVar.trim().length === 0 &&
-    existingApiKeyTargetEnv.length === 0;
-  // The semantic flag, not its sentence, is what the field's invalid state reads.
-  const missingEnvVar =
-    provider.length > 0 && providerDetailQuery.isSuccess && missingBoundSecretTarget;
-  const credentialTargetError = missingEnvVar
-    ? "Enter the environment variable the provider expects."
-    : null;
-  const configurationError =
-    providerSettingsError ?? personaSettingsError ?? credentialTargetError ?? null;
-  const canCommit =
-    provider.trim().length > 0 &&
-    providerDetailQuery.isSuccess &&
-    personaQuery.isSuccess &&
-    !missingBoundSecretTarget;
-
   return {
     providersLoading: providersQuery.isLoading,
     providersError: providersQuery.error
       ? describeError("Failed to load providers.", providersQuery.error)
       : null,
-    runtimeValue,
+    runtimeValue: {
+      provider: draft.provider,
+      model: draft.model,
+      reasoning_effort: draft.reasoning,
+    },
     runtimeProviders,
     runtimeModels,
     speed: draft.speed,
     harness,
-    providerName,
-    modelName,
-    reasoningLabel,
-    facts: onboardingModelFacts(selectedModel, harness),
+    providerName: selection.providerName,
+    modelName: selection.modelName,
+    reasoningLabel: selection.reasoningLabel,
+    facts: onboardingModelFacts(selection.selectedModel),
     authMode,
     envVar: draft.envVar,
     apiKey: draft.apiKey,
     catalogLoading: catalog.loading,
     catalogRefreshing: catalog.refreshing,
     catalogError: catalog.error,
-    missingEnvVar,
-    configurationError,
-    isValid: canCommit,
+    missingEnvVar: configuration.missingEnvVar,
+    configurationError: configuration.configurationError,
+    isValid: configuration.canCommit,
     isCommitting: putProvider.isPending || updatePersona.isPending,
     onRuntimeChange: updateRuntime,
     onSpeedChange: updateSpeed,
-    onRefreshCatalog,
+    onRefreshCatalog: catalog.refresh,
     onAuthModeChange: updateAuthMode,
     onEnvVarChange: updateEnvVar,
     onApiKeyChange: updateApiKey,

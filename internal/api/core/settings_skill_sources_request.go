@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -100,7 +101,7 @@ func forbiddenScopedSkillsField(raw map[string]json.RawMessage) string {
 			keys = append(keys, key)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	if len(keys) == 0 {
 		return ""
 	}
@@ -111,11 +112,7 @@ func forbiddenScopedSkillsField(raw map[string]json.RawMessage) string {
 	if err := json.Unmarshal(raw[settingsConfigField], &configFields); err != nil || len(configFields) == 0 {
 		return settingsConfigField
 	}
-	nested := make([]string, 0, len(configFields))
-	for field := range configFields {
-		nested = append(nested, field)
-	}
-	sort.Strings(nested)
+	nested := slices.Sorted(maps.Keys(configFields))
 	return nested[0]
 }
 

@@ -36,7 +36,7 @@ function useMarketplaceSearchStrip({
       <ListingToolbar.Leading>
         <ListingToolbar.Search
           aria-label={label}
-          containerClassName="w-full max-w-105"
+          containerClassName="w-full max-w-md"
           data-testid={testId}
           onChange={draft.setDraftValue}
           onKeyDown={event => {

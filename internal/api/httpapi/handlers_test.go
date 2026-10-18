@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -26,7 +24,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -55,7 +52,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 	for _, route := range routes {
 		got = append(got, route.Method+" "+route.Path)
 	}
-	sort.Strings(got)
+	slices.Sort(got)
 
 	want := []string{
 		"DELETE /api/profiles/:name",
@@ -80,13 +77,9 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/agents/:name/soul",
 		"DELETE /api/automation/jobs/:id",
 		"DELETE /api/automation/triggers/:id",
-		"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 		"DELETE /api/extensions/:name",
 		"DELETE /api/extensions/:name/secrets/:env_name",
-		"DELETE /api/memory/:filename",
-		"DELETE /api/notifications/presets/:name",
 		"DELETE /api/tool-approval-grants/:id",
-		"DELETE /api/settings/sandboxes/:name",
 		"DELETE /api/settings/hooks/:name",
 		"DELETE /api/settings/mcp-servers/:name",
 		"DELETE /api/settings/providers/:name",
@@ -95,7 +88,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/runtime",
 		"DELETE /api/workspaces/:workspace_id/terminals/:id",
 		"DELETE /api/tasks/:id",
-		"DELETE /api/tasks/:id/notifications/bridges/:subscription_id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
 		"DELETE /api/tasks/:id/execution-profile",
 		"DELETE /api/vault/secrets",
@@ -131,8 +123,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/terminals/:id/signal",
 		"POST /api/workspaces/:workspace_id/terminals/:id/wait",
 		"POST /api/workspaces/:workspace_id/terminals/exec",
-		"GET /api/agent/channels",
-		"GET /api/agent/channels/:channel/recv",
 		"GET /api/agent/context",
 		"GET /api/agent/coordinator/config",
 		"GET /api/agent/me",
@@ -161,16 +151,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/automation/triggers",
 		"GET /api/automation/triggers/:id",
 		"GET /api/automation/triggers/:id/runs",
-		"GET /api/bridge-callbacks/:id",
 		"GET /api/workspaces/:workspace_id/automation/suggestions",
-		"GET /api/bridges",
-		"GET /api/bridges/:id",
-		"GET /api/bridges/health/stream",
-		"GET /api/bridges/:id/routes",
-		"GET /api/bridges/:id/secret-bindings",
-		"GET /api/bridges/:id/targets",
-		"GET /api/bridges/providers",
-		"GET /api/bridges/providers/slack/manifest",
 		"GET /api/doctor",
 		"POST /api/drain",
 		"GET /api/extensions",
@@ -186,30 +167,11 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/notifications/attention",
-		"GET /api/notifications/presets",
-		"GET /api/notifications/presets/:name",
 		"GET /api/tool-approval-grants",
 		"GET /api/workspaces/:workspace_id/hooks/runs",
 		"GET /api/logs",
 		"GET /api/logs/stream",
-		"GET /api/memory",
-		"GET /api/memory/:filename",
 		"GET /api/mcp/oauth/callback",
-		"GET /api/memory/config",
-		"GET /api/memory/daily",
-		"GET /api/memory/decisions",
-		"GET /api/memory/decisions/:decision_id",
-		"GET /api/memory/dreams",
-		"GET /api/memory/dreams/:dream_id",
-		"GET /api/memory/dreams/status",
-		"GET /api/memory/extractor/failures",
-		"GET /api/memory/extractor/status",
-		"GET /api/memory/health",
-		"GET /api/memory/history",
-		"GET /api/memory/providers",
-		"GET /api/memory/providers/:provider_name",
-		"GET /api/memory/recall-traces/:session_id/:turn_seq",
-		"GET /api/memory/scope-show",
 		"GET /api/marketplace",
 		"GET /api/marketplace/entries/:entry_id",
 		"GET /api/marketplace/sources",
@@ -219,25 +181,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/marketplace/sources/:name/refresh",
 		"GET /api/settings/marketplace",
 		"PATCH /api/settings/marketplace",
-		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
-		"GET /api/workspaces/:workspace_id/network/inbox",
-		"GET /api/workspaces/:workspace_id/network/usage",
-		"GET /api/workspaces/:workspace_id/network-coordination",
-		"PUT /api/workspaces/:workspace_id/network-coordination",
-		"PUT /api/workspaces/:workspace_id/network-coordination/invitation",
-		"GET /api/workspaces/:workspace_id/network/peers",
-		"GET /api/workspaces/:workspace_id/network/peers/:peer_id",
-		"GET /api/workspaces/:workspace_id/network/channels",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel/directs",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id/messages",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id",
-		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
-		"GET /api/network/status",
-		"GET /api/workspaces/:workspace_id/network/work/:work_id",
 		"GET /api/status",
 		"GET /api/status/identity",
 		"POST /api/undrain",
@@ -256,9 +199,14 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/roles/:role",
 		"GET /api/sessions",
 		"GET /api/sessions/attention-summary",
+		"GET /api/sessions/facets",
 		"GET /api/sessions/catalog-stream",
 		"GET /api/sessions/:session_id",
 		"GET /api/sessions/:session_id/owner",
+		"GET /api/workspaces/:workspace_id/sessions",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/subagents",
+		"GET /api/workspaces/:workspace_id/subagents/:subagent_id",
+		"POST /api/workspaces/:workspace_id/subagents/:subagent_id/cancel",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/clarifications",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
@@ -275,6 +223,13 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/usage/turns",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript",
+		"GET /api/sessions/:session_id/transcript",
+		"GET /api/sessions/:session_id/status",
+		"GET /api/sessions/:session_id/events",
+		"GET /api/sessions/:session_id/history",
+		"GET /api/sessions/:session_id/stream",
+		"GET /api/sessions/:session_id/transcript/search",
+		"GET /api/sessions/:session_id/transcript/outline",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/search",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/outline",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
@@ -284,8 +239,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/settings/actions/restart/:operation_id",
 		"GET /api/settings/apply",
 		"GET /api/settings/automation",
-		"GET /api/settings/sandboxes",
-		"GET /api/settings/sandboxes/:name",
 		"GET /api/settings/general",
 		"GET /api/settings/persona",
 		"GET /api/settings/update",
@@ -297,8 +250,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/settings/mcp-servers/:name/auth/begin",
 		"POST /api/settings/mcp-servers/:name/auth/exchange",
 		"POST /api/settings/mcp-servers/:name/auth/logout",
-		"GET /api/settings/memory",
-		"GET /api/settings/network",
 		"GET /api/settings/attention",
 		"GET /api/settings/shell",
 		"GET /api/settings/cmd-palette",
@@ -321,8 +272,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/tasks/:id",
 		"GET /api/tasks/:id/blocks",
 		"GET /api/tasks/:id/inspect",
-		"GET /api/tasks/:id/notifications/bridges",
-		"GET /api/tasks/:id/notifications/bridges/:subscription_id",
 		"GET /api/tasks/:id/execution-profile",
 		"GET /api/tasks/:id/reviews",
 		"GET /api/tasks/:id/stream",
@@ -332,7 +281,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/runs/:id/inspect",
 		"GET /api/task-runs/:id",
 		"GET /api/task-runs/:id/result",
-		"GET /api/task-runs/:id/conversation/stream",
 		"GET /api/task-runs/:id/reviews",
 		"GET /api/task-reviews/:id",
 		"GET /api/tools",
@@ -368,8 +316,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 		"PATCH /api/automation/jobs/:id",
 		"PATCH /api/automation/triggers/:id",
-		"PATCH /api/bridges/:id",
-		"PATCH /api/memory/:filename",
 		"PATCH /api/settings/automation",
 		"PATCH /api/settings/attention",
 		"PATCH /api/settings/shell",
@@ -377,19 +323,14 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/settings/general",
 		"PATCH /api/settings/persona",
 		"PATCH /api/settings/hooks-extensions",
-		"PATCH /api/settings/memory",
-		"PATCH /api/settings/network",
 		"PATCH /api/settings/window-manager",
 		"PATCH /api/settings/observability",
 		"PATCH /api/settings/roles",
 		"PATCH /api/settings/skills",
 		"PATCH /api/tasks/:id",
-		"PATCH /api/workspaces/:workspace_id/network/channels/:channel",
 		"PATCH /api/workspaces/:workspace_id",
 		"PATCH /api/workspaces/:workspace_id/loops/:name",
 		"PATCH /api/workspaces/:workspace_id/sessions/:session_id",
-		"POST /api/agent/channels/:channel/send",
-		"POST /api/agent/channels/reply",
 		"POST /api/agent/notify",
 		"POST /api/agent/soul/validate",
 		"POST /api/agent/spawn",
@@ -417,25 +358,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/dismiss",
-		"POST /api/memory",
-		"POST /api/memory/ad-hoc",
-		"POST /api/memory/decisions/:decision_id/revert",
-		"POST /api/memory/dreams/:dream_id/retry",
-		"POST /api/memory/dreams/trigger",
-		"POST /api/memory/extractor/drain",
-		"POST /api/memory/extractor/retry",
-		"POST /api/memory/promote",
-		"POST /api/memory/providers/:provider_name/disable",
-		"POST /api/memory/providers/:provider_name/enable",
-		"POST /api/memory/providers/select",
-		"POST /api/memory/reindex",
-		"POST /api/memory/reload",
-		"POST /api/memory/reset",
-		"POST /api/memory/search",
-		"POST /api/memory/sessions/prune",
-		"POST /api/memory/sessions/repair",
 		"POST /api/marketplace/refresh",
-		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 		"POST /api/model-catalog/*catalog_path",
 		"POST /api/providers/:provider_id/auth/probe",
 		"POST /api/runs/:id/fail",
@@ -447,9 +370,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/scheduler/drain",
 		"POST /api/scheduler/pause",
 		"POST /api/scheduler/resume",
-		"POST /api/workspaces/:workspace_id/network/channels",
-		"POST /api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
-		"POST /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
 		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/approve",
 		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/cancel",
 		"POST /api/workspaces/:workspace_id/loop-runs/:run_id/fork",
@@ -466,28 +386,21 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/loops",
 		"POST /api/workspaces/:workspace_id/loops/:name/run",
 		"POST /api/workspaces/:workspace_id/loops/:name/validate",
-		"POST /api/bridges",
-		"POST /api/bridges/:id/disable",
-		"POST /api/bridges/:id/enable",
-		"POST /api/bridges/:id/resolve",
-		"POST /api/bridges/:id/restart",
-		"POST /api/bridges/:id/test-delivery",
-		"POST /api/bridges/:id/verify",
-		"POST /api/bridges/:id/send-test",
-		"POST /api/bridges/:id/webhook/register",
 		"POST /api/extensions",
 		"POST /api/extensions/preview-install",
 		"POST /api/extensions/:name/reload",
 		"POST /api/extensions/dev",
 		"POST /api/extensions/update",
 		"POST /api/notifications/attention/acknowledge",
-		"POST /api/notifications/presets",
-		"POST /api/workspaces/:workspace_id/network/send",
 		"POST /api/sessions",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/compact",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/continue",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/fork",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/derive/preview",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/presence",
@@ -504,6 +417,13 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/unarchive",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/move",
+		"GET /api/workspaces/:workspace_id/session-folders",
+		"POST /api/workspaces/:workspace_id/session-folders",
+		"PATCH /api/workspaces/:workspace_id/session-folders/:folder_id",
+		"DELETE /api/workspaces/:workspace_id/session-folders/:folder_id",
+		"PUT /api/workspaces/:workspace_id/session-order/folders",
+		"PUT /api/workspaces/:workspace_id/session-order/sessions",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/tools/search",
 		"POST /api/settings/actions/restart",
 		"POST /api/settings/reload",
@@ -525,7 +445,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/tasks/:id/approve",
 		"POST /api/tasks/:id/blocks",
 		"POST /api/tasks/:id/blocks/:block_id/clear",
-		"POST /api/tasks/:id/notifications/bridges",
 		"POST /api/tasks/:id/cancel",
 		"POST /api/tasks/:id/children",
 		"POST /api/tasks/:id/dependencies",
@@ -545,11 +464,11 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/cmd-palette/views/:id/open",
 		"POST /api/cmd-palette/usage",
 		"POST /api/tools/approvals/:id/cancel",
+		"POST /api/tools/approvals/:id/resolve",
 		"PUT /api/cmd-palette/pins/:id",
 		"POST /api/tools/:id/approvals",
 		"POST /api/tools/:id/invoke",
 		"POST /api/tools/search",
-		"POST /api/bridge-callbacks/:id",
 		"POST /api/webhooks/global/:endpoint",
 		"POST /api/webhooks/workspaces/:workspace_id/:endpoint",
 		"POST /api/workspaces",
@@ -557,13 +476,9 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/agents/:name/heartbeat",
 		"PUT /api/agents/:name/soul",
 		"PUT /api/agents/:name",
-		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/extensions/:name",
 		"PUT /api/extensions/:name/enablement",
 		"PUT /api/extensions/:name/secrets",
-		"PUT /api/notifications/presets/:name",
-		"PUT /api/notifications/presets/:name/enablement",
-		"PUT /api/settings/sandboxes/:name",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
 		"PUT /api/settings/providers/:name",
@@ -572,7 +487,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/workspaces/:workspace_id/loops/:name/config",
 		"PUT /api/workspaces/:workspace_id/loops/:name/input-defaults",
 		"PUT /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
-		"PUT /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
 		"PUT /api/tasks/:id/execution-profile",
 		"PATCH /api/tasks/:id/execution-profile/worktree",
 		"PUT /api/vault/secrets",
@@ -581,10 +495,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/workspaces/:workspace_id/loops/:name",
 		"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 		"DELETE /api/agents/:name",
-		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
-		"HEAD /api/bridge-callbacks/:id",
 	}
-	sort.Strings(want)
+	slices.Sort(want)
 
 	if len(got) != len(want) {
 		t.Fatalf(
@@ -693,85 +605,6 @@ func TestRegisterRoutesRejectsLegacyProviderModelCatalogSurfaces(t *testing.T) {
 	}
 }
 
-func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
-
-	expectedHandlers := map[string]string{
-		"GET /api/observe/tasks/dashboard":                             "TaskDashboard",
-		"GET /api/observe/tasks/inbox":                                 "TaskInbox",
-		"GET /api/runs/:id/inspect":                                    "InspectRun",
-		"GET /api/scheduler":                                           "GetScheduler",
-		"GET /api/scheduler/backlog":                                   "GetSchedulerBacklog",
-		"POST /api/runs/:id/fail":                                      "ForceFailTaskRun",
-		"POST /api/runs/:id/recover":                                   "RecoverTaskRun",
-		"POST /api/runs/:id/release":                                   "ForceReleaseTaskRun",
-		"POST /api/runs/:id/retry":                                     "RetryTaskRun",
-		"POST /api/runs/bulk/fail":                                     "BulkForceFailTaskRuns",
-		"POST /api/runs/bulk/release":                                  "BulkForceReleaseTaskRuns",
-		"POST /api/scheduler/drain":                                    "DrainScheduler",
-		"POST /api/scheduler/pause":                                    "PauseScheduler",
-		"POST /api/scheduler/resume":                                   "ResumeScheduler",
-		"GET /api/task-runs/:id":                                       "GetTaskRun",
-		"GET /api/task-runs/:id/result":                                "ReadTaskRunResult",
-		"GET /api/task-runs/:id/conversation/stream":                   "StreamTaskRunConversation",
-		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
-		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
-		"GET /api/tasks/:id/blocks":                                    "ListTaskBlocks",
-		"GET /api/tasks/:id/execution-profile":                         "GetTaskExecutionProfile",
-		"GET /api/tasks/:id/inspect":                                   "InspectTask",
-		"GET /api/tasks/:id/notifications/bridges":                     "ListTaskBridgeNotificationSubscriptions",
-		"GET /api/tasks/:id/notifications/bridges/:subscription_id":    "GetTaskBridgeNotificationSubscription",
-		"GET /api/tasks/:id/reviews":                                   "ListTaskReviews",
-		"GET /api/tasks/:id/stream":                                    "StreamTask",
-		"GET /api/tasks/:id/timeline":                                  "TaskTimeline",
-		"GET /api/tasks/:id/tree":                                      "TaskTree",
-		"DELETE /api/tasks/:id":                                        "DeleteTask",
-		"DELETE /api/tasks/:id/notifications/bridges/:subscription_id": "DeleteTaskBridgeNotificationSubscription",
-		"DELETE /api/tasks/:id/execution-profile":                      "DeleteTaskExecutionProfile",
-		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop": "StopSession",
-		"POST /api/tasks/:id/approve":                                  "ApproveTask",
-		"POST /api/tasks/:id/blocks":                                   "BlockTask",
-		"POST /api/tasks/:id/blocks/:block_id/clear":                   "ClearTaskBlock",
-		"POST /api/tasks/:id/notifications/bridges":                    "CreateTaskBridgeNotificationSubscription",
-		"POST /api/tasks/:id/pause":                                    "PauseTask",
-		"POST /api/tasks/:id/publish":                                  "PublishTask",
-		"POST /api/tasks/:id/recover":                                  "RecoverTask",
-		"POST /api/tasks/:id/reject":                                   "RejectTask",
-		"POST /api/tasks/:id/resume":                                   "ResumeTask",
-		"POST /api/tasks/:id/runs/fan-out":                             "FanOutTaskRuns",
-		"POST /api/tasks/:id/start":                                    "StartTask",
-		"POST /api/tasks/:id/triage/archive":                           "ArchiveTask",
-		"POST /api/tasks/:id/triage/dismiss":                           "DismissTask",
-		"POST /api/tasks/:id/triage/read":                              "MarkTaskRead",
-		"POST /api/task-runs/:id/reviews":                              "RequestTaskRunReview",
-		"POST /api/task-reviews/:id/verdict":                           "SubmitTaskRunReviewVerdict",
-		"PUT /api/tasks/:id/execution-profile":                         "SetTaskExecutionProfile",
-		"PATCH /api/tasks/:id/execution-profile/worktree":              "SetTaskWorktreePolicy",
-	}
-
-	routes := engine.Routes()
-	for key, handlerName := range expectedHandlers {
-		var matched *gin.RouteInfo
-		for i := range routes {
-			route := routes[i]
-			if route.Method+" "+route.Path == key {
-				matched = &route
-				break
-			}
-		}
-		if matched == nil {
-			t.Fatalf("route %q not registered", key)
-			return
-		}
-		if !strings.Contains(matched.Handler, handlerName) {
-			t.Fatalf("route %q handler = %q, want substring %q", key, matched.Handler, handlerName)
-		}
-	}
-}
-
 func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 	t.Parallel()
 
@@ -781,13 +614,13 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 	newEngine := func(t *testing.T, manager *apitestutil.StubTaskManager) *gin.Engine {
 		t.Helper()
 
-		return newTestRouter(t, newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+		return newTestRouter(t, newTestHandlersWithAutomationTasksAndWorkspace(
 			t,
 			stubSessionManager{},
 			stubObserver{},
 			nil,
 			manager,
-			nil,
+
 			stubWorkspaceService{},
 			newTestHomePaths(t),
 		))
@@ -875,6 +708,32 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 			t.Fatalf("list response = %#v, want block-1", response.Blocks)
 		}
 	})
+
+	for _, tc := range []struct {
+		name   string
+		blocks []taskpkg.TaskBlock
+	}{
+		{name: "Should serialize a nil block inventory as an empty array"},
+		{name: "Should preserve an empty block inventory as an array", blocks: []taskpkg.TaskBlock{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			engine := newEngine(t, &apitestutil.StubTaskManager{
+				ListTaskBlocksFn: func(context.Context, string, bool, taskpkg.ActorContext) ([]taskpkg.TaskBlock, error) {
+					return tc.blocks, nil
+				},
+			})
+			recorder := performRequest(t, engine, http.MethodGet, "/api/tasks/task-1/blocks", nil)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("list status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+			}
+			var response contract.TaskBlocksResponse
+			decodeJSONResponse(t, recorder, &response)
+			if response.Blocks == nil || len(response.Blocks) != 0 {
+				t.Fatalf("list response = %s, want an empty blocks array", recorder.Body.String())
+			}
+		})
+	}
 
 	t.Run("Should get blocked task details without leaking raw claim tokens", func(t *testing.T) {
 		t.Parallel()
@@ -1111,13 +970,13 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 		t.Run("Should "+tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			engine := newTestRouter(t, newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+			engine := newTestRouter(t, newTestHandlersWithAutomationTasksAndWorkspace(
 				t,
 				stubSessionManager{},
 				stubObserver{},
 				nil,
 				tc.manager,
-				nil,
+
 				stubWorkspaceService{},
 				homePaths,
 			))
@@ -1141,14 +1000,37 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 	}
 }
 
-func TestMemoryRoutesMatchV2Contract(t *testing.T) {
+func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	engine := newTestRouter(t, handlers)
-
-	apitestutil.AssertMemoryV2RouteParity(t, apitestutil.MemoryV2RouteKeysFromGin(engine.Routes()))
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/memory"},
+		{http.MethodPost, "/api/memory/search"},
+		{http.MethodGet, "/api/settings/memory"},
+		{http.MethodGet, "/api/workspaces/ws_alpha/memory/sessions/sess-1/ledger"},
+	} {
+		t.Run("Should use unknown route behavior for "+tc.method+" "+tc.path, func(t *testing.T) {
+			t.Parallel()
+			unknown := httptest.NewRecorder()
+			engine.ServeHTTP(unknown, httptest.NewRequestWithContext(t.Context(), tc.method, "/api/nope", http.NoBody))
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, http.NoBody))
+			if response.Code != http.StatusNotFound || response.Code != unknown.Code ||
+				response.Body.String() != unknown.Body.String() ||
+				response.Header().Get("Content-Type") != unknown.Header().Get("Content-Type") {
+				t.Fatalf(
+					"retired route response = %d %q %q, unknown = %d %q %q",
+					response.Code,
+					response.Body.String(),
+					response.Header().Get("Content-Type"),
+					unknown.Code,
+					unknown.Body.String(),
+					unknown.Header().Get("Content-Type"),
+				)
+			}
+		})
+	}
 }
 
 func TestWorktreeRoutesMatchTransportParityContractIT033(t *testing.T) {
@@ -1204,10 +1086,8 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 
 	tests := []string{
 		"/api/settings/general",
-		"/api/settings/memory",
 		"/api/settings/skills",
 		"/api/settings/automation",
-		"/api/settings/network",
 		"/api/settings/attention",
 		"/api/settings/shell",
 		"/api/settings/window-manager",
@@ -1216,8 +1096,6 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 		"/api/settings/providers",
 		"/api/settings/providers/demo",
 		"/api/settings/mcp-servers",
-		"/api/settings/sandboxes",
-		"/api/settings/sandboxes/demo",
 		"/api/settings/hooks",
 		"/api/settings/actions/restart/op-123",
 		"/api/extensions",
@@ -1335,10 +1213,9 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		body   []byte
 	}{
 		{method: http.MethodPatch, path: "/api/settings/general", body: []byte(`{}`)},
-		{method: http.MethodPatch, path: "/api/settings/memory", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/skills", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/automation", body: []byte(`{}`)},
-		{method: http.MethodPatch, path: "/api/settings/network", body: []byte(`{}`)},
+
 		{method: http.MethodPatch, path: "/api/settings/attention", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/shell", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/window-manager", body: []byte(`{}`)},
@@ -1362,8 +1239,7 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 			path:   "/api/settings/mcp-servers/server-a/auth/logout?scope=global",
 		},
 		{method: http.MethodDelete, path: "/api/settings/mcp-servers/server-a"},
-		{method: http.MethodPut, path: "/api/settings/sandboxes/demo", body: []byte(`{}`)},
-		{method: http.MethodDelete, path: "/api/settings/sandboxes/demo"},
+
 		{method: http.MethodPut, path: "/api/settings/hooks/capture", body: []byte(`{}`)},
 		{method: http.MethodDelete, path: "/api/settings/hooks/capture"},
 		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
@@ -1729,11 +1605,13 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 }
 
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
-				opts.WorkspacePath != "" || opts.NetworkParticipation != nil {
+				opts.WorkspacePath != "" {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
 			return newSession("sess-123"), nil
@@ -1763,69 +1641,11 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
 	}
-	if response.Session.ResolvedNetworkParticipation != nil &&
-		response.Session.ResolvedNetworkParticipation.Mode != "local" {
-		t.Fatalf(
-			"session resolved_network_participation = %#v, want Local session projection",
-			response.Session.ResolvedNetworkParticipation,
-		)
-	}
-}
-
-func TestCreateSessionHandlerMapsNetworkParticipationFailures(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name       string
-		err        error
-		wantStatus int
-	}{
-		{
-			name:       "Should reject an invalid strategy as a bad request",
-			err:        participation.ErrStrategyInvalid,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "Should report an unknown channel as not found",
-			err:        participation.ErrChannelUnknown,
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "Should report disabled Live participation as a conflict",
-			err:        participation.ErrUnavailable,
-			wantStatus: http.StatusConflict,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			manager := stubSessionManager{
-				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
-					return nil, fmt.Errorf("resolve participation: %w", tc.err)
-				},
-			}
-			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
-			const requestBody = `{
-				"agent_name":"coder",
-				"workspace":"alpha",
-				"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}
-			}`
-			recorder := performRequest(
-				t,
-				engine,
-				http.MethodPost,
-				"/api/sessions",
-				[]byte(requestBody),
-			)
-
-			if recorder.Code != tc.wantStatus {
-				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tc.wantStatus, recorder.Body.String())
-			}
-		})
-	}
 }
 
 func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -1853,6 +1673,8 @@ func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 }
 
 func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -1881,6 +1703,8 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 }
 
 func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	infoA := newSessionInfo("sess-a")
 	infoB := newSessionInfo("sess-b")
@@ -1924,6 +1748,8 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 }
 
 func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	addDir := filepath.Join(t.TempDir(), "shared")
@@ -1934,9 +1760,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	workspaces := stubWorkspaceService{
 		RegisterFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			if opts.RootDir != rootDir || opts.Name != "alpha" || len(opts.AdditionalDirs) != 1 ||
-				opts.AdditionalDirs[0] != addDir ||
-				opts.DefaultAgent != "coder" ||
-				opts.SandboxRef != "daytona-dev" {
+				opts.AdditionalDirs[0] != addDir || opts.DefaultAgent != "coder" {
 				t.Fatalf("Register() opts = %#v", opts)
 			}
 			return workspacepkg.Workspace{
@@ -1945,9 +1769,9 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 				AdditionalDirs: []string{addDir},
 				Name:           "alpha",
 				DefaultAgent:   "coder",
-				SandboxRef:     "daytona-dev",
-				CreatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-				UpdatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+
+				CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+				UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			}, nil
 		},
 	}
@@ -1961,7 +1785,6 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 		"name":          "alpha",
 		"add_dirs":      []string{addDir},
 		"default_agent": "coder",
-		"sandbox_ref":   "daytona-dev",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(create workspace request) error = %v", err)
@@ -1981,6 +1804,8 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 }
 
 func TestListWorkspacesHandlerReturnsRegisteredRows(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	workspaces := stubWorkspaceService{
@@ -2113,17 +1938,17 @@ func TestRuntimeIdentityHandlerStaysIndependentFromRuntimeAggregation(t *testing
 }
 
 func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	sharedSkillDir := filepath.Join(rootDir, ".compozy", "skills", "marketing", "brief")
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:        "ws_alpha",
-			RootDir:   rootDir,
-			Name:      "alpha",
-			CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		},
+		ID:          "ws_alpha",
+		RootDir:     rootDir,
+		Name:        "alpha",
+		CreatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		WorkspaceID: "ws_alpha",
 		Config: compozyconfig.Config{
 			Providers: map[string]compozyconfig.ProviderConfig{
@@ -2186,28 +2011,16 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	}
 	expectedNames := []string{
 		"alpha",
-		"blackbox",
 		"claude",
-		"cline",
 		"codex",
 		"copilot",
 		"cursor",
 		"gemini",
-		"goose",
-		"groq",
-		"hermes",
-		"junie",
 		"kimi-cli",
-		"kiro",
-		"minimax",
-		"mistral",
 		"moonshot",
-		"openclaw",
 		"opencode",
-		"openhands",
 		"openrouter",
 		"pi",
-		"qoder",
 		"qwen-code",
 		"vercel-ai-gateway",
 		"xai",
@@ -2219,6 +2032,8 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 }
 
 func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	addDir := filepath.Join(t.TempDir(), "shared")
@@ -2238,17 +2053,12 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 				Name:           "beta",
 				AdditionalDirs: []string{addDir},
 				DefaultAgent:   "reviewer",
-				SandboxRef:     "local-dev",
 			}, nil
 		},
 		UpdateFn: func(_ context.Context, id string, opts workspacepkg.UpdateOptions) error {
 			if id != "ws_alpha" || opts.Name == nil || *opts.Name != "beta" || opts.AdditionalDirs == nil ||
-				len(*opts.AdditionalDirs) != 1 ||
-				(*opts.AdditionalDirs)[0] != addDir ||
-				opts.DefaultAgent == nil ||
-				*opts.DefaultAgent != "reviewer" ||
-				opts.SandboxRef == nil ||
-				*opts.SandboxRef != "local-dev" {
+				len(*opts.AdditionalDirs) != 1 || (*opts.AdditionalDirs)[0] != addDir ||
+				opts.DefaultAgent == nil || *opts.DefaultAgent != "reviewer" {
 				t.Fatalf("Update() id=%q opts=%#v", id, opts)
 			}
 			updated = true
@@ -2264,7 +2074,6 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 		"name":          "beta",
 		"add_dirs":      []string{addDir},
 		"default_agent": "reviewer",
-		"sandbox_ref":   "local-dev",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(update workspace request) error = %v", err)
@@ -2284,6 +2093,8 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 }
 
 func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
@@ -2311,6 +2122,8 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 }
 
 func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	workspaces := stubWorkspaceService{
@@ -2319,13 +2132,11 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 				t.Fatalf("ResolveOrRegister() path = %q, want %q", path, rootDir)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:        "ws_alpha",
-					RootDir:   rootDir,
-					Name:      "alpha",
-					CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-					UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-				},
+				ID:          "ws_alpha",
+				RootDir:     rootDir,
+				Name:        "alpha",
+				CreatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+				UpdatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 				WorkspaceID: "ws_alpha",
 			}, nil
 		},
@@ -2382,6 +2193,8 @@ func TestDeleteSessionHandlerReturnsNoContent(t *testing.T) {
 }
 
 func TestStopSessionHandlerReturnsStopped(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		StopFn: func(_ context.Context, id string) error {
@@ -2404,6 +2217,8 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 }
 
 func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	var gotOpts session.SendPromptOpts
 	manager := stubSessionManager{
@@ -3357,6 +3172,8 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 }
 
 func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ShouldCancelDeliveryOnlyAfterRequestCancellation", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		executionCtxCh := make(chan context.Context, 1)
@@ -3372,7 +3189,7 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 		engine := newTestRouter(t, handlers)
 
-		requestCtx, cancel := context.WithCancel(context.Background())
+		requestCtx, cancel := context.WithCancel(t.Context())
 		req := httptest.NewRequestWithContext(
 			requestCtx,
 			http.MethodPost,
@@ -3425,6 +3242,8 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 }
 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CancelPromptFn: func(_ context.Context, id string) (session.PromptCancelResult, error) {
@@ -3458,6 +3277,8 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 }
 
 func TestSessionEventsAndHistoryHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
 	manager := stubSessionManager{
@@ -3610,6 +3431,8 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 }
 
 func TestListAgentsAndHealthHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	writeAgentDef(t, homePaths, "coder")
 
@@ -3654,6 +3477,8 @@ func TestListAgentsAndHealthHandlers(t *testing.T) {
 }
 
 func TestListLogsAndApproveHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -3700,6 +3525,8 @@ func TestListLogsAndApproveHandlers(t *testing.T) {
 }
 
 func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 
 	t.Run("Should missing decision", func(t *testing.T) {
@@ -3830,6 +3657,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 }
 
 func TestErrorResponsesUseConsistentShape(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -3864,7 +3693,32 @@ func TestStatusForSessionErrorIncludesApprovalCases(t *testing.T) {
 	}
 }
 
+func TestRequestLoggingClientIdentity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, value, want string }{
+		{"Should log a bounded opaque client identity", "web-client-123", "web-client-123"},
+		{"Should reject arbitrary client log content", "unsafe/token", "unidentified"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			engine := gin.New()
+			engine.Use(requestLoggingMiddleware(slog.New(slog.NewJSONHandler(&logs, nil))))
+			engine.GET("/api/sessions", func(c *gin.Context) { c.Status(http.StatusOK) })
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/sessions", http.NoBody)
+			request.Header.Set("X-Compozy-Client-ID", tc.value)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+			if response.Code != http.StatusOK || !strings.Contains(logs.String(), `"client_id":"`+tc.want+`"`) {
+				t.Fatalf("status=%d log=%s", response.Code, logs.String())
+			}
+		})
+	}
+}
+
 func TestCORSHeadersPresentOnResponses(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -3873,7 +3727,7 @@ func TestCORSHeadersPresentOnResponses(t *testing.T) {
 	}, stubObserver{}, homePaths))
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"http://127.0.0.1/api/sessions?all_workspaces=true",
 		http.NoBody,
@@ -4015,4 +3869,138 @@ func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
 
 func contains(values []string, target string) bool {
 	return slices.Contains(values, target)
+}
+
+// IT-026: transport handlers preserve native compaction acceptance and refusal codes.
+func TestCompactSessionHandler(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"Should accept native compaction", nil, http.StatusAccepted, ""},
+		{
+			"Should reject a stopped session",
+			errors.Join(session.ErrSessionNotActive, errors.New("session is stopped")),
+			http.StatusBadRequest,
+			"session_not_promptable",
+		},
+		{
+			"Should reject a starting session",
+			errors.Join(session.ErrSessionNotActive, errors.New("session is starting")),
+			http.StatusBadRequest,
+			"session_not_promptable",
+		},
+		{"Should reject a busy session", session.ErrPromptInProgress, http.StatusConflict, "session_busy"},
+		{"Should reject unsupported compaction", session.ErrCompactionUnsupported, http.StatusConflict, "compaction_unsupported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := stubSessionManager{
+				RequestCompactionFn: func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+					if id != "sess-123" {
+						t.Fatalf("request target=%q", id)
+					}
+					return session.CompactionRequestResult{
+						SessionID: id,
+						PromptID:  "prompt-compact",
+						Command:   "compact",
+					}, nil, tc.err
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/compact",
+				[]byte("{}"),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if tc.err != nil {
+				var payload contract.ErrorPayload
+				decodeJSONResponse(t, response, &payload)
+				if payload.Code != tc.code {
+					t.Fatalf("code=%q want %q", payload.Code, tc.code)
+				}
+				return
+			}
+			var payload contract.SessionCompactResponse
+			decodeJSONResponse(t, response, &payload)
+			if payload.SessionID != "sess-123" || payload.PromptID != "prompt-compact" ||
+				payload.Command != "compact" ||
+				payload.Status != "accepted" {
+				t.Fatalf("receipt=%#v", payload)
+			}
+		})
+	}
+}
+
+// UT-012 UT-017: queue origin reaches HTTP and protects agent-authored edits/promotions.
+func TestSessionInputOriginContract(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose origin and refuse replace and promotion with conflict", func(t *testing.T) {
+		t.Parallel()
+		manager := stubSessionManager{
+			ListPendingInputsFn: func(context.Context, string) ([]session.PendingInput, error) {
+				return []session.PendingInput{
+					{
+						ID:        "inq-1",
+						SessionID: "sess-123",
+						Text:      "Q?",
+						Origin: json.RawMessage(
+							`{"kind":"session","session_id":"sender","workspace_id":"ws-other","hop":2}`,
+						),
+					},
+					{ID: "inq-operator", SessionID: "sess-123", Text: "operator input"},
+				}, nil
+			},
+			ReplacePendingInputFn: func(context.Context, string, string, session.ReplacePendingInputOpts) (session.PendingInput, error) {
+				return session.PendingInput{}, store.ErrSessionInputAgentAuthored
+			},
+			PromotePendingInputFn: func(context.Context, string, string, session.PromotePendingInputOpts) (session.SendPromptResult, error) {
+				return session.SendPromptResult{}, store.ErrSessionInputAgentAuthored
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		base := "/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue"
+		listed := performRequest(t, engine, http.MethodGet, base, nil)
+		var payload contract.SessionInputListResponse
+		if err := json.Unmarshal(listed.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if listed.Code != http.StatusOK || len(payload.Inputs) != 2 || payload.Inputs[0].Origin == nil ||
+			payload.Inputs[0].Origin.SessionID != "sender" ||
+			payload.Inputs[0].Origin.WorkspaceID != "ws-other" {
+			t.Fatal(listed.Code, listed.Body.String())
+		}
+		var raw struct {
+			Inputs []map[string]json.RawMessage `json:"inputs"`
+		}
+		if err := json.Unmarshal(listed.Body.Bytes(), &raw); err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := raw.Inputs[1]["origin"]; exists {
+			t.Fatal("operator input carries origin", listed.Body.String())
+		}
+		for _, route := range []struct{ method, path string }{{http.MethodPut, base + "/inq-1"}, {http.MethodPost, base + "/inq-1/steer"}} {
+			response := performRequest(
+				t,
+				engine,
+				route.method,
+				route.path,
+				[]byte(`{"text":"edited","message_id":"new","idempotency_key":"key"}`),
+			)
+			var failure contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusConflict || failure.Code != "input_agent_authored" ||
+				failure.Error != store.ErrSessionInputAgentAuthored.Error() {
+				t.Fatal(response.Code, failure)
+			}
+		}
+	})
 }

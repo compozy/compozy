@@ -14,144 +14,24 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-const nativeNetworkChannelUpdateRequiredFields = "purpose, fanout_policy, or coordinator_peer_id"
-
-type networkChannelCreateInput struct {
-	WorkspaceID       string `json:"workspace"`
-	Channel           string `json:"channel"`
-	Purpose           string `json:"purpose"`
-	FanoutPolicy      string `json:"fanout_policy,omitempty"`
-	CoordinatorPeerID string `json:"coordinator_peer_id,omitempty"`
-}
-
-type networkChannelUpdateInput struct {
-	WorkspaceID       string  `json:"workspace"`
-	Channel           string  `json:"channel"`
-	Purpose           *string `json:"purpose,omitempty"`
-	FanoutPolicy      *string `json:"fanout_policy,omitempty"`
-	CoordinatorPeerID *string `json:"coordinator_peer_id,omitempty"`
-}
-
 type agentCreateInput struct {
-	Scope           string                             `json:"scope"`
-	Workspace       string                             `json:"workspace,omitempty"`
-	Name            string                             `json:"name"`
-	Provider        string                             `json:"provider,omitempty"`
-	Model           string                             `json:"model,omitempty"`
-	ReasoningEffort string                             `json:"reasoning_effort,omitempty"`
-	Speed           string                             `json:"speed,omitempty"`
-	ACPOptions      []contract.AgentACPOptionSelection `json:"acp_options,omitempty"`
-	Command         string                             `json:"command,omitempty"`
-	Prompt          string                             `json:"prompt"`
-	Permissions     string                             `json:"permissions,omitempty"`
-	Tools           []string                           `json:"tools,omitempty"`
-	Toolsets        []string                           `json:"toolsets,omitempty"`
-	DenyTools       []string                           `json:"deny_tools,omitempty"`
-	CategoryPath    []string                           `json:"category_path,omitempty"`
-	DisabledSkills  []string                           `json:"disabled_skills,omitempty"`
-}
-
-func (n *daemonNativeTools) networkChannelCreate(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input networkChannelCreateInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	purpose := strings.TrimSpace(input.Purpose)
-	if purpose == "" {
-		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "purpose")
-	}
-	fanoutPolicy := store.NormalizeNetworkFanoutPolicy(input.FanoutPolicy)
-	coordinatorPeerID := strings.TrimSpace(input.CoordinatorPeerID)
-	if err := store.ValidateNetworkChannelFanoutConfiguration(fanoutPolicy, coordinatorPeerID); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	entry := store.NetworkChannelEntry{
-		ProfileID:         scope.ProfileID,
-		Channel:           channel,
-		WorkspaceID:       workspaceID,
-		Purpose:           purpose,
-		FanoutPolicy:      fanoutPolicy,
-		CoordinatorPeerID: coordinatorPeerID,
-		CreatedBy:         strings.TrimSpace(scope.AgentName),
-	}
-	if err := n.deps.NetworkStore.CreateNetworkChannel(ctx, entry); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	return structuredNetworkResult(
-		nativeNetworkChannelPayload(entry),
-		"channel "+channel,
-	)
-}
-
-func nativeNetworkChannelPayload(entry store.NetworkChannelEntry) map[string]any {
-	return map[string]any{
-		"channel":             strings.TrimSpace(entry.Channel),
-		daemonWorkspaceIDKey:  strings.TrimSpace(entry.WorkspaceID),
-		"purpose":             strings.TrimSpace(entry.Purpose),
-		"fanout_policy":       store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy),
-		"coordinator_peer_id": strings.TrimSpace(entry.CoordinatorPeerID),
-	}
-}
-
-func (n *daemonNativeTools) networkChannelUpdate(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input networkChannelUpdateInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	if input.Purpose == nil && input.FanoutPolicy == nil && input.CoordinatorPeerID == nil {
-		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, nativeNetworkChannelUpdateRequiredFields)
-	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	ref := store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel}
-	patch := store.NetworkChannelPatch{}
-	if input.Purpose != nil {
-		purpose := strings.TrimSpace(*input.Purpose)
-		patch.Purpose = &purpose
-	}
-	if input.FanoutPolicy != nil {
-		policy := strings.TrimSpace(*input.FanoutPolicy)
-		fanoutPolicy := store.NormalizeNetworkFanoutPolicy(policy)
-		if err := store.ValidateNetworkFanoutPolicy(fanoutPolicy); err != nil {
-			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-		}
-		patch.FanoutPolicy = &fanoutPolicy
-	}
-	if input.CoordinatorPeerID != nil {
-		coordinatorPeerID := strings.TrimSpace(*input.CoordinatorPeerID)
-		patch.CoordinatorPeerID = &coordinatorPeerID
-	}
-	readScope := store.ReadScope{ProfileID: scope.ProfileID}
-	if err := n.deps.NetworkStore.PatchNetworkChannel(ctx, readScope, ref, patch); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	entry, err := n.deps.NetworkStore.GetNetworkChannel(ctx, readScope, ref)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	return structuredNetworkResult(nativeNetworkChannelPayload(entry), "channel "+channel)
+	Scope           string                               `json:"scope"`
+	Workspace       string                               `json:"workspace,omitempty"`
+	Name            string                               `json:"name"`
+	Provider        string                               `json:"provider,omitempty"`
+	Model           string                               `json:"model,omitempty"`
+	ReasoningEffort string                               `json:"reasoning_effort,omitempty"`
+	Speed           string                               `json:"speed,omitempty"`
+	ACPOptions      []contract.AgentACPOptionSelection   `json:"acp_options,omitempty"`
+	Command         string                               `json:"command,omitempty"`
+	Prompt          string                               `json:"prompt"`
+	Permissions     string                               `json:"permissions,omitempty"`
+	Tools           []string                             `json:"tools,omitempty"`
+	Toolsets        []string                             `json:"toolsets,omitempty"`
+	DenyTools       []string                             `json:"deny_tools,omitempty"`
+	CategoryPath    []string                             `json:"category_path,omitempty"`
+	DisabledSkills  []string                             `json:"disabled_skills,omitempty"`
+	FallbackChain   []contract.AgentFallbackRoutePayload `json:"fallback_chain,omitempty"`
 }
 
 func (n *daemonNativeTools) agentCreate(
@@ -273,6 +153,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 			Toolsets:        trimNativeStrings(input.Toolsets),
 			DenyTools:       trimNativeStrings(input.DenyTools),
 			CategoryPath:    trimNativeStrings(input.CategoryPath),
+			FallbackChain:   cloneNativeAgentFallbackChain(input.FallbackChain),
 		},
 	}
 	if len(input.DisabledSkills) > 0 {
@@ -309,6 +190,26 @@ func cloneNativeAgentACPOptions(
 	return cloned
 }
 
+func cloneNativeAgentFallbackChain(
+	chain []contract.AgentFallbackRoutePayload,
+) []contract.AgentFallbackRoutePayload {
+	if len(chain) == 0 {
+		return nil
+	}
+	cloned := make([]contract.AgentFallbackRoutePayload, len(chain))
+	for index, route := range chain {
+		cloned[index] = contract.AgentFallbackRoutePayload{
+			Provider:        strings.TrimSpace(route.Provider),
+			Model:           strings.TrimSpace(route.Model),
+			ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(string(route.ReasoningEffort))),
+			Speed:           contract.Speed(strings.TrimSpace(string(route.Speed))),
+			ACPOptions:      cloneNativeAgentACPOptions(route.ACPOptions),
+			Command:         strings.TrimSpace(route.Command),
+		}
+	}
+	return cloned
+}
+
 func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
 	switch {
 	case errors.Is(err, compozyconfig.ErrAgentNameReserved):
@@ -330,7 +231,7 @@ func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
 			toolspkg.ReasonSchemaInvalid,
 		)
 	default:
-		return nativeNetworkInputError(id, err)
+		return nativeInputError(id, err)
 	}
 }
 

@@ -3,7 +3,6 @@ package globaldb
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,34 +49,24 @@ func (r *ExtensionInputRepo) Apply(
 	if len(mutations) == 0 {
 		return nil
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin extension input batch: %w", err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			err = errors.Join(err, fmt.Errorf("store: rollback extension input batch: %w", rollbackErr))
+	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		current, err := readExtensionInputs(ctx, queries, instance)
+		if err != nil {
+			return err
 		}
-	}()
-	queries := sqlcgen.New(tx)
-	current, err := readExtensionInputs(ctx, queries, instance)
-	if err != nil {
-		return err
-	}
-	for _, mutation := range mutations {
-		before, found := current[mutation.InputID]
-		if (mutation.Before == nil && found) || (mutation.Before != nil &&
-			(!found || !equalExtensionInputRecord(before, *mutation.Before))) {
-			return fmt.Errorf("store: input %q: %w", mutation.InputID, extensioninput.ErrConflict)
+		for _, mutation := range mutations {
+			before, found := current[mutation.InputID]
+			if (mutation.Before == nil && found) || (mutation.Before != nil &&
+				(!found || !equalExtensionInputRecord(before, *mutation.Before))) {
+				return fmt.Errorf("store: input %q: %w", mutation.InputID, extensioninput.ErrConflict)
+			}
+			if err := writeExtensionInput(ctx, queries, instance, mutation); err != nil {
+				return fmt.Errorf("store: write extension input %q: %w", mutation.InputID, err)
+			}
 		}
-		if err := writeExtensionInput(ctx, queries, instance, mutation); err != nil {
-			return fmt.Errorf("store: write extension input %q: %w", mutation.InputID, err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit extension input batch: %w", err)
-	}
-	return nil
+		return nil
+	})
 }
 
 func normalizeExtensionInputInstance(instance extensioninput.Instance) (extensioninput.Instance, error) {

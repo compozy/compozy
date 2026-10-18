@@ -252,8 +252,8 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 				ProfileLens: testCmdPaletteProfileLens,
 				Workspace:   "ws-a", ViewID: "ext.notes.gone",
 			})
-			var notFound *cmdpalette.ViewNotFoundError
-			if !errors.As(err, &notFound) || notFound.ViewID != "ext.notes.gone" {
+			notFound, ok := errors.AsType[*cmdpalette.ViewNotFoundError](err)
+			if !ok || notFound.ViewID != "ext.notes.gone" {
 				t.Fatalf("SubscribeViewPatches(missing) error = %v, want ViewNotFoundError", err)
 			}
 		})

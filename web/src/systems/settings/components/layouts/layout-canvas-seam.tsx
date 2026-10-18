@@ -78,7 +78,7 @@ export function LayoutCanvasSeam({ seam, desktop, canvasRef, onChange }: LayoutC
         <span
           className={cn(
             "pointer-events-none absolute z-6 rounded-xs border px-1.5 py-0.5",
-            "bg-elevated font-mono text-badge whitespace-nowrap shadow-overlay",
+            "bg-surface-2 font-mono text-badge whitespace-nowrap shadow-overlay",
             model.snapped ? "border-accent-dim text-accent-strong" : "border-line-strong text-fg"
           )}
           role="status"

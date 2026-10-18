@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-command-os-from-palette
 expected: Command-K opens instantly against the last-known catalog and lists apps, shell, window, tab, layout and settings commands sourced from the daemon registry with their effective chords; a command unavailable in context stays visible and disabled carrying the runtime's own reason verbatim, a command irrelevant to this surface is absent rather than dead, a capped group states the exact overflow, and the same id, label and chord appear on the palette row, the menubar item, the cheatsheet line and the settings shortcut table.
 entry_points: Command-K; menubar palette affordance; menubar Go/Window/Session/Help menus; Help > Keyboard shortcuts; Settings > Layouts > Shortcuts; compozy cmd-palette list
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pending
 fix_commits: c3c50b6; 531b9f5; 538777e
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-tab-palette-search; ET-web-command-palette-shortcuts; ET-palette-nested-views; ET-palette-personalization-lifecycle
 ---
 
@@ -44,10 +44,14 @@ Walk (task_11 plan):
    confirm identical id, label, and effective chord on all four surfaces.
 4. Find one context-unavailable command — its row is disabled with the runtime's verbatim reason;
    the same reason appears on `compozy cmd-palette list --available=false`.
-5. Stop the daemon with the palette open — action rows disable with "runtime unavailable",
+5. Stop the daemon with the palette open — action rows disable with "CompozyOS isn't reachable right now",
    availability-exempt commands keep working; restart re-enables rows without reopening.
 6. Seed a large group — the group either scrolls fully or states the exact "showing N of M".
 
 Expected evidence: screenshots of rest state, cross-surface parity (palette + menubar + cheatsheet
 + settings), disabled-with-reason row beside the matching CLI listing, and the daemon-stopped
 degradation; structured `cmd-palette list` output for the parity and reason checks.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

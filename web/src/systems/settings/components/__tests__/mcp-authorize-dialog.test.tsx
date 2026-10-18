@@ -106,7 +106,7 @@ describe("MCPAuthorizeDialog failure recovery", () => {
       enterManual,
     });
 
-    expect(screen.getByText("Authorization could not be started")).toBeInTheDocument();
+    expect(screen.getByText("Sign-in couldn't start")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-mcp-authorize-manual")).not.toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-mcp-authorize-exchange")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("settings-page-mcp-authorize-manual-fallback"));
@@ -119,7 +119,7 @@ describe("MCPAuthorizeDialog failure recovery", () => {
   it("Should retain manual exchange after a started authorization fails", () => {
     renderDialog({ error: "provider rejected the code", phase: "failed", mode: "manual" });
 
-    expect(screen.getByText("Authorization could not be completed")).toBeInTheDocument();
+    expect(screen.getByText("Sign-in couldn't be finished")).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-mcp-authorize-manual")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "About full redirect URL" })).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-mcp-authorize-exchange")).toBeInTheDocument();

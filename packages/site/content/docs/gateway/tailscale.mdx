@@ -61,11 +61,11 @@ compozy extension enable tailscale
 ```
 
 The extension declares that it carries gateway traffic on the `gateway.private` and
-`gateway.public` channels, so the first enable refuses with a network requirement digest and prints
+`gateway.public` permission atoms, so the first enable refuses with a gateway requirement digest and prints
 the exact confirmation command to run:
 
 ```bash
-compozy extension enable tailscale --confirm-network-requirement <digest>
+compozy extension enable tailscale --confirm-gateway-requirement <digest>
 ```
 
 Confirming the digest is consent to exactly that declaration — an update that changes it asks
@@ -103,6 +103,13 @@ A healthy activation shows the provider and a verified address (output trimmed):
   ]
 }
 ```
+
+When the private `operator_ui` surface is enabled, open the advertised HTTPS address, including
+`:8443`, from a device on your tailnet. An unpaired browser reaches **Pair this device**;
+`/api/gateway/status` returns `401 gateway_device_unauthenticated` until pairing completes.
+The bundled proxy preserves the browser Host and sets the HTTPS forwarding metadata itself.
+No additional Tailscale Serve or reverse proxy is needed. Requests from another origin remain
+rejected, and client-supplied forwarding headers cannot change the trusted target.
 
 Two more inspection commands are specific to the extension: `compozy extension status tailscale`
 reports the runtime state — `Missing Env: TS_AUTHKEY` there is the clearest sign the key was never

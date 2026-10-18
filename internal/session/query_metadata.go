@@ -1,12 +1,13 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -43,7 +44,7 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 	if _, ok := m.Get(target); ok || m.isPending(target) {
 		return meta, nil
 	}
-	if _, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID); err != nil {
+	if _, err := m.resolveStoredSessionOwner(ctx, &meta); err != nil {
 		return store.SessionMeta{}, fmt.Errorf(
 			"session: prove catalog owner before classifying metadata for %q: %w",
 			target,
@@ -56,14 +57,17 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 	if restored, err := m.restoreRecoveredStopReceipt(&meta); err != nil || restored {
 		return meta, err
 	}
-	repaired, err := m.repairInactiveMeta(ctx, metaPath, meta)
+	repaired, err := m.repairInactiveMeta(ctx, metaPath, &meta)
 	if err != nil {
 		return store.SessionMeta{}, err
 	}
 	return repaired, nil
 }
 
-func requirePersistedProvider(meta store.SessionMeta) error {
+func requirePersistedProvider(meta *store.SessionMeta) error {
+	if meta == nil {
+		return errors.New("session: metadata is required")
+	}
 	if strings.TrimSpace(meta.Provider) == "" {
 		return fmt.Errorf("session: metadata provider for %q is required", strings.TrimSpace(meta.ID))
 	}
@@ -104,8 +108,11 @@ func hasWindowsDriveRelativePrefix(value string) bool {
 	return value[2] != '/' && value[2] != '\\'
 }
 
-func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMeta) *Info {
+func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta *store.SessionMeta) *Info {
 	info := sessionInfoFromMeta(meta)
+	if info == nil {
+		return nil
+	}
 	if m != nil && m.transcriptEpochStore != nil {
 		epoch, err := m.transcriptEpochStore.SessionTranscriptEpoch(ctx, meta.ID)
 		if err != nil {
@@ -119,6 +126,9 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMet
 		} else {
 			info.TranscriptEpoch = epoch
 		}
+	}
+	if meta.WorkspaceID == "" {
+		return info
 	}
 	workspaceRoot, err := m.resolveWorkspaceRoot(ctx, meta.WorkspaceID)
 	if err != nil {
@@ -137,13 +147,18 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMet
 	return info
 }
 
-func sessionInfoFromMeta(meta store.SessionMeta) *Info {
+func sessionInfoFromMeta(meta *store.SessionMeta) *Info {
+	if meta == nil {
+		return nil
+	}
 	requestedSpeed := meta.Speed
 	if requestedSpeed == "" {
 		requestedSpeed = speedpkg.SpeedNormal
 	}
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	return &Info{
+		VerdictOnly: meta.CreationProfile != nil &&
+			meta.CreationProfile.RuntimeMode == RuntimeModeVerdictOnly,
 		ID:                       meta.ID,
 		ProfileID:                strings.TrimSpace(meta.ProfileID),
 		Name:                     meta.Name,
@@ -164,12 +179,11 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		EffectivePermissions:     strings.TrimSpace(meta.EffectivePermissionsValue()),
 		WorkspaceID:              meta.WorkspaceID,
 		WorktreeID:               meta.WorktreeIDValue(),
-		NetworkParticipation:     meta.NetworkSpecSnapshot(),
-		NetworkOwnerKey:          meta.NetworkOwnerKeySnapshot(),
 		Type:                     normalizeSessionType(Type(meta.SessionType)),
 		Lineage:                  store.NormalizeSessionLineage(meta.ID, meta.Lineage),
+		Derivation:               store.CloneSessionDerivation(meta.Derivation),
 		State:                    State(meta.State),
-		StopReason:               sessionMetaStopReason(&meta),
+		StopReason:               sessionMetaStopReason(meta),
 		StopEscalated:            meta.StopEscalated,
 		StopVerificationFailed:   meta.StopVerificationFailed,
 		StopDetail:               meta.StopDetail,
@@ -177,7 +191,6 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		ACPSessionID:             stringValue(meta.ACPSessionID),
 		AdvertisedCommands:       store.CloneSessionAdvertisedCommands(meta.AdvertisedCommandsValue()),
 		Liveness:                 store.CloneSessionLivenessMeta(meta.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(meta.Sandbox),
 		SoulSnapshotID:           strings.TrimSpace(meta.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(meta.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(meta.ParentSoulDigest),
@@ -195,11 +208,8 @@ func sortSessionInfos(infos []*Info) []*Info {
 		out = append(out, info)
 	}
 
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
-			return out[i].ID < out[j].ID
-		}
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	slices.SortFunc(out, func(a, b *Info) int {
+		return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID))
 	})
 
 	return out

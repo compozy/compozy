@@ -136,7 +136,7 @@ func TestSessionEventBroadcaster(t *testing.T) {
 		defer cancel()
 
 		for sequence := int64(1); sequence <= sessionEventSubscriberBuffer+1; sequence++ {
-			manager.publishSessionEvent(context.Background(), &Session{ID: "sess-overflow"}, store.SessionEvent{
+			manager.publishSessionEvent(t.Context(), &Session{ID: "sess-overflow"}, store.SessionEvent{
 				SessionID: "sess-overflow",
 				Sequence:  sequence,
 				TurnID:    "turn-overflow",
@@ -174,6 +174,115 @@ func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should publish session-less layout changes only to the owning workspace and profile", func(t *testing.T) {
+		t.Parallel()
+		catalog := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionCatalog(catalog))
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		ctx := testutil.Context(t)
+		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID}
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		other, cancelOther, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-other",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancelOther()
+
+		folder, err := h.manager.CreateSessionFolder(ctx, scope, "Release")
+		if err != nil {
+			t.Fatalf("CreateSessionFolder() error = %v", err)
+		}
+		if !strings.HasPrefix(folder.ID, sessionFolderIDPrefix+"-") {
+			t.Fatalf("folder id = %q, want %s- prefix", folder.ID, sessionFolderIDPrefix)
+		}
+		event := assertCatalogEventName(t, events, CatalogEventNameChanged)
+		if event.Kind != CatalogEventLayout || event.SessionID != "" || event.WorkspaceID != h.workspaceID {
+			t.Fatalf("layout event = %#v", event)
+		}
+		select {
+		case leaked := <-other:
+			t.Fatalf("other workspace received layout event %#v", leaked)
+		default:
+		}
+	})
+
+	t.Run("Should preserve operator attention for actionable system sessions", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		before := &Info{
+			ID:          "system-automation",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: h.workspaceID,
+			Type:        SessionTypeSystem,
+			State:       StateActive,
+		}
+		after := *before
+		after.PendingClarifyCount = 1
+		h.manager.publishLifecycleAttentionTransition(ctx, before, &after)
+		assertCatalogEventName(t, events, CatalogEventNameChanged)
+		edge := assertCatalogEventName(t, events, CatalogEventNameAttention)
+		if edge.Attention == nil || edge.Attention.To != BadgeWaitingForInput {
+			t.Fatalf("actionable system attention = %#v", edge)
+		}
+	})
+
+	t.Run("Should retain system lifecycle audit without publishing operator attention", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		sess, err := h.manager.Create(
+			ctx,
+			CreateOpts{
+				AgentName:   "coder",
+				Workspace:   h.workspaceID,
+				Type:        SessionTypeSystem,
+				RuntimeMode: RuntimeModeVerdictOnly,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := sess.Info()
+		if err := h.manager.StopWithCause(ctx, sess.ID, CauseCompleted, "judge completed"); err != nil {
+			t.Fatal(err)
+		}
+		after := sess.Info()
+		h.manager.publishLifecycleAttentionTransition(ctx, before, after)
+		for {
+			select {
+			case event := <-events:
+				if event.Name == CatalogEventNameAttention {
+					t.Fatalf("internal attention = %#v", event)
+				}
+			default:
+				return
+			}
+		}
+	})
+
 	t.Run("Should keep daemon-owned sessions out of the public catalog stream", func(t *testing.T) {
 		t.Parallel()
 
@@ -193,14 +302,9 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 
 		internalSessions := []*Session{
 			{
-				ID: "sess-memory-extractor", WorkspaceID: "ws-internal",
-				Lineage: &store.SessionLineage{SpawnRole: SpawnRoleMemoryExtractor},
-			},
-			{
 				ID: "sess-auto-title", WorkspaceID: "ws-internal",
 				Lineage: &store.SessionLineage{SpawnRole: SpawnRoleAutoTitle},
 			},
-			{ID: "sess-dream", WorkspaceID: "ws-internal", Type: SessionTypeDream},
 		}
 		for _, sess := range internalSessions {
 			manager.publishSessionCatalogWakeForEvent(sess, acp.AgentEvent{Type: acp.EventTypePermission})

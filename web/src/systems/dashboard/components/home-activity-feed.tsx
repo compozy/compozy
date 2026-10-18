@@ -87,7 +87,7 @@ function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boole
         {event.agent_name ? " · " : ""}
         <span className={quiet ? undefined : "font-normal text-muted"}>{eventTitle(event)}</span>
       </span>
-      <span className="font-mono text-mono-id tabular-nums text-subtle">
+      <span className="text-eyebrow tabular-nums text-subtle">
         <Time iso={event.timestamp} />
       </span>
     </div>
@@ -145,7 +145,7 @@ export function HomeActivityFeed({
             ))}
             {quiet.length > 0 ? (
               <Collapsible>
-                <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-2.5 text-left text-small-body text-subtle transition-colors duration-base hover:bg-row-hover hover:text-muted focus-visible:shadow-focus-inset focus-visible:outline-none">
+                <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-2.5 text-left text-small-body text-subtle transition-colors duration-base hover:bg-surface-2 hover:text-muted focus-visible:shadow-focus-inset focus-visible:outline-none">
                   <ChevronRight
                     aria-hidden="true"
                     className="size-3.5 text-faint transition-transform duration-base group-data-[panel-open]:rotate-90"

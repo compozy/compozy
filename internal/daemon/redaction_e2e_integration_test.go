@@ -60,7 +60,7 @@ func testLoopVerdictRedactionBoundary(t *testing.T) {
 			FixturePath: fixturePath, FixtureAgent: "redaction_worker", AgentName: loopRedactionWorker,
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 
 	definition := loopVerdictRedactionDefinition()
@@ -202,7 +202,7 @@ func testDaemonRedactionBoundary(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	session := createFixtureBackedSession(t, ctx, harness, "redaction-probe", "redaction-boundary")

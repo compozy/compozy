@@ -80,17 +80,17 @@ func TestManagerForgeProvider(t *testing.T) {
 		installForgeTestProvider(manager, "github-provider", github, time.Unix(2, 0))
 		remotes := []string{" https://github.com/acme/repo.git ", "https://github.com/acme/repo.git"}
 
-		capabilities, err := manager.ForgeCapabilities(context.Background(), remotes)
+		capabilities, err := manager.ForgeCapabilities(t.Context(), remotes)
 		if err != nil || capabilities.Winner != "github-provider" || !capabilities.Available {
 			t.Fatalf("ForgeCapabilities() = %#v, %v", capabilities, err)
 		}
-		status, err := manager.ForgeStatus(context.Background(), extensioncontract.ForgeStatusRequest{
+		status, err := manager.ForgeStatus(t.Context(), extensioncontract.ForgeStatusRequest{
 			RemoteURLs: remotes, Branch: "feature/exit",
 		})
 		if err != nil || status.Provider != "github-provider" || status.PRNumber == nil || *status.PRNumber != 7 {
 			t.Fatalf("ForgeStatus() = %#v, %v", status, err)
 		}
-		created, err := manager.ForgeCreatePR(context.Background(), extensioncontract.ForgePRCreateRequest{
+		created, err := manager.ForgeCreatePR(t.Context(), extensioncontract.ForgePRCreateRequest{
 			RemoteURLs: remotes, Head: "feature/exit", Base: "main", Title: "Exit worktree",
 		})
 		if err != nil || created.Status != "created" || created.Number != 8 {
@@ -119,7 +119,7 @@ func TestManagerForgeProvider(t *testing.T) {
 		}
 		manager := NewManager(nil)
 		installForgeTestProvider(manager, "broken", process, time.Unix(1, 0))
-		_, err := manager.ForgeCapabilities(context.Background(), []string{"https://github.com/acme/repo"})
+		_, err := manager.ForgeCapabilities(t.Context(), []string{"https://github.com/acme/repo"})
 		if err == nil || !strings.Contains(err.Error(), "served forge capabilities are incomplete") {
 			t.Fatalf("ForgeCapabilities() error = %v, want incomplete served capabilities", err)
 		}
@@ -141,7 +141,7 @@ func TestManagerForgeProvider(t *testing.T) {
 		}
 		manager := NewManager(nil)
 		installForgeTestProvider(manager, "incomplete-pr", process, time.Unix(1, 0))
-		_, err := manager.ForgeCreatePR(context.Background(), extensioncontract.ForgePRCreateRequest{
+		_, err := manager.ForgeCreatePR(t.Context(), extensioncontract.ForgePRCreateRequest{
 			RemoteURLs: []string{"https://github.com/acme/repo"}, Head: "feature", Base: "main", Title: "Feature",
 		})
 		if err == nil || !strings.Contains(err.Error(), "returned an invalid pull request") {
@@ -192,7 +192,7 @@ func TestManagerForgeProvider(t *testing.T) {
 		}
 		manager := NewManager(nil)
 		installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
-		_, err := manager.ForgeStatus(context.Background(), extensioncontract.ForgeStatusRequest{
+		_, err := manager.ForgeStatus(t.Context(), extensioncontract.ForgeStatusRequest{
 			RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "feature/exit",
 		})
 		if !errors.Is(err, toolspkg.ErrToolUnavailable) {
@@ -217,7 +217,7 @@ func TestManagerForgeProvider(t *testing.T) {
 			}
 			manager := NewManager(nil)
 			installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
-			_, err := manager.ForgeStatus(context.Background(), extensioncontract.ForgeStatusRequest{
+			_, err := manager.ForgeStatus(t.Context(), extensioncontract.ForgeStatusRequest{
 				RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "feature/exit",
 			})
 			if err == nil || errors.Is(err, toolspkg.ErrToolUnavailable) || ForgeProviderErrorCause(err) != cause {

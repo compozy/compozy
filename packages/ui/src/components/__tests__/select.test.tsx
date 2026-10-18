@@ -63,19 +63,4 @@ describe("Select", () => {
       timeout: 1500,
     });
   });
-
-  it("Should apply data-size to the trigger", () => {
-    const { container } = render(
-      <Select>
-        <SelectTrigger size="sm">
-          <SelectValue placeholder="Pick" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="a">A</SelectItem>
-        </SelectContent>
-      </Select>
-    );
-    const trigger = container.querySelector("[data-slot=select-trigger]") as HTMLElement | null;
-    expect(trigger).toHaveAttribute("data-size", "sm");
-  });
 });

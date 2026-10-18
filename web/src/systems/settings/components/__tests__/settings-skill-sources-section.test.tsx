@@ -223,7 +223,7 @@ describe("SettingsSkillSourcesSection", () => {
 
     expect(
       screen.getByTestId("settings-page-skills-sources-key-sources-posture")
-    ).toHaveTextContent("custom for this workspace");
+    ).toHaveTextContent("custom for this project");
     expect(
       screen.getByTestId("settings-page-skills-sources-key-custom_sources-posture")
     ).toHaveTextContent("inherited");
@@ -258,7 +258,7 @@ describe("SettingsSkillSourcesSection", () => {
     );
 
     expect(screen.getByTestId("settings-page-skills-sources-read-only")).toHaveTextContent(
-      "workspace projection follows the active profile"
+      "uses the active profile's settings"
     );
     expect(screen.queryByTestId("settings-page-skills-sources-controls")).not.toBeInTheDocument();
   });

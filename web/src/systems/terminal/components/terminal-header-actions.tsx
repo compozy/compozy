@@ -18,9 +18,12 @@ import type { TerminalHeaderProps } from "./terminal-header";
  * At most two trailing actions, set off from the chips by a hairline.
  *
  * Stop and Wait stay available; closing belongs to the OS window chrome.
+ * `leadingRule` is set only when chips precede the actions in this row; the
+ * OS head draws its own rule between status and actions.
  */
 export function TerminalHeaderActions({
   isPipe,
+  leadingRule,
   recording,
   onStop,
   onSignal,
@@ -28,7 +31,9 @@ export function TerminalHeaderActions({
   onStopRecording,
 }: TerminalHeaderActionsProps) {
   if (isPipe) {
-    return <TerminalPipeHeaderActions onSignal={onSignal} onWait={onWait} />;
+    return (
+      <TerminalPipeHeaderActions leadingRule={leadingRule} onSignal={onSignal} onWait={onWait} />
+    );
   }
   // Stopping the recording is ghost text; danger stays on the rec dot.
   const quietAction =
@@ -52,11 +57,11 @@ export function TerminalHeaderActions({
               onClick={onStop}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             />
           }
         >
-          <CircleStop aria-hidden="true" className="size-3.5 text-danger" />
+          <CircleStop aria-hidden="true" className="size-3.5" />
         </TooltipTrigger>
         <TooltipContent side="bottom">Stop</TooltipContent>
       </Tooltip>
@@ -64,7 +69,7 @@ export function TerminalHeaderActions({
   if (!quietAction) return null;
   return (
     <>
-      <TerminalHeaderRule />
+      {leadingRule ? <TerminalHeaderRule /> : null}
       {quietAction}
     </>
   );
@@ -72,16 +77,18 @@ export function TerminalHeaderActions({
 
 /**
  * Window-level verbs: another terminal, and the journal. They belong to the
- * window rather than to the active terminal, so they trail everything else.
+ * window rather than to the active terminal, so they trail everything else,
+ * behind a rule only when something precedes them in the actions row.
  */
 export function TerminalWindowVerbs({
+  leadingRule,
   onNewTerminal,
   onViewJournal,
-}: Pick<TerminalHeaderProps, "onNewTerminal" | "onViewJournal">) {
+}: Pick<TerminalHeaderProps, "onNewTerminal" | "onViewJournal"> & { leadingRule: boolean }) {
   if (!onNewTerminal && !onViewJournal) return null;
   return (
     <>
-      <TerminalHeaderRule />
+      {leadingRule ? <TerminalHeaderRule /> : null}
       {onNewTerminal ? (
         <Tooltip>
           <TooltipTrigger
@@ -92,7 +99,7 @@ export function TerminalWindowVerbs({
                 onClick={onNewTerminal}
                 size="icon-sm"
                 type="button"
-                variant="ghost"
+                variant="quiet"
               />
             }
           >
@@ -111,7 +118,7 @@ export function TerminalWindowVerbs({
                 onClick={onViewJournal}
                 size="icon-sm"
                 type="button"
-                variant="ghost"
+                variant="quiet"
               />
             }
           >
@@ -126,9 +133,10 @@ export function TerminalWindowVerbs({
 
 /** Keeps pipe supervision actions available while window chrome owns close confirmation. */
 function TerminalPipeHeaderActions({
+  leadingRule,
   onSignal,
   onWait,
-}: Pick<TerminalHeaderActionsProps, "onSignal" | "onWait">) {
+}: Pick<TerminalHeaderActionsProps, "leadingRule" | "onSignal" | "onWait">) {
   const wait = onWait ? (
     <Button data-testid="terminal-wait" onClick={onWait} size="sm" type="button" variant="ghost">
       Wait
@@ -143,7 +151,7 @@ function TerminalPipeHeaderActions({
             data-testid="terminal-pipe-overflow"
             size="icon-sm"
             type="button"
-            variant="ghost"
+            variant="quiet"
           />
         }
       >
@@ -159,7 +167,7 @@ function TerminalPipeHeaderActions({
   if (!wait && !overflow) return null;
   return (
     <>
-      <TerminalHeaderRule />
+      {leadingRule ? <TerminalHeaderRule /> : null}
       {wait}
       {overflow}
     </>
@@ -173,4 +181,4 @@ function TerminalHeaderRule() {
 type TerminalHeaderActionsProps = Pick<
   TerminalHeaderProps,
   "recording" | "onStop" | "onSignal" | "onWait" | "onStopRecording"
-> & { isPipe: boolean };
+> & { isPipe: boolean; leadingRule: boolean };

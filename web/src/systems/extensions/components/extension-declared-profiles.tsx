@@ -1,4 +1,4 @@
-import { CircleDot, TriangleAlert } from "lucide-react";
+import { CircleDot } from "lucide-react";
 
 import {
   Accordion,
@@ -28,11 +28,16 @@ export function ExtensionDeclaredProfiles({ extension }: { extension: ExtensionE
             needsSetup={profile.needs_setup === true}
             size="sm"
           />
-          <span className="min-w-0 flex-1 truncate text-sm text-fg">{profile.name}</span>
-          {!profile.exists ? <Pill tone="info">Dormant</Pill> : null}
+          <span className="min-w-0 flex-1 truncate text-body text-fg">{profile.name}</span>
+          {!profile.exists ? (
+            <Pill form="plain" tone="info">
+              <Pill.Dot />
+              Dormant
+            </Pill>
+          ) : null}
           {profile.needs_setup ? (
-            <Pill tone="warning">
-              <TriangleAlert aria-hidden="true" className="size-3" />
+            <Pill form="plain" tone="warning">
+              <Pill.Dot />
               Needs setup
             </Pill>
           ) : null}
@@ -46,7 +51,7 @@ export function ExtensionDeclaredProfiles({ extension }: { extension: ExtensionE
           key={`${placement.kind}:${placement.resource}:${placement.profile}`}
         >
           <CircleDot aria-hidden="true" className="size-3.5 shrink-0 text-info" />
-          <span className="min-w-0 flex-1 text-sm text-muted">
+          <span className="min-w-0 flex-1 text-small-body text-muted">
             {placement.resource} · {placement.profile}
           </span>
           <Button
@@ -65,12 +70,14 @@ export function ExtensionDeclaredProfiles({ extension }: { extension: ExtensionE
       {placements.length > 0 ? (
         <Accordion className="px-4" defaultValue={[]}>
           <AccordionItem value="placements">
-            <AccordionTrigger className="text-xs text-muted">Placement matrix</AccordionTrigger>
+            <AccordionTrigger className="text-eyebrow text-muted">
+              Placement matrix
+            </AccordionTrigger>
             <AccordionContent>
               <dl className="divide-y divide-line-soft pb-2">
                 {placements.map(placement => (
                   <div
-                    className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-2 text-xs"
+                    className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-2 text-eyebrow"
                     key={`${placement.kind}:${placement.resource}:${placement.profile ?? "global"}`}
                   >
                     <dt className="min-w-0 truncate text-fg">

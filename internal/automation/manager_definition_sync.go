@@ -197,7 +197,6 @@ func (m *Manager) resolveConfigJob(ctx context.Context, raw compozyconfig.Automa
 		retry = DefaultRetryConfig()
 	}
 
-	schedule := raw.Schedule
 	job := Job{
 		ID:          configJobID(raw.Scope, workspaceID, raw.Name),
 		ProfileID:   storepkg.DefaultProfileID,
@@ -206,7 +205,7 @@ func (m *Manager) resolveConfigJob(ctx context.Context, raw compozyconfig.Automa
 		AgentName:   strings.TrimSpace(raw.AgentName),
 		WorkspaceID: workspaceID,
 		Prompt:      strings.TrimSpace(raw.Prompt),
-		Schedule:    &schedule,
+		Schedule:    new(raw.Schedule),
 		Task:        cloneJobTaskConfig(raw.Task),
 		TargetKind:  raw.TargetKind,
 		LoopTarget:  cloneLoopTarget(raw.LoopTarget),

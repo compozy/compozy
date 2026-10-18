@@ -172,7 +172,10 @@ export function useOsWindowDeck(frame: OsWindowFrameModel): OsWindowDeckModel {
         }
         return;
       }
-      const origin = windowManagerStore.getSnapshot().context.workArea?.origin ?? { x: 0, y: 0 };
+      // Tear-out lands in layer coordinates; until the layer is measured there
+      // is no truthful origin to subtract, so the drop is ignored.
+      const origin = windowManagerStore.getSnapshot().context.workArea?.origin;
+      if (origin === undefined) return;
       const rect: OsRect = {
         x: Math.round(point.clientX - origin.x - projectedFrame.rect.w / 4),
         y: Math.round(point.clientY - origin.y - 16),

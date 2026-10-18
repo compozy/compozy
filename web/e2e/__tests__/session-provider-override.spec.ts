@@ -6,7 +6,12 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import {
+  closeAppWindow,
+  openAppWindow,
+  sessionWindow,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import {
   cleanupBrowserSettingsFixtures,
   seedBrowserSettingsFixtures,
@@ -47,6 +52,7 @@ function browserLifecycleSessionPath(sessionId: string): string {
 
 interface SessionPayload {
   id: string;
+  profile_name: string;
   name: string;
   agent_name: string;
   runtime: {
@@ -215,13 +221,16 @@ test("operator can create a provider/model override session and attach without l
   const renameResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "PATCH" &&
-      response
-        .url()
-        .endsWith(sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id))
+      new URL(response.url()).pathname ===
+        sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id)
   );
   await appPage.getByTestId("session-rename-name").fill("Provider override review");
   await appPage.getByTestId("session-rename-confirm").click();
-  expect((await renameResponsePromise).ok()).toBe(true);
+  const renameResponse = await renameResponsePromise;
+  expect(new URL(renameResponse.url()).searchParams.get("profile")).toBe(
+    createdSession.session.profile_name
+  );
+  expect(renameResponse.ok()).toBe(true);
   await expect(sessionWin.locator('[data-slot="topbar-title"]')).toContainText(
     "Provider override review"
   );
@@ -283,8 +292,7 @@ test("operator can create a provider/model override session and attach without l
     overrideProvider
   );
   const focusedAgentsWin = await openAppWindow(appPage, "Agents", "agents");
-  await focusedAgentsWin.getByRole("button", { name: "Close window" }).click();
-  await expect(focusedAgentsWin).toBeHidden();
+  await closeAppWindow(appPage, focusedAgentsWin);
 
   await writeWorkspaceConfig({
     rootDir: workspaceRoot,
@@ -293,19 +301,6 @@ test("operator can create a provider/model override session and attach without l
     includeOverride: true,
   });
 
-  const attachResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      response
-        .url()
-        .endsWith(
-          sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id, "/attach")
-        )
-  );
-
-  await expect(sessionUi.resumeButton).toBeVisible();
-  await sessionUi.resumeButton.click();
-  expect((await attachResponsePromise).ok()).toBe(true);
   await expect(sessionUi.stopButton).toBeVisible();
   await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
   await assertSessionParity(
@@ -316,7 +311,7 @@ test("operator can create a provider/model override session and attach without l
   );
 
   await sessionUi.stopButton.click();
-  await expect(sessionUi.resumeButton).not.toBeVisible();
+  await expect(sessionUi.stopButton).not.toBeVisible();
 });
 
 test("operator persists an advertised model and non-empty reasoning effort on the created session", async ({
@@ -375,7 +370,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   await reasoningSlider.press("End");
   await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "High");
   await appPage.keyboard.press("Escape");
-  await expect(appPage.getByRole("dialog", { name: "Runtime selector" })).toBeHidden();
+  await expect(appPage.getByRole("dialog", { name: "Choose model" })).toBeHidden();
   await expect(runtimeTrigger).toContainText(catalogModelLabel);
   await expect(runtimeTrigger).toContainText("High");
   const promptRequestPromise = appPage.waitForRequest(

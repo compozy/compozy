@@ -2,6 +2,7 @@ import { useSecondClock } from "@/hooks/use-second-clock";
 import { lastSettledTurn } from "@/systems/session/lib/session-thread-status";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import { useSessionTranscriptThreadMessages } from "./use-session-transcript-thread-messages";
+import { useSubagentRoster } from "./use-subagent-roster";
 import { deriveWorkingStatus } from "../lib/session-working-status";
 import { deriveSessionActivityView, type SessionActivityView } from "../lib/session-activity-view";
 import { isAgentEventPayload } from "../lib/message-parts";
@@ -26,7 +27,16 @@ export function useSessionContextActivity(
   const messages = useSessionTranscriptThreadMessages();
   const nowMs = useSecondClock(running && live);
   const lastTurn = running ? null : lastSettledTurn(messages, session);
-  const status = deriveWorkingStatus({ session, running, thinking: false, lastTurn, nowMs });
+  // The same roster the status line counts from, so both read one agents-running number.
+  const roster = useSubagentRoster(session.workspace_id ?? "", session.id);
+  const status = deriveWorkingStatus({
+    session,
+    running,
+    thinking: false,
+    lastTurn,
+    nowMs,
+    subagents: roster.rows,
+  });
   // The compiler caches this pure calculation by message identity, outside the leaf clock.
   const summary = activityTranscriptSummary(messages);
   return deriveSessionActivityView({

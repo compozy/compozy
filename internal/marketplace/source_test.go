@@ -464,7 +464,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		if document.ManifestVersion != ManifestVersion || len(document.Entries) != 1 ||
-			document.Entries[0].EntryID != "bridge-github" {
+			document.Entries[0].EntryID != "github-tools" {
 			t.Fatalf("decoded catalog = %#v", document)
 		}
 	})
@@ -474,8 +474,8 @@ func TestDecodeDocumentValidation(t *testing.T) {
 
 		raw := strings.Replace(
 			validExtensionDocumentJSON(),
-			"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",
-			"http://127.0.0.1:2123/bridge-github-v1.0.0.tar.gz",
+			"https://downloads.example.test/github-tools-v1.0.0.tar.gz",
+			"http://127.0.0.1:2123/github-tools-v1.0.0.tar.gz",
 			1,
 		)
 		if _, err := DecodeDocument([]byte(raw)); err != nil {
@@ -633,7 +633,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name:    "duplicate extension install slugs",
 				raw:     duplicateExtensionInstallSlugsJSON(t),
-				wantErr: `install_slug "compozy/bridge-github" is duplicated`,
+				wantErr: `install_slug "compozy/github-tools" is duplicated`,
 			},
 		}
 		for _, tt := range tests {
@@ -868,7 +868,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Fetch(file) error = %v", err)
 		}
-		if got, want := document.Entries[0].EntryID, "bridge-github"; got != want {
+		if got, want := document.Entries[0].EntryID, "github-tools"; got != want {
 			t.Fatalf("Fetch(file) entry id = %q, want %q", got, want)
 		}
 	})
@@ -924,11 +924,11 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
-		document, err := source.Fetch(context.Background())
+		document, err := source.Fetch(t.Context())
 		if err != nil {
 			t.Fatalf("Fetch() error = %v", err)
 		}
-		if got, want := document.Entries[0].EntryID, "bridge-github"; got != want {
+		if got, want := document.Entries[0].EntryID, "github-tools"; got != want {
 			t.Fatalf("Fetch() entry id = %q, want %q", got, want)
 		}
 	})
@@ -992,7 +992,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
-		_, err = source.Fetch(context.Background())
+		_, err = source.Fetch(t.Context())
 		if !errors.Is(err, ErrResponseTooLarge) {
 			t.Fatalf("Fetch() error = %v, want ErrResponseTooLarge", err)
 		}
@@ -1021,9 +1021,9 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
-		_, err = source.Fetch(context.Background())
-		var statusErr *httpStatusError
-		if !errors.As(err, &statusErr) || !strings.Contains(err.Error(), "HTTP 503") {
+		_, err = source.Fetch(t.Context())
+		_, ok := errors.AsType[*httpStatusError](err)
+		if !ok || !strings.Contains(err.Error(), "HTTP 503") {
 			t.Fatalf("Fetch() error = %v, want HTTP 503 classification", err)
 		}
 	})
@@ -1065,7 +1065,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 
 		var nilSource *HTTPSource
 
-		_, err := nilSource.Fetch(context.Background())
+		_, err := nilSource.Fetch(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "HTTP source is required") {
 			t.Fatalf("nil Fetch() error = %v, want source validation", err)
 		}
@@ -1386,9 +1386,9 @@ func validExtensionDocumentJSON() string {
 
 func extensionDocumentJSON(formatField string) string {
 	return `{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-		`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
-		`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
-		`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
+		`"entry_id":"github-tools","name":"GitHub tools","description":"Connect GitHub events to Compozy",` +
+		`"version":"1.0.0","install_slug":"compozy/github-tools",` +
+		`"artifact_url":"https://downloads.example.test/github-tools-v1.0.0.tar.gz",` +
 		`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
 		`"tier":"official"` + formatField + `}]}`
 }

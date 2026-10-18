@@ -12,7 +12,7 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 - Terminal outcomes, failure handling, approvals, and succession semantics
 - Reference grammar, metric criteria, and runtime selection
 - Hooks, SSE, watch sources, and watch events
-- Agent-authored review/fix and channel-result harvesting
+- Agent-authored review and repair
 
 ## The Tool Set And CLI Verbs
 
@@ -234,7 +234,7 @@ Authenticated Web/HTTP/UDS/CLI session prompt ingress recognizes this closed gra
 | `/goal clear`                                 | Revoke live work when needed, then hide the newest projection without deleting its audit.     |
 | `/goal draft <text>`                          | Run one idle-only ordinary streaming turn that proposes objective/clauses without activation. |
 
-Internal, automation, network, extension, and synthetic prompts treat `/goal` text literally.
+Internal, automation, extension, and synthetic prompts treat `/goal` text literally.
 Draft never queues, steers, interrupts, or consumes a Goal turn; busy admission returns
 `goal_draft_requires_idle`. Lowercase line-oriented `verify:` and `constraints:` clauses become the
 synthetic agent-judge rubric. `verify:` text is never executed as a command.
@@ -243,7 +243,7 @@ Agents can control a Goal without composing prompt text. `compozy__goal_control`
 `operation` (`set`, `replace`, `status`, `pause`, `resume`, or `clear`), a required target
 `session_id`, and an optional `runtime` selection for `set` or `replace`. Its caller is the
 authenticated agent session: the target must be that session or a descendant in the same workspace.
-The daemon preserves the Goal's immutable creation identity and resolved network participation while
+The daemon preserves the Goal's immutable creation identity while
 applying the per-run worker runtime. `session goal set|replace|status|pause|resume|clear` and
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal` expose the same typed contract over
 CLI, HTTP, and UDS. Invalid runtime, stale replacement, and unauthorized lineage return stable
@@ -258,6 +258,16 @@ Goal context is `known`, `unknown`, or `pending`. `known` carries trustworthy re
 session-origin Goal requires explicit approval before recovery reseeds into a new bound session.
 The origin session remains the Goal owner; use the new `bound_session_id` for ordinary messages.
 Pause/Resume, approval, and reseed each allocate at most one successor control epoch.
+
+The Goal executor's context-compaction turn sends the agent's advertised `/compact` (or `/compress`)
+command on its managed path (experimental). The outcome follows the compaction's latest observed
+status in that turn, so a correction before the turn completes changes it: it succeeds on a terminal
+`completed` compaction and fails on a terminal `failed` or `cancelled` one (a later `failed` after
+`completed`, or the reverse, wins); when no compaction update is observed, the turn's stop reason decides
+as before, and an agent advertising neither command goes straight to the reseed path. After a terminal
+compaction the Goal's context stays `unknown` (in the live reader, the pinned reread, and the Goal
+snapshot) until a later usage update carries both `used` and a positive `size`; a used-only or
+counter-only update never restores it.
 
 The checkpoint-local approval scopes are narrow: turn exhaustion grants
 `turn-extension/turn-limit`; budget crossed after work grants `budget/settle-current` and cannot
@@ -279,6 +289,22 @@ evidence, usage, and end time remain nullable until durable evidence exists. Set
 bounded criterion diagnostics and aggregate warnings. Command criteria include outcome, exit code,
 standard output, standard error, blockers, and warnings when present; continuation prompts and the
 Web timeline use that durable evidence.
+
+### Queued inputs and Goal continuation
+
+At an idle turn boundary, CompozyOS drains a finite batch of eligible queued operator prompts,
+agent messages, and synthetic wakes (including session replies) before dispatching a prepared Goal
+prompt, even when that Goal prompt was prepared earlier. The first public-input claim freezes the
+batch's admission boundary durably. Inputs admitted later wait until after that Goal prompt; they
+cannot keep extending the batch. Interrupt replacements retain precedence. Within the batch,
+existing priority and FIFO ordering remain in force; unresolved steers retain their eligibility
+rules. Queue reads and positions show public inputs and exclude internal Goal prompts.
+
+Queued inputs run as their own turns and do not increment the Goal's work-turn count. Its binding,
+control epochs, turn limit, and existing budget guards remain intact. The saved batch boundary
+survives restart. Queue mode never preempts the currently running turn: a long turn can delay
+`after_turn` delivery until it ends. Use fenced steering or interrupt when guidance must arrive
+during that turn.
 
 ### Session stop, removal, and recovery
 
@@ -377,8 +403,14 @@ run or addressed node. A missing managed session is already stopped. Failed stop
 and retry after transient failures or daemon restart; origin-borrowed sessions are excluded. A
 canceled run cannot resume; use rerun to start a new generation.
 
+Automatic retirement of an owned session records `stop_reason: owner_released`, without an
+operator-cancellation marker or cancellation failure. This does not assert that the task or Loop
+succeeded: read their independent outcomes. Explicit Run/node cancel or stop still records the
+operator's request; actual provider failures remain visible.
+
 The Loop silence window raises attention and never auto-kills or auto-pauses. Separately, configured
-session supervision can stop a session after all work evidence expires and `stop_grace` elapses.
+session supervision can stop a session whose in-flight turn stays silent after all work evidence
+expires and `stop_grace` elapses; a session with no turn in flight is never stopped for inactivity.
 A verified supervised stop recovers its authoritative task work within `max_attempts`; an owned
 `run-agent` cell advances to the linked task attempt and next epoch. Explicit cancellation,
 paused/quarantined cells, and borrowed Goal bindings are not automatically requeued.
@@ -415,6 +447,10 @@ ordered gate IDs in `previous.route_causes`. `revise` is targeted repair; `next_
 fresh pass. Bounds still apply. For evidence-sensitive work, put the acceptance rule in a typed gate
 and route a weak verdict through `revise`, `next_generation`, or `halt`; do not hide the transition
 inside prompt prose.
+
+In-body routes also apply when the gate runs before the first action. Repeated in-body
+blocking issues reaching `no_progress_window` end the run `stalled` before a `revise` or
+`next_generation` successor, even when the iteration cap has room for another generation.
 
 `halt` is terminal automatic policy, not a ban on operator recovery. An explicit rerun remains
 available after the failure.
@@ -510,8 +546,9 @@ A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while on
 A `run-agent` result is validated against its pinned `output_schema` before the owning daemon
 settles the task and again before node success is published. A mismatch fails with
 `invalid_output`; content-addressed storage preserves the exact structured value. The bound agent
-session may call `compozy__task_run_heartbeat`, but only the owning daemon may call the terminal
-complete or fail operations for that task.
+session may call `compozy__task_run_heartbeat`, but only the owning daemon may call
+complete, fail, release, or block-and-release operations for that task. A worker must return its
+result to the owning Loop executor instead of releasing that executor's claim.
 Loop action results up to 16 KiB stay inline; larger accepted values publish `result_ref` and
 `result_bytes`. Use `compozy__task_run_result` to page the exact bytes. The configured
 `tools.default_max_result_bytes` is the outer action bound, a literal tool action's smaller
@@ -522,6 +559,12 @@ Each managed `run-agent` cell owns a system session. A session-started Loop reco
 origin session as informational parent lineage without borrowing it. Terminal cell settlement
 closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active
 until the cell reaches a terminal boundary.
+`allowed_tools` restricts that worker to a subset of the resolved Agent's tools; a request
+outside the Agent's allowance fails binding before the provider starts. The restriction is
+part of the pinned creation profile: equivalent lists reuse the session, while a different
+explicit restriction fails with a binding mismatch.
+Inspect the failed node's `allowed_tools_policy_violation` cause to find the rejected tool;
+remove it from the node list or select an Agent that permits it before retrying.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout
@@ -760,9 +803,7 @@ are subscribable — sync-eligible `pre_*` hooks are rejected. Supported familie
 (`task_events`); `task.run.completed`, `task.run.failed` (`task_events`); `loop.terminal`,
 `loop.node.terminal` (`loop_run_events`); `automation.run.completed`, `automation.run.failed`
 (`automation_watch_events`, whose terminal snapshots outlive `automation_runs` deletion);
-`network.message.persisted`, `network.thread.opened`,
-`network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`,
-`network.work.closed` (`network_timeline_log`); `coordinator.spawned`, `coordinator.decision`,
+`coordinator.spawned`, `coordinator.decision`,
 `coordinator.stopped`, `coordinator.failed` (`event_summaries`); `event.post_record`
 (`session_events:<session_id>`). `event.post_record` must constrain `event.session_id` with equality
 or lint returns `watch_events_filter_too_broad`; its output excludes record content and exposes only
@@ -775,12 +816,46 @@ parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is 
 detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity) only while the Loop is dormant
 on events.
 
-## Harvesting A Channel Decision
+### Reusing A Recovered Review Child
 
-To let agents converse and act on the result, post with a `compozy__network_send` action carrying a
-`harvest: { kind: channel_result, window, responder?, content_rule? }`. The retired `channel-post`
-kind does not exist. After the send, the node waits `window` for the designated result — a `say`
-with `intent: result` or a `trace` with `state: completed` — and exposes it as
-`nodes.<id>.output.*`. Silence past `window` ends the run `stalled`. `content_rule` narrows the
-match: `any`, `json`, `non_empty`, `contains:<needle>`, or `json_path:<a.b.c>`. This capability is a
-documented example, not a packaged default Loop.
+A recovered awaited child can release its failed parent node only with the same workspace,
+parent, node receipt, child identity, inputs and reviewed worktree candidate. Mutable task names
+or directory paths alone do not prove that the review still applies.
+
+Before the original review starts, read a scoped `compozy worktree exit <ref> --include <file>
+-o json` plan, review those files, and pass its immutable proof as the reserved optional child
+input `reviewed_worktree`:
+
+```yaml
+inputs:
+  reviewed_worktree:
+    type: string
+    required: false
+# On the parent run-loop node:
+params:
+  loop: review-and-fix
+  mode: await
+  inputs:
+    task_name: "{{ .inputs.task_name }}"
+    reviewed_worktree: "{{ .inputs.reviewed_worktree }}"
+```
+
+The JSON string contains exactly `{worktree_id, include_paths, fingerprint}`: use the canonical
+worktree ID and the scoped plan's complete include set and SHA-256 fingerprint. The child declares
+that string input; bundled `review-and-fix` accepts it. CompozyOS persists the original proof in
+child inputs and independently checks the registered worktree's repository, branch, HEAD, selected
+file contents and selected index state before adoption. Changed or absent proof, unavailable
+verification, rerunning producers, or a different child boundary require normal review execution.
+Do not calculate a new fingerprint during recovery and present it as the original review proof.
+Existing runs without the field keep their normal rerun behavior.
+
+The serialized proof is limited to 1 MiB, with 1–4096 file paths (at most 4096 bytes each),
+a canonical worktree ID and a 64-character hexadecimal fingerprint. Unknown fields and traversal
+paths are invalid. CLI `--input key=value` parses JSON values: encode the proof as a JSON string,
+including its outer quotes and escaped inner quotes, rather than passing an object value.
+HTTP/UDS `inputs.reviewed_worktree` likewise contains the serialized string. A direct template
+reference forwards that exact original value to the child.
+
+### Verification session audit
+
+Agent judges run as daemon-owned `system` sessions. Verdict-only judges are excluded from default session lists and operator attention; expand a Goal and choose **Verification sessions** for attributed transcript links, or use `compozy session list --all --type system --parent <bound-session-id> -o json`. New judges carry informational parent lineage to the bound Goal session (ordinary gates use the Loop origin); this grants no spawn governance. Older parentless judges remain available with `--type system` alone. Per-turn verdicts remain in Run history. Completed idle judges close with verified process exit without false cancellation escalation; genuine stop failures remain recorded.

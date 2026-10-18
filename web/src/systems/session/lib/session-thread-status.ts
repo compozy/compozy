@@ -9,7 +9,7 @@ import type {
   SessionStopAttribution,
 } from "@/systems/session/lib/session-working-status";
 import type { SessionPayload } from "@/systems/session/types";
-import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
+import { isAgentEventPayload, messageHasCompactionPart } from "@/systems/session/lib/message-parts";
 import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
 import { providerErrorView } from "@/systems/session/lib/provider-error";
 
@@ -40,10 +40,17 @@ const INTERRUPT_STOP_REASONS = new Set([
 ]);
 const STEER_FALLBACK_MARKER = "transcript_marker.prompt_steered";
 
+// A compaction message (the item the agent's own compaction projects) is carried
+// as an assistant message but belongs to no turn: it is never the reply, never the
+// end of the last turn, and never splits a turn in two, so the scans step over it.
+function isCompactionMessage(message: ThreadStatusMessage | undefined): boolean {
+  return message !== undefined && messageHasCompactionPart(message.content);
+}
+
 function lastAssistant(messages: readonly ThreadStatusMessage[]): ThreadStatusMessage | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message?.role === "assistant") return message;
+    if (message?.role === "assistant" && !isCompactionMessage(message)) return message;
     if (message?.role === "user") return null;
   }
   return null;
@@ -173,14 +180,22 @@ function sessionStopAttribution(
   recordedCause: string | undefined
 ): SessionStopAttribution | null {
   const stoppedState = facts.state === "stopped" || facts.state === "stopping";
-  // The transcript's own `session.supervision_stopped` names the cause; the
-  // resource may lag behind it or omit it. An active session never reads a stop.
-  if (recordedCause === "inactivity" && (stoppedState || facts.state === undefined)) {
+  // The transcript can name the stop before the resource catches up. An active
+  // session never reads a previous session stop as the end of its current work.
+  if (!stoppedState && facts.state !== undefined) return null;
+  if (recordedCause === "inactivity") {
     return { kind: "inactivity", noWorkMs };
   }
-  if (!stoppedState) return null;
   const cause = facts.stop_cause?.trim() ?? "";
   const reason = facts.stop_reason?.trim() ?? "";
+  if (
+    recordedCause === "owner_released" ||
+    cause === "owner_released" ||
+    reason === "owner_released"
+  ) {
+    return { kind: "other", detail: "no longer needed" };
+  }
+  if (!stoppedState) return null;
   if (cause === "inactivity") return { kind: "inactivity", noWorkMs };
   if (facts.escalated === true && facts.verified === true) return { kind: "escalated" };
   if (cause === "user_requested" || reason === "user_canceled") return { kind: "user" };
@@ -206,12 +221,15 @@ function sessionStopAttribution(
 // operator's prompt: the authored segments plus a trailing terminal-only group,
 // which records how that turn ended. The prompt's own instant bounds the span.
 function lastTurnParts(messages: readonly ThreadStatusMessage[]) {
-  const last = messages.at(-1);
+  let lastIndex = messages.length - 1;
+  while (lastIndex >= 0 && isCompactionMessage(messages[lastIndex])) lastIndex -= 1;
+  const last = messages[lastIndex];
   if (!last || last.role !== "assistant") return null;
   const segments: { turnId: string; parts: SessionTimelinePart[] }[] = [];
   let sentAtMs: number | null = null;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
+  for (let index = lastIndex; index >= 0; index -= 1) {
     const message = messages[index];
+    if (isCompactionMessage(message)) continue;
     if (!message || message.role !== "assistant") {
       if (message?.role === "user") sentAtMs = userSentAtMs(message);
       break;
@@ -276,6 +294,9 @@ export function lastSettledTurn(
     const stopReason = stringField(data, "stop_reason")?.toLowerCase();
     if (stopReason && INTERRUPT_STOP_REASONS.has(stopReason)) stopped = true;
     const type = stringField(data, "type");
+    if (stopReason === "owner_released" && (type === SESSION_STOPPED_EVENT || type === "error")) {
+      recordedCause = stopReason;
+    }
     if (type === SUPERVISION_WARNING_EVENT) {
       latestQuietSinceMs = quietSinceMs(data) ?? latestQuietSinceMs;
     }
@@ -317,13 +338,13 @@ export function lastSettledTurn(
   // A call still awaiting its result is live work — unless the daemon already
   // recorded the turn's end (its receipt, an interrupting stop): then the call
   // was cut short and the turn is settled.
-  if (awaitingResult && turnReceipt === null && !stopped) return null;
+  const sessionStop = sessionStopAttribution(facts, noWorkMs, recordedCause);
+  if (awaitingResult && turnReceipt === null && !stopped && sessionStop === null) return null;
   if (startedAtMs === null) {
     const created = instantMs(message.createdAt);
     startedAtMs = created;
     endedAtMs = endedAtMs ?? created;
   }
-  const sessionStop = sessionStopAttribution(facts, noWorkMs, recordedCause);
   if (failedByEvidence) {
     return { startedAtMs, endedAtMs, cause: "failed", failureCause };
   }

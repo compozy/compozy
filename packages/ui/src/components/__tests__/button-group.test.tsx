@@ -31,16 +31,6 @@ describe("ButtonGroup", () => {
     expect(separator?.getAttribute("data-orientation")).toBe("vertical");
   });
 
-  it("Should expose orientation via data attribute", () => {
-    const { container } = render(
-      <ButtonGroup orientation="vertical">
-        <Button>Stack</Button>
-      </ButtonGroup>
-    );
-    const group = container.querySelector('[data-slot="button-group"]');
-    expect(group?.getAttribute("data-orientation")).toBe("vertical");
-  });
-
   it("Should render ButtonGroupText alongside buttons", () => {
     const { getByText } = render(
       <ButtonGroup>

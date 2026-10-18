@@ -1,3 +1,9 @@
+import { HttpResponse } from "msw";
+import { expect, userEvent, within } from "storybook/test";
+import { storybookMswParameters } from "@/storybook/msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+import { primarySessionFixture } from "../../../mocks/fixtures";
+
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
@@ -92,5 +98,42 @@ export const WithDraftAction: Story = {
     snapshot: snapshot(),
     composerAffordance: { kind: "draft", expandedObjective: "Ship the calm transcript" },
     onPrefillComposer: () => {},
+  },
+};
+
+export const VerificationAudit: Story = {
+  args: { snapshot: snapshot({ status: "complete", run_status: "done", live: false }) },
+  parameters: storybookMswParameters({
+    session: [
+      compozyApiMock.get("/api/sessions", ({ request }) => {
+        const query = new URL(request.url).searchParams;
+        const sessions =
+          query.get("type") === "system" && query.get("parent") === "session_1"
+            ? [
+                {
+                  ...primarySessionFixture,
+                  id: "sess-judge",
+                  name: "loop gate general objective_satisfied",
+                  type: "system" as const,
+                  state: "stopped" as const,
+                  badge: "stopped" as const,
+                  stop_reason: "completed" as const,
+                },
+              ]
+            : [];
+        return HttpResponse.json({
+          sessions,
+          page: { total: sessions.length, limit: 50, has_more: false },
+        });
+      }),
+    ],
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("goal-strip-line"));
+    await userEvent.click(canvas.getByRole("button", { name: "Verification sessions" }));
+    await expect(
+      canvas.findByRole("link", { name: /loop gate general objective_satisfied/ })
+    ).resolves.toBeVisible();
   },
 };

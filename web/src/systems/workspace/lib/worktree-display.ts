@@ -30,6 +30,29 @@ export interface WorktreeNestEntry {
   discovered: DiscoveredWorktreePayload | null;
 }
 
+/** Signal facts a worktree row shows; a record-less (discovered) row reads as clean and idle. */
+export interface WorktreeSignalFacts {
+  dirty: boolean | null;
+  ahead: number | null;
+  behind: number | null;
+  agentActivity: string;
+  origin: string;
+  setupState: string;
+  setupError?: string;
+}
+
+export function worktreeSignalFacts(worktree: WorktreePayload | null): WorktreeSignalFacts {
+  return {
+    dirty: worktree?.dirty ?? null,
+    ahead: worktree?.ahead ?? null,
+    behind: worktree?.behind ?? null,
+    agentActivity: worktree?.agent_activity ?? "idle",
+    origin: worktree?.origin ?? "",
+    setupState: worktree?.setup_state ?? "none",
+    setupError: worktree?.setup_error,
+  };
+}
+
 /** Removal is available only for an adopted worktree whose checkout is ready. */
 export function canRemoveWorktree(entry: WorktreeNestEntry): boolean {
   return entry.worktree !== null && entry.displayState === "ready";

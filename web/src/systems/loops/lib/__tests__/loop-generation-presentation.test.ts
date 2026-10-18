@@ -51,8 +51,8 @@ function node(overrides: Partial<LoopRosterNode> = {}): LoopRosterNode {
 
 describe("loopGenerationOriginLabel", () => {
   it("Should name where a round came from in words", () => {
-    expect(loopGenerationOriginLabel("initial", 0)).toBe("Initial generation");
-    expect(loopGenerationOriginLabel("ratchet_restore", 2)).toBe("Restored from gen 2");
+    expect(loopGenerationOriginLabel("initial", 0)).toBe("First round");
+    expect(loopGenerationOriginLabel("ratchet_restore", 2)).toBe("Restored from round 2");
   });
 });
 
@@ -63,7 +63,7 @@ describe("formatLoopScore and loopRunBestLabel", () => {
   });
 
   it("Should read the daemon's best generation without recomputing one", () => {
-    expect(loopRunBestLabel({ best_generation: 2, best_score: 0.95 })).toBe("Gen 2 · 0.95");
+    expect(loopRunBestLabel({ best_generation: 2, best_score: 0.95 })).toBe("Round 2 · 0.95");
     expect(loopRunBestLabel({ best_generation: null, best_score: null })).toBeNull();
   });
 });

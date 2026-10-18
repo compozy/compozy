@@ -1,14 +1,16 @@
 // The one status line under the transcript (S3 / ADR-006 rule 3 / US-027):
 // "Thinking…" until the first content, then "Working for {elapsed} · {activity}"
 // from the daemon's durable turn start, still "working" while spawned agents run,
+// "· quiet for {d}" when the daemon's hung-turn watchdog saw no work for a while,
 // and after the turn a frozen sentence — "Stopped by you after {d}", "Failed
 // after {d} · {cause}" — or nothing when it completed (the fold carries "Worked
 // for"). Every duration derives from daemon timestamps, never a browser
 // stopwatch, so a remount or reconnect recomputes instead of resetting.
 
+import { isSubagentLive } from "../components/subagents/subagent-format";
+import type { SubagentView } from "../components/subagents/types";
 import type { SessionPayload } from "../types";
-import { formatQuietDurationWords } from "./session-quiet-warning";
-import { liveToolLabel } from "./session-tool-visual-state";
+import { formatQuietDuration, formatQuietDurationWords } from "./session-quiet-warning";
 
 /** Live "Working for Xs" ladder: seconds under a minute, then `Xm Ys`, then `Xh Ym`. */
 export function formatWorkingElapsed(startedAtMs: number, nowMs: number): string {
@@ -87,6 +89,8 @@ export interface SessionWorkingStatusInput {
   /** The most recent settled turn; `null` when none or unknown. */
   lastTurn: SessionLastTurn | null;
   nowMs: number;
+  /** The parent's subagent roster (both origins); live rows count as running agents (S7). */
+  subagents?: readonly SubagentView[];
 }
 
 export type SessionWorkingStatus =
@@ -101,6 +105,13 @@ export type SessionWorkingStatus =
       activity: string | null;
       /** Live children of this turn; rendered as "N agents running". */
       agentCount: number;
+      /**
+       * Start of the daemon's quiet episode for this turn
+       * (`supervision.quiet_warning.quiet_since`); `null` while the agent works.
+       */
+      quietSinceMs: number | null;
+      /** "12m" since `quietSinceMs` at `nowMs`; rendered as "quiet for 12m". */
+      quietFor: string | null;
     }
   | {
       kind: "stopped";
@@ -117,19 +128,38 @@ function parseInstant(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function signalCount(session: SessionWorkingStatusInput["session"], kind: string): number {
-  return session.supervision?.work_signals.filter(signal => signal.kind === kind).length ?? 0;
+/**
+ * "N agents running" (S7, UT-W10): live roster rows of either origin ∪ the
+ * daemon's other `active_child` signals, one per child. A delegated row is its
+ * child session; a provider-native row has none and counts by its row id. A
+ * subagent child stays an idle session after it settles, so its lingering
+ * `active_child` signal is not a running agent once its row is terminal (D-05).
+ */
+export function runningAgentCount(
+  session: SessionWorkingStatusInput["session"],
+  subagents: readonly SubagentView[] = []
+): number {
+  const children = new Set<string>();
+  const settledChildren = new Set<string>();
+  for (const subagent of subagents) {
+    if (isSubagentLive(subagent.status)) children.add(subagent.child_session_id ?? subagent.id);
+    else if (subagent.child_session_id) settledChildren.add(subagent.child_session_id);
+  }
+  let unnamed = 0;
+  for (const signal of session.supervision?.work_signals ?? []) {
+    if (signal.kind !== "active_child") continue;
+    const ref = signal.ref?.trim();
+    if (!ref) unnamed += 1;
+    else if (!settledChildren.has(ref)) children.add(ref);
+  }
+  return children.size + unnamed;
 }
 
-// The activity segment, in precedence: a decision waiting on the operator is
-// activity too; then the honest parallel count; then the single tool's verb.
+// The activity segment only speaks for a decision waiting on the operator. The
+// running tool (or the parallel count) is owned by the live row in the
+// transcript, one line above; repeating it here said the same fact twice.
 function currentActivity(session: SessionWorkingStatusInput["session"]): string | null {
-  if (session.pending_interactions.length > 0) return "Waiting for your decision";
-  const runningTools = signalCount(session, "tool_running");
-  if (runningTools > 1) return `Running ${runningTools} tools`;
-  const tool = session.activity?.current_tool?.trim();
-  if (!tool) return null;
-  return liveToolLabel(tool).text;
+  return session.pending_interactions.length > 0 ? "Waiting for your decision" : null;
 }
 
 export function agentCountLabel(count: number): string {
@@ -137,16 +167,21 @@ export function agentCountLabel(count: number): string {
 }
 
 export function deriveWorkingStatus(input: SessionWorkingStatusInput): SessionWorkingStatus {
-  const { session, running, thinking, lastTurn, nowMs } = input;
+  const { session, running, thinking, lastTurn, nowMs, subagents } = input;
   if (running) {
-    if (thinking) return { kind: "thinking" };
+    // A reported quiet episode outranks "Thinking": a turn hung before its first
+    // token must still say how long it has been quiet.
+    const quietSinceMs = parseInstant(session.supervision?.quiet_warning?.quiet_since);
+    if (thinking && quietSinceMs === null) return { kind: "thinking" };
     const startedAtMs = parseInstant(session.activity?.turn_started_at);
     return {
       kind: "working",
       startedAtMs,
       elapsed: startedAtMs === null ? null : formatWorkingElapsed(startedAtMs, nowMs),
       activity: currentActivity(session),
-      agentCount: signalCount(session, "active_child"),
+      agentCount: runningAgentCount(session, subagents),
+      quietSinceMs,
+      quietFor: quietSinceMs === null ? null : formatQuietDuration(nowMs - quietSinceMs),
     };
   }
   if (!lastTurn || lastTurn.startedAtMs === null || lastTurn.endedAtMs === null) {
@@ -156,14 +191,16 @@ export function deriveWorkingStatus(input: SessionWorkingStatusInput): SessionWo
   switch (lastTurn.cause) {
     case "stopped": {
       const stop = lastTurn.stop ?? { kind: "user" as const };
-      return {
-        kind: "stopped",
-        duration,
-        byYou: stop.kind === "user",
-        detail: stopAttributionDetail(stop),
-      };
+      const byYou = stop.kind === "user";
+      const detail = stopAttributionDetail(stop);
+      // The turn's fold already reads "You stopped after …"; the row only
+      // speaks when it adds who stopped it or why.
+      if (byYou && detail === null) return { kind: "hidden" };
+      return { kind: "stopped", duration, byYou, detail };
     }
     case "failed":
+      // Same for a failure: the fold says "Failed after …"; the row adds the cause.
+      if (lastTurn.failureCause === null) return { kind: "hidden" };
       return { kind: "failed", duration, cause: lastTurn.failureCause };
     default:
       // A completed or steer-replaced turn reads nothing here: the frozen

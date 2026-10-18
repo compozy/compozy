@@ -23,7 +23,7 @@ type QuarantineEntry struct {
 	Target    string                 `json:"target,omitempty"`
 	Episodes  []QuarantineEpisode    `json:"episodes"`
 	Requeues  []QuarantineProvenance `json:"requeues,omitempty"`
-	Truncated bool                   `json:"truncated,omitempty"`
+	Truncated bool                   `json:"truncated,omitzero"`
 }
 
 // QuarantineEpisode captures the classified attempt chain that caused one quarantine.

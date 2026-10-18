@@ -208,7 +208,7 @@ func TestValidateAutomationAgentTargets(t *testing.T) {
 func TestManagerMaterializesAutomationResources(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should materialize namespaced package automation resources", func(t *testing.T) {
+	t.Run("Should materialize kept package resources while skipping retired triggers [IT-007]", func(t *testing.T) {
 		t.Parallel()
 
 		rootDir := t.TempDir()
@@ -225,9 +225,19 @@ interval = "1h"
 
 [[triggers]]
 name = "on-task"
+event = "memory.consolidated"
+
+[[triggers]]
+name = "on-task"
 agent = "writer"
 prompt = "Handle it."
-event = "ext.task.completed"
+event = "session.stopped"
+
+[[triggers]]
+name = "retired-unshipped"
+agent = "unshipped"
+prompt = "Retired resource."
+event = "memory.consolidated"
 `)
 		managed := &managedExtension{
 			info:    ExtensionInfo{Name: "kit"},
@@ -254,6 +264,7 @@ event = "ext.task.completed"
 		}
 		if len(triggers) != 1 || triggers[0].Name != "kit/on-task" ||
 			triggers[0].ID != "extension/kit/automation.trigger/on-task" || !triggers[0].Enabled ||
+			triggers[0].Event != "session.stopped" || triggers[0].AgentName != "writer" ||
 			triggers[0].Scope != automationpkg.AutomationScopeGlobal ||
 			triggers[0].Source != automationpkg.JobSourcePackage {
 			t.Fatalf("materialized triggers = %#v, want enabled namespaced package trigger", triggers)

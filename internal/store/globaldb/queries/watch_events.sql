@@ -51,8 +51,3 @@ WHERE lr.status = sqlc.arg(status)
   )
 ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC
 LIMIT sqlc.arg(row_limit);
-
--- name: GetNetworkWatchEventsCursor :one
-SELECT COALESCE(MAX(sequence), 0)
-FROM network_timeline_log
-WHERE workspace_id = sqlc.arg(workspace_id);

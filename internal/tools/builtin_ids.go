@@ -28,42 +28,6 @@ const (
 	ToolIDSkillView ToolID = "compozy__skill_view"
 	// ToolIDCommandList lists the unified command catalog for one session.
 	ToolIDCommandList ToolID = "compozy__command_list"
-	// ToolIDNetworkPeers lists visible network peers.
-	ToolIDNetworkPeers ToolID = "compozy__network_peers"
-	// ToolIDNetworkStatus reads daemon-owned network runtime status.
-	ToolIDNetworkStatus ToolID = "compozy__network_status"
-	// ToolIDNetworkUsage reads bounded workspace-scoped network wake usage.
-	ToolIDNetworkUsage ToolID = "compozy__network_usage"
-	// ToolIDNetworkChannels lists active Compozy network channels.
-	ToolIDNetworkChannels ToolID = "compozy__network_channels"
-	// ToolIDNetworkInbox reads queued inbound network messages for one local session.
-	ToolIDNetworkInbox ToolID = "compozy__network_inbox"
-	// ToolIDNetworkSend sends one network message through the existing network manager.
-	ToolIDNetworkSend ToolID = "compozy__network_send"
-	// ToolIDNetworkChannelCreate registers one Compozy network channel with a stated purpose.
-	ToolIDNetworkChannelCreate ToolID = "compozy__network_channel_create"
-	// ToolIDNetworkChannelUpdate updates one Compozy network channel delivery policy.
-	ToolIDNetworkChannelUpdate ToolID = "compozy__network_channel_update"
-	// ToolIDNetworkSubscriptions lists Compozy network delivery preferences.
-	ToolIDNetworkSubscriptions ToolID = "compozy__network_subscriptions"
-	// ToolIDNetworkSubscribe sets one Compozy network delivery preference to full delivery.
-	ToolIDNetworkSubscribe ToolID = "compozy__network_subscribe"
-	// ToolIDNetworkMute mutes one Compozy network delivery preference.
-	ToolIDNetworkMute ToolID = "compozy__network_mute"
-	// ToolIDNetworkUnmute removes one Compozy network delivery preference.
-	ToolIDNetworkUnmute ToolID = "compozy__network_unmute"
-	// ToolIDNetworkThreads lists public network thread summaries.
-	ToolIDNetworkThreads ToolID = "compozy__network_threads"
-	// ToolIDNetworkThreadMessages reads messages in one public network thread.
-	ToolIDNetworkThreadMessages ToolID = "compozy__network_thread_messages"
-	// ToolIDNetworkDirects lists direct-room summaries.
-	ToolIDNetworkDirects ToolID = "compozy__network_directs"
-	// ToolIDNetworkDirectResolve creates or returns one deterministic direct room.
-	ToolIDNetworkDirectResolve ToolID = "compozy__network_direct_resolve"
-	// ToolIDNetworkDirectMessages reads messages in one direct room.
-	ToolIDNetworkDirectMessages ToolID = "compozy__network_direct_messages"
-	// ToolIDNetworkWork reads one network work lifecycle row.
-	ToolIDNetworkWork ToolID = "compozy__network_work"
 	// ToolIDSessionList lists runtime sessions.
 	ToolIDSessionList ToolID = "compozy__session_list"
 	// ToolIDSessionArchive archives one stopped runtime session.
@@ -72,12 +36,30 @@ const (
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
 	// ToolIDSessionRename changes one user session's durable display name.
 	ToolIDSessionRename ToolID = "compozy__session_rename"
+	// ToolIDSessionFolderList lists one workspace's session folders.
+	ToolIDSessionFolderList ToolID = "compozy__session_folder_list"
+	// ToolIDSessionFolderCreate creates one session folder.
+	ToolIDSessionFolderCreate ToolID = "compozy__session_folder_create"
+	// ToolIDSessionFolderRename renames one session folder.
+	ToolIDSessionFolderRename ToolID = "compozy__session_folder_rename"
+	// ToolIDSessionFolderDelete deletes one session folder without deleting its sessions.
+	ToolIDSessionFolderDelete ToolID = "compozy__session_folder_delete"
+	// ToolIDSessionFolderReorder sets the complete session folder order.
+	ToolIDSessionFolderReorder ToolID = "compozy__session_folder_reorder"
+	// ToolIDSessionMove moves one session into a folder or back to the workspace root.
+	ToolIDSessionMove ToolID = "compozy__session_move"
+	// ToolIDSessionReorder sets the manual session order in a folder or the workspace root.
+	ToolIDSessionReorder ToolID = "compozy__session_reorder"
 	// ToolIDSessionCreate accepts one unbound logical user session.
 	ToolIDSessionCreate ToolID = "compozy__session_create"
 	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.
 	ToolIDSessionPrompt ToolID = "compozy__session_prompt"
 	// ToolIDSessionRewind archives a conversation suffix and restarts the session context.
 	ToolIDSessionRewind ToolID = "compozy__session_rewind"
+	// ToolIDSessionContinue continues a user session with another agent, runtime, or route.
+	ToolIDSessionContinue ToolID = "compozy__session_continue"
+	// ToolIDSessionFork forks a user session with the same agent, whole or through one message.
+	ToolIDSessionFork ToolID = "compozy__session_fork"
 	// ToolIDSessionRuntimeSet selects the default runtime for future prompts.
 	ToolIDSessionRuntimeSet ToolID = "compozy__session_runtime_set"
 	// ToolIDSessionRuntimeClear clears the default runtime for future prompts.
@@ -113,6 +95,8 @@ const (
 	ToolIDSessionApprove ToolID = "compozy__session_approve"
 	// ToolIDSessionClarifyAnswer resolves one pending clarification request.
 	ToolIDSessionClarifyAnswer ToolID = "compozy__session_clarify_answer"
+	// ToolIDSessionCompact requests native agent compaction.
+	ToolIDSessionCompact ToolID = "compozy__session_compact"
 	// ToolIDSessionPromptCancel cancels one in-flight session prompt.
 	ToolIDSessionPromptCancel ToolID = "compozy__session_prompt_cancel"
 	// ToolIDNotify sends one bounded operator notification from the bound session.
@@ -155,76 +139,6 @@ const (
 	ToolIDProviderModelsCurate ToolID = "compozy__provider_models_curate"
 	// ToolIDVaultList lists global redacted Vault secret metadata.
 	ToolIDVaultList ToolID = "compozy__vault_list"
-	// ToolIDMemoryList lists memory headers visible for a scope.
-	ToolIDMemoryList ToolID = "compozy__memory_list"
-	// ToolIDMemoryShow reads one memory document through the current memory store.
-	ToolIDMemoryShow ToolID = "compozy__memory_show"
-	// ToolIDMemorySearch recalls memory documents through the active memory provider.
-	ToolIDMemorySearch ToolID = "compozy__memory_search"
-	// ToolIDMemoryPropose submits a controller-backed memory proposal.
-	ToolIDMemoryPropose ToolID = "compozy__memory_propose"
-	// ToolIDMemoryNote records a controller-backed ad-hoc memory note.
-	ToolIDMemoryNote ToolID = "compozy__memory_note"
-	// ToolIDMemoryHealth reads Memory v2 health and derived catalog state.
-	ToolIDMemoryHealth ToolID = "compozy__memory_health"
-	// ToolIDMemoryScopeShow reports effective Memory v2 scope resolution.
-	ToolIDMemoryScopeShow ToolID = "compozy__memory_scope_show"
-	// ToolIDMemoryAdminHistory lists Memory v2 operation history without reusing the removed legacy ID.
-	ToolIDMemoryAdminHistory ToolID = "compozy__memory_admin_history"
-	// ToolIDMemoryReindex rebuilds Memory v2 derived indexes.
-	ToolIDMemoryReindex ToolID = "compozy__memory_reindex"
-	// ToolIDMemoryPromote promotes one Memory v2 entry across scopes.
-	ToolIDMemoryPromote ToolID = "compozy__memory_promote"
-	// ToolIDMemoryReset resets derived Memory v2 state.
-	ToolIDMemoryReset ToolID = "compozy__memory_reset"
-	// ToolIDMemoryReload invalidates future Memory v2 snapshots.
-	ToolIDMemoryReload ToolID = "compozy__memory_reload"
-	// ToolIDMemoryDecisionsList lists Memory v2 controller decisions.
-	ToolIDMemoryDecisionsList ToolID = "compozy__memory_decisions_list"
-	// ToolIDMemoryDecisionsShow reads one Memory v2 controller decision.
-	ToolIDMemoryDecisionsShow ToolID = "compozy__memory_decisions_show"
-	// ToolIDMemoryDecisionsRevert reverts one applied Memory v2 controller decision.
-	ToolIDMemoryDecisionsRevert ToolID = "compozy__memory_decisions_revert"
-	// ToolIDMemoryRecallTrace reads one materialized Memory v2 recall trace.
-	ToolIDMemoryRecallTrace ToolID = "compozy__memory_recall_trace"
-	// ToolIDMemoryDreamStatus reads live Memory v2 dreaming status.
-	ToolIDMemoryDreamStatus ToolID = "compozy__memory_dream_status"
-	// ToolIDMemoryDreamList lists Memory v2 dreaming run records.
-	ToolIDMemoryDreamList ToolID = "compozy__memory_dream_list"
-	// ToolIDMemoryDreamShow reads one Memory v2 dreaming run record.
-	ToolIDMemoryDreamShow ToolID = "compozy__memory_dream_show"
-	// ToolIDMemoryDreamTrigger triggers Memory v2 dream consolidation.
-	ToolIDMemoryDreamTrigger ToolID = "compozy__memory_dream_trigger"
-	// ToolIDMemoryDreamRetry retries Memory v2 dream consolidation.
-	ToolIDMemoryDreamRetry ToolID = "compozy__memory_dream_retry"
-	// ToolIDMemoryDailyList lists Memory v2 daily operation logs.
-	ToolIDMemoryDailyList ToolID = "compozy__memory_daily_list"
-	// ToolIDMemoryExtractorStatus reads Memory v2 extractor queue status.
-	ToolIDMemoryExtractorStatus ToolID = "compozy__memory_extractor_status"
-	// ToolIDMemoryExtractorFailures lists Memory v2 extractor failures.
-	ToolIDMemoryExtractorFailures ToolID = "compozy__memory_extractor_failures"
-	// ToolIDMemoryExtractorRetry retries Memory v2 extractor failures.
-	ToolIDMemoryExtractorRetry ToolID = "compozy__memory_extractor_retry"
-	// ToolIDMemoryExtractorDrain drains the Memory v2 extractor queue.
-	ToolIDMemoryExtractorDrain ToolID = "compozy__memory_extractor_drain"
-	// ToolIDMemoryProviderList lists Memory v2 providers.
-	ToolIDMemoryProviderList ToolID = "compozy__memory_provider_list"
-	// ToolIDMemoryProviderGet reads one Memory v2 provider.
-	ToolIDMemoryProviderGet ToolID = "compozy__memory_provider_get"
-	// ToolIDMemoryProviderSelect selects the active Memory v2 provider.
-	ToolIDMemoryProviderSelect ToolID = "compozy__memory_provider_select"
-	// ToolIDMemoryProviderEnable enables one Memory v2 provider.
-	ToolIDMemoryProviderEnable ToolID = "compozy__memory_provider_enable"
-	// ToolIDMemoryProviderDisable disables one Memory v2 provider.
-	ToolIDMemoryProviderDisable ToolID = "compozy__memory_provider_disable"
-	// ToolIDMemorySessionLedger reads one materialized Memory v2 session ledger.
-	ToolIDMemorySessionLedger ToolID = "compozy__memory_session_ledger"
-	// ToolIDMemorySessionReplay replays one materialized Memory v2 session ledger.
-	ToolIDMemorySessionReplay ToolID = "compozy__memory_session_replay"
-	// ToolIDMemorySessionsPrune prunes Memory v2 session ledgers.
-	ToolIDMemorySessionsPrune ToolID = "compozy__memory_sessions_prune"
-	// ToolIDMemorySessionsRepair repairs Memory v2 session ledgers.
-	ToolIDMemorySessionsRepair ToolID = "compozy__memory_sessions_repair"
 	// ToolIDListLogs reads redacted runtime logs.
 	ToolIDListLogs ToolID = "compozy__logs"
 	// ToolIDToolArtifactRead pages one retained oversized tool result.
@@ -233,10 +147,6 @@ const (
 	ToolIDObserveMetrics ToolID = "compozy__observe_metrics"
 	// ToolIDObserveSearch searches redacted observability events.
 	ToolIDObserveSearch ToolID = "compozy__observe_search"
-	// ToolIDBridgesList lists bridge instances without secret bindings.
-	ToolIDBridgesList ToolID = "compozy__bridges_list"
-	// ToolIDBridgesStatus reads bridge status and health without credentials.
-	ToolIDBridgesStatus ToolID = "compozy__bridges_status"
 	// ToolIDGateway inspects gateway posture and performs permission-gated management actions.
 	ToolIDGateway ToolID = "compozy__gateway"
 	// ToolIDTaskList lists task summaries through the task service.
@@ -277,16 +187,6 @@ const (
 	ToolIDTaskWorktreePolicySet ToolID = "compozy__task_worktree_policy_set"
 	// ToolIDTaskExecutionProfileDelete removes one task execution profile.
 	ToolIDTaskExecutionProfileDelete ToolID = "compozy__task_execution_profile_delete"
-	// ToolIDTaskNotificationSubscribe creates one bridge notification subscription for a task.
-	ToolIDTaskNotificationSubscribe ToolID = "compozy__task_notification_subscribe"
-	// ToolIDTaskNotificationList lists bridge notification subscriptions for a task.
-	ToolIDTaskNotificationList ToolID = "compozy__task_notification_list"
-	// ToolIDTaskNotificationShow reads one bridge notification subscription for a task.
-	ToolIDTaskNotificationShow ToolID = "compozy__task_notification_show"
-	// ToolIDTaskNotificationDelete deletes one bridge notification subscription for a task.
-	ToolIDTaskNotificationDelete ToolID = "compozy__task_notification_delete"
-	// ToolIDTaskPromoteFromThread promotes one network thread message into a durable task.
-	ToolIDTaskPromoteFromThread ToolID = "compozy__task_promote_from_thread"
 	// ToolIDTaskFanOutRuns creates designated sibling task runs.
 	ToolIDTaskFanOutRuns ToolID = "compozy__task_fanout_runs"
 	// ToolIDTaskRunClaimNext claims the next run for the caller session.
@@ -410,8 +310,6 @@ const (
 	ToolsetIDToolApprovals ToolsetID = "compozy__tool_approvals"
 	// ToolsetIDClarify exposes the session-scoped human clarification tool.
 	ToolsetIDClarify ToolsetID = "compozy__clarify"
-	// ToolsetIDCoordination groups network coordination tools.
-	ToolsetIDCoordination ToolsetID = "compozy__coordination"
 	// ToolsetIDTasks groups bounded task tools.
 	ToolsetIDTasks ToolsetID = "compozy__tasks"
 	// ToolsetIDAutonomy groups session-bound task-run autonomy tools.
@@ -426,14 +324,8 @@ const (
 	ToolsetIDWorktrees ToolsetID = "compozy__worktree"
 	// ToolsetIDProviderModels groups provider model catalog tools.
 	ToolsetIDProviderModels ToolsetID = "compozy__provider_models"
-	// ToolsetIDMemory groups Memory v2 read and proposal tools.
-	ToolsetIDMemory ToolsetID = "compozy__memory"
-	// ToolsetIDMemoryAdmin groups Memory v2 operational tools.
-	ToolsetIDMemoryAdmin ToolsetID = "compozy__memory_admin"
 	// ToolsetIDObserve groups read-only observability tools.
 	ToolsetIDObserve ToolsetID = "compozy__observe"
-	// ToolsetIDBridges groups read-only bridge inspection tools.
-	ToolsetIDBridges ToolsetID = "compozy__bridges"
 	// ToolsetIDGateway groups gateway inspection and permission-gated management.
 	ToolsetIDGateway ToolsetID = "compozy__gateway"
 	// ToolsetIDConfig groups validated config tools.

@@ -106,7 +106,7 @@ export const PartialFailureExpanded: Story = {
   },
 };
 
-/** VC-05 (closed, default) — "Worked for 4m 12s · Ran 6 commands, edited 2 files, read 1 file" over the answer; the zero-tool turn below has no fold row. */
+/** VC-05 (closed, default) — "Worked for 4m 12s · Ran 6 commands · Edited 2 files · Read 1 file" over the answer; the zero-tool turn below has no fold row. */
 export const SettledFoldCollapsed: Story = {};
 
 /** VC-05 (open) — the same fold opened: the settled ToolCallRows directly under the line (no second disclosure), the answer still below. */

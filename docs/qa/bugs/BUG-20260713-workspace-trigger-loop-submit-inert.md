@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
 - **Journey Step:** J-24 create a workspace-scoped Loop-target Trigger
-- **Scenarios:** TA-automation-crud-loop-target; LP-035
+- **Scenarios:** TA-automation-crud-loop-target; LP-035; ET-web-jobs-triggers-catalog
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
 
 ## Summary
@@ -48,3 +48,42 @@ Webhook correctly forces Global scope and explains that constraint. Switching ba
 ## Verification
 
 - 2026-07-13 same-persona UI retest passed create and fresh detail read-back with a workspace-scoped, filtered, enabled Loop target and typed static input. Integrated matching-event dispatch plus edit/disable/safe-delete remain in the parent automation scenario, not this defect's acceptance boundary.
+
+## Regressed (2026-10-03): submission error is hidden by the preview
+
+Bruno again sees an enabled Create trigger action leave the modal open without an actionable
+error. This recurrence affects the live-preview branch; the earlier workspace binding is still
+correct. Reuse this issue's submission-error visibility contract rather than minting another
+silent-submit issue.
+
+On build 4c447e45e, CH-trigger-detail-rule-page enters Triggers from the Dock, creates an incoming
+webhook targeting editorial-webhook-handoff, supplies the endpoint slug and a write-only secret,
+and enters incoming-publication as Webhook id. The preview preserves the correct project target
+and redacts the secret. Two independent fresh documents reproduce the silent result; the second
+waits 20.12 seconds and confirms the pointer hit the enabled button. CLI lists zero saved matches.
+
+After both persona sessions ended, engineering returned to the form and found the authoritative
+validation error: webhook_id must start with wbh_. The daemon correctly refuses the invalid
+identifier. AutomationTriggerForm renders submitError only inside its form view, so preview
+submissions hide the durable error. Empty browser event buffers are not evidence of no request.
+
+The bounded repair keeps the existing validation and displays its submit error beside the
+persistent actions in both views. No wire, data, authorization or submission behavior changes.
+Regression invariant: a failed submission remains actionable while either form or preview is
+selected. Owning layer: Web trigger editor presentation. Canonical suite:
+web/src/systems/automation/components/__tests__/automation-trigger-form.test.tsx.
+
+Evidence under docs/qa/evidence/2026-10-02-untested/: trigger-rule-bruno-ended.json,
+trigger-rule-retry-bruno-ended.json, trigger-rule-bruno-webhook-readback.json, trigger-rule-retry-bruno-readback.json,
+trigger-rule-retry-bruno-submit.json, trigger-rule-engineering-hidden-error.json, and
+trigger-rule-webhook-after-submit.png / trigger-rule-retry-after-submit.png.
+The fresh repaired-build replay exposes the rejected id beside the preview actions, preserves
+the refusal with zero saved definitions, and supports correction through a successful save.
+The 320x800 error/actions remain reachable; signed delivery starts the intended Loop.
+Evidence: trigger-preview-error-bruno-{invalid-submit,invalid-readback,recovery,saved-readback,ended}.json,
+trigger-preview-error-{visible,compact}.png and trigger-rule-bruno-webhook-delivery.json.
+The canonical form test fails before the display repair and passes afterward; the final adjacent
+form/detail/editor cohort passes 66 tests. Required delivery evidence is recorded in the report.
+
+- **Regression fix commit:** 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
+- **Retested:** 2026-10-03, Bruno, CH-trigger-detail-rule-page.

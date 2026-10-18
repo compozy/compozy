@@ -6,14 +6,14 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: Allow-always and reject-always decisions survive daemon restart only for the exact workspace, agent, tool, and input digest; explicit agent-wide and tool-wide decisions set through Web, CLI, HTTP, UDS, and native tools survive restart without an input digest; every surface lists the same rows; revocation removes each decision everywhere and wider allows never exceed the configured tool-policy ceiling.
 entry_points: Native-tool permission prompt; Web Settings / General; compozy tool approvals set/list/revoke; PUT/GET/DELETE /api/tool-approval-grants; compozy__tool_approvals_set/list/revoke
-qa_status: blocked-verify
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: ET-037;ET-038
+last_report: docs/qa/reports/2026-10-02-untested.md
+overlaps: ET-037; ET-038
 ---
 
 Trigger native-tool approvals for allow and reject decisions from two agents and with distinct
@@ -23,7 +23,7 @@ decision through each management surface, restart, and verify the wider keys con
 digest. Confirm another workspace sees no rows. Compare Web, CLI, HTTP, UDS, and native-tool list
 output, revoke each row through a different management surface, then confirm the next matching
 invocation prompts again. Under every tool mode, verify wider allows remain below the policy ceiling
-and that one-shot approval tokens, ACP subprocess permissions, and sandbox policy remain unchanged.
+and that one-shot approval tokens, and ACP subprocess permissions remain unchanged.
 
 QA impact 2026-07-15: new durable workspace-scoped native-tool approval decisions, management
 surfaces, and Web revoke flow. Planning flag only; no QA session ran in this implementation slice.
@@ -52,3 +52,15 @@ remains `blocked-verify` for its wider cross-surface and restart matrix, which t
 walk did not claim to cover.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-001-durable-approval-grants-for-native-tools
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+QA impact 2026-09-28: the Web rows read plain words (session normie pass). Tool ids render humanized
+(`compozy__task_list` → "task list", raw id on hover); the decision pill reads "Allowed"/"Blocked";
+scope reads "Only this exact request", "Every request from this agent", or "Every request, any agent";
+the set action and dialog read "Add rule" / "Add a rule". The approval dock asks "Allow {agent} to …?"
+with "Don't allow" / "Never allow". Contracts, test ids, and persisted data are unchanged.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

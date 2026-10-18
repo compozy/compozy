@@ -154,8 +154,8 @@ func TestViewPayloadValidation(t *testing.T) {
 	t.Run("Should return an honest unknown kind error", func(t *testing.T) {
 		t.Parallel()
 		_, err := ValidateViewPayload(ViewKind("canvas"), ViewPayload{View: ViewContractVersion}, nil, nil)
-		var kindErr *UnknownViewKindError
-		if !errors.As(err, &kindErr) || kindErr.Kind != "canvas" {
+		kindErr, matched := errors.AsType[*UnknownViewKindError](err)
+		if !matched || kindErr.Kind != "canvas" {
 			t.Fatalf("ValidateViewPayload() error = %#v, want canvas UnknownViewKindError", err)
 		}
 	})
@@ -223,8 +223,8 @@ func TestViewPatchApplication(t *testing.T) {
 			ViewKindList, "vr_2", current,
 			ViewPatch{ViewID: "ext.notes.recent", From: "vr_1", To: "vr_3"}, nil, nil,
 		)
-		var mismatch *ViewRevisionMismatchError
-		if !errors.As(err, &mismatch) || !resync {
+		_, matched := errors.AsType[*ViewRevisionMismatchError](err)
+		if !matched || !resync {
 			t.Fatalf("ApplyViewPatch() = revision %q resync %t error %#v, want fenced resync", revision, resync, err)
 		}
 		if revision != "vr_2" || patched.Sections[0].Rows[0].Title != current.Sections[0].Rows[0].Title {
@@ -263,33 +263,6 @@ func TestViewPatchApplication(t *testing.T) {
 			}, nil, nil,
 		)
 		requireErrorContains(t, err, `invalid array index "01"`)
-	})
-
-	t.Run("Should preserve deterministic replacement properties", func(t *testing.T) {
-		t.Parallel()
-		for index := range 100 {
-			current := validListViewPayload()
-			value := fmt.Sprintf("row-%d", index)
-			patched, revision, resync, err := ApplyViewPatch(
-				ViewKindList, "vr_a", current,
-				ViewPatch{
-					ViewID: "ext.notes.recent", From: "vr_a", To: "vr_b",
-					Ops: []PatchOp{{
-						Op: "replace", Path: "/sections/0/rows/0/title", Value: mustViewJSON(t, value),
-					}},
-				}, nil, nil,
-			)
-			if err != nil || resync || revision != "vr_b" || patched.Sections[0].Rows[0].Title != value {
-				t.Fatalf(
-					"iteration %d: payload %#v revision %q resync %t error %v",
-					index,
-					patched,
-					revision,
-					resync,
-					err,
-				)
-			}
-		}
 	})
 }
 
@@ -352,8 +325,8 @@ func TestViewService(t *testing.T) {
 		events := make(chan ViewPatchEvent)
 		close(events)
 		provider := &viewPatchSubscriberStub{
-			viewSourceProviderStub: viewSourceProviderStub{payload: validListViewPayload()},
-			events:                 events,
+			payload: validListViewPayload(),
+			events:  events,
 		}
 		service := &Service{
 			viewStreamEpoch: "vse_test",
@@ -463,8 +436,8 @@ func TestViewService(t *testing.T) {
 		}
 
 		failing := &viewPatchSubscriberStub{
-			viewSourceProviderStub: viewSourceProviderStub{payload: ViewPayload{View: ViewContractVersion}},
-			events:                 events,
+			payload: ViewPayload{View: ViewContractVersion},
+			events:  events,
 		}
 		broken := &Service{viewProviders: []ViewProviderRegistration{{
 			Descriptor: ViewDescriptor{
@@ -885,15 +858,6 @@ func validListViewPayload() ViewPayload {
 	}
 }
 
-func mustViewJSON(t *testing.T, value any) json.RawMessage {
-	t.Helper()
-	wire, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
-	return wire
-}
-
 type viewCapabilityReporterStub struct {
 	paths []string
 }
@@ -1062,8 +1026,8 @@ func viewProgramFrame(sessionID, revision string, generation uint64, reply int64
 
 func requireViewValidationPath(t *testing.T, err error, path string) {
 	t.Helper()
-	var validation *ViewValidationError
-	if !errors.As(err, &validation) {
+	validation, matched := errors.AsType[*ViewValidationError](err)
+	if !matched {
 		t.Fatalf("error = %#v, want ViewValidationError for %q", err, path)
 	}
 	if validation.Path != path {

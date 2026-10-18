@@ -250,7 +250,7 @@ describe("command palette view bodies", () => {
     expect(content.empty).toBeNull();
     withUI(<PaletteGridView loading grid={{ sections: [] }} onAction={vi.fn()} />);
     expect(screen.queryByText("No items yet")).toBeNull();
-    expect(screen.getByText("updating")).toBeVisible();
+    expect(screen.getByText("Updating…")).toBeVisible();
   });
 });
 

@@ -17,10 +17,6 @@ import type {
   AgentSoulPutParams,
   AgentSoulRollbackParams,
   AgentSoulValidateParams,
-  BridgeInstance,
-  BridgeInstanceTargetParams,
-  BridgesInstancesReportStateParams,
-  BridgesMessagesIngestResult,
   HeartbeatHistoryResponse,
   HeartbeatMutationResponse,
   HeartbeatPolicyPayload,
@@ -28,7 +24,6 @@ import type {
   HeartbeatWakeResponse,
   HostAPIMethod,
   HostAPIMethodMap,
-  InboundMessageEnvelope,
   ListLogsParams,
   ObserveHealth,
   ResourceGetParams,
@@ -47,31 +42,6 @@ import type {
   SessionSummary,
   SkillSummary,
   SkillsListParams,
-  MemoryRecallEntry,
-  MemoryStoreParams,
-  MemoryRecallParams,
-  MemoryForgetParams,
-  NetworkChannelPayload,
-  NetworkChannelsParams,
-  NetworkDirectRoomMessagesResponse,
-  NetworkDirectMessagesParams,
-  NetworkDirectResolveParams,
-  NetworkDirectRoomPayload,
-  NetworkDirectRoomsResponse,
-  NetworkDirectsParams,
-  NetworkPeerPayload,
-  NetworkPeersParams,
-  NetworkSendParams,
-  NetworkSendPayload,
-  NetworkStatusPayload,
-  NetworkThreadMessagesParams,
-  NetworkThreadMessagesResponse,
-  NetworkThreadSummaryPayload,
-  NetworkThreadTargetParams,
-  NetworkThreadsParams,
-  NetworkThreadsResponse,
-  NetworkWorkGetParams,
-  NetworkWorkPayload,
   SessionsCreateParams,
   SessionsListParams,
   SessionsPromptParams,
@@ -139,12 +109,6 @@ export class HostAPI {
     wake: (params: AgentHeartbeatWakeParams) => Promise<HeartbeatWakeResponse>;
   };
 
-  public readonly memory: {
-    recall: (params: MemoryRecallParams) => Promise<MemoryRecallEntry[]>;
-    store: (params: MemoryStoreParams) => Promise<Record<string, never>>;
-    forget: (params: MemoryForgetParams) => Promise<Record<string, never>>;
-  };
-
   public readonly observe: {
     health: () => Promise<ObserveHealth>;
   };
@@ -155,33 +119,6 @@ export class HostAPI {
 
   public readonly skills: {
     list: (params?: SkillsListParams) => Promise<SkillSummary[]>;
-  };
-
-  public readonly bridges: {
-    list: () => Promise<BridgeInstance[]>;
-    ingest: (params: InboundMessageEnvelope) => Promise<BridgesMessagesIngestResult>;
-    get: (params: BridgeInstanceTargetParams) => Promise<BridgeInstance>;
-    reportState: (params: BridgesInstancesReportStateParams) => Promise<BridgeInstance>;
-  };
-
-  public readonly network: {
-    status: () => Promise<NetworkStatusPayload>;
-    channels: (params: NetworkChannelsParams) => Promise<NetworkChannelPayload[]>;
-    peers: (params: NetworkPeersParams) => Promise<NetworkPeerPayload[]>;
-    threads: (params: NetworkThreadsParams) => Promise<NetworkThreadsResponse>;
-    thread: {
-      get: (params: NetworkThreadTargetParams) => Promise<NetworkThreadSummaryPayload>;
-      messages: (params: NetworkThreadMessagesParams) => Promise<NetworkThreadMessagesResponse>;
-    };
-    directs: (params: NetworkDirectsParams) => Promise<NetworkDirectRoomsResponse>;
-    direct: {
-      resolve: (params: NetworkDirectResolveParams) => Promise<NetworkDirectRoomPayload>;
-      messages: (params: NetworkDirectMessagesParams) => Promise<NetworkDirectRoomMessagesResponse>;
-    };
-    work: {
-      get: (params: NetworkWorkGetParams) => Promise<NetworkWorkPayload>;
-    };
-    send: (params: NetworkSendParams) => Promise<NetworkSendPayload>;
   };
 
   public readonly resources: {
@@ -230,12 +167,6 @@ export class HostAPI {
       wake: async params => await this.request("agents/heartbeat/wake", params),
     };
 
-    this.memory = {
-      recall: async params => await this.request("memory/recall", params),
-      store: async params => await this.request("memory/store", params),
-      forget: async params => await this.request("memory/forget", params),
-    };
-
     this.observe = {
       health: async () => await this.request("observe/health", undefined),
     };
@@ -246,33 +177,6 @@ export class HostAPI {
 
     this.skills = {
       list: async params => await this.request("skills/list", params),
-    };
-
-    this.bridges = {
-      list: async () => await this.request("bridges/instances/list", undefined),
-      ingest: async params => await this.request("bridges/messages/ingest", params),
-      get: async params => await this.request("bridges/instances/get", params),
-      reportState: async params => await this.request("bridges/instances/report_state", params),
-    };
-
-    this.network = {
-      status: async () => await this.request("network/status", undefined),
-      channels: async params => await this.request("network/channels", params),
-      peers: async params => await this.request("network/peers", params),
-      threads: async params => await this.request("network/threads", params),
-      thread: {
-        get: async params => await this.request("network/thread/get", params),
-        messages: async params => await this.request("network/thread/messages", params),
-      },
-      directs: async params => await this.request("network/directs", params),
-      direct: {
-        resolve: async params => await this.request("network/direct/resolve", params),
-        messages: async params => await this.request("network/direct/messages", params),
-      },
-      work: {
-        get: async params => await this.request("network/work/get", params),
-      },
-      send: async params => await this.request("network/send", params),
     };
 
     this.resources = {

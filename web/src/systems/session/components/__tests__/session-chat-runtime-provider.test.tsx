@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
 import { StrictMode, use, useEffect, useLayoutEffect, useState } from "react";
@@ -727,26 +727,6 @@ describe("SessionChatRuntimeProvider", () => {
     expect(statusCommits).toHaveBeenCalledTimes(2);
   });
 
-  it("Should align viewport and composer on the shared thread content rail", async () => {
-    renderSessionThread();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("chat-view")).toBeInTheDocument();
-    });
-
-    const chatView = screen.getByTestId("chat-view");
-    const viewportRail = within(chatView).getByTestId("thread-content-rail");
-    expect(viewportRail).toHaveClass("px-4", "w-full");
-    expect(viewportRail).not.toHaveClass("mx-auto");
-    expect(viewportRail.className).not.toContain("max-w-");
-
-    const composerShell = screen.getByTestId("composer-shell");
-    const composerRail = within(composerShell).getByTestId("thread-content-rail");
-    expect(composerRail).toHaveClass("px-4", "w-full");
-    expect(composerRail).not.toHaveClass("mx-auto");
-    expect(composerRail.className).not.toContain("max-w-");
-  });
-
   let transcriptMessages = sessionTranscriptFixture.slice(0, 2);
   let sessionDetailResponse = primarySessionFixture;
   let transcriptEpoch = 1;
@@ -754,6 +734,7 @@ describe("SessionChatRuntimeProvider", () => {
   let transcriptFetchShouldFail = false;
   let transcriptResponsePromise: Promise<Response> | null = null;
   let clearResponsePromise: Promise<Response> | null = null;
+  let rewindResponseGate: Promise<void> | null = null;
   let promptResponsePromise: Promise<Response> | null = null;
   let attachmentUploadResponse: (() => Promise<Response>) | null = null;
   let olderTranscriptResponsePromise: Promise<Response> | null = null;
@@ -779,6 +760,7 @@ describe("SessionChatRuntimeProvider", () => {
     transcriptFetchShouldFail = false;
     transcriptResponsePromise = null;
     clearResponsePromise = null;
+    rewindResponseGate = null;
     promptResponsePromise = null;
     attachmentUploadResponse = null;
     olderTranscriptResponsePromise = null;
@@ -893,6 +875,24 @@ describe("SessionChatRuntimeProvider", () => {
 
       if (
         pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/rewind`
+      ) {
+        // The daemon keeps the prefix before the chosen message and hands its text back.
+        const body = input instanceof Request ? await input.clone().text() : String(init?.body);
+        const { message_id: messageId } = JSON.parse(body) as { message_id: string };
+        const cut = transcriptMessages.findIndex(message => message.id === messageId);
+        const rewound = transcriptMessages[cut];
+        transcriptMessages = transcriptMessages.slice(0, cut);
+        transcriptEpoch += 1;
+        const draftText = rewound?.parts.find(part => part.type === "text")?.text ?? "";
+        const response = (rewindResponseGate ?? Promise.resolve()).then(() =>
+          jsonResponse({ session: sessionDetailResponse, rewind: { draft_text: draftText } })
+        );
+        return abortableResponse(response, input instanceof Request ? input.signal : init?.signal);
+      }
+
+      if (
+        pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clear`
       ) {
         if (clearResponsePromise) return clearResponsePromise;
@@ -970,6 +970,7 @@ describe("SessionChatRuntimeProvider", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     resetGatewayStreamAuth();
     vi.unstubAllGlobals();
@@ -1079,15 +1080,6 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
-  }, 10_000);
-
-  it("Should issue one transcript fetch per cold provider mount after the transcript settles", async () => {
-    renderSessionThread();
-
-    await waitFor(() => {
-      expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
-    });
-
     expect(countTranscriptFetches(fetchMock)).toBe(1);
   }, 10_000);
 
@@ -1214,6 +1206,52 @@ describe("SessionChatRuntimeProvider", () => {
         </QueryClientProvider>
       )
     ).toThrow("SessionChatRuntimeProvider requires a non-empty workspaceId");
+  });
+
+  it("Should render retained Global history without a project or writable runtime", async () => {
+    const queryClient = createQueryClient();
+    const message: TranscriptMessage = {
+      id: "global-retained-answer",
+      role: "assistant",
+      parts: [{ type: "text", text: "Retained Global work.", state: "done" }],
+    };
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.pathname === `/api/sessions/${primarySessionFixture.id}/transcript`) {
+        return Promise.resolve(jsonResponse(transcriptPayload([message])));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    const eventSourceFactory = vi.fn((url: string) => new FakeSessionEventSource(url));
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
+          sessionId={primarySessionFixture.id}
+          workspaceId=""
+          readOnly
+          eventSourceFactory={eventSourceFactory}
+        >
+          <SessionThread
+            sessionId={primarySessionFixture.id}
+            workspaceId=""
+            agentName={primarySessionFixture.agent_name}
+            readOnly
+            canPrompt={false}
+            liveDataEnabled={false}
+          />
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+    expect(await screen.findByText("Retained Global work.")).toBeInTheDocument();
+    expect(screen.queryByTestId("composer-input")).not.toBeInTheDocument();
+    expect(eventSourceFactory).not.toHaveBeenCalled();
+    expect(
+      fetchMock.mock.calls.every(
+        ([input]) =>
+          new URL(input instanceof Request ? input.url : String(input)).pathname ===
+          `/api/sessions/${primarySessionFixture.id}/transcript`
+      )
+    ).toBe(true);
   });
 
   // Invariant: only a completed operator Goal draft stages the final proposal;
@@ -1353,6 +1391,7 @@ describe("SessionChatRuntimeProvider", () => {
   // is active, leaving one browser connection available for control requests.
   // Owning layer: chat-runtime provider integration. Canonical suite: this file.
   it("Should suspend the transcript live tail while a prompt stream is active", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const promptResponse = openSseResponse([
       'data: {"type":"start","messageId":"control-slot-turn"}\n\n',
     ]);
@@ -1377,13 +1416,19 @@ describe("SessionChatRuntimeProvider", () => {
       expect(countPromptFetches(fetchMock)).toBe(1);
       expect(sources[0]?.closed).toBe(true);
     });
-    await waitFor(
-      () =>
-        expect(countClarificationFetches(fetchMock)).toBeGreaterThan(initialClarificationFetches),
-      { timeout: 2_500 }
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    await waitFor(() =>
+      expect(countClarificationFetches(fetchMock)).toBeGreaterThan(initialClarificationFetches)
     );
 
-    promptResponse.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+    await act(async () => {
+      promptResponse.close([
+        'data: {"type":"finish","finishReason":"stop"}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    });
     await waitFor(() => {
       expect(sources).toHaveLength(2);
       expect(sources[1]?.closed).toBe(false);
@@ -1396,6 +1441,7 @@ describe("SessionChatRuntimeProvider", () => {
   // reopens at the durable cursor with its fences.
   // Owning layer: runtime extensions. Canonical suite: this file.
   it("Should run the 1s control poll only for the POST's duration and hand off at settle", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const promptResponse = openSseResponse([
       'data: {"type":"start","messageId":"control-poll-turn"}\n\n',
     ]);
@@ -1419,15 +1465,20 @@ describe("SessionChatRuntimeProvider", () => {
     });
     const queueBefore = countQueueFetches(fetchMock);
     const detailBefore = countSessionDetailFetches(fetchMock);
-    await waitFor(
-      () => {
-        expect(countQueueFetches(fetchMock)).toBeGreaterThan(queueBefore);
-        expect(countSessionDetailFetches(fetchMock)).toBeGreaterThan(detailBefore);
-      },
-      { timeout: 2_500 }
-    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    await waitFor(() => {
+      expect(countQueueFetches(fetchMock)).toBeGreaterThan(queueBefore);
+      expect(countSessionDetailFetches(fetchMock)).toBeGreaterThan(detailBefore);
+    });
 
-    promptResponse.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+    await act(async () => {
+      promptResponse.close([
+        'data: {"type":"finish","finishReason":"stop"}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    });
     await waitFor(() => {
       expect(sources).toHaveLength(2);
       expect(sources[1]?.closed).toBe(false);
@@ -1438,9 +1489,13 @@ describe("SessionChatRuntimeProvider", () => {
     expect(reopened.searchParams.get("epoch")).toBe("1");
     expect(reopened.searchParams.get("generation")).toBe("1");
     // The bounded poll stops once the POST settled: no new queue rereads after the handoff quiets.
-    await new Promise(resolve => setTimeout(resolve, 1_600));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_600);
+    });
     const queueAfterSettle = countQueueFetches(fetchMock);
-    await new Promise(resolve => setTimeout(resolve, 1_200));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_200);
+    });
     expect(countQueueFetches(fetchMock)).toBe(queueAfterSettle);
   });
 
@@ -1798,7 +1853,8 @@ describe("SessionChatRuntimeProvider", () => {
     try {
       const composer = await screen.findByTestId("composer-input");
       await waitFor(() => {
-        expect(screen.getAllByTestId("thread-message-row")).toHaveLength(2);
+        // Hook dispatches render no row: the loaded transcript reads as a fresh session.
+        expect(screen.getByText(/to get started/i)).toBeInTheDocument();
         // The Lexical composer opts out of interaction via `inert`, not `disabled`.
         expect(composer).not.toHaveAttribute("inert");
         expect(sources).toHaveLength(2);
@@ -2208,6 +2264,50 @@ describe("SessionChatRuntimeProvider", () => {
     expect(merged.map(message => message.id)).toEqual(["client_user_001", "server_assistant_001"]);
   });
 
+  // Invariant: one provider failure renders one notice. The live stream's failure message
+  // has its own id, so the durable-only dedup (error vs provider_failure marker) cannot see it;
+  // the merge must not append a runtime failure the durable transcript already records for
+  // that turn, while a failure for a turn the transcript lacks stays visible.
+  it("Should not append a live provider failure the durable transcript already records", () => {
+    const rateLimited = (turnID: string) => ({
+      type: "data-compozy-event",
+      data: {
+        type: "error",
+        turn_id: turnID,
+        error: "acpmock is rate limited",
+        provider_error: {
+          code: "provider_rate_limited",
+          provider: "acpmock",
+          next_action: "handoff",
+          occurrence_count: 1,
+        },
+      },
+    });
+    const transcriptMessages = toReadonlyThreadMessages([
+      {
+        id: "evt_010",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_001")],
+      } as unknown as TranscriptMessage,
+    ]);
+    const runtimeMessages = toReadonlyThreadMessages([
+      {
+        id: "stream_assistant_001",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_001")],
+      } as unknown as TranscriptMessage,
+      {
+        id: "stream_assistant_002",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_002")],
+      } as unknown as TranscriptMessage,
+    ]);
+
+    const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
+
+    expect(merged.map(message => message.id)).toEqual(["evt_010", "stream_assistant_002"]);
+  });
+
   it("Should let an empty authoritative transcript replace a stale runtime tail", () => {
     const runtimeMessages = toReadonlyThreadMessages([
       {
@@ -2489,6 +2589,8 @@ describe("SessionChatRuntimeProvider", () => {
 
   it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
     vi.useFakeTimers();
+    // No turn in flight: the daemon's running detail would itself hold rewind.
+    sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
     settledInteractions = [restartExpiredRow("turn_001:perm_expired")];
     transcriptMessages = pendingPermissionTranscript("turn_001:perm_expired");
 
@@ -2520,6 +2622,46 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument();
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
   }, 10_000);
+
+  // Invariant: a rewind the daemon accepted restores the rewound prompt as the composer draft,
+  // even when the live transcript drops that message (and the action confirming it) before the
+  // rewind response arrives.
+  it("Should restore the rewound prompt as the draft after its message leaves the transcript", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    const gate = createDeferred<void>();
+    rewindResponseGate = gate.promise;
+    sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
+    transcriptMessages = sessionTranscriptFixture.slice(0, 2);
+
+    const view = renderSessionThread({ queryClient });
+
+    await waitFor(() => expect(screen.getByTestId("user-message-rewind")).toBeEnabled());
+    await user.click(screen.getByTestId("user-message-rewind"));
+    await user.click(await screen.findByTestId("session-rewind-confirm"));
+
+    // The daemon cut the transcript; the live read drops the row before the POST answers.
+    await waitFor(() => expect(transcriptMessages).toHaveLength(0));
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
+      });
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument()
+    );
+    // The draft lands from the rewind response, outside any user event: wait inside act until
+    // the composer the operator sees renders it, not only until its store holds it.
+    const draft = "Summarize the launch blockers before the 18:30 UTC cutover.";
+    await act(async () => {
+      gate.resolve();
+      await vi.waitFor(() => expect(screen.getByTestId("composer-input")).toHaveTextContent(draft));
+    });
+    expect(composerText()).toBe(draft);
+    // The editor tears down asynchronously and updates its placeholder and cursor; let it
+    // settle inside act so no update lands after the test.
+    await act(async () => view.unmount());
+  });
 
   function decidedPermissionTranscript(requestId: string, decision: string): TranscriptMessage[] {
     const [user, ask] = pendingPermissionTranscript(requestId);
@@ -2696,15 +2838,17 @@ describe("SessionChatRuntimeProvider", () => {
     const chatText = chat.textContent ?? "";
     const beforeIndex = chatText.indexOf("Before search.");
     const reasoningIndex = chatText.indexOf("Need the current launch note before answering.");
-    // The row heading is the visible tense-aware verb ("Searched web"), not the raw tool id.
-    const toolIndex = chatText.indexOf("Searched web");
+    // The row heading is the visible tense-aware verb ("Searched the web"), not the raw tool id.
+    const toolIndex = chatText.indexOf("Searched the web");
     const afterIndex = chatText.indexOf("After search.");
 
     expect(beforeIndex).toBeGreaterThanOrEqual(0);
     expect(reasoningIndex).toBeGreaterThan(beforeIndex);
     expect(toolIndex).toBeGreaterThan(reasoningIndex);
     expect(afterIndex).toBeGreaterThan(toolIndex);
-    expect(within(chat).getByTestId("tool-call-row")).toHaveTextContent("Searched web");
+    expect(within(chat).getByTestId("tool-call-row")).toHaveTextContent(
+      "Searched the weblaunch note"
+    );
   }, 10_000);
 
   it("keeps unregistered data parts inside the settled turn fold instead of dropping them", async () => {

@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,9 +34,12 @@ func (m *Manager) persistSessionLifecycleStateLocked(ctx context.Context, sessio
 	}
 	info := session.Info()
 	if register {
+		if receipt := session.takePendingDeriveReceipt(); receipt != nil {
+			return m.registerDerivedSession(ctx, session, *receipt)
+		}
 		meta := session.Meta()
-		if identity := creationIdentityFromMeta(meta); identity != nil && m.creationStore != nil {
-			if err := m.registerSessionCreation(ctx, info, meta, *identity); err != nil {
+		if identity := creationIdentityFromMeta(&meta); identity != nil && m.creationStore != nil {
+			if err := m.registerSessionCreation(ctx, info, &meta, *identity); err != nil {
 				return err
 			}
 			return m.finishSessionCatalogPersistence(ctx, session)
@@ -72,7 +76,7 @@ func (m *Manager) finishSessionCatalogPersistence(ctx context.Context, session *
 func (m *Manager) persistSessionIdentitySnapshot(
 	ctx context.Context,
 	metaPath string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	info *Info,
 ) error {
 	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
@@ -96,19 +100,19 @@ func (m *Manager) persistSessionMetadataOnly(session *Session) error {
 	return m.writeMeta(session)
 }
 
-func (m *Manager) persistSessionCatalogFromMeta(ctx context.Context, meta store.SessionMeta) error {
+func (m *Manager) persistSessionCatalogFromMeta(ctx context.Context, meta *store.SessionMeta) error {
 	return m.persistSessionCatalogSnapshot(ctx, meta, sessionInfoFromMeta(meta))
 }
 
 func (m *Manager) persistSessionCatalogSnapshot(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	info *Info,
 ) error {
 	if m == nil || m.sessionCatalog == nil {
 		return nil
 	}
-	if info == nil {
+	if meta == nil || info == nil {
 		return nil
 	}
 	if identity := creationIdentityFromMeta(meta); identity != nil && m.creationStore != nil {
@@ -123,9 +127,12 @@ func (m *Manager) persistSessionCatalogSnapshot(
 func (m *Manager) registerSessionCreation(
 	ctx context.Context,
 	info *Info,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	identity store.SessionCreationIdentity,
 ) error {
+	if meta == nil {
+		return errors.New("session: creation metadata is required")
+	}
 	if m.creationStore == nil || meta.CreationProfile == nil {
 		return fmt.Errorf("session: creation store/profile is unavailable for %q", meta.ID)
 	}
@@ -151,6 +158,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		return store.SessionInfo{}
 	}
 	result := store.SessionInfo{
+		VerdictOnly:              info.VerdictOnly,
 		ID:                       info.ID,
 		ProfileID:                info.ProfileID,
 		Name:                     info.Name,
@@ -178,7 +186,6 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		StopVerificationFailed:   info.StopVerificationFailed,
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
 		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
@@ -198,7 +205,6 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 	}
 	result.SetACPOptions(storeOptionSelectionsFromACP(info.ACPOptions))
 	result.SetRuntimeRecovery(info.RuntimeRecovery)
-	result.SetNetworkSpec(info.NetworkParticipation)
 	return result
 }
 
@@ -233,7 +239,6 @@ func sessionCatalogStateUpdate(info *Info) store.SessionStateUpdate {
 		FailureSet:               true,
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
 		UpdatedAt:                info.UpdatedAt,
 	}
 }

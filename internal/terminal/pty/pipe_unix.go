@@ -54,6 +54,5 @@ func reportedExitForSignal(requested Signal, exit Exit) Exit {
 	if requested != SignalKILL {
 		return exit
 	}
-	signal := string(SignalKILL)
-	return Exit{Cause: "signaled", Signal: &signal}
+	return Exit{Cause: "signaled", Signal: new(string(SignalKILL))}
 }

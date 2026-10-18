@@ -99,7 +99,9 @@ func (m *Manager) attemptPromptRecovery(
 			}
 			continue
 		}
-		m.consumeResumeReplay(session.ID, replayBlock)
+		if !recovery.request.Maintenance {
+			m.consumeResumeReplay(session.ID, replayBlock)
+		}
 		loop.source = source
 		loop.turnEnded = false
 		loop.sourceProbeRequired = false
@@ -149,7 +151,9 @@ func (m *Manager) startRecoveredPrompt(
 	}
 	replayRequest := clonePromptRecoveryRequest(request)
 	replayRequest.Generation = session.Info().RuntimeGeneration
-	replayRequest.Message = promptWithResumeReplay(replayBlock, replayRequest.Message)
+	if !replayRequest.Maintenance {
+		replayRequest.Message = promptWithResumeReplay(replayBlock, state.recovery.originalMessage)
+	}
 	source, err := m.startHostedPromptRun(ctx, session, process, state, replayRequest)
 	if err != nil {
 		return nil, "", err
@@ -243,7 +247,8 @@ func (m *Manager) recoverPromptRuntime(
 	session *Session,
 ) (*AgentProcess, string, error) {
 	snapshot := session.runtimeBindingSnapshot()
-	plan, err := m.preparePromptRuntimePlan(ctx, session, snapshot.selection)
+	// Recovery keeps the accepted seat: the accepted route's explicit command, if any.
+	plan, err := m.preparePromptRuntimePlanForRoute(ctx, session, snapshot.selection, snapshot.acceptedCommand)
 	if err != nil {
 		return nil, "", err
 	}
@@ -269,6 +274,12 @@ func (m *Manager) recoverPromptRuntime(
 	if err != nil {
 		return nil, "", errors.Join(err, m.stopReplacedRuntime(session, candidate, false))
 	}
+	attempt := 0
+	if snapshot.acceptedRoute != nil {
+		attempt = snapshot.acceptedRoute.Attempt
+	}
+	session.commitAcceptedRoute(acceptedRouteRecord(attempt, runtime.agent, plan.selection.Model), plan.spec.command)
+	session.setPendingResumeReplay(plan.spec.resumeReplayBlock)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRecoveryBinding(candidate, &snapshot, err.Error(), m.now())
 		stopErr := m.stopReplacedRuntime(session, candidate, false)
@@ -296,7 +307,7 @@ func (m *Manager) startPromptRecoveryCandidate(
 	if err != nil {
 		return nil, err
 	}
-	candidate, err := m.startAgentProcess(ctx, &plan.spec, session, startOpts)
+	candidate, err := m.startAgentProcess(ctx, &plan.spec, startOpts)
 	if err == nil {
 		return candidate, nil
 	}
@@ -309,7 +320,7 @@ func (m *Manager) startPromptRecoveryCandidate(
 	if prepareErr != nil {
 		return nil, errors.Join(err, prepareErr)
 	}
-	candidate, fallbackErr := m.startAgentProcess(ctx, &plan.spec, session, startOpts)
+	candidate, fallbackErr := m.startAgentProcess(ctx, &plan.spec, startOpts)
 	if fallbackErr != nil {
 		return nil, errors.Join(err, fallbackErr)
 	}

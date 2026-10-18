@@ -18,7 +18,7 @@ func TestCoordinatorRoleResolverReturnsBundledDefaultIdentity(t *testing.T) {
 		cfg := defaultCoordinatorResolverConfig(t)
 		resolver := coordinatorRoleResolverFor(newRoleResolver(&cfg, nil, nil))
 
-		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
+		resolved, err := resolver.ResolveCoordinatorRole(t.Context(), "")
 		if err != nil {
 			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
 		}
@@ -48,7 +48,7 @@ func TestCoordinatorRoleResolverPrefersGlobalConfigOverBundledDefault(t *testing
 		cfg.Roles.Coordinator.MaxChildren = 4
 		resolver := coordinatorRoleResolverFor(newRoleResolver(&cfg, nil, nil))
 
-		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
+		resolved, err := resolver.ResolveCoordinatorRole(t.Context(), "")
 		if err != nil {
 			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
 		}
@@ -97,14 +97,14 @@ func TestCoordinatorRoleResolverPrefersWorkspaceConfig(t *testing.T) {
 			&global,
 			&coordinatorWorkspaceResolverStub{
 				resolved: workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1"},
-					Config:    workspaceCfg,
+					ID:     "ws-1",
+					Config: workspaceCfg,
 				},
 			},
 			nil,
 		))
 
-		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "ws-1")
+		resolved, err := resolver.ResolveCoordinatorRole(t.Context(), "ws-1")
 		if err != nil {
 			t.Fatalf("ResolveCoordinatorRole(workspace) error = %v", err)
 		}
@@ -151,7 +151,7 @@ func TestCoordinatorRoleResolverUsesAgentFallbackForProviderModel(t *testing.T) 
 			},
 		))
 
-		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
+		resolved, err := resolver.ResolveCoordinatorRole(t.Context(), "")
 		if err != nil {
 			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
 		}

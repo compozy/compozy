@@ -87,7 +87,7 @@ func (h *BaseHandlers) InvokeCmdPaletteCommand(c *gin.Context) {
 	}
 	result, err := h.CmdPalette.Invoke(c.Request.Context(), cmdpalette.InvokeRequest{
 		ProfileLens: profileLens,
-		WorkspaceID: workspaceID, CommandID: cmdpalette.CommandID(strings.TrimSpace(c.Param("id"))),
+		WorkspaceID: workspaceID, CommandID: h.canonicalPaletteCommandID(c.Request.Context(), c.Param("id")),
 		Args: body.Args, ClientID: cmdpalette.ClientID(strings.TrimSpace(body.Client)),
 		ClientToken: token, Caller: caller,
 		ManagementLocal: token != "" || h.transportName() == transportNameUDSAPI,

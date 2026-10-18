@@ -4,15 +4,15 @@ area: RT
 title: Browse sessions across every workspace without losing healthy groups
 persona: Théo
 journey: J-respond-to-agent-attention
-expected: The Sessions catalog offers one globe toggle — this workspace or every workspace. Narrow lists the active workspace's complete catalog as provenance threads; pressed loads every cursor page per live workspace, labels and collapses groups, isolates one workspace's failure, joins and removes workspaces live, persists globally through `shell.sessions.scope`, and opens a foreign session in its owner workspace.
+expected: The Sessions catalog offers one globe toggle — this workspace or every workspace. Both scopes expose bounded pages with explicit previous/next navigation and server search across history. Workspace groups show exact population counts, isolate one workspace's page failure, join and remove workspaces live, persist globally through `shell.sessions.scope`, and open a foreign session in its owner workspace.
 entry_points: web Sessions dock item; web session-window sidebar
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-session-attention-catalog; ET-web-session-cross-workspace-confirm
 ---
 
@@ -44,3 +44,28 @@ daemon, confirming the browser never receives rows it then hides, that a failing
 still isolates, and that widening workspaces does not widen profiles. The profile axis of the same
 stream is owned by `ET-profile-stream-isolation`; what Global means for the data is owned by
 `MS-global-scope-no-workspace-work`.
+
+Global consumer acceptance: with the desktop data scope set to Global and no selected project,
+open Sessions through the palette and the shell modal while the saved session-list preference is
+Workspace. Verify that both issue the canonical profile-scoped `all_workspaces=true` catalog read,
+show persisted Global/project sessions, and preserve truthful attention rows. Selecting a project
+must return to that workspace's scoped catalog; an unresolved project selection must not become
+an implicit aggregate read. A null Global workspace is a valid unscoped destination, not a disabled
+catalog. The owning OS attention and palette suites cover this readiness distinction; the real
+browser retest remains the acceptance proof.
+
+QA impact 2026-09-29 (#679): With more than 200 sessions across multiple workspaces, verify that
+opening a palette catalog fetches one page of at most 100 rows and exact population facets.
+Next and Previous must reach older rows; searching a title/agent beyond the first page must find it
+without walking intervening pages. Chips retain whole-scope counts while search and badge filters
+change the visible page. A catalog wake rereads only the current visible page and preserves its
+cursor and keyboard focus. In grouped Sessions, collapse a workspace and confirm no record page
+is fetched for it; expand, navigate its history, and verify keyboard cycling uses that visible page.
+Refresh failures must retain known rows with Retry, while missing aggregate metadata stays unknown
+rather than showing a zero count. Repeat the catalog soak on the final built assets for 60 minutes;
+request growth must depend on visible consumers and wakes, not persisted history size.
+The automated soak runs in the release desktop nightly lane (`make test-e2e-desktop-nightly`).
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

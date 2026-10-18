@@ -15,7 +15,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -130,8 +129,6 @@ func statusForWorkspaceError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrOperatorHomeWorkspace):
 		return http.StatusBadRequest
-	case errors.Is(err, compozyconfig.ErrSandboxProfileNotFound):
-		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable
 	default:
@@ -144,14 +141,18 @@ func statusForSessionError(err error) int {
 	if WorktreeErrorCode(err) != "" {
 		return StatusForWorktreeError(err)
 	}
-	if status, ok := statusForSessionParticipationError(err); ok {
-		return status
-	}
 	switch {
 	case errors.Is(err, context.Canceled):
 		return statusClientClosedRequest
 	case errors.Is(err, admission.ErrDraining):
 		return http.StatusServiceUnavailable
+	case errors.Is(err, session.ErrSessionMessageRateLimited):
+		return http.StatusTooManyRequests
+	case errors.Is(err, session.ErrSessionMessageSelfTarget):
+		return http.StatusBadRequest
+	}
+	if status, ok := statusForDeriveError(err); ok {
+		return status
 	}
 	if status, ok := statusForSessionLookupError(err); ok {
 		return status
@@ -188,7 +189,6 @@ func statusForSessionLookupError(err error) (int, bool) {
 func statusForSessionValidationError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, workspacepkg.ErrAgentNotAvailable),
-		errors.Is(err, compozyconfig.ErrSandboxProfileNotFound),
 		errors.Is(err, compozyconfig.ErrProviderUnavailable),
 		errors.Is(err, session.ErrValidation),
 		errors.Is(err, store.ErrConversationRewindTargetInvalid),
@@ -210,9 +210,11 @@ func statusForSessionValidationError(err error) (int, bool) {
 
 func statusForSessionConflictError(err error) (int, bool) {
 	switch {
-	case errors.Is(err, session.ErrPromptInProgress),
+	case errors.Is(err, session.ErrCompactionUnsupported),
+		errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrSessionArchived),
 		errors.Is(err, session.ErrSessionArchiveRequiresStopped),
+		errors.Is(err, session.ErrSubagentArchiveFollows),
 		errors.Is(err, store.ErrSessionArchived),
 		errors.Is(err, session.ErrConversationRewindBusy),
 		errors.Is(err, session.ErrConversationRewindManaged),
@@ -225,6 +227,8 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, store.ErrSessionInputQueueEntryNotQueued),
 		errors.Is(err, store.ErrSessionInputMutationConflict),
 		errors.Is(err, store.ErrSessionInputSteerTextOnly),
+		errors.Is(err, store.ErrSessionInputAgentAuthored),
+		errors.Is(err, session.ErrSessionMessageHopLimit),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
 		errors.Is(err, session.ErrPendingPermissionConflict),
 		errors.Is(err, store.ErrSessionAttachLocked),
@@ -251,22 +255,6 @@ func statusForSessionAvailabilityError(err error) (int, bool) {
 		return http.StatusInternalServerError, true
 	case errors.Is(err, session.ErrSessionArchiveUnavailable):
 		return http.StatusServiceUnavailable, true
-	default:
-		return 0, false
-	}
-}
-
-func statusForSessionParticipationError(err error) (int, bool) {
-	switch {
-	case errors.Is(err, participation.ErrStrategyInvalid),
-		errors.Is(err, participation.ErrStrategyChannelConflict):
-		return http.StatusBadRequest, true
-	case errors.Is(err, participation.ErrChannelUnknown):
-		return http.StatusNotFound, true
-	case errors.Is(err, participation.ErrUnavailable):
-		return http.StatusConflict, true
-	case errors.Is(err, participation.ErrLiveUnsupported):
-		return http.StatusUnprocessableEntity, true
 	default:
 		return 0, false
 	}

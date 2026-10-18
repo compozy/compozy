@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 114
+const expectedHookEventCount = 100
 
 func TestAllHookEvents(t *testing.T) {
 	t.Run("Should expose a complete unique event taxonomy", func(t *testing.T) {
@@ -35,6 +35,7 @@ func TestSyncEligibleClassification(t *testing.T) {
 		t.Parallel()
 
 		asyncOnly := map[HookEvent]struct{}{
+			HookSubagentSettled:                 {},
 			HookMessageDelta:                    {},
 			HookEventPreRecord:                  {},
 			HookEventPostRecord:                 {},
@@ -42,8 +43,6 @@ func TestSyncEligibleClassification(t *testing.T) {
 			HookAutomationTriggerPostFire:       {},
 			HookAutomationRunCompleted:          {},
 			HookAutomationRunFailed:             {},
-			HookSandboxReady:                    {},
-			HookSandboxSyncAfter:                {},
 			HookPermissionResolved:              {},
 			HookPermissionDenied:                {},
 			HookAgentSoulSnapshotResolved:       {},
@@ -55,15 +54,6 @@ func TestSyncEligibleClassification(t *testing.T) {
 			HookSessionRuntimeRecoveryStarted:   {},
 			HookSessionRuntimeRecoverySucceeded: {},
 			HookSessionRuntimeRecoveryExhausted: {},
-			HookNetworkPeerJoined:               {},
-			HookNetworkPeerLeft:                 {},
-			HookNetworkThreadOpened:             {},
-			HookNetworkDirectRoomOpened:         {},
-			HookNetworkMessagePersisted:         {},
-			HookNetworkWorkOpened:               {},
-			HookNetworkWorkTransitioned:         {},
-			HookNetworkWorkClosed:               {},
-			HookNetworkParticipationResolved:    {},
 			HookSessionMessagePersisted:         {},
 			HookTaskStatusChanged:               {},
 			HookLoopStarted:                     {},
@@ -229,36 +219,6 @@ func TestHookEventFamilyAndInvalidValidation(t *testing.T) {
 	}
 }
 
-func TestNetworkHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
-	t.Parallel()
-
-	expected := []HookEvent{
-		HookNetworkPeerJoined,
-		HookNetworkPeerLeft,
-		HookNetworkThreadOpened,
-		HookNetworkDirectRoomOpened,
-		HookNetworkMessagePersisted,
-		HookNetworkWorkOpened,
-		HookNetworkWorkTransitioned,
-		HookNetworkWorkClosed,
-	}
-	seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
-	for _, event := range AllHookEvents() {
-		seen[event] = struct{}{}
-	}
-	for _, event := range expected {
-		if _, ok := seen[event]; !ok {
-			t.Fatalf("AllHookEvents() missing %q", event)
-		}
-		if got := event.Family(); got != HookEventFamilyNetwork {
-			t.Fatalf("%s.Family() = %q, want %q", event, got, HookEventFamilyNetwork)
-		}
-		if event.SyncEligible() {
-			t.Fatalf("%s.SyncEligible() = true, want false", event)
-		}
-	}
-}
-
 func TestWindowManagerHookEventsHaveExpectedFamilyAndSyncEligibility(t *testing.T) {
 	t.Parallel()
 
@@ -320,6 +280,7 @@ func TestAutonomyHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) 
 		HookTaskRunReleased:       {HookEventFamilyTaskRun, true},
 		HookTaskRunCompleted:      {HookEventFamilyTaskRun, true},
 		HookTaskRunFailed:         {HookEventFamilyTaskRun, true},
+		HookSubagentSettled:       {HookEventFamilySubagent, false},
 		HookSpawnPreCreate:        {HookEventFamilySpawn, true},
 		HookSpawnCreated:          {HookEventFamilySpawn, true},
 		HookSpawnParentStopped:    {HookEventFamilySpawn, true},

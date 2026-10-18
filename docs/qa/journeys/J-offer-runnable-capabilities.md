@@ -1,7 +1,7 @@
 # J-offer-runnable-capabilities — Only runnable capabilities are offered; dead ones recover
 
 A managed agent should only be offered skills whose `when.*` activation gates pass — with gated
-skills truthfully listed as inactive-with-reason — and a dead extension/bridge/MCP sidecar should
+skills truthfully listed as inactive-with-reason — and a dead extension/MCP sidecar should
 stop being hammered, stay diagnosable, and auto-recover on success without a daemon restart.
 Covers US-011 (ADR-009 §2 + ADR-010 §5, Safety Invariant 20).
 

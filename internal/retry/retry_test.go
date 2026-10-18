@@ -19,7 +19,7 @@ func TestDoValue(t *testing.T) {
 		delays := make([]time.Duration, 0, 2)
 		errTransient := errors.New("transient")
 		result, err := DoValue(
-			context.Background(),
+			t.Context(),
 			Policy{
 				MaxAttempts: 3,
 				Delay: DecorrelatedJitter(DecorrelatedJitterConfig{
@@ -70,7 +70,7 @@ func TestDoValue(t *testing.T) {
 		errPermanent := errors.New("permanent")
 		attempts := 0
 		_, err := DoValue(
-			context.Background(),
+			t.Context(),
 			Policy{MaxAttempts: 3},
 			func(error) bool { return false },
 			func(context.Context) (string, error) {
@@ -90,7 +90,7 @@ func TestDoValue(t *testing.T) {
 		t.Parallel()
 
 		_, err := DoValue(
-			context.Background(),
+			t.Context(),
 			Policy{MaxAttempts: 3},
 			nil,
 			func(context.Context) (string, error) {
@@ -105,7 +105,7 @@ func TestDoValue(t *testing.T) {
 	t.Run("ShouldPreserveOperationErrorWhenContextEndsDuringAttempt", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		operationErr := errors.New("provider unavailable")
 		_, err := DoValue(
 			ctx,
@@ -171,7 +171,7 @@ func TestDo(t *testing.T) {
 		sleepCalls := 0
 		errBoom := errors.New("boom")
 		err := Do(
-			context.Background(),
+			t.Context(),
 			Policy{
 				MaxAttempts: 2,
 				Delay:       func(DelayInput) time.Duration { return time.Millisecond },
@@ -200,7 +200,7 @@ func TestDo(t *testing.T) {
 	t.Run("ShouldHonorContextCancellationBeforeFirstAttempt", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		called := false
 		err := Do(ctx, Policy{MaxAttempts: 3}, nil, func(context.Context) error {
@@ -222,7 +222,7 @@ func TestDo(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "context is required") {
 			t.Fatalf("Do(nil context) error = %v, want context required", err)
 		}
-		err = Do(context.Background(), Policy{}, nil, nil)
+		err = Do(t.Context(), Policy{}, nil, nil)
 		if err == nil || !strings.Contains(err.Error(), "operation is required") {
 			t.Fatalf("Do(nil operation) error = %v, want operation required", err)
 		}
@@ -235,7 +235,7 @@ func TestWait(t *testing.T) {
 	t.Run("ShouldHonorContextCancellation", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		if err := Wait(ctx, time.Hour); !errors.Is(err, context.Canceled) {
 			t.Fatalf("Wait(canceled) error = %v, want context.Canceled", err)
@@ -248,7 +248,7 @@ func TestWait(t *testing.T) {
 		if err := Wait(nilRetryContext(t), 0); err == nil || !strings.Contains(err.Error(), "context is required") {
 			t.Fatalf("Wait(nil context) error = %v, want context required", err)
 		}
-		if err := Wait(context.Background(), 0); err != nil {
+		if err := Wait(t.Context(), 0); err != nil {
 			t.Fatalf("Wait(zero delay) error = %v", err)
 		}
 	})

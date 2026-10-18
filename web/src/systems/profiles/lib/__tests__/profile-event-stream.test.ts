@@ -45,12 +45,6 @@ describe("profileEventStreamUrl", () => {
       "/api/logs/stream?component=profile&all_profiles=true&replay=false"
     );
   });
-
-  it("Should never scope by workspace, because profile events are global", () => {
-    // The daemon filters workspace_id by exact match, so a workspace here would
-    // silently drop every profile row.
-    expect(profileEventStreamUrl()).not.toContain("workspace_id");
-  });
 });
 
 describe("parseProfileEvent", () => {

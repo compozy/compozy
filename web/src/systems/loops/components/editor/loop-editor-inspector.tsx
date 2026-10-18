@@ -1,4 +1,4 @@
-import { Empty } from "@compozy/ui";
+import { Empty, Pill } from "@compozy/ui";
 import { MousePointerClick } from "lucide-react";
 
 import type { WorktreePayload } from "@/systems/workspace";
@@ -8,7 +8,6 @@ import type { NodeFieldEdit } from "../../lib/loop-editor-draft";
 import { buildReferenceNamespace } from "../../lib/loop-references";
 import type { FieldPath, FieldSpec } from "../../lib/loop-node-schema";
 import type { LoopDefinition, LoopEnvironmentSpec, LoopValidationIssue } from "../../types";
-import { MonoTag } from "../mono-tag";
 import { LoopEditorField } from "./loop-editor-field";
 
 interface LoopEditorInspectorProps {
@@ -120,9 +119,9 @@ export function LoopEditorInspector({
           >
             {String(raw.id)}
           </span>
-          <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge text-subtle">
+          <Pill size="xs" tone="neutral" mono>
             {node.data.nodeClass ?? "node"}
-          </MonoTag>
+          </Pill>
         </div>
         <p className="mt-1.5 flex items-center gap-2 font-mono text-mono-id text-subtle">
           <span>{node.data.kind || "—"}</span>

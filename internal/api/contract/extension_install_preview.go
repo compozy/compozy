@@ -7,7 +7,7 @@ type ExtensionInstallPreviewPayload struct {
 	Name                     string                                   `json:"name"`
 	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
 	Placements               []ExtensionPlacementPayload              `json:"placements"`
-	NetworkRequirementDigest string                                   `json:"network_requirement_digest,omitempty"`
+	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
 }
 
 // ExtensionInstallDeclaredProfilePayload describes one profile bind or creation before install.

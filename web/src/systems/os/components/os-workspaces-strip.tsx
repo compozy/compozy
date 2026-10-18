@@ -20,8 +20,8 @@ function StripEdge({ side, visible }: StripEdgeProps) {
       className={cn(
         "pointer-events-none absolute inset-y-0 z-2 w-workspaces-edge opacity-0 transition-opacity duration-slow ease-out shell-wide:w-workspaces-edge-wide",
         side === "start"
-          ? "left-0 rounded-l-xl bg-(image:--shell-edge-fade-start)"
-          : "right-0 rounded-r-xl bg-(image:--shell-edge-fade-end)",
+          ? "left-0 rounded-l-xl bg-(image:--workspaces-edge-fade-start)"
+          : "right-0 rounded-r-xl bg-(image:--workspaces-edge-fade-end)",
         visible && "opacity-100"
       )}
     />
@@ -62,8 +62,7 @@ export function OsWorkspacesStrip({
       data-overflow={overflow}
       className={cn(
         "relative isolate flex max-w-full flex-nowrap items-stretch overflow-hidden",
-        "rounded-xl border border-line-strong bg-shell-glass-pop",
-        "shadow-shell-strip backdrop-blur-shell-strip backdrop-saturate-[1.25]",
+        "rounded-xl bg-popover shadow-pop",
         overflowing ? "w-full" : "w-max",
         className
       )}
@@ -85,7 +84,7 @@ export function OsWorkspacesStrip({
       >
         <div
           role="listbox"
-          aria-label="Workspaces"
+          aria-label="Projects"
           aria-orientation="horizontal"
           data-slot="os-workspaces-row"
           className="flex w-max flex-nowrap items-start gap-workspaces-menu-gap"

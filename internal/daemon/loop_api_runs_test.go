@@ -527,14 +527,14 @@ func TestDaemonLoopAPIServiceShouldWrapGenerationHistoryErrors(t *testing.T) {
 func TestDaemonLoopAPIServiceAnnotationsRequireDefinition(t *testing.T) {
 	t.Parallel()
 
+	db := openDaemonTestGlobalDB(t)
+	service := &daemonLoopAPIService{
+		catalog:     newResourceCatalog(looppkg.CloneResourceSpec),
+		persistence: db,
+	}
+
 	t.Run("Should reject reads for a missing definition", func(t *testing.T) {
 		t.Parallel()
-
-		db := openDaemonTestGlobalDB(t)
-		service := &daemonLoopAPIService{
-			catalog:     newResourceCatalog(looppkg.CloneResourceSpec),
-			persistence: db,
-		}
 
 		_, err := service.GetLoopAnnotations(t.Context(), "ws-missing", storepkg.DefaultProfileID, "missing-loop")
 		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
@@ -545,11 +545,6 @@ func TestDaemonLoopAPIServiceAnnotationsRequireDefinition(t *testing.T) {
 	t.Run("Should reject writes for a missing definition without persisting them", func(t *testing.T) {
 		t.Parallel()
 
-		db := openDaemonTestGlobalDB(t)
-		service := &daemonLoopAPIService{
-			catalog:     newResourceCatalog(looppkg.CloneResourceSpec),
-			persistence: db,
-		}
 		request := contract.PutLoopAnnotationsRequest{Annotations: []contract.LoopAnnotationPayload{{
 			NodeID: "ghost",
 			X:      12,

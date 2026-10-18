@@ -31,7 +31,7 @@ type Registry interface {
 	ListTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
 	WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error
 	ListPermissionLog(ctx context.Context, query store.PermissionLogQuery) ([]store.PermissionLogEntry, error)
-	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+
 	ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error)
 	CountDependencies(ctx context.Context, taskID string) (int, error)
 	ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error)
@@ -48,15 +48,6 @@ type SessionSource interface {
 
 // VersionSource returns the current daemon build metadata.
 type VersionSource func() version.Info
-
-// MemoryEventSource exposes canonical memory events across all memory DB authorities.
-type MemoryEventSource interface {
-	ListMemoryEventSummaries(
-		ctx context.Context,
-		workspaces []string,
-		query store.EventSummaryQuery,
-	) ([]store.EventSummary, error)
-}
 
 // HookCatalogSource provides resolved hook catalog views from the live runtime.
 type HookCatalogSource interface {
@@ -126,15 +117,13 @@ type Observer struct {
 	resolveProviderAuth ProviderAuthModeResolver
 	agentResolver       session.AgentResolver
 	costCatalog         CostCatalog
-	memoryEventSource   MemoryEventSource
 	workspaceResolver   workspacepkg.RuntimeResolver
 	now                 func() time.Time
 	startedAt           time.Time
 	logger              *slog.Logger
 	versionSource       VersionSource
 	sessions            map[string]observedSession
-	bridgeSource        BridgeSource
-	bridgeState         map[string]observedBridgeState
+	recoverySkipped     map[string]struct{}
 	hookCatalogSource   HookCatalogSource
 	openHookStore       HookStoreOpener
 	taskHealthConfig    TaskHealthConfig
@@ -176,13 +165,6 @@ func WithSessionSource(source SessionSource) Option {
 func WithAgentResolver(resolver session.AgentResolver) Option {
 	return func(observer *Observer) {
 		observer.agentResolver = resolver
-	}
-}
-
-// WithMemoryEventSource injects the Memory v2 canonical event aggregation source.
-func WithMemoryEventSource(source MemoryEventSource) Option {
-	return func(observer *Observer) {
-		observer.memoryEventSource = source
 	}
 }
 
@@ -318,7 +300,6 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 		logger:        slog.Default(),
 		versionSource: version.Current,
 		sessions:      make(map[string]observedSession),
-		bridgeState:   make(map[string]observedBridgeState),
 		taskHealthConfig: TaskHealthConfig{
 			ClaimedStuckAfter:  5 * time.Minute,
 			StartingStuckAfter: 5 * time.Minute,
@@ -349,9 +330,6 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	}
 	if observer.sessions == nil {
 		observer.sessions = make(map[string]observedSession)
-	}
-	if observer.bridgeState == nil {
-		observer.bridgeState = make(map[string]observedBridgeState)
 	}
 	if observer.resolveProviderAuth == nil {
 		observer.resolveProviderAuth = defaultProviderAuthModeResolver(

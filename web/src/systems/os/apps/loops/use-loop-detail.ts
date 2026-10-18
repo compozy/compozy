@@ -6,6 +6,7 @@ import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-dat
 import {
   LoopsApiError,
   readLoopGraph,
+  type LoopAutomateStart,
   useCreateLoop,
   useDeleteLoop,
   useLoop,
@@ -58,15 +59,15 @@ export function useLoopDetail(name: string, routeWorkspaceId?: string) {
       }
       try {
         await deleteLoop.mutateAsync({ workspaceId, name });
-        toast.success(`Deleted workspace loop ${name}`);
+        toast.success(`Deleted loop ${name}`);
         void navigate({ to: "/loops", replace: true });
       } catch {
         // The mutation retains the primary error for the confirmation dialog.
       }
     },
     onDeleteReset: deleteLoop.reset,
-    onAddTrigger: () => void navigate({ to: "/triggers", search: { create: "loop", loop: name } }),
-    onAddSchedule: () => void navigate({ to: "/jobs", search: { create: "loop", loop: name } }),
+    onAutomate: (start: LoopAutomateStart) =>
+      void navigate({ to: "/automations", search: { create: "loop", start, loop: name } }),
   };
 
   return {

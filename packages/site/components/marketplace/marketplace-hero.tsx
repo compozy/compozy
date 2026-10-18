@@ -1,7 +1,6 @@
 import { Eyebrow } from "@compozy/ui";
 import { ArrowRight, Terminal } from "lucide-react";
 import Link from "next/link";
-import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { bundledExtensions, bundledSkills } from "@/lib/marketplace-bundled";
 import {
   MARKETPLACE_SEARCH_COMMAND,
@@ -13,7 +12,7 @@ import { MarketplaceInstallCommand } from "./marketplace-install-command";
 
 /**
  * Every number here is counted from the repository at build time: the v3 extension feed, the
- * plugin marketplace presets, the bundled manifests, and the in-tree bridge providers. Nothing is a
+ * plugin marketplace presets, and the bundled manifests. Nothing is a
  * popularity metric, because no such field exists in the feed.
  */
 function heroStats() {
@@ -32,7 +31,6 @@ function heroStats() {
     { value: extensionEntries.length, label: "Extensions" },
     { value: marketplacePresets.length, label: "Plugin marketplaces" },
     { value: bundledResources, label: "Bundled resources" },
-    { value: bridgeProviders.length, label: "Bridge providers" },
   ];
 }
 
@@ -51,9 +49,9 @@ export function MarketplaceHero() {
               Install what your agents <em>need</em>
             </h1>
             <p className="mt-4 max-w-[64ch] text-site-lead text-muted">
-              Extensions that package MCP servers, skills, and tools, plus bridge providers, from
-              this build&apos;s checked-in catalog snapshot. Search your daemon before installing:
-              its active catalog can differ.
+              Extensions that package MCP servers, skills, and tools from this build&apos;s
+              checked-in catalog snapshot. Search your daemon before installing: its active catalog
+              can differ.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-4.5">

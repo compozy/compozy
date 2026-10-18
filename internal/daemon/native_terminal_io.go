@@ -148,7 +148,7 @@ func terminalWaitPreview(result *terminalpkg.WaitResult) string {
 		return "terminal output matched"
 	case "idle":
 		return "terminal became idle"
-	case "timeout":
+	case daemonTimeoutKey:
 		return "terminal wait timed out"
 	case "still_running":
 		return "terminal is still running"

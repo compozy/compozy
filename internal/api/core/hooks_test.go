@@ -26,7 +26,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			rawURL,
 			http.NoBody,
@@ -231,16 +231,14 @@ func TestHookHandlers(t *testing.T) {
 				t.Fatalf("Resolve() ref = %q, want alpha", ref)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-alpha",
-					RootDir: "/workspace/alpha",
-				},
+				ID:          "ws-alpha",
+				RootDir:     "/workspace/alpha",
 				WorkspaceID: "01M26N9AVTCXB8NYSTT4PTWKCJ",
 			}, nil
 		},
 	}
 
-	fixture := newHandlerFixture(t, manager, observer, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, observer, workspaces)
 
 	eventValue := hookspkg.HookToolPreCall.String()
 
@@ -319,8 +317,6 @@ func TestHookHandlersRejectInvalidRequests(t *testing.T) {
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	tests := []struct {

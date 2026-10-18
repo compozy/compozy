@@ -11,13 +11,14 @@ describe("ClientCommandChannel", () => {
   it("Should execute through the connected runner", async () => {
     const channel = new ClientCommandChannel();
     const runner = vi.fn(async (op: string, payload: unknown) => ({ op, payload }));
+    const reply = vi.fn();
     channel.connect(runner);
 
-    await expect(channel.execute("window.close", { id: "w-1" })).resolves.toEqual({
+    await expect(channel.execute("window.close", { id: "w-1" }, reply)).resolves.toEqual({
       op: "window.close",
       payload: { id: "w-1" },
     });
-    expect(runner).toHaveBeenCalledExactlyOnceWith("window.close", { id: "w-1" });
+    expect(runner).toHaveBeenCalledExactlyOnceWith("window.close", { id: "w-1" }, reply);
   });
 
   it("Should ignore a stale first cleanup after a second connect", async () => {
@@ -28,14 +29,14 @@ describe("ClientCommandChannel", () => {
     channel.connect(second);
     disconnectFirst();
 
-    await expect(channel.execute("window.focus.last", {})).resolves.toBe("second");
+    await expect(channel.execute("window.focus.last", {}, vi.fn())).resolves.toBe("second");
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledOnce();
   });
 
   it("Should reject execute before connect", async () => {
     const channel = new ClientCommandChannel();
-    await expect(channel.execute("window.close", {})).rejects.toThrow(
+    await expect(channel.execute("window.close", {}, vi.fn())).rejects.toThrow(
       "Unsupported client operation: window.close"
     );
   });

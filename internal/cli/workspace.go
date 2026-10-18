@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"path/filepath"
 
 	"strings"
 
@@ -18,15 +19,15 @@ const (
 	workspaceCreatedValue  = "Created"
 	workspaceNameValue     = "Name"
 	workspaceRootValue     = "Root"
-	workspaceSandboxValue  = "Sandbox"
-	workspaceSourceValue   = "Source"
-	workspaceUpdatedValue  = "Updated"
-	workspaceAgentNameKey  = "agent_name"
-	workspaceCategoryKey   = "category"
-	workspaceCreatedAtKey  = "created_at"
-	workspaceFlagKey       = "flag"
-	workspaceListKey       = "list"
-	workspaceSourceKey     = "source"
+
+	workspaceSourceValue  = "Source"
+	workspaceUpdatedValue = "Updated"
+	workspaceAgentNameKey = "agent_name"
+	workspaceCategoryKey  = "category"
+	workspaceCreatedAtKey = "created_at"
+	workspaceFlagKey      = "flag"
+	workspaceListKey      = "list"
+	workspaceSourceKey    = "source"
 )
 
 func newWorkspaceCommand(deps commandDeps) *cobra.Command {
@@ -48,7 +49,6 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 		name         string
 		addDirs      []string
 		defaultAgent string
-		sandboxRef   string
 	)
 
 	cmd := &cobra.Command{
@@ -61,17 +61,25 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
   compozy workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			rootDir := strings.TrimSpace(args[0])
+			if !filepath.IsAbs(rootDir) {
+				cwd, err := currentWorkingDirectory(deps)
+				if err != nil {
+					return err
+				}
+				rootDir = filepath.Join(cwd, rootDir)
+			}
+
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 
 			workspace, err := client.CreateWorkspace(cmd.Context(), WorkspaceCreateRequest{
-				RootDir:      strings.TrimSpace(args[0]),
+				RootDir:      rootDir,
 				Name:         strings.TrimSpace(name),
 				AddDirs:      trimmedUniqueStrings(addDirs),
 				DefaultAgent: strings.TrimSpace(defaultAgent),
-				SandboxRef:   strings.TrimSpace(sandboxRef),
 			})
 			if err != nil {
 				return err
@@ -85,8 +93,6 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 		StringArrayVar(&addDirs, "add-dir", nil, "Additional directory to include (repeatable)")
 	cmd.Flags().
 		StringVar(&defaultAgent, "default-agent", "", "Default agent override for this workspace")
-	cmd.Flags().
-		StringVar(&sandboxRef, "sandbox", "", "Sandbox profile override for this workspace")
 	return cmd
 }
 
@@ -190,8 +196,7 @@ func workspaceEditFlagsChanged(cmd *cobra.Command) bool {
 	return cmd.Flags().Changed(automationNameKey) ||
 		cmd.Flags().Changed("add-dir") ||
 		cmd.Flags().Changed("remove-dir") ||
-		cmd.Flags().Changed("default-agent") ||
-		cmd.Flags().Changed("sandbox")
+		cmd.Flags().Changed("default-agent")
 }
 
 func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
@@ -200,7 +205,6 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 		addDirs      []string
 		removeDirs   []string
 		defaultAgent string
-		sandboxRef   string
 	)
 
 	cmd := &cobra.Command{
@@ -247,12 +251,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 				request.AddDirs = &mergedDirs
 			}
 			if cmd.Flags().Changed("default-agent") {
-				trimmedDefaultAgent := strings.TrimSpace(defaultAgent)
-				request.DefaultAgent = &trimmedDefaultAgent
-			}
-			if cmd.Flags().Changed("sandbox") {
-				trimmedSandbox := strings.TrimSpace(sandboxRef)
-				request.SandboxRef = &trimmedSandbox
+				request.DefaultAgent = new(strings.TrimSpace(defaultAgent))
 			}
 
 			updated, err := client.UpdateWorkspace(cmd.Context(), detail.Workspace.ID, request)
@@ -270,8 +269,6 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 		StringArrayVar(&removeDirs, "remove-dir", nil, "Additional directory to remove (repeatable)")
 	cmd.Flags().
 		StringVar(&defaultAgent, "default-agent", "", "Override the workspace default agent (set empty to clear)")
-	cmd.Flags().
-		StringVar(&sandboxRef, "sandbox", "", "Override the workspace sandbox profile (set empty to clear)")
 	return cmd
 }
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -143,7 +143,7 @@ func (s *service) applyAgentSkillsDisabledChanges(
 		}
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	for _, name := range names {
 		_, wasDisabled := currentSet[name]

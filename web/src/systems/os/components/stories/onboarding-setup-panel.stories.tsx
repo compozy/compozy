@@ -20,7 +20,7 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const DORMANT_DOCK = "translate-y-1.5 opacity-50 saturate-50";
+const DORMANT_DOCK = "opacity-50 saturate-50";
 
 function FirstRunDesktop({ children }: { children: ReactNode }) {
   return (

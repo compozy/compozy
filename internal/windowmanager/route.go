@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/url"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -110,11 +111,8 @@ func appendCanonicalRouteJSON(builder *strings.Builder, value any) error {
 		}
 		builder.WriteByte(']')
 	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.AppendSeq(make([]string, 0, len(typed)), maps.Keys(typed))
+		slices.Sort(keys)
 		builder.WriteByte('{')
 		for index, key := range keys {
 			if index > 0 {

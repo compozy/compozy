@@ -18,16 +18,13 @@ func goalSessionBindingFromGenerated(row sqlcgen.LoopSessionBinding) goal.Sessio
 		AdoptionAttemptID: row.AdoptionAttemptID.String,
 	}
 	if row.ActivatedAt.Valid {
-		value := row.ActivatedAt.Time.UTC()
-		binding.ActivatedAt = &value
+		binding.ActivatedAt = new(row.ActivatedAt.Time.UTC())
 	}
 	if row.FailedAt.Valid {
-		value := row.FailedAt.Time.UTC()
-		binding.FailedAt = &value
+		binding.FailedAt = new(row.FailedAt.Time.UTC())
 	}
 	if row.ClosedAt.Valid {
-		value := row.ClosedAt.Time.UTC()
-		binding.ClosedAt = &value
+		binding.ClosedAt = new(row.ClosedAt.Time.UTC())
 	}
 	return binding
 }

@@ -133,13 +133,6 @@ func (s *taskMutationTxStore) RecoverTaskRunOnBoot(
 	return s.tasks.runs.recoverTaskRunOnBootWithExecutor(ctx, s.exec, mutation)
 }
 
-func (s *taskMutationTxStore) RecoverNetworkWakeOnBoot(
-	ctx context.Context,
-	mutation taskpkg.NetworkWakeBootRecoveryMutation,
-) (taskpkg.NominalRunMutationResult, error) {
-	return s.tasks.runs.recoverNetworkWakeOnBootWithExecutor(ctx, s.exec, mutation)
-}
-
 func (s *taskMutationTxStore) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error) {
 	return s.tasks.getTaskRunWithExecutor(ctx, s.exec, id)
 }

@@ -82,6 +82,10 @@ func (d *testClientDirectory) GlobalShortcutStatuses(
 	return d.globalStatuses[clientID], nil
 }
 
+func (d *testClientDirectory) AttachedClients(ctx context.Context, workspaceID WorkspaceID) ([]Client, error) {
+	return d.Clients(ctx, workspaceID)
+}
+
 func (d *testClientDirectory) Clients(context.Context, WorkspaceID) ([]Client, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()

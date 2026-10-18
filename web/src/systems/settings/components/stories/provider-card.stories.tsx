@@ -6,7 +6,6 @@ import type { SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
 import { ProviderCard } from "../provider-card";
-import { ProviderRow } from "../provider-row";
 
 const claudeFixture: SettingsProviderEntry = {
   ...settingsProviderFixtures[0]!,
@@ -23,13 +22,13 @@ const codexFixture = settingsProviderFixtures[1]!;
 
 const binaryMissingFixture: SettingsProviderEntry = {
   ...codexFixture,
-  name: "qoder",
+  name: "cursor",
   default: false,
   command_available: false,
   settings: {
     ...codexFixture.settings,
-    command: "qoder --acp",
-    display_name: "Qoder CLI",
+    command: "cursor-agent acp",
+    display_name: "Cursor Agent",
   },
   source_metadata: {
     available_targets: ["global-config"],
@@ -40,19 +39,19 @@ const binaryMissingFixture: SettingsProviderEntry = {
 
 const needsSetupFixture: SettingsProviderEntry = {
   ...codexFixture,
-  name: "hermes",
+  name: "zai",
   default: false,
   settings: {
     ...codexFixture.settings,
-    command: "hermes --acp",
-    display_name: "Hermes",
+    command: "npx -y pi-acp@latest",
+    display_name: "z.ai",
     auth_mode: "bound_secret",
   },
   credentials: [
     {
       name: "api_key",
-      target_env: "HERMES_API_KEY",
-      secret_ref: "env:HERMES_API_KEY",
+      target_env: "ZAI_API_KEY",
+      secret_ref: "env:ZAI_API_KEY",
       required: true,
       present: false,
     },
@@ -114,24 +113,6 @@ export const CardStates: Story = {
       <ProviderCard onOpen={fn()} provider={needsSignInFixture} />
       <ProviderCard onOpen={fn()} provider={unknownAuthFixture} />
       <ProviderCard onOpen={fn()} provider={binaryMissingFixture} />
-    </PanelSurface>
-  ),
-};
-
-/**
- * Rows view of the same listing data.
- */
-export const RowStates: Story = {
-  args: {},
-  render: () => (
-    <PanelSurface className="max-w-[860px] p-6">
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-        <ProviderRow onOpen={fn()} provider={claudeFixture} />
-        <ProviderRow onOpen={fn()} provider={needsSetupFixture} />
-        <ProviderRow onOpen={fn()} provider={needsSignInFixture} />
-        <ProviderRow onOpen={fn()} provider={unknownAuthFixture} />
-        <ProviderRow onOpen={fn()} provider={binaryMissingFixture} />
-      </div>
     </PanelSurface>
   ),
 };

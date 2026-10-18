@@ -1,13 +1,14 @@
 package cmdpalette
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -398,23 +399,14 @@ func newPersonalizationSnapshot(
 		QueryHits: append(make([]QueryHit, 0, len(queryHits)), queryHits...),
 		Pins:      append(make([]Pin, 0, len(pins)), pins...),
 	}
-	sort.Slice(snapshot.Usage, func(left, right int) bool {
-		if snapshot.Usage[left].LastUsedAt != snapshot.Usage[right].LastUsedAt {
-			return snapshot.Usage[left].LastUsedAt > snapshot.Usage[right].LastUsedAt
-		}
-		return snapshot.Usage[left].CommandID < snapshot.Usage[right].CommandID
+	slices.SortFunc(snapshot.Usage, func(a, b UsageSignal) int {
+		return cmp.Or(cmp.Compare(b.LastUsedAt, a.LastUsedAt), cmp.Compare(a.CommandID, b.CommandID))
 	})
-	sort.Slice(snapshot.QueryHits, func(left, right int) bool {
-		if snapshot.QueryHits[left].Query != snapshot.QueryHits[right].Query {
-			return snapshot.QueryHits[left].Query < snapshot.QueryHits[right].Query
-		}
-		return snapshot.QueryHits[left].CommandID < snapshot.QueryHits[right].CommandID
+	slices.SortFunc(snapshot.QueryHits, func(a, b QueryHit) int {
+		return cmp.Or(cmp.Compare(a.Query, b.Query), cmp.Compare(a.CommandID, b.CommandID))
 	})
-	sort.Slice(snapshot.Pins, func(left, right int) bool {
-		if snapshot.Pins[left].PinnedAt != snapshot.Pins[right].PinnedAt {
-			return snapshot.Pins[left].PinnedAt < snapshot.Pins[right].PinnedAt
-		}
-		return snapshot.Pins[left].CommandID < snapshot.Pins[right].CommandID
+	slices.SortFunc(snapshot.Pins, func(a, b Pin) int {
+		return cmp.Or(cmp.Compare(a.PinnedAt, b.PinnedAt), cmp.Compare(a.CommandID, b.CommandID))
 	})
 	payload, err := json.Marshal(struct {
 		Weights Weights       `json:"weights"`

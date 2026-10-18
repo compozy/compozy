@@ -44,7 +44,7 @@ func TestUnixSocketClientCreateTaskAsAgentSendsIdentityHeaders(t *testing.T) {
 			},
 		}
 
-		created, err := client.CreateTaskAsAgent(context.Background(), CreateTaskRequest{
+		created, err := client.CreateTaskAsAgent(t.Context(), CreateTaskRequest{
 			Scope:     taskpkg.ScopeWorkspace,
 			Workspace: "alpha",
 			Title:     "Agent task",
@@ -92,7 +92,7 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 			},
 		}
 
-		review, err := client.RequestTaskRunReviewAsAgent(context.Background(), "run-1", &TaskRunReviewRequest{
+		review, err := client.RequestTaskRunReviewAsAgent(t.Context(), "run-1", &TaskRunReviewRequest{
 			RunID:  "run-1",
 			Reason: "ready",
 		}, credentials)
@@ -140,7 +140,7 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 
 		confidence := 0.8
 		verdict, err := client.SubmitTaskRunReviewVerdictAsAgent(
-			context.Background(),
+			t.Context(),
 			"review-1",
 			&TaskRunReviewVerdictRequest{
 				RunID: "run-1",

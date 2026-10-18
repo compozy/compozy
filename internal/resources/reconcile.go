@@ -1,11 +1,12 @@
 package resources
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -387,9 +388,7 @@ func buildReconcileTopology(
 	}
 
 	for dependencyKind := range dependents {
-		sort.Slice(dependents[dependencyKind], func(i int, j int) bool {
-			return string(dependents[dependencyKind][i]) < string(dependents[dependencyKind][j])
-		})
+		slices.Sort(dependents[dependencyKind])
 	}
 
 	ready := make([]ResourceKind, 0, len(projectors))
@@ -398,9 +397,7 @@ func buildReconcileTopology(
 			ready = append(ready, kind)
 		}
 	}
-	sort.Slice(ready, func(i int, j int) bool {
-		return string(ready[i]) < string(ready[j])
-	})
+	slices.Sort(ready)
 
 	order := make([]ResourceKind, 0, len(projectors))
 	for len(ready) > 0 {
@@ -414,9 +411,7 @@ func buildReconcileTopology(
 				ready = append(ready, dependent)
 			}
 		}
-		sort.Slice(ready, func(i int, j int) bool {
-			return string(ready[i]) < string(ready[j])
-		})
+		slices.Sort(ready)
 	}
 
 	rank := make(map[ResourceKind]int, len(projectors))
@@ -429,10 +424,8 @@ func buildReconcileTopology(
 	}
 
 	for dependencyKind := range dependents {
-		sort.Slice(dependents[dependencyKind], func(i int, j int) bool {
-			left := dependents[dependencyKind][i]
-			right := dependents[dependencyKind][j]
-			return rank[left] < rank[right]
+		slices.SortFunc(dependents[dependencyKind], func(left, right ResourceKind) int {
+			return cmp.Compare(rank[left], rank[right])
 		})
 	}
 

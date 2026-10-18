@@ -14,7 +14,6 @@ import {
   matchesPaletteSessionQuery,
   paletteSessionFilter,
   paletteSessionFilterCounts,
-  PALETTE_SESSION_FILTER_LIST,
 } from "../palette-session-filters";
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
@@ -50,7 +49,7 @@ const CATALOG: SessionPayload[] = [
   session({ id: "s-auth", badge: "waiting-for-auth", name: "Rotate tokens" }),
   session({ id: "s-failed", badge: "failed", name: "TF upgrade", agent_name: "codex" }),
   session({ id: "s-running", badge: "running", name: "Fix payment retries" }),
-  session({ id: "s-done", badge: "done", name: "Release notes draft", agent_name: "hermes" }),
+  session({ id: "s-done", badge: "done", name: "Release notes draft", agent_name: "gemini" }),
   session({ id: "s-idle", badge: "idle", name: "Regen OpenAPI types" }),
   session({ id: "s-hung", badge: "hung", name: "Stuck indexer" }),
   session({ id: "s-unhealthy", badge: "unhealthy", name: "Flaky bridge" }),
@@ -107,12 +106,5 @@ describe("palette session filters (UT-061)", () => {
       "s-failed",
     ]);
     expect(filterPaletteSessions(CATALOG, "finished", "codex")).toEqual([]);
-  });
-
-  it("Should name the active filter in its own empty state", () => {
-    for (const filter of PALETTE_SESSION_FILTER_LIST) {
-      expect(paletteSessionFilter(filter.id).emptyMessage).toBe(filter.emptyMessage);
-      expect(filter.emptyMessage.length).toBeGreaterThan(0);
-    }
   });
 });

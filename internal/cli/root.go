@@ -65,8 +65,6 @@ type commandDeps struct {
 	resolveHomeForWorkspace     func(workspaceRoot string) (compozyconfig.HomePaths, error)
 	ensureHome                  func(compozyconfig.HomePaths) error
 	runInstallWizard            installWizardRunner
-	runBridgeSetupWizard        bridgeSetupWizardRunner
-	generateBridgeSetupSecret   bridgeSetupSecretGenerator
 	newClient                   func(target ClientTarget) (DaemonClient, error)
 	writeGatewayCredential      func(string, string, string) (string, error)
 	readGatewayCredential       func(string, string) (string, error)
@@ -145,8 +143,7 @@ func configureRootClientTargetReporting(cmd *cobra.Command, deps *commandDeps) {
 		if !target.isRemoteGateway() || pendingTarget != nil {
 			return nil
 		}
-		resolved := target
-		pendingTarget = &resolved
+		pendingTarget = new(target)
 		return nil
 	}
 	cmd.PersistentPostRunE = func(command *cobra.Command, _ []string) error {

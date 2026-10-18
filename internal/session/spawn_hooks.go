@@ -2,13 +2,13 @@ package session
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	"strings"
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -18,17 +18,31 @@ func (m *Manager) dispatchSpawnPreCreate(
 	opts SpawnOpts,
 	lineage *store.SessionLineage,
 ) (SpawnOpts, *store.SessionLineage, error) {
+	expectedSubagent := opts.Subagent
+	if expectedSubagent != nil {
+		expected := *expectedSubagent
+		expectedSubagent = &expected
+	}
 	payload := hookspkg.SpawnPreCreatePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSpawnPreCreate,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookSpawnPreCreate,
+		Subagent:          opts.Subagent,
+		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, nil, lineage, opts.AgentName, opts.SpawnRole),
 		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
 		ChildPermissions:  hookPermissionSetFromPolicy(opts.PermissionPolicy),
 	}
 	result, err := m.hooks.spawn().DispatchSpawnPreCreate(ctx, payload)
 	if err != nil {
+		if denial, denied := errors.AsType[*hookspkg.DeniedError](
+			err,
+		); denied &&
+			opts.SpawnRole == store.SubagentSpawnRole {
+			return SpawnOpts{}, nil, &SubagentError{
+				Code:    subagentCapabilityDeniedCode,
+				Message: denial.Reason,
+				Err:     errors.Join(ErrSubagentCapabilityDenied, err),
+			}
+		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSpawnPermissionDenied, err)
 	}
 	if result.Denied {
@@ -36,9 +50,29 @@ func (m *Manager) dispatchSpawnPreCreate(
 		if reason == "" {
 			reason = "spawn denied by hook"
 		}
+		if opts.SpawnRole == store.SubagentSpawnRole {
+			return SpawnOpts{}, nil, &SubagentError{
+				Code:    subagentCapabilityDeniedCode,
+				Message: reason,
+				Err:     ErrSubagentCapabilityDenied,
+			}
+		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSpawnPermissionDenied, reason)
 	}
 
+	if expectedSubagent != nil &&
+		(result.Subagent == nil || result.Subagent.Isolation != expectedSubagent.Isolation ||
+			result.Subagent.WorktreeID != expectedSubagent.WorktreeID) {
+		return SpawnOpts{}, nil, &SubagentError{
+			Code:    subagentCapabilityDeniedCode,
+			Message: "inherited worktree binding is immutable",
+			Err:     ErrSubagentCapabilityDenied,
+		}
+	}
+	if opts.SpawnRole == store.SubagentSpawnRole &&
+		(result.TTLSeconds != 0 || result.SpawnRole != store.SubagentSpawnRole) {
+		return SpawnOpts{}, nil, ErrSubagentCapabilityDenied
+	}
 	opts.AgentName = strings.TrimSpace(result.AgentName)
 	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
 	opts.TTL = time.Duration(result.TTLSeconds) * time.Second
@@ -60,10 +94,8 @@ func (m *Manager) dispatchSpawnCreated(ctx context.Context, parent *Info, child 
 	}
 	lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
 	payload := hookspkg.SpawnCreatedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSpawnCreated,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookSpawnCreated,
+		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, child, lineage, child.AgentName, lineage.SpawnRole),
 		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
 		ChildPermissions:  hookPermissionSetFromPolicy(lineage.PermissionPolicy),
@@ -92,7 +124,6 @@ func spawnHookContext(
 		ctx.ProfileID = strings.TrimSpace(parent.ProfileID)
 		ctx.WorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(parent.Workspace)
-		ctx.ResolvedNetworkParticipation = participation.CloneSpec(parent.NetworkParticipation)
 		ctx.ParentSoulDigest = strings.TrimSpace(parent.SoulDigest)
 	}
 	if child != nil {
@@ -100,7 +131,6 @@ func spawnHookContext(
 		ctx.ChildSessionID = strings.TrimSpace(child.ID)
 		ctx.WorkspaceID = strings.TrimSpace(child.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(child.Workspace)
-		ctx.ResolvedNetworkParticipation = participation.CloneSpec(child.NetworkParticipation)
 		ctx.SoulSnapshotID = strings.TrimSpace(child.SoulSnapshotID)
 		ctx.SoulDigest = strings.TrimSpace(child.SoulDigest)
 		if value := strings.TrimSpace(child.ParentSoulDigest); value != "" {

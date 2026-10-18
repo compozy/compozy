@@ -65,7 +65,7 @@ describe("LoopEditorField", () => {
     fireEvent.change(input, { target: { value: "{" } });
 
     const error = screen.getByRole("alert");
-    expect(error).toHaveTextContent("Invalid JSON — not saved");
+    expect(error).toHaveTextContent("This isn’t valid. Nothing was saved.");
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAttribute("aria-describedby", error.id);
     expect(onChange).not.toHaveBeenCalled();

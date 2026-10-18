@@ -6,20 +6,16 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
 
 const (
-	harnessContextFalseKey                   = "false"
-	harnessContextHarnessNetworkLivePath     = "harness.network_live"
 	harnessContextHarnessDiagnosticLabelPath = "harness.diagnostic_label"
 	harnessContextHarnessSessionClassPath    = "harness.session_class"
 	harnessContextHarnessSessionTypePath     = "harness.session_type"
 	harnessContextHarnessSurfacePath         = "harness.surface"
 	harnessContextHarnessTurnOriginPath      = "harness.turn_origin"
-	harnessContextTrueKey                    = "true"
 )
 
 // TurnOrigin identifies the resolved harness origin for one turn.
@@ -28,8 +24,6 @@ type TurnOrigin string
 const (
 	// TurnOriginUser identifies a standard user-driven turn.
 	TurnOriginUser TurnOrigin = "user"
-	// TurnOriginNetwork identifies a network-originated turn.
-	TurnOriginNetwork TurnOrigin = "network"
 	// TurnOriginSynthetic identifies a daemon-owned synthetic turn.
 	TurnOriginSynthetic TurnOrigin = "synthetic"
 )
@@ -41,8 +35,6 @@ type SessionClass string
 const (
 	// SessionClassInteractive identifies user-owned interactive sessions.
 	SessionClassInteractive SessionClass = "interactive"
-	// SessionClassDream identifies dream consolidation sessions.
-	SessionClassDream SessionClass = "dream"
 	// SessionClassSystem identifies daemon-owned system sessions.
 	SessionClassSystem SessionClass = "system"
 	// SessionClassCoordinator identifies daemon-owned workspace coordinator sessions.
@@ -59,28 +51,20 @@ const (
 	HarnessPromptSectionRuntimeIdentity HarnessPromptSection = "runtime_identity"
 	// HarnessPromptSectionSituation injects the bounded Compozy situation context.
 	HarnessPromptSectionSituation HarnessPromptSection = "situation"
-	// HarnessPromptSectionMemory injects durable memory prompt context.
-	HarnessPromptSectionMemory HarnessPromptSection = "memory"
 	// HarnessPromptSectionSkills injects the active skills catalog prompt context.
 	HarnessPromptSectionSkills HarnessPromptSection = "skills"
 	// HarnessPromptSectionTools injects Compozy-native tool discovery and invocation guidance.
 	HarnessPromptSectionTools HarnessPromptSection = "tools"
-	// HarnessPromptSectionNetwork injects the bundled Compozy network startup section.
-	HarnessPromptSectionNetwork HarnessPromptSection = "network"
 )
 
 // HarnessAugmenter identifies a prompt input augmenter managed by harness policy.
 type HarnessAugmenter string
 
 const (
-	// HarnessAugmenterWorkspaceKnowledge injects current workspace-owned knowledge.
-	HarnessAugmenterWorkspaceKnowledge HarnessAugmenter = "workspace_knowledge"
 	// HarnessAugmenterSituation injects fresh bounded Compozy situation context.
 	HarnessAugmenterSituation HarnessAugmenter = "situation"
 	// HarnessAugmenterSkills injects the current effective skills catalog.
 	HarnessAugmenterSkills HarnessAugmenter = "skills"
-	// HarnessAugmenterDurableMemory enables the durable memory recall augmenter.
-	HarnessAugmenterDurableMemory HarnessAugmenter = "durable_memory"
 )
 
 // ReentryMode identifies how a resolved policy participates in synthetic reentry.
@@ -117,13 +101,10 @@ const (
 type HarnessRuntimeSignals struct {
 	RuntimeIdentityPromptSectionEnabled bool
 	SituationPromptSectionEnabled       bool
-	MemoryPromptSectionEnabled          bool
 	SkillsPromptSectionEnabled          bool
 	ToolsPromptSectionEnabled           bool
-	WorkspaceKnowledgeAugmenter         bool
 	SkillsAugmenter                     bool
 	SituationAugmenter                  bool
-	DurableMemoryAugmenter              bool
 	SyntheticTurnsEnabled               bool
 	DetachedTaskRuntimeEnabled          bool
 }
@@ -215,15 +196,14 @@ func (r *HarnessContextResolver) ResolveStartup(startup session.StartupPromptCon
 	return r.Resolve(HarnessResolutionInput{
 		Surface: ResolutionSurfaceStartup,
 		Session: HarnessSessionInput{
-			SessionID:            startup.SessionID,
-			Type:                 startup.SessionType,
-			SpawnRole:            startup.SpawnRole,
-			NetworkParticipation: startup.NetworkParticipation,
-			WorkspaceID:          startup.WorkspaceID,
-			Workspace:            startup.Workspace,
-			AgentName:            startup.AgentName,
-			Provider:             startup.Provider,
-			ProviderHomePolicy:   startup.ProviderHomePolicy,
+			SessionID:          startup.SessionID,
+			Type:               startup.SessionType,
+			SpawnRole:          startup.SpawnRole,
+			WorkspaceID:        startup.WorkspaceID,
+			Workspace:          startup.Workspace,
+			AgentName:          startup.AgentName,
+			Provider:           startup.Provider,
+			ProviderHomePolicy: startup.ProviderHomePolicy,
 		},
 		Turn: HarnessTurnRequest{
 			Source: session.TurnSourceUser,
@@ -243,15 +223,14 @@ func (r *HarnessContextResolver) ResolvePrompt(
 	return r.Resolve(HarnessResolutionInput{
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
-			SessionID:            info.ID,
-			Type:                 info.Type,
-			SpawnRole:            store.NormalizeSessionLineage(info.ID, info.Lineage).SpawnRole,
-			NetworkParticipation: info.NetworkParticipation,
-			WorkspaceID:          info.WorkspaceID,
-			Workspace:            info.Workspace,
-			AgentName:            info.AgentName,
-			Provider:             info.Provider,
-			ProviderHomePolicy:   info.ProviderHomePolicy,
+			SessionID:          info.ID,
+			Type:               info.Type,
+			SpawnRole:          store.NormalizeSessionLineage(info.ID, info.Lineage).SpawnRole,
+			WorkspaceID:        info.WorkspaceID,
+			Workspace:          info.Workspace,
+			AgentName:          info.AgentName,
+			Provider:           info.Provider,
+			ProviderHomePolicy: info.ProviderHomePolicy,
 		},
 		Turn: harnessTurnRequestFromPrompt(source, meta),
 	})
@@ -320,25 +299,16 @@ func normalizeHarnessSessionContext(input HarnessSessionInput) (HarnessSessionCo
 		return HarnessSessionContext{}, err
 	}
 
-	networkParticipation := input.NetworkParticipation
-	if networkParticipation == (participation.Spec{}) {
-		networkParticipation = participation.LocalSpec()
-	}
-	if err := participation.ValidateSpec(networkParticipation); err != nil {
-		return HarnessSessionContext{}, fmt.Errorf("daemon: validate harness network participation: %w", err)
-	}
 	return HarnessSessionContext{
-		SessionID:            strings.TrimSpace(input.SessionID),
-		Type:                 sessionType,
-		SpawnRole:            strings.ToLower(strings.TrimSpace(input.SpawnRole)),
-		SessionClass:         sessionClass,
-		NetworkParticipation: networkParticipation,
-		NetworkLive:          networkParticipation.Mode == participation.ModeLive,
-		WorkspaceID:          strings.TrimSpace(input.WorkspaceID),
-		Workspace:            strings.TrimSpace(input.Workspace),
-		AgentName:            strings.TrimSpace(input.AgentName),
-		Provider:             canonicalNativeSkillProvider(input.Provider),
-		ProviderHomePolicy:   input.ProviderHomePolicy,
+		SessionID:          strings.TrimSpace(input.SessionID),
+		Type:               sessionType,
+		SpawnRole:          strings.ToLower(strings.TrimSpace(input.SpawnRole)),
+		SessionClass:       sessionClass,
+		WorkspaceID:        strings.TrimSpace(input.WorkspaceID),
+		Workspace:          strings.TrimSpace(input.Workspace),
+		AgentName:          strings.TrimSpace(input.AgentName),
+		Provider:           canonicalNativeSkillProvider(input.Provider),
+		ProviderHomePolicy: input.ProviderHomePolicy,
 	}, nil
 }
 
@@ -346,8 +316,6 @@ func normalizeHarnessSessionType(sessionType session.Type) session.Type {
 	switch session.Type(strings.TrimSpace(string(sessionType))) {
 	case session.SessionTypeUser:
 		return session.SessionTypeUser
-	case session.SessionTypeDream:
-		return session.SessionTypeDream
 	case session.SessionTypeSystem:
 		return session.SessionTypeSystem
 	case session.SessionTypeCoordinator:
@@ -363,8 +331,6 @@ func harnessSessionClassForType(sessionType session.Type) (SessionClass, error) 
 	switch sessionType {
 	case session.SessionTypeUser:
 		return SessionClassInteractive, nil
-	case session.SessionTypeDream:
-		return SessionClassDream, nil
 	case session.SessionTypeSystem:
 		return SessionClassSystem, nil
 	case session.SessionTypeCoordinator:

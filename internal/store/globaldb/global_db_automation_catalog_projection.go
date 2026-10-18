@@ -14,21 +14,22 @@ import (
 const automationJobRichSelectSQL = `SELECT
 	id, scope, name, agent_name, workspace_id, prompt, schedule, task,
 	enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 	FROM automation_jobs`
 
 const automationTriggerRichSelectSQL = `SELECT
 	id, scope, name, agent_name, workspace_id, prompt, event, filter,
 	enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
 	webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
-	loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	loop_inputs, loop_input_mapping, created_at, updated_at
 	FROM automation_triggers`
 
 func upsertAutomationJobCatalog(ctx context.Context, exec globalSQLExecutor, job automation.Job) error {
 	search := automationJobCatalogSearch(job)
 	loopName := automationJobCatalogLoopName(job)
 	if err := sqlcgen.New(exec).UpsertAutomationJobCatalog(ctx, sqlcgen.UpsertAutomationJobCatalogParams{
-		JobID: job.ID, Scope: string(job.Scope), WorkspaceID: strings.TrimSpace(job.WorkspaceID),
+		Target: automation.JobListTarget(job),
+		JobID:  job.ID, Scope: string(job.Scope), WorkspaceID: strings.TrimSpace(job.WorkspaceID),
 		Source: string(job.Source), SourceRank: int64(automation.ListSourceRank(job.Source)),
 		Name: job.Name, LoopName: loopName, Enabled: job.Enabled, SearchName: search.name,
 		SearchAgentName: search.agentName, SearchPrompt: search.prompt, SearchScope: search.scope,
@@ -47,6 +48,7 @@ func upsertAutomationTriggerCatalog(ctx context.Context, exec globalSQLExecutor,
 	queries := sqlcgen.New(exec)
 	if err := queries.UpsertAutomationTriggerCatalog(ctx, sqlcgen.UpsertAutomationTriggerCatalogParams{
 		TriggerID:          trigger.ID,
+		Target:             string(trigger.TargetKind),
 		Scope:              string(trigger.Scope),
 		WorkspaceID:        strings.TrimSpace(trigger.WorkspaceID),
 		Event:              trigger.Event,

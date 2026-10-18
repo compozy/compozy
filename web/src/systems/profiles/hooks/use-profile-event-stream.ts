@@ -32,8 +32,7 @@ export function useProfileEventStream({
   });
   const onReconcile = useEffectEvent(() => reconcileProfiles(queryClient));
 
-  const connectable =
-    enabled && (Boolean(eventSourceFactory) || typeof EventSource !== "undefined");
+  const connectable = enabled && (Boolean(eventSourceFactory) || typeof WebSocket !== "undefined");
   const [connection, setConnection] = useState<"live" | "stale">("stale");
 
   useEffect(() => {

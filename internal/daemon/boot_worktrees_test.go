@@ -2,17 +2,26 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -32,8 +41,8 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	resolvedConfig.Worktrees.Root = worktreesRoot
 	resolvedConfig.Worktrees.SetupCommand = "bun install"
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-resolved", Name: "Resolved", RootDir: workspaceRoot},
-		Config:    resolvedConfig,
+		ID: "ws-resolved", Name: "Resolved", RootDir: workspaceRoot,
+		Config: resolvedConfig,
 	}
 	stub := &daemonWorktreeResolverStub{
 		resolved: resolved,
@@ -44,7 +53,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	}
 	resolver := daemonWorktreeWorkspaceResolver{resolver: stub, homePaths: homePaths}
 
-	got, err := resolver.ResolveWorktreeWorkspace(context.Background(), resolved.ID)
+	got, err := resolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID)
 	if err != nil {
 		t.Fatalf("ResolveWorktreeWorkspace() error = %v", err)
 	}
@@ -52,7 +61,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 		got.Worktrees.SetupCommand != "bun install" {
 		t.Fatalf("ResolveWorktreeWorkspace() = %#v, want resolved workspace overlay", got)
 	}
-	listed, err := resolver.ListWorktreeWorkspaces(context.Background())
+	listed, err := resolver.ListWorktreeWorkspaces(t.Context())
 	if err != nil {
 		t.Fatalf("ListWorktreeWorkspaces() error = %v", err)
 	}
@@ -61,7 +70,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	}
 
 	empty := daemonWorktreeWorkspaceResolver{homePaths: homePaths}
-	if _, err := empty.ResolveWorktreeWorkspace(context.Background(), "missing"); !errors.Is(
+	if _, err := empty.ResolveWorktreeWorkspace(t.Context(), "missing"); !errors.Is(
 		err, worktree.ErrNotFound,
 	) {
 		t.Fatalf("ResolveWorktreeWorkspace(nil) error = %v, want ErrNotFound", err)
@@ -74,7 +83,7 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 	var current executionWorktreeService
 	resolver := daemonExecutionWorktrees{lookup: func() executionWorktreeService { return current }}
 	if _, err := resolver.MaterializeForRun(
-		context.Background(),
+		t.Context(),
 		"ws-late",
 		worktree.RunWorktreeRequest{TaskSlug: "late", RunID: "run-late"},
 	); !errors.Is(err, worktree.ErrPerRunMaterialization) {
@@ -86,7 +95,7 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 	}}
 	current = backing
 	item, err := resolver.MaterializeForRun(
-		context.Background(),
+		t.Context(),
 		"ws-late",
 		worktree.RunWorktreeRequest{TaskSlug: "late", RunID: "run-late"},
 	)
@@ -158,7 +167,7 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 			)
 		}}
 
-		id, gotRoot, err := resolver.ResolveSessionWorktree(context.Background(), " ws-1 ", " wt-ref ")
+		id, gotRoot, err := resolver.ResolveSessionWorktree(t.Context(), " ws-1 ", " wt-ref ")
 		if err != nil {
 			t.Fatalf("ResolveSessionWorktree(ready) error = %v", err)
 		}
@@ -199,7 +208,7 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 					return &worktree.Worktree{ID: "wt-target", Path: test.path, State: test.state}, nil
 				})
 			}}
-			_, _, err := resolver.ResolveSessionWorktree(context.Background(), "ws-1", "target")
+			_, _, err := resolver.ResolveSessionWorktree(t.Context(), "ws-1", "target")
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("ResolveSessionWorktree(%s) error = %v, want %v", test.name, err, test.wantErr)
 			}
@@ -428,4 +437,429 @@ func TestDaemonTerminalExecutionRoot(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Canonical boot-worktree suite owns deferred journal recovery and cancellation with real SQLite/filesystem.
+func TestDaemonManagedDeliveryRecovery(t *testing.T) {
+	t.Parallel()
+	// Invariant: restored inventory survives SQLite contention without duplicate receipts; shutdown joins retry.
+	// Owner: daemon managed-delivery boot lifecycle; existing boot-worktree suite.
+	for _, mode := range []string{"restore", "sqlite-busy", "initial-sqlite-busy", "shutdown", "boot-failure"} {
+		t.Run("Should own deferred inventory recovery through "+mode, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(testutil.Context(t)); err != nil {
+					t.Errorf("close recovery fixture: %v", err)
+				}
+			})
+			now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+			const workspaceID = "ws-inventory-retry"
+			if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+				ID: workspaceID, Name: "Inventory retry", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			item := worktree.Worktree{ID: "wt-inventory-retry", ProfileID: store.DefaultProfileID,
+				WorkspaceID: workspaceID, Name: "inventory-retry", Path: t.TempDir(), State: worktree.StateReady,
+				Origin: worktree.OriginManual, SetupState: worktree.SetupNone, CreatedAt: now, UpdatedAt: now}
+			if err := db.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatal(err)
+			}
+			operation := worktree.ExitOperation{ID: "op-inventory-retry", ProfileID: item.ProfileID,
+				WorkspaceID: workspaceID, WorktreeID: item.ID, Action: string(worktree.ExitActionDeliver),
+				State: "running", StartedAt: now}
+			if err := db.Worktrees.InsertExitOperation(ctx, operation); err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			directory := filepath.Join(root, ".delivery")
+			if err := os.WriteFile(directory, []byte("not a directory"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			restoreInventory := func() {
+				if err := os.Remove(directory); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.MkdirAll(directory, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				data, err := json.Marshal(struct {
+					Version     int               `json:"version"`
+					OperationID string            `json:"operation_id"`
+					Item        worktree.Worktree `json:"worktree"`
+					Phase       string            `json:"phase"`
+				}{Version: 1, OperationID: operation.ID, Item: item, Phase: "completed"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(directory, "restored.json"), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "initial-sqlite-busy" {
+				restoreInventory()
+			}
+			var events worktree.EventSink = db
+			var busy *managedDeliveryBusyEvents
+			var unlock func()
+			if mode == "sqlite-busy" || mode == "initial-sqlite-busy" {
+				busy, unlock = newManagedDeliveryBusyEvents(t, db)
+				events = busy
+			}
+			service := worktree.NewService(db.Worktrees, nil,
+				worktree.WithConfig(config.WorktreesConfig{}, root), worktree.WithEvents(events))
+			state := &bootState{worktrees: service, logger: slog.Default()}
+			cleanup := &bootCleanup{}
+			if err := new(Daemon).bootManagedDeliveries(ctx, state, cleanup); err != nil {
+				t.Fatalf("transient recovery failure must not abort boot: %v", err)
+			}
+			worker := state.runtimeWorkers.managedDeliveries
+			if worker == nil {
+				t.Fatal("deferred recovery lacks boot/shutdown ownership")
+			}
+			t.Cleanup(func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+				defer cancel()
+				if err := stopManagedDeliveryRecovery(stopCtx, worker); err != nil {
+					t.Errorf("stop recovery fixture: %v", err)
+				}
+			})
+			if running, err := db.Worktrees.ListRunningExitOperations(ctx); err != nil || len(running) != 1 ||
+				running[0].ID != operation.ID {
+				t.Fatalf("transient recovery altered original receipt: %#v error=%v", running, err)
+			}
+			switch mode {
+			case "shutdown":
+				stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				var errs []error
+				state.runtimeWorkers.shutdown(stopCtx, &errs)
+				if err := errors.Join(errs...); err != nil {
+					t.Fatal(err)
+				}
+			case "boot-failure":
+				bootErr := errors.New("later boot step failed")
+				cleanup.run(ctx, &bootErr)
+			}
+			if mode != "initial-sqlite-busy" {
+				restoreInventory()
+			}
+			if busy != nil {
+				select {
+				case err := <-busy.contended:
+					if contention, ok := errors.AsType[*store.WriteContentionError](
+						err,
+					); !ok || !store.IsSQLiteBusy(err) ||
+						contention.Attempts < 1 {
+						t.Fatalf("expected bounded real receipt SQLite contention: %v", err)
+					}
+				case <-time.After(10 * time.Second):
+					t.Fatal("recovery never attempted the contended receipt")
+				}
+				if running, err := db.Worktrees.ListRunningExitOperations(
+					ctx,
+				); err != nil || len(running) != 1 ||
+					running[0].ID != operation.ID {
+					t.Fatalf("contention changed receipt: %#v error=%v", running, err)
+				}
+				unlock()
+			}
+			if mode != "restore" && mode != "sqlite-busy" && mode != "initial-sqlite-busy" {
+				select {
+				case <-worker.Stop():
+				default:
+					t.Fatal("shutdown returned before retry worker joined")
+				}
+				if running, err := db.Worktrees.ListRunningExitOperations(ctx); err != nil || len(running) != 1 {
+					t.Fatalf("stopped worker recovered after cancellation: %#v error=%v", running, err)
+				}
+				return
+			}
+			waitForConditionWithin(t, "same receipt recovery after restored inventory", 5*time.Second, func() bool {
+				running, err := db.Worktrees.ListRunningExitOperations(ctx)
+				if err != nil {
+					t.Error(err)
+					return false
+				}
+				return len(running) == 0
+			})
+			summaries, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID,
+				WorktreeID: item.ID, Type: worktree.EventExitActionCompleted,
+			})
+			if err != nil || len(summaries) != 1 {
+				t.Fatalf("restored receipt terminal event=%#v error=%v", summaries, err)
+			}
+			var payload worktree.ExitEventPayload
+			if err := json.Unmarshal(summaries[0].Content, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.OperationID != operation.ID || payload.State != "completed" {
+				t.Fatalf("recovery changed receipt identity: %#v", payload)
+			}
+		})
+	}
+}
+
+// The real SQLite lock supplies the persistence-boundary failure without replacing recovery.
+type managedDeliveryBusyEvents struct {
+	*globaldb.GlobalDB
+	contended chan error
+	attempted bool
+}
+
+func (s *managedDeliveryBusyEvents) FinishExitOperationWithEvent(
+	ctx context.Context, workspaceID, worktreeID, operationID, state string,
+	finishedAt time.Time, event worktree.LifecycleEvent,
+) (bool, error) {
+	finished, err := s.GlobalDB.FinishExitOperationWithEvent(
+		ctx, workspaceID, worktreeID, operationID, state, finishedAt, event,
+	)
+	if !s.attempted {
+		s.attempted = true
+		s.contended <- err
+	}
+	return finished, err
+}
+
+func newManagedDeliveryBusyEvents(t *testing.T, db *globaldb.GlobalDB) (*managedDeliveryBusyEvents, func()) {
+	t.Helper()
+	// Keep the real receipt connection deterministic while bounding only SQLite's per-attempt wait.
+	db.DB().SetMaxOpenConns(1)
+	db.DB().SetMaxIdleConns(1)
+	if _, err := db.DB().ExecContext(t.Context(), "PRAGMA busy_timeout = 1"); err != nil {
+		t.Fatal(err)
+	}
+	locker, err := sql.Open("sqlite", db.Path()+"?_pragma=busy_timeout(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := locker.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	conn, err := locker.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := conn.ExecContext(t.Context(), "BEGIN IMMEDIATE"); err != nil {
+		t.Fatal(err)
+	}
+	unlock := sync.OnceFunc(func() {
+		if _, err := conn.ExecContext(context.WithoutCancel(t.Context()), "ROLLBACK"); err != nil {
+			t.Error(err)
+		}
+	})
+	t.Cleanup(unlock)
+	return &managedDeliveryBusyEvents{GlobalDB: db, contended: make(chan error, 1)}, unlock
+}
+
+// Invariant: the daemon adapter translates provisioning failures and only removes safe, unadmitted work.
+// Owner: daemon worktree adapter; canonical worktree wiring suite (UT-038, UT-039).
+func TestSubagentWorktreeAdapter(t *testing.T) {
+	t.Parallel()
+	for _, nested := range []bool{false, true} {
+		name := "Should resolve omitted base from caller HEAD UT-020"
+		if nested {
+			name = "Should resolve nested caller HEAD UT-026"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{item: worktree.Worktree{Path: "/nested"}}
+			req := session.SubagentWorktreeRequest{CallerPath: "/caller"}
+			want := "/caller"
+			if nested {
+				req.CallerWorktreeID = "parent-wt"
+				want = "/nested"
+			}
+			base, err := subagentWorktreeBase(t.Context(), svc, req)
+			if err != nil || base != "caller-head" || svc.resolvedPath != want || svc.resolvedRef != "HEAD" {
+				t.Fatal(base, err, svc.resolvedPath, svc.resolvedRef)
+			}
+		})
+	}
+	for _, state := range []worktree.State{worktree.StatePending, worktree.StateReady, worktree.StateRemoved, worktree.StateMissing, worktree.StateDismissed} {
+		t.Run("Should find only live run materializations "+string(state), func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{
+				items: []worktree.Worktree{{ID: "wt", RunID: "sub", Origin: worktree.OriginPerRun, State: state}},
+			}
+			adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return svc }}
+			got, err := adapter.FindByRun(t.Context(), "ws", "sub")
+			want := state == worktree.StatePending || state == worktree.StateReady
+			if err != nil || (got != nil) != want {
+				t.Fatal(got, err)
+			}
+		})
+	}
+	t.Run("Should rollback failed setup and preserve hook denial identity", func(t *testing.T) {
+		t.Parallel()
+		service := &subagentWorktreeServiceStub{
+			item:   worktree.Worktree{ID: "wt", SetupState: worktree.SetupFailed},
+			status: worktree.Status{DirtyFiles: new(1)},
+		}
+		adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return service }}
+		req := session.SubagentWorktreeRequest{WorkspaceID: "ws", SubagentID: "sub", BaseRef: "main"}
+		_, err := adapter.Provision(t.Context(), req)
+		failure, ok := errors.AsType[*session.ErrSubagentIsolationFailed](err)
+		if !ok || failure.Cause != "setup_failed" || service.rollbacks != 1 {
+			t.Fatal(err, service.rollbacks)
+		}
+		service.provisionErr = worktree.ErrDeniedByHook
+		_, err = adapter.Provision(t.Context(), req)
+		if !errors.Is(err, worktree.ErrDeniedByHook) || !errors.Is(err, session.ErrSubagentCapabilityDenied) {
+			t.Fatal(err)
+		}
+	})
+	for _, tc := range []struct {
+		name                string
+		dirty, ahead        int
+		readError           string
+		retained, wantError bool
+	}{
+		{name: "Should remove a clean checkout with zero commits"},
+		{name: "Should retain dirty work", dirty: 1, retained: true},
+		{name: "Should retain committed work", ahead: 1, retained: true},
+		{name: "Should fail closed when Git cannot be read", readError: "unreadable", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{
+				status: worktree.Status{DirtyFiles: new(tc.dirty), ReadError: tc.readError},
+				ahead:  tc.ahead,
+			}
+			adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return svc }}
+			retained, err := adapter.SafeRollback(t.Context(), "ws", "wt", "sub", "creation-sha")
+			if retained != tc.retained || (err != nil) != tc.wantError {
+				t.Fatal(retained, err)
+			}
+			if (retained || err != nil) && svc.rollbacks != 0 {
+				t.Fatal("unsafe rollback", svc.rollbacks)
+			}
+			if !retained && err == nil && svc.rollbacks != 1 {
+				t.Fatal("missing rollback")
+			}
+		})
+	}
+	t.Run("Should observe against creation SHA and distinguish unknown from no PR", func(t *testing.T) {
+		t.Parallel()
+		svc := &subagentWorktreeServiceStub{
+			status: worktree.Status{
+				HeadSHA:     new("head"),
+				DirtyFiles:  new(0),
+				RefreshedAt: new(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)),
+			},
+			ahead:    2,
+			forgeErr: worktree.ErrForgeUnavailable,
+		}
+		adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return svc }}
+		facts := adapter.Observe(t.Context(), "ws", "wt", "creation-sha")
+		if svc.base != "creation-sha" || facts.PRStatus != "unknown" || facts.CommitsAhead == nil ||
+			*facts.CommitsAhead != 2 {
+			t.Fatal(facts, svc.base)
+		}
+		svc.forgeErr = nil
+		svc.forge = &worktree.ForgeStatus{}
+		if facts := adapter.Observe(
+			t.Context(),
+			"ws",
+			"wt",
+			"creation-sha",
+		); facts.PRStatus != "none" ||
+			facts.PRNumber != nil {
+			t.Fatal(facts)
+		}
+		svc.forge = &worktree.ForgeStatus{
+			PRNumber: new(7),
+			PRState:  new(" OPEN "),
+			PRURL:    "https://example.test/pull/7",
+			Draft:    new(true),
+		}
+		if facts := adapter.Observe(
+			t.Context(),
+			"ws",
+			"wt",
+			"creation-sha",
+		); facts.PRStatus != "draft" || facts.PRNumber == nil ||
+			*facts.PRNumber != 7 {
+			t.Fatal(facts)
+		}
+		svc.status.ReadError = "failed"
+		if facts := adapter.Observe(
+			t.Context(),
+			"ws",
+			"wt",
+			"creation-sha",
+		); facts.HeadSHA != "" || facts.CommitsAhead != nil ||
+			!facts.ObservedAt.IsZero() {
+			t.Fatal(facts)
+		}
+	})
+}
+
+type subagentWorktreeServiceStub struct {
+	subagentWorktreeService
+	item                      worktree.Worktree
+	status                    worktree.Status
+	forge                     *worktree.ForgeStatus
+	provisionErr, forgeErr    error
+	ahead, rollbacks          int
+	base                      string
+	items                     []worktree.Worktree
+	resolvedPath, resolvedRef string
+}
+
+var _ subagentWorktreeService = (*subagentWorktreeServiceStub)(nil)
+
+func (s *subagentWorktreeServiceStub) ResolveCommit(_ context.Context, path, ref string) (string, error) {
+	s.resolvedPath, s.resolvedRef = path, ref
+	return "caller-head", nil
+}
+
+func (s *subagentWorktreeServiceStub) Get(context.Context, string, string) (*worktree.Worktree, error) {
+	return &s.item, nil
+}
+
+func (s *subagentWorktreeServiceStub) List(context.Context, string, bool) (*worktree.Listing, error) {
+	return &worktree.Listing{Worktrees: s.items}, nil
+}
+
+func (s *subagentWorktreeServiceStub) MaterializeForRun(
+	context.Context,
+	string,
+	worktree.RunWorktreeRequest,
+) (*worktree.Worktree, error) {
+	return &s.item, s.provisionErr
+}
+func (s *subagentWorktreeServiceStub) RollbackRunMaterialization(context.Context, string, string, string) error {
+	s.rollbacks++
+	return nil
+}
+func (s *subagentWorktreeServiceStub) Status(context.Context, string, string, bool) (*worktree.Status, error) {
+	return &s.status, nil
+}
+func (s *subagentWorktreeServiceStub) CommitsAheadOf(_ context.Context, _, _, base string) (int, error) {
+	s.base = base
+	return s.ahead, nil
+}
+
+func (s *subagentWorktreeServiceStub) StatusDetails(
+	context.Context,
+	string,
+	string,
+	bool,
+	bool,
+) (*worktree.StatusDetails, error) {
+	return &worktree.StatusDetails{ForgeStatus: s.forge}, s.forgeErr
 }

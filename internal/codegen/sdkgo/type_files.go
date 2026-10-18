@@ -3,7 +3,8 @@ package sdkgo
 import (
 	"bytes"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/dave/jennifer/jen"
 )
@@ -14,11 +15,8 @@ func (g *typeGenerator) renderFiles() (map[string][]byte, error) {
 	if err := g.renderAll(); err != nil {
 		return nil, err
 	}
-	names := make([]string, 0, len(g.rendered))
-	for name := range g.rendered {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.AppendSeq(make([]string, 0, len(g.rendered)), maps.Keys(g.rendered))
+	slices.Sort(names)
 
 	files := make(map[string][]byte, (len(names)+generatedTypesPerFile-1)/generatedTypesPerFile)
 	for start := 0; start < len(names); start += generatedTypesPerFile {

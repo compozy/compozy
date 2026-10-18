@@ -4,8 +4,15 @@ import (
 	"strings"
 )
 
+const PromptSyntheticKindSessionReply = "session_reply"
+
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
 type PromptSyntheticMeta struct {
+	Hop                  int             `json:"hop,omitzero"`
+	ChildWorkspaceID     string          `json:"child_workspace_id,omitempty"`
+	ReplyTruncated       bool            `json:"reply_truncated,omitzero"`
+	Kind                 string          `json:"kind,omitempty"`
+	SubagentIDs          []string        `json:"subagent_ids,omitempty"`
 	TaskID               string          `json:"task_id,omitempty"`
 	TaskRunID            string          `json:"task_run_id,omitempty"`
 	WorkflowID           string          `json:"workflow_id,omitempty"`
@@ -26,6 +33,9 @@ type PromptSyntheticMeta struct {
 // Normalize returns a trimmed copy of the synthetic metadata.
 func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 	return PromptSyntheticMeta{
+		Hop: m.Hop, ChildWorkspaceID: strings.TrimSpace(m.ChildWorkspaceID), ReplyTruncated: m.ReplyTruncated,
+		Kind:                 strings.TrimSpace(m.Kind),
+		SubagentIDs:          append([]string(nil), m.SubagentIDs...),
 		TaskID:               strings.TrimSpace(m.TaskID),
 		TaskRunID:            strings.TrimSpace(m.TaskRunID),
 		WorkflowID:           strings.TrimSpace(m.WorkflowID),
@@ -47,17 +57,32 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 // IsZero reports whether the synthetic metadata carries any fields.
 func (m PromptSyntheticMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
-		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" &&
-		normalized.ChildSessionID == "" && normalized.ChildAgentName == "" && normalized.Badge == "" &&
+	return normalized.ChildWorkspaceID == "" && !normalized.ReplyTruncated && normalized.Hop == 0 &&
+		normalized.Kind == "" && len(normalized.SubagentIDs) == 0 &&
+		normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
+		normalized.ClaimTokenHash == "" &&
+		normalized.CoordinatorSessionID == "" &&
+		normalized.ChildSessionID == "" &&
+		normalized.ChildAgentName == "" &&
+		normalized.Badge == "" &&
 		normalized.Reason == "" &&
-		normalized.Summary == "" && normalized.WakeEventID == "" && normalized.PolicySnapshotID == "" &&
-		normalized.PolicyDigest == "" && normalized.ConfigDigest == "" && normalized.Goal == nil
+		normalized.Summary == "" &&
+		normalized.WakeEventID == "" &&
+		normalized.PolicySnapshotID == "" &&
+		normalized.PolicyDigest == "" &&
+		normalized.ConfigDigest == "" &&
+		normalized.Goal == nil
 }
 
 // Validate ensures the synthetic metadata carries the minimum wake-up identity.
 func (m PromptSyntheticMeta) Validate() error {
 	normalized := m.Normalize()
+	if normalized.Hop < 0 || normalized.Hop > MaxSessionMessageHops {
+		return invalidPromptMetadata("acp: invalid synthetic prompt hop")
+	}
+	if normalized.Kind != PromptSyntheticKindSessionReply && normalized.Hop != 0 {
+		return invalidPromptMetadata("acp: only session replies carry a synthetic hop")
+	}
 	if normalized.Reason == "" {
 		return invalidPromptMetadata("acp: synthetic prompt metadata requires a reason")
 	}

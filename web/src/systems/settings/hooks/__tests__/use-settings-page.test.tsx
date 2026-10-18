@@ -52,15 +52,13 @@ describe("useSettingsPage", () => {
       "appearance",
       "layouts",
       "profiles",
-      "palette",
       "providers",
-      "memory",
       "roles",
       "skills",
       "mcp",
       "automation",
-      "network",
       "gateway",
+      "palette",
       "attention",
       "observability",
       "hooks",
@@ -73,13 +71,13 @@ describe("useSettingsPage", () => {
   });
 
   it("resolves the active section from the router match", () => {
-    matchedRoutes["/settings/memory"] = true;
+    matchedRoutes["/settings/roles"] = true;
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useSettingsPage(), { wrapper });
 
-    expect(result.current.activeSectionSlug).toBe("memory");
-    expect(result.current.activeSection?.label).toBe("Memory");
+    expect(result.current.activeSectionSlug).toBe("roles");
+    expect(result.current.activeSection?.label).toBe("Roles");
   });
 
   it("prefers an explicit slug over the router match", () => {

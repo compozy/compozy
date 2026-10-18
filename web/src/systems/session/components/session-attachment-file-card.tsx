@@ -9,6 +9,7 @@ export interface SessionAttachmentFileCardProps extends ComponentProps<"a"> {
   sizeLabel?: string;
 }
 
+/** Downloads non-image attachments without replacing the session or desktop window. */
 export function SessionAttachmentFileCard({
   filename,
   extension,
@@ -23,21 +24,21 @@ export function SessionAttachmentFileCard({
       title={title ?? filename}
       className={cn(
         "att-file flex min-h-9 max-w-60 shrink-0 items-center gap-2",
-        "rounded-md border border-line bg-elevated",
+        "rounded-lg bg-surface-2",
         "pr-2.5 text-left text-fg",
-        "transition-colors duration-base ease-out",
-        "hover:border-line-strong hover:bg-row-hover",
+        "transition-[background-color,box-shadow] duration-base ease-out",
+        "hover:bg-selected hover:shadow-card",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
         className
       )}
       {...props}
+      download={filename}
+      target="_blank"
+      rel="noopener noreferrer"
     >
       <span
         aria-hidden="true"
-        className={cn(
-          "grid size-9 shrink-0 place-items-center rounded-l-md",
-          "border-r border-line bg-canvas-soft"
-        )}
+        className={cn("grid size-9 shrink-0 place-items-center rounded-l-lg bg-sunken")}
       >
         <Eyebrow className="leading-none text-subtle">{extension}</Eyebrow>
       </span>

@@ -1,11 +1,19 @@
-import { CornerDownRight, ListPlus, LoaderCircle, Scissors, Square } from "lucide-react";
+import { CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { primaryShortcutModifier } from "@/systems/os";
 import type { SessionSteerDelivery } from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
-import { Button, Kbd } from "@compozy/ui";
+import {
+  Button,
+  InputGroupButton,
+  Kbd,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import { SessionAttachButton } from "./session-attach-button";
 import { SessionComposerSendButton } from "./session-composer-send-button";
@@ -14,6 +22,8 @@ import type { SessionComposerEnterHint } from "./hooks/use-session-composer-cont
 
 interface SessionComposerActionRowProps {
   actionState: SessionComposerActionState;
+  /** `false` leaves out the attach button for hosts that carry text only. */
+  attachments?: boolean;
   busyInputSteerDelivery: SessionSteerDelivery | null;
   composerAttachmentCount: number;
   hasStagedQuote?: boolean;
@@ -32,6 +42,7 @@ interface SessionComposerActionRowProps {
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
+  subagentControl?: ReactNode;
 }
 
 type SessionComposerActionState = {
@@ -65,23 +76,20 @@ function SessionComposerStopControl({
 }) {
   if (stopping) {
     return (
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         aria-busy="true"
         aria-disabled="true"
         aria-live="polite"
         data-state="stopping"
         data-testid="composer-stop-button"
-        className={cn(
-          "inline-flex h-7 min-w-7 cursor-default items-center gap-1.5 rounded-full",
-          "border border-line-soft bg-input-fill pr-2.5 pl-2 text-form font-medium text-subtle",
-          "transition-colors duration-base ease-out",
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
+        className="h-(--size-button-icon-default) cursor-default text-subtle hover:bg-surface-2 hover:shadow-none"
       >
-        <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
+        <Spinner aria-hidden="true" className="size-3" />
         Stopping…
-      </button>
+      </Button>
     );
   }
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -89,21 +97,24 @@ function SessionComposerStopControl({
     onCancelPrompt();
   };
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      aria-label="Stop generation"
-      data-state="stop"
-      data-testid="composer-stop-button"
-      className={cn(
-        "inline-flex size-7 items-center justify-center rounded-full border border-line",
-        "text-muted transition-colors duration-base ease-out",
-        "hover:border-transparent hover:bg-danger-tint hover:text-danger",
-        "focus-visible:shadow-focus-ring focus-visible:outline-none"
-      )}
-    >
-      <Square className="size-3 fill-current" />
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <InputGroupButton
+            variant="secondary"
+            size="send"
+            onClick={handleClick}
+            aria-label="Stop generation"
+            data-state="stop"
+            data-testid="composer-stop-button"
+            className="text-muted hover:bg-danger-tint hover:text-danger hover:shadow-none"
+          />
+        }
+      >
+        <Square aria-hidden="true" className="size-3 fill-current" />
+      </TooltipTrigger>
+      <TooltipContent>Stop</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -132,14 +143,24 @@ function modifierKeyLabel(): string {
   return primaryShortcutModifier(platform) === "meta" ? "⌘⏎" : "Ctrl⏎";
 }
 
-/** What Enter does right now, and the one-shot opposite the modifier applies. */
-function SessionComposerEnterHintLabel({ enterHint }: { enterHint: SessionComposerEnterHint }) {
+/**
+ * What Enter does right now, and the one-shot opposite the modifier applies.
+ * Idle, Enter just sends — nothing worth a visible line — so the hint stays
+ * for assistive tech only and shows once a turn runs and Enter means more.
+ */
+function SessionComposerEnterHintLabel({
+  enterHint,
+  visible,
+}: {
+  enterHint: SessionComposerEnterHint;
+  visible: boolean;
+}) {
   return (
     <span
       data-testid="composer-enter-hint"
       data-enter={enterHint.enter}
       data-modifier={enterHint.modifier ?? undefined}
-      className="inline-flex items-center gap-1 text-micro text-faint"
+      className={cn(visible ? "inline-flex items-center gap-1 text-micro text-faint" : "sr-only")}
     >
       <Kbd>⏎</Kbd>
       {enterHint.enter}
@@ -151,6 +172,48 @@ function SessionComposerEnterHintLabel({ enterHint }: { enterHint: SessionCompos
         </>
       ) : null}
     </span>
+  );
+}
+
+/**
+ * Steer, with what it would do on this agent in a tooltip. The trigger is a
+ * wrapper span so the reason stays reachable by hover when the button itself
+ * is disabled (a disabled button receives no pointer events).
+ */
+function SessionComposerSteerButton({
+  capability,
+  delivery,
+  disabled,
+  onClick,
+}: {
+  capability: string | undefined;
+  delivery: SessionSteerDelivery | null;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const button = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      aria-description={capability}
+      data-steer-delivery={delivery ?? undefined}
+      data-testid="composer-steer-button"
+    >
+      <CornerDownRight aria-hidden="true" />
+      Steer
+    </Button>
+  );
+  if (!capability) return button;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="inline-flex" data-testid="composer-steer-hint" />}>
+        {button}
+      </TooltipTrigger>
+      <TooltipContent>{capability}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -190,24 +253,17 @@ function SessionComposerBusyActions({
           disabled={!canSubmitBusyInput}
           data-testid="composer-queue-button"
         >
-          <ListPlus className="size-3" />
+          <ListPlus aria-hidden="true" />
           Queue
         </Button>
       ) : null}
       {onSteerPrompt ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleSteerAction}
+        <SessionComposerSteerButton
+          capability={steerCapabilityTitle(busyInputSteerDelivery, composerAttachmentCount)}
+          delivery={busyInputSteerDelivery}
           disabled={!canSubmitBusyInput || composerAttachmentCount > 0}
-          title={steerCapabilityTitle(busyInputSteerDelivery, composerAttachmentCount)}
-          data-steer-delivery={busyInputSteerDelivery ?? undefined}
-          data-testid="composer-steer-button"
-        >
-          <CornerDownRight className="size-3" />
-          Steer
-        </Button>
+          onClick={handleSteerAction}
+        />
       ) : null}
       {onInterruptPrompt ? (
         <Button
@@ -218,7 +274,7 @@ function SessionComposerBusyActions({
           disabled={!canSubmitBusyInput}
           data-testid="composer-interrupt-button"
         >
-          <Scissors className="size-3" />
+          <Scissors aria-hidden="true" />
           Interrupt
         </Button>
       ) : null}
@@ -229,6 +285,7 @@ function SessionComposerBusyActions({
 
 export function SessionComposerActionRow({
   actionState,
+  attachments = true,
   busyInputSteerDelivery,
   composerAttachmentCount,
   hasStagedQuote = false,
@@ -246,21 +303,28 @@ export function SessionComposerActionRow({
   runtimeControl,
   environmentControl,
   contextControl,
+  subagentControl,
 }: SessionComposerActionRowProps) {
   const canPrompt = actionState.prompt === "enabled";
   const busyControls = actionState.controls.kind === "busy" ? actionState.controls : null;
 
   return (
-    <div className="flex min-h-7 flex-wrap items-center gap-2">
-      {runtimeControl || environmentControl || contextControl ? (
-        <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-h-(--size-button-icon-default) flex-wrap items-center gap-2">
+      {runtimeControl || environmentControl || contextControl || subagentControl ? (
+        <div className="flex min-w-0 items-center gap-1">
           {runtimeControl}
           {environmentControl}
           {contextControl}
+          {subagentControl}
         </div>
       ) : null}
-      {canPrompt ? <SessionAttachButton /> : null}
-      {canPrompt ? <SessionComposerEnterHintLabel enterHint={actionState.enterHint} /> : null}
+      {canPrompt && attachments ? <SessionAttachButton /> : null}
+      {canPrompt ? (
+        <SessionComposerEnterHintLabel
+          enterHint={actionState.enterHint}
+          visible={busyControls !== null}
+        />
+      ) : null}
       <span className="flex-1" />
       {busyControls ? (
         <SessionComposerBusyActions

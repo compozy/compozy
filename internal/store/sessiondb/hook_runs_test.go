@@ -77,96 +77,6 @@ func TestSessionDBRecordHookRunPersistsSecurityPatchFields(t *testing.T) {
 	}
 }
 
-func TestSessionDBQueryHookRunsFiltersByEvent(t *testing.T) {
-	t.Parallel()
-
-	sessionDB := openTestSessionDB(t, "sess-hook-filter")
-	records := []hookspkg.HookRunRecord{
-		{
-			HookName:      "prompt-hook",
-			Event:         hookspkg.HookPromptPostAssemble,
-			Source:        hookspkg.HookSourceConfig,
-			Mode:          hookspkg.HookModeSync,
-			Outcome:       hookspkg.HookRunOutcomeApplied,
-			DispatchDepth: 1,
-			RecordedAt:    time.Date(2026, 4, 9, 18, 1, 0, 0, time.UTC),
-		},
-		{
-			HookName:      "permission-hook",
-			Event:         hookspkg.HookPermissionRequest,
-			Source:        hookspkg.HookSourceConfig,
-			Mode:          hookspkg.HookModeSync,
-			Outcome:       hookspkg.HookRunOutcomeDenied,
-			DispatchDepth: 1,
-			RecordedAt:    time.Date(2026, 4, 9, 18, 2, 0, 0, time.UTC),
-		},
-	}
-
-	for _, record := range records {
-		if err := sessionDB.RecordHookRun(testutil.Context(t), record); err != nil {
-			t.Fatalf("RecordHookRun(%q) error = %v", record.HookName, err)
-		}
-	}
-
-	filtered, err := sessionDB.QueryHookRuns(
-		testutil.Context(t),
-		store.HookRunQuery{Event: hookspkg.HookPermissionRequest.String()},
-	)
-	if err != nil {
-		t.Fatalf("QueryHookRuns(filtered) error = %v", err)
-	}
-	if got, want := len(filtered), 1; got != want {
-		t.Fatalf("len(filtered) = %d, want %d", got, want)
-	}
-	if filtered[0].HookName != "permission-hook" {
-		t.Fatalf("filtered[0].HookName = %q, want permission-hook", filtered[0].HookName)
-	}
-}
-
-func TestSessionDBQueryHookRunsFiltersByOutcome(t *testing.T) {
-	t.Parallel()
-
-	sessionDB := openTestSessionDB(t, "sess-hook-outcome")
-	records := []hookspkg.HookRunRecord{
-		{
-			HookName:   "applied-hook",
-			Event:      hookspkg.HookPermissionRequest,
-			Source:     hookspkg.HookSourceConfig,
-			Mode:       hookspkg.HookModeSync,
-			Outcome:    hookspkg.HookRunOutcomeApplied,
-			RecordedAt: time.Date(2026, 4, 9, 18, 3, 0, 0, time.UTC),
-		},
-		{
-			HookName:   "failed-hook",
-			Event:      hookspkg.HookPermissionRequest,
-			Source:     hookspkg.HookSourceConfig,
-			Mode:       hookspkg.HookModeSync,
-			Outcome:    hookspkg.HookRunOutcomeFailed,
-			RecordedAt: time.Date(2026, 4, 9, 18, 4, 0, 0, time.UTC),
-		},
-	}
-
-	for _, record := range records {
-		if err := sessionDB.RecordHookRun(testutil.Context(t), record); err != nil {
-			t.Fatalf("RecordHookRun(%q) error = %v", record.HookName, err)
-		}
-	}
-
-	filtered, err := sessionDB.QueryHookRuns(
-		testutil.Context(t),
-		store.HookRunQuery{Outcome: hookspkg.HookRunOutcomeFailed},
-	)
-	if err != nil {
-		t.Fatalf("QueryHookRuns(filtered) error = %v", err)
-	}
-	if got, want := len(filtered), 1; got != want {
-		t.Fatalf("len(filtered) = %d, want %d", got, want)
-	}
-	if filtered[0].HookName != "failed-hook" {
-		t.Fatalf("filtered[0].HookName = %q, want failed-hook", filtered[0].HookName)
-	}
-}
-
 func TestSessionDBQueryHookRunsAppliesEventOutcomeSinceAndLimitInAscendingOrder(t *testing.T) {
 	t.Parallel()
 
@@ -212,12 +122,55 @@ func TestSessionDBQueryHookRunsAppliesEventOutcomeSinceAndLimitInAscendingOrder(
 			Outcome:    hookspkg.HookRunOutcomeApplied,
 			RecordedAt: time.Date(2026, 4, 9, 18, 4, 0, 0, time.UTC),
 		},
+		{
+			HookName:   "failed-hook",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeFailed,
+			RecordedAt: time.Date(2026, 4, 9, 18, 5, 0, 0, time.UTC),
+		},
 	}
 
 	for _, record := range records {
 		if err := sessionDB.RecordHookRun(testutil.Context(t), record); err != nil {
 			t.Fatalf("RecordHookRun(%q) error = %v", record.HookName, err)
 		}
+	}
+
+	// Each query is read-only: one persisted fixture owns the individual filters
+	// and their composition without replaying the schema for each assertion.
+	for _, tc := range []struct {
+		name  string
+		query store.HookRunQuery
+		want  []string
+	}{
+		{
+			name:  "Should filter by event alone",
+			query: store.HookRunQuery{Event: hookspkg.HookPermissionRequest.String()},
+			want:  []string{"permission-old", "permission-denied", "permission-recent-a", "permission-recent-b", "failed-hook"},
+		},
+		{
+			name:  "Should filter by outcome alone",
+			query: store.HookRunQuery{Outcome: hookspkg.HookRunOutcomeFailed},
+			want:  []string{"failed-hook"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := sessionDB.QueryHookRuns(testutil.Context(t), tc.query)
+			if err != nil {
+				t.Fatalf("QueryHookRuns() error = %v", err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("QueryHookRuns() returned %d rows, want %d", len(got), len(tc.want))
+			}
+			for index, name := range tc.want {
+				if got[index].HookName != name {
+					t.Fatalf("hook[%d] = %q, want %q", index, got[index].HookName, name)
+				}
+			}
+		})
 	}
 
 	filtered, err := sessionDB.QueryHookRuns(testutil.Context(t), store.HookRunQuery{

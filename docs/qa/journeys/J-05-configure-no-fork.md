@@ -2,6 +2,22 @@
 
 The light power layer (PRD F11 layer 2, ADR-009/017 §9.6). An operator tweaks how a Loop runs — which verification checks are enabled, whether a human gate applies, the re-attempt granularity, and the per-loop stop-limit defaults — **without touching structure**. Configuration writes a per-loop `loop_config` store via `PUT /config`, distinct from a fork.
 
+The Run-form branch is owned by CH-run-form-input-recovery. Dora opens the form while
+another owned Run is waiting, reads the active/input/environment/limit sections, recovers
+a required input through Dry run and inspects the plan without starting work. Leaving an
+edited form must preserve saved defaults and the Run roster. A later explicit Start run
+owns the new Run and its per-run overrides; cleanup settles only this walk's Runs.
+
+```mermaid
+flowchart LR
+    R[Open Run form] --> M[Dry run with missing input]
+    M --> E[Inline error; no request or Run]
+    E --> V[Fill input and inspect valid plan]
+    V --> A[Leave and reopen; saved defaults intact]
+    A --> S[Explicit Start run]
+    S --> T[Read inputs and effective config; settle owned Runs]
+```
+
 ```mermaid
 flowchart TD
     A[Entry: loop-detail or catalog › Configure] --> B[Configure sheet slides over a dimmed backdrop]

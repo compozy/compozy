@@ -106,6 +106,10 @@ gate rejection uses the gate's explicit route. They are separate controls.
 act on typed failure context. Iteration caps, budgets, gate revision limits, no-progress detection,
 and the failure circuit breaker apply to every row in the table.
 
+An in-body gate can run before any action node. Its rejection still follows the authored route.
+Repeated in-body blockers reaching the no-progress window end the run `stalled` before a
+`revise` or `next_generation` successor is admitted, even when the iteration cap allows more work.
+
 ### Weak evidence is a route, not a hidden prompt instruction
 
 If evidence quality decides whether work may continue, encode that decision as a gate. A prompt

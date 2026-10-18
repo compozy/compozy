@@ -86,7 +86,6 @@ func taskActorKindValues() []string {
 		string(taskpkg.ActorKindAgentSession),
 		string(taskpkg.ActorKindAutomation),
 		string(taskpkg.ActorKindExtension),
-		string(taskpkg.ActorKindNetworkPeer),
 		string(taskpkg.ActorKindDaemon),
 	}
 }
@@ -97,7 +96,6 @@ func taskOwnerKindValues() []string {
 		string(taskpkg.OwnerKindAgentSession),
 		string(taskpkg.OwnerKindAutomation),
 		string(taskpkg.OwnerKindExtension),
-		string(taskpkg.OwnerKindNetworkPeer),
 		string(taskpkg.OwnerKindPool),
 	}
 }
@@ -110,7 +108,6 @@ func taskOriginKindValues() []string {
 		string(taskpkg.OriginKindHTTP),
 		string(taskpkg.OriginKindAutomation),
 		string(taskpkg.OriginKindExtension),
-		string(taskpkg.OriginKindNetwork),
 		string(taskpkg.OriginKindAgentSession),
 		string(taskpkg.OriginKindDaemon),
 	}
@@ -150,14 +147,6 @@ func taskWorkerModeValues() []string {
 	return []string{
 		string(taskpkg.WorkerModeInherit),
 		string(taskpkg.WorkerModeSelect),
-	}
-}
-
-func taskSandboxModeValues() []string {
-	return []string{
-		string(taskpkg.SandboxModeInherit),
-		string(taskpkg.SandboxModeNone),
-		string(taskpkg.SandboxModeRef),
 	}
 }
 
@@ -216,13 +205,4 @@ func taskInboxLaneValues() []string {
 		string(contract.TaskInboxLaneBlocked),
 		string(contract.TaskInboxLaneArchived),
 	}
-}
-
-func coordinationMessageKindValues() []string {
-	kinds := contract.CoordinationMessageKinds()
-	values := make([]string, 0, len(kinds))
-	for _, kind := range kinds {
-		values = append(values, string(kind))
-	}
-	return values
 }

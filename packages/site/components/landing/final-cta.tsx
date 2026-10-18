@@ -14,8 +14,8 @@ export function FinalCta() {
             Install CompozyOS. Put agents to work continuously.
           </h2>
           <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted">
-            One complete environment, batteries included: loops, triggers, memory, permissions,
-            approvals, and history. No scripts or orchestration frameworks to maintain.
+            One complete environment, batteries included: loops, triggers, permissions, approvals,
+            and history. No scripts or orchestration frameworks to maintain.
           </p>
         </div>
 
@@ -28,11 +28,11 @@ export function FinalCta() {
             Install the beta
           </CtaButton>
           <CtaButton
-            href="/docs/network/protocol"
+            href="/docs/getting-started/installation"
             variant="ghost"
             className="w-full justify-center sm:w-auto"
           >
-            Read compozy-network/v0 spec
+            Read the installation guide
           </CtaButton>
           <a
             href={baseOptions.githubUrl}

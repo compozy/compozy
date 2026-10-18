@@ -6,13 +6,13 @@ persona: Ada
 journey: J-worktree-management
 expected: A worktree removed outside Compozy is reported as missing with its history preserved and never cascades into session or task deletion. The resolution dialog states history preservation before either choice and offers two legs — Dismiss record, which drops the entry only and renders the idempotent no-op outcome verbatim; and It's back, which re-verifies the recorded path and restores that same record to ready when the identical repository is found there. A different repository at that path stays refused and the record stays missing.
 entry_points: S1 Workspace menu or workspace overview → worktree actions → Clean up missing record
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-create-missing.json; web/e2e/__tests__/worktrees.spec.ts
-last_report: docs/qa/reports/2026-08-13-worktree-support.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-worktree-web-removal-two-step
 ---
 
@@ -32,3 +32,7 @@ active/foreign/archived/discovered exclusions, immutable targets during live upd
 partial results and failed-only retry. Metadata dismissal preserves replacements and history;
 repeated dismissal and refresh/restart stay clean. No force or session stop is implicit.
 Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rendered and API evidence recorded; final CI pending).
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

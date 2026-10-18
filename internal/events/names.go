@@ -87,6 +87,10 @@ const (
 
 	SettingsChanged  = "settings.changed"
 	RoleFallbackUsed = "role.fallback.used"
+	// SessionFallbackUsed records a session-owned fallback attempt before it starts.
+	SessionFallbackUsed = "session.fallback.used"
+	// SessionDerived records a continued or forked child after its commit.
+	SessionDerived   = "session.derived"
 	RoleResolveError = "role.resolve.error"
 
 	ProfileCreated              = "profile.created"
@@ -128,38 +132,6 @@ const (
 	HarnessDetachedRunCompleted    = "harness.detached_run_completed"
 	HarnessSyntheticReentryEmitted = "harness.synthetic_reentry_emitted"
 	HarnessSyntheticReentryDropped = "harness.synthetic_reentry_dropped"
-
-	MemoryWriteCommitted     = "memory.write.committed"
-	MemoryWriteRejected      = "memory.write.rejected"
-	MemoryWriteShadowed      = "memory.write.shadowed"
-	MemoryWriteReindex       = "memory.write.reindex"
-	MemoryWriteReverted      = "memory.write.reverted"
-	MemoryProviderCollision  = "memory.provider.collision"
-	MemoryRecallExecuted     = "memory.recall.executed"
-	MemoryRecallSkipped      = "memory.recall.skipped"
-	MemoryRecallDropped      = "memory.recall.signal_dropped"
-	MemoryRecallFailed       = "memory.recall.signal_update_failed"
-	MemoryDecisionsSummary   = "memory.decisions.audit_summarized"
-	MemoryDecisionsPruned    = "memory.decisions.pruned"
-	MemoryDreamStarted       = "memory.dream.run.started"
-	MemoryDreamPromoted      = "memory.dream.run.promoted"
-	MemoryDreamFailed        = "memory.dream.run.failed"
-	MemoryExtractorStarted   = "memory.extractor.started"
-	MemoryExtractorComplete  = "memory.extractor.completed"
-	MemoryExtractorFailed    = "memory.extractor.failed"
-	MemoryExtractorCoalesced = "memory.extractor.coalesced"
-	MemoryExtractorDropped   = "memory.extractor.dropped"
-	MemoryDailyRotated       = "memory.daily.rotated"
-	MemoryDailyArchived      = "memory.daily.archived"
-	MemoryDailyRestored      = "memory.daily.restored"
-	MemoryDailyPurged        = "memory.daily.purged"
-	MemoryDailyArchivePurged = "memory.daily.archive_purged"
-	MemoryProviderEnabled    = "memory.provider.enabled"
-	MemoryProviderDisabled   = "memory.provider.disabled"
-	MemoryWorkspaceRelocated = "memory.workspace.relocated"
-	MemoryWorkspaceRecovered = "memory.workspace.recovered"
-	MemoryAgentPurged        = "memory.agent.purged"
-	MemoryMigrationApplied   = "memory.migration.applied"
 
 	SchedulerPaused         = "scheduler.paused"
 	SchedulerResumed        = "scheduler.resumed"
@@ -205,10 +177,6 @@ const (
 
 	DeadEntityMarked  = "reliability.dead_entity_marked"
 	DeadEntityCleared = "reliability.dead_entity_cleared"
-
-	BridgeNotificationSuppressed = "bridge_notification_suppressed"
-	NetworkPeerJoined            = "network.peer.joined"
-	NetworkPeerLeft              = "network.peer.left"
 
 	NotificationPresetCreated           = "notification.preset_created"
 	NotificationPresetUpdated           = "notification.preset_updated"

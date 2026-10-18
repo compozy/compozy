@@ -23,6 +23,9 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 	if cfg.Session.Limits.Timeout != desired.SessionTimeout {
 		changed = append(changed, "session.limits.timeout")
 	}
+	if desired.IdleReleaseAfter != nil && cfg.Session.Supervision.IdleReleaseAfter != *desired.IdleReleaseAfter {
+		changed = append(changed, "session.supervision.idle_release_after")
+	}
 	if cfg.Permissions.Mode != desired.Permissions.Mode {
 		changed = append(changed, "permissions.mode")
 	}
@@ -43,9 +46,6 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 	}
 	if cfg.Daemon.ReloadTimeouts.MCP != desired.Daemon.ReloadTimeouts.MCP {
 		changed = append(changed, "daemon.reload_timeouts.mcp")
-	}
-	if cfg.Daemon.ReloadTimeouts.Bridges != desired.Daemon.ReloadTimeouts.Bridges {
-		changed = append(changed, "daemon.reload_timeouts.bridges")
 	}
 	if cfg.Redact.Enabled != desired.Redact.Enabled {
 		changed = append(changed, "redact.enabled")
@@ -92,10 +92,6 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, "mcp"},
 			value: settings.Daemon.ReloadTimeouts.MCP.String(),
 		},
-		{
-			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, "bridges"},
-			value: settings.Daemon.ReloadTimeouts.Bridges.String(),
-		},
 		{path: []string{"redact", sectionsEnabledKey}, value: settings.Redact.Enabled},
 	}
 	updates = append(updates, terminalSettingUpdates(settings.Terminal)...)
@@ -103,6 +99,14 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		if err := editor.SetValue(
 			[]string{"session", "busy_input", "default_mode"},
 			*settings.FollowUpMode,
+		); err != nil {
+			return err
+		}
+	}
+	if settings.IdleReleaseAfter != nil {
+		if err := editor.SetValue(
+			[]string{sectionsSessionKey, "supervision", "idle_release_after"},
+			settings.IdleReleaseAfter.String(),
 		); err != nil {
 			return err
 		}
@@ -140,9 +144,6 @@ func normalizeDaemonReloadTimeouts(
 	}
 	if value.MCP == 0 {
 		value.MCP = defaults.MCP
-	}
-	if value.Bridges == 0 {
-		value.Bridges = defaults.Bridges
 	}
 	return value
 }

@@ -39,10 +39,7 @@ function PillGroup<V extends string = string>({
     <div
       data-slot="pill-group"
       role="group"
-      className={cn(
-        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-md bg-canvas-soft p-(--space-pill-group-track-padding)",
-        className
-      )}
+      className={cn("inline-flex items-center gap-1", className)}
       {...props}
     >
       {items.map(item => {
@@ -65,10 +62,7 @@ function PillGroup<V extends string = string>({
           >
             <span className="inline-flex items-center gap-1.5">{item.label}</span>
             {typeof item.badge === "number" && item.badge > 0 ? (
-              <span
-                data-slot="pill-group-badge"
-                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-mono-badge bg-badge-fill px-(--space-pill-group-badge-x) text-pill-group-badge font-medium tabular-nums text-muted"
-              >
+              <span data-slot="pill-group-badge" className="font-normal tabular-nums text-subtle">
                 {item.badge}
               </span>
             ) : null}

@@ -212,34 +212,44 @@ func listCredentialRequirementsForProfiles(
 }
 
 type profileCountsResult struct {
-	workItems  int
-	needsSetup bool
+	workItems int
 }
 
 var ownedWorkTables = []string{
 	"sessions", "tasks", "loop_runs", "automation_jobs", "automation_triggers",
-	"automation_suggestions", "bridge_instances", "worktrees", "network_channels",
-	"network_direct_rooms", "network_threads", "network_work", "notification_cursors",
+	"automation_suggestions", "worktrees", "notification_cursors",
 	"tool_approval_grants", "dead_entities", "token_usage_daily",
+}
+
+func ownedWorkSource(table string) string {
+	var kind string
+	switch table {
+	case "automation_jobs":
+		kind = "automation.job"
+	case "automation_triggers":
+		kind = "automation.trigger"
+	default:
+		return table
+	}
+	// dynamic-sql: ownedWorkTables selects the legacy table; canonical resources own duplicate identities.
+	return `(SELECT profile_id FROM ` + table + ` WHERE NOT EXISTS (
+		SELECT 1 FROM resource_records r WHERE r.kind = '` + kind + `' AND r.id = ` + table + `.id
+	) UNION ALL
+	SELECT json_extract(spec_json, '$.profile_id') AS profile_id
+	FROM resource_records WHERE kind = '` + kind + `')`
 }
 
 func (m *Manager) profileCounts(ctx context.Context, q queryer, profileID string) (profileCountsResult, error) {
 	var result profileCountsResult
 	for _, table := range ownedWorkTables {
+		source := ownedWorkSource(table)
 		var count int
-		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE profile_id = ?`, profileID).
+		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+source+` WHERE profile_id = ?`, profileID).
 			Scan(&count); err != nil {
 			return profileCountsResult{}, fmt.Errorf("profile: count %s ownership: %w", table, err)
 		}
 		result.workItems += count
 	}
-	var requirements int
-	if err := q.QueryRowContext(
-		ctx, `SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?`, profileID,
-	).Scan(&requirements); err != nil {
-		return profileCountsResult{}, fmt.Errorf("profile: count credential requirements: %w", err)
-	}
-	result.needsSetup = requirements > 0
 	return result, nil
 }
 
@@ -261,9 +271,10 @@ func (m *Manager) profileCountsForProfiles(
 		args = append(args, profileID)
 	}
 	for _, table := range ownedWorkTables {
+		source := ownedWorkSource(table)
 		rows, err := q.QueryContext(
 			ctx,
-			`SELECT profile_id, COUNT(*) FROM `+table+` WHERE profile_id IN (`+placeholders+`) GROUP BY profile_id`,
+			`SELECT profile_id, COUNT(*) FROM `+source+` WHERE profile_id IN (`+placeholders+`) GROUP BY profile_id`,
 			args...)
 		if err != nil {
 			return nil, fmt.Errorf("profile: count %s ownership: %w", table, err)
@@ -308,6 +319,9 @@ func (m *Manager) UpdateIdentity(
 	err := m.write(ctx, "update profile identity", func(exec globaldb.ProfileWriteExecutor) error {
 		current, err := getProfileByName(ctx, exec, name)
 		if err != nil {
+			return err
+		}
+		if err := ensureAvailable(ctx, exec, current, false); err != nil {
 			return err
 		}
 		color, icon, emoji := current.Color, current.Icon, current.Emoji

@@ -304,7 +304,7 @@ function updateStory(snapshot: SettingsUpdateStatus): Story {
   };
 }
 
-/** Update membership is unresolved, so only the structural runtime row checks. */
+/** Update status is unresolved, so the one product row checks. */
 export const UpdatesChecking: Story = {
   args: {},
   parameters: {
@@ -321,34 +321,34 @@ export const UpdatesChecking: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Both tracks are current: the calm, explicit settled state. */
+/** Everything is current: the calm, explicit settled state. */
 export const UpdatesUpToDate: Story = updateStory(settingsUpdateStatusFixture);
 
-/** Both tracks offer a release: two rows, one combined action. */
+/** A release is offered: one CompozyOS row, one version lane, one Update button. */
 export const UpdatesBothAvailable: Story = updateStory(settingsUpdateBothAvailableFixture);
 
-/** Runtime only offers a release; the current app keeps its settled lane. */
+/** Only the runtime is behind: still one row and one Update — the split never shows. */
 export const UpdatesRuntimeAvailable: Story = updateStory(settingsUpdateRuntimeAvailableFixture);
 
-/** App only offers a release; the current runtime keeps its settled lane. */
+/** Only the app is behind: still one row and one Update — the split never shows. */
 export const UpdatesAppAvailable: Story = updateStory(settingsUpdateAppAvailableFixture);
 
-/** Package-managed runtime: the command is the action, so no apply button exists. */
+/** Package-managed install: the command is the action, so no Update button exists. */
 export const UpdatesManagedRuntime: Story = updateStory(settingsUpdateManagedFixture);
 
-/** Headless host: the payload carries no app object, so no app row is rendered. */
+/** Headless host with no desktop app: the same single row. */
 export const UpdatesNoAppInstalled: Story = updateStory(settingsUpdateNoAppFixture);
 
-/** Runtime mid-apply: the pill lane becomes the daemon's named phase and percent. */
+/** Mid-update: the status lane becomes "Updating" with the measured percent. */
 export const UpdatesApplying: Story = updateStory(settingsUpdateApplyingFixture);
 
-/** App closed: staged until next launch, and the one state where cancel is real. */
+/** App closed: the update finishes on next launch, the one state where cancel is real. */
 export const UpdatesAppStaged: Story = updateStory(settingsUpdateStagedFixture);
 
 /** Another surface holds the channel: the holder is named and no action is offered. */
 export const UpdatesBlocked: Story = updateStory(settingsUpdateBlockedFixture);
 
-/** Apply failed: the restored build is what runs, and the raw error gets its own row. */
+/** The update failed: the row names the restored version and the error gets its own row. */
 export const UpdatesRolledBack: Story = updateStory(settingsUpdateRolledBackFixture);
 
 /** A background refresh failed while the last-known snapshot remains visible. */

@@ -111,7 +111,7 @@ describe("useAgentInstructionsTab", () => {
   afterEach(() => act(() => resetProfileViews()));
 
   it.each(["default", "open-design"])(
-    "Should fetch both authored files for truthful missing badges before either file tab is opened in profile %s",
+    "Should fetch both authored files before either file tab is opened in profile %s",
     profile => {
       setProfileView({ scope: "global" }, { kind: "profile", profile });
       const { result } = renderHook(
@@ -127,8 +127,6 @@ describe("useAgentInstructionsTab", () => {
 
       expect(mocks.useSoul).toHaveBeenCalledWith(primaryAgentFixture.name, "ws-test");
       expect(mocks.useHeartbeat).toHaveBeenCalledWith(primaryAgentFixture.name, "ws-test");
-      expect(result.current.soulMissing).toBe(true);
-      expect(result.current.heartbeatMissing).toBe(true);
       expect(result.current.soul.resourceKey).toBe(
         JSON.stringify(["ws-test", primaryAgentFixture.name, "soul", profile])
       );
@@ -137,39 +135,6 @@ describe("useAgentInstructionsTab", () => {
       );
     }
   );
-
-  it("Should not treat query errors or non-success states as missing badges", () => {
-    mocks.useSoul.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isFetched: true,
-      isSuccess: false,
-      isError: true,
-      refetch: mocks.soulRefetch,
-    });
-    mocks.useHeartbeat.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isFetched: false,
-      isSuccess: false,
-      isError: false,
-      refetch: mocks.heartbeatRefetch,
-    });
-
-    const { result } = renderHook(
-      () =>
-        useAgentInstructionsTab({
-          agent: primaryAgentFixture,
-          file: "agent",
-          workspaceId: "ws-test",
-          sessions: [],
-        }),
-      { wrapper: createWrapper() }
-    );
-
-    expect(result.current.soulMissing).toBe(false);
-    expect(result.current.heartbeatMissing).toBe(false);
-  });
 
   it.each(["default", "open-design"])(
     "Should round-trip workspace, profile %s, and CAS inputs for validate, save, restore, retry, and wake",

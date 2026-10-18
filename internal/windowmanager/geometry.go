@@ -1,8 +1,9 @@
 package windowmanager
 
 import (
+	"cmp"
 	"math"
-	"sort"
+	"slices"
 )
 
 func clampRect(rect NormalizedRect) NormalizedRect {
@@ -113,14 +114,14 @@ func directionalWindow(
 	if len(candidates) == 0 {
 		return "", false
 	}
-	sort.Slice(candidates, func(left, right int) bool {
-		if math.Abs(candidates[left].primary-candidates[right].primary) > weightTolerance {
-			return candidates[left].primary < candidates[right].primary
+	slices.SortFunc(candidates, func(a, b candidate) int {
+		if math.Abs(a.primary-b.primary) > weightTolerance {
+			return cmp.Compare(a.primary, b.primary)
 		}
-		if math.Abs(candidates[left].secondary-candidates[right].secondary) > weightTolerance {
-			return candidates[left].secondary < candidates[right].secondary
+		if math.Abs(a.secondary-b.secondary) > weightTolerance {
+			return cmp.Compare(a.secondary, b.secondary)
 		}
-		return candidates[left].id < candidates[right].id
+		return cmp.Compare(a.id, b.id)
 	})
 	return candidates[0].id, true
 }

@@ -21,19 +21,18 @@ import (
 	"testing"
 	"time"
 
+	shellquote "github.com/kballard/go-shellquote"
+
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	"github.com/kballard/go-shellquote"
 )
 
 const (
@@ -42,11 +41,17 @@ const (
 	testSessionStopWrapperPIDFile = "COMPOZY_TEST_SESSION_STOP_WRAPPER_PID_FILE"
 )
 
-func TestSessionStopACPHelperProcess(t *testing.T) {
+func TestSessionStopACPHelperProcess(_ *testing.T) {
 	if os.Getenv(testSessionStopHelperEnvKey) != "1" {
 		return
 	}
 
+	if path := os.Getenv("COMPOZY_TEST_STALLED_SESSION_NEW"); path != "" {
+		signal.Ignore(syscall.SIGTERM)
+		conn := acpsdk.NewAgentSideConnection(stalledSessionACPAgent{path: path}, os.Stdout, os.Stdin)
+		<-conn.Done()
+		select {}
+	}
 	if path := os.Getenv("COMPOZY_TEST_STUBBORN_PROMPTS"); path != "" {
 		signal.Ignore(syscall.SIGTERM)
 		conn := acpsdk.NewAgentSideConnection(stubbornSessionACPAgent{path: path}, os.Stdout, os.Stdin)
@@ -58,7 +63,7 @@ func TestSessionStopACPHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func TestSessionStopACPWrapperProcess(t *testing.T) {
+func TestSessionStopACPWrapperProcess(_ *testing.T) {
 	if os.Getenv(testSessionStopWrapperEnvKey) != "1" {
 		return
 	}
@@ -68,7 +73,7 @@ func TestSessionStopACPWrapperProcess(t *testing.T) {
 		os.Exit(1)
 	}
 
-	cmd := exec.Command(bin, "-test.run=TestSessionStopACPHelperProcess")
+	cmd := exec.CommandContext(context.Background(), bin, "-test.run=TestSessionStopACPHelperProcess")
 	cmd.Env = append([]string(nil), os.Environ()...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -105,12 +110,10 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
@@ -123,7 +126,7 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	session := createSession(t, h)
 	childPID := waitForSessionStopWrapperChildPID(t, pidFile)
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	stopCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := h.manager.Stop(stopCtx, session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -146,6 +149,29 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 
 func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retire an idle completed ACP process with verified exit and no escalation", func(t *testing.T) {
+		t.Parallel()
+		pidFile := filepath.Join(t.TempDir(), "judge.pid")
+		h := newRealACPIntegrationHarness(t, sessionStopWrapperCommand(t, pidFile))
+		sess := createSession(t, h)
+		childPID := waitForSessionStopWrapperChildPID(t, pidFile)
+		events, err := h.manager.Prompt(testutil.Context(t), sess.ID, "Verify the completed work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range events {
+		}
+		if err := h.manager.StopWithCause(testutil.Context(t), sess.ID, CauseCompleted, "judge completed"); err != nil {
+			t.Fatal(err)
+		}
+		waitForSessionStopProcessExit(t, childPID, time.Second)
+		meta := readMeta(t, sess.MetaPath())
+		if meta.StopEscalated || meta.StopVerificationFailed || meta.StopReason == nil ||
+			*meta.StopReason != store.StopCompleted {
+			t.Fatalf("completed judge = %#v", meta)
+		}
+	})
 	t.Run("Should recover owned work only after the frozen process tree exits", func(t *testing.T) {
 		t.Parallel()
 		base := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
@@ -190,6 +216,17 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
+		// Quiet supervision watches only a turn in flight: the frozen tree owns one.
+		events, err := h.manager.Prompt(ctx, sess.ID, "Continue the committed work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drained := make(chan struct{})
+		go func() {
+			defer close(drained)
+			for range events {
+			}
+		}()
 		for tick := range 3 {
 			at := base.Add(time.Duration(10+tick) * time.Second)
 			clock.Store(at.UnixNano())
@@ -200,6 +237,11 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		outcome, err := h.manager.AwaitStopped(ctx, sess.ID)
 		if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
 			t.Fatalf("supervised stop = %#v, %v", outcome, err)
+		}
+		select {
+		case <-drained:
+		case <-ctx.Done():
+			t.Fatal("frozen turn did not end after the supervised stop")
 		}
 		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: source.TaskID})
 		if err != nil || len(runs) != 2 {
@@ -272,94 +314,6 @@ func seedSupervisedTaskForSession(
 	return tasks, claim
 }
 
-func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should persist and expose the narrowed allowed-tools policy", func(t *testing.T) {
-		t.Parallel()
-
-		driverPath := acpmock.RequireDriver(t)
-		fixturePath, err := filepath.Abs(filepath.Join(
-			"..",
-			"testutil",
-			"acpmock",
-			"testdata",
-			"hosted_native_tools_fixture.json",
-		))
-		if err != nil {
-			t.Fatalf("Abs(fixture) error = %v", err)
-		}
-		diagnosticsPath := filepath.Join(t.TempDir(), "acpmock-diagnostics.jsonl")
-		command := acpmock.BuildCommand(driverPath, fixturePath, "hosted-native", diagnosticsPath)
-
-		h := newHostedMCPHarness(
-			t,
-			WithDriver(NewACPDriverAdapter(newIntegrationACPDriver(
-				acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-			))),
-		)
-		h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(driverPath)
-		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
-		if err != nil {
-			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
-		}
-		resolved.Config = h.cfg
-		resolved.Agents = []compozyconfig.AgentDef{{
-			Name:     "acpmock-tools",
-			Provider: acpmock.ProviderName,
-			Command:  command,
-			Prompt:   "You are an acpmock tool policy agent.",
-			Tools: []string{
-				toolspkg.ToolIDTaskRead.String(),
-				toolspkg.ToolIDTaskUpdate.String(),
-			},
-		}}
-		h.resolver.upsert(&resolved)
-
-		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "acpmock-tools",
-			Workspace: h.workspaceID,
-			AllowedToolsOverride: []string{
-				toolspkg.ToolIDTaskRead.String(),
-			},
-		})
-		if err != nil {
-			t.Fatalf("Create(acpmock narrowed tools) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil &&
-				!errors.Is(err, ErrSessionNotFound) {
-				t.Fatalf("Stop(acpmock session) error = %v", err)
-			}
-		})
-
-		info := sess.Info()
-		if info.Lineage == nil {
-			t.Fatal("session lineage = nil, want narrowed tool policy")
-		}
-		if got, want := info.Lineage.PermissionPolicy.Tools, []string{
-			toolspkg.ToolIDTaskRead.String(),
-		}; !testutil.EqualStringSlices(
-			got,
-			want,
-		) {
-			t.Fatalf("lineage policy tools = %#v, want %#v", got, want)
-		}
-		meta := readMeta(t, sess.MetaPath())
-		if meta.Lineage == nil {
-			t.Fatal("persisted lineage = nil, want narrowed tool policy")
-		}
-		if got, want := meta.Lineage.PermissionPolicy.Tools, []string{
-			toolspkg.ToolIDTaskRead.String(),
-		}; !testutil.EqualStringSlices(
-			got,
-			want,
-		) {
-			t.Fatalf("persisted policy tools = %#v, want %#v", got, want)
-		}
-	})
-}
-
 func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing.T) {
 	t.Parallel()
 
@@ -422,13 +376,7 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown(before manager restart) error = %v", err)
 	}
-	checkpoint := "<compozy_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</compozy_checkpoint_summary>"
-	h.manager = newManagerWithHarness(
-		t,
-		h,
-		WithDriver(newRuntimeDriver()),
-		WithPromptAssembler(&resumeContextPromptAssembler{checkpoint: checkpoint}),
-	)
+	h.manager = newManagerWithHarness(t, h, WithDriver(newRuntimeDriver()))
 
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
@@ -464,10 +412,9 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	if got, want := len(prompts), 2; got != want {
 		t.Fatalf("resume replay prompt diagnostics = %#v, want %d prompt records", prompts, want)
 	}
-	checkpointIndex := strings.Index(prompts[1].Prompt, "<compozy_checkpoint_summary>")
-	replayIndex := strings.Index(prompts[1].Prompt, resumeReplayOpenTag)
-	if checkpointIndex < 0 || replayIndex < 0 || checkpointIndex >= replayIndex {
-		t.Fatalf("resume replay checkpoint ordering invalid:\n%s", prompts[1].Prompt)
+	if !strings.Contains(prompts[1].Prompt, deriveWorkspaceLine) ||
+		!strings.Contains(prompts[1].Prompt, resumeReplayOpenTag) {
+		t.Fatalf("resumed prompt lacks the workspace authority or replay: %s", prompts[1].Prompt)
 	}
 	assertResumeReplayEqualsPrunedEvents(t, prompts[1].Prompt, eventsBeforeResume)
 	assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)
@@ -482,12 +429,10 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 	command := sessionStopHelperCommand(t)
 	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
@@ -534,7 +479,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		command := sessionStopHelperCommand(t)
 		writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
 
-		registry, err := openSessionTestGlobalDB(context.Background(), homePaths.DatabaseFile)
+		registry, err := openSessionTestGlobalDB(t.Context(), homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -561,16 +506,11 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		}
 
 		driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
-		sandboxRegistry, err := local.NewRegistry(local.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
-		if err != nil {
-			t.Fatalf("local.NewRegistry() error = %v", err)
-		}
 		manager, err := NewManager(
 			WithHomePaths(homePaths),
 			WithWorkspaceResolver(resolver),
 			WithDriver(NewACPDriverAdapter(driver)),
 			WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-			WithSandboxRegistry(sandboxRegistry),
 		)
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
@@ -645,7 +585,7 @@ func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -673,75 +613,6 @@ func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.
 			meta.StopDetail,
 			resumeStopDetailAgentCrashed,
 		)
-	}
-}
-
-func TestManagerIntegrationResumeFailsWhenWorkspaceDirectoryMissing(t *testing.T) {
-	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
-
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	waitForStoppedSession(t, h.manager, session)
-	if err := os.RemoveAll(h.workspace); err != nil {
-		t.Fatalf("os.RemoveAll(%q) error = %v", h.workspace, err)
-	}
-
-	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
-		t.Fatal("Resume(missing workspace dir) error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), h.workspace) {
-		t.Fatalf("Resume(missing workspace dir) error = %v, want workspace path %q", err, h.workspace)
-	}
-}
-
-func TestManagerIntegrationResumeFailsWhenAgentRemoved(t *testing.T) {
-	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
-
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	waitForStoppedSession(t, h.manager, session)
-
-	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
-		Agents: []compozyconfig.AgentDef{{
-			Name:     compozyconfig.DefaultAgentName,
-			Provider: acpmock.ProviderName,
-			Command:  sessionStopHelperCommand(t),
-			Prompt:   "You are a coding assistant.",
-		}},
-	})
-
-	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
-		t.Fatal("Resume(missing agent) error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), "coder") {
-		t.Fatalf("Resume(missing agent) error = %v, want agent name", err)
-	}
-}
-
-func TestManagerIntegrationResumeFailsWhenEventStoreIsEmpty(t *testing.T) {
-	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
-
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	waitForStoppedSession(t, h.manager, session)
-	if err := os.WriteFile(session.DBPath(), nil, 0o644); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", session.DBPath(), err)
-	}
-
-	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
-		t.Fatal("Resume(empty event store) error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), session.DBPath()) || !strings.Contains(err.Error(), "file is empty") {
-		t.Fatalf("Resume(empty event store) error = %v, want db path and empty-file detail", err)
 	}
 }
 
@@ -803,12 +674,10 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
@@ -1261,4 +1130,158 @@ func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
 			t.Fatalf("resumed command = %q, want persisted creator route resolution", got)
 		}
 	})
+}
+
+// Invariant: silent startup settles durably and stopping it reaps the owned process tree.
+// Owner: session manager; canonical suite: manager_stop_integration_test.go.
+func TestManagerIntegrationStalledACPStartup(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"timeout", "stop", "recover"} {
+		stop := mode == "stop"
+		name := "Should fail silent session creation within the control deadline"
+		if stop {
+			name = "Should stop a silent session creation and reap its process tree"
+		}
+		if mode == "recover" {
+			name = "Should retry a silent session creation on a fresh process"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			requestFile, childFile := filepath.Join(root, "request.pid"), filepath.Join(root, "child.pid")
+			command := "env " + shellquote.Join(
+				"COMPOZY_TEST_STALLED_SESSION_NEW="+requestFile,
+				"COMPOZY_TEST_STALLED_SESSION_NEW_ONCE="+strconv.FormatBool(mode == "recover"),
+			) + " " + sessionStopWrapperCommand(
+				t,
+				childFile,
+			)
+			h := newRealACPIntegrationHarness(t, command)
+			budget := 2 * time.Second
+			if stop {
+				budget = time.Minute
+			}
+			driver := newIntegrationACPDriver(
+				acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+				acp.WithControlTimeout(budget),
+				acp.WithStopTimeout(100*time.Millisecond),
+			)
+			h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)))
+			created := make(chan error, 1)
+			go func() {
+				_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				created <- err
+			}()
+			childPID := waitForSessionStopWrapperChildPID(t, requestFile)
+			wrapperChildPID := waitForSessionStopWrapperChildPID(t, childFile)
+			wrapperPID, err := syscall.Getpgid(childPID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if childPID != wrapperChildPID {
+				t.Fatalf("request PID = %d, wrapper child = %d", childPID, wrapperChildPID)
+			}
+			active, ok := h.manager.Get("sess-1")
+			if !ok {
+				t.Fatal("starting session is missing")
+			}
+			if stop {
+				if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+			}
+			select {
+			case err := <-created:
+				if stop || mode == "recover" {
+					// A requested stop settles the accepted creation successfully.
+					if err != nil {
+						t.Fatalf("Create() after requested stop: %v", err)
+					}
+				} else {
+					if !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatalf("Create() error = %v, want deadline exceeded", err)
+					}
+					if !strings.Contains(err.Error(), "session/new") ||
+						!strings.Contains(err.Error(), acpmock.ProviderName) {
+						t.Fatalf("Create() error missing ACP stage/provider: %v", err)
+					}
+				}
+			case <-time.After(8 * time.Second):
+				t.Fatal("startup did not settle")
+			}
+			waitForSessionStopProcessExit(t, childPID, time.Second)
+			waitForSessionStopProcessExit(t, wrapperPID, time.Second)
+
+			records, err := os.ReadFile(requestFile + ".attempts")
+			if err != nil {
+				t.Fatal(err)
+			}
+			attempts := strings.Fields(string(records))
+			wantAttempts := 2
+			if stop {
+				wantAttempts = 1
+			}
+			if len(attempts) != wantAttempts {
+				t.Fatalf("startup attempts = %d, want %d", len(attempts), wantAttempts)
+			}
+			if mode == "recover" {
+				if active.processHandle() == nil {
+					t.Fatal("recovered session has no process")
+				}
+				if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, record := range attempts {
+				for id := range strings.SplitSeq(record, ",") {
+					pid, err := strconv.Atoi(id)
+					if err != nil {
+						t.Fatal(err)
+					}
+					waitForSessionStopProcessExit(t, pid, time.Second)
+				}
+			}
+			if state := readMeta(t, active.MetaPath()).State; state != string(StateStopped) {
+				t.Fatalf("persisted state = %q, want stopped", state)
+			}
+		})
+	}
+}
+
+type stalledSessionACPAgent struct {
+	sessionStopACPAgent
+	path string
+}
+
+func (a stalledSessionACPAgent) NewSession(
+	context.Context,
+	acpsdk.NewSessionRequest,
+) (acpsdk.NewSessionResponse, error) {
+	pgid, err := syscall.Getpgid(os.Getpid())
+	if err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	f, err := os.OpenFile(a.path+".attempts", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	_, writeErr := fmt.Fprintf(f, "%d,%d\n", os.Getpid(), pgid)
+	if err := errors.Join(writeErr, f.Close()); err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	marker, err := os.OpenFile(a.path+".first", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if errors.Is(err, os.ErrExist) && os.Getenv("COMPOZY_TEST_STALLED_SESSION_NEW_ONCE") == "true" {
+		return acpsdk.NewSessionResponse{SessionId: "recovered-session"}, nil
+	}
+	if err == nil {
+		if err := marker.Close(); err != nil {
+			return acpsdk.NewSessionResponse{}, err
+		}
+	} else if !errors.Is(err, os.ErrExist) {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	if err := os.WriteFile(a.path, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	select {}
 }

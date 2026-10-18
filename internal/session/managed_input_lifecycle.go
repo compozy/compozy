@@ -44,6 +44,7 @@ type ManagedInputPromptMeta struct {
 
 // ManagedInputSubmission proves a claim/start commit and returns its one-time token.
 type ManagedInputSubmission struct {
+	Delivery      PromptDelivery
 	Owner         ManagedInputOwner
 	PromptMeta    ManagedInputPromptMeta
 	DispatchToken string

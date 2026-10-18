@@ -195,10 +195,6 @@
 .mkt-installed svg{width:12px;height:12px}
 .mkt-empty{grid-column:1/-1;padding:28px 0;text-align:center;font-size:12px;color:var(--subtle)}
 
-/* ---- network ---- */
-.net-head{display:flex;align-items:flex-start;justify-content:space-between}
-.net-head h3{font-size:13.5px;font-weight:600;color:var(--fg-strong)}
-
 /* ---- vault ---- */
 .app-note{font-size:11.5px;color:var(--muted);line-height:1.5}
 .secret-mask{font-family:var(--font-mono);font-size:10px;color:var(--subtle);letter-spacing:.12em}

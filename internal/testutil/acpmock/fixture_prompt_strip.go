@@ -67,10 +67,8 @@ func stripKnownPromptAugmentation(prompt string) string {
 	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
 	next = stripLeadingSelfClosingPromptBlock(next, currentAvailableSkillsSelfClosing)
 	next = stripLeadingSelfClosingPromptBlock(next, availableSkillsSelfClosing)
-	next = stripLeadingDurableMemoryBlock(next)
-	next = stripLeadingPromptBlock(next, workspaceKnowledgeOpen, workspaceKnowledgeClose)
 	next = stripLeadingUserMessageBlock(next)
-	next = stripLeadingInboundBridgePrompt(next)
+
 	next = stripTrailingLoopOutputContract(next)
 	return strings.TrimSpace(next)
 }
@@ -78,33 +76,31 @@ func stripKnownPromptAugmentation(prompt string) string {
 func stripTrailingLoopOutputContract(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
 	marker := "\n\n" + loopOutputContractPrefix
-	markerIndex := strings.LastIndex(trimmed, marker)
-	if markerIndex < 0 {
+	before, after, found := strings.CutLast(trimmed, marker)
+	if !found {
 		return trimmed
 	}
-	schema := strings.TrimSpace(trimmed[markerIndex+len(marker):])
+	schema := strings.TrimSpace(after)
 	if !strings.HasPrefix(schema, "{") || !json.Valid([]byte(schema)) {
 		return trimmed
 	}
-	return strings.TrimSpace(trimmed[:markerIndex])
+	return strings.TrimSpace(before)
 }
 
 func stripTrailingRunAgentPromptContract(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
-	if index := strings.LastIndex(trimmed, schemaRetryPromptMarker); index >= 0 {
-		retry := trimmed[index+len(schemaRetryPromptMarker):]
-		instructionIndex := strings.LastIndex(retry, schemaRetryInstructionMarker)
-		if instructionIndex >= 0 {
-			schema := strings.TrimSpace(retry[instructionIndex+len(schemaRetryInstructionMarker):])
+	if before, retry, found := strings.CutLast(trimmed, schemaRetryPromptMarker); found {
+		if _, after, found := strings.CutLast(retry, schemaRetryInstructionMarker); found {
+			schema := strings.TrimSpace(after)
 			if json.Valid([]byte(schema)) {
-				trimmed = strings.TrimSpace(trimmed[:index])
+				trimmed = strings.TrimSpace(before)
 			}
 		}
 	}
-	if index := strings.LastIndex(trimmed, outputContractPromptMarker); index >= 0 {
-		schema := strings.TrimSpace(trimmed[index+len(outputContractPromptMarker):])
+	if before, after, found := strings.CutLast(trimmed, outputContractPromptMarker); found {
+		schema := strings.TrimSpace(after)
 		if json.Valid([]byte(schema)) {
-			trimmed = strings.TrimSpace(trimmed[:index])
+			trimmed = strings.TrimSpace(before)
 		}
 	}
 	return trimmed
@@ -156,18 +152,6 @@ func stripLeadingSelfClosingPromptBlock(prompt string, block string) string {
 	return strings.TrimSpace(strings.TrimPrefix(trimmed, block))
 }
 
-func stripLeadingDurableMemoryBlock(prompt string) string {
-	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, durableMemoryOpen) {
-		return trimmed
-	}
-	_, after, ok := strings.Cut(trimmed, durableMemoryClose)
-	if !ok {
-		return trimmed
-	}
-	return stripLeadingUserMessageBlock(after)
-}
-
 func stripLeadingUserMessageBlock(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
 	if !strings.HasPrefix(trimmed, fixtureUserMessageOpen) {
@@ -183,16 +167,4 @@ func stripLeadingUserMessageBlock(prompt string) string {
 		return strings.TrimSpace(message)
 	}
 	return strings.TrimSpace(strings.TrimSpace(message) + "\n" + tail)
-}
-
-func stripLeadingInboundBridgePrompt(prompt string) string {
-	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, inboundBridgePromptPrefix) {
-		return trimmed
-	}
-	_, after, ok := strings.Cut(trimmed, "\n\n")
-	if !ok {
-		return trimmed
-	}
-	return strings.TrimSpace(after)
 }

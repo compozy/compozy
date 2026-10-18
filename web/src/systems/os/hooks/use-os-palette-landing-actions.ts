@@ -44,6 +44,7 @@ export function useOsPaletteLandingActions({
       });
   };
   const landSession = (session: OsPaletteSessionResult) => {
+    if (session.busy) return;
     consumeChooseSessionTerminalQuote(session.sessionId);
     if (session.workspaceId !== "" && session.workspaceId !== runtimeWorkspaceId) {
       const name =
@@ -67,6 +68,7 @@ export function useOsPaletteLandingActions({
     },
     landSession,
     openSession: (session: OsPaletteSessionResult) => {
+      if (session.busy) return;
       if (destinationWindowId !== null) {
         consumeChooseSessionTerminalQuote(session.sessionId);
         close();

@@ -42,7 +42,7 @@ func TestDaemonE2EAgentPluginCLIJourneys(t *testing.T) {
 }
 
 func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), agentPluginE2ETimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), agentPluginE2ETimeout)
 	defer cancel()
 
 	const credential = "agent-plugin-cli-e2e-token"
@@ -176,7 +176,7 @@ func newAgentPluginDistributionGitHubServer(t *testing.T, credential string) *di
 }
 
 func testDaemonE2EAgentPluginCLIFailurePaths(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), agentPluginE2ETimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), agentPluginE2ETimeout)
 	defer cancel()
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -247,7 +247,7 @@ func TestDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 }
 
 func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), agentPluginE2ETimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), agentPluginE2ETimeout)
 	defer cancel()
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{

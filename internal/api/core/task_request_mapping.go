@@ -12,8 +12,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -30,22 +28,21 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 	}
 
 	spec := taskpkg.CreateTask{
-		ID:                   strings.TrimSpace(req.ID),
-		ProfileID:            strings.TrimSpace(profileID),
-		Identifier:           strings.TrimSpace(req.Identifier),
-		Scope:                scope,
-		WorkspaceID:          workspaceID,
-		Title:                strings.TrimSpace(req.Title),
-		Description:          strings.TrimSpace(req.Description),
-		Priority:             req.Priority.Normalize(),
-		MaxAttempts:          req.MaxAttempts,
-		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
-		Draft:                req.Draft,
-		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
-		Owner:                cloneOwnership(req.Owner),
-		WakeCreator:          cloneBoolPtr(req.WakeCreator),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             cloneRawMessage(req.Metadata),
+		ID:                 strings.TrimSpace(req.ID),
+		ProfileID:          strings.TrimSpace(profileID),
+		Identifier:         strings.TrimSpace(req.Identifier),
+		Scope:              scope,
+		WorkspaceID:        workspaceID,
+		Title:              strings.TrimSpace(req.Title),
+		Description:        strings.TrimSpace(req.Description),
+		Priority:           req.Priority.Normalize(),
+		MaxAttempts:        req.MaxAttempts,
+		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
+		Draft:              req.Draft,
+		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
+		Owner:              cloneOwnership(req.Owner),
+		WakeCreator:        cloneBoolPtr(req.WakeCreator),
+		Metadata:           cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_task"); err != nil {
 		return taskpkg.CreateTask{}, err
@@ -65,22 +62,21 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	}
 
 	spec := taskpkg.CreateTask{
-		ID:                   strings.TrimSpace(req.ID),
-		ProfileID:            strings.TrimSpace(profileID),
-		Identifier:           strings.TrimSpace(req.Identifier),
-		Scope:                scope,
-		WorkspaceID:          workspaceID,
-		Title:                strings.TrimSpace(req.Title),
-		Description:          strings.TrimSpace(req.Description),
-		Priority:             req.Priority.Normalize(),
-		MaxAttempts:          req.MaxAttempts,
-		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
-		Draft:                req.Draft,
-		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
-		Owner:                cloneOwnership(req.Owner),
-		WakeCreator:          cloneBoolPtr(req.WakeCreator),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             cloneRawMessage(req.Metadata),
+		ID:                 strings.TrimSpace(req.ID),
+		ProfileID:          strings.TrimSpace(profileID),
+		Identifier:         strings.TrimSpace(req.Identifier),
+		Scope:              scope,
+		WorkspaceID:        workspaceID,
+		Title:              strings.TrimSpace(req.Title),
+		Description:        strings.TrimSpace(req.Description),
+		Priority:           req.Priority.Normalize(),
+		MaxAttempts:        req.MaxAttempts,
+		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
+		Draft:              req.Draft,
+		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
+		Owner:              cloneOwnership(req.Owner),
+		WakeCreator:        cloneBoolPtr(req.WakeCreator),
+		Metadata:           cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_child_task"); err != nil {
 		return taskpkg.CreateTask{}, err
@@ -90,16 +86,15 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 
 func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error) {
 	patch := taskpkg.Patch{
-		Title:                trimStringPtr(req.Title),
-		Description:          trimStringPtr(req.Description),
-		Priority:             normalizePriorityPtr(req.Priority),
-		MaxAttempts:          req.MaxAttempts,
-		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
-		ApprovalPolicy:       normalizeApprovalPolicyPtr(req.ApprovalPolicy),
-		Metadata:             cloneRawMessagePtr(req.Metadata),
-		Owner:                cloneOwnership(req.Owner),
-		ClearOwner:           req.ClearOwner,
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Title:              trimStringPtr(req.Title),
+		Description:        trimStringPtr(req.Description),
+		Priority:           normalizePriorityPtr(req.Priority),
+		MaxAttempts:        req.MaxAttempts,
+		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
+		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
+		Metadata:           cloneRawMessagePtr(req.Metadata),
+		Owner:              cloneOwnership(req.Owner),
+		ClearOwner:         req.ClearOwner,
 	}
 	if err := patch.Validate("task_patch"); err != nil {
 		return taskpkg.Patch{}, err
@@ -161,10 +156,9 @@ func addTaskDependencyFromRequest(taskID string, req contract.AddTaskDependencyR
 
 func enqueueTaskRunFromRequest(taskID string, req contract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
 	spec := taskpkg.EnqueueRun{
-		TaskID:               strings.TrimSpace(taskID),
-		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             append(json.RawMessage(nil), req.Metadata...),
+		TaskID:         strings.TrimSpace(taskID),
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		Metadata:       append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
 		return taskpkg.EnqueueRun{}, err
@@ -281,9 +275,8 @@ func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMess
 
 func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg.ExecutionRequest, error) {
 	spec := taskpkg.ExecutionRequest{
-		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             append(json.RawMessage(nil), req.Metadata...),
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		Metadata:       append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("task_execution"); err != nil {
 		return taskpkg.ExecutionRequest{}, err

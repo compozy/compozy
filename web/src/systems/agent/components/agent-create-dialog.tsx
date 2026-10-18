@@ -17,6 +17,7 @@ import {
 import { type AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import { useAgentCreateDialogViewState } from "../hooks/use-agent-create-dialog-view-state";
 import { AgentCreateDefinitionSection } from "./agent-create-definition-section";
+import { AgentCreateOrganizeSection } from "./agent-create-organize-section";
 import { AgentCreatePermissionsSection } from "./agent-create-permissions-section";
 import { AgentCreateRuntimeDetailsSection } from "./agent-create-runtime-details-section";
 import { AgentCreateRuntimeFields } from "./agent-create-runtime-fields";
@@ -106,13 +107,8 @@ function AgentCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          description={
-            <>
-              An agent is a reusable <b className="font-medium text-muted">definition</b> —
-              instructions plus a runtime. Sessions launch from it and inherit its access policy.
-            </>
-          }
-          eyebrow="Operate · Agent"
+          description="Give it a name and tell it what to do. You can start sessions with it right after."
+          eyebrow="Agents"
           icon={Bot}
           onClose={isSubmitting ? undefined : () => handleOpenChange(false)}
           title="Create agent"
@@ -150,6 +146,11 @@ function AgentCreateDialog({
 
             {mode === "advanced" ? (
               <>
+                <AgentCreateOrganizeSection
+                  draft={draft}
+                  errors={visibleErrors}
+                  onDraftChange={onDraftChange}
+                />
                 <AgentCreatePermissionsSection draft={draft} onDraftChange={onDraftChange} />
                 <AgentCreateRuntimeDetailsSection draft={draft} onDraftChange={onDraftChange} />
                 <AgentCreateToolsSection

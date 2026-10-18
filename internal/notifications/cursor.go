@@ -73,7 +73,7 @@ type CursorQuery struct {
 	ConsumerID string   `json:"consumer_id,omitempty"`
 	StreamName string   `json:"stream_name,omitempty"`
 	SubjectID  string   `json:"subject_id,omitempty"`
-	Limit      int      `json:"limit,omitempty"`
+	Limit      int      `json:"limit,omitzero"`
 }
 
 // Service validates cursor requests before delegating persistence to the store.

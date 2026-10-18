@@ -1,0 +1,30 @@
+diff --git a/dist/config-context-ext53wcz.mjs b/dist/config-context-ext53wcz.mjs
+index d0e8b59275322edcacf745e39526357264a5e2d7..42a9386434fd0a6eb687743a9fe27a33b64aff31 100644
+--- a/dist/config-context-ext53wcz.mjs
++++ b/dist/config-context-ext53wcz.mjs
+@@ -507,8 +507,8 @@ const initCache = (provider, options)=>{
+                     // React's state updates.
+                     // This avoids some unnecessary revalidations such as
+                     // https://github.com/vercel/swr/issues/1680.
+-                    const releaseFocus = opts.initFocus(setTimeout.bind(UNDEFINED, revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, FOCUS_EVENT)));
+-                    const releaseReconnect = opts.initReconnect(setTimeout.bind(UNDEFINED, revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, RECONNECT_EVENT)));
++                    const releaseFocus = opts.initFocus(() => setTimeout(revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, FOCUS_EVENT), 0));
++                    const releaseReconnect = opts.initReconnect(() => setTimeout(revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, RECONNECT_EVENT), 0));
+                     unmount = ()=>{
+                         // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+                         releaseFocus && releaseFocus();
+diff --git a/dist/config-context-s960zqob.js b/dist/config-context-s960zqob.js
+index 4edf4e5da9a7e219ecc59744761a27d13c2eb25a..a65230e17b4e911eed7a16c14c7f66b60f5fe5aa 100644
+--- a/dist/config-context-s960zqob.js
++++ b/dist/config-context-s960zqob.js
+@@ -511,8 +511,8 @@ const initCache = (provider, options)=>{
+                     // React's state updates.
+                     // This avoids some unnecessary revalidations such as
+                     // https://github.com/vercel/swr/issues/1680.
+-                    const releaseFocus = opts.initFocus(setTimeout.bind(UNDEFINED, revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, FOCUS_EVENT)));
+-                    const releaseReconnect = opts.initReconnect(setTimeout.bind(UNDEFINED, revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, RECONNECT_EVENT)));
++                    const releaseFocus = opts.initFocus(() => setTimeout(revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, FOCUS_EVENT), 0));
++                    const releaseReconnect = opts.initReconnect(() => setTimeout(revalidateAllKeys.bind(UNDEFINED, EVENT_REVALIDATORS, RECONNECT_EVENT), 0));
+                     unmount = ()=>{
+                         // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+                         releaseFocus && releaseFocus();

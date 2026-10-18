@@ -128,13 +128,7 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		}); err != nil {
 			t.Fatalf("InsertWorkspace(ws-scheduler) error = %v", err)
 		}
-		if err := db.RegisterSession(ctx, store.SessionInfo{
-			ProfileID: store.DefaultProfileID, ID: "sess-1", AgentName: "coder", Provider: "test",
-			WorkspaceID: "ws-scheduler", State: "active", CreatedAt: now, UpdatedAt: now,
-			RuntimeStatus: store.SessionRuntimeUnbound,
-		}); err != nil {
-			t.Fatalf("RegisterSession(network wake target) error = %v", err)
-		}
+
 		normalTask := daemonTaskRecordForTest("task-normal-worker", now)
 		if err := db.CreateTask(ctx, normalTask); err != nil {
 			t.Fatalf("CreateTask(normal) error = %v", err)
@@ -178,15 +172,6 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 			"looprun-scheduler-hidden",
 			"scheduler.loop-action",
 		)
-		seedSchedulerNetworkWakeForTest(
-			t,
-			db,
-			now,
-			"ws-scheduler",
-			"run-network-wake",
-			"wake-1",
-			"sess-1",
-		)
 
 		pending, err := (schedulerTaskSource{store: db}).PendingRuns(ctx)
 		if err != nil {
@@ -197,40 +182,6 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		}
 		if got, want := pending[0].Run.ID, "run-normal-worker"; got != want {
 			t.Fatalf("PendingRuns()[0].Run.ID = %q, want %q", got, want)
-		}
-
-		if err := db.RegisterSession(ctx, store.SessionInfo{
-			ProfileID: store.DefaultProfileID, ID: "sess-active", AgentName: "coder", Provider: "test",
-			WorkspaceID: "ws-scheduler", State: "active", CreatedAt: now, UpdatedAt: now,
-			RuntimeStatus: store.SessionRuntimeUnbound,
-		}); err != nil {
-			t.Fatalf("RegisterSession(active network wake target) error = %v", err)
-		}
-		seedSchedulerNetworkWakeForTest(
-			t,
-			db,
-			now,
-			"ws-scheduler",
-			"run-network-wake-active",
-			"wake-active",
-			"sess-active",
-		)
-		activeClaim := claimSchedulerRunForTest(t, db, now, taskpkg.ClaimCriteria{
-			RunID:            "run-network-wake-active",
-			Scope:            taskpkg.ScopeWorkspace,
-			WorkspaceID:      "ws-scheduler",
-			RunKind:          taskpkg.RunKindNetworkWake,
-			TargetSessionID:  "sess-active",
-			ClaimerSessionID: "sess-active",
-			LeaseDuration:    time.Minute,
-		})
-		activeWake := activeClaim.Run
-		active, err := (schedulerTaskSource{store: db}).ActiveRuns(ctx)
-		if err != nil {
-			t.Fatalf("ActiveRuns() error = %v", err)
-		}
-		if len(active) != 1 || active[0].ID != activeWake.ID {
-			t.Fatalf("ActiveRuns() = %#v, want claimed taskless network wake", active)
 		}
 	})
 }
@@ -684,9 +635,8 @@ func TestSchedulerTaskSourceWatchEventsGapRecoveryShouldRequireStoreCapability(t
 	t.Run("Should fail when the scheduler store cannot enqueue watch-events gap wakes", func(t *testing.T) {
 		t.Parallel()
 
-		db := openDaemonTestGlobalDB(t)
 		source := schedulerTaskSource{
-			store:              taskStoreWithoutWatchEventsGapWake{taskStore: db},
+			store:              taskStoreWithoutWatchEventsGapWake{},
 			watchEventsGapScan: newLoopWatchEventsGapScanState(),
 		}
 		err := source.enqueueWatchEventsGapWakes(
@@ -718,7 +668,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		state := newLoopRetryDueScanState()
 		state.cursor = initial
 		source := schedulerTaskSource{
-			store:            retryDueErrorTaskStore{taskStore: openDaemonTestGlobalDB(t), next: next, err: sentinel},
+			store:            retryDueErrorTaskStore{next: next, err: sentinel},
 			loopRetryDueScan: state,
 		}
 		err := source.enqueueDueLoopRetryWakes(
@@ -750,7 +700,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		dueState.cursor = initialDue
 		dueSource := schedulerTaskSource{
 			store: loopWaitDueErrorTaskStore{
-				taskStore: openDaemonTestGlobalDB(t), next: nextDue, err: sentinel,
+				next: nextDue, err: sentinel,
 			},
 			loopWaitDueScan: dueState,
 		}
@@ -773,7 +723,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		escalationState.cursor = initialEscalation
 		escalationSource := schedulerTaskSource{
 			store: loopWaitEscalationErrorTaskStore{
-				taskStore: openDaemonTestGlobalDB(t), next: nextEscalation, err: sentinel,
+				next: nextEscalation, err: sentinel,
 			},
 			loopWaitEscalationScan: escalationState,
 		}
@@ -791,7 +741,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		t.Parallel()
 
 		source := schedulerTaskSource{
-			store: taskStoreWithoutWatchEventsGapWake{taskStore: openDaemonTestGlobalDB(t)},
+			store: taskStoreWithoutWatchEventsGapWake{},
 		}
 		err := source.sweepLoopAdmissionClaims(testutil.Context(t), time.Now().UTC())
 		if !errors.Is(err, errLoopAdmissionClaimSweeperRequired) {
@@ -886,7 +836,7 @@ func TestLoopRetryTimerShouldUseSharedWakeIdentity(t *testing.T) {
 	t.Run("Should fire through the epoch-fenced retry store after its due time", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 2, 20, 30, 0, 0, time.UTC)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		store := &recordingLoopRetryTimerStore{calls: make(chan looppkg.RetryDueCell, 1)}
 		armer := newLoopRetryTimerArmer(ctx, store, discardLogger(), func() time.Time { return now })
@@ -900,7 +850,7 @@ func TestLoopRetryTimerShouldUseSharedWakeIdentity(t *testing.T) {
 			FireAt: cell.NextAttemptAt, IdempotencyKey: looppkg.RetryWakeIdempotencyKey(cell),
 		}
 		err := armer.ArmCoordinatorTimer(
-			context.Background(),
+			t.Context(),
 			spec,
 			schedulerCoordinatorActorContextForTest(t),
 		)
@@ -1053,80 +1003,6 @@ func claimSchedulerRunForTest(
 		t.Fatalf("ClaimNextRun(%q) error = %v", criteria.RunID, err)
 	}
 	return *claim
-}
-
-func seedSchedulerNetworkWakeForTest(
-	t *testing.T,
-	db *globaldb.GlobalDB,
-	now time.Time,
-	workspaceID string,
-	runID string,
-	wakeID string,
-	targetSessionID string,
-) taskpkg.Run {
-	t.Helper()
-
-	senderSessionID := "sender-" + runID
-	if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
-		ProfileID: store.DefaultProfileID, ID: senderSessionID, AgentName: "coder", Provider: "test",
-		WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
-		RuntimeStatus: store.SessionRuntimeUnbound,
-	}); err != nil {
-		t.Fatalf("RegisterSession(%q) error = %v", senderSessionID, err)
-	}
-	if err := db.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
-		ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, Channel: "operations",
-		Purpose: "Scheduler wake fixture", FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
-		CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("WriteNetworkChannel(operations) error = %v", err)
-	}
-	directID, _, _, err := store.NetworkDirectRoomIdentity(
-		workspaceID,
-		"operations",
-		senderSessionID,
-		targetSessionID,
-	)
-	if err != nil {
-		t.Fatalf("NetworkDirectRoomIdentity(%q) error = %v", runID, err)
-	}
-	result, err := db.AcceptNetworkMessage(testutil.Context(t), &store.AcceptNetworkMessageRequest{
-		Message: store.NetworkConversationMessage{
-			ProfileID: store.DefaultProfileID, MessageID: "message-" + runID, SessionID: senderSessionID,
-			WorkspaceID: workspaceID, Channel: "operations",
-			Surface: store.NetworkSurfaceDirect, DirectID: directID,
-			Direction: "sent", PeerFrom: senderSessionID, PeerTo: targetSessionID,
-			Kind: store.NetworkKindSay, Text: "scheduler wake", PreviewText: "scheduler wake",
-			Body: []byte(`{"text":"scheduler wake"}`), Timestamp: now,
-		},
-		Dispositions: []store.NetworkMessageDisposition{{
-			RecipientSessionID: targetSessionID,
-			Decision:           store.NetworkDispositionDeliver,
-		}},
-		Admissions: []store.NetworkWakeAdmissionInput{{
-			WorkspaceID:        workspaceID,
-			RecipientSessionID: targetSessionID,
-			OwnerKey:           "session:" + targetSessionID,
-			Spec:               daemonTestLiveParticipation(workspaceID, "operations"),
-			Trigger:            store.NetworkWakeTriggerDirect,
-			Eligible:           true,
-			Addressed:          true,
-			RootID:             "message-" + runID,
-			WakeID:             wakeID,
-			TaskRunID:          runID,
-		}},
-	})
-	if err != nil {
-		t.Fatalf("AcceptNetworkMessage(%q) error = %v", runID, err)
-	}
-	if len(result.Admitted) != 1 || result.Admitted[0].TaskRunID != runID {
-		t.Fatalf("AcceptNetworkMessage(%q).Admitted = %#v", runID, result.Admitted)
-	}
-	run, err := db.GetTaskRun(testutil.Context(t), runID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
-	}
-	return run
 }
 
 func seedCoordinatorBackstopRun(

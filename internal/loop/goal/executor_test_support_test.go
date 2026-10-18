@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -232,6 +233,13 @@ func (s *fakeExecutorStore) CompleteCompaction(
 		s.checkpoint.UsagePendingAfterSequence = cloneTestInt64(req.Result.UsageSequence)
 		s.checkpoint.CompactionBaselineUsed = cloneTestInt64(req.Result.UsageBaselineUsed)
 		s.checkpoint.CompactionRecoveryRequired = false
+		if req.Result.PromptResult.Compaction != nil && req.Result.PromptResult.Compaction.Status == "completed" {
+			s.checkpoint.ContextState = contextStateUnknown
+			s.checkpoint.UsageSequence = nil
+			s.checkpoint.CompactionBaselineUsed = nil
+			s.checkpoint.UsagePendingAfterSequence = nil
+			s.checkpoint.RecoveryStreak = 0
+		}
 	}
 	return cloneTestCheckpoint(s.checkpoint), nil
 }
@@ -364,28 +372,22 @@ func (s *fakeExecutorStore) ambiguousCount() int {
 func cloneTestCheckpoint(checkpoint Checkpoint) Checkpoint {
 	cloned := checkpoint
 	if checkpoint.UsageSequence != nil {
-		sequence := *checkpoint.UsageSequence
-		cloned.UsageSequence = &sequence
+		cloned.UsageSequence = new(*checkpoint.UsageSequence)
 	}
 	if checkpoint.UsagePendingAfterSequence != nil {
-		sequence := *checkpoint.UsagePendingAfterSequence
-		cloned.UsagePendingAfterSequence = &sequence
+		cloned.UsagePendingAfterSequence = new(*checkpoint.UsagePendingAfterSequence)
 	}
 	if checkpoint.CompactionBaselineUsed != nil {
-		used := *checkpoint.CompactionBaselineUsed
-		cloned.CompactionBaselineUsed = &used
+		cloned.CompactionBaselineUsed = new(*checkpoint.CompactionBaselineUsed)
 	}
 	if checkpoint.ControlGrant != nil {
-		grant := *checkpoint.ControlGrant
-		cloned.ControlGrant = &grant
+		cloned.ControlGrant = new(*checkpoint.ControlGrant)
 	}
 	if checkpoint.ReportIntent != nil {
-		intent := *checkpoint.ReportIntent
-		cloned.ReportIntent = &intent
+		cloned.ReportIntent = new(*checkpoint.ReportIntent)
 	}
 	if checkpoint.CompactionCancel != nil {
-		intent := *checkpoint.CompactionCancel
-		cloned.CompactionCancel = &intent
+		cloned.CompactionCancel = new(*checkpoint.CompactionCancel)
 	}
 	return cloned
 }
@@ -394,8 +396,7 @@ func cloneTestInt64(value *int64) *int64 {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneJudgeAttempt(attempt JudgeAttempt) JudgeAttempt {
@@ -403,8 +404,7 @@ func cloneJudgeAttempt(attempt JudgeAttempt) JudgeAttempt {
 	attempt.Criteria = cloneCriterionResults(attempt.Criteria)
 	attempt.Warnings = append([]gate.DiagnosticWarning(nil), attempt.Warnings...)
 	if attempt.CompletedAt != nil {
-		completedAt := *attempt.CompletedAt
-		attempt.CompletedAt = &completedAt
+		attempt.CompletedAt = new(*attempt.CompletedAt)
 	}
 	return attempt
 }
@@ -712,15 +712,14 @@ func (h *fakeContextHealth) Usage(context.Context, loop.ActionSessionBinding) (C
 	return h.usage, h.usageErr
 }
 
-func (h *fakeContextHealth) HasAdvertisedCommand(
+func (h *fakeContextHealth) CompactionCommand(
 	_ context.Context,
 	_ loop.ActionSessionBinding,
-	command string,
-) (bool, error) {
+) (string, bool, error) {
 	h.mu.Lock()
-	h.command = command
+	h.command = "compact"
 	h.mu.Unlock()
-	return h.hasCompact, h.commandErr
+	return "compact", h.hasCompact, h.commandErr
 }
 
 func (h *fakeContextHealth) advertisedCommand() string {
@@ -812,4 +811,24 @@ func (s *fakeExecutorStore) BindCheckpoint(_ context.Context, req BindCheckpoint
 	s.checkpoint.BindingHandle = req.BindingHandle
 	s.checkpoint.BindingEpoch = req.BindingEpoch
 	return cloneTestCheckpoint(s.checkpoint), nil
+}
+
+// livenessSessionRecorder observes the action runtime liveness port without owning session binding.
+type livenessSessionRecorder struct {
+	mu    sync.Mutex
+	names []string
+}
+
+func (r *livenessSessionRecorder) ReportActionTokensUsed(int64) {}
+
+func (r *livenessSessionRecorder) ReportActionLivenessSession(sessionID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.names = append(r.names, sessionID)
+}
+
+func (r *livenessSessionRecorder) sessions() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.names)
 }

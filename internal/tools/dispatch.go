@@ -68,7 +68,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	if err := validateCallInput(target.descriptor, req.Input); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallFailed)
 	}
-	patchedReq, err := r.runPreCallHook(ctx, target, req)
+	patchedReq, err := r.runPreCallHook(ctx, scope, target, req)
 	if err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallDenied)
 	}
@@ -101,9 +101,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	}
 	if err != nil {
 		normalized := normalizeBackendError(target.descriptor.ID, err)
-		if hookErr := r.runPostErrorHook(ctx, target, patchedReq, normalized); hookErr != nil {
-			normalized = hookErr
-		}
+		normalized = r.runPostErrorHook(ctx, scope, target, patchedReq, normalized)
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, normalized, ToolCallFailed)
 	}
 	return r.completeDispatch(ctx, scope, target, patchedReq, started, providerResult)
@@ -282,6 +280,7 @@ func (r *RuntimeRegistry) resolveHandleForDispatch(
 	}
 	handle, ok, err := entry.provider.Resolve(ctx, scope, entry.descriptor.ID)
 	if err != nil {
+		logBackendFailure(ctx, entry.descriptor.ID, "tool_registry_resolve", err)
 		return nil, Availability{
 			Registered:  true,
 			Enabled:     true,

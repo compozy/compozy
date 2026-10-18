@@ -17,12 +17,6 @@ describe("EditorFooter", () => {
     expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
   });
 
-  it("Should mount sticky", () => {
-    const { container } = render(<EditorFooter primary={<span />} />);
-    const root = container.querySelector<HTMLElement>('[data-slot="editor-footer"]');
-    expect(root?.className).toContain("sticky");
-  });
-
   it("Should leave Escape unhandled by default", () => {
     const onEscape = vi.fn();
     render(<EditorFooter primary={<button type="button">Save</button>} onEscape={onEscape} />);

@@ -1,0 +1,60 @@
+---
+title: "compozy session fork"
+description: "Fork a session with the same agent, whole or through one message and its turn"
+---
+
+## compozy session fork
+
+Fork a session with the same agent, whole or through one message and its turn
+
+### Synopsis
+
+Start a new session with the same agent, runtime, and account as the source. Without --message-id the whole conversation through the last settled turn is carried; with it, the conversation through that user message and its turn (the agent's reply and tool work). When the agent can clone its own session the new session loads that clone on its first prompt. The source session is never changed. Re-running with the same --idempotency-key and arguments prints the recorded result instead of creating a second session.
+
+```
+compozy session fork <session-id> [flags]
+```
+
+### Examples
+
+```
+  compozy session fork sess_01J9R2K7M4T1
+  compozy session fork sess_01J9R2K7M4T1 --message-id msg_01J9R2N3V0QF --name "Migration cleanup (alt)"
+```
+
+### Options
+
+```
+      --expected-epoch int          Transcript epoch the source must still have
+      --expected-generation int     Transcript generation the source must still have
+      --expected-max-sequence int   Maximum event sequence the source must still have
+  -h, --help                        help for fork
+      --idempotency-key string      Stable retry key (generated when omitted)
+      --message-id string           Durable user message to fork through, including its turn (whole session when omitted)
+      --name string                 Name of the new session (defaults to the source title)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session fork <session-id> -o json
+```

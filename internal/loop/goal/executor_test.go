@@ -69,7 +69,7 @@ func TestExecutorShouldProjectDurableRevocationAfterJudgeCancellation(t *testing
 			t.Fatalf("NewExecutor() error = %v", err)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		input := testGoalInput(t)
 		errCh := make(chan error, 1)
@@ -84,7 +84,7 @@ func TestExecutorShouldProjectDurableRevocationAfterJudgeCancellation(t *testing
 			t.Fatal("judge did not start")
 		}
 		checkpoint, _, _ := store.snapshot()
-		if _, err := store.RevokeGoalPrompt(context.Background(), RevokePromptRequest{
+		if _, err := store.RevokeGoalPrompt(t.Context(), RevokePromptRequest{
 			Key:                  checkpoint.Key,
 			ExpectedControlEpoch: checkpoint.ControlEpoch,
 			ExpectedBindingEpoch: checkpoint.BindingEpoch,
@@ -362,7 +362,7 @@ func TestExecutorShouldConvergeOnThirdTurnWithDurableAudit(t *testing.T) {
 			reported = append(reported, tokens)
 		})
 
-		raw, err := executor.Execute(context.Background(), testGoalNode(3), input)
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), input)
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -415,6 +415,25 @@ func TestExecutorShouldConvergeOnThirdTurnWithDurableAudit(t *testing.T) {
 		}
 	})
 
+	t.Run("Should name the bound session as liveness evidence for the action runtime", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("done", 10, 10))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		reporter := &livenessSessionRecorder{}
+		ctx := loop.ContextWithActionUsageReporter(t.Context(), reporter)
+
+		if _, err := executor.Execute(ctx, testGoalNode(3), testGoalInput(t)); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		checkpoint, _, _ := store.snapshot()
+		if got := reporter.sessions(); !slices.Equal(got, []string{checkpoint.SessionID}) || got[0] == "" {
+			t.Fatalf("liveness sessions = %v, want bound session %q", got, checkpoint.SessionID)
+		}
+	})
+
 	t.Run("Should reject a Goal action without a Run-pinned context policy", func(t *testing.T) {
 		t.Parallel()
 
@@ -429,7 +448,7 @@ func TestExecutorShouldConvergeOnThirdTurnWithDurableAudit(t *testing.T) {
 		input := testGoalInput(t)
 		input.GoalContextNudgeRatio = nil
 
-		_, err := executor.Execute(context.Background(), testGoalNode(3), input)
+		_, err := executor.Execute(t.Context(), testGoalNode(3), input)
 		if !errors.Is(err, loop.ErrValidation) {
 			t.Fatalf("Execute() error = %v, want ErrValidation", err)
 		}
@@ -513,7 +532,7 @@ func TestExecutorShouldRouteEveryPromptStopReason(t *testing.T) {
 			binder := newFakeManagedBinder(store, tc.scripts...)
 			judge := &fakeJudge{results: append([]JudgeResult(nil), tc.judges...)}
 			executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
-			raw, err := executor.Execute(context.Background(), testGoalNode(4), testGoalInput(t))
+			raw, err := executor.Execute(t.Context(), testGoalNode(4), testGoalInput(t))
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -601,7 +620,7 @@ func TestExecutorShouldRouteJudgeOutcomes(t *testing.T) {
 			binder := newFakeManagedBinder(store, scripts...)
 			judge := &fakeJudge{results: judges}
 			executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
-			raw, err := executor.Execute(context.Background(), testGoalNode(5), testGoalInput(t))
+			raw, err := executor.Execute(t.Context(), testGoalNode(5), testGoalInput(t))
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -655,7 +674,7 @@ func TestExecutorShouldApplyExactTurnExhaustionPolicy(t *testing.T) {
 			node := testGoalNode(1)
 			node.Params["on_exhausted"] = tc.onExhausted
 			executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
-			raw, err := executor.Execute(context.Background(), node, testGoalInput(t))
+			raw, err := executor.Execute(t.Context(), node, testGoalInput(t))
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -683,7 +702,7 @@ func TestExecutorShouldKeepReportIntentAtPromptBoundary(t *testing.T) {
 		})
 		judge := &fakeJudge{}
 		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
-		raw, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -737,7 +756,7 @@ func TestExecutorShouldKeepReportIntentAtPromptBoundary(t *testing.T) {
 			judge := &fakeJudge{}
 			executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
 
-			raw, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+			raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -766,7 +785,7 @@ func TestExecutorShouldKeepReportIntentAtPromptBoundary(t *testing.T) {
 			judgeResult(gate.VerdictOutcomeApproved, 0),
 		}}
 		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
-		raw, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -794,7 +813,7 @@ func TestExecutorShouldKeepReportIntentAtPromptBoundary(t *testing.T) {
 		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}}
 		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
 
-		raw, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -823,7 +842,7 @@ func TestExecutorShouldProjectAuthoritativeTerminalStatus(t *testing.T) {
 		node := testGoalNode(1)
 		node.Params["output_schema"] = bundledImplementTasksGoalOutputSchema(t)
 
-		raw, err := executor.Execute(context.Background(), node, testGoalInput(t))
+		raw, err := executor.Execute(t.Context(), node, testGoalInput(t))
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -956,7 +975,7 @@ func TestExecutorShouldSettlePromptBeforeYieldingAnOperatorPause(t *testing.T) {
 		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}}
 		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
 
-		raw, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -1019,7 +1038,7 @@ func TestExecutorShouldFenceBudgetAtEveryExternalBoundary(t *testing.T) {
 				}},
 			}}
 			executor := newTestExecutor(t, store, binder, judge, budget)
-			raw, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+			raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -1096,7 +1115,7 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 				budget,
 				contextHealth,
 			)
-			raw, err := executor.Execute(context.Background(), testGoalNode(3), input)
+			raw, err := executor.Execute(t.Context(), testGoalNode(3), input)
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -1111,7 +1130,8 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 			if len(requests) != tc.wantPrompts {
 				t.Fatalf("compaction prompts = %d, want %d", len(requests), tc.wantPrompts)
 			}
-			if len(requests) == 1 && requests[0].Kind != promptKindCompact {
+			if len(requests) == 1 &&
+				(requests[0].Kind != promptKindCompact || requests[0].Message != "/compact" || requests[0].Delivery != loop.ActionPromptDeliveryMaintenance || requests[0].ContextUsageUsed == nil || *requests[0].ContextUsageUsed != 9 || requests[0].ContextUsageSequence == nil || *requests[0].ContextUsageSequence != 1) {
 				t.Fatalf("prompt kind = %q, want compact", requests[0].Kind)
 			}
 			_, turns, _ := store.snapshot()
@@ -1120,6 +1140,31 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExecutorShouldRecoverWithoutAnAdvertisedCompactionCommand(t *testing.T) {
+	t.Run("Should enter reseed approval without sending a compaction prompt", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		segment := directSegmentForTest(t, store)
+		segment.binding.Ownership = string(BindingOwnershipOriginBorrowed)
+		segment.checkpoint.ContextNudgeRatio = 0.8
+		store.installCheckpoint(segment.checkpoint)
+		binder := newFakeManagedBinder(store)
+		health := &fakeContextHealth{usage: ContextUsage{Known: true, Used: 9, Size: 10, Sequence: 1}}
+		executor := newTestExecutorWithContext(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{}, health)
+		boundary, recovering, err := executor.maybeCompactBeforeWork(t.Context(), segment)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !recovering || boundary == nil || boundary.control == nil ||
+			boundary.control.Cause != loop.ReasonCodeGoalReseedConfirmationRequired {
+			t.Fatalf("boundary=%#v recovering=%v", boundary, recovering)
+		}
+		if len(binder.preparedRequests()) != 0 {
+			t.Fatal("unsupported compaction submitted a prompt")
+		}
+	})
 }
 
 func TestExecutorShouldNeverReplayRecoveredJudgeEffects(t *testing.T) {
@@ -1210,7 +1255,7 @@ func TestExecutorShouldNeverReplayRecoveredJudgeEffects(t *testing.T) {
 			node := testGoalNode(3)
 			node.Params["judge"] = []any{testJudgeCriterion(tc.criterionType)}
 			executor := newTestExecutor(t, store, binder, judge, budget)
-			raw, err := executor.Execute(context.Background(), node, input)
+			raw, err := executor.Execute(t.Context(), node, input)
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -1227,7 +1272,7 @@ func TestExecutorShouldNeverReplayRecoveredJudgeEffects(t *testing.T) {
 					t.Fatalf("recovered judge budget boundaries = %#v, want one after_judge", boundaries)
 				}
 			} else {
-				again, secondErr := executor.Execute(context.Background(), node, input)
+				again, secondErr := executor.Execute(t.Context(), node, input)
 				if secondErr != nil {
 					t.Fatalf("Execute(after ambiguous judge commit) error = %v", secondErr)
 				}
@@ -1295,7 +1340,7 @@ func TestExecutorShouldContinueAfterApprovedAmbiguousJudgeRecovery(t *testing.T)
 		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}}
 		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
 
-		raw, err := executor.Execute(context.Background(), node, input)
+		raw, err := executor.Execute(t.Context(), node, input)
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -1431,7 +1476,7 @@ func TestExecutorShouldRecoverPromptCheckpointsWithoutReplayingEffects(t *testin
 			if err != nil {
 				t.Fatalf("NewExecutor() error = %v", err)
 			}
-			executionCtx := context.Background()
+			executionCtx := t.Context()
 			if tc.cancelExecution {
 				canceledCtx, cancel := context.WithCancel(t.Context())
 				cancel()
@@ -1458,7 +1503,7 @@ func TestExecutorShouldRecoverPromptCheckpointsWithoutReplayingEffects(t *testin
 				t.Fatalf("recovery calls = %d, want 1", recovery.calls)
 			}
 			if tc.wantAmbiguous == 1 {
-				again, secondErr := executor.Execute(context.Background(), testGoalNode(3), input)
+				again, secondErr := executor.Execute(t.Context(), testGoalNode(3), input)
 				if secondErr != nil {
 					t.Fatalf("Execute(after ambiguous prompt commit) error = %v", secondErr)
 				}
@@ -1553,7 +1598,7 @@ func TestExecutorShouldRejectAnUnnormalizedMissingStopReason(t *testing.T) {
 		}})
 		judge := &fakeJudge{}
 		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
-		_, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+		_, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 		if err == nil || !errors.Is(err, loop.ErrValidation) {
 			t.Fatalf("Execute() error = %v, want validation failure", err)
 		}
@@ -1618,7 +1663,7 @@ func TestExecutorShouldApplyContextTelemetryPolicy(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewExecutor() error = %v", err)
 			}
-			raw, err := executor.Execute(context.Background(), testGoalNode(3), input)
+			raw, err := executor.Execute(t.Context(), testGoalNode(3), input)
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -1732,7 +1777,6 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 				ContextState:      "unknown",
 				ContextNudgeRatio: 0.8,
 			})
-			exitCode := 1
 			store.judgeAttempts[attemptID] = JudgeAttempt{
 				AttemptID: attemptID,
 				Key:       key,
@@ -1745,7 +1789,7 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 				}},
 				Criteria: []gate.CriterionResult{{
 					ID: "verify", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeRejected,
-					ExitCode: &exitCode, Stderr: hostileStderr,
+					ExitCode: new(1), Stderr: hostileStderr,
 				}},
 				Warnings: []gate.DiagnosticWarning{{Code: "shell", Message: hostileWarning}},
 			}
@@ -1753,7 +1797,7 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 			judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}}
 			executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
 
-			raw, err := executor.Execute(context.Background(), node, input)
+			raw, err := executor.Execute(t.Context(), node, input)
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -1916,7 +1960,7 @@ func TestExecutorShouldRetryOnlyDurablyRejectedPreSubmitAttempts(t *testing.T) {
 		node.Retry = &dsl.RetrySpec{MaxAttempts: 2, OnFailure: "fresh_session"}
 		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
 
-		raw, err := executor.Execute(context.Background(), node, testGoalInput(t))
+		raw, err := executor.Execute(t.Context(), node, testGoalInput(t))
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -1947,7 +1991,7 @@ func TestExecutorShouldRetryOnlyDurablyRejectedPreSubmitAttempts(t *testing.T) {
 			ReasonCode: "goal_session_busy_queue_full",
 		}})
 		executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
-		raw, err := executor.Execute(context.Background(), testGoalNode(3), testGoalInput(t))
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
@@ -2259,11 +2303,10 @@ func TestGoalContractsShouldValidateIdentityDependenciesAndHarvest(t *testing.T)
 		}).Validate(); err != nil {
 			t.Fatalf("TurnQuery.Validate() error = %v", err)
 		}
-		negativeItemIndex := -1
 		invalidQueries := []TurnQuery{
 			{WorkspaceID: "ws", LoopRunID: "run", AfterSeq: -1},
 			{WorkspaceID: "ws", LoopRunID: "run", Limit: 201},
-			{WorkspaceID: "ws", LoopRunID: "run", ItemIndex: &negativeItemIndex},
+			{WorkspaceID: "ws", LoopRunID: "run", ItemIndex: new(-1)},
 			{WorkspaceID: "ws", LoopRunID: "run", ItemIndex: &itemIndex},
 			{WorkspaceID: "ws", LoopRunID: "run", NodeID: "   ", ItemIndex: &itemIndex},
 		}
@@ -2277,11 +2320,10 @@ func TestGoalContractsShouldValidateIdentityDependenciesAndHarvest(t *testing.T)
 	t.Run("Should validate the closed session projection outbox contract", func(t *testing.T) {
 		t.Parallel()
 
-		boundSessionID := "session-bound"
 		valid := EnqueueSessionOutboxRequest{
 			EventID: "goal-event-1", WorkspaceID: "workspace-1",
 			OriginSessionID: "session-origin", LoopRunID: "loop-1",
-			BoundSessionID: &boundSessionID, Cause: SessionOutboxCauseStart,
+			BoundSessionID: new("session-bound"), Cause: SessionOutboxCauseStart,
 			CreatedAt: time.Now().UTC(),
 		}
 		if err := valid.Validate(); err != nil {
@@ -2314,8 +2356,7 @@ func TestGoalContractsShouldValidateIdentityDependenciesAndHarvest(t *testing.T)
 			{name: "origin session", mutate: func(req *EnqueueSessionOutboxRequest) { req.OriginSessionID = "" }},
 			{name: "Loop Run", mutate: func(req *EnqueueSessionOutboxRequest) { req.LoopRunID = "" }},
 			{name: "blank bound session", mutate: func(req *EnqueueSessionOutboxRequest) {
-				blank := " "
-				req.BoundSessionID = &blank
+				req.BoundSessionID = new(" ")
 			}},
 			{name: "unknown cause", mutate: func(req *EnqueueSessionOutboxRequest) {
 				req.Cause = SessionOutboxCause("unknown")
@@ -2664,14 +2705,6 @@ func TestExecutorShouldClassifyEveryCompactionTerminal(t *testing.T) {
 			want: CompactionSucceeded,
 		},
 		{
-			name: "stale telemetry",
-			result: loop.ActionPromptResult{
-				Outcome:    loop.ActionPromptOutcomeCompleted,
-				StopReason: loop.ActionStopEndTurn,
-			},
-			want: CompactionSucceeded,
-		},
-		{
 			name: "max tokens",
 			result: loop.ActionPromptResult{
 				Outcome:    loop.ActionPromptOutcomeCompleted,
@@ -2754,6 +2787,28 @@ func TestExecutorShouldSettleCompactionControlBoundaries(t *testing.T) {
 			wantCompactions: 1,
 			wantPending:     true,
 		},
+		{
+			name: "observed native completion without a baseline wait",
+			result: loop.ActionPromptResult{
+				Outcome:    loop.ActionPromptOutcomeCompleted,
+				StopReason: loop.ActionStopEndTurn,
+				Compaction: &loop.ActionCompactionOutcome{CompactionID: "c1", Status: "completed"},
+			},
+			beforeUsage:     &ContextUsage{Known: true, Used: 9, Size: 10, Sequence: 10},
+			wantOutcome:     CompactionSucceeded,
+			wantCompactions: 1,
+		},
+		{
+			name: "observed native failure enters recovery",
+			result: loop.ActionPromptResult{
+				Outcome:    loop.ActionPromptOutcomeCompleted,
+				StopReason: loop.ActionStopEndTurn,
+				Compaction: &loop.ActionCompactionOutcome{CompactionID: "c1", Status: "failed"},
+			},
+			wantOutcome:     CompactionFailed,
+			wantCompactions: 1,
+		},
+
 		{
 			name: "invalid result",
 			result: loop.ActionPromptResult{
@@ -3038,14 +3093,24 @@ func TestExecutorShouldRecoverPreparedErrorsAndTimedOutCompaction(t *testing.T) 
 		segment.checkpoint.CompactionBaselineUsed = &used
 		store.installCheckpoint(segment.checkpoint)
 		binder := newFakeManagedBinder(store, scriptedStop(loop.ActionStopEndTurn))
-		executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
+		executor := newTestExecutorWithContext(
+			t,
+			store,
+			binder,
+			&fakeJudge{},
+			&fakeBudgetGuard{},
+			&fakeContextHealth{hasCompact: true},
+		)
 
 		if _, err := executor.recoverPendingPrompt(t.Context(), segment); err != nil {
 			t.Fatalf("recoverPendingPrompt(queued compaction baseline) error = %v", err)
 		}
 		requests := binder.preparedRequests()
-		if len(requests) != 1 || requests[0].ContextUsageSequence == nil ||
-			*requests[0].ContextUsageSequence != sequence || requests[0].ContextUsageUsed == nil ||
+		if len(requests) != 1 || requests[0].Message != "/compact" ||
+			requests[0].Delivery != loop.ActionPromptDeliveryMaintenance ||
+			requests[0].ContextUsageSequence == nil ||
+			*requests[0].ContextUsageSequence != sequence ||
+			requests[0].ContextUsageUsed == nil ||
 			*requests[0].ContextUsageUsed != used {
 			t.Fatalf("recovered compaction request = %#v", requests)
 		}

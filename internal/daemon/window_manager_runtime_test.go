@@ -248,13 +248,11 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			}
 		})
 		state := &bootState{
-			windowManagerBootState: windowManagerBootState{
-				windowManagerStoreResolver: fixture.storeResolver,
-				windowManagerStore:         fixture.engine,
-				windowManagers:             fixture.registry,
-			},
-			workspaceResolver: fixture.resolver,
-			terminals:         terminals,
+			windowManagerStoreResolver: fixture.storeResolver,
+			windowManagerStore:         fixture.engine,
+			windowManagers:             fixture.registry,
+			workspaceResolver:          fixture.resolver,
+			terminals:                  terminals,
 		}
 		cleanup := &bootCleanup{}
 		if err := configureWorkspaceDeletionLifecycle(ctx, state, sessions, cleanup); err != nil {
@@ -375,15 +373,13 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			t.Fatalf("terminal OpenPipe() error = %v", err)
 		}
 		state := &bootState{
-			windowManagerBootState: windowManagerBootState{
-				windowManagerStoreResolver: fixture.storeResolver,
-				windowManagerStore:         fixture.engine,
-				windowManagers:             fixture.registry,
-			},
-			workspaceResolver: fixture.resolver,
-			deadEntities:      deadEntities,
-			mcpToolProvider:   mcpRetirer,
-			terminals:         terminals,
+			windowManagerStoreResolver: fixture.storeResolver,
+			windowManagerStore:         fixture.engine,
+			windowManagers:             fixture.registry,
+			workspaceResolver:          fixture.resolver,
+			deadEntities:               deadEntities,
+			mcpToolProvider:            mcpRetirer,
+			terminals:                  terminals,
 		}
 		if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
 			t.Fatalf("installWorkspaceRemovalPreparer() error = %v", err)
@@ -399,7 +395,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		if _, err := fixture.manager.Execute(ctx, windowmanager.CommandRequest{
 			WorkspaceID: workspaceID, ExpectedRevision: 0, ClientID: &clientID,
 			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
-				ID: "window-a", App: "Terminal", DesktopID: "desktop-default",
+				ID: "window-a", App: "terminal", DesktopID: "desktop-default",
 				Route: windowmanager.RouteIntent{
 					Pathname: "/terminal", Search: windowmanager.RouteSearch{},
 				},
@@ -611,6 +607,14 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 		)
 		fixture.resolver.Invalidate(fixture.workspace.ID)
 		fixture.resolver.Invalidate(workspaceB.ID)
+		// The active global policy starts as floating so workspace A's own
+		// beside_focus is observably isolated from it; the shipped default is
+		// tab, so the premise has to be explicit.
+		floating := windowmanager.DefaultConfig()
+		floating.NewWindowPolicy = windowmanager.NewWindowFloating
+		if err := fixture.manager.UpdateDefaults(floating); err != nil {
+			t.Fatalf("UpdateDefaults(floating) error = %v", err)
+		}
 
 		open := func(workspaceID string, windowID windowmanager.WindowID) windowmanager.Result {
 			t.Helper()
@@ -622,7 +626,7 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 				WorkspaceID:      windowmanager.WorkspaceID(workspaceID),
 				ExpectedRevision: before.Revision,
 				Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
-					ID: windowID, App: "Terminal", DesktopID: "desktop-default",
+					ID: windowID, App: "terminal", DesktopID: "desktop-default",
 					Route:        windowmanager.RouteIntent{Pathname: "/terminal", Search: windowmanager.RouteSearch{}},
 					FloatingRect: windowmanager.NormalizedRect{X: 0.1, Y: 0.1, Width: 0.5, Height: 0.5},
 				}},

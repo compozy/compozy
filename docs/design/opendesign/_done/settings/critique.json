@@ -2,7 +2,7 @@
   "kind": "critique-panel",
   "score": 4,
   "date": "2026-07-21",
-  "head_contract": "os-v2 unified head (os/pagehead-redesign.html) applied to all 9 settings sections: topbar + icon-tile page head replaced by drill-in w2head (back chevron + trail Settings / <Section>, max 1 primary + overflow); old head desc/meta demoted to a 12px subhead line (.subhead, or .pagesub in settings-memory where .subhead was taken; settings-network renamed its in-content .subhead to .adv-subhead). Real actions preserved (e.g. New provider); live states stay in content boards, never duplicated in the head. settings-design-system.html intentionally left on the old pattern as the catalog of it.",
+  "head_contract": "os-v2 unified head (os/pagehead-redesign.html) applied to all settings sections: topbar + icon-tile page head replaced by drill-in w2head (back chevron + trail Settings / <Section>, max 1 primary + overflow); old head desc/meta demoted to a 12px subhead line (.subhead, or .pagesub in settings-memory where .subhead was taken). Real actions preserved (e.g. New provider); live states stay in content boards, never duplicated in the head. settings-design-system.html intentionally left on the old pattern as the catalog of it.",
   "scope": [
     "settings-design-system.html",
     "settings-general.html",
@@ -10,7 +10,6 @@
     "settings-skills.html",
     "settings-hooks.html",
     "settings-extensions.html",
-    "settings-network.html",
     "settings-automation.html",
     "settings-observability.html",
     "settings-memory.html"

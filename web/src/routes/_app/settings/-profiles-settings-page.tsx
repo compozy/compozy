@@ -1,17 +1,20 @@
-import { AlertCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import {
   PROFILE_REMOTE_MANAGEMENT_LINE,
   PROFILE_SEPARATION_LINE,
   ProfileSelectionMap,
   ProfileSettingsList,
-  useProfileFlowIntent,
   useProfilesSettingsPage,
-  type ProfileFlowSearch,
 } from "@/systems/profiles";
-import { SettingsAdvancedFold, SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
+import {
+  SettingsAdvancedFold,
+  SettingsPageFrame,
+  SettingsPageState,
+  useSettingsTopbar,
+} from "@/systems/settings";
 
 const TEST_PREFIX = "settings-page-profiles";
 
@@ -22,15 +25,9 @@ const TEST_PREFIX = "settings-page-profiles";
  * operator asks less often — the archived list, and where each profile is
  * currently active — sits one disclosure deeper.
  */
-export interface ProfilesSettingsPageProps {
-  /** Lifecycle flow a palette command navigated here to raise. */
-  profileFlow?: ProfileFlowSearch;
-}
-
-export function ProfilesSettingsPage({ profileFlow }: ProfilesSettingsPageProps) {
+export function ProfilesSettingsPage() {
   const page = useProfilesSettingsPage();
-  useSettingsTopbar("profiles");
-  useProfileFlowIntent(profileFlow);
+  useSettingsTopbar();
   const lifecycleActions = {
     onEditIdentity: (name: string) => page.open({ flow: "update", profile: name }),
     onRename: (name: string) => page.open({ flow: "rename", profile: name }),
@@ -40,29 +37,17 @@ export function ProfilesSettingsPage({ profileFlow }: ProfilesSettingsPageProps)
   };
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center py-12"
-        role="status"
-        data-testid={`${TEST_PREFIX}-loading`}
-      >
-        <Spinner className="size-4 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="profiles" state="loading" />;
   }
 
   if (page.errorMessage !== null) {
     return (
-      <div
-        className="flex flex-1 flex-col items-center justify-center gap-3 py-12"
-        data-testid={`${TEST_PREFIX}-error`}
-      >
-        <AlertCircle aria-hidden="true" className="size-5 text-danger" />
-        <p className="text-small-body text-muted">{page.errorMessage}</p>
-        <Button size="sm" variant="outline" onClick={page.refetch}>
-          Retry
-        </Button>
-      </div>
+      <SettingsPageState
+        error={page.errorMessage}
+        onRetry={page.refetch}
+        slug="profiles"
+        state="error"
+      />
     );
   }
 

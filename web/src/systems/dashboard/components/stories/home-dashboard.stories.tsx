@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
 
 import type { HomeAgentRow } from "../../hooks/use-home-agents";
-import type { HomeSystemModel } from "../../hooks/use-home-system";
+import type { HomeSystemModel } from "../../lib/home-system";
 import type { HomeRunCardModel, HomeWorkingNowStatus } from "../../types";
 import { makeHomeOverview } from "../../mocks/fixtures";
 import type { HomeActivityEvent } from "../../types";
@@ -13,7 +13,6 @@ import { useHomeAttentionActions } from "../../hooks/use-home-attention-actions"
 import { HomeAttentionZone } from "../home-attention-zone";
 import { HomeFirstRun } from "../home-first-run";
 import { HomeKpiStrip } from "../home-kpi-strip";
-import { HomeNetworkPanel } from "../home-network-panel";
 import { HomeOutcomesChart } from "../home-outcomes-chart";
 import { HomePageMeta } from "../home-page-meta";
 import { HomePulseHeatmap } from "../home-pulse-heatmap";
@@ -127,14 +126,6 @@ const workingNowCards: HomeRunCardModel[] = [
   },
 ];
 
-const networkRows = [
-  { key: "peers", label: "Peers online", value: "2", tone: "success" as const },
-  { key: "work", label: "Open work", value: "3" },
-  { key: "messages", label: "Messages today", value: "128", mono: true },
-  { key: "channels", label: "Channels", value: "3", mono: true },
-  { key: "wakes", label: "Wakes used", value: "12", mono: true },
-];
-
 const agentRows: HomeAgentRow[] = [
   { name: "writer", active: 1, sessions: 14, failed: 1, runtimeSeconds: 15_120, runtimeShare: 1 },
   {
@@ -205,18 +196,18 @@ const activityEvents: HomeActivityEvent[] = [
   ),
   activityEvent("evt-6", "tool_call", "writer", "used Write twice on the brief draft", 300),
   activityEvent("evt-7", "config.read", "ops", "read workspace config", 360),
-  activityEvent("evt-8", "memory.compaction_completed", "", "Memory compaction finished", 420),
+  activityEvent("evt-8", "hook.dispatch.complete", "", "ran 2 hooks on session start", 420),
 ];
 
 const systemModel: HomeSystemModel = {
   allNormal: true,
-  summary: "v0.4.2 · up 2d 4h · providers 3/3 · scheduler running",
+  summary: "Running for 2d 4h · 3 of 3 providers ready",
   tiles: [
     {
       key: "daemon",
-      label: "Runtime",
+      label: "CompozyOS",
       value: "Running",
-      detail: "v0.4.2 · up 2d 4h",
+      detail: "Running for 2d 4h",
       tone: "success",
     },
     {
@@ -228,24 +219,23 @@ const systemModel: HomeSystemModel = {
     },
     {
       key: "scheduler",
-      label: "Scheduler",
-      value: "Running",
-      detail: "next wake 09:57",
+      label: "Automations",
+      value: "On",
+      detail: "Next run 09:57",
       tone: "success",
     },
     {
-      key: "memory",
-      label: "Memory",
-      value: "Enabled",
-      detail: "dream consolidation on",
+      key: "hooks",
+      label: "Hooks",
+      value: "24 runs today",
+      detail: "None failed",
       tone: "success",
     },
-    { key: "hooks", label: "Hooks", value: "24 runs today", detail: "0 failed", tone: "success" },
     {
       key: "retention",
-      label: "Retention",
+      label: "Data kept",
       value: "60 days",
-      detail: "events · usage · permissions",
+      detail: "Activity, usage, and approvals",
     },
   ],
 };
@@ -275,15 +265,13 @@ function HomeDashboardStory({
             workingNowDetail="2 sessions · 1 task run"
             workingNowTotal={3}
           />
-          <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-            <HomeWorkingNow
-              cards={visibleWorkingNowCards}
-              errorMessage={workingNowErrorMessage}
-              status={workingNowStatus}
-              total={visibleWorkingNowCards.length}
-            />
-            <HomeNetworkPanel rows={networkRows} />
-          </div>
+
+          <HomeWorkingNow
+            cards={visibleWorkingNowCards}
+            errorMessage={workingNowErrorMessage}
+            status={workingNowStatus}
+            total={visibleWorkingNowCards.length}
+          />
           <HomePulseHeatmap pulse={overview.pulse} />
           <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
             <HomeOutcomesChart outcomes={overview.outcomes} />
@@ -308,7 +296,7 @@ const meta: Meta<typeof HomeDashboardStory> = {
     docs: {
       description: {
         component:
-          "The 7-zone end-user home: needs-you, KPI strip, working-now | network, pulse heatmap, outcomes | usage, agents | activity, and the folded system row.",
+          "The 7-zone end-user home: needs-you, KPI strip, working-now, pulse heatmap, outcomes | usage, agents | activity, and the folded system row.",
       },
     },
   },

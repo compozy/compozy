@@ -24,8 +24,11 @@ export function buildTaskStreamUrl(taskId: string, filters: TaskStreamFilter = {
     throw new TasksApiError("task id is required to build stream url", 400);
   }
   const path = `/api/tasks/${encodeURIComponent(trimmedId)}/stream`;
-  if (filters.after_sequence === undefined) {
-    return path;
-  }
-  return `${path}?after_sequence=${encodeURIComponent(String(filters.after_sequence))}`;
+  const query = new URLSearchParams();
+  if (filters.after_sequence !== undefined)
+    query.set("after_sequence", String(filters.after_sequence));
+  if (filters.profile) query.set("profile", filters.profile);
+  if (filters.all_profiles) query.set("all_profiles", "true");
+  const search = query.toString();
+  return search ? `${path}?${search}` : path;
 }

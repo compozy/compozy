@@ -1,136 +1,126 @@
-import {
-  Suspense,
-  lazy,
-  useRef,
-  type ComponentType,
-  type KeyboardEvent,
-  type LazyExoticComponent,
-} from "react";
+import { Suspense, lazy, type ComponentType, type LazyExoticComponent } from "react";
 
-import { Spinner } from "@compozy/ui";
+import { Spinner, viewTransitionName } from "@compozy/ui";
+import { shallowEqual } from "@xstate/store";
 
+import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { useDesktop } from "../../hooks/use-desktop";
-import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
-import { profileFlowFromSearch, type ProfileFlowSearch } from "@/systems/profiles";
+import { useProfileFlowIntent } from "./use-profile-flow-intent";
+import { useSettingsNavigation } from "./use-settings-navigation";
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 export interface SettingsSectionPageProps {
   focusCommandId?: string;
-  /** Lifecycle flow a palette command navigated here to raise. */
-  profileFlow?: ProfileFlowSearch;
 }
+
+type SectionComponent = ComponentType<SettingsSectionPageProps>;
 
 /**
  * Section pages stay in their route-colocated modules (the views are rehosted
  * unchanged); each loads on demand so the settings window ships no section
  * code it is not showing. Keys mirror the nav's `SETTINGS_SECTIONS` slugs.
  */
-const SECTION_PAGES = {
-  general: lazy(() =>
+const SECTION_LOADERS = {
+  general: () =>
     import("@/routes/_app/settings/-general-settings-page").then(m => ({
       default: m.GeneralSettingsPage,
-    }))
-  ),
-  terminal: lazy(() =>
+    })),
+  terminal: () =>
     import("@/routes/_app/settings/-terminal-settings-page").then(m => ({
       default: m.TerminalSettingsPage,
-    }))
-  ),
-  defaults: lazy(() =>
+    })),
+  defaults: () =>
     import("@/routes/_app/settings/-defaults-settings-page").then(m => ({
       default: m.DefaultsSettingsPage,
-    }))
-  ),
-  appearance: lazy(() =>
+    })),
+  appearance: () =>
     import("./appearance-settings-pane").then(m => ({
       default: m.AppearanceSettingsPane,
-    }))
-  ),
-  layouts: lazy(() =>
+    })),
+  layouts: () =>
     import("@/routes/_app/settings/-layouts-settings-page").then(m => ({
       default: m.LayoutsSettingsPage,
-    }))
-  ),
-  providers: lazy(() =>
+    })),
+  providers: () =>
     import("@/routes/_app/settings/-providers-settings-page").then(m => ({
       default: m.ProvidersSettingsPage,
-    }))
-  ),
-  memory: lazy(() =>
-    import("@/routes/_app/settings/-memory-settings-page").then(m => ({
-      default: m.MemorySettingsPage,
-    }))
-  ),
-  roles: lazy(() =>
+    })),
+  roles: () =>
     import("@/routes/_app/settings/-roles-settings-page").then(m => ({
       default: m.RolesSettingsPage,
-    }))
-  ),
-  skills: lazy(() =>
+    })),
+  skills: () =>
     import("@/routes/_app/settings/-skills-settings-page").then(m => ({
       default: m.SkillsSettingsPage,
-    }))
-  ),
-  mcp: lazy(() =>
+    })),
+  mcp: () =>
     import("@/routes/_app/settings/-mcp-settings-page").then(m => ({
       default: m.MCPSettingsPage,
-    }))
-  ),
-  automation: lazy(() =>
+    })),
+  automation: () =>
     import("@/routes/_app/settings/-automation-settings-page").then(m => ({
       default: m.AutomationSettingsPage,
-    }))
-  ),
-  network: lazy(() =>
-    import("@/routes/_app/settings/-network-settings-page").then(m => ({
-      default: m.NetworkSettingsPage,
-    }))
-  ),
-  gateway: lazy(() =>
+    })),
+  gateway: () =>
     import("@/routes/_app/settings/-gateway-settings-page").then(m => ({
       default: m.GatewaySettingsPage,
-    }))
-  ),
-  profiles: lazy(() =>
+    })),
+  profiles: () =>
     import("@/routes/_app/settings/-profiles-settings-page").then(m => ({
       default: m.ProfilesSettingsPage,
-    }))
-  ),
-  palette: lazy(() =>
+    })),
+  palette: () =>
     import("@/routes/_app/settings/-palette-settings-page").then(m => ({
       default: m.PaletteSettingsPage,
-    }))
-  ),
-  attention: lazy(() =>
+    })),
+  attention: () =>
     import("@/routes/_app/settings/-attention-settings-page").then(m => ({
       default: m.AttentionSettingsPage,
-    }))
-  ),
-  observability: lazy(() =>
+    })),
+  observability: () =>
     import("@/routes/_app/settings/-observability-settings-page").then(m => ({
       default: m.ObservabilitySettingsPage,
-    }))
-  ),
-  hooks: lazy(() =>
+    })),
+  hooks: () =>
     import("@/routes/_app/settings/-hooks-settings-page").then(m => ({
       default: m.HooksSettingsPage,
-    }))
-  ),
-  extensions: lazy(() =>
+    })),
+  extensions: () =>
     import("@/routes/_app/settings/-extensions-settings-page").then(m => ({
       default: m.ExtensionsSettingsPage,
-    }))
-  ),
-  marketplace: lazy(() =>
+    })),
+  marketplace: () =>
     import("@/routes/_app/settings/-marketplace-settings-page").then(m => ({
       default: m.MarketplaceSettingsPage,
-    }))
-  ),
-} satisfies Partial<Record<string, LazyExoticComponent<ComponentType<SettingsSectionPageProps>>>>;
+    })),
+} satisfies Record<string, () => Promise<{ default: SectionComponent }>>;
 
-type MappedSectionSlug = keyof typeof SECTION_PAGES;
+type MappedSectionSlug = keyof typeof SECTION_LOADERS;
+
+const loadedSections = new Set<MappedSectionSlug>();
+
+function loadSection(slug: MappedSectionSlug): Promise<{ default: SectionComponent }> {
+  const load: () => Promise<{ default: SectionComponent }> = SECTION_LOADERS[slug];
+  return load().then(module => {
+    loadedSections.add(slug);
+    return module;
+  });
+}
+
+/** Warms a section chunk (link hover/focus) so the switch has no spinner frame. */
+function preloadSettingsSection(slug: string): void {
+  if (!(slug in SECTION_LOADERS)) return;
+  void loadSection(slug as MappedSectionSlug).catch(() => undefined);
+}
+
+const SECTION_PAGES = Object.fromEntries(
+  (Object.keys(SECTION_LOADERS) as MappedSectionSlug[]).map(slug => [
+    slug,
+    lazy(() => loadSection(slug)),
+  ])
+) as Record<MappedSectionSlug, LazyExoticComponent<SectionComponent>>;
 
 function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
   const segment = pathname.split("/")[2] ?? "";
@@ -144,7 +134,6 @@ function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
  * window's WM location (not router matches) so an unfocused settings window
  * keeps showing its own section (ADR-002 rule 6).
  */
-const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
 const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
 
 function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
@@ -155,34 +144,38 @@ function focusCommandFromSearch(search: Record<string, unknown>): string | undef
 }
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const { coordinator } = useOsShell();
-  const route = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_SETTINGS_ROUTE);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { route, searchEnabled } = useDesktop(state => {
+    const win = state.windows[windowId];
+    return {
+      route: win?.route ?? DEFAULT_SETTINGS_ROUTE,
+      searchEnabled:
+        !!win &&
+        state.focusedId === windowId &&
+        win.desktopId === state.activeDesktopId &&
+        !win.minimized &&
+        win.stackActive,
+    };
+  }, shallowEqual);
+  // Neutral content clicks focus the desktop ancestor, outside this window's
+  // bubbling path. Reuse the document shortcut while this window owns focus.
+  const searchInputRef = useListingSearchShortcut(searchEnabled);
   const connection = useDaemonConnectionStatus();
   const activeSlug = sectionSlugFromPathname(route.pathname);
+  const navigate = useSettingsNavigation(next => {
+    // Unloaded sections switch immediately to avoid snapshotting their spinner.
+    const nextSlug = sectionSlugFromPathname(next.pathname);
+    return nextSlug !== activeSlug && loadedSections.has(nextSlug);
+  });
   const SectionPage = SECTION_PAGES[activeSlug];
   const focusCommandId =
     activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
-  const profileFlow = activeSlug === "profiles" ? profileFlowFromSearch(route.search) : undefined;
-
-  // Window-scoped `/` shortcut: focus the sidebar search unless the user is
-  // already typing in a field.
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "/" || event.defaultPrevented) return;
-    const target = event.target as HTMLElement | null;
-    if (target && (TYPING_TAGS.test(target.tagName) || target.isContentEditable)) return;
-    event.preventDefault();
-    searchInputRef.current?.focus();
-  };
+  useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
   // The container declaration lives on the outer wrapper: an element cannot
   // resolve a container query against itself, so the flex switch sits one
   // level down where the Settings takeover container query reads this wrapper's inline size.
   return (
-    <div
-      className="@container flex min-h-0 flex-1 flex-col overflow-hidden"
-      onKeyDown={handleKeyDown}
-    >
+    <div className="@container flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         className="flex min-h-0 flex-1 flex-col @min-settings-takeover:flex-row"
         data-testid="settings-shell"
@@ -190,12 +183,14 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
         <SettingsWindowNav
           activeSlug={activeSlug}
           connection={connection}
-          onNavigate={route => coordinator.userNavigate(route)}
+          onNavigate={navigate}
+          onPreload={preloadSettingsSection}
           searchInputRef={searchInputRef}
         />
         <div
           className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
           data-testid="settings-shell-outlet"
+          style={{ viewTransitionName: viewTransitionName("settings-content", windowId) }}
         >
           <Suspense
             fallback={
@@ -204,7 +199,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
               </div>
             }
           >
-            <SectionPage focusCommandId={focusCommandId} profileFlow={profileFlow} />
+            <SectionPage focusCommandId={focusCommandId} />
           </Suspense>
         </div>
       </div>

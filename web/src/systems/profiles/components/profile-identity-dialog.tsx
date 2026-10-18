@@ -46,8 +46,17 @@ export function ProfileIdentityDialog({
         className={dialogShellClass("sm")}
         data-testid="profile-identity-dialog"
         showCloseButton={false}
+        onKeyDown={event => {
+          // Frimousse handles arrow navigation at document level.
+          if (event.key.startsWith("Arrow")) event.preventBaseUIHandler();
+        }}
       >
-        <EntityDialogHeader eyebrow="Profiles" icon={Palette} title={`Edit ${profile.name}`} />
+        <EntityDialogHeader
+          eyebrow="Profiles"
+          icon={Palette}
+          onClose={isPending ? undefined : () => onOpenChange(false)}
+          title={`Edit ${profile.name}`}
+        />
         <EntityDialogBody>
           <ProfileIdentityFields
             catalog={catalog}

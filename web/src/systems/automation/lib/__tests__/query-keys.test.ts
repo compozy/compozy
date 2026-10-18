@@ -24,6 +24,7 @@ describe("automationKeys", () => {
       "",
       "",
       "",
+      "",
     ]);
     expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_beta" })).toEqual([
       "automation",
@@ -37,10 +38,11 @@ describe("automationKeys", () => {
       "",
       "",
       "",
+      "",
     ]);
   });
 
-  it("includes package, enabled, search and loop filters but never a cursor", () => {
+  it("includes package, target, enabled, search and loop filters but never a cursor", () => {
     expect(
       automationKeys.jobList({
         enabled: false,
@@ -48,6 +50,7 @@ describe("automationKeys", () => {
         loop: "delivery",
         q: "review",
         source: "package",
+        target: "task",
       })
     ).toEqual([
       "automation",
@@ -56,6 +59,7 @@ describe("automationKeys", () => {
       "",
       "",
       "package",
+      "task",
       "false",
       "review",
       "25",

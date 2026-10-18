@@ -23,7 +23,7 @@ type gatewayProfileRecord struct {
 
 type gatewayProfileMutationRecord struct {
 	Profile gatewayProfileRecord           `json:"profile"`
-	Device  *contract.GatewayDevicePayload `json:"device,omitempty"`
+	Device  *contract.GatewayDevicePayload `json:"device,omitzero"`
 	Status  string                         `json:"status"`
 }
 
@@ -107,7 +107,7 @@ func gatewayProfileOutput(record gatewayProfileMutationRecord) outputBundle {
 			gatewayProfileTOMLPortKey,
 			gatewayProfileTOMLDefaultWorkspaceKey,
 			gatewayProfileTOMLRemoteHomeKey,
-			memoryActiveKey,
+			cliActiveKey,
 			automationStatusKey,
 			"device_id",
 		}, []string{
@@ -146,7 +146,7 @@ func gatewayProfilesOutput(records []gatewayProfileRecord) outputBundle {
 			gatewayProfileTOMLSchemeKey,
 			gatewayProfileTOMLHostKey,
 			gatewayProfileTOMLPortKey,
-			memoryActiveKey,
+			cliActiveKey,
 		},
 		func(record gatewayProfileRecord) []string {
 			return []string{

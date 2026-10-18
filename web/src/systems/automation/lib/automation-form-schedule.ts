@@ -1,0 +1,204 @@
+/**
+ * Schedule builder model for the editor: quick picks, days plus a time, and the
+ * readout under the builder. Cron stays one level deeper ("Edit expression");
+ * the builder compiles days and a time to the expression the daemon stores.
+ */
+
+import type { CreateAutomationJobRequest } from "../types";
+import { humanizeFireWindow } from "./automation-formatters";
+import type { AutomationNextRun } from "./automation-detail";
+import { describeSchedule, formatAbsoluteInZone, zoneLabel } from "./automation-sentence";
+import {
+  compileCron,
+  cronNext,
+  decodeCron,
+  formatAbsoluteUtc,
+  formatClock,
+  formatRelative,
+  localInputToDate,
+  parseCron,
+  parseDuration,
+} from "./cron-engine";
+
+type JobSchedule = CreateAutomationJobRequest["schedule"];
+
+export interface ScheduleQuickPick {
+  label: string;
+  expr: string;
+}
+
+export const SCHEDULE_QUICK_PICKS: readonly ScheduleQuickPick[] = [
+  { label: "Weekdays 9am", expr: "0 9 * * 1-5" },
+  { label: "Every day 9am", expr: "0 9 * * *" },
+  { label: "Mondays 8am", expr: "0 8 * * 1" },
+  { label: "Every hour", expr: "0 * * * *" },
+  { label: "Midnight", expr: "0 0 * * *" },
+];
+
+export const SCHEDULE_EVERY_PICKS = ["5m", "15m", "30m", "1h", "4h", "24h"] as const;
+
+export const CRON_PARTS_HINT = "min · hour · day · month · weekday";
+
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+const DEFAULT_TIME = { hour: 9, minute: 0 };
+
+/** Days (0 = Sunday) and a clock the simple builder can show, or `null` for other shapes. */
+export interface ScheduleDayTime {
+  days: number[];
+  hour: number;
+  minute: number;
+}
+
+export function scheduleDayTime(expr: string): ScheduleDayTime | null {
+  const model = decodeCron(expr);
+  if (!model || model.hour === undefined || model.minute === undefined) return null;
+  if (model.frequency === "daily") {
+    return { days: [...ALL_DAYS], hour: model.hour, minute: model.minute };
+  }
+  if (model.frequency === "weekly" && model.weekdays) {
+    return { days: [...model.weekdays], hour: model.hour, minute: model.minute };
+  }
+  return null;
+}
+
+function compileDayTime(days: readonly number[], hour: number, minute: number): string {
+  const sorted = [...new Set(days)].sort((left, right) => left - right);
+  return (
+    compileCron({
+      frequency: sorted.length === 7 ? "daily" : "weekly",
+      everyMinutes: 15,
+      hourlyMinute: 0,
+      hour,
+      minute,
+      weekdays: sorted,
+      monthDay: 1,
+    }) ?? ""
+  );
+}
+
+/**
+ * Toggles one day. Clearing the last day keeps the stored expression and
+ * reports `cleared`, so the sentence can show "on some days" as missing.
+ */
+export function toggleScheduleDay(
+  expr: string,
+  day: number,
+  cleared: boolean
+): { expr: string; cleared: boolean } {
+  const current = scheduleDayTime(expr);
+  const time = current ?? { ...DEFAULT_TIME, days: [] };
+  const days = cleared ? [] : (current?.days ?? []);
+  const next = days.includes(day) ? days.filter(value => value !== day) : [...days, day];
+  if (next.length === 0) return { expr, cleared: true };
+  return { expr: compileDayTime(next, time.hour, time.minute), cleared: false };
+}
+
+/** Sets the clock while keeping the chosen days (every day when the shape had none). */
+export function setScheduleTime(expr: string, value: string): string | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  const days = scheduleDayTime(expr)?.days ?? [...ALL_DAYS];
+  return compileDayTime(days, hour, minute);
+}
+
+/** `HH:MM` for the builder's time input. */
+export function scheduleClock(expr: string): string {
+  const current = scheduleDayTime(expr) ?? { ...DEFAULT_TIME, days: [] };
+  return formatClock(current.hour, current.minute);
+}
+
+export interface ScheduleReadout {
+  valid: boolean;
+  text: string;
+}
+
+function cronReadout(expr: string, now: number, timeZone?: string): ScheduleReadout {
+  const parts = expr.trim().split(/\s+/).filter(Boolean);
+  if (parts.length !== 5) {
+    return { valid: false, text: `Needs 5 parts: ${CRON_PARTS_HINT}.` };
+  }
+  if (!parseCron(expr)) {
+    return { valid: false, text: `One of the parts is out of range: ${CRON_PARTS_HINT}.` };
+  }
+  const phrase = describeSchedule({ mode: "cron", expr }, { timeZone });
+  const next = cronNext(expr, 1, now)?.[0];
+  return {
+    valid: true,
+    text: [phrase, ...(next ? [`next ${formatRelative(next, now)}`] : []), expr.trim()].join(" · "),
+  };
+}
+
+/** Plain-language readout under the builder; `valid` drives the glyph and the readiness. */
+export function scheduleReadout(
+  schedule: JobSchedule,
+  now: number,
+  { daysCleared = false, timeZone }: { daysCleared?: boolean; timeZone?: string } = {}
+): ScheduleReadout {
+  if (schedule.mode === "cron") {
+    if (daysCleared) return { valid: false, text: "Pick at least one day." };
+    return cronReadout(schedule.expr ?? "", now, timeZone);
+  }
+  if (schedule.mode === "every") {
+    const interval = schedule.interval?.trim() ?? "";
+    return parseDuration(interval)
+      ? {
+          valid: true,
+          text: `Runs every ${humanizeFireWindow(interval)}, starting right after you save.`,
+        }
+      : { valid: false, text: "Use a duration like 30m, 1h or 2h30m." };
+  }
+  const date = localInputToDate(schedule.time ?? "");
+  if (!date) return { valid: false, text: "Pick a date and time." };
+  if (date.getTime() <= now) {
+    return { valid: false, text: "That time is in the past. It would never run." };
+  }
+  return {
+    valid: true,
+    text: `Runs once, ${formatRelative(date, now)} (${formatAbsoluteInZone(date, { timeZone })} ${zoneLabel({ timeZone })}), then stops.`,
+  };
+}
+
+export interface ScheduleNextRuns {
+  /** `null` when the schedule can't be read; `[]` with a reason when nothing is upcoming. */
+  runs: AutomationNextRun[] | null;
+  emptyReason: string | null;
+}
+
+function toNextRuns(dates: readonly Date[], now: number, oneTime: boolean): AutomationNextRun[] {
+  return dates.map((date, index) => ({
+    index: index + 1,
+    relative: formatRelative(date, now),
+    absolute: formatAbsoluteUtc(date),
+    isFirst: index === 0,
+    oneTime,
+  }));
+}
+
+/** The editor preview's upcoming fire times for a draft schedule. */
+export function scheduleNextRuns(
+  schedule: JobSchedule,
+  now: number,
+  count: number
+): ScheduleNextRuns {
+  if (schedule.mode === "cron") {
+    const dates = cronNext(schedule.expr ?? "", count, now);
+    if (dates === null) return { runs: null, emptyReason: null };
+    return dates.length === 0
+      ? { runs: [], emptyReason: "No upcoming runs in the next year for this expression." }
+      : { runs: toNextRuns(dates, now, false), emptyReason: null };
+  }
+  if (schedule.mode === "every") {
+    const interval = parseDuration(schedule.interval ?? "");
+    if (interval === null) return { runs: null, emptyReason: null };
+    const dates = Array.from({ length: count }, (_, tick) => new Date(now + interval * (tick + 1)));
+    return { runs: toNextRuns(dates, now, false), emptyReason: null };
+  }
+  const date = localInputToDate(schedule.time ?? "");
+  if (!date) return { runs: null, emptyReason: null };
+  return date.getTime() <= now
+    ? { runs: [], emptyReason: "That time is in the past. It would never run." }
+    : { runs: toNextRuns([date], now, true), emptyReason: null };
+}

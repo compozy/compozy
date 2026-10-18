@@ -123,7 +123,7 @@ func TestServiceMutateAttachments(t *testing.T) {
 		queueStore := newMutationQueueStore(source)
 		service := newTestMutationService(t, queueStore)
 		entry, _, err := service.Replace(
-			context.Background(),
+			t.Context(),
 			"sess-mutate",
 			"inq-source",
 			"edited text",
@@ -161,7 +161,7 @@ func TestServiceMutateAttachments(t *testing.T) {
 		queueStore := newMutationQueueStore(source)
 		service := newTestMutationService(t, queueStore)
 		_, _, err := service.PromoteToSteer(
-			context.Background(),
+			t.Context(),
 			"sess-mutate",
 			"inq-source",
 			"steer now",

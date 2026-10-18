@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "automations/automations-surfaces.html",
+  "entry": "automations/automations-surfaces.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-08T04:52:21.736Z",
+  "updatedAt": "2026-10-08T04:52:21.736Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

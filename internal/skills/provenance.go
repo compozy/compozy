@@ -11,7 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -88,7 +88,7 @@ func ComputeDirectoryHash(skillDir string) (string, error) {
 		return "", fmt.Errorf("skills: walk skill directory %q: %w", absRoot, err)
 	}
 
-	sort.Strings(entries)
+	slices.Sort(entries)
 	hasher := sha256.New()
 	buffer := make([]byte, 32*1024)
 	for _, relPath := range entries {

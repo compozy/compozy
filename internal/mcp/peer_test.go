@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"context"
 	"errors"
 	"net"
 	"os"
@@ -28,7 +27,7 @@ func TestPeerInfoContextHelpers(t *testing.T) {
 		t.Parallel()
 
 		peer := PeerInfo{Supported: true, PID: 10, UID: 20, GID: 30, ExecutablePath: "/bin/compozy"}
-		ctx := ContextWithPeerInfo(context.Background(), peer, nil)
+		ctx := ContextWithPeerInfo(t.Context(), peer, nil)
 		got, err := PeerInfoFromContext(ctx)
 		if err != nil {
 			t.Fatalf("PeerInfoFromContext() error = %v", err)
@@ -38,12 +37,12 @@ func TestPeerInfoContextHelpers(t *testing.T) {
 		}
 
 		wantErr := errors.New("peer unavailable")
-		ctx = ContextWithPeerInfo(context.Background(), PeerInfo{}, wantErr)
+		ctx = ContextWithPeerInfo(t.Context(), PeerInfo{}, wantErr)
 		if _, err := PeerInfoFromContext(ctx); !errors.Is(err, wantErr) {
 			t.Fatalf("PeerInfoFromContext(error ctx) error = %v, want %v", err, wantErr)
 		}
 
-		if _, err := PeerInfoFromContext(context.Background()); !errors.Is(err, ErrPeerCredentialsUnsupported) {
+		if _, err := PeerInfoFromContext(t.Context()); !errors.Is(err, ErrPeerCredentialsUnsupported) {
 			t.Fatalf("PeerInfoFromContext(empty ctx) error = %v, want ErrPeerCredentialsUnsupported", err)
 		}
 	})

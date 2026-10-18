@@ -45,28 +45,32 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 		recoverErr = errors.Join(recoverErr, fmt.Errorf("worktree: list interrupted exit operations: %w", err))
 		return recoverErr
 	}
-	if err := s.store.FailRunningExitOperations(ctx, s.now().UTC()); err != nil {
-		recoverErr = errors.Join(recoverErr, fmt.Errorf("worktree: fail interrupted exit operations: %w", err))
-	} else {
-		for _, operation := range running {
-			item, itemErr := s.store.Get(ctx, operation.WorkspaceID, operation.WorktreeID)
-			if itemErr != nil || item == nil {
-				if itemErr == nil {
-					itemErr = ErrNotFound
-				}
-				recoverErr = errors.Join(
-					recoverErr,
-					fmt.Errorf("worktree: resolve interrupted exit owner: %w", itemErr),
-				)
-				continue
-			}
-			operation.ProfileID = item.ProfileID
-			s.emitExit(ctx, EventExitActionFailed, operation, ExitEventPayload{
-				OperationID: operation.ID, Action: ExitAction(operation.Action), State: exitStepFailed,
-				Message: "Exit action interrupted by daemon restart.",
-			})
+
+	for _, operation := range running {
+		if ExitAction(operation.Action) == ExitActionDeliver {
+			continue
 		}
+		item, itemErr := s.store.Get(ctx, operation.WorkspaceID, operation.WorktreeID)
+		if itemErr != nil || item == nil {
+			recoverErr = errors.Join(recoverErr, itemErr, ErrNotFound)
+			continue
+		}
+		operation.ProfileID = item.ProfileID
+		_, finishErr := s.finishExitOperation(
+			ctx,
+			operation,
+			exitStepFailed,
+			EventExitActionFailed,
+			ExitEventPayload{
+				OperationID: operation.ID,
+				Action:      ExitAction(operation.Action),
+				State:       exitStepFailed,
+				Message:     "Exit action interrupted by daemon restart.",
+			},
+		)
+		recoverErr = errors.Join(recoverErr, finishErr)
 	}
+
 	return recoverErr
 }
 

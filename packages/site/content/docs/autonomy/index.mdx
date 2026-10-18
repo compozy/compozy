@@ -1,11 +1,10 @@
 ---
 title: Autonomy
-description: "Explicit operator control, coordinator handoff, task leases, optional Live coordination conversations, and safe spawn."
+description: "Explicit operator control, coordinator handoff, task leases, review gates, and safe spawn."
 ---
 
-Autonomy in CompozyOS lets managed agent sessions discover work, coordinate when a run explicitly resolves
-Live, and delegate bounded child sessions. Task execution is independent from Network
-participation: Local remains the default and uses the same task, lease, review, and spawn authority.
+Autonomy in CompozyOS lets managed agent sessions discover work and delegate bounded child sessions.
+The daemon owns task state, leases, review verdicts, and spawn authority.
 
 <OperatorNote>
   Creating a task records intent only. It does not enqueue claimable work, start execution, or spawn
@@ -27,14 +26,14 @@ participation: Local remains the default and uses the same task, lease, review, 
     href="/docs/autonomy/task-runs-and-leases"
     label="Task Runs"
     title="Claim, heartbeat, complete, fail, and release"
-    description="Use the session-bound task API correctly and keep raw lease credentials out of read models, logs, and channels."
+    description="Use the session-bound task API correctly and keep raw lease credentials out of read models, logs, and prompts."
     meta="Ownership"
   />
   <RouteRow
     href="/docs/autonomy/execution-profiles"
     label="Profiles"
     title="Typed task execution profiles"
-    description="Steer coordinator guidance, worker selection, reviewer routing, participant policy, and sandbox mode through one typed task-owned overlay."
+    description="Steer coordinator guidance, worker selection, reviewer routing, participant policy, and worktree selection through one typed task-owned overlay."
     meta="Selection"
   />
   <RouteRow
@@ -47,23 +46,9 @@ participation: Local remains the default and uses the same task, lease, review, 
   <RouteRow
     href="/docs/autonomy/notification-cursors"
     label="Notifications"
-    title="Bridge terminal notifications and cursor diagnostics"
-    description="Deliver accepted-final terminal task notifications, advance durable cursors, surface delivery diagnostics, and seed SSE reconnects."
+    title="Task status cursors and reconnects"
+    description="Inspect durable task-status projection progress and resume event streams without gaps."
     meta="Delivery"
-  />
-  <RouteRow
-    href="/docs/autonomy/notification-presets"
-    label="Presets"
-    title="Notification Presets"
-    description="Manage SQLite-backed fanout presets, cursor replay, filters, and bridge suppression."
-    meta="Fanout"
-  />
-  <RouteRow
-    href="/docs/autonomy/coordination-channels"
-    label="Channels"
-    title="Task-run coordination conversations"
-    description="Opt future coordinated runs into bounded Live conversation while keeping task ownership and terminal status in the task service."
-    meta="Optional Live"
   />
   <RouteRow
     href="/docs/autonomy/safe-spawn"
@@ -79,9 +64,8 @@ participation: Local remains the default and uses the same task, lease, review, 
 | Step                                                                                              | What happens                                                                                         | Starts execution?            | Starts a coordinator?                                                                 |
 | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
 | `compozy task create` or API create                                                               | Stores durable task intent. The task can be draft, blocked, or ready.                                | No                           | No                                                                                    |
-| `compozy task publish`, `compozy task start`, `compozy task approve`, UI start, or equivalent API | Enqueues a run and persists its resolved Local or Live participation snapshot.                       | Yes                          | Yes, if coordinator auto-start is enabled and no healthy workspace coordinator exists |
+| `compozy task publish`, `compozy task start`, `compozy task approve`, UI start, or equivalent API | Enqueues a durable task run.                                                                         | Yes                          | Yes, if coordinator auto-start is enabled and no healthy workspace coordinator exists |
 | `compozy task next`                                                                               | A managed agent session atomically claims one eligible queued run and receives a safe lease summary. | Claim only; start separately | No                                                                                    |
-| Live Network conversation surfaces                                                                | Addressed participants exchange requests, blockers, handoffs, results, and review evidence.          | May admit a bounded wake     | No                                                                                    |
 | `compozy spawn`                                                                                   | A validated parent session asks the daemon to create a bounded child session.                        | Creates a child session only | No coordinator child sessions in the MVP                                              |
 
 The durable execution boundary is the run enqueue boundary, not task creation. The same boundary is
@@ -95,11 +79,10 @@ parallel `compozy task` CLI. Both routes call the same task service writers.
 
 | Surface                                                                                                            | Use it for                                                                                       | Do not use it for                                              |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| `compozy me` and `compozy me context`                                                                              | Inspect the caller session, workspace, capabilities, active leases, and resolved participation.  | Claiming or changing task-run state.                           |
-| `compozy__task_run_claim_next`                                                                                     | Claim and start the next eligible worker run, including dedicated-session handoff when required. | Listing arbitrary tasks or announcing progress to peers.       |
+| `compozy me` and `compozy me context`                                                                              | Inspect the caller session, workspace, capabilities, and active leases.                          | Claiming or changing task-run state.                           |
+| `compozy__task_run_claim_next`                                                                                     | Claim and start the next eligible worker run, including dedicated-session handoff when required. | Listing arbitrary tasks or writing progress notes.             |
 | `compozy task next`                                                                                                | Claim the next eligible run for an operator-managed explicit start flow.                         | Assuming execution has started or a worktree was materialized. |
 | `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, `compozy__task_run_release` | Extend or finish the current session-bound claim by `run_id`.                                    | Conversation, review requests, or handoffs.                    |
-| Live Network tools or audited CLI                                                                                  | Conversation for an explicitly participating session.                                            | Enrolling a Local execution or changing task status.           |
 | `compozy spawn`                                                                                                    | Create a narrowed child session with TTL and lineage.                                            | Starting a second coordinator or widening parent permissions.  |
 
 ## Manual and autonomous work coexist
@@ -110,14 +93,13 @@ their capabilities match, but they can also be prompted directly through the ses
 
 Coordinator sessions and spawned worker sessions are normal managed sessions with additional
 lineage and TTL metadata. They do not bypass task-run leases, hooks, permissions, workspace
-boundaries, or the immutable participation snapshot.
+boundaries, or configured execution policy.
 
 ## What is not in the MVP
 
 The autonomy docs describe only the implemented local MVP. They do not promise:
 
 - cross-daemon swarm coordination or leader election
-- broad peer/channel memory extraction
 - autonomy dashboards, lease dashboards, or spawn lineage trees in the web UI
 - eval/replay harnesses
 - a separate autonomous task queue
@@ -128,9 +110,8 @@ The autonomy docs describe only the implemented local MVP. They do not promise:
 - [Task CLI Reference](/docs/cli/task) lists exact task commands and flags for the parallel CLI surface.
 - [Tool CLI Reference](/docs/cli/tool) documents the operator commands that inspect the registry and the `compozy__autonomy` tool family.
 - [Sessions](/docs/sessions/lifecycle) explains session types, state, stop behavior, and persistence.
-- [Network Channels](/docs/network/channels-and-peers) explains channel and peer behavior.
 - [config.toml](/docs/configuration/config-toml) documents `[roles.coordinator]` and `[task.orchestration]`.
-- [Task Execution Profiles](/docs/autonomy/execution-profiles) documents the typed task-owned overlay used for coordinator guidance, worker selection, reviewer routing, participant policy, and sandbox mode.
+- [Task Execution Profiles](/docs/autonomy/execution-profiles) documents the typed task-owned overlay used for coordinator guidance, worker selection, reviewer routing, participant policy, and worktree selection.
 - [Review Gate](/docs/autonomy/review-gate) documents the post-terminal review gate, reviewer routing, verdict semantics, and continuation runs.
-- [Notification Cursors](/docs/autonomy/notification-cursors) documents bridge terminal notifications, durable cursor diagnostics, and SSE resume seeding.
+- [Notification Cursors](/docs/autonomy/notification-cursors) documents task-status projection progress and SSE resume seeding.
 - [Hook Event Catalog](/docs/hooks/event-catalog) lists `coordinator.*`, `task.run.*`, and `spawn.*` hook events.

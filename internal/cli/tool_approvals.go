@@ -228,7 +228,7 @@ func toolApprovalGrantSetBundle(grant ToolApprovalGrantRecord) outputBundle {
 			return renderToonObject(
 				"tool_approval_grant",
 				[]string{
-					"id", taskWorkspaceIDKey, "tool_id", "decision", bridgeScopeKey, installAgentNameKey,
+					"id", taskWorkspaceIDKey, "tool_id", "decision", cliOutputScopeKey, installAgentNameKey,
 				},
 				[]string{
 					grant.ID,

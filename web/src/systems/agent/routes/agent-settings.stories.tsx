@@ -26,7 +26,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Agent settings modal overlay with section navigation, dirty footer Save/Cancel, and Danger zone.",
+          "Agent settings modal overlay with section navigation, dirty footer Save/Cancel, and Delete at the bottom of Basics.",
       },
     },
   },
@@ -48,6 +48,7 @@ export const Basics: Story = {
   },
 };
 
+/** The retired `?section=danger` link now lands on Basics, where Delete sits at the bottom. */
 export const Danger: Story = {
   args: {},
   parameters: appRouteParameters(`${settingsRoute}?section=danger`),

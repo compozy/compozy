@@ -1,11 +1,12 @@
 package loop
 
 import (
+	"cmp"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -37,7 +38,6 @@ var timelineTiers = map[RunEventKind]TimelineTier{
 	RunEventNodeFailed:           TimelineNotable,
 	RunEventGateVerdict:          TimelineNotable,
 	RunEventGenerationStarted:    TimelineNotable,
-	RunEventChannelMsg:           TimelineActivity,
 	RunEventTokenTick:            TimelineChatter,
 	RunEventNeedsApproval:        TimelineNotable,
 	RunEventStatusChanged:        TimelineNotable,
@@ -80,11 +80,11 @@ type TimelineQuery struct {
 }
 type TimelineEntry struct {
 	Seq        int64        `json:"seq"`
-	FirstSeq   int64        `json:"first_seq,omitempty"`
+	FirstSeq   int64        `json:"first_seq,omitzero"`
 	Kind       RunEventKind `json:"kind"`
-	Generation int64        `json:"generation,omitempty"`
+	Generation int64        `json:"generation,omitzero"`
 	NodeID     NodeID       `json:"node_id,omitempty"`
-	Attempt    int          `json:"attempt,omitempty"`
+	Attempt    int          `json:"attempt,omitzero"`
 	Title      string       `json:"title"`
 	At         time.Time    `json:"at"`
 }
@@ -205,8 +205,8 @@ func projectTimelineWithHead(runID RunID, head int64, events []RunEvent, query T
 		}
 		filtered = append(filtered, event)
 	}
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Seq > filtered[j].Seq
+	slices.SortFunc(filtered, func(a, b RunEvent) int {
+		return cmp.Compare(b.Seq, a.Seq)
 	})
 	entries, err := coalesceTimeline(filtered)
 	if err != nil {
@@ -416,8 +416,6 @@ func timelineStaticRunTitle(kind RunEventKind) (string, bool) {
 
 func timelineAgentActivityTitle(kind RunEventKind) (string, bool) {
 	switch kind {
-	case RunEventChannelMsg:
-		return "An agent message was recorded", true
 	case RunEventTokenTick:
 		return "Token usage increased", true
 	case RunEventGoalTurnStarted:

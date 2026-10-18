@@ -3,7 +3,6 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   getAgentContext,
   getTask,
-  getTaskBridgeNotificationSubscription,
   getTaskDashboard,
   getTaskExecutionProfile,
   getTaskInbox,
@@ -14,7 +13,6 @@ import {
   getTaskTree,
   inspectRun,
   inspectTask,
-  listTaskBridgeNotificationSubscriptions,
   listTaskReviews,
   listTaskRunReviews,
   listTaskRuns,
@@ -25,7 +23,6 @@ import { taskInboxPageRequest, taskInboxStableFilter } from "./task-inbox-query"
 import { taskListPageRequest, taskListStableFilter } from "./task-list-query";
 import type {
   AgentContextIdentity,
-  TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
   TaskDetailView,
   TaskRunDetailView,
@@ -101,10 +98,10 @@ export function taskDetailOptions(id: string, scope: ProfileScopeParams, enabled
   });
 }
 
-export function taskInspectOptions(id: string, enabled = true) {
+export function taskInspectOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.inspectTask(id),
-    queryFn: ({ signal }) => inspectTask(id, signal),
+    queryKey: tasksKeys.inspectTask(id, scope),
+    queryFn: ({ signal }) => inspectTask(id, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,
@@ -131,20 +128,20 @@ export function taskTimelineOptions(id: string, filters: TaskTimelineFilter = {}
   });
 }
 
-export function taskTreeOptions(id: string, enabled = true) {
+export function taskTreeOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.tree(id),
-    queryFn: ({ signal }) => getTaskTree(id, signal),
+    queryKey: tasksKeys.tree(id, scope),
+    queryFn: ({ signal }) => getTaskTree(id, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,
   });
 }
 
-export function taskRunDetailOptions(runId: string, enabled = true) {
+export function taskRunDetailOptions(runId: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.runDetail(runId),
-    queryFn: ({ signal }) => getTaskRun(runId, signal),
+    queryKey: tasksKeys.runDetail(runId, scope),
+    queryFn: ({ signal }) => getTaskRun(runId, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: query => taskRunDetailRefetchInterval(query.state.data),
     enabled: Boolean(runId) && enabled,
@@ -157,21 +154,22 @@ export function taskRunResultPageOptions(
   resultRef: string,
   offset: number,
   limit: number,
+  scope: ProfileScopeParams,
   enabled = true
 ) {
   return queryOptions({
-    queryKey: tasksKeys.runResult(workspaceId, runId, resultRef, offset, limit),
-    queryFn: ({ signal }) => readTaskRunResult(runId, offset, limit, signal),
+    queryKey: tasksKeys.runResult(workspaceId, runId, resultRef, offset, limit, scope),
+    queryFn: ({ signal }) => readTaskRunResult(runId, offset, limit, scope, signal),
     staleTime: Infinity,
     gcTime: 2 * 60 * 1000,
     enabled: Boolean(workspaceId && runId && resultRef) && enabled,
   });
 }
 
-export function taskRunInspectOptions(runId: string, enabled = true) {
+export function taskRunInspectOptions(runId: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.inspectRun(runId),
-    queryFn: ({ signal }) => inspectRun(runId, signal),
+    queryKey: tasksKeys.inspectRun(runId, scope),
+    queryFn: ({ signal }) => inspectRun(runId, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(runId) && enabled,
@@ -265,33 +263,5 @@ export function agentContextOptions(identity: AgentContextIdentity, enabled = tr
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled,
-  });
-}
-
-export function taskBridgeNotificationSubscriptionsOptions(
-  taskId: string,
-  filters: TaskBridgeNotificationSubscriptionsFilter = {},
-  enabled = true
-) {
-  return queryOptions({
-    queryKey: tasksKeys.bridgeNotifications(taskId, filters),
-    queryFn: ({ signal }) => listTaskBridgeNotificationSubscriptions(taskId, filters, signal),
-    staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
-    enabled: Boolean(taskId) && enabled,
-  });
-}
-
-export function taskBridgeNotificationSubscriptionOptions(
-  taskId: string,
-  subscriptionId: string,
-  enabled = true
-) {
-  return queryOptions({
-    queryKey: tasksKeys.bridgeNotification(taskId, subscriptionId),
-    queryFn: ({ signal }) => getTaskBridgeNotificationSubscription(taskId, subscriptionId, signal),
-    staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
-    enabled: Boolean(taskId) && Boolean(subscriptionId) && enabled,
   });
 }

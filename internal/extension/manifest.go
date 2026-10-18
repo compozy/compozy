@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/resources"
@@ -105,15 +104,14 @@ type Manifest struct {
 
 	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
 
-	Inputs               []ManifestInput             `toml:"inputs,omitempty"                json:"inputs,omitempty"`
-	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
-	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
-	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
-	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
-	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
-	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
-	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
-	Profiles             []ManifestProfile           `toml:"profiles,omitempty"              json:"profiles,omitempty"`
+	Inputs       []ManifestInput     `toml:"inputs,omitempty"       json:"inputs,omitempty"`
+	RequiresEnv  []string            `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
+	Gateway      *GatewayRequirement `toml:"gateway,omitempty"      json:"gateway,omitzero"`
+	Resources    ResourcesConfig     `toml:"resources"              json:"resources"`
+	Capabilities CapabilitiesConfig  `toml:"capabilities"           json:"capabilities"`
+	Permissions  PermissionsConfig   `toml:"permissions"            json:"permissions"`
+	Subprocess   SubprocessConfig    `toml:"subprocess"             json:"subprocess"`
+	Profiles     []ManifestProfile   `toml:"profiles,omitempty"     json:"profiles,omitempty"`
 }
 
 // ResourcesConfig declares static assets packaged with an extension.
@@ -157,22 +155,14 @@ type SubprocessConfig struct {
 	ShutdownTimeout     Duration          `toml:"shutdown_timeout,omitempty"      json:"shutdown_timeout,omitempty"`
 }
 
-// BridgeConfig declares provider metadata for bridge-capable extensions.
-type BridgeConfig struct {
-	Platform     string                                `toml:"platform,omitempty"      json:"platform,omitempty"`
-	DisplayName  string                                `toml:"display_name,omitempty"  json:"display_name,omitempty"`
-	SecretSlots  []bridgepkg.BridgeSecretSlot          `toml:"secret_slots,omitempty"  json:"secret_slots,omitempty"`
-	ConfigSchema *bridgepkg.BridgeProviderConfigSchema `toml:"config_schema,omitempty" json:"config_schema,omitempty"`
-}
-
 // HookConfig mirrors the hook declaration shape accepted from extension manifests.
 type HookConfig struct {
 	Profile   string             `toml:"profile,omitempty"    json:"profile,omitempty"`
 	Name      string             `toml:"name"                 json:"name"`
 	Event     string             `toml:"event"                json:"event"`
 	Mode      string             `toml:"mode,omitempty"       json:"mode,omitempty"`
-	Required  bool               `toml:"required,omitempty"   json:"required,omitempty"`
-	Priority  *int               `toml:"priority,omitempty"   json:"priority,omitempty"`
+	Required  bool               `toml:"required,omitempty"   json:"required,omitzero"`
+	Priority  *int               `toml:"priority,omitempty"   json:"priority,omitzero"`
 	Timeout   Duration           `toml:"timeout,omitempty"    json:"timeout,omitempty"`
 	Matcher   HookMatcherConfig  `toml:"matcher,omitempty"    json:"matcher"`
 	Command   string             `toml:"command,omitempty"    json:"command,omitempty"`
@@ -203,22 +193,18 @@ type HookMatcherConfig struct {
 	TurnID             string `toml:"turn_id,omitempty"             json:"turn_id,omitempty"`
 	ToolID             string `toml:"tool_id,omitempty"             json:"tool_id,omitempty"`
 	ToolName           string `toml:"tool_name,omitempty"           json:"tool_name,omitempty"`
-	ToolReadOnly       *bool  `toml:"tool_read_only,omitempty"      json:"tool_read_only,omitempty"`
+	ToolReadOnly       *bool  `toml:"tool_read_only,omitempty"      json:"tool_read_only,omitzero"`
 	DecisionClass      string `toml:"decision_class,omitempty"      json:"decision_class,omitempty"`
 	MessageRole        string `toml:"message_role,omitempty"        json:"message_role,omitempty"`
 	MessageDeltaType   string `toml:"message_delta_type,omitempty"  json:"message_delta_type,omitempty"`
-	Channel            string `toml:"channel,omitempty"             json:"channel,omitempty"`
-	Surface            string `toml:"surface,omitempty"             json:"surface,omitempty"`
-	Kind               string `toml:"kind,omitempty"                json:"kind,omitempty"`
-	Direction          string `toml:"direction,omitempty"           json:"direction,omitempty"`
-	WorkState          string `toml:"work_state,omitempty"          json:"work_state,omitempty"`
+	CompactionTrigger  string `toml:"compaction_trigger,omitempty"  json:"compaction_trigger,omitempty"`
 	CompactionReason   string `toml:"compaction_reason,omitempty"   json:"compaction_reason,omitempty"`
 	CompactionStrategy string `toml:"compaction_strategy,omitempty" json:"compaction_strategy,omitempty"`
 }
 
 // MCPServerConfig declares one MCP server packaged with the extension.
 type MCPServerConfig struct {
-	Auth         *MCPServerAuthConfig `toml:"auth,omitempty"          json:"auth,omitempty"`
+	Auth         *MCPServerAuthConfig `toml:"auth,omitempty"          json:"auth,omitzero"`
 	DefaultScope string               `toml:"default_scope,omitempty" json:"default_scope,omitempty"`
 	Profile      string               `toml:"profile,omitempty"       json:"profile,omitempty"`
 	Command      string               `toml:"command,omitempty"       json:"command,omitempty"`
@@ -253,12 +239,12 @@ type ToolConfig struct {
 	InputSchema          json.RawMessage   `toml:"input_schema,omitempty"          json:"input_schema,omitempty"`
 	OutputSchema         json.RawMessage   `toml:"output_schema,omitempty"         json:"output_schema,omitempty"`
 	Risk                 string            `toml:"risk,omitempty"                  json:"risk,omitempty"`
-	ReadOnly             bool              `toml:"read_only,omitempty"             json:"read_only,omitempty"`
-	Destructive          bool              `toml:"destructive,omitempty"           json:"destructive,omitempty"`
-	OpenWorld            bool              `toml:"open_world,omitempty"            json:"open_world,omitempty"`
-	RequiresInteraction  bool              `toml:"requires_interaction,omitempty"  json:"requires_interaction,omitempty"`
-	ConcurrencySafe      bool              `toml:"concurrency_safe,omitempty"      json:"concurrency_safe,omitempty"`
-	MaxResultBytes       int64             `toml:"max_result_bytes,omitempty"      json:"max_result_bytes,omitempty"`
+	ReadOnly             bool              `toml:"read_only,omitempty"             json:"read_only,omitzero"`
+	Destructive          bool              `toml:"destructive,omitempty"           json:"destructive,omitzero"`
+	OpenWorld            bool              `toml:"open_world,omitempty"            json:"open_world,omitzero"`
+	RequiresInteraction  bool              `toml:"requires_interaction,omitempty"  json:"requires_interaction,omitzero"`
+	ConcurrencySafe      bool              `toml:"concurrency_safe,omitempty"      json:"concurrency_safe,omitzero"`
+	MaxResultBytes       int64             `toml:"max_result_bytes,omitempty"      json:"max_result_bytes,omitzero"`
 	Toolsets             []string          `toml:"toolsets,omitempty"              json:"toolsets,omitempty"`
 	Tags                 []string          `toml:"tags,omitempty"                  json:"tags,omitempty"`
 	SearchHints          []string          `toml:"search_hints,omitempty"          json:"search_hints,omitempty"`
@@ -266,7 +252,7 @@ type ToolConfig struct {
 	RequiredCapabilities []string          `toml:"required_capabilities,omitempty" json:"required_capabilities,omitempty"`
 	Visibility           string            `toml:"visibility,omitempty"            json:"visibility,omitempty"`
 
-	Command *manifestCommandSpec `toml:"command,omitempty" json:"command,omitempty"`
+	Command *manifestCommandSpec `toml:"command,omitempty" json:"command,omitzero"`
 }
 
 // ToolBackendConfig binds a manifest tool to its backend metadata.
@@ -289,15 +275,14 @@ type manifestDocument struct {
 
 	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
 
-	Inputs               []manifestInputDocument     `toml:"inputs,omitempty"                json:"inputs,omitempty"`
-	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
-	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
-	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
-	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
-	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
-	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
-	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
-	Profiles             []ManifestProfile           `toml:"profiles,omitempty"              json:"profiles,omitempty"`
+	Inputs       []manifestInputDocument `toml:"inputs,omitempty"       json:"inputs,omitempty"`
+	RequiresEnv  []string                `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
+	Gateway      *GatewayRequirement     `toml:"gateway,omitempty"      json:"gateway,omitzero"`
+	Resources    ResourcesConfig         `toml:"resources"              json:"resources"`
+	Capabilities CapabilitiesConfig      `toml:"capabilities"           json:"capabilities"`
+	Permissions  PermissionsConfig       `toml:"permissions"            json:"permissions"`
+	Subprocess   SubprocessConfig        `toml:"subprocess"             json:"subprocess"`
+	Profiles     []ManifestProfile       `toml:"profiles,omitempty"     json:"profiles,omitempty"`
 }
 
 type manifestCore struct {

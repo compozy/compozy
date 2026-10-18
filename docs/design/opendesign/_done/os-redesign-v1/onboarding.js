@@ -23,26 +23,23 @@ const ICONS = {
   agents: '<svg viewBox="0 0 20 20"><rect x="4" y="6" width="12" height="9" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6V3.2M7.5 10.4h.01M12.5 10.4h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 13h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
   tasks: '<svg viewBox="0 0 20 20"><path d="m3.5 6 1.6 1.6L8 4.7M3.5 13l1.6 1.6L8 11.7M10.5 6.5H17M10.5 13.5H17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   marketplace: '<svg viewBox="0 0 20 20"><path d="M4 7.5 5 4h10l1 3.5M4 7.5h12M4 7.5V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7.5M8 10.5h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  network: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.4 10h13.2M10 3.4c-3.6 3.8-3.6 9.4 0 13.2 3.6-3.8 3.6-9.4 0-13.2Z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
   vault: '<svg viewBox="0 0 20 20"><circle cx="7.5" cy="8" r="3.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m10.4 10.6 5.6 5.6M13.5 13.5l1.8-1.8M15.5 15.5l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
   loops: '<svg viewBox="0 0 20 20"><path d="M13.5 4.5H8a4 4 0 0 0-4 4v.5M6.5 15.5H12a4 4 0 0 0 4-4V11M11 2l2.5 2.5L11 7M9 18l-2.5-2.5L9 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   jobs: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6.2V10l3 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   triggers: '<svg viewBox="0 0 20 20"><path d="M11 2.5 4.5 11h4l-.9 6.5L14.5 9h-4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
-  bridges: '<svg viewBox="0 0 20 20"><circle cx="4.5" cy="15.5" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="15.5" cy="4.5" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="15.5" cy="15.5" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 15.5h7M15.5 6.5v7M6 14 14 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
   knowledge: '<svg viewBox="0 0 20 20"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H16v13H5.5A1.5 1.5 0 0 0 4 17.5zM4 4.5v13M16 13H5.5A1.5 1.5 0 0 0 4 14.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  sandbox: '<svg viewBox="0 0 20 20"><rect x="2.5" y="11" width="6.5" height="6.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="11" width="6.5" height="6.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="6.75" y="2.5" width="6.5" height="6.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
 };
 const DOCK_ORDER = [
   'sessions', 'dashboard',
-  'agents', 'network', 'tasks', 'loops', 'jobs', 'triggers', 'sep',
-  'marketplace', 'bridges', 'knowledge', 'sep',
-  'sandbox', 'vault',
+  'agents', 'tasks', 'loops', 'jobs', 'triggers', 'sep',
+  'marketplace', 'knowledge', 'sep',
+  'vault',
 ];
 const DOCK_LABEL = {
-  sessions: 'Sessions', dashboard: 'Dashboard', agents: 'Agents', network: 'Network',
+  sessions: 'Sessions', dashboard: 'Dashboard', agents: 'Agents',
   tasks: 'Tasks', loops: 'Loops', jobs: 'Jobs', triggers: 'Triggers',
-  marketplace: 'Marketplace', bridges: 'Bridges', knowledge: 'Knowledge',
-  sandbox: 'Sandbox', vault: 'Vault',
+  marketplace: 'Marketplace', knowledge: 'Knowledge',
+  vault: 'Vault',
 };
 
 const dockEl = $('#dock');

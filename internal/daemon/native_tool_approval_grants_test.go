@@ -19,7 +19,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		grantStore := &recordingApprovalGrantStore{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: grantStore,
-			Sessions:       nativeNetworkTestSessionManager("ws-a"),
+			Sessions:       nativeTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{
 			ProfileID:   store.DefaultProfileID,
@@ -82,7 +82,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: grantStore,
-			Sessions:       nativeNetworkTestSessionManager("ws-a"),
+			Sessions:       nativeTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{
 			ProfileID:   store.DefaultProfileID,
@@ -132,8 +132,8 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: &recordingApprovalGrantStore{},
-			Sessions:       nativeNetworkTestSessionManager("ws-a"),
-			Workspaces:     nativeNetworkTestWorkspaceService(t),
+			Sessions:       nativeTestSessionManager("ws-a"),
+			Workspaces:     nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
@@ -163,7 +163,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: &recordingApprovalGrantStore{},
-			Sessions:       nativeNetworkTestSessionManager("ws-a"),
+			Sessions:       nativeTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),

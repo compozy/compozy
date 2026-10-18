@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -58,11 +57,11 @@ func TestRegistrySkillDiagnostics(t *testing.T) {
 			BundledFS:        bundledSkillFS(map[string]string{"shared": "Bundled shared skill"}),
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 
-		diagnostics, err := registry.SkillDiagnostics(context.Background(), nil, "")
+		diagnostics, err := registry.SkillDiagnostics(t.Context(), nil, "")
 		if err != nil {
 			t.Fatalf("SkillDiagnostics() error = %v", err)
 		}
@@ -152,7 +151,7 @@ func TestRegistrySkillDiagnostics(t *testing.T) {
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 		resolved := resolvedWorkspaceForTest(
@@ -161,7 +160,7 @@ func TestRegistrySkillDiagnostics(t *testing.T) {
 			resolvedSkillPath(workspaceSkillDir, "workspace"),
 		)
 
-		diagnostics, err := registry.SkillDiagnostics(context.Background(), &resolved, "")
+		diagnostics, err := registry.SkillDiagnostics(t.Context(), &resolved, "")
 		if err != nil {
 			t.Fatalf("SkillDiagnostics(workspace) error = %v", err)
 		}

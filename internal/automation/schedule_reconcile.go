@@ -40,13 +40,13 @@ func (s *Scheduler) reconcileSchedulerState(
 	}
 	if !plan.register {
 		state.NextRunAt = nil
-		state.LastMisfireAt = timePointer(now)
+		state.LastMisfireAt = new(now)
 		state.MisfireCount++
 		state.UpdatedAt = now
 		return s.store.SaveSchedulerState(ctx, state)
 	}
 	if state.NextRunAt == nil || state.NextRunAt.IsZero() {
-		state.NextRunAt = timePointer(plan.nextRun)
+		state.NextRunAt = new(plan.nextRun)
 		state.UpdatedAt = now
 		return s.store.SaveSchedulerState(ctx, state)
 	}
@@ -64,7 +64,7 @@ func initialSchedulerState(
 ) SchedulerState {
 	return SchedulerState{
 		JobID:               job.ID,
-		NextRunAt:           timePointer(plan.nextRun),
+		NextRunAt:           new(plan.nextRun),
 		ScheduleHash:        scheduleHash(job.Schedule),
 		CatchUpPolicy:       scheduleCatchUpPolicy(job.Schedule, defaultPolicy),
 		MisfireGraceSeconds: scheduleMisfireGraceSeconds(job.Schedule),
@@ -77,7 +77,7 @@ func schedulerStateWithoutStore(state SchedulerState, register bool, now time.Ti
 		return state
 	}
 	state.NextRunAt = nil
-	state.LastMisfireAt = timePointer(now)
+	state.LastMisfireAt = new(now)
 	state.MisfireCount = 1
 	return state
 }
@@ -102,7 +102,7 @@ func mergeSchedulerState(
 	}
 	state.UpdatedAt = now
 	if scheduleChanged {
-		state.NextRunAt = timePointer(plan.nextRun)
+		state.NextRunAt = new(plan.nextRun)
 		state.ScheduleHash = desiredScheduleHash
 		state.DeferredUntil = nil
 		state.ConsecutiveResumeFailures = 0
@@ -125,19 +125,18 @@ func (s *Scheduler) reconcileMissedSchedulerState(
 	persistCtx1, cancelPersist1 := persistenceContext(ctx)
 	defer cancelPersist1()
 	result, err := s.store.ClaimScheduledRun(persistCtx1, SchedulerClaim{
-		ProfileID:            job.ProfileID,
-		JobID:                job.ID,
-		RunID:                scheduledRunID(job.ID, missedAt),
-		FireID:               scheduledFireID(job.ID, missedAt),
-		ScheduledAt:          missedAt,
-		NextRunAt:            cloneTimePointer(state.NextRunAt),
-		ClaimedAt:            now,
-		ScheduleHash:         state.ScheduleHash,
-		CatchUpPolicy:        state.CatchUpPolicy,
-		MisfireGraceSeconds:  state.MisfireGraceSeconds,
-		Misfire:              true,
-		SkipReason:           skipReason,
-		NetworkParticipation: (DispatchRequest{Job: &job}).networkParticipation(),
+		ProfileID:           job.ProfileID,
+		JobID:               job.ID,
+		RunID:               scheduledRunID(job.ID, missedAt),
+		FireID:              scheduledFireID(job.ID, missedAt),
+		ScheduledAt:         missedAt,
+		NextRunAt:           cloneTimePointer(state.NextRunAt),
+		ClaimedAt:           now,
+		ScheduleHash:        state.ScheduleHash,
+		CatchUpPolicy:       state.CatchUpPolicy,
+		MisfireGraceSeconds: state.MisfireGraceSeconds,
+		Misfire:             true,
+		SkipReason:          skipReason,
 	})
 	if errors.Is(err, ErrScheduledFireAlreadyClaimed) {
 		return s.store.GetSchedulerState(ctx, job.ID)

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -40,15 +41,15 @@ type updateManager interface {
 type updateRecord struct {
 	Status    compozyupdate.Status            `json:"status"`
 	Runtime   compozyupdate.RuntimeTrackState `json:"runtime"`
-	App       *compozyupdate.AppTrackState    `json:"app,omitempty"`
-	Operation *compozyupdate.OperationView    `json:"operation,omitempty"`
+	App       *compozyupdate.AppTrackState    `json:"app,omitzero"`
+	Operation *compozyupdate.OperationView    `json:"operation,omitzero"`
 }
 
 type updateCancelRecord struct {
 	Status      compozyupdate.Status  `json:"status"`
 	OperationID string                `json:"operation_id,omitempty"`
 	Message     string                `json:"message"`
-	Holder      *compozyupdate.Holder `json:"holder,omitempty"`
+	Holder      *compozyupdate.Holder `json:"holder,omitzero"`
 }
 
 func newUpdateCommand(deps commandDeps) *cobra.Command {
@@ -74,7 +75,7 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	configureMachineProfileFlag(cmd, false)
-	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check without changing files")
+	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check without applying updates")
 	cmd.Flags().BoolVar(&cancel, "cancel", false, "Cancel a dormant update operation")
 	return cmd
 }
@@ -208,7 +209,7 @@ func cancelUpdateOperation(cmd *cobra.Command, manager updateManager) error {
 	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
 		record := updateCancelRecord{
 			Status: compozyupdate.StatusBlocked, OperationID: operation.ID, Holder: operation.Holder,
-			Message: liveExecutorCancelMessage(operation),
+			Message: updateCancelDeclinedMessage(operation, manager.OperationStore().HolderLive(operation.Holder)),
 		}
 		return writeUpdateCancelFailure(cmd, record, err)
 	}
@@ -221,7 +222,10 @@ func cancelUpdateOperation(cmd *cobra.Command, manager updateManager) error {
 	}))
 }
 
-func liveExecutorCancelMessage(operation *compozyupdate.Operation) string {
+func updateCancelDeclinedMessage(operation *compozyupdate.Operation, holderLive bool) string {
+	if !holderLive {
+		return "The update operation has reached an irreversible installation phase and was not canceled."
+	}
 	if operation == nil || operation.Holder == nil {
 		return "The update operation has a live executor and was not canceled."
 	}
@@ -305,7 +309,7 @@ func updateCancelBundle(record updateCancelRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				updateUpdateKey,
-				[]string{automationStatusKey, "operation_id", bridgeMessageKey},
+				[]string{automationStatusKey, "operation_id", cliOutputMessageKey},
 				[]string{
 					string(record.Status), record.OperationID, record.Message,
 				},
@@ -373,10 +377,7 @@ func waitForSettingsRestart(
 			case restartStatusReady:
 				return status, true, nil
 			case restartStatusFailed:
-				reason := strings.TrimSpace(status.FailureReason)
-				if reason == "" {
-					reason = "daemon restart failed"
-				}
+				reason := cmp.Or(strings.TrimSpace(status.FailureReason), "daemon restart failed")
 				return status, true, errors.New("cli: " + reason)
 			default:
 				return SettingsRestartStatusRecord{}, false, nil

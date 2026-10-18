@@ -68,7 +68,7 @@ func TestTriggerEngineIntegrationSessionStoppedViaObserverBoundaryDispatchesOneR
 	}
 }
 
-func TestTriggerEngineIntegrationMemoryConsolidatedDispatchesOneRun(t *testing.T) {
+func TestTriggerEngineIntegrationExtensionEventDispatchesOneRun(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t)
@@ -77,7 +77,7 @@ func TestTriggerEngineIntegrationMemoryConsolidatedDispatchesOneRun(t *testing.T
 	dispatcher := newTestDispatcher(t, creator, db)
 	engine := newTestTriggerEngine(t, dispatcher)
 
-	triggerDef := testEventTrigger(AutomationScopeGlobal, "memory-consolidated", "", "memory.consolidated")
+	triggerDef := testEventTrigger(AutomationScopeGlobal, "extension-event", "", "ext.test.completed")
 	triggerDef.Prompt = `Digest {{ .Data.summary }}`
 	trigger, err := db.CreateTrigger(ctx, triggerDef)
 	if err != nil {
@@ -87,13 +87,13 @@ func TestTriggerEngineIntegrationMemoryConsolidatedDispatchesOneRun(t *testing.T
 		t.Fatalf("Register() error = %v", err)
 	}
 
-	if err := engine.MemoryObserver().OnMemoryConsolidated(ctx, MemoryConsolidatedEvent{
-		Timestamp: time.Date(2026, 4, 11, 4, 0, 0, 0, time.UTC),
+	if _, err := engine.Fire(ctx, ActivationEnvelope{
+		Kind: "ext.test.completed", Scope: AutomationScopeGlobal, Source: ActivationSourceObserver,
 		Data: map[string]any{
 			"summary": "fresh context",
 		},
 	}); err != nil {
-		t.Fatalf("OnMemoryConsolidated() error = %v", err)
+		t.Fatalf("Fire(extension) error = %v", err)
 	}
 
 	if got, want := len(creator.createCalls()), 1; got != want {

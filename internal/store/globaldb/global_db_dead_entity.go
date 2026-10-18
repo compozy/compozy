@@ -193,14 +193,12 @@ func deadEntityFromRow(row sqlcgen.DeadEntity) (store.DeadEntity, error) {
 		)
 	}
 	entity := store.DeadEntity{
-		DeadEntityKey: store.DeadEntityKey{
-			ProfileID:   row.ProfileID,
-			WorkspaceID: row.WorkspaceID,
-			Kind:        store.DeadEntityKind(row.Kind),
-			EntityID:    row.EntityID,
-		},
-		Reason:   row.Reason,
-		MarkedAt: markedAt,
+		ProfileID:   row.ProfileID,
+		WorkspaceID: row.WorkspaceID,
+		Kind:        store.DeadEntityKind(row.Kind),
+		EntityID:    row.EntityID,
+		Reason:      row.Reason,
+		MarkedAt:    markedAt,
 	}.Normalize()
 	if err := entity.Validate(); err != nil {
 		return store.DeadEntity{}, fmt.Errorf("store: decode dead entity row: %w", err)

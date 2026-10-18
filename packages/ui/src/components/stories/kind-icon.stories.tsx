@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { ListChecks, SquareTerminal } from "lucide-react";
 
 import { KindIcon } from "../custom/kind-icon";
 import { providerKindIconRegistry } from "../custom/kind-icon-registry";
@@ -13,7 +14,7 @@ const meta: Meta<typeof KindIcon> = {
     docs: {
       description: {
         component:
-          "Registry-driven icon primitive for provider and runtime kind glyphs. Consumers supply a kind while the kit owns sizing, tone, and fallback behavior.",
+          'Registry-driven icon primitive for provider and runtime kind glyphs. Consumers supply a kind (or an explicit `icon`) while the kit owns sizing, tone, and fallback behavior. `tone="well"` sets the glyph on the 26 px mint identity plate that marks a surface\'s identity.',
       },
     },
   },
@@ -63,6 +64,27 @@ export const SizesAndTones: Story = {
       <KindIcon kind="claude" size="xs" tone="muted" />
       <KindIcon kind="claude" size="sm" tone="default" />
       <KindIcon kind="claude" size="md" tone="accent" />
+    </div>
+  ),
+};
+
+/** Identity well: the 26 px mint plate that heads a window or an approval card. */
+export const Well: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <span className="inline-flex items-center gap-2.5 text-item-title font-medium text-fg">
+        <KindIcon icon={ListChecks} tone="well" />
+        Tasks
+      </span>
+      <span className="inline-flex items-center gap-2.5 text-item-title font-medium text-fg">
+        <KindIcon icon={SquareTerminal} tone="well" />
+        claude wants to run a command
+      </span>
+      <span className="inline-flex items-center gap-2.5 text-item-title font-medium text-fg">
+        <KindIcon kind="claude" tone="well" />
+        Provider kind in a well
+      </span>
     </div>
   ),
 };

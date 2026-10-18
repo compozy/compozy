@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-reserved-builtin-name-sweep
-  mission: "As Ada, attack every agent-authoring path with the reserved names coordinator and dreaming-curator — CLI, HTTP, UDS, native tool, duplicate, rename, extension kit, and an on-disk shadow directory — and prove each rejects with agent_name_reserved leaving zero residue, while the builtins themselves never surface in any catalog."
+  mission: "As Ada, attack every agent-authoring path with the reserved name coordinator — CLI, HTTP, UDS, native tool, duplicate, rename, extension kit, and an on-disk shadow directory — and prove each rejects with agent_name_reserved leaving zero residue, while the builtins themselves never surface in any catalog."
   mode: charter-with-tour
   persona:
     name: Ada
@@ -16,7 +16,8 @@ charter:
   time_box_minutes: 60
   guidance:
     must_try:
-      - "Create sweep: `compozy agent create coordinator` (CLI→UDS), `POST /api/agents` over HTTP with dreaming-curator, and native `compozy__agent_create` — each rejects with the exact `agent_name_reserved` envelope (422-class), creates no directory, and leaves `compozy agent list` byte-stable."
+      - "Create sweep: `compozy agent create coordinator` (CLI→UDS), `POST /api/agents` over HTTP with Coordinator, and native `compozy__agent_create` — each rejects with the exact `agent_name_reserved` envelope (422-class), creates no directory, and leaves `compozy agent list` byte-stable."
+      - "Retired name: `dreaming-curator` is no longer reserved — `compozy agent create dreaming-curator` succeeds as an ordinary agent and is cleaned up afterwards."
       - "Mutation sweep: rename an existing agent to a reserved name and duplicate onto a reserved target — both reject; the source agent stays untouched."
       - "Normalization edges: case/whitespace variants (`Coordinator`, ` coordinator `) reject; near-miss `coordinator-helper` succeeds and is cleaned up — reservation is exact-name after normalization, not prefix."
       - "Extension path: enable an extension whose kit ships an agent named coordinator — enable fails with `agent_name_reserved` naming the agent path and publishes nothing from that kit."

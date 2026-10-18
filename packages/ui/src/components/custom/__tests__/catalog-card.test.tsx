@@ -63,21 +63,17 @@ describe("CatalogCard", () => {
     }
   );
 
-  it("Should expose default logo size data attribute", () => {
+  // Invariant: a kind glyph is neutral unless the consumer opts into a tone;
+  // orange is reserved for needs-you, so a bare logo never paints accent.
+  it("Should default the logo tone to neutral", () => {
     render(
       <CatalogCard>
         <CatalogCard.Logo data-testid="logo" />
       </CatalogCard>
     );
-    expect(screen.getByTestId("logo")).toHaveAttribute("data-size", "default");
-  });
-
-  it("Should expose lg logo size data attribute", () => {
-    render(
-      <CatalogCard>
-        <CatalogCard.Logo data-testid="logo" size="lg" />
-      </CatalogCard>
-    );
-    expect(screen.getByTestId("logo")).toHaveAttribute("data-size", "lg");
+    const logo = screen.getByTestId("logo");
+    expect(logo).toHaveAttribute("data-tone", "neutral");
+    expect(logo).toHaveClass("text-neutral-ink");
+    expect(logo).not.toHaveClass("text-accent-strong");
   });
 });

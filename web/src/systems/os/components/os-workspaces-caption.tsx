@@ -34,7 +34,7 @@ export function OsWorkspacesCaption({ model, reducedMotion }: OsWorkspacesCaptio
           !reducedMotion && "os-wsov-cap-swap"
         )}
       >
-        <b className="text-item-title font-semibold tracking-tight text-fg-strong">{model.title}</b>
+        <b className="text-item-title font-medium tracking-tight text-fg-strong">{model.title}</b>
         {model.meta ? <span className="text-form-label text-muted">{model.meta}</span> : null}
         {model.path ? (
           <span className="font-mono text-mono-id text-faint tabular-nums">{model.path}</span>

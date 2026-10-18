@@ -15,6 +15,7 @@ func parseAutomationJobListQuery(
 	scopeRaw string,
 	workspaceRef string,
 	sourceRaw string,
+	targetRaw string,
 	enabled *bool,
 	loopName string,
 	search string,
@@ -49,14 +50,13 @@ func parseAutomationJobListQuery(
 	if err != nil {
 		return AutomationJobQuery{}, err
 	}
+	query.Target = strings.TrimSpace(targetRaw)
 	query.Source = source
 	query.Enabled = enabled
 	query.LoopName = strings.TrimSpace(loopName)
 	query.Search = strings.TrimSpace(search)
+	// The daemon validates this opaque cursor against the resolved profile scope.
 	query.Cursor = strings.TrimSpace(cursor)
-	if err := automationpkg.ValidateJobListQuery(query); err != nil {
-		return AutomationJobQuery{}, fmt.Errorf("cli: invalid automation job list query: %w", err)
-	}
 	return query, nil
 }
 
@@ -68,6 +68,7 @@ func parseAutomationTriggerListQuery(
 	workspaceRef string,
 	eventRaw string,
 	sourceRaw string,
+	targetRaw string,
 	enabled *bool,
 	loopName string,
 	search string,
@@ -104,14 +105,13 @@ func parseAutomationTriggerListQuery(
 	if err != nil {
 		return AutomationTriggerQuery{}, err
 	}
+	query.Target = strings.TrimSpace(targetRaw)
 	query.Source = source
 	query.Enabled = enabled
 	query.LoopName = strings.TrimSpace(loopName)
 	query.Search = strings.TrimSpace(search)
+	// The daemon validates this opaque cursor against the resolved profile scope.
 	query.Cursor = strings.TrimSpace(cursor)
-	if err := automationpkg.ValidateTriggerListQuery(query); err != nil {
-		return AutomationTriggerQuery{}, fmt.Errorf("cli: invalid automation trigger list query: %w", err)
-	}
 	return query, nil
 }
 

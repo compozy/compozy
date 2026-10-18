@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: e40dc76
 evidence: /Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/journey-log.jsonl;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/extension-host-api.json;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/daemon-restart.json
 last_report: docs/qa/reports/2026-08-04-session-archive.md
-overlaps: RT-011;RT-042;RT-session-delete-owned-history
+overlaps: RT-011; RT-042; RT-session-delete-owned-history
 ---
 
 Archive must never delete or rewrite session-owned metadata, events, transcript, ledger, permissions,
@@ -23,3 +23,19 @@ must not reveal or mutate the target session.
 QA completion 2026-08-05: Cora and Ada completed the archive round trip through Web, CLI, HTTP,
 UDS, native tools, and a live extension. The marker survived daemon restart, archived history stayed
 readable, write guards held, and a second workspace received only not-found responses.
+
+SQLite audit 2026-10-09: Archive and reopen a session whose event ledger contains a large archived prefix and retained active tail. Preserve transcript identities, content, cursor groups, archive-cut crossing refusals, and generation across upgrade and repeated reopen. A current projection no-op open must remain readable while another connection holds the writer. Existing sessiondb archive/projection/migration suites own these checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.
+
+## Profile-bound session regression (#783)
+
+From All profiles, operate on a stopped session owned by a nondefault profile. Rename,
+archive, and restore it without switching the selected profile; inspect its deep link
+and subagent roster. Confirm the request uses the row owner for mutations, the roster
+returns successfully, and a terminal 404/410 does not cause recurring control polls.
+A failed cold roster page must stop automatic pagination until an explicit retry.
+Record the session slice separately from this scenario's broader coverage in
+`docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.

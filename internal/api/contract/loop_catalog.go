@@ -14,7 +14,7 @@ type LoopCatalogEntryPayload struct {
 	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
 	Start         []LoopStartBinding          `json:"start,omitempty"`
 	Contract      LoopContract                `json:"contract"`
-	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitempty"`
+	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
 	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
 	SuccessRate30 float64                     `json:"success_rate_30d"`
 }
@@ -23,8 +23,8 @@ type LoopCatalogEntryPayload struct {
 type LoopCatalogLastRunPayload struct {
 	ID             string        `json:"id"`
 	Status         LoopRunStatus `json:"status"`
-	BestGeneration *int64        `json:"best_generation,omitempty"`
-	BestScore      *float64      `json:"best_score,omitempty"`
+	BestGeneration *int64        `json:"best_generation,omitzero"`
+	BestScore      *float64      `json:"best_score,omitzero"`
 	CreatedAt      time.Time     `json:"created_at"`
 }
 

@@ -6,7 +6,11 @@ import {
   sessionUsageOptions,
   sessionUsageTurnsOptions,
 } from "../lib/query-options";
-import { deriveSessionContext, retainSessionUsage } from "../lib/session-context";
+import {
+  deriveSessionContext,
+  retainSessionUsage,
+  type RetainedSessionUsage,
+} from "../lib/session-context";
 import type { SessionState, SessionUsagePayload } from "../types";
 
 /** A window owns the retention lifetime. Transcript content never supplies usage values. */
@@ -25,23 +29,23 @@ export function useSessionContext(
   const [retained, setRetained] = useState<{
     identity: string;
     source?: SessionUsagePayload;
-    usage?: SessionUsagePayload;
-  }>({ identity });
+    reading: RetainedSessionUsage;
+  }>({ identity, reading: {} });
   let current = retained;
   if (retained.identity !== identity || retained.source !== query.data) {
     current = {
       identity,
       source: query.data,
-      usage: retainSessionUsage(
-        retained.identity === identity ? retained.usage : undefined,
+      reading: retainSessionUsage(
+        retained.identity === identity ? retained.reading : undefined,
         query.data
       ),
     };
     setRetained(current);
   }
   return {
-    usage: current.usage,
-    context: deriveSessionContext(current.usage?.context, {
+    usage: current.reading.usage,
+    context: deriveSessionContext(current.reading.usage?.context, {
       unavailable: query.isError || query.data?.context.state === "unavailable",
       loading: query.isLoading,
       stopped: sessionState === "stopped",

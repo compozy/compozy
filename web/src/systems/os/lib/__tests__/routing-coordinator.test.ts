@@ -268,6 +268,27 @@ function createCoordinator(initialWindows: readonly OsWindow[] = []) {
 }
 
 describe("RoutingCoordinator", () => {
+  it.each(["/loops", "/loop-runs", "/loops/studio-onboarding-review"])(
+    "Should honor the breadcrumb destination when the history parent is %s",
+    async parent => {
+      const loop = windowFixture("loops", "/loop-runs");
+      loop.navStack = [route(parent)];
+      const { coordinator, router, store } = createCoordinator([loop]);
+      coordinator.reportRouteMatch(loop.route);
+      coordinator.completeHydration();
+
+      coordinator.noteNavigateMode("pop");
+      coordinator.reportRouteMatch(route("/loops"));
+      await Promise.resolve();
+
+      const settled = store.getState().windows[loop.id];
+      expect(settled.route).toEqual(route("/loops"));
+      expect(settled.navStack).toEqual(parent === "/loops" ? [] : [route(parent)]);
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    }
+  );
+
   it("Should hold a deep link until hydration then reconcile it without writing history", () => {
     const { coordinator, router, store } = createCoordinator();
 
@@ -330,6 +351,20 @@ describe("RoutingCoordinator", () => {
     expect(store.spies.navigateWindow).not.toHaveBeenCalled();
     expect(router.navigate).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("Should carry a same-window link's search into the window location (Automations create link)", () => {
+    // The Automations empty state links to `/automations?create=1&start=schedule`
+    // from inside its own window; the editor seed is read from the WM location.
+    const automations = windowFixture("automations", "/automations");
+    const { coordinator, store } = createCoordinator([automations]);
+    coordinator.completeHydration();
+
+    coordinator.reportRouteMatch(route("/automations", { create: "1", start: "schedule" }));
+
+    expect(store.getState().windows[automations.id]?.route).toEqual(
+      route("/automations", { create: "1", start: "schedule" })
+    );
   });
 
   it("[UT-042] Should reconcile a Tasks deep link through the most-recently-focused instance", () => {
@@ -491,6 +526,32 @@ describe("RoutingCoordinator", () => {
     await vi.waitFor(() => expect(store.getState().focusedId).toBe("w-dashboard"));
   });
 
+  it("Should leave an empty desktop alone when the desktop URL lands while Home lives on another desktop", () => {
+    const elsewhere = { ...windowFixture("dashboard", "/"), desktopId: "desktop:other" };
+    const focusedHere = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([elsewhere, focusedHere]);
+    coordinator.completeHydration();
+
+    // Switching to an empty desktop reports `/`: focusing the other desktop's
+    // Home would switch the client straight back.
+    coordinator.reportRouteMatch(route("/"));
+
+    expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+    expect(store.spies.focusWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should still focus Home for the desktop URL when it lives on the active desktop", async () => {
+    const home = windowFixture("dashboard", "/");
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([home, tasks]);
+    coordinator.completeHydration();
+
+    coordinator.reportRouteMatch(route("/"));
+
+    expect(store.spies.openOrFocus).toHaveBeenCalledWith({ app: "dashboard", route: route("/") });
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe(home.id));
+  });
+
   it("Should push exactly once after a user opens an app", async () => {
     const { coordinator, router } = createCoordinator();
     coordinator.completeHydration();
@@ -545,6 +606,25 @@ describe("RoutingCoordinator", () => {
       route: profiles,
     });
     expect(store.getState().windows[settings.id]?.route).toEqual(profiles);
+  });
+
+  it("Should preserve a consumed window route when its opening command completes", async () => {
+    // Invariant: an accepted open reflects the current window route, including consumed intents.
+    // Owner: the URL/window-manager bridge; canonical suite: RoutingCoordinator.
+    const settings = windowFixture("settings", "/settings/profiles");
+    const { coordinator, router, store } = createCoordinator([settings]);
+    coordinator.completeHydration();
+    const consumed = route("/settings/profiles");
+
+    const pending = coordinator.userOpen({
+      app: "settings",
+      route: route("/settings/profiles", { flow: "create", name: "dispatch-notes" }),
+    });
+    store.setAuthoritativeFocus(settings.id, consumed);
+    await expect(pending).resolves.toBe(settings.id);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(consumed);
   });
 
   it("Should let a newer user navigation supersede a pending open's history write", async () => {

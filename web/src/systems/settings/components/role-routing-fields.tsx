@@ -39,33 +39,31 @@ export function RoleRoutingFields({
 
   return (
     <>
-      {vm.supportsAgent ? (
-        <SettingsFieldRow
-          data-testid={`${testId}-agent`}
-          label="Agent"
-          help="Route to a catalog agent, or keep the role default."
-          description={
-            <RoleEffectiveHint
-              effective={vm.effective.agent ?? null}
-              emptyLabel="Resolves at invocation."
-            />
-          }
-          control={
-            <AgentCommandSelect
-              agents={options.agents}
-              value={vm.agent || null}
-              clearLabel="Role default"
-              disabled={disabled}
-              className="w-64"
-              triggerTestId={`${testId}-agent-select`}
-              onChange={next => onAgentChange(next ?? "")}
-            />
-          }
-        />
-      ) : null}
+      <SettingsFieldRow
+        data-testid={`${testId}-agent`}
+        label="Agent"
+        help="Route to a catalog agent, or keep the role default."
+        description={
+          <RoleEffectiveHint
+            effective={vm.effective.agent ?? null}
+            emptyLabel="Decided when the role runs."
+          />
+        }
+        control={
+          <AgentCommandSelect
+            agents={options.agents}
+            value={vm.agent || null}
+            clearLabel="Role default"
+            disabled={disabled}
+            className="w-64"
+            triggerTestId={`${testId}-agent-select`}
+            onChange={next => onAgentChange(next ?? "")}
+          />
+        }
+      />
       <SettingsFieldRow
         data-testid={`${testId}-runtime`}
-        label={<span id={runtimeLabelId}>Runtime</span>}
+        label={<span id={runtimeLabelId}>Model</span>}
         help="Provider, model and reasoning effort for this role."
         description={
           noProviders ? (
@@ -73,7 +71,10 @@ export function RoleRoutingFields({
               No providers configured yet.
             </span>
           ) : (
-            <RoleEffectiveHint effective={vm.routeSummary} emptyLabel="Resolves at invocation." />
+            <RoleEffectiveHint
+              effective={vm.routeSummary}
+              emptyLabel="Decided when the role runs."
+            />
           )
         }
         control={

@@ -3,6 +3,8 @@
 package main
 
 import (
+	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"go/parser"
@@ -11,7 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -114,35 +116,9 @@ func directImportBoundaries() []directImportBoundary {
 		{"internal/terminal", "internal/api/contract"},
 		{"internal/terminal", "internal/cli"},
 		{"internal/terminal", "internal/tools"},
-		{"internal/terminal", "internal/sandbox"},
 		{"internal/terminal", "internal/acp"},
 		{"internal/terminal", "internal/session"},
 		{"internal/terminal", "internal/profile"},
-		{"internal/memory/contract", "internal/memory/controller"},
-		{"internal/memory/contract", "internal/memory/recall"},
-		{"internal/memory/contract", "internal/memory/extractor"},
-		{"internal/memory/contract", "internal/memory/provider/local"},
-		{"internal/memory/contract", "internal/store/workspacedb"},
-		{"internal/memory/controller", "internal/daemon"},
-		{"internal/memory/controller", "internal/api/httpapi"},
-		{"internal/memory/controller", "internal/api/udsapi"},
-		{"internal/memory/controller", "internal/cli"},
-		{"internal/memory/recall", "internal/daemon"},
-		{"internal/memory/recall", "internal/api/httpapi"},
-		{"internal/memory/recall", "internal/api/udsapi"},
-		{"internal/memory/recall", "internal/cli"},
-		{"internal/memory/extractor", "internal/daemon"},
-		{"internal/memory/extractor", "internal/api/httpapi"},
-		{"internal/memory/extractor", "internal/api/udsapi"},
-		{"internal/memory/extractor", "internal/cli"},
-		{"internal/memory/provider/local", "internal/daemon"},
-		{"internal/memory/provider/local", "internal/api/httpapi"},
-		{"internal/memory/provider/local", "internal/api/udsapi"},
-		{"internal/memory/provider/local", "internal/cli"},
-		{"internal/sessions/ledger", "internal/daemon"},
-		{"internal/sessions/ledger", "internal/api/httpapi"},
-		{"internal/sessions/ledger", "internal/api/udsapi"},
-		{"internal/sessions/ledger", "internal/cli"},
 		{"internal/store/workspacedb", "internal/daemon"},
 		{"internal/store/workspacedb", "internal/api/httpapi"},
 		{"internal/store/workspacedb", "internal/api/udsapi"},
@@ -161,7 +137,7 @@ func directImportBoundaries() []directImportBoundary {
 	return append(forbidden, gatewayForbiddenDirectImports...)
 }
 
-// Boundaries verifies direct package rules, strict leaf imports, and bridge dependency closures.
+// Boundaries verifies direct package rules, strict leaf imports, and dependency closures.
 func Boundaries() error {
 	forbidden := directImportBoundaries()
 
@@ -192,17 +168,6 @@ func Boundaries() error {
 		importer string
 		imported string
 	}{
-		// In-tree platform implementations live under extensions/bridges. The
-		// daemon bridge domain must not depend on either that exact package or
-		// any provider sibling below it; provider composition points inward.
-		{"internal/bridges", "extensions/bridges"},
-		{"internal/bridges", "internal/bridgesdk"},
-		{"internal/bridges", "internal/extension"},
-		{"internal/bridges", "internal/daemon"},
-		{"internal/bridgesdk", "internal/extension"},
-		{"internal/bridgesdk", "internal/daemon"},
-		{"internal/bridgesdk", "internal/store"},
-		{"internal/bridgesdk", "internal/session"},
 		{"internal/worktree", "internal/session"},
 		{"internal/worktree", "internal/task"},
 		{"internal/worktree", "internal/loop"},
@@ -250,7 +215,6 @@ func Boundaries() error {
 				"github.com/compozy/compozy/internal/mcppolicy":   {},
 			},
 		},
-		{importer: "internal/network/participation", allowed: map[string]struct{}{}},
 		{importer: "internal/workspaceaccess", allowed: map[string]struct{}{}},
 		{
 			importer: "internal/codegen/sdkgo",
@@ -269,12 +233,6 @@ func Boundaries() error {
 		},
 		{
 			importer: "internal/toolmeta",
-			allowed: map[string]struct{}{
-				"github.com/compozy/compozy/internal/redact": {},
-			},
-		},
-		{
-			importer: "internal/bridges/contract",
 			allowed: map[string]struct{}{
 				"github.com/compozy/compozy/internal/redact": {},
 			},
@@ -308,11 +266,11 @@ func Boundaries() error {
 	}
 
 	closureViolations, err := inspectDependencyClosures(
-		bridgeDependencyClosureRules,
+		subprocessDependencyClosureRules,
 		listPackageDependencies,
 	)
 	if err != nil {
-		return fmt.Errorf("inspect bridge dependency closures: %w", err)
+		return fmt.Errorf("inspect dependency closures: %w", err)
 	}
 	for _, violation := range closureViolations {
 		fmt.Printf(
@@ -373,7 +331,7 @@ func productionFilesImportingOutsideLeaf(
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	return files, nil
 }
 
@@ -405,11 +363,8 @@ func inspectDependencyClosures(
 			})
 		}
 	}
-	sort.Slice(violations, func(left int, right int) bool {
-		if violations[left].root == violations[right].root {
-			return violations[left].dependency < violations[right].dependency
-		}
-		return violations[left].root < violations[right].root
+	slices.SortFunc(violations, func(a, b dependencyClosureViolation) int {
+		return cmp.Or(cmp.Compare(a.root, b.root), cmp.Compare(a.dependency, b.dependency))
 	})
 	return violations, nil
 }
@@ -420,10 +375,8 @@ func dependencyForbiddenByClosureRule(dependency string, rule dependencyClosureR
 			return false
 		}
 	}
-	for _, exact := range rule.forbiddenExact {
-		if dependency == exact {
-			return true
-		}
+	if slices.Contains(rule.forbiddenExact, dependency) {
+		return true
 	}
 	for _, prefix := range rule.forbiddenPrefixes {
 		if dependency == prefix || strings.HasPrefix(dependency, prefix+"/") {
@@ -434,13 +387,13 @@ func dependencyForbiddenByClosureRule(dependency string, rule dependencyClosureR
 }
 
 func listPackageDependencies(root string) ([]string, error) {
-	command := exec.Command("go", "list", "-deps", root)
+	command := exec.CommandContext(context.Background(), "go", "list", "-deps", root)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("go list -deps %s: %w: %s", root, err, strings.TrimSpace(string(output)))
 	}
 	dependencies := strings.Fields(string(output))
-	sort.Strings(dependencies)
+	slices.Sort(dependencies)
 	return dependencies, nil
 }
 
@@ -485,6 +438,6 @@ func filesImportingMatching(root string, matches func(string) bool) ([]string, e
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	return files, nil
 }

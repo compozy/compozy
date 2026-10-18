@@ -1,7 +1,7 @@
 package spec
 
 import (
-	"sort"
+	"slices"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 
@@ -17,7 +17,6 @@ func toolBackendKindValues() []string {
 		string(tools.BackendNativeGo),
 		string(tools.BackendExtensionHost),
 		string(tools.BackendMCP),
-		string(tools.BackendBridge),
 	}
 }
 
@@ -55,6 +54,6 @@ func hostAPIMethodValues() []string {
 	for _, spec := range specs {
 		values = append(values, string(spec.Method))
 	}
-	sort.Strings(values)
+	slices.Sort(values)
 	return values
 }

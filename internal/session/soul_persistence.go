@@ -100,11 +100,9 @@ func (m *Manager) resolveSoulRefreshWorkspace(
 		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace is required for soul refresh")
 	}
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      strings.TrimSpace(info.WorkspaceID),
-			RootDir: strings.TrimSpace(info.Workspace),
-		},
-		Config: compozyconfig.DefaultWithHome(m.homePaths),
+		ID:      strings.TrimSpace(info.WorkspaceID),
+		RootDir: strings.TrimSpace(info.Workspace),
+		Config:  compozyconfig.DefaultWithHome(m.homePaths),
 	}, nil
 }
 

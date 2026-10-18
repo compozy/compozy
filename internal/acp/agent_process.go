@@ -11,7 +11,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -31,9 +30,9 @@ type AgentProcess struct {
 	caps            Caps
 	runtimeConfigMu sync.Mutex
 	managed         *subprocess.Process
-	handle          sandbox.Handle
+	handle          Handle
 	toolHostMu      sync.Mutex
-	toolHost        sandbox.ToolHost
+	toolHost        ToolHost
 	toolGateway     ToolExecutionGateway
 	cmd             *exec.Cmd
 	conn            *acpsdk.Connection
@@ -47,12 +46,10 @@ type AgentProcess struct {
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
 
-	terminalOwnershipMu sync.RWMutex
-	terminalOwnership   map[string]terminalOwnership
-	terminalProcessMu   sync.Mutex
-	terminalProcesses   map[string]*toolruntime.Handle
-	toolPrecheckMu      sync.Mutex
-	toolPrechecks       []providerNativeToolPrecheck
+	terminalProcessMu sync.Mutex
+	terminalProcesses map[string]*toolruntime.Handle
+	toolPrecheckMu    sync.Mutex
+	toolPrechecks     []providerNativeToolPrecheck
 
 	waitMu        sync.RWMutex
 	waitErr       error
@@ -65,16 +62,24 @@ type AgentProcess struct {
 	providerFailureMu sync.Mutex
 	providerFailures  map[string]ProviderErrorDiagnostic
 
-	logger            *slog.Logger
-	usageAliasWarning sync.Once
-	usageRangeWarning sync.Once
-	promptMu          sync.RWMutex
-	activePrompt      *activePromptState
+	logger       *slog.Logger
+	compactionMu sync.Mutex
+	compactions  map[string]*compactionState
+	// compactionTerminalOrder lists retained terminal compactions oldest first;
+	// retiredCompactions keeps only the ids of evicted ones so late updates drop.
+	compactionTerminalOrder []string
+	retiredCompactions      map[string]struct{}
+	unknownUpdates          map[string]struct{}
+	usageAliasWarning       sync.Once
+	usageRangeWarning       sync.Once
+	promptMu                sync.RWMutex
+	activePrompt            *activePromptState
 
 	pendingPermissionMu  sync.Mutex
 	pendingPermissions   map[string]*pendingPermission
 	permissionRequestSeq uint64
 	permissionTimeout    time.Duration
+	controlTimeout       time.Duration
 
 	systemPromptMu       sync.Mutex
 	systemPrompt         string
@@ -84,12 +89,14 @@ type AgentProcess struct {
 	startupManifest      StartupManifest
 	promptCacheControl   *promptCacheControl
 
-	turnSourceProviderMu sync.RWMutex
-	turnSourceProvider   func() string
-
 	childTasksMu      sync.Mutex
 	childTasks        map[*processChildTask]struct{}
 	childTasksClosing bool
+
+	// sessionRoutes routes inbound ACP traffic by session id; forkMu serializes
+	// session/fork calls so at most one fork capture is open (ADR-003).
+	sessionRoutes sessionRouter
+	forkMu        sync.Mutex
 }
 
 type pendingPermission struct {
@@ -191,8 +198,8 @@ func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
 	p.caps.SpeedResolution = speedpkg.CloneResolution(resolution)
 }
 
-// ToolHost returns the sandbox-owned tool host used by this process.
-func (p *AgentProcess) ToolHost() sandbox.ToolHost {
+// ToolHost returns the local tool host used by this process.
+func (p *AgentProcess) ToolHost() ToolHost {
 	if p == nil {
 		return nil
 	}

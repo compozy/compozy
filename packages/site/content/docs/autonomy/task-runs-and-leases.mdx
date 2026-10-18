@@ -42,13 +42,12 @@ The synchronous response includes:
 - run summary
 - safe lease summary
 - `claim_token_hash` for observability
-- coordination channel metadata when the run has a bound channel
 
 `compozy task next` claims only. Operator flows that use it must call the explicit run-start surface
 before expecting a worktree or execution session.
 
 The raw bearer lease token is internal to CompozyOS. Public CLI, HTTP, UDS, native-tool, web, stream,
-log, channel, and memory payloads use the calling session plus `run_id` and expose at most
+and log payloads use the calling session plus `run_id` and expose at most
 `claim_token_hash`. Tools belonging to the `compozy__autonomy` toolset reject any input or response
 field that would carry a raw claim token.
 
@@ -87,8 +86,7 @@ CLI path:
 compozy task heartbeat run-123 --lease-seconds 300
 ```
 
-Heartbeats are task-service operations. Do not mirror routine heartbeats into coordination channel
-messages unless a human-readable update is useful.
+Heartbeats are task-service operations. A progress note does not renew a lease.
 
 ## Completing a run
 
@@ -224,6 +222,10 @@ Tool path:
 compozy__task_run_release  { "run_id": "run-123", "reason": "handoff" }
 ```
 
+A Loop-owned worker may heartbeat its run, but cannot release or block-and-release the daemon's
+claim. Return the action result to the Loop executor, which owns settlement. These requests return
+a permission error and preserve the active claim.
+
 Release is also used by daemon-owned cleanup. For example, if a spawned child reaches TTL or its
 parent stops, CompozyOS releases active child leases with structured reasons such as `ttl_expired` or
 `parent_stopped` before stopping the child session.
@@ -240,6 +242,11 @@ preconditions before committing.
 | Force release | `compozy task release run-123 --reason handoff` | `POST /api/runs/{id}/release` | `claimed`             |
 | Force fail    | `compozy task fail run-123 --reason "recovery"` | `POST /api/runs/{id}/fail`    | `queued` or `claimed` |
 | Retry         | `compozy task retry run-123`                    | `POST /api/runs/{id}/retry`   | `failed`              |
+
+Force-failing a queued or claimed Loop worker also records its node failure and wakes the Loop
+coordinator. The existing retry and generation policy then applies, preserving successful upstream
+nodes under `failed_only`. `task run recover` remains specific to `needs_attention` runs, and Loop
+node requeue remains specific to quarantined nodes.
 
 Bulk force release and force fail use bounded batches of run IDs:
 
@@ -518,17 +525,14 @@ Lease writers and the autonomy tool bridge return the same deterministic reason 
 | `AUTONOMY_LEASE_EXPIRED`      | The lookup found a stale or expired lease and refused to mutate it.                     |
 | `AUTONOMY_LEASE_ALREADY_HELD` | `claim_next` was called while the session already owns an active lease.                 |
 
-## Lease credentials and channels
+## Lease credentials
 
-Never send raw lease credentials through `compozy ch send`, `compozy ch reply`, `compozy__network_send`,
-network envelopes, logs, or memory. If another participant needs to know progress, send a
-coordination message. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
+Never send raw lease credentials through prompts or logs. Read Task and run state to inspect progress. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
 tools or the matching `compozy task` command for the owned `run_id`; CompozyOS resolves the internal lease
 server-side.
 
 ## Related pages
 
-- [Coordination Channels](/docs/autonomy/coordination-channels) explains channel metadata and message kinds.
 - [Task CLI Reference](/docs/cli/task) lists exact command flags for the parallel CLI surface.
 - [Tool CLI Reference](/docs/cli/tool) lists the operator commands for inspecting the registry, including the `compozy__autonomy` family.
 - [Hooks](/docs/hooks/event-catalog) lists task-run hook events.

@@ -2,15 +2,13 @@ package refs
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
 
 func availableNodeIDs(nodes map[string]NodeSchema) []string {
-	available := make([]string, 0, len(nodes))
-	for nodeID := range nodes {
-		available = append(available, nodeID)
-	}
+	available := slices.AppendSeq(make([]string, 0, len(nodes)), maps.Keys(nodes))
 	slices.Sort(available)
 	return available
 }
@@ -31,10 +29,7 @@ func availableSchemaFields(current any) []string {
 		}
 		return sortedMapKeys(typed)
 	case map[string]Schema:
-		available := make([]string, 0, len(typed))
-		for field := range typed {
-			available = append(available, field)
-		}
+		available := slices.AppendSeq(make([]string, 0, len(typed)), maps.Keys(typed))
 		slices.Sort(available)
 		return available
 	case []any:
@@ -52,10 +47,7 @@ func availablePropertyKeys(properties any) []string {
 	case map[string]any:
 		return sortedMapKeys(typed)
 	case map[string]Schema:
-		available := make([]string, 0, len(typed))
-		for field := range typed {
-			available = append(available, field)
-		}
+		available := slices.AppendSeq(make([]string, 0, len(typed)), maps.Keys(typed))
 		slices.Sort(available)
 		return available
 	default:
@@ -64,10 +56,7 @@ func availablePropertyKeys(properties any) []string {
 }
 
 func sortedMapKeys(values map[string]any) []string {
-	available := make([]string, 0, len(values))
-	for field := range values {
-		available = append(available, field)
-	}
+	available := slices.AppendSeq(make([]string, 0, len(values)), maps.Keys(values))
 	slices.Sort(available)
 	return available
 }

@@ -59,6 +59,7 @@ type jobListFingerprint struct {
 	WorkspaceID string    `json:"workspace_id"`
 	Source      JobSource `json:"source"`
 	LoopName    string    `json:"loop_name"`
+	Target      string    `json:"target,omitempty"`
 	Enabled     *bool     `json:"enabled"`
 	Search      string    `json:"q"`
 }
@@ -72,6 +73,7 @@ type triggerListFingerprint struct {
 	Event       string    `json:"event"`
 	Source      JobSource `json:"source"`
 	LoopName    string    `json:"loop_name"`
+	Target      string    `json:"target,omitempty"`
 	Enabled     *bool     `json:"enabled"`
 	Search      string    `json:"q"`
 }
@@ -169,6 +171,9 @@ func ValidateJobListQuery(query JobListQuery) error {
 			return err
 		}
 	}
+	if err := validateListTarget(query.Target); err != nil {
+		return err
+	}
 	if query.Scope == AutomationScopeGlobal && query.WorkspaceID != "" {
 		return errors.New("automation: job workspace_id filter must be empty when scope is global")
 	}
@@ -206,6 +211,9 @@ func ValidateTriggerListQuery(query TriggerListQuery) error {
 		if err := query.Source.Validate("trigger_query.source"); err != nil {
 			return err
 		}
+	}
+	if err := validateListTarget(query.Target); err != nil {
+		return err
 	}
 	if query.Scope == AutomationScopeGlobal && query.WorkspaceID != "" {
 		return errors.New("automation: trigger workspace_id filter must be empty when scope is global")
@@ -328,6 +336,7 @@ func jobQueryFingerprint(query JobListQuery) (string, error) {
 		WorkspaceID: query.WorkspaceID,
 		Source:      query.Source,
 		LoopName:    query.LoopName,
+		Target:      query.Target,
 		Enabled:     query.Enabled,
 		Search:      query.Search,
 	})
@@ -343,6 +352,7 @@ func triggerQueryFingerprint(query TriggerListQuery) (string, error) {
 		Event:       query.Event,
 		Source:      query.Source,
 		LoopName:    query.LoopName,
+		Target:      query.Target,
 		Enabled:     query.Enabled,
 		Search:      query.Search,
 	})
@@ -409,4 +419,13 @@ func decodeListCursor(raw string, kind string, fingerprint string) (ListCursorPo
 		return ListCursorPosition{}, fmt.Errorf("%w: %w", ErrListCursorInvalid, err)
 	}
 	return cursor, nil
+}
+
+func validateListTarget(target string) error {
+	switch target {
+	case "", "agent", "loop", "task":
+		return nil
+	default:
+		return fmt.Errorf("automation: target must be one of agent, loop or task: %q", target)
+	}
 }

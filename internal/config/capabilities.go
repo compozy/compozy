@@ -6,7 +6,7 @@ import (
 
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -227,11 +227,11 @@ func AgentCapabilityCatalogDependencyPaths(agentDir string) (paths []string, err
 	directory, err := fileutil.OpenDirectory(dirPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			sort.Strings(paths)
+			slices.Sort(paths)
 			return paths, nil
 		}
 		if errors.Is(err, fileutil.ErrNotDirectory) {
-			sort.Strings(paths)
+			slices.Sort(paths)
 			return paths, nil
 		}
 		return nil, fmt.Errorf("config: open capability catalog directory %q: %w", dirPath, err)
@@ -276,6 +276,6 @@ func AgentCapabilityCatalogDependencyPaths(agentDir string) (paths []string, err
 		}
 	}
 
-	sort.Strings(paths)
+	slices.Sort(paths)
 	return paths, nil
 }

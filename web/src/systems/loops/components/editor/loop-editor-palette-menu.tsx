@@ -41,7 +41,7 @@ export function LoopEditorPaletteMenu({ onAddNode, disabled = false }: LoopEdito
               disabled={disabled}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             />
           }
         >

@@ -4,10 +4,14 @@ Use the applicable sections below. YAML frontmatter follows `task-context-schema
 body headings are a writing aid, not extra acceptance gates. Keep each outcome,
 constraint, and evidence obligation in one place; omit sections that would repeat it.
 
+Serialize `title` as a double-quoted YAML string, escaping embedded `"` as `\"`
+and `\` as `\\`. The decoded value must equal the first H1 text, including
+`Task N: ` when that prefix is used. Keep the H1 as ordinary Markdown text.
+
 ```markdown
 ---
 status: pending
-title: [Task title]
+title: "Task N: [Title]"
 type: [a standard work-type slug or an approved project-specific lowercase hyphenated slug]
 complexity: [low, medium, high, critical]
 ---

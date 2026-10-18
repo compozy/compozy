@@ -19,10 +19,10 @@ const routeHookMocks = vi.hoisted(() => ({
   deleteOptions: { current: undefined as { onDeleteSuccess?: () => void } | undefined },
   deleteMutation: { isPending: false, mutate: vi.fn() },
   renameMutation: { isPending: false, mutateAsync: vi.fn() },
-  resumeMutation: { isPending: false, mutateAsync: vi.fn() },
   unarchiveMutation: { isPending: false, mutate: vi.fn() },
   sendPromptMutation: { isPending: false, mutateAsync: vi.fn() },
   stopMutation: { isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() },
+  sessionInputsEnabled: [] as Array<boolean | undefined>,
   sessionInputsQuery: {
     data: { inputs: [] } as {
       inputs: Array<Record<string, unknown>>;
@@ -84,9 +84,15 @@ vi.mock("@/systems/session", async () => {
     useSendSessionPrompt: () => routeHookMocks.sendPromptMutation,
     useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
     useRenameSession: () => routeHookMocks.renameMutation,
-    useResumeSession: () => routeHookMocks.resumeMutation,
     useUnarchiveSession: () => routeHookMocks.unarchiveMutation,
-    useSessionInputs: () => routeHookMocks.sessionInputsQuery,
+    useSessionInputs: (
+      _workspaceId: string,
+      _sessionId: string,
+      options: { enabled?: boolean }
+    ) => {
+      routeHookMocks.sessionInputsEnabled.push(options.enabled);
+      return routeHookMocks.sessionInputsQuery;
+    },
     useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
     useStopSession: () => routeHookMocks.stopMutation,
   };
@@ -173,6 +179,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.transcriptMessages = [];
     routeHookMocks.deleteOptions.current = undefined;
     routeHookMocks.sessionInputsQuery.data = { inputs: [] };
+    routeHookMocks.sessionInputsEnabled = [];
     routeHookMocks.resetThread.mockReset();
     routeHookMocks.toastError.mockReset();
     routeHookMocks.toastSuccess.mockReset();
@@ -188,8 +195,6 @@ describe("useSessionPageControls", () => {
     }
     routeHookMocks.deleteMutation.isPending = false;
     routeHookMocks.deleteMutation.mutate.mockReset();
-    routeHookMocks.resumeMutation.isPending = false;
-    routeHookMocks.resumeMutation.mutateAsync.mockReset();
     routeHookMocks.renameMutation.isPending = false;
     routeHookMocks.renameMutation.mutateAsync.mockReset();
     routeHookMocks.unarchiveMutation.isPending = false;
@@ -337,6 +342,8 @@ describe("useSessionPageControls", () => {
     await waitFor(() =>
       expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
         id: "sess-1",
+        workspace_id: WORKSPACE_ID,
+        profile_name: "default",
         wait: false,
       })
     );
@@ -372,6 +379,8 @@ describe("useSessionPageControls", () => {
     act(() => result.current.handleStop());
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
       id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
       wait: true,
     });
     expect(result.current.isStopRetrying).toBe(true);
@@ -423,6 +432,8 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledTimes(2);
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
       id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
       wait: true,
     });
     expect(result.current.isStopRetrying).toBe(true);
@@ -452,6 +463,8 @@ describe("useSessionPageControls", () => {
     await waitFor(() =>
       expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
         id: "sess-1",
+        workspace_id: WORKSPACE_ID,
+        profile_name: "default",
         wait: false,
       })
     );
@@ -459,17 +472,24 @@ describe("useSessionPageControls", () => {
   });
 
   it("Should display the deletion failure and allow a retry without reporting success", () => {
-    const { result } = renderControls(makeSession("stopped"));
-    act(() => result.current.handleDelete());
-    const options = routeHookMocks.deleteMutation.mutate.mock.calls[0]?.[1];
-    act(() => options.onError(new Error("Could not settle the session Goal. Try again.")));
-    expect(routeHookMocks.toastError).toHaveBeenCalledWith(
-      "Could not settle the session Goal. Try again."
-    );
-    expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
-    expect(routeHookMocks.resetThread).not.toHaveBeenCalled();
-    act(() => result.current.handleDelete());
-    expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledTimes(2);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = new Error("Could not settle the session Goal. Try again.");
+    try {
+      const { result } = renderControls(makeSession("stopped"));
+      act(() => result.current.handleDelete());
+      const options = routeHookMocks.deleteMutation.mutate.mock.calls[0]?.[1];
+      act(() => options.onError(failure));
+      expect(routeHookMocks.toastError).toHaveBeenCalledWith(
+        "Could not settle the session Goal. Try again."
+      );
+      expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
+      expect(routeHookMocks.resetThread).not.toHaveBeenCalled();
+      act(() => result.current.handleDelete());
+      expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledTimes(2);
+      expect(consoleError).toHaveBeenCalledExactlyOnceWith("Failed to delete session", failure);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("Should own delete success in the mutation lifecycle before the route unmounts", () => {
@@ -502,7 +522,6 @@ describe("useSessionPageControls", () => {
   );
 
   it.each([
-    { label: "dream", session: makeSession("active", undefined, "dream") },
     { label: "missing-type", session: { ...makeSession("active"), type: undefined } },
     { label: "starting", session: makeSession("starting", undefined, "system") },
     { label: "stopping", session: makeSession("stopping", undefined, "system") },
@@ -565,7 +584,6 @@ describe("useSessionPageControls", () => {
       result.current.handleStop();
       result.current.handleDelete();
       result.current.handleClear();
-      result.current.handleResume();
       result.current.handleUnarchive();
     });
     await expect(result.current.handleRename("Managed title")).resolves.toBeUndefined();
@@ -573,7 +591,6 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.stopMutation.mutateAsync).not.toHaveBeenCalled();
     expect(routeHookMocks.deleteMutation.mutate).not.toHaveBeenCalled();
     expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
-    expect(routeHookMocks.resumeMutation.mutateAsync).not.toHaveBeenCalled();
     expect(routeHookMocks.unarchiveMutation.mutate).not.toHaveBeenCalled();
     expect(routeHookMocks.renameMutation.mutateAsync).not.toHaveBeenCalled();
     expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();
@@ -599,6 +616,24 @@ describe("useSessionPageControls", () => {
     expect(result.current.queuedPrompts).toEqual([
       { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep this" },
     ]);
+  });
+
+  // Invariant: a window without live data (a background tab) holds no queue read; the
+  // read resumes when the window owns live data again. Owner: this page-controls suite.
+  it("Should read the queue only while the hosting window owns live data", () => {
+    let liveDataEnabled = false;
+    const { rerender } = renderHook(
+      () =>
+        useSessionPageControls("sess-1", makeSession("active", "turn-a"), {
+          liveDataEnabled,
+          workspaceId: WORKSPACE_ID,
+        }),
+      { wrapper: createWrapper() }
+    );
+    expect(routeHookMocks.sessionInputsEnabled.at(-1)).toBe(false);
+    liveDataEnabled = true;
+    rerender();
+    expect(routeHookMocks.sessionInputsEnabled.at(-1)).toBe(true);
   });
 
   it("Should keep a queue draft pending until acknowledgement and resolve its disposition", async () => {

@@ -13,7 +13,7 @@ type sessionSearchInput struct {
 	Workspace string `json:"workspace"`
 	SessionID string `json:"session_id"`
 	Query     string `json:"q"`
-	Limit     int    `json:"limit,omitempty"`
+	Limit     int    `json:"limit,omitzero"`
 }
 
 func (n *daemonNativeTools) sessionSearch(
@@ -27,7 +27,7 @@ func (n *daemonNativeTools) sessionSearch(
 	}
 	query, err := (transcript.SearchQuery{Query: input.Query, Limit: input.Limit}).Normalize()
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	id, err := n.nativeSessionInputScope(ctx, scope, req.ToolID, input.Workspace, input.SessionID)
 	if err != nil {

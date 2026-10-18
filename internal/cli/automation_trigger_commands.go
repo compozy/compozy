@@ -2,7 +2,7 @@ package cli
 
 import "github.com/spf13/cobra"
 
-const automationTriggerEventHelp = "Trigger event: session.created, session.stopped, memory.consolidated, " +
+const automationTriggerEventHelp = "Trigger event: session.created, session.stopped, " +
 	"hook.<hook_name>.completed, webhook, or ext.*"
 
 func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
@@ -121,15 +121,15 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 			request, err := buildAutomationTriggerUpdateRequest(
 				cmd,
 				automationTriggerCommandInput{
-					automationCreateTargetInput: automationCreateTargetInput{Prompt: prompt},
-					Name:                        name,
-					EventRaw:                    eventRaw,
-					RetryRaw:                    retryRaw,
-					FilterFlags:                 filterFlags,
-					Enabled:                     enabled,
-					WebhookID:                   webhookID,
-					EndpointSlug:                endpointSlug,
-					WebhookSecretValue:          webhookSecretValue,
+					Prompt:             prompt,
+					Name:               name,
+					EventRaw:           eventRaw,
+					RetryRaw:           retryRaw,
+					FilterFlags:        filterFlags,
+					Enabled:            enabled,
+					WebhookID:          webhookID,
+					EndpointSlug:       endpointSlug,
+					WebhookSecretValue: webhookSecretValue,
 				},
 			)
 			if err != nil {

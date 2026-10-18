@@ -75,11 +75,17 @@ describe("runtime activity predicates", () => {
     expect(
       isSessionErrorEvent({ ...inactivity, stop_reason: "user_canceled", error: "stopped" })
     ).toBe(false);
+    const ownerRelease: AgentEventPayload = {
+      ...inactivity,
+      stop_reason: "owner_released",
+      error: "owner released",
+    };
+    expect(isSessionErrorEvent(ownerRelease)).toBe(false);
     // A failure stop reason, a failure record, or a provider diagnostic still is one.
     expect(isSessionErrorEvent({ ...inactivity, stop_reason: "agent_crashed" })).toBe(true);
     expect(
       isSessionErrorEvent({
-        ...inactivity,
+        ...ownerRelease,
         failure: { kind: "provider_exit", summary: "exit 137" },
       })
     ).toBe(true);

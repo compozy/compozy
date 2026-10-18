@@ -3,8 +3,6 @@ package task
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 type createdTaskPayload struct {
@@ -127,7 +125,7 @@ type cancelledRunPayload struct {
 	Metadata                 json.RawMessage `json:"metadata,omitempty"`
 	SessionID                string          `json:"session_id,omitempty"`
 	PropagatedFromTaskID     string          `json:"propagated_from_task_id,omitempty"`
-	CooperativeStopRequested bool            `json:"cooperative_stop_requested,omitempty"`
+	CooperativeStopRequested bool            `json:"cooperative_stop_requested,omitzero"`
 }
 
 type forceStoppedRunPayload struct {
@@ -157,7 +155,7 @@ type leaseExtendedPayload struct {
 }
 
 type releasedRunPayload struct {
-	Manual                          bool            `json:"manual,omitempty"`
+	Manual                          bool            `json:"manual,omitzero"`
 	ActorKind                       ActorKind       `json:"actor_kind,omitempty"`
 	ActorID                         string          `json:"actor_id,omitempty"`
 	PreviousStatus                  RunStatus       `json:"previous_status"`
@@ -168,19 +166,18 @@ type releasedRunPayload struct {
 	PreviousSessionID               string          `json:"previous_session_id,omitempty"`
 	PreviousClaimTokenHashTruncated string          `json:"previous_claim_token_hash_truncated,omitempty"`
 	PreviousLeaseUntil              *time.Time      `json:"previous_lease_until,omitempty"`
-	QueueGeneration                 int64           `json:"queue_generation,omitempty"`
-	CanceledQueuedInputs            int             `json:"canceled_queued_inputs,omitempty"`
+	QueueGeneration                 int64           `json:"queue_generation,omitzero"`
+	CanceledQueuedInputs            int             `json:"canceled_queued_inputs,omitzero"`
 	Metadata                        json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ExpiredLeaseEventPayload is the canonical audit payload for an expired task-run lease.
 type ExpiredLeaseEventPayload struct {
-	PreviousStatus               RunStatus           `json:"previous_status"`
-	Status                       RunStatus           `json:"status"`
-	TaskStatus                   Status              `json:"task_status"`
-	Reason                       string              `json:"reason,omitempty"`
-	SessionID                    string              `json:"session_id,omitempty"`
-	LeaseUntil                   time.Time           `json:"lease_until"`
-	PreviousTokenHash            string              `json:"previous_claim_token_hash,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
+	PreviousStatus    RunStatus `json:"previous_status"`
+	Status            RunStatus `json:"status"`
+	TaskStatus        Status    `json:"task_status"`
+	Reason            string    `json:"reason,omitempty"`
+	SessionID         string    `json:"session_id,omitempty"`
+	LeaseUntil        time.Time `json:"lease_until"`
+	PreviousTokenHash string    `json:"previous_claim_token_hash,omitempty"`
 }

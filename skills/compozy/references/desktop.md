@@ -129,3 +129,12 @@ purpose: it expands one CompozyOS window inside the desktop workspace.
 
 Editable fields use the platform Edit menu. Cut, copy, paste, and select all use `Command` on macOS
 and `Control` on Windows and Linux.
+
+On Linux, AppImages in `~/Applications` are detected from executable files independently of the
+menu shortcut. A running authenticated desktop shell supplies its installed version. `app open`
+launches a discovered executable directly and captures launch output in `logs/app-launch.log`.
+Packaged Linux startup refreshes the URI association with the current executable and version.
+
+An update whose pre-handoff deadline expired is settled by status reads and daemon recovery;
+reopening the desktop app is unnecessary. A dead or replaced holder process can be canceled
+while `applying`. Installer handoff and runtime replacement remain protected from cancellation.

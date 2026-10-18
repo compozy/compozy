@@ -15,10 +15,8 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
       subprocess: { command: "node", args: ["index.js"] },
       capabilities: { provides: ["connectivity.provider"] },
       permissions: { requires: [] },
-      network_participation: {
-        required: true,
-        mode: "live",
-        channel_scopes: ["gateway.private", "gateway.public"],
+      gateway: {
+        permissions: ["gateway.private", "gateway.public"],
       },
     },
     options

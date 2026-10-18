@@ -8,7 +8,17 @@ CompozyOS applies permissions in two layers:
 1. a daemon-side static policy for built-in ACP tool surfaces
 2. an interactive approval flow for ACP `session/request_permission`
 
-Both layers are scoped to the session workspace. `approve-all` never means "full machine access".
+Both layers are scoped to the session workspace. `approve-all` by itself does not guarantee
+unrestricted provider commands: the ACP provider also chooses an operating mode. Set
+`permissions.provider_full_access = true` in the global config to request the provider's unrestricted mode for new
+`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex and
+`bypassPermissions` for Claude Code. Unsupported providers fail session resolution clearly instead
+of silently accepting this preference. Existing mode selection is unchanged when the setting is
+false. With the current Claude Code adapter, `approve-all` already selects `bypassPermissions`
+when that mode is advertised. An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS
+permissions never permit an unrestricted mode. This setting does not bypass an outer CompozyOS
+operating-system permissions; unrestricted provider commands run
+with the daemon user's access within those boundaries.
 
 When provider-native tool interception is active, CompozyOS may keep the upstream ACP session in an
 approval-mediated mode so provider-native tool calls return through the CompozyOS execution gateway
@@ -38,8 +48,7 @@ The current built-in default configuration is:
 mode = "approve-all"
 ```
 
-That global mode can be overridden by an agent definition. Dream sessions are forced to
-`approve-all` regardless of the configured mode.
+That global mode can be overridden by an agent definition.
 
 If a session somehow reaches startup with no resolved permission string at all, the session manager
 falls back to `approve-reads` instead of launching with an empty policy.
@@ -55,7 +64,7 @@ These are the built-in operations CompozyOS checks directly:
 | `terminal/create`    | blocked    | blocked         | allowed       |
 
 Static auto-allow is only one part of the full story. CompozyOS still enforces workspace scoping and
-network-turn restrictions after the mode check passes.
+workspace restrictions after the mode check passes.
 
 ## Workspace boundaries
 
@@ -84,7 +93,7 @@ permission mode decides it:
 | `deny-all`      | Denied at every boundary, including the native-tool one. CompozyOS never prompts for crossing. |
 
 Operators are not governed by this policy — it applies to agent sessions. Extensions, automation,
-network peers, and the daemon itself keep the behavior they have today; a permissive mode never
+and the daemon itself keep the behavior they have today; a permissive mode never
 widens them.
 
 `deny-all` reads differently on each axis, and that is deliberate. For tool risk it means "auto-allow
@@ -144,17 +153,6 @@ An audit write failure is logged and does not change the access decision. Read p
 
 See [Workspace Resolver](/docs/workspaces/resolver#isolation-and-cross-workspace-access) for
 what workspace isolation covers today and what it does not.
-
-## Network-originated turn restrictions
-
-Network-originated turns are stricter than normal user turns, even under `approve-all`.
-
-Current daemon-side restrictions:
-
-- `fs/write_text_file` is blocked for network turns
-- `terminal/create` is only allowed for a narrow allowlist of `compozy network ...` commands
-
-This is enforced after the normal mode check.
 
 ## Interactive approval flow
 
@@ -223,7 +221,7 @@ Selecting `allow-always` or `reject-always` stores an exact workspace + agent + 
 decision. The next matching invocation uses that decision before prompting, and the decision
 survives daemon restart. Operators and agents can inspect or revoke these records through Web,
 `compozy tool approvals`, HTTP/UDS, or the `compozy__tool_approvals_*` native tools. This does not change ACP
-subprocess permissions or sandbox policy. See [Policy and Invocation](/docs/tools/policy-and-invocation#remembered-native-tool-decisions).
+subprocess permissions or operating-system policy. See [Policy and Invocation](/docs/tools/policy-and-invocation#remembered-native-tool-decisions).
 
 ## Permission events
 
@@ -274,8 +272,8 @@ has no management surface at all.
 
 ## Clarification questions are not approvals
 
-`compozy__clarify` lets an active managed session ask one bounded question and wait for an operator.
-It is a read-only, non-destructive tool with its own live broker; it does not reuse permission
+`compozy__clarify` lets an active managed session ask one question and wait for an operator
+(unbounded unless `[tools.clarify] timeout` is finite). It is a read-only, non-destructive tool with its own live broker; it does not reuse permission
 requests, approval decisions, or remembered native-tool grants. One session can have at most one
 pending clarification.
 
@@ -294,7 +292,8 @@ HTTP and UDS use the same workspace-scoped routes:
 - `POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer`
 
 The live pending list is exact daemon truth. Durable `clarify` events preserve the pending,
-resolved, timed-out, and canceled transitions for timeline and audit. Timeout returns exactly
+resolved, timed-out, and canceled transitions for timeline and audit. Under a finite `[tools.clarify]
+timeout`, expiry returns exactly
 `{"choice":null,"text":"","fallback":true}`; stopping the session or daemon cancels the wait.
 
 ## Practical configuration example

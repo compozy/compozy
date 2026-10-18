@@ -40,9 +40,6 @@ func ContentsFor(manifest *Manifest, kit []KitItem) contract.ExtensionContentsPa
 	if manifest != nil {
 		contents.MCPServers = len(manifest.Resources.MCPServers)
 		contents.Hooks = len(manifest.Resources.Hooks)
-		if strings.TrimSpace(manifest.Bridge.Platform) != "" {
-			contents.Bridges = 1
-		}
 	}
 	return contents
 }

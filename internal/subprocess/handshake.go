@@ -2,13 +2,11 @@ package subprocess
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
-	bridges "github.com/compozy/compozy/internal/bridges/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
@@ -19,7 +17,6 @@ func CloneInitializeRequest(src InitializeRequest) InitializeRequest {
 	cloned.Capabilities = cloneInitializeCapabilities(src.Capabilities)
 	cloned.Methods.DaemonRequests = append([]string(nil), src.Methods.DaemonRequests...)
 	cloned.Methods.ExtensionServices = append([]string(nil), src.Methods.ExtensionServices...)
-	cloned.Runtime.Bridge = CloneInitializeBridgeRuntime(src.Runtime.Bridge)
 	return cloned
 }
 
@@ -67,56 +64,11 @@ type InitializeMethods struct {
 
 // InitializeRuntime carries runtime intervals and deadlines negotiated during initialize.
 type InitializeRuntime struct {
-	HealthCheckIntervalMS int64                    `json:"health_check_interval_ms"`
-	HealthCheckTimeoutMS  int64                    `json:"health_check_timeout_ms"`
-	ShutdownTimeoutMS     int64                    `json:"shutdown_timeout_ms"`
-	DefaultHookTimeoutMS  int64                    `json:"default_hook_timeout_ms"`
-	DefaultViewTimeoutMS  int64                    `json:"default_view_timeout_ms,omitempty"`
-	Bridge                *InitializeBridgeRuntime `json:"bridge,omitempty"`
-}
-
-const (
-	// InitializeBridgeRuntimeVersion2 is the purpose-scoped bridge runtime
-	// handshake version negotiated by bridge-capable extensions.
-	InitializeBridgeRuntimeVersion2 = "2"
-)
-
-// BridgeRuntimePurpose separates supervised service runtimes from isolated control calls.
-type BridgeRuntimePurpose string
-
-const (
-	BridgeRuntimePurposeService BridgeRuntimePurpose = "service"
-	BridgeRuntimePurposeControl BridgeRuntimePurpose = "control"
-)
-
-// BridgeRuntimePurposeValues returns the closed launch-purpose family in stable order.
-func BridgeRuntimePurposeValues() []string {
-	return []string{string(BridgeRuntimePurposeService), string(BridgeRuntimePurposeControl)}
-}
-
-// InitializeBridgeRuntime carries the provider-scoped bridge launch material
-// granted to one bridge-capable extension session.
-type InitializeBridgeRuntime struct {
-	RuntimeVersion   string                            `json:"runtime_version"`
-	Purpose          BridgeRuntimePurpose              `json:"purpose"`
-	Provider         string                            `json:"provider"`
-	Platform         string                            `json:"platform"`
-	AllowedMethods   []string                          `json:"allowed_methods,omitempty"`
-	ManagedInstances []InitializeBridgeManagedInstance `json:"managed_instances,omitempty"`
-}
-
-// InitializeBridgeManagedInstance is one daemon-owned bridge instance snapshot
-// granted to the provider runtime together with its resolved secret bindings.
-type InitializeBridgeManagedInstance struct {
-	Instance     bridges.BridgeInstance        `json:"instance"`
-	BoundSecrets []InitializeBridgeBoundSecret `json:"bound_secrets,omitempty"`
-}
-
-// InitializeBridgeBoundSecret is one launch-time bridge secret resolved by Compozy.
-type InitializeBridgeBoundSecret struct {
-	BindingName string `json:"binding_name"`
-	Kind        string `json:"kind"`
-	Value       string `json:"value"`
+	HealthCheckIntervalMS int64 `json:"health_check_interval_ms"`
+	HealthCheckTimeoutMS  int64 `json:"health_check_timeout_ms"`
+	ShutdownTimeoutMS     int64 `json:"shutdown_timeout_ms"`
+	DefaultHookTimeoutMS  int64 `json:"default_hook_timeout_ms"`
+	DefaultViewTimeoutMS  int64 `json:"default_view_timeout_ms,omitempty"`
 }
 
 // InitializeResponse is the extension -> Compozy initialize acknowledgment.
@@ -221,23 +173,12 @@ func (r InitializeRequest) Validate() error {
 		r.Runtime.DefaultViewTimeoutMS <= 0 {
 		return errors.New("subprocess: initialize default_view_timeout_ms must be > 0 for view.provider")
 	}
-	if r.Runtime.Bridge != nil {
-		if err := r.Runtime.Bridge.Validate(); err != nil {
-			return err
-		}
-		if err := validateBridgeInitializeRequest(r); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 func validateInitializeResponse(request InitializeRequest, response InitializeResponse) error {
 	if !slices.Contains(request.SupportedProtocolVersion, response.ProtocolVersion) {
 		return fmt.Errorf("subprocess: initialize selected unsupported protocol version %q", response.ProtocolVersion)
-	}
-	if request.Runtime.Bridge != nil && request.Runtime.Bridge.Purpose == BridgeRuntimePurposeControl {
-		return validateControlInitializeResponse(request, response)
 	}
 	if err := validateSubset(
 		"accepted permissions",
@@ -267,181 +208,6 @@ func validateInitializeResponse(request InitializeRequest, response InitializeRe
 	}
 
 	return nil
-}
-
-// Validate checks that the managed instance payload is complete and internally consistent.
-func (m InitializeBridgeManagedInstance) Validate() error {
-	instance := m.Instance
-	if err := instance.Validate(); err != nil {
-		return fmt.Errorf("subprocess: initialize bridge instance: %w", err)
-	}
-
-	seen := make(map[string]struct{}, len(m.BoundSecrets))
-	for _, secret := range m.BoundSecrets {
-		normalized := secret.normalize()
-		if err := normalized.Validate(); err != nil {
-			return fmt.Errorf("subprocess: initialize bridge bound secret: %w", err)
-		}
-		if _, ok := seen[normalized.BindingName]; ok {
-			return fmt.Errorf("subprocess: initialize bridge bound secret %q is duplicated", normalized.BindingName)
-		}
-		seen[normalized.BindingName] = struct{}{}
-	}
-
-	return nil
-}
-
-// Validate checks that the bound secret payload is complete.
-func (s InitializeBridgeBoundSecret) Validate() error {
-	normalized := s.normalize()
-	if strings.TrimSpace(normalized.BindingName) == "" {
-		return errors.New("subprocess: initialize bridge bound secret binding_name is required")
-	}
-	if strings.TrimSpace(normalized.Kind) == "" {
-		return errors.New("subprocess: initialize bridge bound secret kind is required")
-	}
-	if strings.TrimSpace(normalized.Value) == "" {
-		return errors.New("subprocess: initialize bridge bound secret value is required")
-	}
-	return nil
-}
-
-func (r InitializeBridgeRuntime) normalize() InitializeBridgeRuntime {
-	normalized := r
-	normalized.RuntimeVersion = strings.TrimSpace(normalized.RuntimeVersion)
-	normalized.Purpose = BridgeRuntimePurpose(strings.TrimSpace(string(normalized.Purpose)))
-	normalized.Provider = strings.TrimSpace(normalized.Provider)
-	normalized.Platform = strings.TrimSpace(normalized.Platform)
-	normalized.AllowedMethods = normalizeUniqueHandshakeStrings(normalized.AllowedMethods)
-	if len(normalized.ManagedInstances) == 0 {
-		normalized.ManagedInstances = nil
-		return normalized
-	}
-
-	managedInstances := make([]InitializeBridgeManagedInstance, 0, len(normalized.ManagedInstances))
-	for _, managed := range normalized.ManagedInstances {
-		managedInstances = append(managedInstances, managed.normalize())
-	}
-	slices.SortFunc(
-		managedInstances,
-		func(left InitializeBridgeManagedInstance, right InitializeBridgeManagedInstance) int {
-			return strings.Compare(strings.TrimSpace(left.Instance.ID), strings.TrimSpace(right.Instance.ID))
-		},
-	)
-	normalized.ManagedInstances = managedInstances
-	return normalized
-}
-
-func (m InitializeBridgeManagedInstance) normalize() InitializeBridgeManagedInstance {
-	normalized := m
-	if len(normalized.BoundSecrets) == 0 {
-		normalized.BoundSecrets = nil
-		return normalized
-	}
-
-	boundSecrets := make([]InitializeBridgeBoundSecret, 0, len(normalized.BoundSecrets))
-	for _, secret := range normalized.BoundSecrets {
-		boundSecrets = append(boundSecrets, secret.normalize())
-	}
-	slices.SortFunc(boundSecrets, func(left InitializeBridgeBoundSecret, right InitializeBridgeBoundSecret) int {
-		return strings.Compare(left.BindingName, right.BindingName)
-	})
-	normalized.BoundSecrets = boundSecrets
-	return normalized
-}
-
-func (s InitializeBridgeBoundSecret) normalize() InitializeBridgeBoundSecret {
-	normalized := s
-	normalized.BindingName = strings.TrimSpace(normalized.BindingName)
-	normalized.Kind = strings.TrimSpace(normalized.Kind)
-	return normalized
-}
-
-// CloneInitializeBridgeRuntime returns a deep copy safe to retain in manager state.
-func CloneInitializeBridgeRuntime(src *InitializeBridgeRuntime) *InitializeBridgeRuntime {
-	if src == nil {
-		return nil
-	}
-
-	cloned := src.normalize()
-	if len(cloned.ManagedInstances) > 0 {
-		managedInstances := make([]InitializeBridgeManagedInstance, 0, len(cloned.ManagedInstances))
-		for _, managed := range cloned.ManagedInstances {
-			managedInstances = append(managedInstances, cloneInitializeBridgeManagedInstance(managed))
-		}
-		cloned.ManagedInstances = managedInstances
-	}
-	return &cloned
-}
-
-func cloneInitializeBridgeManagedInstance(src InitializeBridgeManagedInstance) InitializeBridgeManagedInstance {
-	cloned := src.normalize()
-	cloned.Instance = cloneBridgeInstance(cloned.Instance)
-	cloned.BoundSecrets = append([]InitializeBridgeBoundSecret(nil), cloned.BoundSecrets...)
-	return cloned
-}
-
-func cloneBridgeInstance(instance bridges.BridgeInstance) bridges.BridgeInstance {
-	cloned := instance
-	if len(cloned.ProviderConfig) > 0 {
-		cloned.ProviderConfig = append(json.RawMessage(nil), cloned.ProviderConfig...)
-	}
-	if len(cloned.DeliveryDefaults) > 0 {
-		cloned.DeliveryDefaults = append(json.RawMessage(nil), cloned.DeliveryDefaults...)
-	}
-	if cloned.Degradation != nil {
-		degradation := *cloned.Degradation
-		cloned.Degradation = &degradation
-	}
-	return cloned
-}
-
-// SingleManagedInstance returns the only managed bridge instance snapshot in
-// the provider runtime. It fails when the runtime owns zero or multiple
-// instances and the caller did not select one explicitly.
-func (r InitializeBridgeRuntime) SingleManagedInstance() (*InitializeBridgeManagedInstance, error) {
-	normalized := r.normalize()
-	switch len(normalized.ManagedInstances) {
-	case 0:
-		return nil, errors.New("subprocess: initialize bridge runtime managed instance is required")
-	case 1:
-		managed := cloneInitializeBridgeManagedInstance(normalized.ManagedInstances[0])
-		return &managed, nil
-	default:
-		return nil, errors.New("subprocess: initialize bridge runtime requires explicit managed instance selection")
-	}
-}
-
-// ManagedInstance returns one managed bridge instance snapshot by id.
-func (r InitializeBridgeRuntime) ManagedInstance(id string) (*InitializeBridgeManagedInstance, bool) {
-	trimmedID := strings.TrimSpace(id)
-	if trimmedID == "" {
-		return nil, false
-	}
-
-	for _, managed := range r.normalize().ManagedInstances {
-		if strings.TrimSpace(managed.Instance.ID) != trimmedID {
-			continue
-		}
-		cloned := cloneInitializeBridgeManagedInstance(managed)
-		return &cloned, true
-	}
-	return nil, false
-}
-
-// ManagedBridgeInstanceIDs returns the provider-owned bridge instance ids in a
-// stable order suitable for telemetry fan-out and restart bookkeeping.
-func (r InitializeBridgeRuntime) ManagedBridgeInstanceIDs() []string {
-	managed := r.normalize().ManagedInstances
-	if len(managed) == 0 {
-		return nil
-	}
-
-	ids := make([]string, 0, len(managed))
-	for _, item := range managed {
-		ids = append(ids, strings.TrimSpace(item.Instance.ID))
-	}
-	return ids
 }
 
 func validateSubset[T ~string](label string, accepted []T, granted []T) error {

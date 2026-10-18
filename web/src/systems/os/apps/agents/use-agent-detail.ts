@@ -50,6 +50,7 @@ export interface UseAgentDetailResult {
   sessionsLoading: boolean;
   /** Row-page error only — never OR'd with the metrics query. */
   sessionsError: boolean;
+  onRetrySessions: () => void;
   search: ResolvedAgentDetailSearch;
   setTab: (tab: AgentDetailTab) => void;
   setFile: (file: AgentInstructionFile) => void;
@@ -67,9 +68,10 @@ export interface UseAgentDetailResult {
   sessionRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
 }
 
+/** Combines agent details and session catalogs with lifecycle actions scoped to each row. */
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
   const navigate = useNavigate();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
   const { openForAgent } = useSessionCreateActions();
   const hasRuntimeWorkspace = runtimeWorkspaceId !== null;
   const isCreating = useSessionCreateIsCreating();
@@ -81,7 +83,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     isLoading: agentLoading,
     error: agentError,
   } = useAgent(name, runtimeWorkspaceId);
-  const metrics = useAgentCatalogMetrics(runtimeWorkspaceId, name);
+  const metrics = useAgentCatalogMetrics(runtimeWorkspaceId, name, { enabled: !pending });
   const {
     sessions,
     archivedSessions,
@@ -94,8 +96,9 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     loadMoreArchived: onLoadMoreArchivedSessions,
     isLoading: sessionsLoading,
     isError: sessionsError,
-  } = useAgentSessions(runtimeWorkspaceId, name);
-  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: runtimeWorkspaceId });
+    retry: onRetrySessions,
+  } = useAgentSessions(runtimeWorkspaceId, name, { enabled: !pending });
+  const sessionLifecycle = useSessionLifecycleActions();
 
   const deleteFlow = useAgentDeleteFlow({
     agent,
@@ -173,6 +176,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     onLoadMoreArchivedSessions,
     sessionsLoading,
     sessionsError,
+    onRetrySessions,
     search,
     setTab,
     setFile,

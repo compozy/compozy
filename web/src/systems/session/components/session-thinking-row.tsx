@@ -1,12 +1,13 @@
-import { CircleAlert, CircleStop, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 import { SessionSummaryDisclosure } from "./session-summary-disclosure";
 
-import { TypingDots } from "@compozy/ui";
+import { StateGlyph, TypingDots } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { useSecondClock } from "@/hooks/use-second-clock";
 import { formatMessageTimestamp } from "../lib/format-timestamp";
+import { formatQuietDuration } from "../lib/session-quiet-warning";
 import {
   agentCountLabel,
   deriveWorkingStatus,
@@ -38,6 +39,8 @@ export interface SessionThinkingRowProps {
    * folds normally and nothing reads "canceled".
    */
   stopCompletionNote?: boolean;
+  /** The parent's subagent roster: live rows join "N agents running" (S7). */
+  subagents?: SessionWorkingStatusInput["subagents"];
 }
 
 const ROW_CLASS =
@@ -64,6 +67,24 @@ function WorkingTimer({
   return (
     <span data-testid="session-working-timer" className="font-medium text-muted">
       {enabled || fallback === null ? formatWorkingElapsed(startedAtMs, now) : fallback}
+    </span>
+  );
+}
+
+/** "quiet for 12m": the daemon saw no work for this turn since `quietSinceMs`. */
+function QuietFor({
+  quietSinceMs,
+  enabled,
+  fallback,
+}: {
+  quietSinceMs: number;
+  enabled: boolean;
+  fallback: string | null;
+}) {
+  const now = useSecondClock(enabled);
+  return (
+    <span data-testid="session-working-quiet" className="shrink-0 whitespace-nowrap">
+      quiet for {enabled || fallback === null ? formatQuietDuration(now - quietSinceMs) : fallback}
     </span>
   );
 }
@@ -113,6 +134,16 @@ function WorkingStatusLine({
             "Working…"
           )}
         </span>
+        {status.quietSinceMs !== null ? (
+          <>
+            <SessionStatusSeparator />
+            <QuietFor
+              quietSinceMs={status.quietSinceMs}
+              enabled={liveDataEnabled}
+              fallback={status.quietFor}
+            />
+          </>
+        ) : null}
         {status.activity ? (
           <>
             <SessionStatusSeparator />
@@ -197,9 +228,9 @@ function SessionStatusLine({
           data-testid="session-stopped-row"
           data-status="stopped"
           data-stopped-by={status.byYou ? "you" : "daemon"}
-          className={cn(ROW_CLASS, "text-warning")}
+          className={ROW_CLASS}
         >
-          <CircleStop aria-hidden="true" className="size-3 shrink-0" />
+          <StateGlyph size="sm" state="stopped" />
           <span>
             {status.byYou ? "Stopped by you after " : "Stopped after "}
             <span className="font-medium">{status.duration}</span>
@@ -218,9 +249,9 @@ function SessionStatusLine({
           role="status"
           data-testid="session-failed-row"
           data-status="failed"
-          className={cn(ROW_CLASS, "text-danger")}
+          className={ROW_CLASS}
         >
-          <CircleAlert aria-hidden="true" className="size-3 shrink-0" />
+          <StateGlyph size="sm" state="failed" />
           <span>
             Failed after <span className="font-medium">{status.duration}</span>
             {status.cause ? (
@@ -241,7 +272,8 @@ function SessionStatusLine({
  * `SessionThinkingRow` (S3): the one line that says what the agent is doing
  * right now. "Thinking…" from your send until the first word or tool, then
  * "Working for 2m 14s · Running shell", still working while spawned agents
- * run ("· 2 agents running"), and after a stop a frozen "Stopped by you after
+ * run ("· 2 agents running"), "· quiet for 12m" when the daemon saw no work
+ * for the turn in a while, and after a stop a frozen "Stopped by you after
  * 1m 40s" in warning ink — the only tone it wears besides danger for a real
  * failure. A completed turn reads nothing here: its "Worked for" moved to the
  * fold. Elapsed is the daemon's, so it survives a reconnect; a paused window
@@ -257,9 +289,17 @@ export function SessionThinkingRow({
   reducedMotion = false,
   stopCompletionNote = false,
   stopping = false,
+  subagents,
 }: SessionThinkingRowProps) {
   const now = useSecondClock(false);
-  const status = deriveWorkingStatus({ session, running, thinking, lastTurn, nowMs: now });
+  const status = deriveWorkingStatus({
+    session,
+    running,
+    thinking,
+    lastTurn,
+    nowMs: now,
+    subagents,
+  });
   if (stopping) {
     return (
       <div role="status" data-testid="session-stopping-row" className={ROW_CLASS}>

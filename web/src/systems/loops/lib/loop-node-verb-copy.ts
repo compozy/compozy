@@ -47,9 +47,9 @@ export function loopNodeStateStrip(node: LoopNodeLifecycle): string {
       const episodes = node.quarantineEntry?.episodes.length ?? 0;
       return withAttention(
         [
-          `${node.nodeId} is quarantined`,
-          attempts > 0 ? `${attempts} attempts` : null,
-          episodes > 0 ? `episode ${episodes}` : null,
+          `${node.label} was set aside`,
+          attempts > 0 ? `${attempts} tries` : null,
+          episodes > 1 ? `${episodes} times` : null,
         ]
           .filter(Boolean)
           .join(" · "),
@@ -104,7 +104,7 @@ export function loopRunStateStrip(input: LoopRunStateStripInput): string {
     `${input.runId} is ${loopStatusLabel(input.status).toLowerCase()}`,
     inFlight > 0 ? `${inFlight} ${inFlight === 1 ? "lane" : "lanes"} in flight` : null,
     waiting > 0 ? `${waiting} waiting on you` : null,
-    `generation ${input.generation}`,
+    `round ${input.generation}`,
     input.elapsedLabel ? input.elapsedLabel : null,
   ]
     .filter(Boolean)
@@ -131,7 +131,7 @@ const NODE_VERB_COPY: Record<
     confirmLabel: "Resume lane",
     cancelLabel: "Keep paused",
     tone: "accent",
-    micro: "node_resumed · mode plain",
+    micro: "Picks up where it left off",
   }),
   "resume-reset-attempts": node => ({
     eyebrow: "Resume node",
@@ -140,7 +140,7 @@ const NODE_VERB_COPY: Record<
     confirmLabel: "Reset and resume",
     cancelLabel: "Keep paused",
     tone: "warning",
-    micro: "node_resumed · mode reset_attempts",
+    micro: "Attempt count starts over",
   }),
   "resume-immediate": node => ({
     eyebrow: "Resume node",
@@ -149,16 +149,16 @@ const NODE_VERB_COPY: Record<
     confirmLabel: "Resume now",
     cancelLabel: "Keep paused",
     tone: "accent",
-    micro: "node_resumed · mode immediate",
+    micro: "Skips the wait before the next try",
   }),
   "resume-wait": node => ({
     eyebrow: "Resume wait",
     title: `Resume ${node.nodeId} by hand?`,
-    body: "Resuming by hand stands in for the event this lane is waiting for — the payload must match what the wait expects.",
+    body: "Resuming by hand stands in for the event this step is waiting for. The data must match what the wait expects.",
     confirmLabel: "Resume lane",
     cancelLabel: "Keep waiting",
     tone: "accent",
-    micro: "node_wait_resumed · by hand",
+    micro: "Resumed by you",
   }),
   cancel: node => ({
     eyebrow: "Cancel node",
@@ -167,22 +167,19 @@ const NODE_VERB_COPY: Record<
     confirmLabel: "Cancel lane",
     cancelLabel: "Keep it",
     tone: "danger",
-    micro: "node_canceled · stops immediately",
+    micro: "Stops immediately",
   }),
   requeue: node => {
     const episodes = node.quarantineEntry?.episodes.length;
-    const nextEpisode =
-      episodes === undefined
-        ? ""
-        : ` If it fails again, it returns here as episode ${episodes + 1}.`;
+    const nextEpisode = episodes === undefined ? "" : ` If it fails again, it is set aside again.`;
     return {
-      eyebrow: "Requeue node",
-      title: `Send ${node.nodeId} back to the queue?`,
-      body: `The lane leaves quarantine and runs again through the normal path, with all limits applying.${nextEpisode}`,
+      eyebrow: "Retry step",
+      title: `Retry ${node.label}?`,
+      body: `The step is no longer set aside and runs again, with all limits applying.${nextEpisode}`,
       confirmLabel: "Requeue lane",
-      cancelLabel: "Keep quarantined",
+      cancelLabel: "Keep set aside",
       tone: "accent",
-      micro: "node_requeued · origin requeue · with provenance",
+      micro: "Recorded as retried by you",
     };
   },
 };

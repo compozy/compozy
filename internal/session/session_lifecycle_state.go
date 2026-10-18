@@ -22,29 +22,6 @@ func (s *Session) setFailure(failure *store.SessionFailure) {
 	s.failure = store.CloneSessionFailure(failure)
 }
 
-func (s *Session) setSandbox(sandbox *store.SessionSandboxMeta, now time.Time) {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Sandbox = cloneSessionSandboxMeta(sandbox)
-	if !now.IsZero() {
-		s.UpdatedAt = now
-	}
-}
-
-func (s *Session) sandboxShouldDestroy() bool {
-	if s == nil {
-		return false
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.sandboxDestroyOnStop
-}
-
 func (s *Session) activate(now time.Time, preserveStopReason bool) error {
 	if err := s.transition(StateActive, now); err != nil {
 		return err
@@ -139,8 +116,6 @@ func (s *Session) applyStopCauseLocked(cause StopCause, detail string) {
 
 func normalizeSessionType(sessionType Type) Type {
 	switch Type(strings.TrimSpace(string(sessionType))) {
-	case SessionTypeDream:
-		return SessionTypeDream
 	case SessionTypeSystem:
 		return SessionTypeSystem
 	case SessionTypeCoordinator:
@@ -173,16 +148,14 @@ func stringPointer(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
-	copyValue := value
-	return &copyValue
+	return new(value)
 }
 
 func stopReasonPointer(value store.StopReason) *store.StopReason {
 	if strings.TrimSpace(string(value)) == "" {
 		return nil
 	}
-	copyValue := value
-	return &copyValue
+	return new(value)
 }
 
 func sessionMetaStopReason(meta *store.SessionMeta) store.StopReason {

@@ -3,18 +3,20 @@ import { CatalogCard, cn, Pill } from "@compozy/ui";
 import { providerListingView } from "../lib/provider-listing-view";
 import type { SettingsProviderEntry } from "../types";
 import { ProviderLogo } from "./provider-logo";
+import { ProviderStatusLabel } from "./provider-status-label";
 
 interface ProviderCardProps {
   provider: SettingsProviderEntry;
   onOpen: (entry: SettingsProviderEntry) => void;
 }
 
+/** Provider tile: identity, readiness, and how it signs in. */
 export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
   const view = providerListingView(provider);
   const testId = `settings-page-providers-card-${provider.name}`;
 
   return (
-    <CatalogCard actionable className="border border-line p-0" data-state={view.state.label}>
+    <CatalogCard actionable className="p-0" data-state={view.state.label}>
       <button
         className="group flex min-h-full w-full flex-col gap-3 px-4 py-3.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
         data-testid={testId}
@@ -31,36 +33,20 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
                 {view.displayName}
               </CatalogCard.Title>
               {provider.default ? (
-                <Pill data-testid={`${testId}-default`} tone="accent">
+                <Pill data-testid={`${testId}-default`} tone="neutral">
                   Default
                 </Pill>
               ) : null}
             </span>
-            <span
-              className="truncate font-mono text-eyebrow text-subtle"
-              data-testid={`${testId}-command`}
-            >
-              {view.command}
-            </span>
           </span>
         </span>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 text-form-label font-medium",
-            view.status.tone === "success"
-              ? "text-success"
-              : view.status.tone === "danger"
-                ? "text-danger"
-                : view.status.tone === "info"
-                  ? "text-info"
-                  : "text-warning"
-          )}
+        <ProviderStatusLabel
           data-state={view.state.label}
           data-testid={`${testId}-status`}
-        >
-          <Pill.Dot tone={view.status.tone} />
-          {view.status.label}
-        </span>
+          label={view.status.label}
+          ready={view.state.label === "installed"}
+          tone={view.status.tone}
+        />
         <span className="flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-form-label text-muted">
           {view.authSummary}
           <span

@@ -16,8 +16,7 @@ agents, Loops, automation, or layouts and run no code of their own.
 A native resource-only source can use `extension build`, `dev`, `reload`, and `dev --watch` when it
 declares at least one skill, agent, Loop, automation, or layout path. Build validates the handwritten
 manifest and copies those resource trees without running a build or describe command. Top-level
-subprocess behavior, runtime capabilities, Host API permissions, hooks, tools, MCP servers, bridge
-metadata, command groups, and dynamic resource publication remain code-backed contracts and require
+subprocess behavior, runtime capabilities, Host API permissions, hooks, tools, MCP servers, command groups, and dynamic resource publication remain code-backed contracts and require
 `package.json` or `go.mod`.
 
 CompozyOS reads `extension.toml` first and `extension.json` second. Both formats carry the same schema.
@@ -38,7 +37,7 @@ This is the complete manifest `compozy extension build` produced for the
   version = "0.1.0"
 
 [permissions]
-  requires = ["memory/recall", "memory/store", "sessions/list"]
+  requires = ["sessions/list"]
 
 [resources]
   [resources.tools]
@@ -94,23 +93,17 @@ most authors never write this block.
 | Provide                 | CompozyOS calls the extension with                                       | Public |
 | ----------------------- | ------------------------------------------------------------------------ | ------ |
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
-| `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
-| `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
-
-`bridge.adapter` is not yet a third-party surface. An installed manifest declaring it is rejected
-deterministically; see [Develop Extensions](/docs/extensions/develop#bridge-adapters) for the
-current position.
 
 An unknown value fails manifest load with the valid set in the error. There is no shape-only
 validation and no silent no-op.
 
-A `connectivity.provider` must be installed globally and must declare required Live Network
-participation with `gateway.private`, `gateway.public`, or both in `channel_scopes`. The selected
-tier must match one of those scopes. Workspace-scoped installs are rejected. See
+A `connectivity.provider` must be installed globally and declare `gateway.private`,
+`gateway.public`, or both in `[gateway].permissions`. The selected tier must match a declared
+permission. Workspace-scoped installs are rejected. See
 [Develop Extensions](/docs/extensions/develop#connectivity-providers) for the request and trust
 contract.
 
@@ -123,7 +116,7 @@ credential-source, and idempotency requirements.
 
 ```toml
 [permissions]
-  requires = ["memory/recall", "sessions/list"]
+  requires = ["sessions/list", "skills/list"]
 ```
 
 The Host API methods the extension calls, validated against the closed method set. Consent areas
@@ -157,6 +150,12 @@ tools.
 
 Static assets the daemon loads while the extension is enabled. Paths resolve inside the extension
 root and may not escape it.
+
+Use tables with `path` and an optional `profile` for skills, agents, Loops, automation, and layouts.
+The previous string-array form, such as `agents = ["agents"]`, is accepted through
+v0.3.0-beta.30 and normalized to unplaced paths when loaded. Builds emit the table form. Update
+handwritten sources before v0.3.0-beta.31, when string-array support is removed; replace each string
+with a table containing the same `path`, leaving `profile` omitted to preserve its visibility.
 
 | Field                      | Loaded as                                                               |
 | -------------------------- | ----------------------------------------------------------------------- |
@@ -203,7 +202,6 @@ icon = "chart-line"
 [profiles.defaults]
 agent = "growth-analyst"
 provider = "openai"
-sandbox = "workspace-write"
 
 [[profiles.credentials]]
 provider = "openai"
@@ -215,7 +213,7 @@ slot = "api_key"
 | `name`                 | yes      | Normalized profile name. Reserved names and invalid profile grammar fail validation. |
 | `color`                | no       | Seeded identity color.                                                               |
 | `icon` or `emoji`      | no       | Seeded identity mark. Set at most one.                                               |
-| `profiles.defaults`    | no       | Initial `agent`, `provider`, and `sandbox` values.                                   |
+| `profiles.defaults`    | no       | Initial `agent` and `provider` values.                                               |
 | `profiles.credentials` | no       | Vault-backed `provider` and `slot` requirements shown as needs setup until filled.   |
 
 Declarations seed only a newly created profile. An existing name is bound without changing its
@@ -314,40 +312,48 @@ Declares the resource families the extension may publish through `resources/snap
 scope it requests. The effective grant is the narrowest of this request, the source tier, the
 operator policy in `[extensions.resources]`, and the session scope.
 
-## `[bridge]`
+## `[gateway]`
 
-Provider metadata for `bridge.adapter` extensions. In-tree only today.
-
-```toml
-[bridge]
-platform = "slack"
-display_name = "Slack"
-```
-
-## `[network_participation]`
-
-Declares that enabling the extension requires Compozy Network Live participation consent.
+Connectivity providers declare the exposure tiers they need:
 
 ```toml
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["builders", "release"]
+[gateway]
+permissions = ["gateway.private", "gateway.public"]
 ```
 
-| Field            | Required | Notes                                                                            |
-| ---------------- | -------- | -------------------------------------------------------------------------------- |
-| `required`       | yes      | `false` cannot carry a mode or channel scopes.                                   |
-| `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                |
-| `channel_scopes` | no       | Trimmed, deduplicated, sorted, and included in the extension requirement digest. |
+The permission list is normalized and bound to `gateway_requirement_digest`. Enable, install, and
+updates that change this requirement require explicit consent to that exact digest through
+`--confirm-gateway-requirement` or `confirm_gateway_digest`. A stale digest cannot grant access.
+The selected Gateway tier must be declared. Workspace-scoped connectivity providers are rejected.
 
-CompozyOS hashes the normalized block into the extension's Network requirement digest. Enable requires
-explicit confirmation of that exact digest. Update compares the candidate digest before swapping any
-files and refuses a changed, unconfirmed requirement without changing installed state. Declared
-channels remain inventory — confirmation does not enroll an execution into Live.
+## Retired manifest entries
 
-For `connectivity.provider`, `channel_scopes` is required and must include `gateway.private`,
-`gateway.public`, or both. Gateway rejects an enable when the selected tier is outside that set.
+Manifests written before the memory removal keep loading. CompozyOS drops these retired entries from
+a TOML or JSON manifest before it validates the rest:
+
+- `capabilities.provides` entries for the removed memory backend surface;
+- `permissions.requires` entries `memory/recall`, `memory/store`, `memory/forget`, `memory.read`, and
+  `memory.write`;
+- the hook matcher keys `compaction_reason` and `compaction_strategy` on a `[[resources.hooks]]`
+  entry. The hook keeps running and observes every compaction; `compaction_trigger` replaces the
+  two keys. See the [hook declaration format](/docs/hooks/declaration#matchers).
+
+Each manifest load that dropped anything logs one `extension.retired_entries_ignored` warning with
+the extension name and the dropped entries, for example `permissions.requires=memory/store` or
+`hooks[0].compaction_reason`. `compozy extension list` shows the extension as loaded. An unknown
+entry outside that retired family keeps failing validation.
+
+The same shim covers automation resources, which load from the TOML files that `resources.automation`
+points at. A `[[triggers]]` entry for the removed memory-consolidation event is skipped, and the
+skip happens before CompozyOS checks the trigger's name, agent, or prompt. Every job and every other
+trigger in the file, and every other resource of the extension, still loads. Each skipped trigger
+logs an `extension.retired_entries_ignored` warning with the `extension` name, the `resource` file,
+and the retired event name as the dropped entry.
+
+A running extension that calls `memory/recall`, `memory/store`, or `memory/forget` gets the
+JSON-RPC method-not-found error (`-32601`), the same response as any other unknown Host API method.
+The shim that drops the retired entries is removed in v0.6.0. See the
+[migration guide](/docs/migration#memory-removal).
 
 ## Resource-only manifests
 
@@ -360,11 +366,17 @@ version = "0.1.0"
 description = "Review skills, agents, automation, and layouts"
 min_compozy_version = "0.3.0-beta.1"
 
-[resources]
-skills = ["skills"]
-agents = ["agents"]
-automation = ["automation"]
-layouts = ["layouts"]
+[[resources.skills]]
+path = "skills"
+
+[[resources.agents]]
+path = "agents"
+
+[[resources.automation]]
+path = "automation"
+
+[[resources.layouts]]
+path = "layouts"
 ```
 
 Installation is inert. These resources become live only after the extension is enabled, and disable

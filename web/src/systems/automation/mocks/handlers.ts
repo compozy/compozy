@@ -11,23 +11,63 @@ import {
   primaryAutomationJobFixture,
   primaryAutomationTriggerFixture,
 } from "./fixtures";
+import {
+  automationStoryJobs,
+  automationStoryRuns,
+  automationStoryTriggers,
+} from "./story-fixtures";
+import { automationDoesOf } from "../lib/automation-sentence";
+import type { AutomationJob, AutomationTrigger } from "../types";
 
-const allTriggerFixtures = [...automationTriggerFixtures, ...automationTriggerDetailFixtures];
-const allRunFixtures = [...automationRunFixtures, ...automationTriggerDetailRunFixtures];
-const jobById = new Map(automationJobFixtures.map(job => [job.id, job]));
+const allTriggerFixtures = [
+  ...automationTriggerFixtures,
+  ...automationTriggerDetailFixtures,
+  ...automationStoryTriggers,
+];
+const allRunFixtures = [
+  ...automationRunFixtures,
+  ...automationTriggerDetailRunFixtures,
+  ...automationStoryRuns,
+];
+const jobById = new Map(
+  [...automationJobFixtures, ...automationStoryJobs].map(job => [job.id, job])
+);
+
+/** Server-side list filters the daemon applies (`q`, `enabled`, `scope`, `source`, `target`, `loop`). */
+function filterAutomations<T extends AutomationJob | AutomationTrigger>(
+  items: readonly T[],
+  url: string
+): T[] {
+  const params = new URL(url).searchParams;
+  const q = params.get("q")?.trim().toLowerCase();
+  const enabled = params.get("enabled");
+  const scope = params.get("scope");
+  const source = params.get("source");
+  const target = params.get("target");
+  const loop = params.get("loop");
+  return items.filter(
+    item =>
+      (!q ||
+        [item.name, item.agent_name, item.prompt, "event" in item ? item.event : ""].some(field =>
+          field.toLowerCase().includes(q)
+        )) &&
+      (enabled === null || String(item.enabled) === enabled) &&
+      (!scope || item.scope === scope) &&
+      (!source || item.source === source) &&
+      (!target || automationDoesOf(item) === target) &&
+      (!loop || item.loop_target?.loop_name === loop)
+  );
+}
 const triggerById = new Map(allTriggerFixtures.map(trigger => [trigger.id, trigger]));
 
 export const handlers: HttpHandler[] = [
-  compozyApiMock.get("/api/automation/jobs", () =>
-    HttpResponse.json({
-      jobs: automationJobFixtures,
-      page: {
-        has_more: false,
-        limit: 50,
-        total: automationJobFixtures.length,
-      },
-    })
-  ),
+  compozyApiMock.get("/api/automation/jobs", ({ request }) => {
+    const jobs = filterAutomations(automationStoryJobs, request.url);
+    return HttpResponse.json({
+      jobs,
+      page: { has_more: false, limit: 50, total: jobs.length },
+    });
+  }),
   compozyApiMock.get("/api/automation/jobs/{id}", ({ params }) => {
     const id = String(params.id);
     const job = jobById.get(id);
@@ -97,19 +137,16 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json({
-      runs: automationRunFixtures.filter(run => run.job_id === id),
+      runs: allRunFixtures.filter(run => run.job_id === id),
     });
   }),
-  compozyApiMock.get("/api/automation/triggers", () =>
-    HttpResponse.json({
-      page: {
-        has_more: false,
-        limit: 50,
-        total: allTriggerFixtures.length,
-      },
-      triggers: allTriggerFixtures,
-    })
-  ),
+  compozyApiMock.get("/api/automation/triggers", ({ request }) => {
+    const triggers = filterAutomations(automationStoryTriggers, request.url);
+    return HttpResponse.json({
+      page: { has_more: false, limit: 50, total: triggers.length },
+      triggers,
+    });
+  }),
   compozyApiMock.get("/api/automation/triggers/{id}", ({ params }) => {
     const id = String(params.id);
     const trigger = triggerById.get(id);

@@ -55,12 +55,12 @@ export function SessionClearDialog({
           >
             {isClearing ? (
               <>
-                <Spinner className="size-3" />
+                <Spinner data-icon="inline-start" />
                 Clearing
               </>
             ) : (
               <>
-                <Eraser className="size-3" />
+                <Eraser aria-hidden="true" data-icon="inline-start" />
                 Clear conversation
               </>
             )}

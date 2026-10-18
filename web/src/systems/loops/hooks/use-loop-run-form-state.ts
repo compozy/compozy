@@ -2,7 +2,6 @@ import { createStoreLogic } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
-import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { notifyUser } from "@/lib/user-feedback";
 import { createdInProfileToast } from "@/systems/profiles";
 
@@ -26,8 +25,6 @@ interface LoopRunFormState {
   dryRunGeneration: number;
   fieldErrors: Record<string, string>;
   inputs: LoopRunInputs;
-  networkParticipation: NetworkParticipationDraft;
-  networkParticipationOverridden: boolean;
   nextAttempt: number;
   overrides: LoopOverrideDraft;
   pendingRequest: LoopRunFormPendingRequest | null;
@@ -44,7 +41,6 @@ type LoopRunFormEvents = {
     plan: LoopDryRunPreview | null;
   };
   inputChanged: { name: string; value: unknown };
-  networkParticipationChanged: { draft: NetworkParticipationDraft };
   overridesChanged: { overrides: LoopOverrideDraft };
   runFailed: { attempt: number; error: unknown; loopName: string };
   runRequested: {
@@ -71,7 +67,6 @@ interface LoopRunFormScope {
 
 interface LoopRunFormStateInput {
   effectiveConfig: LoopEffectiveConfig;
-  networkParticipation: NetworkParticipationDraft;
   schema: LoopInputSchema | undefined;
   scope: LoopRunFormScope;
 }
@@ -98,8 +93,6 @@ export const loopRunFormLogic = createStoreLogic<
     dryRunGeneration: 0,
     fieldErrors: {},
     inputs: initialRunInputs(input.schema),
-    networkParticipation: input.networkParticipation,
-    networkParticipationOverridden: false,
     nextAttempt: 0,
     overrides: initialOverrideDraft(input.effectiveConfig),
     pendingRequest: null,
@@ -117,11 +110,6 @@ export const loopRunFormLogic = createStoreLogic<
     overridesChanged: (current, event: { overrides: LoopOverrideDraft }) => ({
       ...draftChanged(current),
       overrides: event.overrides,
-    }),
-    networkParticipationChanged: (current, event: { draft: NetworkParticipationDraft }) => ({
-      ...draftChanged(current),
-      networkParticipation: event.draft,
-      networkParticipationOverridden: true,
     }),
     submissionAttempted: current => ({ ...current, submitAttempted: true }),
     dryRunFailed: (current, event, enqueue) => {
@@ -258,11 +246,6 @@ export function useLoopRunFormState(input: LoopRunFormStateInput) {
   );
   const inputs = useSelector(store, state => state.context.inputs);
   const fieldErrors = useSelector(store, state => state.context.fieldErrors);
-  const networkParticipation = useSelector(store, state => state.context.networkParticipation);
-  const networkParticipationOverridden = useSelector(
-    store,
-    state => state.context.networkParticipationOverridden
-  );
   const overrides = useSelector(store, state => state.context.overrides);
   const pendingRequest = useSelector(store, state => state.context.pendingRequest);
   const plan = useSelector(store, state => state.context.plan);
@@ -271,16 +254,12 @@ export function useLoopRunFormState(input: LoopRunFormStateInput) {
   return {
     inputs,
     fieldErrors,
-    networkParticipation,
-    networkParticipationOverridden,
     overrides,
     plan,
     pendingRequest,
     submitAttempted,
     setInput: (name: string, value: unknown) => store.trigger.inputChanged({ name, value }),
     setOverrides: (next: LoopOverrideDraft) => store.trigger.overridesChanged({ overrides: next }),
-    setNetworkParticipation: (draft: NetworkParticipationDraft) =>
-      store.trigger.networkParticipationChanged({ draft }),
     markSubmissionAttempted: () => store.trigger.submissionAttempted(),
     requestDryRun: (execute: () => Promise<RunLoopResult>) =>
       store.trigger.dryRunRequested({ execute }),

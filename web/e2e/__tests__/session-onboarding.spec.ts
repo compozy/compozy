@@ -45,6 +45,61 @@ test.use({
   },
 });
 
+test("Start session preselects the registered workspace default agent", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace =
+    runtime.seeded.workspace ??
+    (runtime.paths?.workspaceDir
+      ? await runtime.resolveWorkspace(runtime.paths.workspaceDir)
+      : undefined);
+  if (!workspace) throw new Error("browser runtime has no project workspace");
+  await ensureProjectWorkspace(appPage, runtime);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  const updated = await runtime.requestJSON<{ workspace: { default_agent?: string } }>(
+    workspacePath,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ default_agent: browserLifecycleAgent }),
+    }
+  );
+  expect(updated.workspace.default_agent).toBe(browserLifecycleAgent);
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await ensureProjectWorkspace(appPage, runtime);
+  const persisted = await runtime.requestJSON<{ workspace: { default_agent?: string } }>(
+    workspacePath
+  );
+  expect(persisted.workspace.default_agent).toBe(browserLifecycleAgent);
+
+  // The empty desktop starts sessions from its own composer (shell-rail P7):
+  // the project's default agent is already picked before anything is typed.
+  const desk = appPage.getByTestId("os-desk-hint");
+  await expect(desk.getByTestId("os-desk-agent-select")).toContainText(browserLifecycleAgent);
+  const createResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
+  );
+  const prompt = desk.getByTestId("os-desk-composer").getByRole("textbox");
+  await prompt.fill(browserLifecyclePrompt);
+  await prompt.press("Enter");
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
+  const createPayload = (await createResponse.json()) as {
+    session?: { id?: string; agent_name?: string };
+  };
+  const sessionId = createPayload.session?.id ?? "";
+  expect(sessionId).not.toBe("");
+  expect(createPayload.session?.agent_name).toBe(browserLifecycleAgent);
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(browserLifecycleSessionPath(browserLifecycleAgent, sessionId));
+  const sessionWin = sessionWindow(appPage, sessionId);
+  await expect(sessionWin).toBeVisible();
+  await expect(sessionWindowSelectors(sessionWin, appPage).composerTextarea).toBeVisible();
+});
+
 test("operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls", async ({
   appPage,
   browserArtifacts,
@@ -140,13 +195,10 @@ test("operator can onboard, create a session, submit work, approve a permission 
   );
   const workedFold = sessionWin.getByRole("button", { name: /^Worked/ });
   await expect(workedFold).toHaveCount(0);
-  await expect(sessionUi.resumeButton).toBeVisible();
-
-  await sessionUi.resumeButton.click();
   await expect(sessionUi.stopButton).toBeVisible();
 
   await sessionUi.stopButton.click();
-  await expect(sessionUi.resumeButton).not.toBeVisible();
+  await expect(sessionUi.stopButton).not.toBeVisible();
 
   await browserArtifacts.captureScreenshot("session-onboarding-hydrated", appPage);
 });

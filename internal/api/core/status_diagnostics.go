@@ -1,7 +1,8 @@
 package core
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -31,8 +32,6 @@ func diagnosticItemsFromStatus(status *contract.StatusPayload, includeProviders 
 		daemonDiagnosticItem(status),
 		configDiagnosticItem(status.Config),
 		automationDiagnosticItem(status.Automation),
-		bridgeDiagnosticItem(status.Bridges),
-		networkDiagnosticItem(status.Daemon.Network),
 		skillDiagnosticItem(status.Skills),
 		logTailDiagnosticItem(status.LogTail),
 		taskDiagnosticItem(status.Tasks),
@@ -44,8 +43,8 @@ func diagnosticItemsFromStatus(status *contract.StatusPayload, includeProviders 
 	for _, server := range status.MCPServers {
 		items = append(items, mcpServerDiagnosticItem(server))
 	}
-	sort.SliceStable(items, func(i, j int) bool {
-		return items[i].ID < items[j].ID
+	slices.SortStableFunc(items, func(a, b contract.DiagnosticItem) int {
+		return cmp.Compare(a.ID, b.ID)
 	})
 	return items
 }

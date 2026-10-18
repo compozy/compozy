@@ -76,14 +76,6 @@ type ProviderItem struct {
 	Fallback         *ProviderFallback
 }
 
-// SandboxItem is one sandbox collection row.
-type SandboxItem struct {
-	Name                string
-	Profile             compozyconfig.SandboxProfile
-	WorkspaceUsageCount int
-	SourceMetadata      SourceMetadata
-}
-
 // HookItem is one config-defined hook collection row.
 type HookItem struct {
 	Name           string

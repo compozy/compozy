@@ -155,8 +155,7 @@ func (s *service) finalizeApplyRecord(
 	pending.Diagnostics = input.diagnostics
 	pending.UpdatedAt = time.Now().UTC()
 	if input.appliedAtNow {
-		appliedAt := pending.UpdatedAt
-		pending.AppliedAt = &appliedAt
+		pending.AppliedAt = new(pending.UpdatedAt)
 	}
 	return s.applyRecords.UpdateApplyRecord(ctx, pending)
 }

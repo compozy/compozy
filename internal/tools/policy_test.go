@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"slices"
 	"testing"
 )
@@ -9,7 +8,7 @@ import (
 func TestEffectivePolicyEvaluator(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	externalRead := mcpDescriptor("mcp__github__search", "github", "search")
 	builtinWrite := validDescriptor()
 	builtinWrite.ID = "compozy__task_update"
@@ -252,7 +251,7 @@ func TestPolicyParsingValidationAndApprovalBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
 		}
-		decision, err := evaluator.Evaluate(context.Background(), Scope{}, mutating)
+		decision, err := evaluator.Evaluate(t.Context(), Scope{}, mutating)
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -295,7 +294,7 @@ func TestPolicyParsingValidationAndApprovalBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
 		}
-		decision, err := evaluator.Evaluate(context.Background(), Scope{}, mutating)
+		decision, err := evaluator.Evaluate(t.Context(), Scope{}, mutating)
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}

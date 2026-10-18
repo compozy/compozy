@@ -52,7 +52,7 @@ const CONFIG: WindowManagerConfig = {
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 4,
+  version: 5,
   workspaceId: "workspace-compozy",
   revision: 12,
   desktops: [],
@@ -145,12 +145,12 @@ export function createLiveStoryShell({
     windows,
     activeDesktopId: STORY_DESKTOP_ID,
     focusedId: focusedWindowId,
-    wallpaper: "ember",
+    wallpaper: "flat",
     reduceMotion: false,
-    dockMagnify: true,
     presentation: "floating",
     viewportState: "ready",
     hydration: "live",
+    loadError: null,
     connectionStatus: "connected",
     desktopBounds: { width: 1440, height: 900, origin: { x: 0, y: 0 } },
   };
@@ -188,7 +188,6 @@ export function createLiveStoryShell({
     reopenWindow: () => outcome(),
     closeWindowScoped: async () => true,
     setWallpaper: fn(),
-    setDockMagnify: fn(),
     setReduceMotion: fn(),
     setDesktopBounds: fn(),
     createDesktop: fn(),

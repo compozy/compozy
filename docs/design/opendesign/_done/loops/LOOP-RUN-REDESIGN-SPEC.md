@@ -8,7 +8,7 @@
 
 ## 1. Why
 
-The shipped page (`web/src/systems/os/apps/loops/loop-run-detail-location.tsx` + `web/src/systems/loops/components/run-page/`) is operator-first: 5 policy-tagged meters, a DSL-shaped node spine with template refs, an embedded channel transcript, an 11-status legend, and a raw event rail. Under the Agent OS directive the page must read as a plain-language story for non-operators, while every operator fact stays reachable (Inspect drawer), and every rendered element stays truthful to the daemon.
+The shipped page (`web/src/systems/os/apps/loops/loop-run-detail-location.tsx` + `web/src/systems/loops/components/run-page/`) is operator-first: 5 policy-tagged meters, a DSL-shaped node spine with template refs, an 11-status legend, and a raw event rail. Under the Agent OS directive the page must read as a plain-language story for non-operators, while every operator fact stays reachable (Inspect drawer), and every rendered element stays truthful to the daemon.
 
 Design principles locked with Pedro:
 
@@ -45,7 +45,6 @@ All paths relative to `web/src/systems/loops/` unless noted. Per greenfield poli
 | `components/run-page/loop-run-meters.tsx` + `lib/loop-run-meters.ts` | **Delete** | `LoopRunUsageRail` (new, rail): 4 `prow` rows — Time `elapsed / budget_wall_sec`, Tokens `tokens_used / budget_tokens`, Cost `~$ estimate`, Rounds `generation / iteration_cap (∞ when ≤0)` — plus one policy note sentence derived from `budget_on_exceeded` (§6 copy). Keep `ratioTone` warn/danger coloring on values ≥90% / ≥100%. |
 | `components/run-page/loop-generation-timeline.tsx`, `loop-generation-card.tsx`, `loop-node-row.tsx` | **Delete** | `LoopRunStoryTimeline` (new): flat, newest-first, event-derived rows (§5.3). No per-generation collapsible cards, no node-class badges, no template refs. |
 | `components/run-page/loop-gate-card.tsx` | **Rework** | Verdict becomes a story row: title + sub with confidence and `blocking_issues` (id + note, mono ids). Full per-criterion table moves into the Inspect drawer (rendered from the latest `gate_verdict` payload). |
-| `components/run-page/loop-run-channel.tsx` | **Delete from this page** | The embedded transcript was the top confusion driver. `channel_msg` events do not render rows. If a network channel exists, About rail may show a "Channel" link row; the transcript lives on the network surface. |
 | `components/run-page/goal-turn-timeline.tsx` | **Rework** | Only when the graph has `goal` nodes: a "Turns" disclosure inside the corresponding story row, reusing `/turns` paging. Each turn links its `session_id` to the session route (today it renders an unlinked MonoId — upgrade it). |
 | `components/run-page/loop-run-events-rail.tsx` | **Delete** | The humanized story timeline *is* the event feed. Raw frames (kind/seq/payload) become an "Events" section in Inspect for operators. |
 | `components/run-page/loop-watch-events-panel.tsx` | **Rework** | Parked read-model feeds the `watching` now-card: one sentence + `last_wake_at` relative + poll cadence when the watch spec declares one. Subscriptions list + per-stream cursors move to Inspect. |
@@ -106,7 +105,6 @@ Newest-first; one row per meaningful frame; every row carries `{tone, icon, titl
 | `needs_approval` | warning | `Asked for your approval` | sub from payload title; micro `needs_approval · {gate_id}` |
 | `status_changed` | by target | wake: `A new {source} event woke the run` · park: `Went back to watching` · pause/resume/terminal per transition | micro `status_changed · {from} → {to}`; terminal `failed` feeds the danger scard |
 | `token_tick` | — | no row; updates Usage tokens/cost | |
-| `channel_msg` | — | no row on this page | |
 | `goal_turn_*` | — | fold into the goal node's Turns disclosure | |
 
 "What happens next" note: derived from the pinned graph — remaining downstream nodes of the current generation in topological order, humanized into one sentence, ending with the `stop_when`/watch clause when the graph has a watch source. Static per definition; no LLM, no invention.
@@ -144,7 +142,6 @@ Terminal runs: no run controls (current behavior), polling stops, SSE closed (ex
 - [ ] Zero occurrences on the main surface of: `{{`, `CEL`, `fan-out`, `batch_size`, `max_parallel`, `on_exceeded`, status legend, raw event kinds (outside mono micro-labels).
 - [ ] Every rendered value traces to a field in §4; cost always `~$` + `estimate`; unbounded caps render `∞`.
 - [ ] Controls exactly per §7 for all 11 statuses; approve/request_changes/reject wired with `gate_id`; no Retry, no cancel.
-- [ ] Embedded channel transcript gone from the run page.
 - [ ] Session reachability: running action nodes link via `task_run_id`; goal turns link `session_id`; child runs keep `/loop-runs/$runId` links.
 - [ ] Inspect drawer exposes everything deleted from the surface (verification, policies, watch spec, criteria table, raw events, digest).
 - [ ] Works for a loop with no fan-out and no watch source (bar hidden, generic story rows) — test with a minimal fixture.

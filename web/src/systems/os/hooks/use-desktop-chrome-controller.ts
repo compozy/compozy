@@ -31,12 +31,11 @@ export function useDesktopChromeController() {
     backgroundStreamsEnabled,
     continuityStreamsEnabled,
   });
-  const workspaceSetupDefaults = useWorkspaceSetupDefaults();
+  const workspaceSetupDefaults = useWorkspaceSetupDefaults(model.isWorkspaceSetupOpen);
   const worktreeDialogs = useWorktreeDialogTargets();
 
   return {
     chrome,
-    continuityStreamsEnabled,
     model,
     workspaceSetupDefaults,
     worktreeDialogs,

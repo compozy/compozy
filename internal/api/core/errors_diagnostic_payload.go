@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -20,6 +21,14 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
 	switch {
+	case errors.Is(err, session.ErrListQueryInvalid):
+		payload.Code = cmdPaletteInvalidRequestError
+	case errors.Is(err, session.ErrSubagentArchiveFollows):
+		payload.Code = "subagent_archive_follows_parent"
+	case errors.Is(err, session.ErrCompactionUnsupported):
+		payload.Code = "compaction_unsupported"
+	case errors.Is(err, session.ErrPromptInProgress):
+		payload.Code = "session_busy"
 	case errors.Is(err, settingspkg.ErrMCPServerNameTaken):
 		payload.Code = "mcp_server_name_taken"
 	case errors.Is(err, session.ErrActiveTurnMismatch):
@@ -32,11 +41,21 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.Code = "send_conflict"
 	case errors.Is(err, store.ErrSessionInputQueueFull):
 		payload.Code = "queue_full"
+	case errors.Is(err, store.ErrSessionInputAgentAuthored):
+		payload.Code = "input_agent_authored"
+	case errors.Is(err, session.ErrSessionMessageHopLimit):
+		payload.Code = "message_hop_limit"
+	case errors.Is(err, session.ErrSessionMessageRateLimited):
+		payload.Code = "message_rate_limited"
+		payload.Details = sessionMessageRateLimitDetails(err)
 	case errors.Is(err, store.ErrSessionInputSteerTextOnly):
 		payload.Code = "steer_attachments_unsupported"
 	case errors.Is(err, session.ErrPromptNotInProgress), errors.Is(err, session.ErrSessionNotActive),
 		errors.Is(err, session.ErrSessionArchived), errors.Is(err, store.ErrSessionArchived):
 		payload.Code = "session_not_promptable"
+	}
+	if code := DeriveErrorCode(err); code != "" {
+		payload.Code = code
 	}
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"
@@ -47,6 +66,17 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if code := WorktreeErrorCode(err); code != "" {
 		payload.Code = code
 	}
+	enrichWorktreeError(&payload, err)
+	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
+		payload.Code = string(reason.Code)
+		payload.Details = lifecycleReasonDetails(reason.Meta)
+	}
+	payload.Diagnostic = errorDiagnosticItem(message, err)
+	enrichSessionInputError(&payload, err)
+	return payload
+}
+
+func enrichWorktreeError(payload *contract.ErrorPayload, err error) {
 	if refusal, ok := errors.AsType[*worktree.RefusalError](err); ok && refusal.Detail != "" {
 		detail := diagnosticspkg.Redact(taskpkg.RedactClaimTokens(refusal.Detail))
 		payload.Details = map[string]string{"detail": detail}
@@ -57,13 +87,14 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if cause := worktree.ForgeFailureCause(err); cause != "" {
 		payload.Details = map[string]string{"cause": cause}
 	}
-	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
-		payload.Code = string(reason.Code)
-		payload.Details = lifecycleReasonDetails(reason.Meta)
-	}
+}
+
+// errorDiagnosticItem returns the structured diagnostic an error carries, if any.
+func errorDiagnosticItem(message string, err error) *contract.DiagnosticItem {
 	if item, ok := diagnosticspkg.ItemFromError(err); ok {
-		payload.Diagnostic = &item
-	} else if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
+		return &item
+	}
+	if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
 		item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
 			ID:            "agent.name.reserved",
 			Code:          contract.CodeAgentNameReserved,
@@ -73,23 +104,26 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			Severity:      contract.SeverityError,
 			DataFreshness: contract.FreshnessLive,
 		})
-		payload.Diagnostic = &item
-	} else if code := diagnosticCodeFromError(err); code != "" {
-		if category, ok := contract.DiagnosticCodeCategory(code); ok {
-			item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
-				ID:            strings.ReplaceAll(code, "_", "."),
-				Code:          code,
-				Category:      category,
-				Title:         "Role operation failed",
-				Message:       message,
-				Severity:      contract.SeverityError,
-				DataFreshness: contract.FreshnessLive,
-			})
-			payload.Diagnostic = &item
-		}
+		return &item
 	}
-	enrichSessionInputError(&payload, err)
-	return payload
+	code := diagnosticCodeFromError(err)
+	if code == "" {
+		return nil
+	}
+	category, ok := contract.DiagnosticCodeCategory(code)
+	if !ok {
+		return nil
+	}
+	item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
+		ID:            strings.ReplaceAll(code, "_", "."),
+		Code:          code,
+		Category:      category,
+		Title:         "Role operation failed",
+		Message:       message,
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessLive,
+	})
+	return &item
 }
 
 func lifecycleReasonDetails(meta map[string]string) map[string]string {
@@ -122,4 +156,18 @@ func diagnosticCodeFromError(err error) string {
 		return ""
 	}
 	return strings.TrimSpace(carrier.DiagnosticCode())
+}
+
+// sessionMessageRateLimitDetails exposes the refused budget so callers can back off without parsing text.
+func sessionMessageRateLimitDetails(err error) map[string]string {
+	limit, ok := errors.AsType[*session.MessageRateLimitError](err)
+	if !ok {
+		return nil
+	}
+	return map[string]string{
+		"target_session_id":   limit.TargetSessionID,
+		"limit":               strconv.Itoa(limit.Limit),
+		"window":              limit.Window.String(),
+		"retry_after_seconds": strconv.FormatInt(int64(limit.RetryAfter.Seconds()), 10),
+	}
 }

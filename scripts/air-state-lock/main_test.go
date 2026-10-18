@@ -27,11 +27,12 @@ import (
 const descendantHelperEnv = "COMPOZY_AIR_STATE_LOCK_DESCENDANT_HELPER"
 
 func TestAirStateLockProcess(t *testing.T) {
+	binary := buildAirStateLock(t, t.TempDir())
+
 	t.Run("Should hold the lock while the serialized command is running", func(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		binary := buildAirStateLock(t, tempDir)
 		lockPath := filepath.Join(tempDir, "dev-owner.lock")
 		readyPath := filepath.Join(tempDir, "command-ready")
 
@@ -97,7 +98,6 @@ func TestAirStateLockProcess(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		binary := buildAirStateLock(t, tempDir)
 		lockPath := filepath.Join(tempDir, "dev-owner.lock")
 		pidPath := filepath.Join(tempDir, "descendant.pid")
 
@@ -381,9 +381,9 @@ func processExited(pid int) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("read process %d state: %w", pid, err)
 	}
-	commandEnd := strings.LastIndexByte(string(status), ')')
-	if commandEnd < 0 || len(status) <= commandEnd+2 || status[commandEnd+1] != ' ' {
+	_, state, found := strings.CutLast(string(status), ")")
+	if !found || len(state) < 2 || state[0] != ' ' {
 		return false, fmt.Errorf("parse process %d state", pid)
 	}
-	return status[commandEnd+2] == 'Z', nil
+	return state[1] == 'Z', nil
 }

@@ -95,16 +95,16 @@ func (g *forkedAutoTitleGenerator) Generate(
 	defer cancelRun()
 	prompt := renderAutoTitlePrompt(request)
 	var child *session.Session
-	output, err := invokeRoleWithFallback(runCtx, role, correlation, func(
+	output, err := role.invokeRoleWithFallback(runCtx, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (string, bool, error) {
 		spawned, spawnErr := g.sessions.Spawn(attemptCtx, g.autoTitleSpawnOpts(request, route))
 		if spawnErr != nil {
-			// Spawn can return a live session with a hook-dispatch error; keep the
-			// pre-existing behavior of failing the attempt instead of prompting.
+			// Spawn errors can retain an accepted child that still requires cleanup.
 			child = spawned
-			return "", spawned != nil, fmt.Errorf("daemon: spawn automatic title session: %w", spawnErr)
+			return "", session.StartAccepted(spawnErr) || spawned != nil,
+				fmt.Errorf("daemon: spawn automatic title session: %w", spawnErr)
 		}
 		if spawned == nil {
 			return "", false, errors.New("daemon: automatic title spawn returned no session")
@@ -115,8 +115,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 			if discardErr == nil {
 				return "", false, attemptErr
 			}
-			// The refused child may still be running; keep it owned so the outer
-			// stop runs, and do not start another provider attempt beside it.
+			// A failed stop keeps the child owned and prevents another route from starting.
 			child = spawned
 			return "", true, errors.Join(attemptErr, discardErr)
 		}
@@ -148,6 +147,8 @@ func (g *forkedAutoTitleGenerator) autoTitleSpawnOpts(
 		ReasoningEffort:     route.ReasoningEffort,
 		Speed:               route.Speed,
 		ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+		Command:             route.Command,
+		ChainOwner:          session.ChainOwnerCaller,
 		Name:                autoTitleSessionName,
 		PromptOverlay:       autoTitlePromptOverlay(),
 		SpawnRole:           session.SpawnRoleAutoTitle,

@@ -1,10 +1,6 @@
 package e2e
 
 import (
-	"bufio"
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -20,8 +16,6 @@ import (
 
 	"testing"
 	"time"
-
-	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 
@@ -53,37 +47,6 @@ func runtimeRunDirectories(root string) ([]string, error) {
 	return directories, nil
 }
 
-func readNetworkAuditSnapshot(path string) (_ []store.NetworkAuditEntry, err error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open network audit file %q: %w", path, err)
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close network audit file %q: %w", path, closeErr))
-		}
-	}()
-
-	entries := make([]store.NetworkAuditEntry, 0)
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
-			continue
-		}
-
-		var entry store.NetworkAuditEntry
-		if err := json.Unmarshal(line, &entry); err != nil {
-			return nil, fmt.Errorf("decode network audit line: %w", err)
-		}
-		entries = append(entries, entry)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan network audit file %q: %w", path, err)
-	}
-	return entries, nil
-}
-
 func buildCompozyBinary(t testing.TB) string {
 	t.Helper()
 
@@ -106,7 +69,7 @@ func buildCompozyBinary(t testing.TB) string {
 
 	binaryPath := filepath.Join(os.TempDir(), fmt.Sprintf("compozy-e2e-%d", os.Getpid()))
 	// #nosec G204 -- test harness builds the local compozy binary from the checked-out repository.
-	cmd := execabs.CommandContext(context.Background(), "go", "build", "-o", binaryPath, "./cmd/compozy")
+	cmd := execabs.CommandContext(t.Context(), "go", "build", "-o", binaryPath, "./cmd/compozy")
 	cmd.Dir = repoRoot
 	output, err := cmd.CombinedOutput()
 	if err != nil {

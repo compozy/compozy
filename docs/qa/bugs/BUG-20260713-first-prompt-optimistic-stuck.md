@@ -1,6 +1,6 @@
 # BUG-20260713-first-prompt-optimistic-stuck: First prompt can remain optimistic without reaching the session
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Bruno
@@ -38,7 +38,7 @@ Immediately after a fresh Cursor/Grok 4.5 session becomes usable, the first prom
 ## Fix
 
 - **Root cause:** The app opened one session-catalog `EventSource` per registered workspace. On the affected three-workspace route, the Vite console stream, workspace log stream, three catalog streams, and session transcript stream occupied all six browser HTTP/1.1 connections. Assistant UI created the optimistic row, but the prompt fetch remained queued below the global fetch boundary until a socket became available; the daemon therefore received no request. StrictMode replay and the hook-only transcript were not causal.
-- **Fix commit:** uncommitted QA remediation batch.
+- **Fix commit:** `514de24d6` for the document-wide transport follow-up below.
 - **Regression test:** The canonical catalog-stream hook and app-layout suites require one global catalog stream, authoritative `workspace_id` filtering, and fan-out only to matching workspace query keys. The canonical destination runtime suite retains the exact hook-only StrictMode first-submit and local-cancellation contract.
 
 ## Verification
@@ -72,3 +72,56 @@ documents. A structural document-transport ownership design is required before a
 change under the two-touch rule. Evidence:
 `qa/evidence/046-session-lifecycle-browser/rt013-fixed-tabs-a.png`,
 `qa/evidence/046-session-lifecycle-browser/rt013-fixed-tabs-b.png`, and the primary lab daemon log.
+
+## Re-found during profile entry (2026-10-02)
+
+- With multiple owned Chrome tabs on the primary lab's Vite origin, navigation produced a blank
+  page with only the notifications container. Reload and a fresh tab could not complete;
+  browser requests for the document and `/api/onboarding`, `/api/workspaces`, and `/api/status`
+  remained without responses, while independent requests through the same proxy returned 200.
+- Closing only the older owned lab tabs released the pending page: it rendered the desktop
+  immediately with unchanged daemon state. Other browser tabs and processes were untouched.
+- The current code already bounds covered session-window streams. Document-wide catalog and
+  profile subscriptions still need investigation, including the developer console's extra SSE.
+  The daemon-served production build confirms the same failure: two documents hold six
+  HTTP/1.1 SSE connections and the third document never receives a response. Closing only the
+  first two owned tabs immediately loads the third, without changing daemon state.
+- **Evidence:** `profile-ui-blank.png`, `profile-ui-blank-*`, `profile-ui-tab-network-diagnostic.json`,
+  `profile-ui-two-tab-observation.json`, `profile-ui-one-tab-control.json`, and
+  `profile-ui-recovered-network.json` in `docs/qa/evidence/2026-10-02-untested/`.
+- **Report:** `docs/qa/reports/2026-10-02-untested.md`. Profile identity/dialog walks had not begun;
+  this precondition failure does not count as coverage of those controls.
+
+### Transport repair verified (2026-10-02)
+
+- Root cause is the three document-wide streams (session catalog, profile lifecycle logs, and
+  worktree catalog) retaining the browser's HTTP/1.1 connection pool across tabs. Covered-window
+  budgeting does not own these streams. Pausing them would lose background attention delivery
+  and profile lifecycle sweeps.
+- Add WebSocket upgrades to these existing stream routes, carrying the same named SSE frames
+  and cursors. Retain HTTP/UDS SSE compatibility, scope validation, redaction, gateway tickets,
+  and explicit socket shutdown. The three Web consumers opt in; no feature or notification is
+  disabled to make navigation work.
+- Canonical coverage: `TestBaseHandlersStreamSessionCatalog` owns scope/cursor/disconnect,
+  `TestObserveStreamAndParseObserveQuery` owns log replay, `TestWorktreeStreams` owns worktree
+  attribution, and `ticketed-event-source.test.ts` owns named delivery, tickets and reconnect.
+- Production control evidence: `production-web-third-tab.json`,
+  `production-three-tab-stall-control.json`, `production-three-tab-control-api.json`.
+
+- Production-browser replay opens three fresh documents in 0.524, 0.362, and 0.500 seconds.
+  Browser network evidence records 101 upgrades for all three document-wide route families.
+  A real first prompt in `sess-80997493cb1ab1db` completes useful work, writes
+  `founder-launch-email.md`, and persists exactly one user message among 42 events.
+- A separate owner-profile omission initially prevents Web stop; BUG-20261002-session-web-stop-profile
+  is fixed in the same commit. The replay stops the named-profile session with all three documents
+  open, converges in a hidden peer, retains history across refresh and HTTP/UDS reads, and removes
+  the session from the active catalog.
+- A hidden Editorial document receives a profile identity change. While offline it retains the old
+  identity; after network restoration it catches up and establishes new 101 connections. A later
+  identity restoration arrives on the new log socket, proving resumed live delivery. No claim of
+  browser cursor replay is made: the independent wire and canonical reconnect tests own that proof.
+- Evidence: `multitab-fixed-three-reloaded.json`, `multitab-fixed-hidden-profile-entry.json`,
+  `multitab-fixed-hidden-update-offline.json`, `multitab-fixed-reconnect-hidden-restored.json`,
+  `multitab-fixed-profile-reconnected-live.json`, and `multitab-fixed-replay-summary.json`.
+  The recording is `compozy-untested-20261002-isolated` (58 frames). Root gate passes; the dedicated
+  Goal and startup-latency scenarios retain their separate pending coverage.

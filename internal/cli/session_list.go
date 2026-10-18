@@ -12,8 +12,10 @@ import (
 )
 
 const allWorkspacesFlagName = "all-workspaces"
+const sessionSubagentsInclude = "include"
 
 type sessionListFlags struct {
+	subagents       string
 	includeAll      bool
 	workspaceFilter string
 	worktreeFilter  string
@@ -41,6 +43,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   sessionListKey,
 		Short: "List sessions",
+		Long: "List sessions. Verdict-only system judges are hidden by default; " +
+			"use --type system to include them for audit. Other system sessions remain visible.",
 		Example: `  # List active sessions
   compozy session list
 
@@ -50,6 +54,10 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 			return runSessionListCommand(cmd, deps, flags)
 		},
 	}
+	cmd.Flags().StringVar(
+		&flags.subagents, "subagents", sessionSubagentsInclude,
+		"Subagent session visibility (include|exclude|only)",
+	)
 	cmd.Flags().BoolVar(&flags.includeAll, "all", false, "Include every session state when --state is omitted")
 	cmd.Flags().
 		StringVar(&flags.workspaceFilter, workspaceSkillSource, "", "Override workspace filter (ID, name, or path)")
@@ -64,7 +72,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.agentFilter, "agent", "", "Filter by exact agent definition name")
 	cmd.Flags().StringVar(&flags.parentFilter, "parent", "", "Filter by exact parent session id")
 	cmd.Flags().StringVar(&flags.rootFilter, "root", "", "Filter by exact root session id (includes the root itself)")
-	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, provider, or channel")
+	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, or provider")
 	cmd.Flags().BoolVar(&flags.resumable, "resumable", false, "Show only sessions eligible for resume attach")
 	cmd.Flags().BoolVar(&flags.attention, "attention", false, "Show only sessions that need operator attention")
 	cmd.Flags().StringSliceVar(&flags.badgeFilters, "badge", nil, "Filter by exact badge (repeat or comma-separate)")
@@ -75,7 +83,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
-	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent, last_activity, or attention")
+	cmd.Flags().
+		StringVar(&flags.sortKey, "sort", "", "Sort by recent, created, name, last_activity, attention, navigator, or manual")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
 	configureProfileReadCommand(cmd, deps)
 	return cmd
@@ -119,6 +128,7 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 
 func buildSessionListQuery(flags sessionListFlags, badges []session.Badge, workspaceID string) SessionListQuery {
 	return SessionListQuery{
+		Subagents:     flags.subagents,
 		Workspace:     workspaceID,
 		Worktree:      flags.worktreeFilter,
 		State:         sessionListState(flags, badges),
@@ -169,6 +179,11 @@ func sessionListSort(flags sessionListFlags, badges []session.Badge) string {
 }
 
 func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]session.Badge, error) {
+	switch flags.subagents {
+	case "", sessionSubagentsInclude, "exclude", "only":
+	default:
+		return nil, errors.New("cli: --subagents must be include, exclude, or only")
+	}
 	if flags.archived && flags.includeArchived {
 		return nil, errors.New("cli: --archived and --include-archived are mutually exclusive")
 	}
@@ -192,13 +207,16 @@ func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]ses
 }
 
 func sessionListHasRowFilters(flags sessionListFlags) bool {
-	return flags.includeAll || strings.TrimSpace(flags.workspaceFilter) != "" ||
+	hasSubagentFilter := flags.subagents != "" && flags.subagents != sessionSubagentsInclude
+	return hasSubagentFilter || flags.includeAll || strings.TrimSpace(flags.workspaceFilter) != "" ||
 		strings.TrimSpace(flags.worktreeFilter) != "" || strings.TrimSpace(flags.stateFilter) != "" ||
 		strings.TrimSpace(flags.typeFilter) != "" || strings.TrimSpace(flags.agentFilter) != "" ||
 		strings.TrimSpace(flags.parentFilter) != "" || strings.TrimSpace(flags.rootFilter) != "" ||
 		strings.TrimSpace(flags.search) != "" || flags.resumable || flags.attention || len(flags.badgeFilters) > 0 ||
-		flags.archived || flags.includeArchived || flags.includeHealth || flags.limit != 0 ||
-		strings.TrimSpace(flags.sortKey) != "" || strings.TrimSpace(flags.cursor) != ""
+		flags.archived || flags.includeArchived || flags.includeHealth ||
+		flags.limit != 0 ||
+		strings.TrimSpace(flags.sortKey) != "" ||
+		strings.TrimSpace(flags.cursor) != ""
 }
 
 func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle {
@@ -219,16 +237,16 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 func sessionListHumanHeaders() []string {
 	return []string{
 		"ID", sessionProfileValue, sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue,
-		sessionBackendValue, sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue,
-		sessionChannelValue, "Health State", "Health", sessionUpdatedValue,
+		sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue,
+		"Health State", "Health", sessionUpdatedValue,
 	}
 }
 
 func sessionListToonFields() []string {
 	return []string{
 		"id", profileNameOutputKey, sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey,
-		"sandbox_backend", sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource,
-		sessionChannelKey, "health_state", extensionHealthKey, sessionUpdatedAtKey,
+		sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource,
+		"health_state", extensionHealthKey, sessionUpdatedAtKey,
 	}
 }
 
@@ -237,10 +255,10 @@ func sessionListHumanRow(now func() time.Time) func(SessionRecord) []string {
 		return []string{
 			stringOrDash(item.ID), stringOrDash(item.ProfileName), stringOrDash(item.Name),
 			stringOrDash(item.AgentName), stringOrDash(sessionParentID(&item)),
-			stringOrDash(sessionRuntimeProvider(&item)), stringOrDash(sessionSandboxBackend(&item)),
+			stringOrDash(sessionRuntimeProvider(&item)),
 			stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
 			stringOrDash(sessionFailureKind(&item)), stringOrDash(displaySessionWorkspace(&item)),
-			stringOrDash(sessionResolvedChannelRaw(&item)), stringOrDash(sessionHealthState(&item)),
+			stringOrDash(sessionHealthState(&item)),
 			stringOrDash(sessionHealthStatus(&item)), stringOrDash(formatAge(now, item.UpdatedAt)),
 		}
 	}
@@ -250,14 +268,17 @@ func sessionListHumanRow(now func() time.Time) func(SessionRecord) []string {
 func sessionListToonRow(item SessionRecord) []string {
 	return []string{
 		item.ID, item.ProfileName, item.Name, item.AgentName, sessionParentID(&item),
-		sessionRuntimeProvider(&item), sessionSandboxBackend(&item), string(item.State), string(item.Badge),
-		sessionFailureKind(&item), displaySessionWorkspace(&item), sessionResolvedChannelRaw(&item),
+		sessionRuntimeProvider(&item), string(item.State), string(item.Badge),
+		sessionFailureKind(&item), displaySessionWorkspace(&item),
 		sessionHealthState(&item), sessionHealthStatus(&item), formatTime(item.UpdatedAt),
 	}
 }
 
 func decorateSessionListBundle(bundle outputBundle, page SessionListPage) outputBundle {
 	bundle.jsonl = func(cmd *cobra.Command) error {
+		if err := writeProfileResolutionFrame(cmd); err != nil {
+			return err
+		}
 		for index := range page.Sessions {
 			if err := writeJSONLine(cmd, &page.Sessions[index]); err != nil {
 				return err

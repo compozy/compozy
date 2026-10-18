@@ -40,8 +40,8 @@ func sessionEventsBundle(events []SessionEventRecord) outputBundle {
 			extensionTypeKey,
 			sessionAgentNameKey,
 			sessionTurnIDKey,
-			networkTimestampKey,
-			memoryContentKey,
+			cliOutputTimestampKey,
+			cliContentKey,
 		},
 		func(event SessionEventRecord) []string {
 			return []string{
@@ -86,8 +86,8 @@ func sessionHistoryBundle(history []TurnHistoryRecord) outputBundle {
 			sessionSequenceKey,
 			extensionTypeKey,
 			sessionAgentNameKey,
-			networkTimestampKey,
-			memoryContentKey,
+			cliOutputTimestampKey,
+			cliContentKey,
 		},
 		func(event SessionEventRecord) []string {
 			return []string{
@@ -119,7 +119,7 @@ func agentEventsBundle(events []AgentEventRecord) outputBundle {
 		"Prompt Events",
 		[]string{sessionTimestampValue, sessionTypeValue, cliDetailValue, "Stop"},
 		"prompt_events",
-		[]string{networkTimestampKey, extensionTypeKey, "detail", "stop_reason"},
+		[]string{cliOutputTimestampKey, extensionTypeKey, "detail", "stop_reason"},
 		func(event AgentEventRecord) []string {
 			return []string{
 				stringOrDash(formatTime(event.Timestamp)),

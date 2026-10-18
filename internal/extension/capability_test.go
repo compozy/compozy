@@ -17,13 +17,13 @@ func TestDeriveConsentAreas(t *testing.T) {
 	t.Run("Should derive unique consent areas from permissions", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := DeriveConsentAreas([]string{"sessions/list", "memory/store", "sessions/list"})
+		got, err := DeriveConsentAreas([]string{"logs/list", "sessions/create", "logs/list"})
 		if err != nil {
 			t.Fatalf("DeriveConsentAreas() error = %v", err)
 		}
 		want := []ConsentArea{
-			{Area: "memory", Access: "write"},
-			{Area: "sessions", Access: "read"},
+			{Area: "logs", Access: "read"},
+			{Area: "sessions", Access: "write"},
 		}
 		if !slices.Equal(got, want) {
 			t.Fatalf("DeriveConsentAreas() = %#v, want %#v", got, want)
@@ -119,20 +119,20 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforcePermissions(t *testing.T) {
 		},
 		{
 			name:        "Should allow a declared write permission",
-			permissions: []string{"bridges/instances/report_state"},
-			method:      "bridges/instances/report_state",
+			permissions: []string{"sessions/create"},
+			method:      "sessions/create",
 		},
 		{
 			name:        "Should allow a declared execution permission",
-			permissions: []string{"sandbox/exec"},
-			method:      "sandbox/exec",
+			permissions: []string{"sessions/prompt"},
+			method:      "sessions/prompt",
 		},
 		{
 			name:         "Should reject an undeclared write permission",
-			permissions:  []string{"bridges/instances/get"},
-			method:       "bridges/instances/report_state",
-			wantRequired: []string{"bridges/instances/report_state"},
-			wantGranted:  []string{"bridges/instances/get"},
+			permissions:  []string{"sessions/list"},
+			method:       "sessions/create",
+			wantRequired: []string{"sessions/create"},
+			wantGranted:  []string{"sessions/list"},
 			wantErr:      true,
 		},
 		{
@@ -213,39 +213,6 @@ func TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities(t *testing.
 	}
 }
 
-func TestCapabilityCheckerNetworkMethodsShouldMapToExpectedCapabilities(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		method     string
-		capability string
-	}{
-		{method: "network/status", capability: "network.read"},
-		{method: "network/usage", capability: "network.read"},
-		{method: "network/channels", capability: "network.read"},
-		{method: "network/peers", capability: "network.read"},
-		{method: "network/threads", capability: "network.read"},
-		{method: "network/thread/get", capability: "network.read"},
-		{method: "network/thread/messages", capability: "network.read"},
-		{method: "network/directs", capability: "network.read"},
-		{method: "network/direct/resolve", capability: "network.write"},
-		{method: "network/direct/messages", capability: "network.read"},
-		{method: "network/work/get", capability: "network.read"},
-		{method: "network/send", capability: "network.write"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.method, func(t *testing.T) {
-			t.Parallel()
-
-			checker := newTestCapabilityChecker("ext", SourceUser, []string{tt.method}, []string{tt.capability})
-			if err := checker.CheckHostAPI("ext", tt.method); err != nil {
-				t.Fatalf("CheckHostAPI(%q) error = %v, want nil", tt.method, err)
-			}
-		})
-	}
-}
-
 func TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources(t *testing.T) {
 	t.Parallel()
 
@@ -265,15 +232,15 @@ func TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSour
 			checker := newTestCapabilityChecker(
 				"ext",
 				tt.source,
-				[]string{"memory/store", "sessions/create"},
+				[]string{"agents/soul/put", "sessions/create"},
 			)
 
-			for _, capability := range []string{"memory.write", "session.write"} {
+			for _, capability := range []string{"soul.write", "session.write"} {
 				if err := checker.Check("ext", capability); err != nil {
 					t.Fatalf("Check(%q) error = %v, want nil", capability, err)
 				}
 			}
-			for _, method := range []string{"memory/store", "sessions/create"} {
+			for _, method := range []string{"agents/soul/put", "sessions/create"} {
 				if err := checker.CheckHostAPI("ext", method); err != nil {
 					t.Fatalf("CheckHostAPI(%q) error = %v, want nil", method, err)
 				}
@@ -291,7 +258,6 @@ func TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities(t *testing
 		capability string
 	}{
 		{name: "session write", method: "sessions/create", capability: "session.write"},
-		{name: "memory write", method: "memory/store", capability: "memory.write"},
 	}
 
 	for _, tt := range tests {
@@ -316,15 +282,15 @@ func TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities(t *testi
 	checker := newTestCapabilityChecker(
 		"ext",
 		SourceMarketplace,
-		[]string{"memory/recall", "logs/list", "observe/health", "sessions/list", "skills/list"},
+		[]string{"logs/list", "observe/health", "sessions/list", "skills/list"},
 	)
 
-	for _, capability := range []string{"memory.read", "logs.read", "observe.read", "session.read"} {
+	for _, capability := range []string{"logs.read", "observe.read", "session.read"} {
 		if err := checker.Check("ext", capability); err != nil {
 			t.Fatalf("Check(%q) error = %v, want nil", capability, err)
 		}
 	}
-	for _, method := range []string{"memory/recall", "logs/list", "observe/health", "sessions/list", "skills/list"} {
+	for _, method := range []string{"logs/list", "observe/health", "sessions/list", "skills/list"} {
 		if err := checker.CheckHostAPI("ext", method); err != nil {
 			t.Fatalf("CheckHostAPI(%q) error = %v, want nil", method, err)
 		}
@@ -339,8 +305,6 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 		Permissions: PermissionsConfig{
 			Requires: []string{
 				"logs/list",
-				"memory/recall",
-				"memory/store",
 				"sessions/create",
 				"sessions/list",
 				"skills/list",
@@ -349,21 +313,21 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 	})
 
 	grant := checker.grants["ext"]
-	if !slices.Equal(grant.permissions, []string{"logs/list", "memory/recall", "sessions/list", "skills/list"}) {
+	if !slices.Equal(grant.permissions, []string{"logs/list", "sessions/list", "skills/list"}) {
 		t.Fatalf(
 			"grant.permissions = %v, want %v",
 			grant.permissions,
-			[]string{"logs/list", "memory/recall", "sessions/list", "skills/list"},
+			[]string{"logs/list", "sessions/list", "skills/list"},
 		)
 	}
 	if !slices.Equal(
 		grant.security,
-		[]string{"logs.read", "memory.read", "session.read", "skills.read"},
+		[]string{"logs.read", "session.read", "skills.read"},
 	) {
 		t.Fatalf(
 			"grant.security = %v, want %v",
 			grant.security,
-			[]string{"logs.read", "memory.read", "session.read", "skills.read"},
+			[]string{"logs.read", "session.read", "skills.read"},
 		)
 	}
 }
@@ -485,7 +449,7 @@ func TestCapabilityCheckerRegisterForSessionRejectsInvalidManifestResourceReques
 	_, err := checker.RegisterForSession("ext", SourceUser, &Manifest{
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
-				Families: []string{"bridge_instances"},
+				Families: []string{"unknown_family"},
 				MaxScope: resources.ResourceScopeKindUser,
 			},
 		},
@@ -644,10 +608,10 @@ func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
 	t.Run("Should enforce wildcard grant ceilings", func(t *testing.T) {
 		t.Parallel()
 
-		if !capabilityGranted([]string{"network.*"}, "network.http") {
+		if !capabilityGranted([]string{"service.*"}, "service.http") {
 			t.Fatalf("capabilityGranted() = false, want true for wildcard superset")
 		}
-		if capabilityGranted([]string{"network.http"}, "network.*") {
+		if capabilityGranted([]string{"service.http"}, "service.*") {
 			t.Fatalf("capabilityGranted() = true, want false when request exceeds ceiling")
 		}
 	})

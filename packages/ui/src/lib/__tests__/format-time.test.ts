@@ -3,11 +3,34 @@ import { describe, expect, it } from "vitest";
 import {
   FORMAT_TIME_FALLBACK,
   formatAbsoluteTime,
+  formatCompactRelativeTime,
   formatDuration,
   formatRelativeTime,
 } from "../format-time";
 
 const NOW = new Date("2026-05-11T12:00:00Z").getTime();
+
+describe("formatCompactRelativeTime", () => {
+  const ago = (ms: number) => formatCompactRelativeTime(new Date(NOW - ms).toISOString(), NOW);
+
+  it("Should read 'now' under a minute and drop the 'ago' suffix after it", () => {
+    expect(ago(59_000)).toBe("now");
+    expect(ago(5 * 60_000)).toBe("5m");
+    expect(ago(3 * 3_600_000)).toBe("3h");
+    expect(ago(2 * 86_400_000)).toBe("2d");
+  });
+
+  it("Should keep counting in weeks, months, and years instead of an absolute date", () => {
+    expect(ago(14 * 86_400_000)).toBe("2w");
+    expect(ago(120 * 86_400_000)).toBe("4mo");
+    expect(ago(400 * 86_400_000)).toBe("1y");
+  });
+
+  it("Should prefix future deltas and keep the sentinel for invalid input", () => {
+    expect(formatCompactRelativeTime(new Date(NOW + 5 * 60_000).toISOString(), NOW)).toBe("in 5m");
+    expect(formatCompactRelativeTime("not-iso", NOW)).toBe(FORMAT_TIME_FALLBACK);
+  });
+});
 
 describe("formatRelativeTime", () => {
   it("Should return 'just now' for sub-30s deltas", () => {
@@ -49,6 +72,15 @@ describe("formatAbsoluteTime", () => {
 });
 
 describe("formatDuration", () => {
+  it("Should keep a zero-padded second unit when padded", () => {
+    expect(formatDuration(45_000, { padded: true })).toBe("45s");
+    expect(formatDuration(725_000, { padded: true })).toBe("12m 05s");
+    expect(formatDuration(3_600_000, { padded: true })).toBe("1h 00m");
+    expect(formatDuration(3_780_000, { padded: true })).toBe("1h 03m");
+    expect(formatDuration(187_200_000, { padded: true })).toBe("2d 04h");
+    expect(formatDuration(-5, { padded: true })).toBe("0s");
+  });
+
   it("Should return 0s for non-positive durations", () => {
     expect(formatDuration(0)).toBe("0s");
     expect(formatDuration(-100)).toBe("0s");

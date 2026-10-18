@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -372,6 +373,11 @@ func TestWorktreeExitCommands(t *testing.T) {
 			want: WorktreeExitActionRequest{Action: "commit_push", Message: "Ready"},
 		},
 		{
+			name: "selective commit and push flags",
+			args: []string{"commit", "feature-a", "--message", "Reviewed", "--push", "--include", "src/change.go", "--include", "docs/change.md", "--expected-scope", "reviewed-fingerprint"},
+			want: WorktreeExitActionRequest{Action: "commit_push", Message: "Reviewed", IncludePaths: []string{"src/change.go", "docs/change.md"}, ExpectedScope: "reviewed-fingerprint"},
+		},
+		{
 			name: "push action",
 			args: []string{"push", "feature-a"},
 			want: WorktreeExitActionRequest{Action: "push"},
@@ -405,7 +411,7 @@ func TestWorktreeExitCommands(t *testing.T) {
 			if decodeErr := json.Unmarshal([]byte(stdout), &operation); decodeErr != nil {
 				t.Fatalf("decode operation output: %v; output=%s", decodeErr, stdout)
 			}
-			if err != nil || got != testCase.want || operation.OperationID != "op-exit" {
+			if err != nil || !reflect.DeepEqual(got, testCase.want) || operation.OperationID != "op-exit" {
 				t.Fatalf("command error/request/output = %v/%#v/%s", err, got, stdout)
 			}
 		})

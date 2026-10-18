@@ -58,7 +58,7 @@ export const InheritedDefaults: Story = {
   ),
 };
 
-/** A watch loop that declares no verification checks — the Review gate group is empty. */
+/** A watch loop that declares no verification checks — the Checks group is empty. */
 export const WatchNoChecks: Story = {
   render: () => (
     <StorySurface className="h-[880px] p-0">

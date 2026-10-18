@@ -7,7 +7,6 @@ type HookEventFamily string
 
 const (
 	HookEventFamilySession       HookEventFamily = "session"
-	HookEventFamilySandbox       HookEventFamily = "sandbox"
 	HookEventFamilyInput         HookEventFamily = "input"
 	HookEventFamilyPrompt        HookEventFamily = "prompt"
 	HookEventFamilyEvent         HookEventFamily = "event"
@@ -23,7 +22,7 @@ const (
 	HookEventFamilyTaskRun       HookEventFamily = "task.run"
 	HookEventFamilyLoop          HookEventFamily = "loop"
 	HookEventFamilySpawn         HookEventFamily = "spawn"
-	HookEventFamilyNetwork       HookEventFamily = "network"
+	HookEventFamilySubagent      HookEventFamily = "subagent"
 	HookEventFamilyWindowManager HookEventFamily = "window_manager"
 	HookEventFamilyWorktree      HookEventFamily = "worktree"
 	HookEventFamilyTerminal      HookEventFamily = "terminal"
@@ -32,8 +31,7 @@ const (
 // Validate ensures the event family is part of the supported taxonomy.
 func (f HookEventFamily) Validate() error {
 	switch f {
-	case HookEventFamilySession,
-		HookEventFamilySandbox,
+	case HookEventFamilySubagent, HookEventFamilySession,
 		HookEventFamilyInput,
 		HookEventFamilyPrompt,
 		HookEventFamilyEvent,
@@ -49,7 +47,6 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyTaskRun,
 		HookEventFamilyLoop,
 		HookEventFamilySpawn,
-		HookEventFamilyNetwork,
 		HookEventFamilyWindowManager,
 		HookEventFamilyWorktree,
 		HookEventFamilyTerminal:
@@ -73,12 +70,6 @@ const (
 	HookSessionRuntimeRecoveryStarted   HookEvent = "session.runtime_recovery.started"
 	HookSessionRuntimeRecoverySucceeded HookEvent = "session.runtime_recovery.succeeded"
 	HookSessionRuntimeRecoveryExhausted HookEvent = "session.runtime_recovery.exhausted"
-
-	HookSandboxPrepare    HookEvent = "sandbox.prepare"
-	HookSandboxReady      HookEvent = "sandbox.ready"
-	HookSandboxSyncBefore HookEvent = "sandbox.sync.before"
-	HookSandboxSyncAfter  HookEvent = "sandbox.sync.after"
-	HookSandboxStop       HookEvent = "sandbox.stop"
 
 	HookInputPreSubmit HookEvent = "input.pre_submit"
 
@@ -153,6 +144,7 @@ const (
 	HookLoopNodeTerminal   HookEvent = "loop.node.terminal"
 	HookLoopTerminal       HookEvent = "loop.terminal"
 
+	HookSubagentSettled    HookEvent = "subagent.settled"
 	HookSpawnPreCreate     HookEvent = "spawn.pre_create"
 	HookSpawnCreated       HookEvent = "spawn.created"
 	HookSpawnParentStopped HookEvent = "spawn.parent_stopped"
@@ -167,6 +159,7 @@ type hookEventDefinition struct {
 }
 
 var baseHookEventDefinitions = []hookEventDefinition{
+	{event: HookSubagentSettled, family: HookEventFamilySubagent, syncEligible: false},
 	{event: HookSessionPreCreate, family: HookEventFamilySession, syncEligible: true},
 	{event: HookSessionPostCreate, family: HookEventFamilySession, syncEligible: true},
 	{event: HookSessionPreResume, family: HookEventFamilySession, syncEligible: true},
@@ -180,26 +173,6 @@ var baseHookEventDefinitions = []hookEventDefinition{
 	{event: HookSessionRuntimeRecoveryStarted, family: HookEventFamilySession, syncEligible: false},
 	{event: HookSessionRuntimeRecoverySucceeded, family: HookEventFamilySession, syncEligible: false},
 	{event: HookSessionRuntimeRecoveryExhausted, family: HookEventFamilySession, syncEligible: false},
-	{event: HookSandboxPrepare,
-		family:       HookEventFamilySandbox,
-		syncEligible: true,
-	},
-	{event: HookSandboxReady,
-		family:       HookEventFamilySandbox,
-		syncEligible: false,
-	},
-	{event: HookSandboxSyncBefore,
-		family:       HookEventFamilySandbox,
-		syncEligible: true,
-	},
-	{event: HookSandboxSyncAfter,
-		family:       HookEventFamilySandbox,
-		syncEligible: false,
-	},
-	{event: HookSandboxStop,
-		family:       HookEventFamilySandbox,
-		syncEligible: true,
-	},
 	{event: HookInputPreSubmit, family: HookEventFamilyInput, syncEligible: true},
 	{event: HookPromptPostAssemble,
 		family:       HookEventFamilyPrompt,

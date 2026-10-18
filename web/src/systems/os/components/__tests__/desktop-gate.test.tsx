@@ -1,6 +1,8 @@
 // Suite: desktop onboarding gate
 // Invariant: first-run setup renders over the live shell, and completing it reveals the
 // desktop that was already mounted behind the panel rather than building a new one.
+// A daemon access refusal (403, fixed daemon-authored text) is shown verbatim, while
+// any other failure keeps the raw runtime message off screen.
 // Boundary IN: DesktopGate's status branching and child lifecycle.
 // Boundary OUT: the setup panel internals, the onboarding transport, and the window manager.
 import { render, screen } from "@testing-library/react";
@@ -31,6 +33,8 @@ vi.mock("@/systems/onboarding/components/onboarding-setup-panel", () => ({
   ),
 }));
 
+import { OnboardingApiError } from "@/systems/onboarding";
+
 import { DesktopGate } from "../desktop-gate";
 
 let chromeMounts = 0;
@@ -59,21 +63,14 @@ describe("DesktopGate", () => {
     mocks.status.refetch = vi.fn();
   });
 
-  it("Should render the shell behind the setup panel while setup is incomplete", () => {
-    mocks.status.data = { completed: false };
-
-    renderGate();
-
-    expect(screen.getByTestId("os-desktop")).toBeInTheDocument();
-    expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
-    expect(screen.queryByTestId("onboarding-gate-loading")).toBeNull();
-  });
-
   it("Should reveal the desktop on completion without remounting it", async () => {
     const user = userEvent.setup();
     mocks.status.data = { completed: false };
     const { rerender } = renderGate();
     expect(chromeMounts).toBe(1);
+    expect(screen.getByTestId("os-desktop")).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-gate-loading")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Finish setup" }));
     expect(mocks.status.refetch).toHaveBeenCalledOnce();
@@ -105,9 +102,26 @@ describe("DesktopGate", () => {
 
     renderGate();
 
-    expect(screen.getByTestId("onboarding-gate-error")).toHaveTextContent("daemon unreachable");
+    const gateError = screen.getByTestId("onboarding-gate-error");
+    expect(gateError).toHaveTextContent("CompozyOS isn't responding");
+    // Raw runtime messages may carry internals; they never reach the screen.
+    expect(gateError).not.toHaveTextContent("daemon unreachable");
     expect(screen.queryByTestId("os-desktop")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(mocks.status.refetch).toHaveBeenCalledOnce();
+  });
+
+  it("Should state the daemon's access refusal verbatim instead of claiming an outage", () => {
+    const refusal =
+      "remote HTTP API access is disabled unless the daemon is bound to a loopback host";
+    mocks.status.isError = true;
+    mocks.status.error = new OnboardingApiError(refusal, 403);
+
+    renderGate();
+
+    const gateError = screen.getByTestId("onboarding-gate-error");
+    expect(gateError).toHaveTextContent(refusal);
+    expect(gateError).toHaveTextContent("CompozyOS refused this connection");
+    expect(gateError).not.toHaveTextContent("CompozyOS isn't responding");
   });
 });

@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -65,14 +66,14 @@ func (p *fileKeyProvider) Key() ([]byte, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.cached) == keySizeBytes {
-		return append([]byte(nil), p.cached...), nil
+		return bytes.Clone(p.cached), nil
 	}
 	key, err := readOrCreateKeyFile(p.path)
 	if err != nil {
 		return nil, err
 	}
-	p.cached = append([]byte(nil), key...)
-	return append([]byte(nil), key...), nil
+	p.cached = bytes.Clone(key)
+	return bytes.Clone(key), nil
 }
 
 func readOrCreateKeyFile(path string) ([]byte, error) {

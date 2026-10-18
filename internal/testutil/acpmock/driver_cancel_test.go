@@ -14,10 +14,10 @@ import (
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
-func TestDriverSandboxCancellationCleanup(t *testing.T) {
+func TestDriverCommandCancellationCleanup(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should release terminal after canceled sandbox exec", func(t *testing.T) {
+	t.Run("Should release terminal after canceled command exec", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("POSIX shell process lifecycle test")
@@ -27,22 +27,22 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DefaultDriverPath() error = %v", err)
 		}
-		fixturePath := writeDriverCancelFixture(t, "sandbox-cancel-fixture.json", `{
+		fixturePath := writeDriverCancelFixture(t, "command-cancel-fixture.json", `{
 			"version": 2,
 			"agents": [
 				{
-					"name": "sandboxer",
+					"name": "commander",
 					"provider": "claude",
 					"turns": [
 						{
-							"name": "long-sandbox",
+							"name": "long-command",
 							"match": {
 								"turn_source": "user",
-								"user_text": "run long sandbox"
+								"user_text": "run long command"
 							},
 							"steps": [
 								{
-									"kind": "sandbox_exec",
+									"kind": "command_exec",
 									"tool_call_id": "cmd-sleep",
 									"title": "Run sleepy terminal",
 									"command": "/bin/sh",
@@ -61,12 +61,12 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 			acp.WithTerminalManager(newDriverTerminalManager(t, registry)),
 		)
 		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
-			AgentName: "sandboxer",
+			AgentName: "commander",
 			Command: BuildCommand(
 				driverPath,
 				fixturePath,
-				"sandboxer",
-				filepath.Join(t.TempDir(), "sandbox-diagnostics.jsonl"),
+				"commander",
+				filepath.Join(t.TempDir(), "command-diagnostics.jsonl"),
 			),
 			Cwd:         t.TempDir(),
 			Permissions: compozyconfig.PermissionModeApproveAll,
@@ -80,10 +80,10 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		eventsCh, err := driver.Prompt(ctx, proc, acp.PromptRequest{
-			TurnID:     "turn-sandbox-cancel",
-			RunID:      "run-sandbox-cancel",
+			TurnID:     "turn-command-cancel",
+			RunID:      "run-command-cancel",
 			Generation: 1,
-			Message:    "run long sandbox",
+			Message:    "run long command",
 			Meta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 		})
 		if err != nil {
@@ -98,7 +98,7 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 		if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
 			"type": acp.EventTypeError,
 		}) {
-			t.Fatalf("events = %#v, want prompt error after sandbox cancellation", events)
+			t.Fatalf("events = %#v, want prompt error after command cancellation", events)
 		}
 
 		records := waitForTerminalRecords(t, store, func(records []toolruntime.ProcessRecord) bool {
@@ -209,108 +209,6 @@ func TestDriverHoldIgnoringCancelKeepsTurnOpen(t *testing.T) {
 	})
 }
 
-func TestDriverLateCancelDoesNotPoisonNextPrompt(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should ignore cancel after prompt completion", func(t *testing.T) {
-		t.Parallel()
-
-		driverPath, err := DefaultDriverPath()
-		if err != nil {
-			t.Fatalf("DefaultDriverPath() error = %v", err)
-		}
-		fixturePath := writeDriverCancelFixture(t, "late-cancel-fixture.json", `{
-			"version": 2,
-			"agents": [
-				{
-					"name": "late-cancel",
-					"provider": "claude",
-					"turns": [
-						{
-							"name": "first-completes",
-							"match": {
-								"turn_source": "user",
-								"user_text": "first prompt"
-							},
-							"steps": [
-								{
-									"kind": "assistant",
-									"text": "first ok"
-								}
-							]
-						},
-						{
-							"name": "second-still-runs",
-							"match": {
-								"turn_source": "user",
-								"user_text": "second prompt"
-							},
-							"steps": [
-								{
-									"kind": "assistant",
-									"text": "second ok"
-								}
-							]
-						}
-					]
-				}
-			]
-		}`)
-		driver := acp.New()
-		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
-			AgentName: "late-cancel",
-			Command: BuildCommand(
-				driverPath,
-				fixturePath,
-				"late-cancel",
-				filepath.Join(t.TempDir(), "late-cancel-diagnostics.jsonl"),
-			),
-			Cwd:         t.TempDir(),
-			Permissions: compozyconfig.PermissionModeDenyAll,
-		})
-		if err != nil {
-			t.Fatalf("driver.Start() error = %v", err)
-		}
-		defer stopDriverProcess(t, driver, proc)
-
-		firstEventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
-			TurnID:  "turn-first",
-			Message: "first prompt",
-			Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
-		})
-		if err != nil {
-			t.Fatalf("driver.Prompt(first) error = %v", err)
-		}
-		firstEvents := collectPromptEvents(t, firstEventsCh, nil)
-		if !containsNormalizedEvent(normalizeEvents(firstEvents), map[string]string{
-			"type": acp.EventTypeAgentMessage,
-			"text": "first ok",
-		}) {
-			t.Fatalf("first events = %#v, want completed first prompt output", firstEvents)
-		}
-
-		if err := driver.Cancel(testutil.Context(t), proc); err != nil {
-			t.Fatalf("driver.Cancel(late) error = %v", err)
-		}
-
-		secondEventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
-			TurnID:  "turn-second",
-			Message: "second prompt",
-			Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
-		})
-		if err != nil {
-			t.Fatalf("driver.Prompt(second) error = %v", err)
-		}
-		secondEvents := collectPromptEvents(t, secondEventsCh, nil)
-		if !containsNormalizedEvent(normalizeEvents(secondEvents), map[string]string{
-			"type": acp.EventTypeAgentMessage,
-			"text": "second ok",
-		}) {
-			t.Fatalf("second events = %#v, want prompt output after late cancel", secondEvents)
-		}
-	})
-}
-
 func waitForTerminalRecords(
 	t testing.TB,
 	store *toolruntime.MemoryStore,
@@ -324,7 +222,7 @@ func waitForTerminalRecords(
 	defer ticker.Stop()
 
 	for {
-		records, err := store.ListProcessRecords(context.Background(), toolruntime.ProcessQuery{
+		records, err := store.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{
 			Scope: toolruntime.InterruptScope{Source: toolruntime.ProcessSourceTerminal},
 		})
 		if err != nil {

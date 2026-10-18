@@ -25,46 +25,45 @@ func TaskSummaryPayloadFromSummary(record *taskpkg.Summary) contract.TaskSummary
 	}
 
 	return contract.TaskSummaryPayload{
-		ID:                           record.ID,
-		ProfileID:                    record.ProfileID,
-		Identifier:                   record.Identifier,
-		Scope:                        record.Scope,
-		WorkspaceID:                  record.WorkspaceID,
-		ParentTaskID:                 record.ParentTaskID,
-		ResolvedNetworkParticipation: resolvedParticipationFromRunSummary(record.ActiveRun),
-		Title:                        taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
-		Priority:                     record.Priority,
-		MaxAttempts:                  record.MaxAttempts,
-		AutoEnqueueOnReady:           record.AutoEnqueueOnReady,
-		Status:                       record.Status,
-		ApprovalPolicy:               record.ApprovalPolicy,
-		ApprovalState:                record.ApprovalState,
-		Draft:                        record.Draft,
-		Owner:                        cloneOwnership(record.Owner),
-		CurrentRunID:                 record.CurrentRunID,
-		LatestEventSeq:               record.LatestEventSeq,
-		Paused:                       record.Paused,
-		PausedBy:                     record.PausedBy,
-		PausedAt:                     optionalTime(record.PausedAt),
-		PausedReason:                 taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
-		EffectivePaused:              record.EffectivePaused,
-		PausedByTaskID:               record.PausedByTaskID,
-		BlockedReasons:               blockedReasonsPayload(record.BlockedReasons),
-		NeedsAttention:               recordNeedsAttention(record.NeedsAttention, record.Status),
-		NeedsAttentionReason:         needsAttentionReason(record.NeedsAttention),
-		NeedsAttentionAt:             needsAttentionAt(record.NeedsAttention),
-		NeedsAttentionBy:             needsAttentionBy(record.NeedsAttention),
-		WakeCreator:                  record.WakeCreator,
-		CreatedBy:                    record.CreatedBy,
-		Origin:                       record.Origin,
-		CreatedAt:                    record.CreatedAt,
-		UpdatedAt:                    record.UpdatedAt,
-		ClosedAt:                     optionalTime(record.ClosedAt),
-		ChildCount:                   int(record.ChildCount),
-		DependencyCount:              int(record.DependencyCount),
-		Dependencies:                 TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
-		ActiveRun:                    TaskRunSummaryPayloadFromSummary(record.ActiveRun),
-		LastActivityAt:               optionalTime(record.LastActivityAt),
+		ID:                   record.ID,
+		ProfileID:            record.ProfileID,
+		Identifier:           record.Identifier,
+		Scope:                record.Scope,
+		WorkspaceID:          record.WorkspaceID,
+		ParentTaskID:         record.ParentTaskID,
+		Title:                taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
+		Priority:             record.Priority,
+		MaxAttempts:          record.MaxAttempts,
+		AutoEnqueueOnReady:   record.AutoEnqueueOnReady,
+		Status:               record.Status,
+		ApprovalPolicy:       record.ApprovalPolicy,
+		ApprovalState:        record.ApprovalState,
+		Draft:                record.Draft,
+		Owner:                cloneOwnership(record.Owner),
+		CurrentRunID:         record.CurrentRunID,
+		LatestEventSeq:       record.LatestEventSeq,
+		Paused:               record.Paused,
+		PausedBy:             record.PausedBy,
+		PausedAt:             optionalTime(record.PausedAt),
+		PausedReason:         taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
+		EffectivePaused:      record.EffectivePaused,
+		PausedByTaskID:       record.PausedByTaskID,
+		BlockedReasons:       blockedReasonsPayload(record.BlockedReasons),
+		NeedsAttention:       recordNeedsAttention(record.NeedsAttention, record.Status),
+		NeedsAttentionReason: needsAttentionReason(record.NeedsAttention),
+		NeedsAttentionAt:     needsAttentionAt(record.NeedsAttention),
+		NeedsAttentionBy:     needsAttentionBy(record.NeedsAttention),
+		WakeCreator:          record.WakeCreator,
+		CreatedBy:            record.CreatedBy,
+		Origin:               record.Origin,
+		CreatedAt:            record.CreatedAt,
+		UpdatedAt:            record.UpdatedAt,
+		ClosedAt:             optionalTime(record.ClosedAt),
+		ChildCount:           int(record.ChildCount),
+		DependencyCount:      int(record.DependencyCount),
+		Dependencies:         TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
+		ActiveRun:            TaskRunSummaryPayloadFromSummary(record.ActiveRun),
+		LastActivityAt:       optionalTime(record.LastActivityAt),
 	}
 }
 
@@ -152,15 +151,11 @@ func needsAttentionBy(attention *taskpkg.NeedsAttention) *taskpkg.ActorIdentity 
 	if attention == nil || attention.By.IsZero() {
 		return nil
 	}
-	actor := attention.By
-	return &actor
+	return new(attention.By)
 }
 
 // TaskBlockPayloadsFromBlocks converts task-block records into shared payloads.
 func TaskBlockPayloadsFromBlocks(blocks []taskpkg.TaskBlock) []contract.TaskBlockPayload {
-	if len(blocks) == 0 {
-		return nil
-	}
 	payloads := make([]contract.TaskBlockPayload, 0, len(blocks))
 	for _, block := range blocks {
 		payloads = append(payloads, TaskBlockPayloadFromBlock(block))
@@ -260,8 +255,7 @@ func optionalTaskRunPayload(run *taskpkg.Run) *contract.TaskRunPayload {
 	if run == nil {
 		return nil
 	}
-	payload := TaskRunPayloadFromRun(run)
-	return &payload
+	return new(TaskRunPayloadFromRun(run))
 }
 
 // TaskEventPayloadsFromEvents converts task events into shared payloads.

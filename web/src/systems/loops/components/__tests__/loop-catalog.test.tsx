@@ -134,20 +134,13 @@ describe("LoopCatalog", () => {
     const runButton = within(deliveryRow as HTMLElement).getByTestId(
       "loop-catalog-run-implement-tasks"
     );
+    const link = within(deliveryRow as HTMLElement).getByRole("link", {
+      name: "Open implement-tasks",
+    });
+    expect(link).not.toContainElement(runButton);
     fireEvent.click(runButton);
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onRun.mock.calls[0][0].name).toBe("implement-tasks");
-  });
-
-  it("Should keep the inline Run button outside the detail link", () => {
-    render(<Harness onRun={() => {}} />);
-    const deliveryRow = screen
-      .getByText("implement-tasks")
-      .closest("[data-testid='loop-catalog-row']");
-    const row = deliveryRow as HTMLElement;
-    const link = within(row).getByRole("link", { name: "Open implement-tasks" });
-    const runButton = within(row).getByTestId("loop-catalog-run-implement-tasks");
-    expect(link).not.toContainElement(runButton);
   });
 
   it("Should expose a loading-aware control for the next server page", () => {
@@ -161,13 +154,14 @@ describe("LoopCatalog", () => {
     expect(screen.getByTestId("loop-catalog-load-more")).toHaveAttribute("aria-busy", "true");
   });
 
-  it("Should state category, cap, and last-run recency as plain facts in both views", () => {
+  it("Should state category and last-run recency as plain facts in both views", () => {
     const { rerender } = render(<Harness onRun={() => {}} />);
     const row = screen.getAllByTestId("loop-catalog-row")[0];
     expect(within(row).getByText("Engineering")).toBeInTheDocument();
-    expect(within(row).getByText("9 inputs")).toBeInTheDocument();
-    expect(within(row).getByText("iteration cap 50")).toBeInTheDocument();
-    expect(within(row).getByText("looprun_running")).toBeInTheDocument();
+    expect(within(row).getByText(/Last run/)).toBeInTheDocument();
+    expect(within(row).queryByText("9 inputs")).not.toBeInTheDocument();
+    expect(within(row).queryByText("iteration cap 50")).not.toBeInTheDocument();
+    expect(within(row).queryByText("looprun_running")).not.toBeInTheDocument();
     expect(row.querySelector('time[datetime="2026-07-05T12:00:00Z"]')).not.toBeNull();
     expect(within(row).queryByText("Built-in")).not.toBeInTheDocument();
     expect(within(row).queryByText("∞ cap")).not.toBeInTheDocument();
@@ -175,20 +169,20 @@ describe("LoopCatalog", () => {
     rerender(<Harness onRun={() => {}} view="cards" />);
     const card = screen.getByTestId("loop-catalog-card-implement-tasks");
     expect(within(card).getByText("Engineering")).toBeInTheDocument();
-    expect(within(card).getByText("9 inputs")).toBeInTheDocument();
-    expect(within(card).getByText("iteration cap 50")).toBeInTheDocument();
-    expect(within(card).getByText("looprun_running")).toBeInTheDocument();
+    expect(within(card).getByText(/Last run/)).toBeInTheDocument();
+    expect(within(card).queryByText("looprun_running")).not.toBeInTheDocument();
     expect(card.querySelector('time[datetime="2026-07-05T12:00:00Z"]')).not.toBeNull();
+    expect(screen.queryByTestId("loop-catalog-card-stat-implement-tasks")).not.toBeInTheDocument();
   });
 
-  it("Should demote best to a plain fact instead of a success-toned pill", () => {
+  it("Should keep the best score off the catalog instead of a success-toned pill", () => {
     const withBest: LoopCatalogEntry = {
       ...loopCatalogFixtures[0],
       last_run: { ...loopCatalogFixtures[0].last_run!, best_generation: 2, best_score: 0.92 },
     };
     render(<Harness entries={[withBest]} onRun={() => {}} />);
     const row = screen.getByTestId("loop-catalog-row");
-    expect(within(row).getByText("best Gen 2 · 0.92")).toBeInTheDocument();
+    expect(within(row).queryByText(/0\.92/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-catalog-best")).not.toBeInTheDocument();
   });
 

@@ -2,8 +2,9 @@ import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
+import { useReducedMotionConfig } from "motion/react";
 
-import { Button, cn } from "@compozy/ui";
+import { Button, cn, runViewTransition } from "@compozy/ui";
 
 import { buildGenerationHistory } from "../../lib/loop-generation-presentation";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
@@ -14,11 +15,7 @@ import type {
   LoopNodeSelection,
   LoopRunRegisters as LoopRunRegistersModel,
 } from "../../lib/loop-run-registers-view";
-import {
-  LOOP_ROSTER_CONTINUATION_COMMAND,
-  loopRosterReachNote,
-  selectNodePanel,
-} from "../../lib/loop-run-registers-view";
+import { loopRosterReachNote, selectNodePanel } from "../../lib/loop-run-registers-view";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type {
   LoopFanoutRollup,
@@ -132,9 +129,16 @@ export function LoopRunRegisters({
 }: LoopRunRegistersProps) {
   const [localLane, setLocalLane] = useState<LoopInspectLane>("graph");
   const lane = controlledLane ?? localLane;
+  const reducedMotion = useReducedMotionConfig() === true;
+  // A short crossfade so a tall lane never hard-cuts into the next one.
   const changeLane = (nextLane: LoopInspectLane) => {
-    if (controlledLane === undefined) setLocalLane(nextLane);
-    onLaneChange?.(nextLane);
+    void runViewTransition(
+      () => {
+        if (controlledLane === undefined) setLocalLane(nextLane);
+        onLaneChange?.(nextLane);
+      },
+      { reduced: reducedMotion }
+    );
   };
   // `null` means "whatever round the run is on"; `"all"` is an explicit choice.
   // Following the run beats defaulting to every round, which makes two rows of
@@ -309,11 +313,6 @@ function buildInspectFootnotes({
         </Button>
       );
     }
-    footNotes.push(
-      <span className="font-mono text-mono-id text-faint" key="continuation">
-        {LOOP_ROSTER_CONTINUATION_COMMAND}
-      </span>
-    );
   }
 
   return footNotes;

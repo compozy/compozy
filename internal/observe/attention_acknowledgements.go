@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 )
 
-var _ notifications.AttentionStore = (*Observer)(nil)
+var _ attention.Store = (*Observer)(nil)
 
 func (o *Observer) CaptureAttentionSnapshot(
 	ctx context.Context,
-	scope notifications.AttentionScope,
+	scope attention.Scope,
 	ids []string,
 ) (string, []string, error) {
-	store, ok := o.registry.(notifications.AttentionStore)
+	store, ok := o.registry.(attention.Store)
 	if !ok {
 		return "", nil, errors.New("observe: attention receipt store is unavailable")
 	}
@@ -23,10 +23,10 @@ func (o *Observer) CaptureAttentionSnapshot(
 
 func (o *Observer) AcknowledgeAttentionSnapshot(
 	ctx context.Context,
-	scope notifications.AttentionScope,
+	scope attention.Scope,
 	snapshot, occurrence string,
 ) error {
-	store, ok := o.registry.(notifications.AttentionStore)
+	store, ok := o.registry.(attention.Store)
 	if !ok {
 		return errors.New("observe: attention receipt store is unavailable")
 	}

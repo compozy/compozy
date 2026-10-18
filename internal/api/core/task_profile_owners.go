@@ -95,6 +95,18 @@ func (h *BaseHandlers) decorateTaskOwner(ctx context.Context, payload *contract.
 	return setTaskPayloadProfileOwner(owners, payload, h == nil || h.Profiles == nil)
 }
 
+func (h *BaseHandlers) decorateTaskExecutionOwners(ctx context.Context, payload *contract.TaskExecutionResponse) error {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return err
+	}
+	useDefaultID := h == nil || h.Profiles == nil
+	if err := setTaskPayloadProfileOwner(owners, &payload.Task, useDefaultID); err != nil {
+		return err
+	}
+	return setTaskRunProfileOwner(owners, &payload.Run, useDefaultID)
+}
+
 func (h *BaseHandlers) decorateTaskDetailOwners(ctx context.Context, payload *contract.TaskDetailPayload) error {
 	if payload == nil {
 		return nil
@@ -127,6 +139,27 @@ func (h *BaseHandlers) decorateTaskRunOwners(ctx context.Context, runs []contrac
 	}
 	for index := range runs {
 		if err := setTaskRunProfileOwner(owners, &runs[index], h == nil || h.Profiles == nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *BaseHandlers) decorateSchedulerBacklogOwners(
+	ctx context.Context,
+	payload *contract.SchedulerBacklogPayload,
+) error {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return err
+	}
+	useDefaultID := h == nil || h.Profiles == nil
+	for index := range payload.Runs {
+		item := &payload.Runs[index]
+		if err := setTaskSummaryProfileOwner(owners, &item.Task, useDefaultID); err != nil {
+			return err
+		}
+		if err := setTaskRunProfileOwner(owners, &item.Run, useDefaultID); err != nil {
 			return err
 		}
 	}

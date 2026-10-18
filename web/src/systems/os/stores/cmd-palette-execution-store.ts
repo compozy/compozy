@@ -16,7 +16,12 @@ import type { CmdPaletteConfirmation, ResolvedPaletteCommand } from "../lib/cmd-
  * (US-017.AC-2).
  */
 
-export type CmdPaletteEntryKind = "args" | "confirm";
+export type CmdPaletteEntryKind = "args" | "confirm" | "approval";
+
+export interface CmdPaletteApprovalIntent {
+  readonly id: string;
+  readonly profile: string;
+}
 
 export interface CmdPaletteEntryIntent {
   readonly kind: CmdPaletteEntryKind;
@@ -30,6 +35,7 @@ export interface CmdPaletteEntryIntent {
    */
   readonly confirmation: CmdPaletteConfirmation | null;
   readonly destructive: boolean;
+  readonly approval?: CmdPaletteApprovalIntent;
 }
 
 export interface CmdPalettePendingCommand {
@@ -151,6 +157,26 @@ export function requestPaletteConfirmation(
       args,
       confirmation: command.confirmation ?? null,
       destructive: command.destructive,
+    },
+  });
+}
+
+export function requestPaletteApproval(
+  command: ResolvedPaletteCommand,
+  approval: CmdPaletteApprovalIntent
+): void {
+  cmdPaletteExecutionStore.trigger.entryRequested({
+    intent: {
+      kind: "approval",
+      commandId: command.id,
+      args: {},
+      confirmation: {
+        title: command.title,
+        body: command.confirmation?.body ?? "Allow this command to run?",
+        confirm: "Approve",
+      },
+      destructive: command.destructive,
+      approval,
     },
   });
 }

@@ -23,10 +23,8 @@ func (m *Manager) dispatchSessionAttentionChanged(
 		hookCtx = hookDispatchContext(hookCtx, m, active)
 	}
 	_, err := m.hooks.attention().DispatchSessionAttentionChanged(hookCtx, hookspkg.SessionAttentionChangedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionAttentionChanged,
-			Timestamp: event.At,
-		},
+		Event:          hookspkg.HookSessionAttentionChanged,
+		Timestamp:      event.At,
 		SessionContext: hookSessionContextFromInfo(info),
 		From:           string(event.From),
 		To:             string(event.To),

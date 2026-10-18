@@ -34,7 +34,7 @@ export function GatewayProviderRow({
   return (
     <ListingRow data-testid={`gateway-provider-${candidate.name}`} interactive={false}>
       <ListingRow.Icon>
-        <Radio className="size-3.5" />
+        <Radio className="size-4" />
       </ListingRow.Icon>
       <ListingRow.Main>
         <ListingRow.Title>
@@ -74,7 +74,7 @@ export function GatewayProviderRow({
                 }
                 size="sm"
                 type="button"
-                variant={active ? "ghost" : "neutral"}
+                variant={active ? "ghost" : "secondary"}
               >
                 {active ? "Disable" : `Use for ${TIER_LABEL[tier].toLowerCase()}`}
               </Button>

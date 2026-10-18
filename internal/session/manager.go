@@ -1,11 +1,12 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,9 +64,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 		promptDrains:               make(map[chan struct{}]struct{}),
 		managedInputLeases:         make(map[string]managedInputLease),
 		promptAdmissionLocks:       make(map[string]*promptAdmissionLock),
-		compactionLifecycle: sessionCompactionLifecycle{
-			runs: make(map[string]*sessionCompactionState),
-		},
 		startLifecycle: sessionStartLifecycle{
 			runs: make(map[string]*sessionStartRun),
 		},
@@ -89,14 +87,13 @@ func NewManager(opts ...Option) (*Manager, error) {
 		},
 		supervision:                  compozyconfig.DefaultSessionSupervisionConfig(),
 		busyInput:                    compozyconfig.DefaultSessionBusyInputConfig(),
-		compaction:                   compozyconfig.DefaultSessionCompactionConfig(),
+		messaging:                    compozyconfig.DefaultSessionMessagingConfig(),
 		sessionHealthStaleAfter:      compozyconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
 		sessionHealthHookMinInterval: compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
 		newSessionID:                newIDGenerator("sess"),
-		newSandboxID:                newIDGenerator("env"),
 		newTurnID:                   newIDGenerator("turn"),
 		newRunID:                    newIDGenerator("run"),
 		newRepairEventID:            newIDGenerator("ev"),
@@ -222,18 +219,6 @@ func (m *Manager) waitForConversationFinalization(ctx context.Context, id string
 	}
 }
 
-// SetNetworkPeerLifecycle installs the late-bound network join/leave callbacks
-// used after session activation and before final stop cleanup.
-func (m *Manager) SetNetworkPeerLifecycle(lifecycle NetworkPeerLifecycle) {
-	if m == nil {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.networkPeers = lifecycle
-}
-
 // SetTurnEndNotifier installs a post-construction callback invoked after each
 // prompt turn finishes.
 func (m *Manager) SetTurnEndNotifier(fn TurnEndNotifier) {
@@ -276,16 +261,6 @@ func (m *Manager) IsPrompting(id string) bool {
 	return session.IsPrompting()
 }
 
-func (m *Manager) currentNetworkPeerLifecycle() NetworkPeerLifecycle {
-	if m == nil {
-		return nil
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.networkPeers
-}
-
 func (m *Manager) currentTurnEndNotifier() TurnEndNotifier {
 	if m == nil {
 		return nil
@@ -310,11 +285,8 @@ func (m *Manager) List() []*Info {
 		infos = append(infos, m.sessionInfoForRead(session))
 	}
 
-	sort.Slice(infos, func(i, j int) bool {
-		if infos[i].CreatedAt.Equal(infos[j].CreatedAt) {
-			return infos[i].ID < infos[j].ID
-		}
-		return infos[i].CreatedAt.Before(infos[j].CreatedAt)
+	slices.SortFunc(infos, func(a, b *Info) int {
+		return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID))
 	})
 
 	return infos

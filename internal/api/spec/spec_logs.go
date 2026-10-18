@@ -22,5 +22,14 @@ func logFilterQueryParams() []ParameterSpec {
 
 func logStreamQueryParams() []ParameterSpec {
 	params := logFilterQueryParams()
-	return append(params, boolQueryParam("replay", "Replay bounded retained logs before live polling"))
+	return append(
+		params,
+		boolQueryParam("replay", "Replay bounded retained logs before live polling"),
+		optionalLastEventIDHeaderParam("Resume after this composite log event id"),
+		queryParam(
+			"last_event_id",
+			"Composite resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+			false,
+		),
+	)
 }

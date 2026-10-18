@@ -55,8 +55,7 @@ func toolErrorResponseForError(err error) (ToolErrorResponseRecord, bool) {
 	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {
 		var partialResult *toolspkg.ToolResult
 		if toolErr.PartialResult != nil {
-			partial := *toolErr.PartialResult
-			partialResult = &partial
+			partialResult = new(*toolErr.PartialResult)
 		}
 		return sanitizeToolErrorResponse(ToolErrorResponseRecord{
 			Error: contract.ToolErrorPayload{

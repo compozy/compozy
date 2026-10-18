@@ -105,7 +105,6 @@ def ensure_lab_scaffold(workspace_path: Path, qa_output_path: Path) -> None:
         workspace_path / "ops" / "runbooks",
         workspace_path / "ops" / "logs",
         workspace_path / "reviews" / "findings",
-        workspace_path / "knowledge",
         workspace_path / "hooks",
         workspace_path / "extensions",
         workspace_path / "skills",
@@ -294,7 +293,6 @@ def build_contract_minimums(
             return {
                 "agents": 0,
                 "differentiated_roles": 0,
-                "channels": 0,
                 "tasks": {
                     "roots": 0,
                     "subtasks": 0,
@@ -311,7 +309,6 @@ def build_contract_minimums(
             return {
                 "agents": 4,
                 "differentiated_roles": 3,
-                "channels": 3,
                 "tasks": {
                     "roots": 1,
                     "subtasks": 0,
@@ -327,7 +324,6 @@ def build_contract_minimums(
         return {
             "agents": 8,
             "differentiated_roles": 6,
-            "channels": 5,
             "tasks": {
                 "roots": 2,
                 "subtasks": 4,
@@ -343,7 +339,6 @@ def build_contract_minimums(
 
     agents = [agent for agent in playbook.get("agents", []) if isinstance(agent, dict)]
     roles = {str(agent.get("role", "")).strip().lower() for agent in agents if agent.get("role")}
-    channels = [channel for channel in playbook.get("channels", []) if isinstance(channel, dict)]
     open_tasks = [task for task in playbook.get("open_tasks", []) if isinstance(task, dict)]
     review_dependencies = [task for task in open_tasks if task.get("review_required_by")]
     disruption_seeds = [
@@ -352,7 +347,6 @@ def build_contract_minimums(
     return {
         "agents": len(agents),
         "differentiated_roles": len(roles),
-        "channels": len(channels),
         "tasks": {
             "roots": len(open_tasks),
             "subtasks": 0,
@@ -392,13 +386,11 @@ def build_scenario_contract(
             "targeted": {
                 "agents": 0,
                 "differentiated_roles": 0,
-                "channels": 0,
                 "provider_backed_sessions": 0,
             },
             "feature": {
                 "agents": 4,
                 "differentiated_roles": 3,
-                "channels": 3,
             },
         },
         "audit_command": str(real_scenario_script(repo_root, "audit-qa-evidence.py")),
@@ -413,7 +405,6 @@ def build_charter_skeleton(scenario_slug: str, provider_required: bool = True) -
         "operator_intent": "UNFILLED: what the operator needs to accomplish",
         "expected_business_outcome": "UNFILLED: user-visible outcome required for success",
         "agents": [],
-        "channels": [],
         "task_tree": {
             "roots": [],
             "subtasks": [],
@@ -446,11 +437,6 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
         for agent in playbook.get("agents", [])
         if isinstance(agent, dict)
     ]
-    channels = [
-        {"id": channel["id"], "purpose": channel["purpose"]}
-        for channel in playbook.get("channels", [])
-        if isinstance(channel, dict)
-    ]
     artifacts = [
         {
             "path": task.get("deliverable_path_hint", ""),
@@ -464,7 +450,7 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
         {
             "probe_id": f"{seed.get('type', 'probe')}-{seed.get('seed_at_minute', 0)}",
             "type": seed.get("type", ""),
-            "delivery": seed.get("delivery", "knowledge_file"),
+            "delivery": seed.get("delivery", "task_event"),
             "expected_recovery": seed.get("expected_recovery", ""),
         }
         for seed in playbook.get("disruption_probe_seeds", [])
@@ -478,11 +464,10 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
         ),
         "expected_business_outcome": (
             "All required deliverables exist as runnable artifacts (compile/parse/run) and the "
-            "required collaboration loops complete (peer messages, reviews, disagreement resolved)."
+            "required collaboration loops complete (reviews, disagreement resolved)."
         ),
         "playbook_ref": playbook.get("playbook_ref", ""),
         "agents": agents,
-        "channels": channels,
         "task_tree": {
             "roots": [task["title"] for task in open_tasks if task.get("title")],
             "subtasks": [],
@@ -508,7 +493,7 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
         "cross_surface_targets": [
             {"surface": "cli", "object": "task"},
             {"surface": "api", "object": "session"},
-            {"surface": "web", "object": "channel"},
+            {"surface": "web", "object": "task"},
             {"surface": "runtime", "object": "task_run"},
         ],
         "disruption_probes": disruption_probes,
@@ -728,8 +713,7 @@ def main() -> int:
         try:
             seed_summary = seed_playbook_workspace(repo_root, workspace_path, playbook_ref)
             status_notes.append(
-                f"seeded playbook {playbook_ref!r} ({len(seed_summary.get('agents_registered', []))} agents, "
-                f"{len(seed_summary.get('knowledge_files_written', []))} knowledge files)"
+                f"seeded playbook {playbook_ref!r} ({len(seed_summary.get('agents_registered', []))} agents)"
             )
         except (RuntimeError, subprocess.CalledProcessError) as err:
             raise RuntimeError(f"seed-playbook-workspace failed for {playbook_ref!r}: {err}") from err

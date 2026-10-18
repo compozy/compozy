@@ -30,7 +30,7 @@ function ImmutableIdentity({ rows, hint, className, ...props }: ImmutableIdentit
   return (
     <div className="flex flex-col gap-2" data-slot="immutable-identity">
       <dl
-        className={cn("flex flex-col gap-2 rounded-md bg-canvas px-3 py-2.5", className)}
+        className={cn("flex flex-col gap-2 rounded-md bg-sunken px-3 py-2.5", className)}
         data-slot="immutable-identity-rows"
         {...props}
       >

@@ -3,7 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func registryTaskStateOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		startTaskRunOperationSpec(),
 		attachTaskRunSessionOperationSpec(),
 		completeTaskRunOperationSpec(),
@@ -21,7 +21,15 @@ func registryTaskStateOperations() []OperationSpec {
 		getTaskInboxOperationSpec(),
 		getObserveOverviewOperationSpec(),
 	}
+	for index := range operations {
+		operations[index].Parameters = ensureProfileParameters(
+			operations[index].Parameters,
+			operations[index].Method == httpMethodGet,
+		)
+	}
+	return operations
 }
+
 func startTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
@@ -318,7 +326,6 @@ func getTaskDashboardOperationSpec() OperationSpec {
 			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
-			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
 		),
 		Responses: []ResponseSpec{

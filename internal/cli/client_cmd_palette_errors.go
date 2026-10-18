@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -65,7 +65,7 @@ func (e *cmdPaletteAPIError) errorPayload() contract.ErrorPayload {
 		for index, client := range e.payload.Clients {
 			clients[index] = string(client)
 		}
-		sort.Strings(clients)
+		slices.Sort(clients)
 		details["clients"] = strings.Join(clients, ",")
 	}
 	payload := contract.ErrorPayload{Error: e.payload.Error, Code: e.payload.Error}
@@ -113,11 +113,7 @@ func cmdPaletteInvalidArgumentsMessage(fields map[string]string) string {
 			}
 		}
 	}
-	keys := make([]string, 0, len(fields))
-	for field := range fields {
-		keys = append(keys, field)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(fields))
 	details := make([]string, 0, len(keys))
 	for _, field := range keys {
 		details = append(details, field+": "+fields[field])

@@ -155,20 +155,6 @@ describe("Docs OpenGraph template", () => {
     const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
     expect(usesPlayfair).toBe(false);
   });
-
-  it("uses the protocol eyebrow for pages nested under the protocol spec", async () => {
-    const { renderDocsOG } = await import("@/lib/og/templates/docs");
-    const response = asMockImageResponse(
-      await renderDocsOG({
-        variant: "protocol",
-        title: "Envelopes and channels",
-        path: "docs/network/protocol/envelope",
-      })
-    );
-    const copy = textContent(response.element);
-    expect(copy).toContain("COMPOZY NETWORK PROTOCOL");
-    expect(copy).toContain("PROTOCOL");
-  });
 });
 
 describe("Blog OpenGraph template", () => {
@@ -176,7 +162,7 @@ describe("Blog OpenGraph template", () => {
     const { renderBlogOG } = await import("@/lib/og/templates/blog");
     const response = asMockImageResponse(
       await renderBlogOG({
-        title: "Introducing CompozyOS, the first agent network protocol",
+        title: "Introducing CompozyOS, the local agent operating system",
         description:
           "CompozyOS gives every agent CLI a durable home and a shared protocol to coordinate with peers.",
         slug: "introducing-compozyos",
@@ -189,7 +175,7 @@ describe("Blog OpenGraph template", () => {
     const types = componentTypes(response.element);
 
     expect(copy).toContain("COMPOZYOS BLOG");
-    expect(copy).toContain("Introducing CompozyOS, the first agent network protocol");
+    expect(copy).toContain("Introducing CompozyOS, the local agent operating system");
     expect(copy).toContain("APR 29, 2026");
     expect(copy).toContain("compozy.com/blog/introducing-compozyos");
     expect(copy).toContain("BY pnauck");

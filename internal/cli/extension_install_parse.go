@@ -115,8 +115,8 @@ func validateGitHubExtensionRef(value string) error {
 		return errors.New("GitHub repository is required")
 	}
 	repository := ref
-	if at := strings.LastIndex(repository, "@"); at > 0 {
-		repository = repository[:at]
+	if before, _, found := strings.CutLast(repository, "@"); found && before != "" {
+		repository = before
 	}
 	parts := strings.Split(repository, "/")
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
@@ -139,15 +139,15 @@ func validateGitExtensionRef(value string) error {
 
 func splitExtensionDistributionRef(value string) (string, string) {
 	trimmed := strings.TrimSpace(value)
-	index := strings.LastIndex(trimmed, "@")
-	if index <= 0 || index == len(trimmed)-1 {
+	repository, version, found := strings.CutLast(trimmed, "@")
+	if !found || repository == "" || version == "" {
 		return trimmed, ""
 	}
 	if scheme := strings.Index(trimmed, "://"); scheme >= 0 {
 		hostEnd := strings.Index(trimmed[scheme+3:], "/")
-		if hostEnd < 0 || index < scheme+3+hostEnd {
+		if hostEnd < 0 || len(repository) < scheme+3+hostEnd {
 			return trimmed, ""
 		}
 	}
-	return strings.TrimSpace(trimmed[:index]), strings.TrimSpace(trimmed[index+1:])
+	return strings.TrimSpace(repository), strings.TrimSpace(version)
 }

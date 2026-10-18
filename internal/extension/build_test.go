@@ -64,7 +64,7 @@ func TestBuildBundle(t *testing.T) {
 
 				dir := t.TempDir()
 				testCase.prepare(t, dir)
-				runner := newBuildTestRunner(validDescribePayloadPointer())
+				runner := newBuildTestRunner(new(validDescribePayload()))
 				if _, err := buildBundle(testutil.Context(t), testCase.request(dir), runner); err != nil {
 					t.Fatalf("buildBundle() error = %v", err)
 				}
@@ -126,15 +126,13 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["builders"]
+[gateway]
+permissions = ["gateway.private"]
 
 [[resources.skills]]
 path = "skills"
 `)
-		runner := newBuildTestRunner(validDescribePayloadPointer())
+		runner := newBuildTestRunner(new(validDescribePayload()))
 
 		result, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
@@ -147,13 +145,11 @@ path = "skills"
 		if !strings.Contains(string(copied), "# Writer") {
 			t.Fatalf("copied skill = %q, want Writer content", copied)
 		}
-		if result.Manifest.NetworkParticipation == nil ||
-			!result.Manifest.NetworkParticipation.Required ||
-			result.Manifest.NetworkParticipation.Mode != "live" ||
-			!reflect.DeepEqual(result.Manifest.NetworkParticipation.ChannelScopes, []string{"builders"}) {
+		if result.Manifest.Gateway == nil ||
+			!reflect.DeepEqual(result.Manifest.Gateway.Permissions, []string{"gateway.private"}) {
 			t.Fatalf(
-				"generated NetworkParticipation = %#v, want required live builders scope",
-				result.Manifest.NetworkParticipation,
+				"generated Gateway = %#v, want gateway.private permission",
+				result.Manifest.Gateway,
 			)
 		}
 		if len(runner.Commands()) != 0 {
@@ -192,26 +188,24 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["release"]
+[gateway]
+permissions = ["gateway.public"]
 
 [[resources.skills]]
 path = "skills"
 `)
-		networkChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
+		gatewayChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
-			t.Fatalf("buildBundle(network changed) error = %v", err)
+			t.Fatalf("buildBundle(gateway changed) error = %v", err)
 		}
-		if networkChanged.GenerationHash == changed.GenerationHash {
-			t.Fatalf("network-changed generation hash = %q, want a new hash", networkChanged.GenerationHash)
+		if gatewayChanged.GenerationHash == changed.GenerationHash {
+			t.Fatalf("gateway-changed generation hash = %q, want a new hash", gatewayChanged.GenerationHash)
 		}
-		if networkChanged.Manifest.NetworkParticipation == nil ||
-			!reflect.DeepEqual(networkChanged.Manifest.NetworkParticipation.ChannelScopes, []string{"release"}) {
+		if gatewayChanged.Manifest.Gateway == nil ||
+			!reflect.DeepEqual(gatewayChanged.Manifest.Gateway.Permissions, []string{"gateway.public"}) {
 			t.Fatalf(
-				"network-changed participation = %#v, want release scope",
-				networkChanged.Manifest.NetworkParticipation,
+				"gateway-changed permissions = %#v, want gateway.public permission",
+				gatewayChanged.Manifest.Gateway,
 			)
 		}
 	})
@@ -372,7 +366,7 @@ path = "skills"
 				result, err := buildBundle(testutil.Context(t), BuildRequest{
 					SourceDir: dir,
 					BuildCmd:  testCase.buildCmd,
-				}, newBuildTestRunner(validDescribePayloadPointer()))
+				}, newBuildTestRunner(new(validDescribePayload())))
 				if err == nil || result != nil {
 					t.Fatalf("buildBundle() = %#v, %v; want rejection", result, err)
 				}
@@ -380,8 +374,8 @@ path = "skills"
 					t.Fatalf("buildBundle() error = %v, want %q", err, testCase.wantError)
 				}
 				if testCase.wantField != "" {
-					var validationErr *ManifestValidationError
-					if !errors.As(err, &validationErr) || validationErr.Field != testCase.wantField {
+					validationErr, ok := errors.AsType[*ManifestValidationError](err)
+					if !ok || validationErr.Field != testCase.wantField {
 						t.Fatalf("buildBundle() error = %#v, want validation field %q", err, testCase.wantField)
 					}
 				}
@@ -393,36 +387,6 @@ path = "skills"
 					t.Fatalf("published generations = %#v, want none", generations)
 				}
 			})
-		}
-	})
-
-	t.Run("Should Produce Byte Identical Immutable Generations", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		writeGoBuildFixture(t, dir)
-		runner := newBuildTestRunner(validDescribePayloadPointer())
-		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
-		if err != nil {
-			t.Fatalf("buildBundle(first) error = %v", err)
-		}
-		firstBytes, err := os.ReadFile(first.ManifestPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(first manifest) error = %v", err)
-		}
-		second, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
-		if err != nil {
-			t.Fatalf("buildBundle(second) error = %v", err)
-		}
-		secondBytes, err := os.ReadFile(second.ManifestPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(second manifest) error = %v", err)
-		}
-		if first.GenerationHash != second.GenerationHash || first.GenerationDir != second.GenerationDir {
-			t.Fatalf("generation mismatch: first=%#v second=%#v", first, second)
-		}
-		if !slices.Equal(firstBytes, secondBytes) {
-			t.Fatal("generated extension.toml bytes differ across identical builds")
 		}
 	})
 
@@ -497,8 +461,15 @@ expr = "0 * * * *"
 		if err != nil {
 			t.Fatalf("buildBundle(second) error = %v", err)
 		}
-		if first.GenerationHash != second.GenerationHash {
-			t.Fatalf("generation hash = %q then %q, want stable", first.GenerationHash, second.GenerationHash)
+		if first.GenerationHash != second.GenerationHash || first.GenerationDir != second.GenerationDir {
+			t.Fatalf("generation mismatch: first=%#v second=%#v", first, second)
+		}
+		secondManifest, err := os.ReadFile(second.ManifestPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(second manifest) error = %v", err)
+		}
+		if !slices.Equal(firstManifest, secondManifest) {
+			t.Fatal("generated extension.toml bytes differ across identical builds")
 		}
 	})
 
@@ -583,7 +554,7 @@ expr = "not-a-cron"
 
 		dir := t.TempDir()
 		writeGoBuildFixture(t, dir)
-		runner := newBuildTestRunner(validDescribePayloadPointer())
+		runner := newBuildTestRunner(new(validDescribePayload()))
 		runner.blockDescribe = true
 		_, err := buildBundle(testutil.Context(t), BuildRequest{
 			SourceDir: dir,
@@ -665,7 +636,7 @@ min_compozy_version = "9.9.9"
 		_, err := buildBundle(testutil.Context(t), BuildRequest{
 			SourceDir: sourceDir,
 			OutputDir: root,
-		}, newBuildTestRunner(validDescribePayloadPointer()))
+		}, newBuildTestRunner(new(validDescribePayload())))
 		if err == nil || !strings.Contains(err.Error(), "must not contain the source") {
 			t.Fatalf("buildBundle() error = %v, want overlapping output rejection", err)
 		}
@@ -770,14 +741,12 @@ func TestManifestFromDescribeResources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve normalized network participation", func(t *testing.T) {
+	t.Run("Should preserve normalized gateway permissions", func(t *testing.T) {
 		t.Parallel()
 
 		payload := validDescribePayload()
-		payload.NetworkParticipation = &extensioncontract.DescribeNetworkParticipation{
-			Required: true,
-			Mode:     " LIVE ",
-			ChannelScopes: []string{
+		payload.Gateway = &extensioncontract.DescribeGatewayRequirement{
+			Permissions: []string{
 				" gateway.public ",
 				"gateway.private",
 				"gateway.public",
@@ -787,13 +756,12 @@ func TestManifestFromDescribeResources(t *testing.T) {
 		if err != nil {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
-		if manifest.NetworkParticipation == nil || !manifest.NetworkParticipation.Required ||
-			manifest.NetworkParticipation.Mode != "live" ||
+		if manifest.Gateway == nil ||
 			!slices.Equal(
-				manifest.NetworkParticipation.ChannelScopes,
+				manifest.Gateway.Permissions,
 				[]string{"gateway.private", "gateway.public"},
 			) {
-			t.Fatalf("NetworkParticipation = %#v, want normalized live gateway scopes", manifest.NetworkParticipation)
+			t.Fatalf("Gateway = %#v, want normalized gateway permissions", manifest.Gateway)
 		}
 	})
 }
@@ -940,7 +908,7 @@ command = "./bin"
     "version": "0.1.0",
     "min_compozy_version": "0.3.0-beta.1"
   },
-  "permissions": {"requires": ["sessions/list", "memory/store"]},
+  "permissions": {"requires": ["sessions/create", "logs/list"]},
   "capabilities": {"provides": []},
   "subprocess": {"command": "./bin"}
 }`)
@@ -948,7 +916,7 @@ command = "./bin"
 		if err != nil {
 			t.Fatalf("ValidateBundleReport() error = %v", err)
 		}
-		want := []ConsentArea{{Area: "memory", Access: "write"}, {Area: "sessions", Access: "read"}}
+		want := []ConsentArea{{Area: "logs", Access: "read"}, {Area: "sessions", Access: "write"}}
 		if !reflect.DeepEqual(report.ConsentAreas, want) {
 			t.Fatalf("ConsentAreas = %#v, want %#v", report.ConsentAreas, want)
 		}
@@ -961,11 +929,23 @@ command = "./bin"
 func TestScaffoldExtension(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject the retired scaffold template", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ScaffoldExtension(ScaffoldRequest{
+			Name:      "my-ext",
+			Template:  ScaffoldTemplate("memory-backend-ts"),
+			Directory: filepath.Join(t.TempDir(), "my-ext"),
+		})
+		if err == nil || err.Error() != `extension: unknown scaffold template "memory-backend-ts"` {
+			t.Fatalf("ScaffoldExtension() error = %v, want unknown scaffold template", err)
+		}
+	})
+
 	expectedTemplates := []ScaffoldTemplate{
 		ScaffoldTemplateConnectivityProviderGo,
 		ScaffoldTemplateConnectivityProviderTS,
 		ScaffoldTemplateLoopWatchSourceGo,
-		ScaffoldTemplateMemoryBackendTS,
 		ScaffoldTemplateToolProviderGo,
 		ScaffoldTemplateToolProviderTS,
 		ScaffoldTemplateViewProviderTS,
@@ -1100,11 +1080,6 @@ type buildTestRunner struct {
 
 func newBuildTestRunner(payload *extensioncontract.DescribePayload) *buildTestRunner {
 	return &buildTestRunner{payload: *payload}
-}
-
-func validDescribePayloadPointer() *extensioncontract.DescribePayload {
-	payload := validDescribePayload()
-	return &payload
 }
 
 func (r *buildTestRunner) LookPath(file string) (string, error) {

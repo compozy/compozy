@@ -15,6 +15,7 @@ import (
 // Journaled filesystem and support-state steps. The journal is the record a crash
 // recovers from, so every step name is durable and forward-only.
 const (
+	stepReconcileAutomations    = "reconcile_automations"
 	stepMkdirProfile            = "mkdir_profile"
 	stepWriteDeclaredSeed       = "write_declared_seed"
 	stepRenameProfile           = "rename_profile"

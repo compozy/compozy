@@ -3,7 +3,7 @@ package task
 import "fmt"
 
 // RequireLeaseSettlementActor keeps daemon-owned Loop workers under the
-// daemon lease owner's sole completion and failure authority.
+// daemon lease owner's sole settlement and release authority.
 func RequireLeaseSettlementActor(run Run, actor ActorContext) error {
 	if !run.IsLoopWorker() || run.ClaimedBy == nil || run.ClaimedBy.Kind.Normalize() != ActorKindDaemon {
 		return nil

@@ -1,6 +1,7 @@
 // Suite: Loop Runs route composition
 // Invariant: a read failure renders a recoverable degraded state over the last
 // read, never a successful empty state — for the inventory and the runs roster alike.
+// A successful filtered-empty roster explains the active filters and clears them together.
 // Boundary IN: LoopRunsLocation query-state routing and retry wiring.
 // Boundary OUT: inventory rows and query transport, owned by their component and adapter suites.
 
@@ -10,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopbarSlot } from "@compozy/ui";
 import { scopedListingScopeFixture } from "@/systems/profiles/mocks";
+import type { LoopOutcomeValue, LoopRunsRouteSearch } from "@/systems/loops";
 
 const { inventoryRefetch, useLoopRunsRouteMock } = vi.hoisted(() => ({
   inventoryRefetch: vi.fn(),
@@ -71,10 +73,10 @@ describe("LoopRunsLocation", () => {
     const user = userEvent.setup();
     render(<LoopRunsLocation search={{ nodes: "waiting" }} />);
 
-    expect(screen.getByText("Unable to load node inventory")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load steps")).toBeInTheDocument();
     expect(screen.queryByText("Nothing is waiting")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Retry inventory" }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(inventoryRefetch).toHaveBeenCalledTimes(1);
   });
 
@@ -92,6 +94,29 @@ describe("LoopRunsLocation", () => {
     expect(slot).not.toHaveProperty("glyph");
     expect(slot).not.toHaveProperty("count");
   });
+
+  it.each([
+    { search: { origin: "session" }, outcome: "all" },
+    { search: { origin_session: "session-review" }, outcome: "all" },
+    { search: { origin: "session", origin_session: "session-review" }, outcome: "done" },
+  ] satisfies { search: LoopRunsRouteSearch; outcome: LoopOutcomeValue }[])(
+    "Should recover from an empty roster filtered by $search and $outcome",
+    async ({ search, outcome }) => {
+      const user = userEvent.setup();
+      const route = useLoopRunsRouteMock();
+      useLoopRunsRouteMock.mockReturnValue({ ...route, inventoryState: undefined, outcome });
+
+      render(<LoopRunsLocation search={search} />);
+
+      expect(
+        screen.getByRole("heading", { name: "No runs match this filter" })
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Browse loops" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Clear filter" }));
+      expect(route.setOriginFilter).toHaveBeenCalledExactlyOnceWith({});
+      expect(route.setOutcome).toHaveBeenCalledExactlyOnceWith("all");
+    }
+  );
 
   it("Should populate the inventory filter from catalog options rather than run history", async () => {
     const user = userEvent.setup();
@@ -182,7 +207,7 @@ describe("LoopRunsLocation", () => {
 
     const notice = screen.getByTestId("loop-runs-degraded");
     expect(notice).toHaveAttribute("data-cause", "reconnecting");
-    expect(notice).toHaveTextContent("Reconnecting to the daemon.");
+    expect(notice).toHaveTextContent("Reconnecting to CompozyOS.");
     // The two causes stay mutually exclusive; the read-failed sentence is absent.
     expect(notice).not.toHaveTextContent("could not be read");
   });

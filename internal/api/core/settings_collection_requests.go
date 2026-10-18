@@ -17,8 +17,8 @@ import (
 func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
 	var body struct {
 		Server          *contract.SettingsMCPServerPayload             `json:"server"`
-		SecretValues    *contract.SettingsMCPSecretValuesPayload       `json:"secret_values,omitempty"`
-		PreserveSecrets *contract.SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitempty"`
+		SecretValues    *contract.SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
+		PreserveSecrets *contract.SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
 		PreserveEnv     []string                                       `json:"preserve_env,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -81,39 +81,6 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		MCPSecrets:            mcpSecretValuesFromPayload(body.SecretValues),
 		MCPSecretPreservation: mcpSecretPreservationFromPayload(body.PreserveSecrets),
 		MCPEnvPreservation:    cloneStrings(body.PreserveEnv),
-	}, nil
-}
-
-func parsePutSettingsSandboxRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
-	var body struct {
-		Profile *contract.SettingsSandboxProfilePayload `json:"profile"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
-			fmt.Errorf("decode sandbox settings request: %w", err),
-		)
-	}
-	if body.Profile == nil {
-		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
-			errors.New("sandboxes.profile is required"),
-		)
-	}
-	req, err := parseSettingsCollectionRequest(c, settingspkg.CollectionSandboxes)
-	if err != nil {
-		return settingspkg.CollectionItemPutRequest{}, err
-	}
-	name, err := requiredSettingsPathValue(c.Param("name"), "name")
-	if err != nil {
-		return settingspkg.CollectionItemPutRequest{}, err
-	}
-	profile, err := sandboxProfileFromPayload(*body.Profile)
-	if err != nil {
-		return settingspkg.CollectionItemPutRequest{}, err
-	}
-	return settingspkg.CollectionItemPutRequest{
-		CollectionRequest: req,
-		Name:              name,
-		Sandbox:           &profile,
 	}, nil
 }
 

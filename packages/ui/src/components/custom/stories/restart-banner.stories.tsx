@@ -25,7 +25,7 @@ export const Idle: Story = {
   args: {},
 };
 
-/** RestartNowActive — banner shows the warm-orange "Restart daemon" button. */
+/** RestartNowActive — banner shows the warm-orange "Restart now" button. */
 export const RestartNowActive: Story = {
   args: {
     restartNow: fn(),
@@ -45,8 +45,8 @@ export const Polling: Story = {
   args: {
     tone: "info",
     busy: true,
-    message: "Restarting daemon · stopping",
-    detail: <span className="font-mono text-[10.5px] text-muted">op_abcdef</span>,
+    message: "Restarting · stopping",
+    detail: <span className="font-mono text-form-hint text-muted">op_abcdef</span>,
   },
 };
 
@@ -54,7 +54,7 @@ export const Polling: Story = {
 export const Failure: Story = {
   args: {
     tone: "danger",
-    message: "Daemon restart failed: helper exited non-zero",
+    message: "Restart failed: helper exited non-zero",
     onDismiss: fn(),
   },
 };
@@ -64,5 +64,17 @@ export const CustomMessage: Story = {
   args: {
     restartNow: fn(),
     message: "Provider config changed. Restart to apply across active sessions.",
+  },
+};
+
+/** WithDescription — title plus a second line, a dismiss, and the primary restart action. */
+export const WithDescription: Story = {
+  args: {
+    message: "Restart needed",
+    description:
+      "Some saved changes apply after a restart. Running sessions keep their current rules until then.",
+    restartNow: fn(),
+    onDismiss: fn(),
+    dismissLabel: "Not now",
   },
 };

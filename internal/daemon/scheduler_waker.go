@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
@@ -175,6 +176,8 @@ func (w *schedulerSessionWaker) wakePendingTaskRun(
 	if !admitted {
 		return errors.New("daemon: scheduler waker is stopping")
 	}
+	// Scheduler wakes are daemon-initiated and yield to host CPU pressure at admission.
+	ctx = admission.WithBackgroundWork(ctx)
 	message := schedulerWakeMessage(target)
 	if synthetic, ok := w.sessions.(schedulerSyntheticPrompter); ok {
 		metadata := acp.PromptSyntheticMeta{

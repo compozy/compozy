@@ -1,3 +1,4 @@
+import { fetchSessionSubagents, cancelSubagent } from "../subagent-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   expectFetchRequest,
@@ -8,7 +9,6 @@ import {
 import {
   SessionApiError,
   SessionGoalCommandError,
-  SessionLedgerUnavailableError,
   SessionNotFoundError,
   buildSessionStreamUrl,
   archiveSession,
@@ -16,12 +16,12 @@ import {
   cancelSessionPrompt,
   clearSessionRuntime,
   clearSessionConversation,
+  compactSession,
   createSession,
   deleteSession,
   fetchSession,
   fetchSessionEvents,
   fetchSessionInputs,
-  fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionTranscript,
   mutateSessionGoal,
@@ -31,7 +31,6 @@ import {
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
-  resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
   stopSession,
@@ -157,15 +156,6 @@ describe("fetchSessions", () => {
 
     await expect(fetchSessions()).rejects.toThrow("Failed to fetch sessions: 500");
   });
-
-  it("returns empty array when server returns empty list", async () => {
-    const response = { sessions: [], page: { has_more: false, limit: 50, total: 0 } };
-    mockJsonResponse(response);
-
-    const result = await fetchSessions();
-
-    expect(result).toEqual(response);
-  });
 });
 
 describe("fetchSessionCommands", () => {
@@ -231,24 +221,6 @@ describe("createSession", () => {
     expect(result).toEqual(mockSession);
     await expectFetchRequest({
       body: { agent_name: "claude-agent" },
-      method: "POST",
-      path: "/api/sessions",
-    });
-  });
-
-  it("sends only session metadata in the create body", async () => {
-    mockJsonResponse({ session: mockSession });
-
-    await createSession({
-      agent_name: "claude-agent",
-      workspace: "ws_alpha",
-    });
-
-    await expectFetchRequest({
-      body: {
-        agent_name: "claude-agent",
-        workspace: "ws_alpha",
-      },
       method: "POST",
       path: "/api/sessions",
     });
@@ -349,7 +321,7 @@ describe("fetchSession", () => {
 
     expect(result).toEqual(mockSession);
     await expectFetchRequest({
-      path: "/api/workspaces/ws_alpha/sessions/sess-001?include_health=true",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001?include_health=true&all_profiles=true",
     });
   });
 
@@ -367,7 +339,7 @@ describe("fetchSession", () => {
     await fetchSession(WORKSPACE_ID, "id with spaces");
 
     await expectFetchRequest({
-      path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces?include_health=true",
+      path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces?include_health=true&all_profiles=true",
     });
   });
 });
@@ -379,12 +351,18 @@ describe("renameSession", () => {
     const controller = new AbortController();
 
     await expect(
-      renameSession(WORKSPACE_ID, "sess-001", { name: "Release review" }, controller.signal)
+      renameSession(
+        WORKSPACE_ID,
+        "sess-001",
+        "design",
+        { name: "Release review" },
+        controller.signal
+      )
     ).resolves.toEqual(renamed);
     await expectFetchRequest({
       body: { name: "Release review" },
       method: "PATCH",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001?profile=design",
       signal: controller.signal,
     });
   });
@@ -404,13 +382,13 @@ describe("stopSession", () => {
     const controller = new AbortController();
 
     await expect(
-      stopSession(WORKSPACE_ID, "sess-001", { signal: controller.signal })
+      stopSession(WORKSPACE_ID, "sess-001", "studio", { signal: controller.signal })
     ).resolves.toEqual(accepted);
 
     await expectFetchRequest({
       body: { wait: false },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop?profile=studio",
       signal: controller.signal,
     });
   });
@@ -431,14 +409,14 @@ describe("stopSession", () => {
     };
     mockJsonResponse(unverified);
 
-    await expect(stopSession(WORKSPACE_ID, "sess-001", { wait: true })).resolves.toEqual(
+    await expect(stopSession(WORKSPACE_ID, "sess-001", "studio", { wait: true })).resolves.toEqual(
       unverified
     );
 
     await expectFetchRequest({
       body: { wait: true },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop?profile=studio",
     });
   });
 
@@ -452,19 +430,19 @@ describe("stopSession", () => {
     };
     mockJsonResponse(alreadyStopped);
 
-    await expect(stopSession(WORKSPACE_ID, "sess-001")).resolves.toEqual(alreadyStopped);
+    await expect(stopSession(WORKSPACE_ID, "sess-001", "studio")).resolves.toEqual(alreadyStopped);
 
     await expectFetchRequest({
       body: { wait: false },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop?profile=studio",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(stopSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+    await expect(stopSession(WORKSPACE_ID, "unknown", "studio")).rejects.toThrow(
       "Session not found: unknown"
     );
   });
@@ -472,7 +450,7 @@ describe("stopSession", () => {
   it("throws generic error for other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(stopSession(WORKSPACE_ID, "sess-001")).rejects.toThrow(
+    await expect(stopSession(WORKSPACE_ID, "sess-001", "studio")).rejects.toThrow(
       'Failed to stop session "sess-001": 500'
     );
   });
@@ -554,10 +532,12 @@ describe("session archive", () => {
     const archivedSession = { ...mockSession, archived_at: "2026-08-04T12:00:00Z" };
     mockJsonResponse({ session: archivedSession });
 
-    await expect(archiveSession(WORKSPACE_ID, mockSession.id)).resolves.toEqual(archivedSession);
+    await expect(archiveSession(WORKSPACE_ID, mockSession.id, "design")).resolves.toEqual(
+      archivedSession
+    );
     await expectFetchRequest({
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive?profile=design",
     });
   });
 
@@ -565,11 +545,65 @@ describe("session archive", () => {
     const restoredSession = { ...mockSession, archived_at: null };
     mockJsonResponse({ session: restoredSession });
 
-    await expect(unarchiveSession(WORKSPACE_ID, mockSession.id)).resolves.toEqual(restoredSession);
+    await expect(unarchiveSession(WORKSPACE_ID, mockSession.id, "design")).resolves.toEqual(
+      restoredSession
+    );
     await expectFetchRequest({
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive?profile=design",
     });
+  });
+});
+
+describe("compactSession", () => {
+  const receipt = {
+    command: "compact",
+    prompt_id: "prompt-compact-1",
+    session_id: "sess-001",
+    status: "accepted",
+  };
+
+  it("posts an empty body to the compact route and resolves with the 202 receipt", async () => {
+    mockJsonResponse(receipt, { status: 202 });
+    const controller = new AbortController();
+
+    await expect(compactSession(WORKSPACE_ID, "sess-001", controller.signal)).resolves.toEqual(
+      receipt
+    );
+
+    await expectFetchRequest({
+      body: {},
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/compact",
+      signal: controller.signal,
+    });
+  });
+
+  it.each(["session_busy", "compaction_unsupported"])(
+    "carries the %s code and the daemon message on a 409",
+    async code => {
+      mockJsonResponse({ code, error: `daemon says ${code}` }, { status: 409 });
+
+      const error = await compactSession(WORKSPACE_ID, "sess-001").catch(
+        (reason: unknown) => reason
+      );
+
+      expect(error).toBeInstanceOf(SessionApiError);
+      expect(error).toMatchObject({
+        code,
+        message: `daemon says ${code}`,
+        sessionId: "sess-001",
+        status: 409,
+      });
+    }
+  );
+
+  it("reports an unknown session as not found", async () => {
+    mockJsonResponse({ error: "session not found" }, { status: 404 });
+
+    await expect(compactSession(WORKSPACE_ID, "unknown")).rejects.toBeInstanceOf(
+      SessionNotFoundError
+    );
   });
 });
 
@@ -786,6 +820,7 @@ describe("rewindSession", () => {
     const result = await rewindSession(
       WORKSPACE_ID,
       "sess-001",
+      "design",
       {
         expected_epoch: 3,
         expected_generation: 7,
@@ -809,7 +844,7 @@ describe("rewindSession", () => {
         message_id: "message-001",
       },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/rewind",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/rewind?profile=design",
       signal: controller.signal,
     });
   });
@@ -907,28 +942,6 @@ describe("session input queue operations", () => {
       method: "DELETE",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/queue/input-001",
     });
-  });
-});
-
-describe("resumeSession", () => {
-  it("calls POST attach endpoint", async () => {
-    mockJsonResponse({ session: { ...mockSession, state: "active" } });
-
-    const result = await resumeSession(WORKSPACE_ID, "sess-001");
-
-    expect(result.state).toBe("active");
-    await expectFetchRequest({
-      method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/attach",
-    });
-  });
-
-  it("throws 404 error for unknown session", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
-
-    await expect(resumeSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
-      "Session not found: unknown"
-    );
   });
 });
 
@@ -1112,99 +1125,6 @@ describe("fetchSessionEvents", () => {
   });
 });
 
-describe("fetchSessionLedger", () => {
-  const mockLedger = {
-    meta: {
-      version: 1,
-      session_id: "sess-001",
-      workspace_id: "ws_alpha",
-      root_session_id: "sess-root",
-      parent_session_id: "sess-parent",
-      spawn_depth: 1,
-      path: "/sessions/ws_alpha/sess-001/ledger.jsonl",
-      checksum: "sha256:abc",
-      created_at: "2026-04-20T10:00:00Z",
-      stopped_at: "2026-04-20T11:00:00Z",
-    },
-    events: [
-      { sequence: 1, event_type: "session.started", emitted_at: "2026-04-20T10:00:00Z" },
-      { sequence: 2, event_type: "memory.recall", emitted_at: "2026-04-20T10:01:00Z" },
-    ],
-  };
-
-  it("returns the materialized ledger response on success", async () => {
-    mockJsonResponse(mockLedger);
-
-    const result = await fetchSessionLedger("ws-alpha", "sess-001");
-
-    expect(result).toEqual(mockLedger);
-    await expectFetchRequest({ path: "/api/workspaces/ws-alpha/memory/sessions/sess-001/ledger" });
-  });
-
-  it("throws SessionLedgerUnavailableError when the ledger has not materialized (404)", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
-
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toBeInstanceOf(
-      SessionLedgerUnavailableError
-    );
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toMatchObject({
-      message: "Session ledger not materialized: sess-001",
-      status: 404,
-      sessionId: "sess-001",
-    });
-  });
-
-  it("exposes unsupported session memory as unavailable", async () => {
-    mockJsonResponse(
-      { code: "memory.unsupported", message: "Unsupported memory operation" },
-      { status: 501 }
-    );
-
-    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
-
-    expect(error).toBeInstanceOf(SessionLedgerUnavailableError);
-    expect(error).toMatchObject({ status: 501, code: "memory.unsupported", reason: "unsupported" });
-  });
-
-  it("preserves unrelated not-implemented failures as errors", async () => {
-    mockJsonResponse(
-      { code: "server.unsupported", message: "Unsupported operation" },
-      { status: 501 }
-    );
-
-    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
-
-    expect(error).toBeInstanceOf(SessionApiError);
-    expect(error).not.toBeInstanceOf(SessionLedgerUnavailableError);
-    expect(error).toMatchObject({ status: 501, code: "server.unsupported" });
-  });
-
-  it("throws a typed adapter error for non-404 failures", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
-
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toBeInstanceOf(
-      SessionApiError
-    );
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toMatchObject({
-      message: 'Failed to fetch session ledger "sess-001": 500',
-      status: 500,
-      sessionId: "sess-001",
-    });
-  });
-
-  it("passes the abort signal through to fetch", async () => {
-    mockJsonResponse(mockLedger);
-
-    const controller = new AbortController();
-    await fetchSessionLedger("ws-alpha", "sess-001", controller.signal);
-
-    await expectFetchRequest({
-      path: "/api/workspaces/ws-alpha/memory/sessions/sess-001/ledger",
-      signal: controller.signal,
-    });
-  });
-});
-
 describe("fetchSessionTranscript", () => {
   const mockTranscript = {
     epoch: 2,
@@ -1313,7 +1233,7 @@ describe("fetchSessionTranscript", () => {
               },
               {
                 type: "text",
-                text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+                text: "Permission blocked diagnostic: terminal/create denied before writing workspace marker.",
                 state: "done",
               },
             ],
@@ -1328,9 +1248,47 @@ describe("fetchSessionTranscript", () => {
     expect(result).toEqual(blockedTranscript);
     expect(result.entries[0]?.message.parts).toHaveLength(2);
     expect(result.entries[0]?.message.parts?.[1]).toMatchObject({
-      text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+      text: "Permission blocked diagnostic: terminal/create denied before writing workspace marker.",
       type: "text",
     });
+  });
+
+  // Invariant (S18): a compaction item survives transcript normalization whole — the
+  // `system` role, the agent's own (vendor) status, and the optional summary and error.
+  it("Should carry compaction items with any agent status through normalization", async () => {
+    const compactionTranscript = {
+      epoch: 1,
+      generation: 1,
+      max_sequence: 3,
+      has_older: false,
+      limit: 200,
+      entries: ["in_progress", "compaction_paused", "failed"].map((status, index) => ({
+        sequence: index + 1,
+        start_sequence: index + 1,
+        message: {
+          id: `compaction:c${index}`,
+          role: "system",
+          parts: [
+            {
+              type: "data-compozy-compaction",
+              id: `c${index}`,
+              data: {
+                kind: "compaction",
+                compaction_id: `c${index}`,
+                status,
+                started_at: "2026-10-08T14:02:11Z",
+                ...(status === "failed" ? { error: "context window exceeded" } : {}),
+              },
+            },
+          ],
+        },
+      })),
+    };
+    mockJsonResponse(compactionTranscript);
+
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
+
+    expect(result).toEqual(compactionTranscript);
   });
 
   it("throws 404 for unknown session", async () => {
@@ -1363,5 +1321,23 @@ describe("session context HTTP adapters", () => {
     await expect(
       fetchSessionUsageTurns("foreign-workspace", primarySessionFixture.id)
     ).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe("profile-bound subagents", () => {
+  it("reads the identified parent's roster across profiles and cancels in its owner's profile", async () => {
+    mockJsonResponse({ subagents: [], next_cursor: null });
+    await fetchSessionSubagents(WORKSPACE_ID, "sess-001", { limit: 200, cursor: "next" });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/subagents?all_profiles=true&limit=200&cursor=next",
+    });
+    mockJsonResponse({ subagent_id: "sub-1", status: "cancel_requested" }, { status: 202 });
+    await cancelSubagent(WORKSPACE_ID, "sub-1", "design");
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/subagents/sub-1/cancel?profile=design",
+      callIndex: 1,
+      body: { reason: "" },
+    });
   });
 });

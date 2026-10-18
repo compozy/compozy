@@ -18,6 +18,61 @@ func observation(t *testing.T, sequence int64, turn string, used, size *int64) U
 
 func TestDerive(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should require fresh occupancy after a terminal compaction without changing history or attribution",
+		func(t *testing.T) {
+			t.Parallel()
+			in := Input{
+				Available:          true,
+				CompactionBoundary: new(int64(12)),
+				ClearedBy:          &ClearedBy{CompactionID: "c1", Sequence: 12},
+				UsageEvents: []UsageEvent{
+					observation(t, 10, "A", new(int64(190000)), new(int64(200000))),
+					{Sequence: 13, TurnID: "B", Usage: store.TokenUsage{TurnID: "B", TotalTokens: new(int64(100))}},
+				},
+				Deliveries: []Delivery{{Sequence: 3, TurnID: "A", SentAt: reportAt, Estimate: "bytes_div_4",
+					Spans: []Span{{Key: "skills", Tokens: new(int64(20))}}}},
+			}
+			historical := append([]UsageEvent(nil), in.UsageEvents...)
+			before := Derive(in)
+			if before.State != StateUnknown || before.Used != nil || before.Size != nil || before.Sequence != nil {
+				t.Fatalf("pre-compaction occupancy survived: %#v", before)
+			}
+			if before.ClearedBy == nil || before.ClearedBy.CompactionID != "c1" || before.ClearedBy.Sequence != 12 {
+				t.Fatalf("unknown context lost compaction cause: %#v", before)
+			}
+			if before.Injected == nil || before.Injected.Tokens != 20 || before.Injected.Stale {
+				t.Fatalf("injected attribution changed: %#v", before.Injected)
+			}
+			in.UsageEvents = append(in.UsageEvents, observation(t, 14, "B", new(int64(40000)), new(int64(200000))))
+			after := Derive(in)
+			if after.State != StateReported || after.Used == nil || *after.Used != 40000 ||
+				after.Sequence == nil || *after.Sequence != 14 {
+				t.Fatalf("fresh occupancy = %#v", after)
+			}
+			if after.ClearedBy != nil {
+				t.Fatalf("reported context retained compaction cause: %#v", after)
+			}
+			if got := Derive(
+				Input{ClearedBy: in.ClearedBy, CompactionBoundary: in.CompactionBoundary},
+			); got.ClearedBy != nil {
+				t.Fatalf("unavailable context retained cause: %#v", got)
+			}
+			if after.Injected == nil || !after.Injected.Stale || !after.Injected.Rows[0].Stale {
+				t.Fatalf("historical context drop was lost: %#v", after.Injected)
+			}
+			turns, _ := Turns(in)
+			if len(turns) != 2 || turns[0].Usage.ContextUsed == nil || *turns[0].Usage.ContextUsed != 190000 ||
+				turns[1].Usage.TotalTokens == nil || *turns[1].Usage.TotalTokens != 100 ||
+				!reflect.DeepEqual(in.UsageEvents[:2], historical) {
+				t.Fatalf("historical usage changed: %#v", turns)
+			}
+			in.UsageEvents = []UsageEvent{observation(t, 12, "B", new(int64(40000)), new(int64(200000)))}
+			if got := Derive(in); got.State != StateUnknown || got.Used != nil {
+				t.Fatalf("boundary-equal observation restored occupancy: %#v", got)
+			}
+		},
+	)
 	t.Run("Should select observations by sequence and preserve unknown quantities", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -27,17 +82,14 @@ func TestDerive(t *testing.T) {
 			used, size *int64
 			ratio      *float64
 			source     string
-			threshold  *float64
 		}{
 			{name: "Should preserve unknown state before an observation", in: Input{Available: true, CatalogWindow: new(int64(100))}, state: StateUnknown},
 			{name: "Should ignore counter-only and negative context observations", in: Input{Available: true, UsageEvents: []UsageEvent{{Sequence: 9, Usage: store.TokenUsage{InputTokens: new(int64(10))}}, observation(t, 10, "A", new(int64(-1)), new(int64(100)))}}, state: StateUnknown},
-			{name: "Should use an agent window", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(80)), new(int64(100)))}, CatalogWindow: new(int64(200)), Threshold: new(0.85)}, state: StateReported, used: new(int64(80)), size: new(int64(100)), ratio: new(0.8), source: "agent", threshold: new(0.85)},
-			{name: "Should use a catalog window without enabling pressure compaction", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(80)), nil)}, CatalogWindow: new(int64(100)), Threshold: new(0.85)}, state: StateEstimatedSize, used: new(int64(80)), size: new(int64(100)), ratio: new(0.8), source: "catalog"},
+			{name: "Should use an agent window", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(80)), new(int64(100)))}, CatalogWindow: new(int64(200))}, state: StateReported, used: new(int64(80)), size: new(int64(100)), ratio: new(0.8), source: "agent"},
+			{name: "Should use a catalog window", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(80)), nil)}, CatalogWindow: new(int64(100))}, state: StateEstimatedSize, used: new(int64(80)), size: new(int64(100)), ratio: new(0.8), source: "catalog"},
 			{name: "Should retain reported usage without a size", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(80)), nil)}}, state: StateReported, used: new(int64(80))},
 			{name: "Should preserve a raw over-capacity ratio", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(110)), new(int64(100)))}}, state: StateReported, used: new(int64(110)), size: new(int64(100)), ratio: new(1.1), source: "agent"},
-			{name: "Should preserve zero usage and threshold equality", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(0)), new(int64(100)))}}, state: StateReported, used: new(int64(0)), size: new(int64(100)), ratio: new(0.0), source: "agent"},
-			{name: "Should keep an eligible threshold at equality", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(85)), new(int64(100)))}, Threshold: new(0.85)}, state: StateReported, used: new(int64(85)), size: new(int64(100)), ratio: new(0.85), source: "agent", threshold: new(0.85)},
-			{name: "Should omit a disabled threshold", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(80)), new(int64(100)))}, Threshold: new(0.0)}, state: StateReported, used: new(int64(80)), size: new(int64(100)), ratio: new(0.8), source: "agent"},
+			{name: "Should preserve zero usage", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(0)), new(int64(100)))}}, state: StateReported, used: new(int64(0)), size: new(int64(100)), ratio: new(0.0), source: "agent"},
 			{name: "Should reject invalid sizes", in: Input{Available: true, UsageEvents: []UsageEvent{observation(t, 10, "A", new(int64(80)), new(int64(0)))}, CatalogWindow: new(int64(-1))}, state: StateReported, used: new(int64(80))},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -46,8 +98,7 @@ func TestDerive(t *testing.T) {
 				if got.State != tc.state || !reflect.DeepEqual(got.Used, tc.used) ||
 					!reflect.DeepEqual(got.Size, tc.size) ||
 					!reflect.DeepEqual(got.Ratio, tc.ratio) ||
-					got.SizeSource != tc.source ||
-					!reflect.DeepEqual(got.PressureThreshold, tc.threshold) {
+					got.SizeSource != tc.source {
 					t.Fatalf("context = %#v", got)
 				}
 				if tc.state == StateUnknown &&
@@ -98,7 +149,6 @@ func TestDerive(t *testing.T) {
 				UsageEvents:   []UsageEvent{observation(t, 10, "A", new(int64(80)), new(int64(100)))},
 				Deliveries:    []Delivery{{Spans: []Span{{Key: "skills", Tokens: new(int64(10))}}}},
 				CatalogWindow: new(int64(100)),
-				Threshold:     new(0.85),
 			},
 		)
 		if !reflect.DeepEqual(got, ContextUsage{State: StateUnavailable}) {
@@ -259,7 +309,7 @@ func TestAttribution(t *testing.T) {
 							observation(t, 44, "A", new(int64(200)), nil),
 							observation(t, 45, "B", new(tc.used), nil),
 						},
-						Compactions: []Compaction{{Sequence: 43, SpanArchived: true}},
+						Compactions: []Compaction{{Sequence: 43, CompactionID: "c1", Status: "completed"}},
 						Deliveries: []Delivery{
 							{
 								Sequence: 50,
@@ -281,7 +331,7 @@ func TestAttribution(t *testing.T) {
 
 func TestTurns(t *testing.T) {
 	t.Parallel()
-	t.Run("Should return the ordered union of usage and delivery turns with archive facts", func(t *testing.T) {
+	t.Run("Should return the ordered union of usage and delivery turns with compaction facts", func(t *testing.T) {
 		t.Parallel()
 		in := Input{Available: true, UsageEvents: []UsageEvent{
 			{Sequence: 77, TurnID: "D", Usage: store.TokenUsage{TurnID: "D", InputTokens: new(int64(10))}},
@@ -295,7 +345,7 @@ func TestTurns(t *testing.T) {
 				Spans:    []Span{{Key: "skills", Unchanged: true, StartupDedup: true}},
 			},
 			{Sequence: 3, TurnID: "A", Estimate: "bytes_div_4", Spans: []Span{{Key: "skills", Tokens: new(int64(20))}}},
-		}, Compactions: []Compaction{{Sequence: 60, SpanArchived: true}, {Sequence: 12, SpanArchived: false}}}
+		}, Compactions: []Compaction{{Sequence: 60, CompactionID: "c2", Status: "completed"}, {Sequence: 12, CompactionID: "c1", Status: "in_progress"}}}
 		turns, compactions := Turns(in)
 		if len(turns) != 4 || turns[0].Sequence != 9 || turns[1].Sequence != 41 || turns[2].Sequence != 58 ||
 			turns[3].Sequence != 77 {
@@ -312,8 +362,8 @@ func TestTurns(t *testing.T) {
 			!turns[2].Injected.Spans[0].StartupDedup {
 			t.Fatalf("delivery = %#v", turns[2].Injected)
 		}
-		if len(compactions) != 2 || compactions[0].Sequence != 12 || compactions[0].SpanArchived ||
-			!compactions[1].SpanArchived {
+		if len(compactions) != 2 || compactions[0].Sequence != 12 || compactions[0].CompactionID != "c1" ||
+			compactions[1].Status != "completed" {
 			t.Fatalf("compactions = %#v", compactions)
 		}
 		if in.UsageEvents[0].Sequence != 77 || in.Compactions[0].Sequence != 60 {

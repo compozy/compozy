@@ -27,9 +27,7 @@ export function NewTabWindow({ windowId }: { windowId: string }) {
       className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center"
       data-testid="new-tab-empty"
     >
-      <p className="text-small-body leading-relaxed text-subtle">
-        Empty tab — open any route or session
-      </p>
+      <p className="text-small-body leading-relaxed text-subtle">This tab is empty</p>
       <Button
         type="button"
         onClick={() =>

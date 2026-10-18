@@ -133,7 +133,6 @@ describe("createWorkspace", () => {
       name: "Alpha",
       add_dirs: ["/workspace/shared"],
       default_agent: "triage",
-      sandbox_ref: "isolated-dev",
     });
 
     expect(result).toEqual(mockWorkspace);
@@ -143,7 +142,6 @@ describe("createWorkspace", () => {
         name: "Alpha",
         add_dirs: ["/workspace/shared"],
         default_agent: "triage",
-        sandbox_ref: "isolated-dev",
       },
       method: "POST",
       path: "/api/workspaces",

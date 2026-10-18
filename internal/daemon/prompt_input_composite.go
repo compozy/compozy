@@ -8,17 +8,13 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/situation"
 )
 
 const (
-	workspaceKnowledgeAugmenterOrder = 50
-	durableMemoryAugmenterOrder      = 100
-	skillsAugmenterOrder             = 150
-	situationAugmenterOrder          = 200
-	situationAugmenterBudget         = 20_000
+	skillsAugmenterOrder     = 150
+	situationAugmenterOrder  = 200
+	situationAugmenterBudget = 20_000
 )
 
 type promptInputAugmenterBudgetBehavior string
@@ -55,32 +51,10 @@ type promptInputComposite struct {
 }
 
 func defaultPromptInputAugmenterDescriptors(
-	workspaceKnowledge session.PromptInputAugmenter,
-	durableMemory session.PromptInputAugmenter,
 	skillsCatalog session.PromptInputAugmenter,
 	situationAugmenters ...session.PromptInputAugmenter,
 ) []promptInputAugmenterDescriptor {
 	descriptors := make([]promptInputAugmenterDescriptor, 0, 4)
-	if workspaceKnowledge != nil {
-		descriptors = append(descriptors, promptInputAugmenterDescriptor{
-			Name:           HarnessAugmenterWorkspaceKnowledge,
-			Order:          workspaceKnowledgeAugmenterOrder,
-			Budget:         situation.WorkspaceKnowledgeAugmenterBudget,
-			BudgetBehavior: promptInputAugmenterBudgetBehaviorOmit,
-			Critical:       true,
-			Augmenter:      workspaceKnowledge,
-		})
-	}
-	if durableMemory != nil {
-		descriptors = append(descriptors, promptInputAugmenterDescriptor{
-			Name:           HarnessAugmenterDurableMemory,
-			Order:          durableMemoryAugmenterOrder,
-			Budget:         memory.RecallAugmenterBudget,
-			BudgetBehavior: promptInputAugmenterBudgetBehaviorOmit,
-			Critical:       false,
-			Augmenter:      durableMemory,
-		})
-	}
 	if skillsCatalog != nil {
 		descriptors = append(descriptors, promptInputAugmenterDescriptor{
 			Name:           HarnessAugmenterSkills,

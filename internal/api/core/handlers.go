@@ -77,6 +77,9 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
+	if !h.requireCreateSessionFolder(c, mutationScope.ProfileID, req) {
+		return
+	}
 	worktreeTarget, err := h.resolveCreateSessionWorktree(c, mutationScope.ProfileID, req)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
@@ -84,14 +87,13 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	}
 
 	opts := session.CreateOpts{
-		ProfileID:            mutationScope.ProfileID,
-		AgentName:            req.AgentName,
-		Name:                 req.Name,
-		Workspace:            req.Workspace,
-		WorkspacePath:        req.WorkspacePath,
-		Worktree:             worktreeTarget.ID,
-		NetworkParticipation: req.NetworkParticipation,
-		Type:                 session.SessionTypeUser,
+		ProfileID:     mutationScope.ProfileID,
+		AgentName:     req.AgentName,
+		Name:          req.Name,
+		Workspace:     req.Workspace,
+		WorkspacePath: req.WorkspacePath,
+		Worktree:      worktreeTarget.ID,
+		Type:          session.SessionTypeUser,
 	}
 	if parentSessionID != "" {
 		parent, statusErr := h.Sessions.Status(c.Request.Context(), parentSessionID)
@@ -102,7 +104,10 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		if !h.requireSessionInProfile(c, parent, mutationScope) {
 			return
 		}
-		opts.Lineage = &store.SessionLineage{ParentSessionID: parentSessionID}
+		opts.Lineage = &store.SessionLineage{
+			ParentSessionID: parentSessionID,
+			Kind:            createSessionLineageKind(req.LineageKind),
+		}
 	}
 	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
 	if err != nil {
@@ -112,11 +117,13 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
+	folderID := h.placeCreatedSession(c.Request.Context(), info, req.FolderID)
 	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
+	payload.FolderID = folderID
 	c.JSON(http.StatusCreated, contract.SessionResponse{Session: payload})
 }
 

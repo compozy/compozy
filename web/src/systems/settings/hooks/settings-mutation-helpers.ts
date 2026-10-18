@@ -1,5 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { statusKeys } from "@/systems/status";
+
 import { settingsKeys } from "../lib/query-keys";
 import { settingsRestartStore } from "../stores/settings-restart-store";
 import type { SettingsMutationResult } from "../types";
@@ -21,5 +23,8 @@ export function recordSettingsMutation(result: SettingsMutationResult) {
 }
 
 export function invalidateSettingsApplyRecords(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: settingsKeys.applyRoot() });
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: settingsKeys.applyRoot() }),
+    queryClient.invalidateQueries({ queryKey: statusKeys.current() }),
+  ]);
 }

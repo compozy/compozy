@@ -27,15 +27,19 @@ import { SessionWorkEntryView } from "./session-work-entry";
 import { SessionToolGroupRow } from "./session-tool-group-row";
 import { rowContainsPart, rowsContainPart } from "./session-timeline-reveal";
 import { SessionTurnFoldRowView } from "./session-turn-fold-row";
+import { SessionSubagentRowView } from "./session-subagent-row";
+import { SessionSentMessageRowView } from "./session-sent-message-row";
 import {
   type SessionChangedFilesRow,
   type SessionDataRow,
   type SessionLiveToolRow,
   type SessionReasoningRow,
   type SessionRow,
+  type SessionSubagentRow,
   type SessionTextRow,
   type SessionTurnFoldRow,
   type SessionWorkRow,
+  deriveSessionRows,
   sessionRowEqual,
 } from "./session-timeline.logic";
 import {
@@ -44,8 +48,10 @@ import {
   type GoalPromptMeta,
   isAgentEventPayload,
   isClarifyEventData,
+  isCompactionItemData,
   PermissionDataPart,
   RuntimeActivityNotice,
+  SessionCompactionItem,
   ThinkingBlock,
 } from "@/systems/session";
 
@@ -62,7 +68,7 @@ function isCompozyPermissionData(value: unknown): value is CompozyPermissionData
 function SessionTextRowView({ row }: { row: SessionTextRow }) {
   return (
     <div
-      className="contents"
+      className="session-answer contents"
       data-part-index={row.part.partIndex}
       data-part-indices={row.parts
         .map(part => part.partIndex)
@@ -99,6 +105,9 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
   }
   if (row.part.name === "data-compozy-permission" && isCompozyPermissionData(row.part.data)) {
     return <PermissionDataPart data={row.part.data} />;
+  }
+  if (row.part.name === "data-compozy-compaction" && isCompactionItemData(row.part.data)) {
+    return <SessionCompactionItem item={row.part.data} />;
   }
 
   return <SessionDataEventMarker name={row.part.name} />;
@@ -186,6 +195,27 @@ function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow })
   );
 }
 
+// Provider-native inner work renders inside its card with the same row views
+// (S8); the parent flow never holds it. Group expansion lives with the
+// message's other disclosures, keyed `subagent-group:<first id>`.
+function SessionSubagentRowContent({ row }: { row: SessionSubagentRow }) {
+  const store = useTimelineRowContext();
+  const scrollStore = useOptionalThreadScrollStore();
+  return (
+    <SessionSubagentRowView
+      row={row}
+      renderNested={subagentId => {
+        const inner = row.nested.get(subagentId);
+        return inner ? renderTimelineRows(deriveSessionRows(inner)) : null;
+      }}
+      onGroupOpenChange={() => {
+        notifyDisclosureToggled(scrollStore);
+        toggleTimelineExpansion(store, "work-group", row.id);
+      }}
+    />
+  );
+}
+
 // A find jump opens the fold the matched part sits behind ("opened for a
 // match"): the exact part when the daemon located it, the whole turn when an
 // older daemon named only the turn. The reader closes it by hand with one
@@ -259,6 +289,10 @@ const TimelineRowContent = memo(
         return <SessionChangedFilesRowContent row={row} />;
       case "turn-fold":
         return <SessionTurnFoldRowContent row={row} />;
+      case "subagents":
+        return <SessionSubagentRowContent row={row} />;
+      case "session-message":
+        return <SessionSentMessageRowView row={row} />;
     }
   },
   (previous, next) => sessionRowEqual(previous.row, next.row)
@@ -273,22 +307,29 @@ function renderTimelineRows(rows: readonly SessionRow[]): ReactNode {
 }
 
 const GOAL_PROMPT_LABELS: Record<GoalPromptMeta["kind"], string> = {
-  "goal-work": "Goal work",
-  "goal-continuation": "Goal continuation",
-  "goal-compaction": "Goal compaction",
+  "goal-work": "Working on goal",
+  "goal-continuation": "Working on goal",
+  "goal-compaction": "Tidying up goal notes",
 };
 
-// `.marker--goal` — the goal prompt as one quiet marker line, mono meta for
-// the node/generation facts, the run link in `--info`.
+// `.marker--goal` — the goal prompt as one quiet marker line: a plain step
+// fact, the run link in `--info`. Node and generation stay on data attributes.
 function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
-  const turn = goal.turn === null ? "" : ` · turn ${goal.turn}`;
   return (
-    <Marker data-testid="goal-prompt-meta" tone="info" icon={<Target strokeWidth={1.8} />}>
+    <Marker
+      data-testid="goal-prompt-meta"
+      data-goal-kind={goal.kind}
+      data-goal-node={goal.node_id}
+      data-goal-generation={goal.generation}
+      tone="info"
+      icon={<Target />}
+    >
       <b>{GOAL_PROMPT_LABELS[goal.kind]}</b>{" "}
-      <MarkerMeta>
-        {goal.node_id} · generation {goal.generation}
-        {turn}
-      </MarkerMeta>{" "}
+      {goal.turn === null ? null : (
+        <>
+          <MarkerMeta>step {goal.turn}</MarkerMeta>{" "}
+        </>
+      )}
       <Link
         className="text-info transition-colors hover:underline hover:underline-offset-2"
         params={{ runId: goal.run_id }}

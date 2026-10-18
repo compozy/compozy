@@ -1,6 +1,6 @@
 ---
 title: Session Health
-description: Metadata-only session presence, attachability, wake eligibility, and boundaries with HEARTBEAT.md policy, task leases, and network greet presence.
+description: Metadata-only session presence, attachability, wake eligibility, and boundaries with HEARTBEAT.md policy, and task leases.
 ---
 
 Session health is a metadata-only runtime primitive CompozyOS maintains for every active session. It
@@ -20,9 +20,13 @@ answers four questions without ever calling the model:
 
 ## Recovering supervised work
 
-Session supervision warns after `session.supervision.quiet_after` (30 minutes by default) when no
-fresh work evidence remains. A positive `stop_grace` (10 minutes by default) then permits a verified
-process-tree stop. Valid work signals and unknown signal sources prevent this stop.
+Session supervision warns after `session.supervision.quiet_after` (30 minutes by default) when a
+turn is in flight, waiting on the agent, and no fresh work evidence remains. A positive `stop_grace`
+(10 minutes by default) then permits a verified process-tree stop. Valid work signals, unknown
+signal sources, and a pending permission or clarify request prevent this stop. A session with no
+turn in flight is never stopped for inactivity; its agent process may instead be released after
+`session.supervision.idle_release_after` while the session stays active (see
+[idle runtime release](/docs/sessions/lifecycle#idle-runtime-release)).
 
 After a verified stop, an authoritative task binding can recover through one linked queued attempt.
 The existing `max_attempts` budget includes previous lease recoveries; setting it to `1` disables
@@ -31,7 +35,7 @@ automatic retry. Exhausted work remains visible as `needs_attention` with
 create a retry. Recovery history uses `task.run_recovered`, reason `supervised_silence`, and action
 `requeue`; the existing Requeued total includes it.
 
-The replacement keeps the task, profile, workspace, worktree and participation. Owned Loop
+The replacement keeps the task, profile, workspace, and worktree. Owned Loop
 `run-agent` work advances its node epoch; paused, quarantined and borrowed Goal bindings retain
 their existing control requirements. Committed files remain available. Workers must inspect partial
 external effects before repeating them and use the destination's idempotency mechanism where
@@ -69,7 +73,8 @@ change task ownership. Editing or deleting `HEARTBEAT.md` does not change health
 | Daemon restart                                                | Health is recomputed before any wake consumer runs.                         |
 
 `[session.supervision]` continues to own active-prompt activity timers, runtime progress events,
-warnings, and the inactivity timeout. It does not write to `session_health`.
+the in-flight turn warning and inactivity stop, and idle runtime release. It does not write to
+`session_health`.
 
 ## Reading health
 
@@ -130,9 +135,7 @@ These reasons appear in `compozy agent heartbeat status`, `compozy agent heartbe
   timers and runtime progress events; health is consumed metadata.
 - Session health is **not** `HEARTBEAT.md`. The authored file expresses wake/reentry preferences
   within config bounds. Health is always present; `HEARTBEAT.md` is optional.
-- Session health is **not** Compozy Network membership. Network membership is daemon-local and belongs
-  to the [protocol model](/docs/network/protocol-model). Membership never makes a session
-  wake-eligible by itself.
+
 - Session health is **not** an event bus. `session.health.update.after` fires on transitions only
   and is rate-limited by `[agents.heartbeat].session_health_hook_min_interval`.
 

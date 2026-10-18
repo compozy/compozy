@@ -5,14 +5,17 @@ import {
   deriveWorkingStatus,
   formatFrozenDuration,
   formatWorkingElapsed,
+  runningAgentCount,
   stopAttributionDetail,
 } from "../session-working-status";
+import type { SubagentView } from "../../components/subagents/types";
 
 // Suite: working-status derivation (S3, US-027, UT-109, UT-110).
-// Invariant: the status row reads "Working for {elapsed} · {activity}" from the
-// daemon's durable turn start and its current tool / decision / children, stays
-// working while children run, and freezes into a truthful sentence after a stop
-// or failure. Elapsed derives from `turn_started_at`, never a browser stopwatch.
+// Invariant: the status row reads "Working for {elapsed}" from the daemon's
+// durable turn start plus a pending decision and children (the running tool is
+// the transcript live row's), stays working while children run, and after a
+// stop or failure speaks only when it adds attribution or cause the turn fold
+// does not already say. A quiet in-flight turn adds "quiet for {d}". Elapsed derives from `turn_started_at`, never a browser stopwatch.
 const NOW = Date.parse("2026-09-06T12:02:14Z");
 
 function session(overrides: Partial<Parameters<typeof deriveWorkingStatus>[0]["session"]> = {}) {
@@ -34,7 +37,7 @@ function session(overrides: Partial<Parameters<typeof deriveWorkingStatus>[0]["s
 }
 
 describe("working status", () => {
-  it("Should derive Working for {elapsed} · Running {tool} from the session payload", () => {
+  it("Should derive Working for {elapsed} from the session payload, leaving the tool to the live row", () => {
     expect(
       deriveWorkingStatus({
         session: session(),
@@ -47,12 +50,74 @@ describe("working status", () => {
       kind: "working",
       startedAtMs: Date.parse("2026-09-06T12:00:00Z"),
       elapsed: "2m 14s",
-      activity: "Running shell",
+      activity: null,
       agentCount: 0,
+      quietSinceMs: null,
+      quietFor: null,
     });
   });
 
-  it("Should count parallel tools honestly and prefer a pending decision", () => {
+  // Invariant: the daemon's hung-turn quiet episode rides the working status as
+  // a span counted from `quiet_since`; it never replaces "Working for".
+  it("Should add the quiet span to a working turn while the daemon reports a quiet episode", () => {
+    const quiet = session({
+      supervision: {
+        quiet_warning: {
+          quiet_since: "2026-09-06T11:50:00Z",
+          warned_at: "2026-09-06T12:00:00Z",
+          stop_at: "2026-09-06T12:10:00Z",
+        },
+        sources: [],
+        work_signals: [],
+      },
+    });
+    expect(
+      deriveWorkingStatus({
+        session: {
+          ...quiet,
+          activity: { ...quiet.activity!, turn_started_at: "2026-09-06T11:40:00Z" },
+        },
+        running: true,
+        thinking: false,
+        lastTurn: null,
+        nowMs: NOW,
+      })
+    ).toMatchObject({
+      kind: "working",
+      elapsed: "22m 14s",
+      quietSinceMs: Date.parse("2026-09-06T11:50:00Z"),
+      quietFor: "12m",
+    });
+  });
+
+  it("Should show the quiet span instead of Thinking when a turn hangs before any content", () => {
+    expect(
+      deriveWorkingStatus({
+        session: session({
+          supervision: {
+            quiet_warning: {
+              quiet_since: "2026-09-06T12:00:30Z",
+              warned_at: "2026-09-06T12:02:00Z",
+              stop_at: null,
+            },
+            sources: [],
+            work_signals: [],
+          },
+        }),
+        running: true,
+        thinking: true,
+        lastTurn: null,
+        nowMs: NOW,
+      })
+    ).toMatchObject({
+      kind: "working",
+      elapsed: "2m 14s",
+      quietSinceMs: Date.parse("2026-09-06T12:00:30Z"),
+      quietFor: "1m",
+    });
+  });
+
+  it("Should leave parallel tools to the live row and surface a pending decision", () => {
     const parallel = session({
       supervision: {
         quiet_warning: null,
@@ -71,7 +136,7 @@ describe("working status", () => {
       lastTurn: null,
       nowMs: NOW,
     });
-    expect(status).toMatchObject({ kind: "working", activity: "Running 3 tools" });
+    expect(status).toMatchObject({ kind: "working", activity: null });
 
     const waiting = session({
       pending_interactions: [{ kind: "permission" }] as never,
@@ -112,6 +177,65 @@ describe("working status", () => {
     expect(agentCountLabel(2)).toBe("2 agents running");
   });
 
+  it("UT-W10: Should count live subagents of both origins with active children, once per child", () => {
+    const row = (id: string, status: SubagentView["status"], child: string | null) =>
+      ({
+        id,
+        parent_session_id: "sess_parent",
+        child_session_id: child,
+        origin: child ? "delegated" : "provider_native",
+        title: id,
+        status,
+        progress: "",
+        result_preview: "",
+        error: null,
+        runtime: { agent: "", provider: "", model: "", reasoning_effort: "", speed: "" },
+        started_at: "2026-09-06T12:01:00Z",
+        settled_at: null,
+        created_at: "2026-09-06T12:01:00Z",
+        updated_at: "2026-09-06T12:01:00Z",
+        delivery: "none",
+      }) satisfies SubagentView;
+    const children = session({
+      supervision: {
+        quiet_warning: null,
+        sources: [],
+        work_signals: [
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_child_1" },
+          { kind: "active_child", since: "2026-09-06T12:01:30Z", ref: "sess_plain_spawn" },
+        ],
+      },
+    });
+    const subagents = [
+      row("sub-delegated", "running", "sess_child_1"),
+      row("sub-native", "waiting", null),
+      row("sub-done", "completed", "sess_child_9"),
+    ];
+    expect(runningAgentCount(children, subagents)).toBe(3);
+    // D-05: a settled subagent's child lingers as an idle session with an active_child signal.
+    const lingering = session({
+      supervision: {
+        quiet_warning: null,
+        sources: [],
+        work_signals: [
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_child_9" },
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_plain_spawn" },
+        ],
+      },
+    });
+    expect(runningAgentCount(lingering, subagents)).toBe(3);
+    expect(
+      deriveWorkingStatus({
+        session: children,
+        running: true,
+        thinking: false,
+        lastTurn: null,
+        nowMs: NOW,
+        subagents: [row("sub-native", "running", null)],
+      })
+    ).toMatchObject({ kind: "working", agentCount: 3 });
+  });
+
   it("Should read Thinking before content and freeze into a stop or failure after the turn", () => {
     expect(
       deriveWorkingStatus({
@@ -136,7 +260,7 @@ describe("working status", () => {
         lastTurn: stopped,
         nowMs: NOW,
       })
-    ).toEqual({ kind: "stopped", duration: "1m 40s", byYou: true, detail: null });
+    ).toEqual({ kind: "hidden" });
     // Only the operator's own stop reads "by you"; the daemon's stops say what they were.
     expect(
       deriveWorkingStatus({
@@ -171,6 +295,17 @@ describe("working status", () => {
         nowMs: NOW,
       })
     ).toEqual({ kind: "failed", duration: "1m 40s", cause: "rate limited" });
+    // The fold already reads "You stopped after …" / "Failed after …": the row
+    // stays silent unless it adds who stopped the turn or why it failed.
+    expect(
+      deriveWorkingStatus({
+        session: session(),
+        running: false,
+        thinking: false,
+        lastTurn: { ...stopped, cause: "failed" },
+        nowMs: NOW,
+      })
+    ).toEqual({ kind: "hidden" });
     expect(
       deriveWorkingStatus({
         session: session(),

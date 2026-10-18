@@ -28,23 +28,23 @@ func (s *Scheduler) claimScheduledJob(
 	claimedAt := s.now()
 	nextRun := nextRunAfter(job, scheduledAt, s.location)
 	claim := SchedulerClaim{
-		ProfileID:            job.ProfileID,
-		JobID:                job.ID,
-		RunID:                scheduledRunID(job.ID, scheduledAt),
-		FireID:               scheduledFireID(job.ID, scheduledAt),
-		ScheduledAt:          scheduledAt,
-		NextRunAt:            cloneTimePointer(nextRun),
-		ClaimedAt:            claimedAt,
-		ScheduleHash:         scheduleHash(job.Schedule),
-		CatchUpPolicy:        registration.state.CatchUpPolicy,
-		MisfireGraceSeconds:  registration.state.MisfireGraceSeconds,
-		CatchUp:              scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
-		NetworkParticipation: (DispatchRequest{Job: &job}).networkParticipation(),
+		ProfileID:           job.ProfileID,
+		JobID:               job.ID,
+		RunID:               scheduledRunID(job.ID, scheduledAt),
+		FireID:              scheduledFireID(job.ID, scheduledAt),
+		ScheduledAt:         scheduledAt,
+		NextRunAt:           cloneTimePointer(nextRun),
+		ClaimedAt:           claimedAt,
+		ScheduleHash:        scheduleHash(job.Schedule),
+		CatchUpPolicy:       registration.state.CatchUpPolicy,
+		MisfireGraceSeconds: registration.state.MisfireGraceSeconds,
+		CatchUp:             scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
 	}
 	if s.store != nil {
-		persistCtx1, cancelPersist1 := persistenceContext(ctx)
-		defer cancelPersist1()
-		result, err := s.store.ClaimScheduledRun(persistCtx1, claim)
+		// Claims yield to scheduler backoff; finalization retains its independent persistence budget.
+		claimCtx, cancelClaim := context.WithTimeout(ctx, s.claimTimeout)
+		defer cancelClaim()
+		result, err := s.store.ClaimScheduledRun(claimCtx, claim)
 		if err != nil {
 			return scheduledJobClaimResult{}, fmt.Errorf("automation: claim scheduled job %q: %w", job.ID, err)
 		}
@@ -68,14 +68,14 @@ func schedulerStateAfterInMemoryClaim(
 ) SchedulerState {
 	state := current
 	state.NextRunAt = cloneTimePointer(nextRun)
-	state.LastRunAt = timePointer(claim.ClaimedAt)
-	state.LastScheduledAt = timePointer(claim.ScheduledAt)
+	state.LastRunAt = new(claim.ClaimedAt)
+	state.LastScheduledAt = new(claim.ScheduledAt)
 	state.LastFireID = claim.FireID
 	state.ScheduleHash = claim.ScheduleHash
 	state.CatchUpPolicy = schedulerCatchUpPolicyOrDefault(claim.CatchUpPolicy, current.CatchUpPolicy)
 	state.MisfireGraceSeconds = claim.MisfireGraceSeconds
 	if claim.Misfire {
-		state.LastMisfireAt = timePointer(claim.ClaimedAt)
+		state.LastMisfireAt = new(claim.ClaimedAt)
 		state.MisfireCount++
 	} else if !claim.CatchUp {
 		state.LastMisfireAt = nil
@@ -112,7 +112,7 @@ func (s *Scheduler) deferAfterFireLimit(
 	if state.NextRunAt != nil && state.NextRunAt.After(target) {
 		target = *state.NextRunAt
 	}
-	state.NextRunAt = timePointer(target)
+	state.NextRunAt = new(target)
 	state.UpdatedAt = s.now()
 
 	if s.store != nil {

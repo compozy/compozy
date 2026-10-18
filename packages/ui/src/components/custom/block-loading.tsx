@@ -27,7 +27,7 @@ const SIZE_CLASSES: Record<BlockLoadingSize, string> = {
 
 const SURFACE_CLASSES: Record<BlockLoadingSurface, string> = {
   bare: "",
-  panel: "rounded-lg border border-line bg-canvas-soft",
+  panel: "rounded-lg bg-sunken",
 };
 
 function BlockLoading({

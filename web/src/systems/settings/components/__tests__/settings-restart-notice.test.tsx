@@ -28,3 +28,36 @@ describe("SettingsRestartNotice", () => {
     expect(screen.queryByTestId("settings-page-general-restart-dismiss")).toBeNull();
   });
 });
+
+// Invariant: a failed restart shows the daemon reason and active-session warning
+// while retaining an operable retry action. Owner: SettingsRestartNotice component.
+it("Should retain the failure reason, active-session warning, and working retry control", async () => {
+  const { default: userEvent } = await import("@testing-library/user-event");
+  const user = userEvent.setup();
+  const trigger = vi.fn();
+  render(
+    <SettingsRestartNotice
+      restart={{
+        activeSessionCount: 2,
+        dismiss: vi.fn(),
+        failureReason: "browser restart fault injection",
+        isRestartRequired: true,
+        isTriggerPending: false,
+        isVisible: true,
+        operationId: "op-settings-failed",
+        status: "failed",
+        trigger,
+      }}
+      slug="general"
+    />
+  );
+
+  const notice = screen.getByTestId("settings-page-general-restart-notice");
+  expect(notice).toHaveTextContent("Restart failed");
+  expect(notice).toHaveTextContent("browser restart fault injection");
+  expect(notice).toHaveTextContent("2 active sessions");
+  const retry = screen.getByRole("button", { name: "Try again" });
+  expect(retry).toBeEnabled();
+  await user.click(retry);
+  expect(trigger).toHaveBeenCalledOnce();
+});

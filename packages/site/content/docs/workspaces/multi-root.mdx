@@ -48,7 +48,6 @@ The CLI prevents adding and removing the same directory in one edit command.
 | `.compozy/mcp.json` top-level sidecar | yes                     | no                       | global sidecar is separate        |
 | `.compozy/agents/*/AGENT.md`          | yes, highest precedence | yes, in registered order | yes, lowest precedence            |
 | `.compozy/skills/**/SKILL.md`         | yes, highest precedence | yes, in registered order | yes, lowest filesystem precedence |
-| `.compozy/memory/`                    | yes                     | no                       | global memory is separate         |
 
 The session start options use:
 
@@ -121,11 +120,11 @@ Start sessions from the named workspace:
 compozy session new --workspace acme-platform --agent monorepo-maintainer
 ```
 
-This keeps one config overlay and one workspace memory scope for the whole monorepo.
+This keeps one config overlay for the whole monorepo.
 
 ## Shared Resource Pattern
 
-Use additional roots when each project needs its own config and memory, but the team wants shared
+Use additional roots when each project needs its own config, but the team wants shared
 agents or skills:
 
 ```text
@@ -133,13 +132,9 @@ acme/
   checkout/
     .compozy/
       config.toml
-      memory/
-        MEMORY.md
   billing/
     .compozy/
       config.toml
-      memory/
-        MEMORY.md
   shared-agent-kit/
     .compozy/
       agents/
@@ -164,7 +159,7 @@ compozy workspace add /Users/you/src/acme/billing \
 ```
 
 Now `checkout` and `billing` can both use `incident-reviewer`, but each keeps its own primary
-config and workspace memory.
+config.
 
 ## Nested Workspace Pattern
 

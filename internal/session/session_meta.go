@@ -1,7 +1,8 @@
 package session
 
 import (
-	"github.com/compozy/compozy/internal/network/participation"
+	"time"
+
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -35,7 +36,6 @@ func (s *Session) metaLocked() store.SessionMeta {
 		RuntimeTransition:      s.RuntimeTransition,
 		RuntimeGeneration:      s.RuntimeGeneration,
 		WorkspaceID:            s.WorkspaceID,
-		NetworkParticipation:   participation.CloneSpec(s.NetworkParticipation),
 		SessionType:            string(normalizeSessionType(s.Type)),
 		Lineage:                store.NormalizeSessionLineage(s.ID, s.Lineage),
 		State:                  string(s.State),
@@ -45,8 +45,10 @@ func (s *Session) metaLocked() store.SessionMeta {
 		StopVerificationFailed: s.stopVerificationFailed,
 		Failure:                store.CloneSessionFailure(s.failure),
 		ACPSessionID:           stringPointer(s.ACPSessionID),
+		AcceptedRoute:          store.CloneSessionAcceptedRoute(s.acceptedRoute),
 		Liveness:               store.CloneSessionLivenessMeta(s.Liveness),
-		Sandbox:                cloneSessionSandboxMeta(s.Sandbox),
+		Derivation:             store.CloneSessionDerivation(s.derivation),
+		ImportedContext:        store.CloneSessionImportedContext(s.importedContext),
 		CreationProfile:        profile,
 		CreationOptions:        creationOptions,
 		SoulSnapshotID:         s.SoulSnapshotID,
@@ -55,6 +57,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		CreatedAt:              s.CreatedAt,
 		UpdatedAt:              s.UpdatedAt,
 	}
+	meta.SetPendingResumeReplay(s.pendingResumeReplay)
 	meta.SetRuntimeFailure(s.RuntimeFailure)
 	meta.SetRuntimeSelection(store.NewSessionRuntimeSelectionState(
 		storeSessionRuntimeSelection(s.SelectedRuntime),
@@ -77,4 +80,11 @@ func (s *Session) metaLocked() store.SessionMeta {
 
 func (s *Session) meta() store.SessionMeta {
 	return s.Meta()
+}
+
+func cloneTimePointer(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
 }

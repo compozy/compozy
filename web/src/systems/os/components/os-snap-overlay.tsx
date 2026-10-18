@@ -1,3 +1,5 @@
+import { Pill } from "@compozy/ui";
+
 import type { SnapTarget } from "../lib/snap-targets";
 
 function previewLabel(kind: SnapTarget["kind"]): string {
@@ -15,14 +17,18 @@ function previewLabel(kind: SnapTarget["kind"]): string {
   }
 }
 
-/** One ephemeral structural preview; it never mutates the authoritative snapshot. */
+/**
+ * One ephemeral structural preview; it never mutates the authoritative
+ * snapshot. Flat like the tiles it previews: an accent hairline over an accent
+ * tint, labelled with the solid accent pill.
+ */
 export function OsSnapOverlay({ preview }: { preview: SnapTarget | null }) {
   if (preview === null) return null;
   return (
     <div
       aria-hidden="true"
       data-slot="window-manager-command-preview"
-      className="pointer-events-none absolute z-50 rounded-md border border-accent bg-accent-tint shadow-inset-accent"
+      className="pointer-events-none absolute z-50 border border-accent bg-accent-tint"
       style={{
         left: preview.rect.x,
         top: preview.rect.y,
@@ -30,9 +36,9 @@ export function OsSnapOverlay({ preview }: { preview: SnapTarget | null }) {
         height: preview.rect.h,
       }}
     >
-      <span className="absolute top-2 left-2 rounded-sm bg-elevated px-2 py-1 text-form-hint font-medium text-fg shadow-overlay">
+      <Pill tone="accent" solid size="sm" className="absolute top-2 left-2">
         {previewLabel(preview.kind)}
-      </span>
+      </Pill>
     </div>
   );
 }

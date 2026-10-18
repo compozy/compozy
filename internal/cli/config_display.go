@@ -1,11 +1,11 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
-	"sort"
 
 	"strings"
 
@@ -299,10 +299,7 @@ func resolveConfigWriteProfile(cmd *cobra.Command, deps commandDeps) (string, er
 }
 
 func parseWriteScope(raw string) (compozyconfig.WriteScope, error) {
-	scope := compozyconfig.WriteScope(strings.ToLower(strings.TrimSpace(raw)))
-	if scope == "" {
-		scope = compozyconfig.WriteScopeUser
-	}
+	scope := cmp.Or(compozyconfig.WriteScope(strings.ToLower(strings.TrimSpace(raw))), compozyconfig.WriteScopeUser)
 	if err := scope.Validate(); err != nil {
 		return "", err
 	}
@@ -352,8 +349,8 @@ func redactedConfigMap(cfg *compozyconfig.Config) map[string]any {
 func flattenConfigEntries(configMap map[string]any) []configEntry {
 	entries := make([]configEntry, 0)
 	flattenConfigValue(&entries, "", configMap, false)
-	sort.Slice(entries, func(i int, j int) bool {
-		return entries[i].Path < entries[j].Path
+	slices.SortFunc(entries, func(left, right configEntry) int {
+		return cmp.Compare(left.Path, right.Path)
 	})
 	return entries
 }

@@ -17,7 +17,6 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 
-	ssepkg "github.com/compozy/compozy/internal/sse"
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/transcript"
@@ -57,6 +56,7 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 		EventCorrelation: sessionEventCorrelation(event),
 		Content:          PayloadJSON(event.Content),
 		Goal:             sessionEventGoalPromptMeta(event.Content),
+		Origin:           sessionEventPromptOrigin(event.Content),
 		ProviderError:    sessionEventProviderError(event),
 		Timestamp:        event.Timestamp,
 	}
@@ -156,12 +156,12 @@ func LogEventPayloadFromSummary(event store.EventSummary) contract.LogEventPaylo
 		Provider:         event.Provider,
 		Component:        eventspkg.ComponentFor(event.Type),
 		Outcome:          logEventOutcome(event),
-		Content:          ssepkg.ScrubMemoryContextBytes(event.ContentValue()),
+		Content:          event.ContentValue(),
 		EventCorrelation: event.Normalize(),
 		ParentSessionID:  event.ParentSessionID,
 		RootSessionID:    event.RootSessionID,
 		SpawnDepth:       event.SpawnDepth,
-		Summary:          ssepkg.ScrubMemoryContextString(event.Summary),
+		Summary:          event.Summary,
 		Timestamp:        event.Timestamp,
 	}
 }

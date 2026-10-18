@@ -54,6 +54,13 @@ both boundaries. HTTP/UDS tool and toolset routes accept the `profile` query sel
 one profile and reject `all_profiles=true`. An approval token belongs to its minting profile as well
 as its tool, session, workspace, agent, and input. Keep that scope unchanged when invoking it.
 
+Prefer `tool approve --input <json>` with the same input you will invoke. Approval issuance binds
+native workspace names, paths, and inherited operator workspace selection to the same canonical
+input as dispatch. The returned `input_digest` describes that bound input. If supplying both input
+and `--input-digest`, the supplied digest must match the submitted JSON before binding. Digest-only
+approval requires the digest of the already-bound input. A pre-call hook that changes the final
+input still requires a matching approval; tokens remain single-use.
+
 ## Oversized Tool Results
 
 A truncated tool result can carry a bounded `preview` and an opaque
@@ -80,9 +87,7 @@ workspace's registry projection.
 
 `friendly_verb` is one line and at most 80 runes. `preview` accepts only `auto`, `none`, `command`,
 `path`, `delegate`, `query`, or `arg:<field>`; an argument strategy must select a non-sensitive
-scalar field. The daemon selects and redacts the preview. See [Tool progress in
-bridges](https://compozy.com/docs/bridges/progress) for the rendering and validation
-contract.
+scalar field. The daemon selects and redacts the preview before presenting tool activity.
 
 MCP declarations embedded in installed Marketplace/ClawHub skills are disabled. Do not write the
 retired `skills.allowed_marketplace_mcp` key. Installed skill content/provenance and manual or
@@ -246,8 +251,8 @@ before any filesystem write, and custom sources are never valid targets. Every f
 targets back. CompozyOS never copies skill content and never removes a link it does not own.
 
 Skills whose winning copy already lives in a root the session's own provider reads natively are
-omitted from that session's injected catalog only — `claude` reads the `claude` origin, `openclaw`
-and `hermes` read `agents`. They remain in the command catalog, in every list, and in explicit reads.
+omitted from that session's injected catalog only — `claude` reads the `claude` origin. No provider
+reads the `agents` origin natively, so CompozyOS injects `.agents/skills` for every provider. They remain in the command catalog, in every list, and in explicit reads.
 
 The bundled runtime skill named `compozy` is reserved. Same-named external definitions may keep a
 source-qualified command such as `/agents:compozy`, but that command resolves the daemon's current
@@ -319,7 +324,7 @@ Terminal discovery starts from its complete toolset entry there; operating rules
 
 Keep these on operator CLI, HTTP, or UDS surfaces unless CompozyOS explicitly exposes a scoped tool:
 
-- daemon lifecycle, sockets, host/port, sandbox, provider bootstrap, and destructive repair
+- daemon lifecycle, sockets, host/port, provider bootstrap, and destructive repair
 - creating, stopping, or mutating arbitrary sessions outside scoped authority
 - MCP OAuth login/logout and browser-based auth
 - trust roots, raw secrets, OAuth credentials, provider API-key bindings, PKCE material, and MCP auth secrets

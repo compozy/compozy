@@ -31,13 +31,15 @@ export function useOsWinLayer(): OsWinLayerModel {
   const projection = useDesktop(
     state => ({
       activeDesktopId: state.activeDesktopId,
+      ready: state.windowManagerConfig !== null,
       desktops: state.desktops,
       projections: state.projections,
       frames: state.frames,
     }),
     shallowEqual
   );
-  const desktops = projection.desktops.map(desktop => {
+  // A snapshot can precede its config; avoid mounting an empty desktop before its frames exist.
+  const desktops = (projection.ready ? projection.desktops : []).map(desktop => {
     const frames = projection.frames[desktop.id] ?? [];
     return {
       desktop,

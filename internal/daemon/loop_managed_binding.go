@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/admission"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
@@ -101,7 +102,8 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
-	created, err := b.sessions.Create(ctx, opts)
+	// Loop work is daemon-initiated and yields to host CPU pressure at admission.
+	created, err := b.sessions.Create(admission.WithBackgroundWork(ctx), opts)
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}

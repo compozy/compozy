@@ -29,9 +29,8 @@ type nativeSessionSpawnInput struct {
 	Skills           []string                           `json:"skills"`
 	MCPServers       []string                           `json:"mcp_servers"`
 	WorkspacePaths   []string                           `json:"workspace_paths"`
-	NetworkChannels  []string                           `json:"network_channels"`
-	SandboxProfiles  []string                           `json:"sandbox_profiles"`
-	IdempotencyKey   string                             `json:"idempotency_key"`
+
+	IdempotencyKey string `json:"idempotency_key"`
 }
 
 type nativeSessionApproveInput struct {

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Automations · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="automations.css">
+<style>
+  .ix-hero{max-width:72ch;margin:4px 0 28px}
+  .ix-hero h2{font-size:24px;line-height:1.3;font-weight:500;letter-spacing:-.015em;color:var(--fg-strong);text-wrap:balance}
+  .ix-hero p{margin-top:10px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);text-wrap:pretty}
+  .ix-model{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .ix-model > div{padding:16px 18px;border-left:1px solid var(--line-soft)}
+  .ix-model > div:first-child{border-left:0}
+  .ix-model h3{font-size:var(--text-small-body);font-weight:600;color:var(--fg-strong);margin:6px 0 10px}
+  .ix-model li{display:flex;align-items:center;gap:8px;min-height:28px;font-size:var(--text-form);color:var(--fg);border-top:1px solid var(--line-soft)}
+  .ix-model li:first-child{border-top:0}
+  .ix-model li svg{width:14px;height:14px;color:var(--muted);flex:none}
+  .ix-model li .au-micro{margin-left:auto}
+  .ix-files{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .ix-file{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:var(--radius-lg);background:var(--canvas-soft);border:1px solid var(--line-soft);transition:background var(--dur) var(--ease)}
+  .ix-file:hover{background:var(--elevated)}
+  .ix-file:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .ix-file b{font-size:var(--text-card-title);font-weight:500;color:var(--fg-strong)}
+  .ix-file span{font-size:var(--text-eyebrow);line-height:1.5;color:var(--muted)}
+  .ix-file code{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  @media (max-width:860px){.ix-model,.ix-files{grid-template-columns:1fr}.ix-model > div{border-left:0;border-top:1px solid var(--line-soft)}}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ix-head">
+    <span class="w2-glyph" style="width:24px;height:24px"><svg data-lucide="zap" style="width:14px;height:14px"></svg></span>
+    <nav class="w2-crumbs"><h1 class="w2-title">Automations — design set</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="automations-list.html">Start: Listing →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="ix-hero" data-od-id="ix-hero">
+      <span class="eyebrow">Jobs + Triggers → one area</span>
+      <h2>An automation starts on its own and does one thing. That is the whole idea someone needs to learn.</h2>
+      <p>CompozyOS had two dock apps for the same idea: <b>Jobs</b> (time) and <b>Triggers</b> (events). They had two lists, two detail layouts and two dialogs. The daemon already treats them as one domain (<code>internal/automation</code>, one <code>automation_runs</code> table, shared retry, limits and Loop targets), so this set merges the UI only. The CLI, the API and the tool IDs keep their names one step deeper.</p>
+    </section>
+
+    <section class="lab-sec" data-od-id="ix-model">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The model — Starts → Only if → Does</h2><span class="lab-sec__gist">DESIGN-NOTES §model</span></div>
+      <div class="ix-model">
+        <div><span class="eyebrow">Starts</span><h3>When does it run?</h3><ul>
+          <li><svg data-lucide="clock-3"></svg>On a schedule<span class="au-micro">job · cron / every / at</span></li>
+          <li><svg data-lucide="radio"></svg>When something happens<span class="au-micro">trigger · event</span></li>
+          <li><svg data-lucide="webhook"></svg>When another app calls a link<span class="au-micro">trigger · webhook</span></li></ul></div>
+        <div><span class="eyebrow">Only if</span><h3>Optional conditions</h3><ul>
+          <li><svg data-lucide="filter"></svg>Stop reason is error<span class="au-micro">filter · exact · AND</span></li>
+          <li><svg data-lucide="filter"></svg>Branch is main<span class="au-micro">events + links only</span></li></ul></div>
+        <div><span class="eyebrow">Does</span><h3>What happens</h3><ul>
+          <li><svg data-lucide="bot"></svg>Ask an agent<span class="au-micro">target_kind=agent</span></li>
+          <li><svg data-lucide="repeat-2"></svg>Start a Loop<span class="au-micro">target_kind=loop</span></li>
+          <li><svg data-lucide="square-check"></svg>Create a task<span class="au-micro">job.task · schedules only</span></li></ul></div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ix-files">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Boards — one story, same seven automations everywhere</h2><span class="lab-sec__gist">workspace checkout-api</span></div>
+      <div class="ix-files">
+        <a class="ix-file" href="automations-list.html" data-od-id="ix-file-list"><b>S1 · Listing</b><span>One window, Start views (All · Scheduled · On events), rows as sentences, On/Off on the row, Cards, filters, empty with suggestions, filtered empty, loading, unavailable, error.</span><code>/automations · 6 states</code></a>
+        <a class="ix-file" href="automations-detail.html" data-od-id="ix-file-detail"><b>S2 · Detail</b><span>One page for schedule, event and link: sentence + switch, Run now (schedules), Starts / Only if / Does card, shared run list, one-card rail, locked, off, Inspect, delete, states.</span><code>/automations/jobs/:id · /automations/triggers/:id · 9 states</code></a>
+        <a class="ix-file" href="automations-editor.html" data-od-id="ix-file-editor"><b>S3 · Editor</b><span>Interactive create dialog: three start cards decide job vs trigger, schedule builder, events, link, conditions, three targets, Options fold, live sentence bar, preview, edit locks, needs-a-fix.</span><code>?create=1&amp;start= · 5 states</code></a>
+        <a class="ix-file" href="automations-surfaces.html" data-od-id="ix-file-surfaces"><b>S4 · Surfaces</b><span>Dock, command palette, Settings › Automation, Loop "Automate ▾", old links and saved desktops, COPY.md + glossary rows.</span><code>6 states</code></a>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ix-delete">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">What goes away</h2><span class="lab-sec__gist">internal regime · rename every consumer together</span></div>
+      <div class="lab-del">
+        <div>Today</div><div>Regime</div><div>Becomes</div>
+        <div><code>systems/os/apps/jobs/*</code> + <code>apps/triggers/*</code></div><div class="reg">internal</div><div><code>systems/os/apps/automations/*</code></div>
+        <div>job-row · trigger-row · job-card · trigger-card</div><div class="reg">internal</div><div>AutomationRow · AutomationCard</div>
+        <div>automation-detail-panel + sections · trigger-detail/*</div><div class="reg">internal</div><div>automation-detail/* (one page)</div>
+        <div>automation-run-history + trigger-run-list</div><div class="reg">internal</div><div>AutomationRunList</div>
+        <div>automation-job-form + automation-trigger-form · 2 reliability sections · 2 previews</div><div class="reg">internal</div><div>AutomationForm (starts/ · does/ · options) · AutomationPreview</div>
+        <div>dock apps <code>jobs</code>, <code>triggers</code> · palette views ×2</div><div class="reg">internal + user state</div><div><code>automations</code> + saved-layout decoder</div>
+        <div>routes <code>/jobs*</code>, <code>/triggers*</code></div><div class="reg">public · 1 release</div><div>redirects → <code>/automations*</code>, then delete</div>
+      </div>
+      <p class="lab-foot" style="margin-top:14px">Unchanged: <code>compozy automation jobs|triggers</code>, <code>/api/automation/*</code>, <code>compozy__automation_*</code>, <code>[[automation.jobs]]</code> / <code>[[automation.triggers]]</code>. One backend ask: <code>last_run</code> on both list DTOs (proposal). Full contract, gating, deltas and impact audit: <code>DESIGN-NOTES.md</code>.</p>
+    </section>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="automations.js"></script>
+</body>
+</html>

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -88,7 +87,7 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 	builder.WriteString(
 		"You are running inside Compozy. Compozy is a local-first daemon and agent operating system " +
 			"that launched and supervises this agent session. Compozy owns the session lifecycle, " +
-			"workspace context, memory and situation prompt sections, native tool gateway, and " +
+			"workspace context and situation prompt sections, native tool gateway, and " +
 			"observable event stream.\n\n",
 	)
 	builder.WriteString(
@@ -111,9 +110,6 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 	writeCompozyRuntimeFact(&builder, "provider", startup.Provider)
 	writeCompozyRuntimeFact(&builder, "workspace_id", startup.WorkspaceID)
 	writeCompozyRuntimeFact(&builder, "workspace", startup.Workspace)
-	if startup.NetworkParticipation.Mode == participation.ModeLive {
-		writeCompozyRuntimeFact(&builder, "channel", startup.NetworkParticipation.ChannelID)
-	}
 	builder.WriteString(compozyRuntimeEnvelopeEnd)
 	return strings.TrimSpace(builder.String())
 }

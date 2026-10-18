@@ -12,7 +12,7 @@ const DEFAULT_WORKSPACE_ID = workspaceFixtures[0]?.id ?? null;
 function Frame({ children, open = false }: { children: React.ReactNode; open?: boolean }) {
   return (
     <CenteredSurface className={open ? "items-start" : undefined}>
-      <div className="w-[280px] border border-line bg-canvas-soft">{children}</div>
+      <div className="w-[280px] border border-line bg-canvas">{children}</div>
     </CenteredSurface>
   );
 }
@@ -56,7 +56,7 @@ const meta: Meta<typeof WorkspaceCommandSelectHarness> = {
     docs: {
       description: {
         component:
-          "Searchable workspace switcher for the sidebar header. Uses CommandSelect with avatar initials, active checkmarks, and an optional Add workspace action.",
+          "Searchable workspace switcher for the sidebar header. Uses CommandSelect with avatar initials, active checkmarks, and an optional Add project action.",
       },
     },
   },
@@ -129,7 +129,7 @@ export const EmptyRegistry: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByTestId("workspace-switcher-name")).toHaveTextContent("No workspace");
+    await expect(canvas.getByTestId("workspace-switcher-name")).toHaveTextContent("No project");
     await expect(canvas.getByTestId("workspace-switcher")).toBeDisabled();
   },
 };
@@ -146,7 +146,7 @@ export const Compact: Story = {
   },
   render: () => (
     <CenteredSurface className="items-start justify-center p-6">
-      <div className="w-[220px] border border-line bg-canvas-soft p-3">
+      <div className="w-[220px] border border-line bg-canvas p-3">
         <WorkspaceCommandSelect
           workspaces={workspaceFixtures}
           value={workspaceFixtures[0]?.id ?? null}
@@ -162,7 +162,7 @@ export const Compact: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId("workspace-compact-switcher")).toBeInTheDocument();
     await expect(canvas.getByTestId("workspace-switcher-name")).toHaveTextContent(
-      workspaceFixtures[0]?.name ?? "No workspace"
+      workspaceFixtures[0]?.name ?? "No project"
     );
   },
 };

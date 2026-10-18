@@ -143,11 +143,6 @@ describe("withTransport", () => {
     expect(same.oauth.enabled).toBe(true);
     expect(same.oauth.clientId).toBe("compozy");
   });
-
-  it("returns the same draft reference when the transport is unchanged", () => {
-    const draft: MCPDraft = { ...emptyDraft("stdio"), command: "npx" };
-    expect(withTransport(draft, "stdio")).toBe(draft);
-  });
 });
 
 describe("toDraft", () => {

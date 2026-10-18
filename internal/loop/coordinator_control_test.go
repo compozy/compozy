@@ -13,7 +13,6 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -48,7 +47,7 @@ func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
 		resolved,
 	)
 	runner.now = func() time.Time { return now }
-	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -83,7 +82,7 @@ func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
 		resolved,
 	)
 	initialRunner.now = func() time.Time { return now }
-	initialPlan, err := initialRunner.Run(context.Background(), task.RunID(initialCoordinator.ID))
+	initialPlan, err := initialRunner.Run(t.Context(), task.RunID(initialCoordinator.ID))
 	if err != nil {
 		t.Fatalf("Run(initial wait) error = %v", err)
 	}
@@ -129,7 +128,7 @@ func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
 		templatedResolved,
 	)
 	templatedRunner.now = func() time.Time { return now }
-	templatedPlan, err := templatedRunner.Run(context.Background(), task.RunID(templatedCoordinator.ID))
+	templatedPlan, err := templatedRunner.Run(t.Context(), task.RunID(templatedCoordinator.ID))
 	if err != nil {
 		t.Fatalf("Run(templated until) error = %v", err)
 	}
@@ -194,8 +193,7 @@ func TestCoordinatorRunnerShouldParkAskRequests(t *testing.T) {
 			})
 			coordinatorRun := controlCoordinatorRun(loopRun, 1)
 			defaults := DefaultLoopDefaults()
-			seed := "72h"
-			defaults.Delivery.RequestExpireAfter = &seed
+			defaults.Delivery.RequestExpireAfter = new("72h")
 			runner := newCoordinatorRunnerForControlTestWithDefaults(
 				t, loopRun, coordinatorRun, nil,
 				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
@@ -207,7 +205,7 @@ func TestCoordinatorRunnerShouldParkAskRequests(t *testing.T) {
 			)
 			runner.now = func() time.Time { return now }
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -295,7 +293,7 @@ func TestCoordinatorRunnerShouldGateReviewedActionsBeforeEnqueue(t *testing.T) {
 			)
 			runner.now = func() time.Time { return now }
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -384,7 +382,7 @@ func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 	)
 	runner.now = func() time.Time { return now }
 
-	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -479,8 +477,6 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 
 		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(2, 1, 2))
 		loopRun := controlLoopRun("looprun-fanout-barrier", map[string]any{})
-		liveSpec := coordinatorLiveParticipationForTest(loopRun)
-		loopRun.SetNetworkSpec(liveSpec)
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
 		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
 		runner := newCoordinatorRunnerForControlTest(
@@ -502,7 +498,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -520,9 +516,6 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			plan,
 			coordinatorNodeTaskID(loopRun.ID, 1, "work", 0),
 		)
-		if got := plan.NodeRuns[0].ResolvedNetworkParticipation; got == nil || *got != liveSpec {
-			t.Fatalf("queued participation = %#v, want %#v", got, liveSpec)
-		}
 		var metadata map[string]any
 		if err := json.Unmarshal(plan.NodeRuns[0].Metadata, &metadata); err != nil {
 			t.Fatalf("unmarshal node metadata: %v", err)
@@ -566,7 +559,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			resolved,
 		)
 
-		secondPlan, err := secondRunner.Run(context.Background(), task.RunID(nextCoordinatorRun.ID))
+		secondPlan, err := secondRunner.Run(t.Context(), task.RunID(nextCoordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("second Run() error = %v", err)
 		}
@@ -618,7 +611,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -675,7 +668,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -742,7 +735,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 				resolved,
 			)
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -800,7 +793,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			resolved,
 		)
 
-		_, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		_, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if !errors.Is(err, ErrOutputRefNotFound) {
 			t.Fatalf("Run() error = %v, want %v", err, ErrOutputRefNotFound)
 		}
@@ -845,7 +838,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -887,7 +880,7 @@ func TestCoordinatorRunnerShouldExhaustFanOutOverflow(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -949,7 +942,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 					resolved,
 				)
 
-				plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+				plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 				if err != nil {
 					t.Fatalf("Run() error = %v", err)
 				}
@@ -997,7 +990,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1034,7 +1027,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1074,7 +1067,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1120,7 +1113,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1241,7 +1234,7 @@ func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1295,7 +1288,7 @@ func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1339,7 +1332,7 @@ func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1384,7 +1377,7 @@ func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1432,7 +1425,7 @@ func TestCoordinatorRunnerShouldFailWhenSubLoopBodyFails(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1472,7 +1465,7 @@ func TestCoordinatorRunnerShouldRerunOnlyFailedFanOutItem(t *testing.T) {
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1977,21 +1970,6 @@ func controlLoopRun(id string, inputs map[string]any) Run {
 	}
 }
 
-func coordinatorLiveParticipationForTest(run Run) participation.Spec {
-	return participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     string(run.WorkspaceID),
-		ChannelStrategy: participation.StrategyLoopRun,
-		ChannelID:       string(run.ID),
-		Source:          participation.SourceLoopDefinition,
-		Bounds: participation.Bounds{
-			MaxWakes: 2, MaxWakeWallTime: "1s", MaxTotalWallTime: "2s",
-			MaxInputTokens: 100, MaxOutputTokens: 100, MaxWakeDepth: 2, CoalesceWindow: "100ms",
-		},
-	}
-}
-
 func controlCoordinatorRun(run Run, generation int) task.Run {
 	return task.Run{
 		ID:        "run-coordinator-" + string(run.ID),
@@ -2033,27 +2011,6 @@ func assertCoordinatorPlanContainsTaskForControlTest(
 		}
 	}
 	t.Fatalf("NodeTasks = %#v, want task %q", plan.NodeTasks, taskID)
-}
-
-func TestCoordinatorControlHelpersShouldFormatMultiDigitIndexes(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should format generation and item indexes as decimal strings", func(t *testing.T) {
-		t.Parallel()
-
-		run := controlCoordinatorRun(controlLoopRun("looprun-format", nil), 10)
-		if got, want := string(run.Metadata), `{"generation":10}`; got != want {
-			t.Fatalf("coordinator metadata = %s, want %s", got, want)
-		}
-		outputs := outputsByNodeAndItemForTest([]GenerationOutput{{
-			NodeID:    "worker",
-			ItemIndex: 10,
-			Status:    generationOutputSucceeded,
-		}})
-		if _, ok := outputs["worker/10"]; !ok {
-			t.Fatalf("outputs keys = %#v, want worker/10", outputs)
-		}
-	})
 }
 
 func postReserveOutputsForTest(outputs map[string]GenerationOutput, workZeroRunID string) []GenerationOutput {

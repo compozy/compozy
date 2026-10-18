@@ -21,4 +21,4 @@ schema/
 4. Add a bounded backfill to the newly generated, unpublished tail only when declarative DDL cannot preserve required data. Rerun `make codegen` so the checksum reflects the final bytes.
 5. Never insert a migration version or edit any preexisting `.sql`/`atlas.sum` identity. A correction after publication is a new migration.
 
-Goose owns transactions and its per-stream version tables (`goose_db_version_global`, `goose_db_version_memory`, `goose_db_version_session`, `goose_db_version_workspace`). Migration SQL must not write those tables directly or issue its own transaction control.
+Goose owns transactions and its per-stream version tables (`goose_db_version_global`, `goose_db_version_session`, `goose_db_version_workspace`). Migration SQL must not write those tables directly or issue its own transaction control.

@@ -20,7 +20,6 @@ const EMPTY_REMOVAL = {
   event_summaries: 0,
   loops: 0,
   mcp_servers: 0,
-  memory_entries: 0,
   palette_pins: 0,
   palette_query_hits: 0,
   palette_usage: 0,
@@ -52,6 +51,9 @@ describe("Profile lifecycle dialogs", () => {
     );
 
     expect(screen.getByText(/2 leased runs are still active/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog").querySelector('[data-slot="confirm-dialog-icon"]')
+    ).toHaveAttribute("data-icon-tone", "warning");
     const confirm = screen.getByTestId("profile-archive-confirm");
     expect(confirm).toBeDisabled();
     await user.click(confirm);

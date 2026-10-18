@@ -48,6 +48,33 @@ describe("AgentCommandSelect", () => {
     );
   });
 
+  it("Should lead the composer trigger with the full agent name and leave the category path to the list", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <AgentCommandSelect
+          agents={[
+            makeAgent({
+              name: "product-launch-manager-agent",
+              category_path: ["Operations", "Launch week"],
+            }),
+          ]}
+          value="product-launch-manager-agent"
+          onChange={() => undefined}
+          triggerTestId="trigger"
+          variant="composer"
+        />
+      </UIProvider>
+    );
+    const trigger = screen.getByTestId("trigger");
+    expect(trigger).toHaveTextContent("product-launch-manager-agent");
+    expect(trigger).toHaveTextContent("claude");
+    expect(screen.queryByTestId("agent-command-select-trigger-category")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect((await screen.findAllByText("Operations / Launch week")).length).toBeGreaterThan(0);
+  });
+
   it("Should show placeholder text when no agent is selected", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
@@ -174,22 +201,5 @@ describe("AgentCommandSelect", () => {
     const trigger = screen.getByTestId("trigger");
     expect(trigger).toHaveTextContent("ghost");
     expect(trigger).toHaveTextContent("Not available");
-  });
-
-  it("Should use tokenized metadata classes for provider and category labels in the list", async () => {
-    const user = userEvent.setup();
-    render(
-      <UIProvider reducedMotion="never" skipAnimations>
-        <AgentCommandSelect
-          agents={[makeAgent({ name: "deals", category_path: ["Marketing", "Sales"] })]}
-          value={null}
-          onChange={() => undefined}
-          triggerTestId="trigger"
-        />
-      </UIProvider>
-    );
-    await user.click(screen.getByTestId("trigger"));
-    expect(screen.getByTestId("agent-command-provider-deals")).toHaveClass("eyebrow");
-    expect(screen.getByTestId("agent-command-category-deals")).toHaveClass("eyebrow");
   });
 });

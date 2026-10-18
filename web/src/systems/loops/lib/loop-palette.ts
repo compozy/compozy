@@ -82,14 +82,6 @@ export const LOOP_PALETTE: PaletteGroup[] = [
         buildRaw: id => ({ id, class: "action", kind: "transform", params: { map: {} } }),
       },
       {
-        label: "Channel post",
-        kindLabel: "compozy__network_send",
-        nodeClass: "action",
-        idBase: "channel_post",
-        hint: "A pre-filled compozy__network_send node.",
-        buildRaw: id => ({ id, class: "action", kind: "compozy__network_send", params: {} }),
-      },
-      {
         label: "Call tool…",
         // Intent-revealing (the seeded node has kind ""); not a literal kind like the others.
         kindLabel: "tool…",

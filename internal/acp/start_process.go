@@ -7,7 +7,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -26,7 +25,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	launcher := d.launcherForStart(normalized)
 	identity := startOptsPreparedLaunchIdentity(normalized)
 
-	handle, err := launcher.Launch(ctx, sandbox.LaunchSpec{
+	handle, err := launcher.Launch(ctx, LaunchSpec{
 		Command:            normalized.Command,
 		ResolvedExecutable: identity.spec.ResolvedExecutable,
 		Args:               append([]string(nil), identity.spec.Args...),
@@ -36,9 +35,9 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
-			"acp: start agent %q subprocess %q in %q: %w",
+			"acp: start agent %q subprocess %s in %q: %w",
 			normalized.AgentName,
-			normalized.Command,
+			launchCommandIdentity(normalized.Command),
 			normalized.Cwd,
 			err,
 		)
@@ -89,7 +88,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	return process, nil
 }
 
-func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProcess, handle sandbox.Handle) error {
+func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProcess, handle Handle) error {
 	if err := d.registerAgentProcess(ctx, process); err != nil {
 		process.cancelProcess()
 		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
@@ -102,7 +101,7 @@ func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProces
 	return nil
 }
 
-func (d *Driver) configureAgentConnection(process *AgentProcess, handle sandbox.Handle, toolHost ToolHost) {
+func (d *Driver) configureAgentConnection(process *AgentProcess, handle Handle, toolHost ToolHost) {
 	if localHost, ok := toolHost.(*localToolHost); ok {
 		process.terminals = localHost.terminals
 	}
@@ -124,7 +123,7 @@ func (d *Driver) newAgentProcess(
 	normalized StartOpts,
 	command string,
 	args []string,
-	handle sandbox.Handle,
+	handle Handle,
 	toolHost ToolHost,
 	policy permissionPolicy,
 	terminalScope LocalTerminalScope,
@@ -155,6 +154,7 @@ func (d *Driver) newAgentProcess(
 		done:                 make(chan struct{}),
 		pendingPermissions:   make(map[string]*pendingPermission),
 		permissionTimeout:    d.permissionWait,
+		controlTimeout:       d.controlTimeout,
 		systemPrompt:         normalized.SystemPrompt,
 		startupManifest:      CloneStartupManifest(normalized.StartupManifest),
 		systemPromptDelivery: normalized.SystemPromptDelivery,
@@ -210,15 +210,16 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 				WriteTextFile: true,
 			},
 			Terminal: true,
+			Session: &acpsdk.ClientSessionCapabilities{
+				Compaction: &acpsdk.CompactionCapabilities{},
+			},
 		},
 		ClientInfo: &acpsdk.Implementation{
 			Name:    defaultClientName,
 			Version: defaultClientVersion,
 		},
 	}
-	initializeResponse, err := acpsdk.SendRequest[acpsdk.InitializeResponse](
-		process.conn,
-		ctx,
+	initializeResponse, err := process.sendControlRequest[acpsdk.InitializeResponse](ctx,
 		acpsdk.AgentMethodInitialize,
 		initRequest,
 	)
@@ -234,6 +235,8 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 		SteerCapability:       captureSteerCapability(initializeResponse.Meta, process.CapsSnapshot().SteerCapability),
 		SupportsLoadSession:   initializeResponse.AgentCapabilities.LoadSession,
 		SupportsCloseSession:  initializeResponse.AgentCapabilities.SessionCapabilities.Close != nil,
+		SupportsForkSession:   initializeResponse.AgentCapabilities.SessionCapabilities.Fork != nil,
+		SupportsResumeSession: initializeResponse.AgentCapabilities.SessionCapabilities.Resume != nil,
 		PromptImage:           initializeResponse.AgentCapabilities.PromptCapabilities.Image,
 		PromptAudio:           initializeResponse.AgentCapabilities.PromptCapabilities.Audio,
 		PromptEmbeddedContext: initializeResponse.AgentCapabilities.PromptCapabilities.EmbeddedContext,

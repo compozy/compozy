@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: RT-refuse-legacy-database;RT-refuse-ahead-database
+overlaps: RT-refuse-legacy-database; RT-refuse-ahead-database
 ---
 
 Implementation peer review found that read-only session consumers did not run the session migration-stream

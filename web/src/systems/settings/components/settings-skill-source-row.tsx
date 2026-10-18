@@ -65,7 +65,7 @@ export function SettingsSkillSourceRow({
               "transition-transform duration-base group-data-panel-open/skill-source:rotate-0"
             )}
           />
-          <span className="truncate text-sm text-fg">{source.label}</span>
+          <span className="truncate text-body text-fg">{source.label}</span>
           {source.isCustom ? <Pill size="xs">custom</Pill> : null}
           {source.hasUnreadableRoot ? (
             <Pill size="xs" tone="danger" data-testid={`${testId}-unreadable`}>
@@ -108,7 +108,7 @@ export function SettingsSkillSourceRow({
               type="button"
               variant="ghost"
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           ) : null}
         </div>
@@ -130,7 +130,7 @@ function SkillSourceRootLine({ root, testId }: { root: SkillSourceRootView; test
     <div className="flex min-w-0 flex-col">
       <div className="flex min-w-0 items-baseline gap-2 py-0.5" data-testid={rootTestId}>
         <Folder aria-hidden="true" className="size-3 shrink-0 self-center text-faint" />
-        <span className="truncate font-mono text-xs text-muted">{root.path}</span>
+        <span className="truncate font-mono text-eyebrow text-muted">{root.path}</span>
         <span aria-hidden="true" className="flex-1" />
         {root.stateLabel !== null ? (
           <span

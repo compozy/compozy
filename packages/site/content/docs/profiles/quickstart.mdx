@@ -118,11 +118,10 @@ owner (illustrative, output trimmed):
 }
 ```
 
-The same filter applies to tasks, loop runs, automations, bridges, network conversations, usage, and
+The same filter applies to tasks, loop runs, automations, usage, and
 attention badges. The daemon applies it, not the client, and it fails closed: if the profile cannot
 be resolved, you get an error rather than unfiltered rows. Two surfaces are ruled exceptions —
-worktrees stay visible in every profile with an owner tag, and network delivery is profile-blind —
-both described in [Scoped and aggregate reads](/docs/profiles/reads).
+worktrees stay visible in every profile with an owner tag.
 
 ## Step 5: Switch back
 
@@ -210,7 +209,7 @@ If a more specific layer already wins the key, the write still happens and says 
 
 That is "saved, but not the effective value" — useful to know before you go looking for why nothing
 changed. A profile layer also cannot change daemon identity (`http`, `daemon`, `log`, `database`,
-`gateway`, `shell`, `marketplace`, `observability`, `network`, `sandboxes`); those come back as
+`gateway`, `shell`, `marketplace`, `observability`); those come back as
 `profile_config_key_denied` with the `--scope user` alternative.
 
 See [Profile layer precedence](/docs/configuration#profile-layer-precedence) for all four layers and
@@ -258,8 +257,6 @@ Disabled in profile marketing.
 ```
 
 Only `marketing` changed. Every other profile keeps whatever enablement choice it already had.
-Notification presets work the same way: one shared library,
-[one choice per profile](/docs/autonomy/notification-presets).
 
 Extensions can go further and place a contributed skill or agent into a named profile, or declare a
 profile to create at install time. That is [an authoring concern](/docs/extensions/manifest), and
@@ -279,7 +276,7 @@ compozy profile list
 ```
 
 `*` marks the profile resolved for this invocation. `WORK` counts what each profile owns across
-sessions, tasks, loop runs, automations, bridges, and worktrees — children are never counted twice,
+sessions, tasks, loop runs, automations, and worktrees — children are never counted twice,
 and your `default` number will differ from the example. The terminal prints a dot for a profile
 identified by an icon and prints the character itself for an emoji profile; color and icon render in
 the web UI.

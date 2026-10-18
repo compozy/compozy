@@ -7,28 +7,31 @@ type WorktreeExitActionPlan struct {
 	Label         string             `json:"label"`
 	Enabled       bool               `json:"enabled"`
 	BlockedReason string             `json:"blocked_reason,omitempty"`
-	Publish       bool               `json:"publish,omitempty"`
+	Publish       bool               `json:"publish,omitzero"`
 	URL           string             `json:"url,omitempty"`
-	PRNumber      int                `json:"pr_number,omitempty"`
+	PRNumber      int                `json:"pr_number,omitzero"`
 }
 
 type WorktreeExitCommitScope struct {
+	IncludePaths       []string `json:"include_paths,omitempty"`
+	Fingerprint        string   `json:"fingerprint,omitempty"`
+	Complete           bool     `json:"complete,omitzero"`
 	ChangedFiles       int      `json:"changed_files"`
 	Insertions         int      `json:"insertions"`
 	Deletions          int      `json:"deletions"`
 	UntrackedFiles     []string `json:"untracked_files"`
 	UntrackedTotal     int      `json:"untracked_total"`
-	UntrackedTruncated bool     `json:"untracked_truncated,omitempty"`
+	UntrackedTruncated bool     `json:"untracked_truncated,omitzero"`
 }
 
 type WorktreeExitCleanupEvidence struct {
 	ForgeState string `json:"forge_state,omitempty"`
-	Stale      bool   `json:"stale,omitempty"`
+	Stale      bool   `json:"stale,omitzero"`
 	Safe       bool   `json:"safe"`
 	Source     string `json:"source,omitempty"`
 	Summary    string `json:"summary,omitempty"`
 	Blocker    string `json:"blocker,omitempty"`
-	Downgraded bool   `json:"downgraded,omitempty"`
+	Downgraded bool   `json:"downgraded,omitzero"`
 }
 
 type WorktreeExitPRPrefill struct {
@@ -55,20 +58,24 @@ type WorktreeExitPlanResponse struct {
 	GlobalPauseCause string                         `json:"global_pause_cause,omitempty"`
 	CommitScope      WorktreeExitCommitScope        `json:"commit_scope"`
 	BrowserURL       string                         `json:"browser_url,omitempty"`
-	Forge            *WorktreeExitForgeCapabilities `json:"forge,omitempty"`
-	ForgeStatus      *WorktreeForgeStatusPayload    `json:"forge_status,omitempty"`
-	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitempty"`
+	Forge            *WorktreeExitForgeCapabilities `json:"forge,omitzero"`
+	ForgeStatus      *WorktreeForgeStatusPayload    `json:"forge_status,omitzero"`
+	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitzero"`
 	Cleanup          WorktreeExitCleanupEvidence    `json:"cleanup"`
 	Base             string                         `json:"base,omitempty"`
 }
 
 type RunWorktreeExitActionRequest struct {
-	Action  WorktreeExitAction `json:"action"`
-	Message string             `json:"message,omitempty"`
-	Title   string             `json:"title,omitempty"`
-	Body    string             `json:"body,omitempty"`
-	Draft   bool               `json:"draft,omitempty"`
-	Base    string             `json:"base,omitempty"`
+	DeliveryID    string             `json:"delivery_id,omitempty"`
+	ExpectedHead  string             `json:"expected_head,omitempty"`
+	IncludePaths  []string           `json:"include_paths,omitempty"`
+	ExpectedScope string             `json:"expected_scope,omitempty"`
+	Action        WorktreeExitAction `json:"action"`
+	Message       string             `json:"message,omitempty"`
+	Title         string             `json:"title,omitempty"`
+	Body          string             `json:"body,omitempty"`
+	Draft         bool               `json:"draft,omitzero"`
+	Base          string             `json:"base,omitempty"`
 }
 
 type WorktreeExitOperationResponse struct {

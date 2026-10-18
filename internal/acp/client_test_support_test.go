@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kballard/go-shellquote"
+	shellquote "github.com/kballard/go-shellquote"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -495,17 +495,34 @@ func (a *helperACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
-func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
+func (a *helperACPAgent) Initialize(
+	ctx context.Context,
+	_ acpsdk.InitializeRequest,
+) (acpsdk.InitializeResponse, error) {
+	if a.scenario == "stall_initialize" {
+		<-ctx.Done()
+		return acpsdk.InitializeResponse{}, ctx.Err()
+	}
 	var meta map[string]any
 	if strings.HasPrefix(a.scenario, "steering_") {
 		meta = map[string]any{"steering": map[string]any{"supported": true}}
+	}
+	var sessionCaps acpsdk.SessionCapabilities
+	if a.scenario == "fork_session" {
+		sessionCaps.Fork = &acpsdk.SessionForkCapabilities{}
+		sessionCaps.Resume = &acpsdk.SessionResumeCapabilities{}
+	}
+	if a.scenario == "config_options_slow_close" {
+		sessionCaps.Close = &acpsdk.SessionCloseCapabilities{}
 	}
 	return acpsdk.InitializeResponse{
 		Meta:            meta,
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
-				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options",
+				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" ||
+				a.scenario == "fork_session" || a.scenario == "stall_load",
+			SessionCapabilities: sessionCaps,
 			PromptCapabilities: acpsdk.PromptCapabilities{
 				Image: a.scenario == "prompt_capabilities_image" ||
 					a.scenario == "echo_prompt_blocks",
@@ -523,10 +540,46 @@ func (a *helperACPAgent) Cancel(context.Context, acpsdk.CancelNotification) erro
 }
 
 func (a *helperACPAgent) CloseSession(
-	context.Context,
-	acpsdk.CloseSessionRequest,
+	ctx context.Context,
+	_ acpsdk.CloseSessionRequest,
 ) (acpsdk.CloseSessionResponse, error) {
+	if a.scenario == "config_options_slow_close" {
+		// Answers slower than the driver's bounded close budget, like claude-agent-acp.
+		select {
+		case <-ctx.Done():
+		case <-time.After(3 * time.Second):
+		}
+	}
 	return acpsdk.CloseSessionResponse{}, nil
+}
+
+// UnstableForkSession mirrors OpenCode's adapter: it replays clone-id traffic
+// on the source connection before answering, plus one stray foreign-id update.
+func (a *helperACPAgent) UnstableForkSession(
+	ctx context.Context,
+	params acpsdk.UnstableForkSessionRequest,
+) (acpsdk.UnstableForkSessionResponse, error) {
+	const cloneID acpsdk.SessionId = "sess-fork"
+	updates := []acpsdk.SessionNotification{
+		{SessionId: cloneID, Update: acpsdk.SessionUpdate{
+			AvailableCommandsUpdate: &acpsdk.SessionAvailableCommandsUpdate{
+				SessionUpdate:     "available_commands_update",
+				AvailableCommands: []acpsdk.AvailableCommand{{Name: "review", Description: "Review"}},
+			},
+		}},
+		{SessionId: cloneID, Update: acpsdk.UpdateAgentMessageText("replayed one")},
+		{SessionId: cloneID, Update: acpsdk.UpdateAgentMessageText("replayed two")},
+		{SessionId: "sess-stray", Update: acpsdk.UpdateAgentMessageText("stray")},
+	}
+	for _, update := range updates {
+		if err := a.conn.SessionUpdate(ctx, update); err != nil {
+			return acpsdk.UnstableForkSessionResponse{}, err
+		}
+	}
+	if params.SessionId != "sess-new" {
+		return acpsdk.UnstableForkSessionResponse{}, fmt.Errorf("fork source = %q", params.SessionId)
+	}
+	return acpsdk.UnstableForkSessionResponse{SessionId: cloneID}, nil
 }
 
 func (a *helperACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
@@ -548,8 +601,15 @@ func (a *helperACPAgent) ResumeSession(
 }
 
 // NewSession advertises the scenario capabilities without contacting a live provider.
-func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
-	if a.scenario == "mode_mapping" {
+func (a *helperACPAgent) NewSession(
+	ctx context.Context,
+	_ acpsdk.NewSessionRequest,
+) (acpsdk.NewSessionResponse, error) {
+	if a.scenario == "stall_new" {
+		<-ctx.Done()
+		return acpsdk.NewSessionResponse{}, ctx.Err()
+	}
+	if a.scenario == "mode_mapping" || a.scenario == "stall_mode" {
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
@@ -570,7 +630,8 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 			ConfigOptions: configOptions,
 		}, nil
 	}
-	if a.scenario == "config_options" ||
+	if a.scenario == "config_options" || a.scenario == "stall_config" ||
+		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
@@ -624,7 +685,14 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 	}, nil
 }
 
-func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
+func (a *helperACPAgent) LoadSession(
+	ctx context.Context,
+	_ acpsdk.LoadSessionRequest,
+) (acpsdk.LoadSessionResponse, error) {
+	if a.scenario == "stall_load" {
+		<-ctx.Done()
+		return acpsdk.LoadSessionResponse{}, ctx.Err()
+	}
 	if a.scenario == "load_session_error" {
 		return acpsdk.LoadSessionResponse{}, errors.New("load failed")
 	}
@@ -648,6 +716,48 @@ func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest)
 
 func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
 	switch a.scenario {
+	case "compaction_usage":
+		updates := []string{
+			`{"sessionUpdate":"usage_update","used":190000,"size":200000,"cost":{"amount":1.5,"currency":"USD"}}`,
+			`{"sessionUpdate":"compaction_update","compactionId":"c1","status":"completed"}`,
+		}
+		switch a.filePath {
+		case "cost":
+			updates = append(updates, `{"sessionUpdate":"usage_update","cost":{"amount":2.5,"currency":"USD"}}`)
+		case "used":
+			updates = append(updates, `{"sessionUpdate":"usage_update","used":8000}`)
+		case "late":
+			// The terminal compaction arrives after the prompt response, inside the drain window.
+			updates = updates[:1]
+			go func() {
+				time.Sleep(20 * time.Millisecond)
+				_ = a.conn.SessionUpdate(context.WithoutCancel(ctx), acpsdk.SessionNotification{
+					SessionId: params.SessionId,
+					Update: acpsdk.SessionUpdate{CompactionUpdate: &acpsdk.SessionCompactionUpdate{
+						SessionUpdate: "compaction_update", CompactionId: "c1", Status: "completed",
+					}},
+				})
+			}()
+		case "fresh":
+			updates = append(updates,
+				`{"sessionUpdate":"usage_update","used":8000,"size":200000}`,
+				`{"sessionUpdate":"compaction_update","compactionId":"c1","status":"failed","error":"correction"}`,
+			)
+		}
+		// Raw frames preserve omitted occupancy fields that the SDK's value types fill with zero.
+		for _, update := range updates {
+			if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"jsonrpc": "2.0", "method": acpsdk.ClientMethodSessionUpdate,
+				"params": wireSessionNotification{SessionID: params.SessionId, Update: json.RawMessage(update)},
+			}); err != nil {
+				return acpsdk.PromptResponse{}, err
+			}
+		}
+		response := acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}
+		if a.filePath == "totals" {
+			response.Usage = &acpsdk.Usage{InputTokens: 190000, OutputTokens: 1000, TotalTokens: 191000}
+		}
+		return response, nil
 	case "crash_on_prompt":
 		os.Exit(23)
 	case "provider_auth_recovers", "provider_rate_limit_recovers":
@@ -881,78 +991,6 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		}); sendErr != nil {
 			return acpsdk.PromptResponse{}, sendErr
 		}
-	case "network_guardrails":
-		targetPath := a.filePath
-		if targetPath == "" {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return acpsdk.PromptResponse{}, err
-			}
-			targetPath = filepath.Join(cwd, "network-blocked.txt")
-		}
-
-		writeResult := "write_unexpected"
-		if _, err := a.conn.WriteTextFile(ctx, acpsdk.WriteTextFileRequest{
-			SessionId: params.SessionId,
-			Path:      targetPath,
-			Content:   "blocked",
-		}); err != nil {
-			writeResult = "write_blocked"
-		}
-		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
-			SessionId: params.SessionId,
-			Update:    acpsdk.UpdateAgentMessageText(writeResult),
-		}); sendErr != nil {
-			return acpsdk.PromptResponse{}, sendErr
-		}
-
-		shellResult := "shell_unexpected"
-		if _, err := a.conn.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
-			SessionId: params.SessionId,
-			Command:   "sh",
-			Args:      []string{"-c", "printf nope"},
-		}); err != nil {
-			shellResult = "shell_blocked"
-		}
-		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
-			SessionId: params.SessionId,
-			Update:    acpsdk.UpdateAgentMessageText(shellResult),
-		}); sendErr != nil {
-			return acpsdk.PromptResponse{}, sendErr
-		}
-
-		cwd, err := os.Getwd()
-		if err != nil {
-			return acpsdk.PromptResponse{}, err
-		}
-		createResp, err := a.conn.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
-			SessionId: params.SessionId,
-			Command:   "compozy",
-			Args:      []string{"network", "status"},
-			Cwd:       new(cwd),
-		})
-		if err != nil {
-			return acpsdk.PromptResponse{}, err
-		}
-		if _, err := a.conn.WaitForTerminalExit(ctx, acpsdk.WaitForTerminalExitRequest{
-			SessionId:  params.SessionId,
-			TerminalId: createResp.TerminalId,
-		}); err != nil {
-			return acpsdk.PromptResponse{}, err
-		}
-		outputResp, err := a.conn.TerminalOutput(ctx, acpsdk.TerminalOutputRequest{
-			SessionId:  params.SessionId,
-			TerminalId: createResp.TerminalId,
-		})
-		if err != nil {
-			return acpsdk.PromptResponse{}, err
-		}
-		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
-			SessionId: params.SessionId,
-			Update:    acpsdk.UpdateAgentMessageText(outputResp.Output),
-		}); sendErr != nil {
-			return acpsdk.PromptResponse{}, sendErr
-		}
 	default:
 		updates := []acpsdk.SessionUpdate{
 			acpsdk.UpdateAgentMessageText("hello"),
@@ -983,17 +1021,26 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 }
 
 func (a *helperACPAgent) SetSessionMode(
-	context.Context,
-	acpsdk.SetSessionModeRequest,
+	ctx context.Context,
+	_ acpsdk.SetSessionModeRequest,
 ) (acpsdk.SetSessionModeResponse, error) {
+	if a.scenario == "stall_mode" {
+		<-ctx.Done()
+		return acpsdk.SetSessionModeResponse{}, ctx.Err()
+	}
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
 // SetSessionConfigOption emulates provider-specific negotiation and model-dependent option changes.
 func (a *helperACPAgent) SetSessionConfigOption(
-	_ context.Context,
+	ctx context.Context,
 	request acpsdk.SetSessionConfigOptionRequest,
 ) (acpsdk.SetSessionConfigOptionResponse, error) {
+	if a.scenario == "stall_config" || (a.scenario == "stall_last_config" &&
+		request.ValueId != nil && string(request.ValueId.Value) == "other-model") {
+		<-ctx.Done()
+		return acpsdk.SetSessionConfigOptionResponse{}, ctx.Err()
+	}
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
 	if a.scenario == "config_options_unconfirmed" {

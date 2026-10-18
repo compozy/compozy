@@ -7,8 +7,19 @@ description: "Show one effective background role"
 
 Show one effective background role
 
+### Synopsis
+
+Show one effective background role. The fallback_chain table lists each route's provider, model, reasoning_effort, and command (the route's account; empty inherits the agent or provider command). JSON output also carries command_fingerprint.
+
 ```
 compozy roles show <role> [flags]
+```
+
+### Examples
+
+```
+  compozy roles show auto_title
+  compozy roles show auto_title -o json
 ```
 
 ### Options

@@ -5,6 +5,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
+type RadioCardIconWellSize = "default" | "lg";
 
 export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "value" | "title"> {
   selected: boolean;
@@ -17,16 +18,50 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
    * tinted well from the modal RadioCard contract. Opt-in — do not change
    * existing pickers silently.
    */
-  iconWellSize?: "default" | "lg";
+  iconWellSize?: RadioCardIconWellSize;
   badge?: React.ReactNode;
   /** Optional className merged onto the title slot. */
   titleClassName?: string;
 }
 
+function radioCardIconWellClass(size: RadioCardIconWellSize, selected: boolean): string {
+  if (size === "lg") {
+    return cn(
+      "size-7 rounded-sm bg-surface-2",
+      selected ? "text-fg-strong shadow-inset-strong" : "text-muted shadow-hairline-inset"
+    );
+  }
+  return cn("size-5", selected ? "text-fg-strong" : "text-muted");
+}
+
+function RadioCardIconWell({
+  icon: Icon,
+  selected,
+  size,
+}: {
+  icon: IconComponent;
+  selected: boolean;
+  size: RadioCardIconWellSize;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      data-icon-well-size={size}
+      data-slot="radio-card-icon-well"
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center",
+        radioCardIconWellClass(size, selected)
+      )}
+    >
+      <Icon className={size === "lg" ? "size-3.5" : "size-3"} />
+    </span>
+  );
+}
+
 /**
  * Single radio choice rendered as a card.:
  * - resting state: `--canvas-soft` surface, no border (flat-depth).
- * - selected state: `--surface-glaze` background + `box-shadow: 0 0 0 1px var(--color-line-strong) inset`.
+ * - selected state: `--selected` background + `box-shadow: 0 0 0 1px var(--color-line-strong) inset`.
  *   No accent border, no `--accent-tint` fill — accent stays reserved for true CTAs.
  */
 function RadioCard({
@@ -66,33 +101,14 @@ function RadioCard({
       onClick={selectRadioCard}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-3 py-2.5 text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring",
-        selected ? "bg-surface-glaze shadow-inset-strong" : "hover:bg-elevated",
+        "group flex w-full min-w-0 flex-col gap-1.5 rounded-lg bg-card px-3 py-2.5 text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring",
+        selected ? "bg-selected shadow-inset-strong" : "shadow-card hover:bg-surface-2",
         className
       )}
       {...props}
     >
       <div className="flex min-w-0 items-center gap-2">
-        {Icon ? (
-          <span
-            aria-hidden="true"
-            data-icon-well-size={iconWellSize}
-            data-slot="radio-card-icon-well"
-            className={cn(
-              "inline-flex shrink-0 items-center justify-center",
-              iconWellSize === "lg"
-                ? cn(
-                    "size-7 rounded-sm bg-badge-fill",
-                    selected
-                      ? "text-fg-strong shadow-inset-strong"
-                      : "text-muted shadow-hairline-inset"
-                  )
-                : cn("size-5", selected ? "text-fg-strong" : "text-muted")
-            )}
-          >
-            <Icon className={iconWellSize === "lg" ? "size-3.5" : "size-3"} />
-          </span>
-        ) : null}
+        {Icon ? <RadioCardIconWell icon={Icon} selected={selected} size={iconWellSize} /> : null}
         <span
           data-slot="radio-card-title"
           className={cn(

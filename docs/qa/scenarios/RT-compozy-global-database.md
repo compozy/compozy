@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/bootstrap-manifest.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/api-status.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log;/Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: RT-refuse-legacy-database;RT-compozy-home-layout
+overlaps: RT-refuse-legacy-database; RT-compozy-home-layout
 ---
 
 QA impact 2026-07-26: the global database filename moved to `compozy.db` while the

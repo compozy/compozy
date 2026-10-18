@@ -97,6 +97,8 @@ describe("TerminalSettingsSections", () => {
     const user = userEvent.setup();
     render(<Harness />);
 
+    // Limits sit behind the Advanced fold.
+    await user.click(screen.getByTestId("settings-advanced-toggle"));
     const limit = screen.getByTestId("settings-terminal-max-per-workspace");
     await user.clear(limit);
     await user.type(limit, "4");

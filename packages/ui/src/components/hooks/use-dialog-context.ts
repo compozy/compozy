@@ -2,6 +2,7 @@ import * as React from "react";
 
 export interface DialogContextValue {
   open: boolean;
+  registerOpenTooltip: () => () => void;
 }
 
 export const DialogContext = React.createContext<DialogContextValue | null>(null);

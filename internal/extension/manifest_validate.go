@@ -31,7 +31,7 @@ func validateManifestRuntime(manifest *Manifest) error {
 	if err := validateEnvRequirements("requires_env", manifest.RequiresEnv); err != nil {
 		return err
 	}
-	if err := manifest.NetworkParticipation.Validate(manifestFieldNetworkParticipation); err != nil {
+	if err := manifest.Gateway.Validate(manifestFieldGateway); err != nil {
 		return err
 	}
 	return validateManifestEnvMaps(
@@ -81,7 +81,7 @@ func validateManifestCapabilities(manifest *Manifest) error {
 	if err := manifest.validateModelSourceCapability(); err != nil {
 		return err
 	}
-	return manifest.validateBridgeAdapterCapability()
+	return nil
 }
 
 func validateManifestPermissions(manifest *Manifest) error {

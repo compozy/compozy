@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -27,76 +28,13 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
-
-func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *testing.T) {
-	acpmock.RequireDriver(t)
-	t.Parallel()
-
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "multi_agent_fixture.json"),
-			FixtureAgent: "alpha",
-			AgentName:    "mock-alpha",
-		}},
-	})
-
-	registration, ok := harness.MockAgentRegistration("mock-alpha")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	session := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "launch-alpha")
-	stream, err := harness.PromptSession(ctx, session.ID, "hello alpha")
-	if err != nil {
-		t.Fatalf("PromptSession() error = %v", err)
-	}
-	if len(stream) == 0 {
-		t.Fatal("PromptSession() stream = empty, want mock agent updates")
-	}
-
-	transcriptResp, err := harness.SessionTranscript(ctx, session.ID)
-	if err != nil {
-		t.Fatalf("SessionTranscript() error = %v", err)
-	}
-	gotTranscript := joinTranscriptContent(sessionTranscriptMessages(transcriptResp))
-	if !strings.Contains(gotTranscript, "alpha says hi") || !strings.Contains(gotTranscript, "bridge-alpha") {
-		t.Fatalf("transcript = %q, want alpha assistant and bridge content", gotTranscript)
-	}
-
-	if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionTranscript() error = %v", err)
-	}
-	if err := harness.CaptureSessionEvents(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionEvents() error = %v", err)
-	}
-	if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
-		t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
-	}
-
-	providerCallsPath, ok := harness.Artifacts.ArtifactPath(e2etest.ArtifactKindProviderCalls)
-	if !ok {
-		t.Fatal("ArtifactPath(provider_calls) = missing, want present")
-	}
-	providerCalls, err := os.ReadFile(providerCallsPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", providerCallsPath, err)
-	}
-	if !strings.Contains(string(providerCalls), "alpha-hello") {
-		t.Fatalf("provider_calls artifact = %s, want alpha diagnostics", string(providerCalls))
-	}
-}
 
 func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *testing.T) {
 	acpmock.RequireDriver(t)
@@ -164,7 +102,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		MockAgents: specs,
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	// not parallel: subtests share one runtime harness and per-agent diagnostics files.
 
@@ -284,7 +222,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 
 		sessions := make([]compozycontract.SessionPayload, 0, 2)
-		for index := 0; index < 2; index++ {
+		for index := range 2 {
 			sessionPayload, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 				AgentName:     "reasoning-claude-concurrent",
 				WorkspacePath: harness.WorkspaceRoot,
@@ -599,76 +537,107 @@ func TestDaemonE2EMockAgentsRemainIsolated(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := mockFixturePath(t, "multi_agent_fixture.json")
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		MockAgents: []e2etest.MockAgentSpec{
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "alpha",
-				AgentName:    "mock-alpha",
+	t.Run("Should launch fixture agents and preserve transcript and diagnostic isolation", func(t *testing.T) {
+		t.Parallel()
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "alpha",
+					AgentName:    "mock-alpha",
+				},
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "beta",
+					AgentName:    "mock-beta",
+				},
 			},
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "beta",
-				AgentName:    "mock-beta",
-			},
-		},
+		})
+
+		alphaReg, ok := harness.MockAgentRegistration("mock-alpha")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
+		}
+		betaReg, ok := harness.MockAgentRegistration("mock-beta")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-beta) = missing, want present")
+		}
+
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+		defer cancel()
+
+		alphaSession := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "alpha-session")
+		stream, err := harness.PromptSession(ctx, alphaSession.ID, "hello alpha")
+		if err != nil {
+			t.Fatalf("PromptSession(alpha) error = %v", err)
+		}
+		if len(stream) == 0 {
+			t.Fatal("PromptSession(alpha) stream = empty, want mock agent updates")
+		}
+		betaSession := createFixtureBackedSession(t, ctx, harness, "mock-beta", "beta-session")
+		if _, err := harness.PromptSession(ctx, betaSession.ID, "hello beta"); err != nil {
+			t.Fatalf("PromptSession(beta) error = %v", err)
+		}
+
+		alphaTranscript, err := harness.SessionTranscript(ctx, alphaSession.ID)
+		if err != nil {
+			t.Fatalf("SessionTranscript(alpha) error = %v", err)
+		}
+		betaTranscript, err := harness.SessionTranscript(ctx, betaSession.ID)
+		if err != nil {
+			t.Fatalf("SessionTranscript(beta) error = %v", err)
+		}
+
+		alphaContent := joinTranscriptContent(sessionTranscriptMessages(alphaTranscript))
+		betaContent := joinTranscriptContent(sessionTranscriptMessages(betaTranscript))
+		if !strings.Contains(alphaContent, "alpha says hi") || !strings.Contains(alphaContent, "alpha follow-up") ||
+			strings.Contains(alphaContent, "beta only") {
+			t.Fatalf("alpha transcript = %q, want only alpha content", alphaContent)
+		}
+		if !strings.Contains(betaContent, "beta only") || strings.Contains(betaContent, "alpha says hi") {
+			t.Fatalf("beta transcript = %q, want only beta content", betaContent)
+		}
+
+		alphaDiagnostics, err := acpmock.ReadDiagnostics(alphaReg.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(alpha) error = %v", err)
+		}
+		betaDiagnostics, err := acpmock.ReadDiagnostics(betaReg.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(beta) error = %v", err)
+		}
+		alphaPromptDiagnostics := acpmock.PromptDiagnostics(alphaDiagnostics)
+		betaPromptDiagnostics := acpmock.PromptDiagnostics(betaDiagnostics)
+		if len(alphaPromptDiagnostics) != 1 || alphaPromptDiagnostics[0].AgentName != "alpha" {
+			t.Fatalf("alpha diagnostics = %#v, want one alpha record", alphaDiagnostics)
+		}
+		if len(betaPromptDiagnostics) != 1 || betaPromptDiagnostics[0].AgentName != "beta" {
+			t.Fatalf("beta diagnostics = %#v, want one beta record", betaDiagnostics)
+		}
+
+		if err := harness.CaptureSessionTranscript(ctx, alphaSession.ID); err != nil {
+			t.Fatalf("CaptureSessionTranscript() error = %v", err)
+		}
+		if err := harness.CaptureSessionEvents(ctx, alphaSession.ID); err != nil {
+			t.Fatalf("CaptureSessionEvents() error = %v", err)
+		}
+		if err := harness.CaptureMockAgentDiagnostics(alphaReg); err != nil {
+			t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
+		}
+
+		providerCallsPath, ok := harness.Artifacts.ArtifactPath(e2etest.ArtifactKindProviderCalls)
+		if !ok {
+			t.Fatal("ArtifactPath(provider_calls) = missing, want present")
+		}
+		providerCalls, err := os.ReadFile(providerCallsPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", providerCallsPath, err)
+		}
+		if !strings.Contains(string(providerCalls), "alpha-hello") {
+			t.Fatalf("provider_calls artifact = %s, want alpha diagnostics", string(providerCalls))
+		}
 	})
-
-	alphaReg, ok := harness.MockAgentRegistration("mock-alpha")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
-	}
-	betaReg, ok := harness.MockAgentRegistration("mock-beta")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-beta) = missing, want present")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	alphaSession := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "alpha-session")
-	if _, err := harness.PromptSession(ctx, alphaSession.ID, "hello alpha"); err != nil {
-		t.Fatalf("PromptSession(alpha) error = %v", err)
-	}
-	betaSession := createFixtureBackedSession(t, ctx, harness, "mock-beta", "beta-session")
-	if _, err := harness.PromptSession(ctx, betaSession.ID, "hello beta"); err != nil {
-		t.Fatalf("PromptSession(beta) error = %v", err)
-	}
-
-	alphaTranscript, err := harness.SessionTranscript(ctx, alphaSession.ID)
-	if err != nil {
-		t.Fatalf("SessionTranscript(alpha) error = %v", err)
-	}
-	betaTranscript, err := harness.SessionTranscript(ctx, betaSession.ID)
-	if err != nil {
-		t.Fatalf("SessionTranscript(beta) error = %v", err)
-	}
-
-	alphaContent := joinTranscriptContent(sessionTranscriptMessages(alphaTranscript))
-	betaContent := joinTranscriptContent(sessionTranscriptMessages(betaTranscript))
-	if !strings.Contains(alphaContent, "alpha says hi") || strings.Contains(alphaContent, "beta only") {
-		t.Fatalf("alpha transcript = %q, want only alpha content", alphaContent)
-	}
-	if !strings.Contains(betaContent, "beta only") || strings.Contains(betaContent, "alpha says hi") {
-		t.Fatalf("beta transcript = %q, want only beta content", betaContent)
-	}
-
-	alphaDiagnostics, err := acpmock.ReadDiagnostics(alphaReg.DiagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(alpha) error = %v", err)
-	}
-	betaDiagnostics, err := acpmock.ReadDiagnostics(betaReg.DiagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(beta) error = %v", err)
-	}
-	alphaPromptDiagnostics := acpmock.PromptDiagnostics(alphaDiagnostics)
-	betaPromptDiagnostics := acpmock.PromptDiagnostics(betaDiagnostics)
-	if len(alphaPromptDiagnostics) != 1 || alphaPromptDiagnostics[0].AgentName != "alpha" {
-		t.Fatalf("alpha diagnostics = %#v, want one alpha record", alphaDiagnostics)
-	}
-	if len(betaPromptDiagnostics) != 1 || betaPromptDiagnostics[0].AgentName != "beta" {
-		t.Fatalf("beta diagnostics = %#v, want one beta record", betaDiagnostics)
-	}
 }
 
 func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
@@ -692,7 +661,7 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 		t.Fatal("MockAgentRegistration(mock-golden) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session := createFixtureBackedSession(t, ctx, harness, "mock-golden", "golden-session")
@@ -770,7 +739,6 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		t.Parallel()
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-			EnableNetwork: true,
 			MockAgents: []e2etest.MockAgentSpec{
 				{
 					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
@@ -778,6 +746,44 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 					AgentName:    "mock-hosted-native",
 				},
 			},
+			Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
+				".compozy/config.toml": `[[hooks.declarations]]
+name = "native-create-input"
+event = "tool.pre_call"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{"tool_input":{"id":"hostednative-created","scope":"workspace","title":"Hook approved native task"}}']
+matcher = {tool_id = "compozy__task_create"}
+
+[[hooks.declarations]]
+name = "native-create-output"
+event = "tool.post_call"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{}']
+matcher = {tool_id = "compozy__task_create"}
+
+[[hooks.declarations]]
+name = "native-read-denial"
+event = "tool.pre_call"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{"deny":true,"deny_reason":"Use the workspace catalog"}']
+matcher = {tool_id = "compozy__workspace_info"}
+
+[[hooks.declarations]]
+name = "native-list-error"
+event = "tool.post_error"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{"error":"Choose a supported task status"}']
+matcher = {tool_id = "compozy__task_list"}
+`,
+			}},
 		})
 
 		registration, ok := harness.MockAgentRegistration("mock-hosted-native")
@@ -785,34 +791,16 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatal("MockAgentRegistration(mock-hosted-native) = missing, want present")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
-		channelID := "hostednative"
-		if _, err := harness.CreateNetworkChannel(ctx, compozycontract.CreateNetworkChannelRequest{
-			Channel:      channelID,
-			WorkspaceID:  harness.WorkspaceID,
-			Purpose:      "Hosted MCP native tool projection",
-			FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
-			AgentNames:   []string{"mock-hosted-native"},
-		}); err != nil {
-			t.Fatalf("CreateNetworkChannel(%q) error = %v", channelID, err)
-		}
 		session, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-			AgentName:            "mock-hosted-native",
-			Name:                 "hosted-native-session",
-			WorkspacePath:        harness.WorkspaceRoot,
-			NetworkParticipation: daemonTestNamedParticipationRequest(channelID),
+			AgentName:     "mock-hosted-native",
+			Name:          "hosted-native-session",
+			WorkspacePath: harness.WorkspaceRoot,
 		})
 		if err != nil {
-			t.Fatalf("CreateSession(hosted-native Live) error = %v", err)
-		}
-		if got := resolvedParticipationChannelID(session.ResolvedNetworkParticipation); got != channelID {
-			t.Fatalf(
-				"hosted session ResolvedNetworkParticipation.ChannelID = %q, want %q",
-				got,
-				channelID,
-			)
+			t.Fatalf("CreateSession(hosted-native) error = %v", err)
 		}
 		waitForRuntimeCondition(t, "hosted-native session visible", 5*time.Second, func() bool {
 			current, getErr := harness.GetSession(ctx, session.ID)
@@ -835,44 +823,76 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		if err != nil {
 			t.Fatalf("ListTools(hosted MCP) error = %v", err)
 		}
-		networkToolID := toolspkg.ToolIDNetworkChannelCreate.String()
-		if !sdkToolListContains(list.Tools, networkToolID) {
-			t.Fatalf("hosted MCP tools = %#v, want non-bootstrap tool %s", sdkToolNames(list.Tools), networkToolID)
+		taskToolID := toolspkg.ToolIDTaskCreate.String()
+		if !sdkToolListContains(list.Tools, taskToolID) {
+			t.Fatalf("hosted MCP tools = %#v, want non-bootstrap tool %s", sdkToolNames(list.Tools), taskToolID)
 		}
-
-		channelName := "hostednative-created"
-		call := &sdkmcp.CallToolParams{Name: networkToolID, Arguments: map[string]any{
-			"workspace": harness.WorkspaceID,
-			"channel":   channelName,
-			"purpose":   "Runtime E2E hosted native tool access",
-		}}
-		result, err := client.CallTool(ctx, call)
+		taskID := createHostedTaskForWakeE2E(
+			t,
+			ctx,
+			client,
+			"hostednative-created",
+			"Runtime E2E hosted native tool access",
+		)
+		task, err := harness.GetTask(ctx, taskID)
 		if err != nil {
-			t.Fatalf("CallTool(%s) error = %v", networkToolID, err)
+			t.Fatalf("GetTask(%q) error = %v", taskID, err)
 		}
-		if result == nil || result.IsError {
-			t.Fatalf("CallTool(%s) result = %#v, want successful result", networkToolID, result)
+		if task.Task.ID != taskID || task.Task.Title != "Hook approved native task" {
+			t.Fatalf("GetTask(%q) = %#v, want hosted native task with the pre-call patch", taskID, task)
 		}
-		structured, err := json.Marshal(result.StructuredContent)
+		for _, call := range []struct {
+			tool   toolspkg.ToolID
+			input  map[string]any
+			reason string
+		}{
+			{tool: toolspkg.ToolIDWorkspaceInfo, input: map[string]any{}, reason: "hook_denied"},
+			{tool: toolspkg.ToolIDTaskList, input: map[string]any{"status": "queued"}, reason: "schema_invalid"},
+		} {
+			result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: call.tool.String(), Arguments: call.input})
+			if err != nil || result == nil || !result.IsError {
+				t.Fatalf("CallTool(%s) = %#v, %v, want a structured refusal", call.tool, result, err)
+			}
+			encoded, err := json.Marshal(result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(encoded), call.reason) {
+				t.Fatalf("CallTool(%s) = %s, want %s", call.tool, encoded, call.reason)
+			}
+		}
+		var hookRuns []compozycontract.HookRunPayload
+		if err := harness.CLI.RunJSON(ctx, &hookRuns, "hooks", "runs", "--session", session.ID,
+			"--workspace", harness.WorkspaceID, "--last", "20", "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		counts := make(map[string]int)
+		for _, run := range hookRuns {
+			counts[run.HookName]++
+		}
+		events, err := harness.SessionEvents(ctx, session.ID)
 		if err != nil {
-			t.Fatalf("Marshal(CallTool structuredContent) error = %v", err)
+			t.Fatal(err)
 		}
-		if !strings.Contains(string(structured), channelName) {
-			t.Fatalf("CallTool structuredContent = %s, want channel %q", structured, channelName)
+		dispatched := make(map[string]int)
+		for _, event := range events.Events {
+			if event.Type == eventspkg.HookDispatchComplete {
+				dispatched[event.HookName]++
+			}
 		}
-
-		channel, err := harness.NetworkChannel(ctx, channelName)
-		if err != nil {
-			t.Fatalf("NetworkChannel(%q) error = %v", channelName, err)
-		}
-		if channel.Channel != channelName || channel.Purpose != "Runtime E2E hosted native tool access" {
-			t.Fatalf("NetworkChannel(%q) = %#v, want hosted native purpose", channelName, channel)
+		for _, name := range []string{"native-create-input", "native-create-output", "native-read-denial", "native-list-error"} {
+			if counts[name] != 1 || dispatched[name] != 1 {
+				t.Errorf(
+					"persisted %s runs/events = %d/%d, want 1/1; runs = %#v",
+					name,
+					counts[name],
+					dispatched[name],
+					hookRuns,
+				)
+			}
 		}
 		if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 			t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
-		}
-		if err := harness.CaptureNetworkArtifacts(ctx, channelName); err != nil {
-			t.Fatalf("CaptureNetworkArtifacts(%q) error = %v", channelName, err)
 		}
 	})
 
@@ -891,7 +911,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatal("MockAgentRegistration(mock-hosted-provider-legacy) = missing, want present")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 		createBoundFixtureBackedSession(t, ctx, harness, "mock-hosted-provider-legacy", "hosted-provider-legacy")
 		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
@@ -934,7 +954,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatal("MockAgentRegistration(mock-provider-models) = missing, want present")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		createBoundFixtureBackedSession(t, ctx, harness, "mock-provider-models", "provider-models-session")
@@ -1119,16 +1139,12 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 		})
 	}
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: mockAgents})
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	sourceWorkspaceID := harness.WorkspaceID
 	target, err := harness.ResolveWorkspace(ctx, t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveWorkspace(target) error = %v", err)
-	}
-	targetIdentity, err := workspacepkg.EnsureIdentity(ctx, target.RootDir)
-	if err != nil {
-		t.Fatalf("EnsureIdentity(target) error = %v", err)
 	}
 	harness.WorkspaceID = sourceWorkspaceID
 	var (
@@ -1154,7 +1170,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 				ctx,
 				harness,
 				denySession.ID,
-				targetIdentity.WorkspaceID,
+				target.ID,
 				workspaceaccess.SeamTool,
 				workspaceaccess.SourceDenied,
 				"workspace.access_denied",
@@ -1199,7 +1215,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 				ctx,
 				harness,
 				onceSession.ID,
-				targetIdentity.WorkspaceID,
+				target.ID,
 				workspaceaccess.SeamTool,
 				workspaceaccess.SourceDenied,
 				"workspace.access_denied",
@@ -1359,7 +1375,7 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 		t.Fatal("MockAgentRegistration(mock-wake-creator) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	creatorSession := createBoundFixtureBackedSession(t, ctx, harness, "mock-wake-creator", "wake-creator-session")
@@ -2656,4 +2672,347 @@ func containsAgentEvent(events []compozycontract.AgentEventPayload, want compozy
 		return true
 	}
 	return false
+}
+
+func TestDaemonE2EAgentDelegatesThroughHostedMCP(t *testing.T) {
+	t.Run(
+		"Should persist the agent delegate call and its subagent result in the parent transcript",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				MockAgents: []e2etest.MockAgentSpec{
+					{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+					{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+				},
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+			defer cancel()
+			parent, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+				AgentName: "subagent-delegator", WorkspacePath: harness.WorkspaceRoot,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.PromptSession(ctx, parent.ID, "delegate child work"); err != nil {
+				t.Fatal(err)
+			}
+			page, err := harness.SessionTranscript(ctx, parent.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var subagentID string
+			for _, entry := range page.Entries {
+				for _, part := range entry.Message.Parts {
+					if part.ToolCallID != "delegate-child" {
+						continue
+					}
+					if part.Type != "tool-compozy__subagent_delegate" || part.State != "output-available" {
+						t.Fatalf("delegate transcript part = %#v", part)
+					}
+					var input struct {
+						Task string `json:"task"`
+					}
+					if err := jsonv2.Unmarshal(part.Input, &input); err != nil || input.Task != "child work" {
+						t.Fatalf("delegate input = %s, error = %v", part.Input, err)
+					}
+					var envelope struct {
+						Raw struct {
+							RawOutput json.RawMessage `json:"raw_output"`
+						} `json:"raw"`
+					}
+					if err := jsonv2.Unmarshal(part.Output, &envelope); err != nil {
+						t.Fatal(err)
+					}
+					var result struct {
+						SubagentID      string `json:"subagent_id"`
+						ParentSessionID string `json:"parent_session_id"`
+						ChildSessionID  string `json:"child_session_id"`
+					}
+					if err := jsonv2.Unmarshal(envelope.Raw.RawOutput, &result); err != nil {
+						t.Fatal(err)
+					}
+					if result.SubagentID == "" || result.ParentSessionID != parent.ID || result.ChildSessionID == "" {
+						t.Fatalf("delegate output = %s", part.Output)
+					}
+					subagentID = result.SubagentID
+				}
+			}
+			if subagentID == "" {
+				t.Fatalf("persisted transcript has no delegate result: %#v", page.Entries)
+			}
+			registration, ok := harness.MockAgentRegistration("subagent-delegator")
+			if !ok {
+				t.Fatal("missing parent registration")
+			}
+			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, record := range records {
+				for _, step := range record.Steps {
+					if step.Kind == acpmock.StepKindNativeToolCall && step.ToolCallID == "delegate-child" &&
+						step.Error == "" {
+						return
+					}
+				}
+			}
+			t.Fatal("delegate result was not executed by the parent fixture process")
+		},
+	)
+	// D-04 composer path: a turn submitted through the streaming prompt route (the web
+	// composer) renders from that stream until the transcript reconciles, so the stream
+	// itself must carry the card for the delegate result, not only the persisted ledger.
+	t.Run("Should stream the subagent card on the composer prompt stream", func(t *testing.T) {
+		t.Parallel()
+		fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{
+				{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+				{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+			},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		parent, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName: "subagent-delegator", WorkspacePath: harness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		records, err := harness.PromptSessionHTTP(ctx, parent.ID, "delegate child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var frames []string
+		for _, record := range records {
+			var frame struct {
+				Type string `json:"type"`
+				Data struct {
+					SubagentID string `json:"subagent_id"`
+					ToolCallID string `json:"tool_call_id"`
+					Origin     string `json:"origin"`
+				} `json:"data"`
+			}
+			if jsonv2.Unmarshal(record.Data, &frame) != nil {
+				continue
+			}
+			frames = append(frames, frame.Type)
+			if frame.Type == "data-compozy-subagent" {
+				if frame.Data.SubagentID == "" || frame.Data.ToolCallID != "delegate-child" ||
+					frame.Data.Origin != "delegated" {
+					t.Fatalf("streamed card = %s", record.Data)
+				}
+				return
+			}
+		}
+		t.Fatalf("prompt stream carried no subagent card; frames = %v", frames)
+	})
+}
+
+// E2E-007: the real CLI presents and cancels subagents created by the parent's hosted MCP calls.
+func TestDaemonE2ESubagentCLIJourney(t *testing.T) {
+	t.Run("Should execute the documented list show and cancel CLI journey", func(t *testing.T) {
+		t.Parallel()
+		harness := startSubagentCLIHarness(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		parent := createFixtureBackedSession(t, ctx, harness, "subagent-cli-parent", "CLI parent")
+		if _, err := harness.PromptSession(ctx, parent.ID, "exercise subagent CLI"); err != nil {
+			t.Fatal(err)
+		}
+		var page compozycontract.SubagentListPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &page,
+			"session", "subagents", parent.ID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Subagents) != 2 || page.NextCursor != nil {
+			t.Fatalf("list JSON = %#v, want two subagents and null next_cursor", page)
+		}
+		var running, completed compozycontract.SubagentPayload
+		for _, row := range page.Subagents {
+			switch row.Status {
+			case "running":
+				running = row
+			case "completed":
+				completed = row
+			}
+		}
+		if running.SubagentID == "" || completed.SubagentID == "" || completed.Result == nil ||
+			completed.ChildSessionID == nil {
+			t.Fatalf("list = %#v, want one running and one completed with a result", page.Subagents)
+		}
+		if running.Title != "Sol: diff panel default and base diff design" ||
+			completed.Title != "Edge cases: main checkout base" {
+			t.Fatalf("fixture titles = %q / %q", running.Title, completed.Title)
+		}
+		table, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "session", "subagents", parent.ID)
+		if err != nil {
+			t.Fatalf("list: %v; stderr=%s", err, stderr)
+		}
+		lines := strings.Split(strings.TrimSpace(table), "\n")
+		if len(lines) != 3 || strings.Join(strings.Fields(lines[0]), " ") != "ID TITLE RUNTIME STATUS ELAPSED" {
+			t.Fatalf("list table = %q", table)
+		}
+		for _, row := range page.Subagents {
+			found := false
+			for _, line := range lines[1:] {
+				if strings.HasPrefix(line, row.SubagentID+" ") {
+					prefix := row.SubagentID + " " + row.Title + " " + row.Runtime.Provider + "/" + row.Runtime.Model + " " + row.Status + " "
+					if !strings.HasPrefix(strings.Join(strings.Fields(line), " "), prefix) {
+						t.Fatalf("list row = %q, want prefix %q", line, prefix)
+					}
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("missing %s in table %q", row.SubagentID, table)
+			}
+		}
+		details, stderr, err := harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"session",
+			"subagents",
+			"show",
+			completed.SubagentID,
+		)
+		if err != nil {
+			t.Fatalf("show: %v; stderr=%s", err, stderr)
+		}
+		for _, want := range []string{
+			"Subagent      " + completed.SubagentID, "Title         " + completed.Title,
+			"Parent        " + parent.ID + " (turn " + completed.ParentTurnID + ")",
+			"Child         " + *completed.ChildSessionID,
+			"Runtime       " + completed.Runtime.Provider + " · " + completed.Runtime.Model,
+			"Status        completed (result available) · ", "Started       ", " · settled ",
+			"\nResult\n" + *completed.Result + "\n",
+		} {
+			if !strings.Contains(details, want) {
+				t.Errorf("show missing %q: %s", want, details)
+			}
+		}
+		output, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot,
+			"session", "subagents", "cancel", running.SubagentID, "--reason", "Direction abandoned.")
+		if err != nil {
+			t.Fatalf("cancel: %v; stderr=%s", err, stderr)
+		}
+		want := fmt.Sprintf("Cancel requested for %s (%s).\n", running.SubagentID, running.Title)
+		if output != want {
+			t.Fatalf("cancel = %q, want %q", output, want)
+		}
+		var canceled compozycontract.SubagentPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &canceled,
+			"session", "subagents", "show", running.SubagentID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if canceled.Status != "canceled" {
+			t.Fatalf("canceled row = %#v", canceled)
+		}
+		_, stderr, err = harness.CLI.RunInDir(ctx, harness.WorkspaceRoot,
+			"session", "subagents", "show", "sub-missing")
+		if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 ||
+			!strings.Contains(stderr, "subagent_not_found: subagent sub-missing not found") {
+			t.Fatalf("unknown subagent: error=%v stderr=%q", err, stderr)
+		}
+	})
+}
+
+func startSubagentCLIHarness(t *testing.T) *e2etest.RuntimeHarness {
+	t.Helper()
+	fixture := mockFixturePath(t, "subagent_cli_fixture.json")
+	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{
+			{FixturePath: fixture, FixtureAgent: "subagent-cli-parent", AgentName: "subagent-cli-parent"},
+			{FixturePath: fixture, FixtureAgent: "subagent-cli-worker", AgentName: "subagent-cli-worker"},
+		},
+	})
+}
+
+// E2E-008: live config reload changes the delegated result cap without truncating the child transcript.
+func TestDaemonE2ESubagentResultLimitReload(t *testing.T) {
+	t.Run("Should apply the reloaded result limit and preserve the complete child answer", func(t *testing.T) {
+		t.Parallel()
+		harness := startSubagentCLIHarness(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		parent := createFixtureBackedSession(t, ctx, harness, "subagent-cli-parent", "Config parent")
+		original, err := os.ReadFile(harness.HomePaths.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		original = append(original, []byte("\n[subagents]\nresult_max_chars = 1000\n")...)
+		if err := os.WriteFile(harness.HomePaths.ConfigFile, original, 0600); err != nil {
+			t.Fatal(err)
+		}
+		var reload struct {
+			Applied          bool  `json:"applied"`
+			ActiveGeneration int64 `json:"active_generation"`
+			RestartRequired  bool  `json:"restart_required"`
+		}
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&reload,
+			"config",
+			"reload",
+			"--json",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if !reload.Applied || reload.ActiveGeneration < 1 || reload.RestartRequired {
+			t.Fatalf("live config reload = %#v", reload)
+		}
+		if _, err := harness.PromptSession(ctx, parent.ID, "exercise result limit"); err != nil {
+			t.Fatal(err)
+		}
+		var page compozycontract.SubagentListPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &page,
+			"session", "subagents", parent.ID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Subagents) != 1 {
+			t.Fatalf("subagents = %#v", page)
+		}
+		var row compozycontract.SubagentPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &row,
+			"session", "subagents", "show", page.Subagents[0].SubagentID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if row.Status != "completed" || !row.ResultTruncated || row.Result == nil || len([]rune(*row.Result)) != 1000 ||
+			row.ChildSessionID == nil {
+			t.Fatalf("limited result = %#v", row)
+		}
+		if row.Hint != "Read the full answer with compozy__session_history on child_session_id." {
+			t.Errorf("truncated hint = %q", row.Hint)
+		}
+		fixture, err := acpmock.LoadFixture(mockFixturePath(t, "subagent_cli_fixture.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		worker, err := fixture.Agent("subagent-cli-worker")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn, err := worker.SelectTurn("long CLI work", acp.PromptMeta{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		full := turn.Steps[0].Text
+		if len([]rune(full)) <= 1000 || *row.Result != string([]rune(full)[:1000]) {
+			t.Fatalf("result does not preserve the first 1000 characters: %q", *row.Result)
+		}
+		transcript, err := harness.SessionTranscript(ctx, *row.ChildSessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range transcript.Entries {
+			for _, part := range entry.Message.Parts {
+				if part.Type == "text" && part.Text == full {
+					return
+				}
+			}
+		}
+		t.Fatal("the full answer is missing from the persisted child transcript")
+	})
 }

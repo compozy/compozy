@@ -105,7 +105,6 @@ function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogP
           <Button
             data-testid="settings-page-mcp-scope-cancel"
             onClick={authorize.cancel}
-            size="sm"
             type="button"
             variant="ghost"
           >
@@ -115,7 +114,6 @@ function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogP
             data-testid="settings-page-mcp-scope-confirm"
             disabled={scopes.length === 0}
             onClick={authorize.confirmScopeEscalation}
-            size="sm"
             type="button"
           >
             Approve scopes
@@ -156,87 +154,13 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
         className="flex max-h-[60vh] flex-col gap-0 overflow-y-auto px-5 py-4"
         data-testid="settings-page-mcp-authorize-body"
       >
-        {phase === "beginning" ? (
-          <Alert variant="warning" data-testid="settings-page-mcp-authorize-beginning">
-            <Spinner className="size-3.5" />
-            <AlertTitle>Starting authorization</AlertTitle>
-            <AlertDescription>Requesting a live authorization URL from CompozyOS.</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {isConfirmed ? (
-          <Alert
-            variant="success"
-            role="status"
-            data-testid="settings-page-mcp-authorize-confirmed"
-          >
-            <CircleCheck />
-            <AlertTitle>Authorization confirmed</AlertTitle>
-            <AlertDescription>
-              The scoped status now reports authenticated with a present token. Runtime readiness
-              remains an independent result.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {isFailure ? (
-          <Alert variant="danger" role="alert" data-testid="settings-page-mcp-authorize-failure">
-            <CircleAlert />
-            <AlertTitle>
-              {hasActiveBegin
-                ? "Authorization could not be completed"
-                : "Authorization could not be started"}
-            </AlertTitle>
-            <AlertDescription>
-              {authorize.error ??
-                `${name} keeps its prior status; no existing credential was changed.`}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {phase === "waiting" ? (
-          <Alert variant="warning" role="status" data-testid="settings-page-mcp-authorize-waiting">
-            <CircleAlert />
-            <AlertTitle>Waiting for confirmed token</AlertTitle>
-            <AlertDescription>
-              The browser step may finish automatically. This dialog stays pending until status
-              reports authenticated and token_present.
-            </AlertDescription>
-          </Alert>
-        ) : null}
+        <AuthorizePhaseAlert authorize={authorize} name={name} />
 
         {isConfirmed || isFailure ? <AuthSnapshot server={server} authorize={authorize} /> : null}
 
         {showUrl ? <AuthorizationUrlBlock url={url} /> : null}
 
-        {showManual ? (
-          <div
-            className="mt-3.5 border-t border-line-soft pt-3.5"
-            data-testid="settings-page-mcp-authorize-manual"
-          >
-            <div className="mb-1.5 flex items-center gap-2">
-              <label
-                className="text-form-label font-medium text-fg"
-                htmlFor="mcp-authorize-manual-value"
-              >
-                Full redirect URL
-              </label>
-              <HelpTip label="About full redirect URL">
-                Use this when the browser cannot reach this machine. Paste the complete redirected
-                URL, including its query parameters. Authorization codes alone are not accepted.
-              </HelpTip>
-              <Eyebrow className="ml-auto text-muted">required</Eyebrow>
-            </div>
-            <Textarea
-              id="mcp-authorize-manual-value"
-              className="font-mono"
-              value={manualValue}
-              onChange={event => setManualValue(event.target.value)}
-              placeholder="Paste the complete URL returned after provider authorization"
-              data-testid="settings-page-mcp-authorize-manual-input"
-            />
-          </div>
-        ) : null}
+        {showManual ? <ManualRedirectField value={manualValue} onChange={setManualValue} /> : null}
       </div>
 
       <DialogFooter variant="ruled" className="grid items-center">
@@ -247,7 +171,6 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             onClick={authorize.cancel}
             data-testid="settings-page-mcp-authorize-cancel"
           >
@@ -261,6 +184,93 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
         </div>
       </DialogFooter>
     </>
+  );
+}
+
+function AuthorizePhaseAlert({
+  authorize,
+  name,
+}: {
+  authorize: UseMCPAuthorizeReturn;
+  name: string;
+}) {
+  switch (authorize.phase) {
+    case "beginning":
+      return (
+        <Alert variant="warning" data-testid="settings-page-mcp-authorize-beginning">
+          <Spinner className="size-3.5" />
+          <AlertTitle>Starting sign-in</AlertTitle>
+          <AlertDescription>Getting a sign-in link from CompozyOS.</AlertDescription>
+        </Alert>
+      );
+    case "confirmed":
+      return (
+        <Alert variant="success" role="status" data-testid="settings-page-mcp-authorize-confirmed">
+          <CircleCheck />
+          <AlertTitle>Connected.</AlertTitle>
+          <AlertDescription>
+            You're signed in. The server's own status updates separately.
+          </AlertDescription>
+        </Alert>
+      );
+    case "failed":
+      return (
+        <Alert variant="danger" role="alert" data-testid="settings-page-mcp-authorize-failure">
+          <CircleAlert />
+          <AlertTitle>
+            {authorize.begin !== null ? "Sign-in couldn't be finished" : "Sign-in couldn't start"}
+          </AlertTitle>
+          <AlertDescription>
+            {authorize.error ?? `Nothing changed — ${name} keeps its previous sign-in.`}
+          </AlertDescription>
+        </Alert>
+      );
+    case "waiting":
+      return (
+        <Alert variant="warning" role="status" data-testid="settings-page-mcp-authorize-waiting">
+          <CircleAlert />
+          <AlertTitle>Waiting for sign-in to finish…</AlertTitle>
+          <AlertDescription>
+            Finish signing in in your browser. This updates on its own once it's done.
+          </AlertDescription>
+        </Alert>
+      );
+    default:
+      return null;
+  }
+}
+
+function ManualRedirectField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div
+      className="mt-3.5 border-t border-line-soft pt-3.5"
+      data-testid="settings-page-mcp-authorize-manual"
+    >
+      <div className="mb-1.5 flex items-center gap-2">
+        <label className="text-form-label font-medium text-fg" htmlFor="mcp-authorize-manual-value">
+          Full redirect URL
+        </label>
+        <HelpTip label="About full redirect URL">
+          Use this when the browser cannot reach this machine. Paste the complete redirected URL,
+          including its query parameters. Authorization codes alone are not accepted.
+        </HelpTip>
+        <Eyebrow className="ml-auto text-muted">required</Eyebrow>
+      </div>
+      <Textarea
+        id="mcp-authorize-manual-value"
+        className="font-mono"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        placeholder="Paste the complete URL returned after provider authorization"
+        data-testid="settings-page-mcp-authorize-manual-input"
+      />
+    </div>
   );
 }
 
@@ -295,7 +305,7 @@ function AuthorizePrimaryAction({
         onClick={() => authorize.submitManual(manualValue)}
         data-testid="settings-page-mcp-authorize-exchange"
       >
-        {exchanging ? <Spinner className="size-3" /> : null}
+        {exchanging ? <Spinner className="size-3.5" /> : null}
         Complete authorization
       </Button>
     );
@@ -356,7 +366,7 @@ function AuthorizationUrlBlock({ url }: { url: string }) {
     }
   };
   return (
-    <div className="my-3.5 rounded-md bg-canvas p-3" data-testid="settings-page-mcp-authorize-url">
+    <div className="my-3.5 rounded-md bg-sunken p-3" data-testid="settings-page-mcp-authorize-url">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Eyebrow className="flex-1 text-muted">Live URL from auth/begin</Eyebrow>
         <Button
@@ -400,19 +410,25 @@ function AuthSnapshot({
   const prior = authorize.prior;
   return (
     <dl
-      className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line bg-line"
+      className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-md bg-sunken p-3"
       data-testid="settings-page-mcp-authorize-snapshot"
     >
-      <SnapshotCell term="Authorization">
-        <Pill tone={authTone(status, tokenPresent)}>{formatStatusLabel(status)}</Pill>
+      <SnapshotCell term="Sign-in">
+        <Pill form="plain" tone={authTone(status, tokenPresent)}>
+          <Pill.Dot />
+          {formatStatusLabel(status)}
+        </Pill>
       </SnapshotCell>
-      <SnapshotCell term="Token present">
-        <Pill tone={tokenPresent ? "success" : "neutral"}>{tokenPresent ? "Yes" : "No"}</Pill>
+      <SnapshotCell term="Signed in">
+        <Pill form="plain" tone={tokenPresent ? "success" : "neutral"}>
+          <Pill.Dot />
+          {tokenPresent ? "Yes" : "No"}
+        </Pill>
       </SnapshotCell>
-      <SnapshotCell term="Prior status" mono>
+      <SnapshotCell term="Before" mono>
         {prior ? `${prior.status} · ${prior.tokenPresent ? "token present" : "token absent"}` : "-"}
       </SnapshotCell>
-      <SnapshotCell term="Runtime" mono>
+      <SnapshotCell term="Server status" mono>
         {runtime}
       </SnapshotCell>
     </dl>
@@ -429,7 +445,7 @@ function SnapshotCell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-w-0 bg-canvas p-2.5">
+    <div className="min-w-0">
       <dt className="eyebrow text-subtle">{term}</dt>
       <dd className={mono ? "mt-1 font-mono text-mono-id text-fg" : "mt-1 text-form-label text-fg"}>
         {children}

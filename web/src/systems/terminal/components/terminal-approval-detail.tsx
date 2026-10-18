@@ -33,10 +33,10 @@ function TerminalOpenApprovalDetail({
       <div className="flex min-w-0 flex-col gap-1.5">
         {detail.title ? <span className="text-form-input text-fg">Open {detail.title}</span> : null}
         {detail.cwd || detail.shell ? (
-          <span className="flex items-center gap-1.25 font-mono text-micro text-subtle">
+          <span className="flex items-center gap-1.25 font-mono text-eyebrow text-subtle">
             {detail.cwd ? (
               <>
-                <Folder aria-hidden="true" className="size-2.5" />
+                <Folder aria-hidden="true" className="size-3" />
                 {detail.cwd}
               </>
             ) : null}
@@ -80,10 +80,10 @@ function TerminalExecApprovalDetail({
           {detail.command}
         </div>
         {detail.cwd || detail.terminalId ? (
-          <span className="flex items-center gap-1.25 font-mono text-micro text-subtle">
+          <span className="flex items-center gap-1.25 font-mono text-eyebrow text-subtle">
             {detail.cwd ? (
               <>
-                <Folder aria-hidden="true" className="size-2.5" />
+                <Folder aria-hidden="true" className="size-3" />
                 {detail.cwd}
               </>
             ) : null}
@@ -97,7 +97,7 @@ function TerminalExecApprovalDetail({
           </span>
         ) : null}
         {detail.risk === "unclassifiable" ? (
-          <p className="text-micro text-faint" data-testid="terminal-approval-unclassifiable">
+          <p className="text-eyebrow text-faint" data-testid="terminal-approval-unclassifiable">
             Couldn&apos;t be classified, so it always asks.
           </p>
         ) : null}

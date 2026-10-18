@@ -1,7 +1,8 @@
 package cli
 
 import (
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 
 	"time"
@@ -163,11 +164,7 @@ func automationFilterRows(filter map[string]string) [][]string {
 	if len(filter) == 0 {
 		return nil
 	}
-	keys := make([]string, 0, len(filter))
-	for key := range filter {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(filter))
 
 	rows := make([][]string, 0, len(keys))
 	for _, key := range keys {

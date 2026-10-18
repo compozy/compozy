@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -31,7 +31,7 @@ func CustomSourceSlugs(paths []string) map[string]string {
 		seen[canonical] = struct{}{}
 		canonicalPaths = append(canonicalPaths, canonical)
 	}
-	sort.Strings(canonicalPaths)
+	slices.Sort(canonicalPaths)
 
 	groups := make(map[string][]string, len(canonicalPaths))
 	for _, canonical := range canonicalPaths {

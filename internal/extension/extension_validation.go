@@ -239,10 +239,10 @@ func agentPluginValidationWarnings(values []agentplugin.Diagnostic) []Validation
 }
 
 func validationStatus(issues []ValidationIssue) string {
-	for _, issue := range issues {
-		if issue.Severity == IssueSeverityError {
-			return validationStatusInvalid
-		}
+	if slices.ContainsFunc(issues, func(issue ValidationIssue) bool {
+		return issue.Severity == IssueSeverityError
+	}) {
+		return validationStatusInvalid
 	}
 	return "valid"
 }

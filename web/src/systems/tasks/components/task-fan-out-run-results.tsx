@@ -1,5 +1,3 @@
-import { CheckIcon, CircleAlertIcon, LoaderCircleIcon } from "lucide-react";
-
 import {
   Button,
   Item,
@@ -9,10 +7,12 @@ import {
   ItemMedia,
   ItemTitle,
   MonoId,
+  StateGlyph,
 } from "@compozy/ui";
 
 import { WorktreeOriginSignal, type WorktreePayload } from "@/systems/workspace";
 
+import { taskRunStateGlyph } from "../lib/task-formatters";
 import type { FanOutTaskRunsResponse, TaskRun } from "../types";
 
 type FanOutRun = FanOutTaskRunsResponse["runs"][number];
@@ -29,10 +29,6 @@ interface TaskFanOutRunResultsProps {
 
 function isFailed(run: FanOutRun): boolean {
   return run.status === "failed" || run.status === "canceled" || Boolean(run.error);
-}
-
-function isCompleted(run: FanOutRun): boolean {
-  return run.status === "completed";
 }
 
 /**
@@ -56,12 +52,11 @@ export function TaskFanOutRunResults({
 
   return (
     <div
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="overflow-hidden rounded-lg bg-card shadow-card"
       data-slot="task-fan-out-run-results"
     >
       {currentRuns.map(run => {
         const failed = isFailed(run);
-        const completed = isCompleted(run);
         const worktree = run.worktree_id
           ? worktrees?.find(entry => entry.id === run.worktree_id)
           : undefined;
@@ -73,17 +68,11 @@ export function TaskFanOutRunResults({
             data-unattributed={attribution ? undefined : ""}
             key={run.id}
           >
-            <ItemMedia
-              className={failed ? "text-danger" : completed ? "text-success" : "text-info"}
-            >
-              {failed ? (
-                <CircleAlertIcon aria-hidden="true" className="size-3" />
-              ) : completed ? (
-                <CheckIcon aria-hidden="true" className="size-3" />
-              ) : (
-                <LoaderCircleIcon aria-hidden="true" className="size-3" />
-              )}
-              <span className="sr-only">{run.status}</span>
+            <ItemMedia>
+              <StateGlyph
+                label={run.status}
+                state={run.error ? "failed" : taskRunStateGlyph(run.status)}
+              />
             </ItemMedia>
             <ItemContent>
               <ItemTitle>{run.designation?.brief ?? run.id}</ItemTitle>
@@ -112,7 +101,7 @@ export function TaskFanOutRunResults({
               </ItemDescription>
               {run.error ? (
                 <p
-                  className="mt-px block text-badge leading-[1.45] text-danger"
+                  className="mt-px block text-badge leading-normal text-danger"
                   data-slot="task-fan-out-run-error"
                 >
                   {run.error}
@@ -127,7 +116,7 @@ export function TaskFanOutRunResults({
                   onClick={() => onRetry(run.id)}
                   size="sm"
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                 >
                   Retry run
                 </Button>

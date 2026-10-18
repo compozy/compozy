@@ -10,25 +10,17 @@ type UpdateSettingsPersonaRequest struct {
 	Config SettingsDefaultsPayload `json:"config"`
 }
 
-type UpdateSettingsMemoryRequest struct {
-	Config SettingsMemoryConfigPayload `json:"config"`
-}
-
 type UpdateSettingsRolesRequest struct {
 	Config SettingsRolesConfigPayload `json:"config"`
 }
 
 type UpdateSettingsSkillsRequest struct {
 	Config   SettingsSkillsConfigPayload    `json:"config,omitzero"`
-	Override *SettingsSkillsOverridePayload `json:"override,omitempty"`
+	Override *SettingsSkillsOverridePayload `json:"override,omitzero"`
 }
 
 type UpdateSettingsAutomationRequest struct {
 	Config SettingsAutomationConfigPayload `json:"config"`
-}
-
-type UpdateSettingsNetworkRequest struct {
-	Config SettingsNetworkConfigPayload `json:"config"`
 }
 
 type UpdateSettingsObservabilityRequest struct {
@@ -41,19 +33,15 @@ type UpdateSettingsHooksExtensionsRequest struct {
 
 type PutSettingsProviderRequest struct {
 	Settings      SettingsProviderWritePayload         `json:"settings"`
-	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitempty"`
+	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
 	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
 }
 
 type PutSettingsMCPServerRequest struct {
 	Server          SettingsMCPServerPayload              `json:"server"`
-	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitempty"`
-	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitempty"`
+	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
+	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
 	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
-}
-
-type PutSettingsSandboxRequest struct {
-	Profile SettingsSandboxProfilePayload `json:"profile"`
 }
 
 type PutSettingsHookRequest struct {
@@ -73,13 +61,6 @@ type SettingsPersonaResponse struct {
 	Config SettingsDefaultsPayload `json:"config"`
 }
 
-type SettingsMemoryResponse struct {
-	SettingsUserSectionResponseMetaPayload
-	Config  SettingsMemoryConfigPayload  `json:"config"`
-	Health  SettingsMemoryHealthPayload  `json:"health"`
-	Actions SettingsMemoryActionsPayload `json:"actions"`
-}
-
 type SettingsRolesResponse struct {
 	SettingsWorkspaceSectionResponseMetaPayload
 	Config SettingsRolesConfigPayload `json:"config"`
@@ -93,7 +74,7 @@ type SettingsSkillsResponse struct {
 	RuntimeAvailable bool                                   `json:"runtime_available"`
 	Diagnostics      []SkillDiagnosticPayload               `json:"diagnostics,omitempty"`
 	Sources          []SettingsSkillSourcePayload           `json:"sources"`
-	Inherits         *SettingsSkillSourceInheritancePayload `json:"inherits,omitempty"`
+	Inherits         *SettingsSkillSourceInheritancePayload `json:"inherits,omitzero"`
 	Links            []SettingsOperationalLinkPayload       `json:"links,omitempty"`
 }
 
@@ -101,13 +82,6 @@ type SettingsAutomationResponse struct {
 	SettingsUserSectionResponseMetaPayload
 	Config  SettingsAutomationConfigPayload  `json:"config"`
 	Runtime SettingsAutomationRuntimePayload `json:"runtime"`
-	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
-}
-
-type SettingsNetworkResponse struct {
-	SettingsUserSectionResponseMetaPayload
-	Config  SettingsNetworkConfigPayload     `json:"config"`
-	Runtime SettingsNetworkRuntimePayload    `json:"runtime"`
 	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }
 
@@ -142,15 +116,6 @@ type SettingsMCPServerResponse struct {
 type SettingsMCPServersResponse struct {
 	SettingsLayeredCollectionResponseMetaPayload
 	MCPServers []SettingsMCPServerItemPayload `json:"mcp_servers"`
-}
-
-type SettingsSandboxesResponse struct {
-	SettingsUserCollectionResponseMetaPayload
-	Sandboxes []SettingsSandboxItemPayload `json:"sandboxes"`
-}
-
-type SettingsSandboxResponse struct {
-	Sandbox SettingsSandboxItemPayload `json:"sandbox"`
 }
 
 type SettingsHooksResponse struct {
@@ -254,11 +219,11 @@ type SettingsApplyResponse struct {
 	ActiveGeneration int64                         `json:"active_generation"`
 	ActiveConfigHash string                        `json:"active_config_hash"`
 	NextAction       SettingsApplyNextAction       `json:"next_action"`
-	RestartRequired  bool                          `json:"restart_required,omitempty"`
+	RestartRequired  bool                          `json:"restart_required,omitzero"`
 	RestartScope     string                        `json:"restart_scope,omitempty"`
 	Warnings         []string                      `json:"warnings,omitempty"`
 	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
-	Skipped          bool                          `json:"skipped,omitempty"`
+	Skipped          bool                          `json:"skipped,omitzero"`
 	SkippedReason    string                        `json:"skipped_reason,omitempty"`
 }
 
@@ -272,11 +237,11 @@ type SettingsSkillsMutationResponse struct {
 	ActiveGeneration int64                         `json:"active_generation"`
 	ActiveConfigHash string                        `json:"active_config_hash"`
 	NextAction       SettingsApplyNextAction       `json:"next_action"`
-	RestartRequired  bool                          `json:"restart_required,omitempty"`
+	RestartRequired  bool                          `json:"restart_required,omitzero"`
 	RestartScope     string                        `json:"restart_scope,omitempty"`
 	Warnings         []string                      `json:"warnings,omitempty"`
 	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
-	Skipped          bool                          `json:"skipped,omitempty"`
+	Skipped          bool                          `json:"skipped,omitzero"`
 	SkippedReason    string                        `json:"skipped_reason,omitempty"`
 }
 
@@ -315,7 +280,7 @@ type RestartActionStatus struct {
 	OldPID             int                    `json:"old_pid"`
 	OldStartedAt       time.Time              `json:"old_started_at"`
 	OldSocketPath      string                 `json:"old_socket_path"`
-	NewPID             int                    `json:"new_pid,omitempty"`
+	NewPID             int                    `json:"new_pid,omitzero"`
 	ActiveSessionCount int                    `json:"active_session_count"`
 	FailureReason      string                 `json:"failure_reason,omitempty"`
 	StartedAt          time.Time              `json:"started_at"`
@@ -339,7 +304,7 @@ type SettingsUpdateOperationPayload struct {
 	ID           string                       `json:"id"`
 	Revision     int64                        `json:"revision"`
 	Targets      []SettingsUpdateTarget       `json:"targets"`
-	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitempty"`
+	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
 	Phase        SettingsUpdatePhase          `json:"phase"`
 	Percent      int                          `json:"percent"`
 	Holder       *SettingsUpdateHolderPayload `json:"holder"`
@@ -385,12 +350,12 @@ type SettingsUpdateApplyResponse struct {
 	Status      SettingsUpdateApplyStatus    `json:"status"`
 	OperationID string                       `json:"operation_id,omitempty"`
 	Message     string                       `json:"message"`
-	Holder      *SettingsUpdateHolderPayload `json:"holder,omitempty"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
 }
 
 type SettingsUpdateCancelResponse struct {
 	Status      SettingsUpdateStatusKind     `json:"status"`
 	OperationID string                       `json:"operation_id,omitempty"`
 	Message     string                       `json:"message"`
-	Holder      *SettingsUpdateHolderPayload `json:"holder,omitempty"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
 }

@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogTitle,
   Empty,
+  OverlayContainerContext,
   Skeleton,
   TooltipProvider,
   cn,
@@ -30,7 +31,13 @@ export interface DesktopOverviewItem {
   name: string;
   /** A non-interactive thumbnail projected from the authoritative layout. */
   thumbnail: React.ReactNode;
+  /** Work-area width over height; the thumbnail box keeps the desk's shape. */
+  aspectRatio?: number;
   windows: readonly DesktopOverviewWindow[];
+  /** A window on this desktop needs you. */
+  needsYou?: boolean;
+  /** The live switch chord for this position ("⌃1"), when bound. */
+  switchShortcut?: string | null;
 }
 
 export type DesktopsOverviewState =
@@ -50,6 +57,11 @@ export interface DesktopOverviewFocusSegment {
 
 export interface DesktopsOverviewProps {
   open: boolean;
+  /**
+   * The desk's overlay host: the overview covers the desk only, leaving the
+   * topbar and rail in place. Omitted, it covers the viewport.
+   */
+  container?: HTMLElement | null;
   state: DesktopsOverviewState;
   initialFocusSegment?: DesktopOverviewFocusSegment | null;
   busy?: boolean;
@@ -78,6 +90,7 @@ function nearestHiddenDesktopId(
 /** On-demand, daemon-backed management surface for persistent workspace desktops. */
 export function DesktopsOverview({
   open,
+  container = null,
   state,
   initialFocusSegment,
   busy = false,
@@ -95,7 +108,8 @@ export function DesktopsOverview({
   const initialFocusRef = useRef<HTMLButtonElement | null>(null);
   const ready = state.status === "ready" ? state : null;
   const empty = ready?.desktops.length === 0;
-  const requestedFocusDesktopId = nearestHiddenDesktopId(initialFocusSegment);
+  const requestedFocusDesktopId =
+    nearestHiddenDesktopId(initialFocusSegment) ?? ready?.activeDesktopId ?? null;
   const initialFocusDesktopId =
     ready?.desktops.some(desktop => desktop.id === requestedFocusDesktopId) === true
       ? requestedFocusDesktopId
@@ -103,127 +117,181 @@ export function DesktopsOverview({
   const mutationsDisabled = busy || !canMutate;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        unframed
-        aria-busy={state.status === "loading"}
-        data-slot="desktops-overview"
-        initialFocus={initialFocusDesktopId ? initialFocusRef : undefined}
-        aria-describedby={undefined}
-        className={cn(
-          "top-0 left-0 h-full w-full max-w-none translate-x-0 translate-y-0 rounded-none sm:max-w-none",
-          "overflow-hidden bg-transparent shadow-none backdrop-blur-shell-scrim"
-        )}
+    <OverlayContainerContext value={container}>
+      <Dialog
+        open={open}
+        modal
+        disablePointerDismissal={false}
+        onOpenChange={(next, details) => {
+          // The All desktops button toggles the overview itself; an outside
+          // press on it must not close first and let the click reopen it.
+          if (!next && isDesktopsToggle(details.event?.target)) return;
+          onOpenChange(next);
+        }}
       >
-        <TooltipProvider>
-          <div className="mx-auto flex h-full w-full max-w-(--width-modal-xl) flex-col px-4 pt-12 sm:px-6">
-            <header className="flex items-start justify-between gap-4 border-b border-line pb-4">
-              <div className="flex min-w-0 flex-col gap-1">
-                <DialogTitle className="text-compact-h1 font-semibold text-fg-strong">
+        <DialogContent
+          unframed
+          showCloseButton={false}
+          aria-busy={state.status === "loading"}
+          data-slot="desktops-overview"
+          initialFocus={initialFocusDesktopId ? initialFocusRef : undefined}
+          aria-describedby={undefined}
+          className={cn(
+            "inset-0 h-full max-h-none w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none",
+            "flex flex-col gap-4.5 overflow-y-auto rounded-none bg-desk px-8 py-7 shadow-none",
+            "origin-center transition-[opacity,scale] duration-shell-base ease-spring",
+            "data-starting-style:scale-98.5 data-starting-style:opacity-0 motion-reduce:transition-none"
+          )}
+          style={{ maxHeight: "none" }}
+        >
+          <TooltipProvider>
+            <header className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-col">
+                <DialogTitle className="text-heading font-medium tracking-tight text-fg">
                   Desktops
                 </DialogTitle>
+                <p className="text-meta text-muted">
+                  Each desktop keeps its own windows, tabs and layout
+                </p>
               </div>
-              {ready && !empty ? (
-                <Button
-                  type="button"
-                  size="cta-lg"
-                  disabled={mutationsDisabled}
-                  onClick={onCreateDesktop}
-                >
-                  <Plus aria-hidden="true" />
-                  Create desktop
+              <div className="ml-auto flex items-center gap-2">
+                {ready && !empty ? (
+                  <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
+                ) : null}
+                <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+                  Done
                 </Button>
-              ) : null}
+              </div>
             </header>
 
-            <main className="min-h-0 flex-1 overflow-y-auto pt-5">
-              {state.status === "loading" ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {LOADING_CARD_IDS.map(id => (
-                    <div
-                      key={id}
-                      className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3"
-                    >
-                      <Skeleton className="h-5 w-2/3" />
-                      <Skeleton className="h-workspace-thumb w-full" />
-                      <Skeleton className="h-8 w-full" />
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+            <DesktopsOverviewStatus
+              state={state}
+              onRetry={onRetry}
+              onResolveConflict={onResolveConflict}
+            />
 
-              {state.status === "error" ? (
-                <Alert className="mx-auto max-w-modal-sm" variant="danger">
-                  <AlertTitle>Couldn't load desktops</AlertTitle>
-                  <AlertDescription>{state.message}</AlertDescription>
-                  {onRetry ? (
-                    <AlertActions>
-                      <Button type="button" size="cta-lg" variant="neutral" onClick={onRetry}>
-                        <RefreshCw aria-hidden="true" />
-                        Retry loading
-                      </Button>
-                    </AlertActions>
-                  ) : null}
-                </Alert>
-              ) : null}
+            {empty ? (
+              <Empty
+                icon={MonitorUp}
+                title="No desktops"
+                description="Add a desktop to arrange windows."
+                action={
+                  <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
+                }
+              />
+            ) : null}
 
-              {state.status === "conflict" ? (
-                <Alert className="mx-auto max-w-modal-sm" variant="warning">
-                  <AlertTitle>Desktop layout changed</AlertTitle>
-                  <AlertDescription>{state.message}</AlertDescription>
-                  {onResolveConflict ? (
-                    <AlertActions>
-                      <Button
-                        type="button"
-                        size="cta-lg"
-                        variant="neutral"
-                        onClick={onResolveConflict}
-                      >
-                        <RefreshCw aria-hidden="true" />
-                        Reload desktops
-                      </Button>
-                    </AlertActions>
-                  ) : null}
-                </Alert>
-              ) : null}
+            {ready && !empty ? (
+              <DesktopsOverviewGrid
+                state={ready}
+                busy={mutationsDisabled}
+                initialFocusDesktopId={initialFocusDesktopId}
+                initialFocusRef={initialFocusRef}
+                onOpenChange={onOpenChange}
+                onCreateDesktop={onCreateDesktop}
+                onSwitchDesktop={onSwitchDesktop}
+                onRenameDesktop={onRenameDesktop}
+                onReorderDesktop={onReorderDesktop}
+                onDeleteDesktop={onDeleteDesktop}
+                onMoveWindow={onMoveWindow}
+              />
+            ) : null}
+          </TooltipProvider>
+        </DialogContent>
+      </Dialog>
+    </OverlayContainerContext>
+  );
+}
 
-              {empty ? (
-                <Empty
-                  icon={MonitorUp}
-                  title="No desktops"
-                  description="Create a desktop to place windows in this workspace."
-                  action={
-                    <Button
-                      type="button"
-                      size="cta-lg"
-                      disabled={mutationsDisabled}
-                      onClick={onCreateDesktop}
-                    >
-                      <Plus aria-hidden="true" />
-                      Create desktop
-                    </Button>
-                  }
-                />
-              ) : null}
+function isDesktopsToggle(target: EventTarget | null | undefined): boolean {
+  return target instanceof Element && target.closest('[data-slot="os-menubar-desktops"]') !== null;
+}
 
-              {ready && !empty ? (
-                <DesktopsOverviewGrid
-                  state={ready}
-                  busy={mutationsDisabled}
-                  initialFocusDesktopId={initialFocusDesktopId}
-                  initialFocusRef={initialFocusRef}
-                  onOpenChange={onOpenChange}
-                  onSwitchDesktop={onSwitchDesktop}
-                  onRenameDesktop={onRenameDesktop}
-                  onReorderDesktop={onReorderDesktop}
-                  onDeleteDesktop={onDeleteDesktop}
-                  onMoveWindow={onMoveWindow}
-                />
-              ) : null}
-            </main>
+function CreateDesktopButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  return (
+    <Button type="button" disabled={disabled} onClick={onClick}>
+      <Plus aria-hidden="true" data-icon="inline-start" />
+      New desktop
+    </Button>
+  );
+}
+
+interface DesktopsOverviewStatusProps {
+  state: DesktopsOverviewState;
+  onRetry?: () => void;
+  onResolveConflict?: () => void;
+}
+
+/** Loading skeletons, or the load-failure / stale-layout alert; nothing once ready. */
+function DesktopsOverviewStatus({
+  state,
+  onRetry,
+  onResolveConflict,
+}: DesktopsOverviewStatusProps) {
+  if (state.status === "loading") {
+    return (
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
+        {LOADING_CARD_IDS.map(id => (
+          <div key={id} className="flex flex-col gap-2.5 p-2 pb-3">
+            <Skeleton className="aspect-video w-full rounded-lg" />
+            <Skeleton className="h-5 w-2/3" />
           </div>
-        </TooltipProvider>
-      </DialogContent>
-    </Dialog>
+        ))}
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <DesktopsOverviewAlert
+        actionLabel="Retry loading"
+        message={state.message}
+        onAction={onRetry}
+        title="Couldn't load desktops"
+        variant="danger"
+      />
+    );
+  }
+  if (state.status === "conflict") {
+    return (
+      <DesktopsOverviewAlert
+        actionLabel="Reload desktops"
+        message={state.message}
+        onAction={onResolveConflict}
+        title="Desktop layout changed"
+        variant="warning"
+      />
+    );
+  }
+  return null;
+}
+
+interface DesktopsOverviewAlertProps {
+  variant: "danger" | "warning";
+  title: string;
+  message: string;
+  actionLabel: string;
+  onAction?: () => void;
+}
+
+function DesktopsOverviewAlert({
+  variant,
+  title,
+  message,
+  actionLabel,
+  onAction,
+}: DesktopsOverviewAlertProps) {
+  return (
+    <Alert className="mx-auto max-w-(--width-modal-sm)" variant={variant}>
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>{message}</AlertDescription>
+      {onAction ? (
+        <AlertActions>
+          <Button type="button" size="cta-lg" variant="neutral" onClick={onAction}>
+            <RefreshCw aria-hidden="true" />
+            {actionLabel}
+          </Button>
+        </AlertActions>
+      ) : null}
+    </Alert>
   );
 }

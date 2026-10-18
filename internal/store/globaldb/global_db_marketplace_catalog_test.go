@@ -20,19 +20,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestMarketplaceCatalogFreshDB(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should install both marketplace catalog tables on a fresh database", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openFreshTestGlobalDB(t)
-		store := openMarketplaceMigrationStore(t, globalDB)
-		seedMarketplaceMigrationProjection(t, store)
-		assertMarketplaceMigrationProjection(t, store)
-	})
-}
-
 func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 	t.Parallel()
 
@@ -46,6 +33,7 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
 		seedMarketplaceMigrationProjection(t, openMarketplaceMigrationStore(t, first))
+		assertMarketplaceMigrationProjection(t, openMarketplaceMigrationStore(t, first))
 		empty := &marketplace.Document{
 			ManifestVersion: marketplace.ManifestVersion,
 			FetchedAt:       time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC),
@@ -82,7 +70,7 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := second.Close(ctx); err != nil {
+			if err := second.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(second) error = %v", err)
 			}
 		})
@@ -101,11 +89,14 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should discard every cached v1 catalog projection before the v2 reader opens", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		previousStream := globalMigrationPrefixBefore(t, "00032_marketplace_catalog_manifest_v2.sql")
+		if err := copyGlobalMigrationTemplate(path, previousStream); err != nil {
+			t.Fatalf("copy v31 migration fixture: %v", err)
+		}
 		legacy, err := sql.Open(sqliteDriverName, path)
 		if err != nil {
 			t.Fatalf("sql.Open(legacy) error = %v", err)
 		}
-		previousStream := globalMigrationPrefixBefore(t, "00032_marketplace_catalog_manifest_v2.sql")
 		if err := applyGlobalMigrationPrefix(t, legacy, previousStream); err != nil {
 			closeErr := legacy.Close()
 			t.Fatalf("Apply(global through v31) error = %v; close error = %v", err, closeErr)
@@ -146,7 +137,7 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(reopen v2 migration) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := reopened.Close(reopenCtx); err != nil {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
@@ -764,8 +755,7 @@ func seedMarketplaceUpgradeState(t *testing.T, db *sql.DB) []string {
 	queries := seedMCPOwnerMigrationFixture(t, db)
 	return append(queries,
 		`SELECT json_group_array(json_array(name,version,source,manifest_path,format,ingest_diagnostics_json,
- installed_at,provides_json,permissions_json,checksum,lifecycle_token,registry_slug,registry_name,remote_version,
- network_requirement_digest,network_confirmed_by,network_confirmed_at)) FROM (SELECT * FROM extensions ORDER BY name)`,
+ installed_at,provides_json,permissions_json,checksum,lifecycle_token,registry_slug,registry_name,remote_version)) FROM (SELECT * FROM extensions ORDER BY name)`,
 		`SELECT json_group_array(json_array(extension_name,profile_id,enabled))
  FROM (SELECT * FROM extension_profile_enablement ORDER BY extension_name,profile_id)`,
 		`SELECT json_group_array(json_array(extension_name,profile_id,workspace_id,env_name,secret_ref,

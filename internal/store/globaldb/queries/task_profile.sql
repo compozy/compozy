@@ -7,9 +7,8 @@ SELECT task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
        worker_provider, worker_model, worker_reasoning_effort, worker_speed,
        worker_acp_options_json, review_agent_name, review_provider, review_model,
        review_reasoning_effort, review_speed, review_acp_options_json,
-       sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
-       runtime_mode, created_at, updated_at,
-       network_mode, network_channel_strategy, network_channel, network_bounds_json
+       worktree_mode, worktree_ref,
+       runtime_mode, created_at, updated_at
 FROM task_execution_profiles
 WHERE task_id = sqlc.arg(task_id);
 
@@ -20,9 +19,8 @@ INSERT INTO task_execution_profiles (
   worker_provider, worker_model, worker_reasoning_effort, worker_speed,
   worker_acp_options_json, review_agent_name, review_provider, review_model,
   review_reasoning_effort, review_speed, review_acp_options_json,
-  sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
-  runtime_mode, created_at, updated_at,
-  network_mode, network_channel_strategy, network_channel, network_bounds_json
+  worktree_mode, worktree_ref,
+  runtime_mode, created_at, updated_at
 ) VALUES (
   sqlc.arg(task_id), sqlc.arg(coordinator_mode), sqlc.arg(coordinator_agent_name),
   sqlc.arg(coordinator_provider), sqlc.arg(coordinator_model), sqlc.arg(coordinator_guidance),
@@ -30,11 +28,8 @@ INSERT INTO task_execution_profiles (
   sqlc.arg(worker_model), sqlc.arg(worker_reasoning_effort), sqlc.arg(worker_speed),
   sqlc.arg(worker_acp_options_json), sqlc.arg(review_agent_name), sqlc.arg(review_provider),
   sqlc.arg(review_model), sqlc.arg(review_reasoning_effort), sqlc.arg(review_speed),
-  sqlc.arg(review_acp_options_json), sqlc.arg(sandbox_mode), sqlc.arg(sandbox_ref),
-  sqlc.arg(worktree_mode), sqlc.arg(worktree_ref), sqlc.arg(runtime_mode),
-  sqlc.arg(created_at), sqlc.arg(updated_at),
-  sqlc.arg(network_mode), sqlc.arg(network_channel_strategy), sqlc.arg(network_channel),
-  sqlc.arg(network_bounds_json)
+  sqlc.arg(review_acp_options_json), sqlc.arg(worktree_mode), sqlc.arg(worktree_ref), sqlc.arg(runtime_mode),
+  sqlc.arg(created_at), sqlc.arg(updated_at)
 )
 ON CONFLICT(task_id) DO UPDATE SET
   coordinator_mode = excluded.coordinator_mode,
@@ -55,39 +50,19 @@ ON CONFLICT(task_id) DO UPDATE SET
   review_reasoning_effort = excluded.review_reasoning_effort,
   review_speed = excluded.review_speed,
   review_acp_options_json = excluded.review_acp_options_json,
-  sandbox_mode = excluded.sandbox_mode,
-  sandbox_ref = excluded.sandbox_ref,
   worktree_mode = excluded.worktree_mode,
   worktree_ref = excluded.worktree_ref,
   runtime_mode = excluded.runtime_mode,
-  network_mode = excluded.network_mode,
-  network_channel_strategy = excluded.network_channel_strategy,
-  network_channel = excluded.network_channel,
-  network_bounds_json = excluded.network_bounds_json,
   updated_at = excluded.updated_at;
 
 -- name: DeleteTaskProfileAgents :exec
 DELETE FROM task_profile_agents WHERE task_id = sqlc.arg(task_id);
-
--- name: DeleteTaskProfileChannels :exec
-DELETE FROM task_profile_channels WHERE task_id = sqlc.arg(task_id);
-
--- name: DeleteTaskProfilePeers :exec
-DELETE FROM task_profile_peers WHERE task_id = sqlc.arg(task_id);
 
 -- name: DeleteTaskProfileCapabilities :exec
 DELETE FROM task_profile_capabilities WHERE task_id = sqlc.arg(task_id);
 
 -- name: InsertTaskProfileAgent :exec
 INSERT INTO task_profile_agents (task_id, role, preference, agent_name)
-VALUES (sqlc.arg(task_id), sqlc.arg(role), sqlc.arg(preference), sqlc.arg(value));
-
--- name: InsertTaskProfileChannel :exec
-INSERT INTO task_profile_channels (task_id, role, preference, channel_id)
-VALUES (sqlc.arg(task_id), sqlc.arg(role), sqlc.arg(preference), sqlc.arg(value));
-
--- name: InsertTaskProfilePeer :exec
-INSERT INTO task_profile_peers (task_id, role, preference, peer_id)
 VALUES (sqlc.arg(task_id), sqlc.arg(role), sqlc.arg(preference), sqlc.arg(value));
 
 -- name: InsertTaskProfileCapability :exec
@@ -99,18 +74,6 @@ SELECT role, preference, agent_name AS value
 FROM task_profile_agents
 WHERE task_id = sqlc.arg(task_id)
 ORDER BY role ASC, preference ASC, agent_name ASC;
-
--- name: ListTaskProfileChannels :many
-SELECT role, preference, channel_id AS value
-FROM task_profile_channels
-WHERE task_id = sqlc.arg(task_id)
-ORDER BY role ASC, preference ASC, channel_id ASC;
-
--- name: ListTaskProfilePeers :many
-SELECT role, preference, peer_id AS value
-FROM task_profile_peers
-WHERE task_id = sqlc.arg(task_id)
-ORDER BY role ASC, preference ASC, peer_id ASC;
 
 -- name: ListTaskProfileCapabilities :many
 SELECT role, preference, capability_id AS value

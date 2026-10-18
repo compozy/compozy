@@ -89,19 +89,18 @@ func taskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *apicontract.
 	}
 
 	return &apicontract.TaskRunSummaryPayload{
-		ID:                           summary.ID,
-		TaskID:                       summary.TaskID,
-		Status:                       summary.Status,
-		Attempt:                      summary.Attempt,
-		MaxAttempts:                  summary.MaxAttempts,
-		SessionID:                    summary.SessionID,
-		ClaimedBy:                    cloneActorIdentity(summary.ClaimedBy),
-		ResolvedNetworkParticipation: cloneResolvedParticipation(summary.ResolvedNetworkParticipation),
-		QueuedAt:                     summary.QueuedAt,
-		ClaimedAt:                    optionalTime(summary.ClaimedAt),
-		StartedAt:                    optionalTime(summary.StartedAt),
-		EndedAt:                      optionalTime(summary.EndedAt),
-		Error:                        taskpkg.RedactClaimTokens(summary.Error),
+		ID:          summary.ID,
+		TaskID:      summary.TaskID,
+		Status:      summary.Status,
+		Attempt:     summary.Attempt,
+		MaxAttempts: summary.MaxAttempts,
+		SessionID:   summary.SessionID,
+		ClaimedBy:   cloneActorIdentity(summary.ClaimedBy),
+		QueuedAt:    summary.QueuedAt,
+		ClaimedAt:   optionalTime(summary.ClaimedAt),
+		StartedAt:   optionalTime(summary.StartedAt),
+		EndedAt:     optionalTime(summary.EndedAt),
+		Error:       taskpkg.RedactClaimTokens(summary.Error),
 	}
 }
 
@@ -154,6 +153,9 @@ func taskDetailPayloadFromView(view *taskpkg.View) apicontract.TaskDetailPayload
 		Runs:                 taskRunPayloadsFromRuns(view.Runs),
 		Events:               taskEventPayloadsFromEvents(view.Events),
 	}
+	payload.Task.EffectivePaused = payload.Summary.EffectivePaused
+	payload.Task.PausedByTaskID = payload.Summary.PausedByTaskID
+	payload.Task.BlockedReasons = payload.Summary.BlockedReasons
 	payload.Task.Loop = apicontract.LoopProvenanceFromView(view)
 	return payload
 }

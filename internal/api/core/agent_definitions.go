@@ -9,9 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/heartbeat"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/heartbeat"
+
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"

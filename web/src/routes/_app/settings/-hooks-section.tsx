@@ -2,7 +2,18 @@ import { Webhook } from "lucide-react";
 import { useState } from "react";
 
 import { SettingsGroup, type SettingsHookEntry } from "@/systems/settings";
-import { Empty, Pill, PillGroup, SearchInput, Spinner, Switch } from "@compozy/ui";
+import {
+  buttonVariants,
+  Empty,
+  ListingRow,
+  Pill,
+  PillGroup,
+  SearchInput,
+  Spinner,
+  Switch,
+} from "@compozy/ui";
+
+const HOOKS_DOCS_URL = "https://compozy.com/docs/hooks";
 
 interface HooksSectionProps {
   hooks: SettingsHookEntry[];
@@ -40,20 +51,35 @@ export function HooksSection({
 
   return (
     <SettingsGroup
+      bare
       data-testid="settings-page-hooks-section"
       title="Lifecycle hooks"
       description="Restart CompozyOS to re-read hook declarations. Enablement changes persist immediately."
     >
       {hookError ? (
-        <span className="text-xs text-danger" data-testid="settings-page-hooks-error-message">
+        <span
+          className="text-form-hint text-danger"
+          data-testid="settings-page-hooks-error-message"
+        >
           {hookError}
         </span>
       ) : null}
       {hooks.length === 0 ? (
         <Empty
           icon={Webhook}
-          title="No hooks registered"
-          description="Add a hook declaration to ~/.compozy/config.toml or a workspace overlay to register one."
+          title="No hooks yet"
+          description="Hooks are added in your settings file."
+          framed
+          action={
+            <a
+              className={buttonVariants({ size: "sm", variant: "secondary" })}
+              href={HOOKS_DOCS_URL}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Read the docs
+            </a>
+          }
           data-testid="settings-page-hooks-empty"
         />
       ) : (
@@ -62,7 +88,7 @@ export function HooksSection({
             className="flex flex-wrap items-center gap-2"
             data-testid="settings-page-hooks-listbar"
           >
-            <span className="text-form-label text-subtle">
+            <span className="text-small-body text-subtle">
               Registered <span className="font-medium text-muted">{hooks.length}</span>
             </span>
             <SearchInput
@@ -88,24 +114,25 @@ export function HooksSection({
             </span>
           </div>
           <ul
-            className="overflow-hidden rounded-lg border border-line"
+            className="overflow-hidden rounded-lg bg-card shadow-card"
             data-testid="settings-page-hooks-list"
           >
             {visible.map(entry => (
-              <HookRow
-                key={entry.name}
-                entry={entry}
-                pending={pendingHookName === entry.name}
-                canMutate={canMutate}
-                onToggle={onToggle}
-              />
+              <li className="border-b border-line-soft last:border-b-0" key={entry.name}>
+                <HookRow
+                  entry={entry}
+                  pending={pendingHookName === entry.name}
+                  canMutate={canMutate}
+                  onToggle={onToggle}
+                />
+              </li>
             ))}
             {visible.length === 0 ? (
               <li
                 className="px-4 py-3 text-form-label text-subtle"
                 data-testid="settings-page-hooks-filter-empty"
               >
-                {isFiltered ? "No hooks match the current filter." : "No hooks registered."}
+                {isFiltered ? "No hooks match the current filter." : "No hooks yet."}
               </li>
             ) : null}
           </ul>
@@ -135,20 +162,18 @@ function HookRow({
     : null;
 
   return (
-    <li
-      className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line-soft bg-canvas-soft px-4 py-2.5 last:border-b-0"
+    <ListingRow
+      className="border-b-0 py-2.5"
       data-testid={`settings-page-hooks-row-${entry.name}`}
+      interactive={false}
     >
-      <span
-        aria-hidden="true"
-        className="flex size-6.5 items-center justify-center rounded-sm bg-elevated text-subtle"
-      >
+      <ListingRow.Icon>
         <Webhook className="size-3.5" />
-      </span>
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="truncate font-mono text-sm text-fg">{entry.name}</span>
+      </ListingRow.Icon>
+      <ListingRow.Main className="flex flex-col gap-1">
+        <ListingRow.Title mono>{entry.name}</ListingRow.Title>
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Pill mono size="xs" tone="info">
+          <Pill mono size="xs" tone="neutral">
             {declaration.event}
           </Pill>
           <span className="font-mono text-mono-id text-muted">{mode}</span>
@@ -161,11 +186,11 @@ function HookRow({
             </span>
           ) : null}
           {commandLine ? (
-            <span className="truncate font-mono text-mono-id text-faint">{commandLine}</span>
+            <span className="truncate font-mono text-mono-id text-subtle">{commandLine}</span>
           ) : null}
         </span>
-      </div>
-      <div className="flex items-center justify-end gap-2">
+      </ListingRow.Main>
+      <ListingRow.Trail className="justify-end gap-2">
         {pending ? <Spinner className="size-3 text-subtle" /> : null}
         <Switch
           data-testid={`settings-page-hooks-row-${entry.name}-toggle`}
@@ -174,8 +199,8 @@ function HookRow({
           onCheckedChange={checked => onToggle(entry, checked)}
           aria-label={`Toggle hook ${entry.name}`}
         />
-      </div>
-    </li>
+      </ListingRow.Trail>
+    </ListingRow>
   );
 }
 

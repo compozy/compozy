@@ -4,7 +4,7 @@ area: TA
 title: Web Tasks stays work-items only and reveals Loop records on request
 persona: Dora
 journey: J-supervise-loop-steady-state
-expected: With a Loop run in the workspace, the web Tasks list and board show zero Loop execution records and group counts that match their rows; the toolbar reveal reads "Work items" until turned on, and turning it on adds coordinator and cell rows carrying a loop glyph, a plain identity ("<loop> · run" / "<loop> · round N · step <node>"), a "Loop run"/"Loop step" tag and a link that lands on that run's page; leaving Tasks and coming back turns the reveal back off; revealing in a workspace with no Loop records shows "No loop records in this workspace" with a "Show work items" action instead of the generic empty; a record whose run retention deleted reads "Run no longer available" with its run id and no link; a workspace holding only Loop records shows the true "No tasks yet" empty.
+expected: With a Loop run in the workspace, the web Tasks list and board show zero Loop execution records and group counts that match their rows; the toolbar reveal reads "Tasks" / "Include loop steps" and stays on "Tasks" until turned on, and turning it on adds coordinator and cell rows carrying a loop glyph, a plain identity ("<loop> · run" / "<loop> · round N · step <node>"), a "Loop run"/"Loop step" tag and a link that lands on that run's page; leaving Tasks and coming back turns the reveal back off; revealing in a workspace with no Loop records shows "No loop steps in this project" with a "Show tasks" action instead of the generic empty; a record whose run retention deleted reads "Run no longer available" with its run id and no link; a workspace holding only Loop records shows the true "No tasks yet" empty.
 entry_points: web Tasks window -> List; web Tasks window -> Kanban; web Tasks window -> Dashboard
 qa_status: pass
 bug_ids:
@@ -25,3 +25,10 @@ Both empty states matter and are different sentences: the reveal-scoped one name
 src: web/src/systems/tasks/components/tasks-list-surface.tsx; web/src/systems/tasks/components/task-loop-row.tsx; web/src/systems/tasks/components/tasks-list-records-filter.tsx; web/src/systems/tasks/hooks/use-tasks-page.ts; web/src/systems/tasks/lib/task-loop-identity.ts
 
 inventory: Needs QA
+
+
+QA impact 2026-10-06: In the existing reveal-filter journey, confirm the linked
+Loop run content is visible in its owning window before returning through the
+Tasks dock. A changed browser URL alone does not prove the shell transition has
+finished. Preserve the existing reset-to-Tasks filter and hidden-record assertions.
+Evidence: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

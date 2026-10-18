@@ -130,12 +130,9 @@ func capabilityGranted(grants []string, capability string) bool {
 	if required == "" {
 		return false
 	}
-	for _, grant := range grants {
-		if capabilityGrantSuperset(grant, required) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(grants, func(grant string) bool {
+		return capabilityGrantSuperset(grant, required)
+	})
 }
 
 func capabilityGrantSuperset(grant string, requested string) bool {

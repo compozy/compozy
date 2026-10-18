@@ -32,11 +32,9 @@ func TestHookTelemetrySecurityPatchPersistsAllFields(t *testing.T) {
 
 	ctx := WithHookRunWriter(t.Context(), writer)
 	_, err := hooks.DispatchPermissionRequest(ctx, PermissionRequestPayload{
-		PayloadBase: PayloadBase{Event: HookPermissionRequest},
-		SessionContext: SessionContext{
-			SessionID: "sess-security",
-		},
-		Decision: "allow",
+		Event:     HookPermissionRequest,
+		SessionID: "sess-security",
+		Decision:  "allow",
 	})
 	if err != nil {
 		t.Fatalf("DispatchPermissionRequest() error = %v", err)
@@ -91,10 +89,8 @@ func TestHookTelemetryOmitsNonSecurityPatchOutsideDebug(t *testing.T) {
 
 	ctx := WithHookRunWriter(t.Context(), writer)
 	_, err := hooks.DispatchSessionPostCreate(ctx, SessionPostCreatePayload{
-		PayloadBase: PayloadBase{Event: HookSessionPostCreate},
-		SessionContext: SessionContext{
-			SessionID: "sess-normal",
-		},
+		Event:     HookSessionPostCreate,
+		SessionID: "sess-normal",
 	})
 	if err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
@@ -124,10 +120,8 @@ func TestHookTelemetryCapturesNonSecurityPatchInDebugMode(t *testing.T) {
 
 	ctx := WithHookRunWriter(t.Context(), writer)
 	_, err := hooks.DispatchSessionPostCreate(ctx, SessionPostCreatePayload{
-		PayloadBase: PayloadBase{Event: HookSessionPostCreate},
-		SessionContext: SessionContext{
-			SessionID: "sess-debug",
-		},
+		Event:     HookSessionPostCreate,
+		SessionID: "sess-debug",
 	})
 	if err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
@@ -158,10 +152,8 @@ func TestHookTelemetryRecordsFailureOutcomeAndDuration(t *testing.T) {
 
 	ctx := WithHookRunWriter(t.Context(), writer)
 	_, err := hooks.DispatchSessionPostCreate(ctx, SessionPostCreatePayload{
-		PayloadBase: PayloadBase{Event: HookSessionPostCreate},
-		SessionContext: SessionContext{
-			SessionID: "sess-failure",
-		},
+		Event:     HookSessionPostCreate,
+		SessionID: "sess-failure",
 	})
 	if err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v, want nil for non-required failure", err)
@@ -212,7 +204,7 @@ func TestHookTelemetryRecordsDroppedAsyncSubmission(t *testing.T) {
 	}
 
 	ctx := WithHookRunWriter(t.Context(), writer)
-	payload := EventPreRecordPayload{PayloadBase: PayloadBase{Event: HookEventPreRecord}, RecordType: "agent_message"}
+	payload := EventPreRecordPayload{Event: HookEventPreRecord, RecordType: "agent_message"}
 	for i := range 3 {
 		if _, err := hooks.DispatchEventPreRecord(ctx, payload); err != nil {
 			t.Fatalf("DispatchEventPreRecord() #%d error = %v", i+1, err)

@@ -16,14 +16,13 @@ var (
 	ErrSessionAttachLocked = errors.New("store: session attach locked")
 	// ErrSessionNotAttachable reports that a session is not eligible for attach/resume.
 	ErrSessionNotAttachable = errors.New("store: session not attachable")
-	// ErrSessionParticipationMismatch rejects a same-ID refresh with different immutable Network participation.
-	ErrSessionParticipationMismatch = errors.New("store: session participation mismatch")
 )
 
 type StopReason string
 
 const (
 	StopCompleted      StopReason = "completed"
+	StopOwnerReleased  StopReason = "owner_released"
 	StopUserCanceled   StopReason = "user_canceled"
 	StopMaxIterations  StopReason = "max_iterations"
 	StopLoopDetected   StopReason = "loop_detected"
@@ -39,6 +38,7 @@ const (
 func ValidStopReason(r StopReason) bool {
 	switch r {
 	case StopCompleted,
+		StopOwnerReleased,
 		StopUserCanceled,
 		StopMaxIterations,
 		StopLoopDetected,
@@ -63,6 +63,7 @@ type SessionAttachState struct {
 }
 
 type SessionInfo struct {
+	VerdictOnly     bool `json:"-"`
 	ID              string
 	ProfileID       string
 	Name            string
@@ -81,7 +82,7 @@ type SessionInfo struct {
 	RuntimeSelectionRevision int64
 	WorkspaceID              string
 	WorktreeID               string
-	*SessionNetworkState
+
 	SessionType            string
 	Lineage                *SessionLineage
 	State                  string
@@ -92,10 +93,10 @@ type SessionInfo struct {
 	StopDetail             string
 	Failure                *SessionFailure
 	Liveness               *SessionLivenessMeta
-	Sandbox                *SessionSandboxMeta
 	SoulSnapshotID         string
 	SoulDigest             string
 	ParentSoulDigest       string
+
 	*SessionAttachState
 	TranscriptEpoch int64
 	Attention       *SessionAttention
@@ -124,7 +125,7 @@ func (f SessionArchiveFilter) Validate() error {
 	}
 }
 
-// Validate ensures the session record contains the required fields.
+// Validate accepts persisted Global sessions without a workspace and validates their remaining identity.
 func (s SessionInfo) Validate() error {
 	if err := requireField(s.ID, "session id"); err != nil {
 		return err
@@ -135,13 +136,13 @@ func (s SessionInfo) Validate() error {
 	if err := requireField(s.AgentName, "session agent name"); err != nil {
 		return err
 	}
-	if err := requireField(s.WorkspaceID, "session workspace id"); err != nil {
-		return err
-	}
 	if err := requireField(s.State, "session state"); err != nil {
 		return err
 	}
 	if err := ValidateSessionLineage(s.ID, s.Lineage); err != nil {
+		return err
+	}
+	if err := ValidateSessionLineageForType(s.SessionType, s.Lineage); err != nil {
 		return err
 	}
 	if err := validateSessionStopReason(s.StopReason); err != nil {
@@ -183,6 +184,7 @@ func (s SessionInfo) Validate() error {
 // SessionListQuery filters session index queries through one explicit profile or
 // the AllProfiles aggregate.
 type SessionListQuery struct {
+	Subagents       string
 	ReadScope       ReadScope
 	ID              string
 	State           string
@@ -193,6 +195,7 @@ type SessionListQuery struct {
 	ParentSessionID string
 	RootSessionID   string
 	SpawnRole       string
+	LineageKind     LineageKind
 	Resumable       bool
 	Archive         SessionArchiveFilter
 	Sort            string
@@ -218,11 +221,19 @@ func (u SessionTranscriptEpochUpdate) Validate() error {
 
 // Validate rejects an implicit profile lens before checking query bounds.
 func (q SessionListQuery) Validate() error {
+	switch q.Subagents {
+	case "", "include", "exclude", "only":
+	default:
+		return fmt.Errorf("store: unsupported subagents filter %q", q.Subagents)
+	}
 	if err := q.ReadScope.Validate(); err != nil {
 		return err
 	}
 	if err := requirePositiveLimit(q.Limit, "session limit"); err != nil {
 		return err
+	}
+	if !q.LineageKind.Valid() {
+		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
 	return q.Archive.Validate()
 }
@@ -297,8 +308,8 @@ type SessionStateUpdate struct {
 	Failure                  *SessionFailure
 	AttentionTransition      bool
 	Liveness                 *SessionLivenessMeta
-	Sandbox                  *SessionSandboxMeta
-	UpdatedAt                time.Time
+
+	UpdatedAt time.Time
 }
 
 // SessionSoulSnapshotUpdate updates the Soul provenance attached to a session.

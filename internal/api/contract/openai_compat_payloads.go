@@ -25,14 +25,14 @@ type OpenAIModelCompozyPayload struct {
 	AvailabilityState      string                   `json:"availability_state"`
 	Stale                  bool                     `json:"stale"`
 	RefreshedAt            string                   `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                   `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                   `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                    `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                    `json:"supports_reasoning,omitempty"`
+	ContextWindow          *int64                   `json:"context_window,omitzero"`
+	MaxInputTokens         *int64                   `json:"max_input_tokens,omitzero"`
+	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitzero"`
+	SupportsTools          *bool                    `json:"supports_tools,omitzero"`
+	SupportsReasoning      *bool                    `json:"supports_reasoning,omitzero"`
 	ReasoningEfforts       []ReasoningEffort        `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *ReasoningEffort         `json:"default_reasoning_effort,omitempty"`
-	Cost                   *ModelCatalogCostPayload `json:"cost,omitempty"`
+	DefaultReasoningEffort *ReasoningEffort         `json:"default_reasoning_effort,omitzero"`
+	Cost                   *ModelCatalogCostPayload `json:"cost,omitzero"`
 	LastError              string                   `json:"last_error,omitempty"`
 }
 

@@ -164,6 +164,6 @@ export function assemblePaletteResults({
 /** The exact overflow note for a capped group — never a vague "and more". */
 export function overflowNote(section: PaletteSection): string | null {
   return section.total > section.commands.length
-    ? `showing ${section.commands.length} of ${section.total}`
+    ? `${section.commands.length} of ${section.total} shown`
     : null;
 }

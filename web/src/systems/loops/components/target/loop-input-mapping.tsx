@@ -10,7 +10,7 @@ interface LoopInputMappingProps {
 
 /**
  * Event-payload -> input mapping table (triggers/webhooks only). Each declared
- * input gets a path field (`trigger.payload.slug`) resolved from the activation
+ * input gets an expression (`{{ .trigger.payload.slug }}`) resolved from the activation
  * envelope at fire time. A mapped input overrides its static value.
  */
 export function LoopInputMapping({ inputs, mapping, onChange }: LoopInputMappingProps) {
@@ -19,8 +19,7 @@ export function LoopInputMapping({ inputs, mapping, onChange }: LoopInputMapping
   return (
     <div className="flex flex-col gap-2" data-testid="loop-input-mapping">
       <p className="text-form-hint text-subtle">
-        Map fields from the event payload into the Loop inputs. Leave a row blank to use the static
-        value above.
+        Fill Loop inputs from the event details. Leave a row blank to use the value above.
       </p>
       <div className="flex flex-col rounded-md border border-line-soft">
         {names.map(name => (
@@ -34,7 +33,7 @@ export function LoopInputMapping({ inputs, mapping, onChange }: LoopInputMapping
             <Input
               className="font-mono"
               data-testid={`loop-mapping-field-${name}`}
-              placeholder="trigger.payload.field"
+              placeholder="{{ .trigger.payload.field }}"
               value={mapping[name] ?? ""}
               onChange={event => onChange(name, event.target.value)}
             />

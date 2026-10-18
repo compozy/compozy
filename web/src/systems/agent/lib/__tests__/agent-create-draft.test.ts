@@ -153,14 +153,15 @@ describe("agent-create-draft disclosure tiers", () => {
     expect(validation.canSubmit).toBe(false);
   });
 
-  it("Should fail the Simple tier for an invalid category path, which Simple now renders", () => {
+  it("Should keep an invalid group out of the Simple tier so submit can reveal it", () => {
     const validation = validateAgentCreateDraft(
       { ...baseDraft(""), categoryPath: "operations//incident" },
       context
     );
 
-    expect(validation.fields.categoryPath).toBe("Category path cannot contain blank segments.");
-    expect(validation.simpleValid).toBe(false);
+    expect(validation.fields.categoryPath).toBe("Group can't contain empty parts between slashes.");
+    expect(validation.advancedValid).toBe(false);
+    expect(validation.simpleValid).toBe(true);
     expect(validation.canSubmit).toBe(false);
   });
 

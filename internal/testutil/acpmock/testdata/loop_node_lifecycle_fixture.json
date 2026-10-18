@@ -56,6 +56,16 @@
                     ]
                 },
                 {
+                    "name": "read-retry-until-canceled",
+                    "match": { "turn_source": "user", "user_text": "read retry lifecycle" },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "block_until_cancel" }
+                        }
+                    ]
+                },
+                {
                     "name": "retry-timeout",
                     "match": { "turn_source": "user", "user_text": "retry lifecycle" },
                     "steps": [
@@ -89,6 +99,16 @@
                         {
                             "kind": "assistant",
                             "text": "```json\n{\"summary\":\"fallback completed\",\"value\":\"fallback\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "reviewed-action-success",
+                    "match": { "turn_source": "user", "user_text": "reviewed action" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"reviewed action completed\",\"value\":\"approved\"}\n```"
                         }
                     ]
                 }

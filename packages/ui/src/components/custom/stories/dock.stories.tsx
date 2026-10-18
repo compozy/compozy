@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChevronUpIcon } from "lucide-react";
+import { ChevronUpIcon, Database, SquareTerminal } from "lucide-react";
 
 import { Button } from "../../button";
 import { Dock } from "../dock";
+import { KindIcon } from "../kind-icon";
 
 const meta: Meta<typeof Dock> = {
   title: "components/custom/Dock",
@@ -12,7 +13,7 @@ const meta: Meta<typeof Dock> = {
     docs: {
       description: {
         component:
-          "Decision panel fused to the composer top — permissions and clarifications leave the transcript and dock here. Open bottom edge (the composer below closes the shape), eyebrow + title head, mono subject on the code wash, actions with keyboard chips. No tinted washes; emphasis is geometry.",
+          'Decision card above the composer — permissions and clarifications leave the transcript and dock here. Approval-card anatomy: a standalone `canvas` card with `shadow-card`, an identity-well head (`KindIcon tone="well"`) with a 15px title, the subject recessed on `sunken`, and a pill action row with one inverted primary. No tinted washes.',
       },
     },
   },
@@ -21,14 +22,42 @@ const meta: Meta<typeof Dock> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** The prototype approval card: well + title, sunken command, hint + Deny + inverted "Allow once ↵". */
 export const Permission: Story = {
   render: () => (
     <div className="max-w-xl">
       <Dock>
         <Dock.Head>
+          <KindIcon icon={SquareTerminal} tone="well" />
+          <Dock.Title>claude wants to run a command</Dock.Title>
+          <Dock.Count>1/1</Dock.Count>
+        </Dock.Head>
+        <Dock.Pre>bun run db:migrate --name plans_v2</Dock.Pre>
+        <Dock.Actions>
+          <span className="mr-auto inline-flex items-center gap-2 text-small-body text-muted">
+            <Database aria-hidden="true" className="size-3.75" />
+            Writes to the local database
+          </span>
+          <Button variant="neutral">Deny</Button>
+          <Button variant="primary" kbd="↵" aria-keyshortcuts="Enter">
+            Allow once
+          </Button>
+        </Dock.Actions>
+      </Dock>
+    </div>
+  ),
+};
+
+/** Stacked decision with an eyebrow, meta line and keyboard chips on every action. */
+export const PermissionWithKeys: Story = {
+  render: () => (
+    <div className="max-w-xl">
+      <Dock>
+        <Dock.Head>
+          <KindIcon icon={SquareTerminal} tone="well" />
           <Dock.Eyebrow>Permission</Dock.Eyebrow>
           <Dock.Title>Run a command</Dock.Title>
-          <Dock.Count>1/1</Dock.Count>
+          <Dock.Count>1/2</Dock.Count>
         </Dock.Head>
         <Dock.Body>
           <Dock.Pre>bunx turbo run lint typecheck test --filter=./web</Dock.Pre>
@@ -41,16 +70,16 @@ export const Permission: Story = {
             Allow once
             <Dock.Key>1</Dock.Key>
           </Button>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="neutral">
             Always allow
             <Dock.Key>2</Dock.Key>
           </Button>
           <span className="flex-1" />
-          <Button size="sm" variant="ghost">
+          <Button size="sm" variant="quiet">
             Reject
             <Dock.Key>3</Dock.Key>
           </Button>
-          <Button size="sm" variant="ghost" aria-label="More reject options">
+          <Button size="sm" variant="quiet" aria-label="More reject options">
             <ChevronUpIcon />
           </Button>
         </Dock.Actions>

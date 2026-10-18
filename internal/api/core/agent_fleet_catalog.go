@@ -45,8 +45,7 @@ type agentCatalogCursor struct {
 	Name string `json:"name"`
 }
 
-// ListAgentCatalog returns one filtered, counted workspace fleet page with
-// exact per-agent session metrics when the session authority is available.
+// ListAgentCatalog returns a scoped fleet page with exact session metrics.
 func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 	query, err := parseAgentCatalogQuery(c)
 	if err != nil {
@@ -63,11 +62,12 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	resolved, err := h.workspaceAgentEntriesWithDiagnostics(
-		c.Request.Context(),
-		query.Workspace,
-		profileName,
-	)
+	var resolved workspaceAgentEntries
+	if query.Workspace == "" {
+		resolved, err = h.globalAgentEntries(c.Request.Context(), readScope.ProfileID, profileName)
+	} else {
+		resolved, err = h.workspaceAgentEntriesWithDiagnostics(c.Request.Context(), query.Workspace, profileName)
+	}
 	if err != nil {
 		h.respondError(c, statusForAgentWorkspaceError(err), err)
 		return
@@ -130,9 +130,6 @@ func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
 		)
 	}
 	workspace := strings.TrimSpace(c.Query("workspace"))
-	if workspace == "" {
-		return agentCatalogQuery{}, fmt.Errorf("%w: workspace is required", errAgentCatalogQueryInvalid)
-	}
 	status := strings.ToLower(strings.TrimSpace(c.Query("status")))
 	if status != "" && status != queryFilterActiveValue && status != "idle" {
 		return agentCatalogQuery{}, fmt.Errorf(

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
@@ -57,31 +56,6 @@ func resolveGatewayIngressSubject(
 			prefix = "/api/webhooks/workspaces/" + url.PathEscape(row.WorkspaceID.String)
 		}
 		return gatewayIngressSubject(ref, row.ScopeKind, row.WorkspaceID, prefix+"/"+endpoint)
-	case gateway.IngressSubjectBridgeInstance:
-		row, err := queries.GetGatewayBridgeIngressSubject(ctx, ref.ID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
-		}
-		if err != nil {
-			return gateway.IngressSubject{}, fmt.Errorf("store: resolve bridge ingress subject: %w", err)
-		}
-		instance := bridgecontract.BridgeInstance{ProviderConfig: []byte(row.ProviderConfig)}
-		if _, err := bridgecontract.WebhookPublicURL(instance); err == nil {
-			return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
-		}
-		subject, err := gatewayIngressSubject(
-			ref,
-			row.ScopeKind,
-			row.WorkspaceID,
-			"/api/bridge-callbacks/"+url.PathEscape(ref.ID),
-		)
-		if err != nil {
-			return gateway.IngressSubject{}, err
-		}
-		if _, err := bridgecontract.WebhookLocalTarget(instance); err != nil {
-			subject.TargetUnavailable = true
-		}
-		return subject, nil
 	default:
 		return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
 	}

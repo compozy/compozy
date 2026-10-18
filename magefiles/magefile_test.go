@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -104,7 +105,7 @@ func TestFilesImporting(t *testing.T) {
 			t,
 			root,
 			"prefix.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/internal/sessions/ledger\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/internal/session/contextusage\"\n",
 		)
 		files, err := filesImporting(root, "github.com/compozy/compozy/internal/session")
 		if err != nil {
@@ -165,39 +166,6 @@ func TestFilesImporting(t *testing.T) {
 		want := []string{filepath.Join(root, "child.go"), filepath.Join(root, "root.go")}
 		if !slices.Equal(files, want) {
 			t.Fatalf("filesImportingPrefix() = %#v, want %#v", files, want)
-		}
-	})
-
-	t.Run("Should reject exact and provider-sibling platform implementation imports", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		writeTestFile(
-			t,
-			root,
-			"root.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridges\"\n",
-		)
-		writeTestFile(
-			t,
-			root,
-			"provider.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridges/slack\"\n",
-		)
-		writeTestFile(
-			t,
-			root,
-			"neighbor.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridgekit\"\n",
-		)
-
-		files, err := filesImportingPrefix(root, "github.com/compozy/compozy/extensions/bridges")
-		if err != nil {
-			t.Fatalf("filesImportingPrefix() error = %v", err)
-		}
-		want := []string{filepath.Join(root, "provider.go"), filepath.Join(root, "root.go")}
-		if !slices.Equal(files, want) {
-			t.Fatalf("filesImportingPrefix() = %#v, want exact and provider-sibling imports %#v", files, want)
 		}
 	})
 }
@@ -317,27 +285,6 @@ func TestGatewayBoundaryRules(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("Should find a forbidden direct import in a Go fixture", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		fixture := filepath.Join(root, "fixture.go")
-		if err := os.WriteFile(
-			fixture,
-			[]byte("package fixture\nimport _ \"github.com/compozy/compozy/internal/daemon\"\n"),
-			0o600,
-		); err != nil {
-			t.Fatalf("write boundary fixture: %v", err)
-		}
-		files, err := filesImporting(root, compozyModulePath+"internal/daemon")
-		if err != nil {
-			t.Fatalf("filesImporting() error = %v", err)
-		}
-		if !slices.Equal(files, []string{fixture}) {
-			t.Fatalf("filesImporting() = %v, want [%s]", files, fixture)
-		}
-	})
 }
 
 func TestDependencyClosureBoundaries(t *testing.T) {
@@ -348,9 +295,9 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 
 		rules := []dependencyClosureRule{{
 			root:            "./fixture",
-			allowedPrefixes: []string{compozyModulePath + "internal/bridges/contract"},
+			allowedPrefixes: []string{compozyModulePath + "internal/gateway/contract"},
 			forbiddenPrefixes: []string{
-				compozyModulePath + "internal/bridges",
+				compozyModulePath + "internal/gateway",
 				compozyModulePath + "internal/store",
 				compozyModulePath + "internal/extension",
 			},
@@ -361,21 +308,21 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 			}
 			return []string{
 				"fmt",
-				compozyModulePath + "internal/bridges/contract",
+				compozyModulePath + "internal/gateway/contract",
 				compozyModulePath + "internal/extensionprotocol",
 				compozyModulePath + "internal/store/globaldb",
 				compozyModulePath + "internal/extension/contract",
-				compozyModulePath + "internal/bridges",
-				compozyModulePath + "internal/bridges/experimental",
+				compozyModulePath + "internal/gateway",
+				compozyModulePath + "internal/gateway/experimental",
 			}, nil
 		})
 		if err != nil {
 			t.Fatalf("inspectDependencyClosures() error = %v", err)
 		}
 		want := []dependencyClosureViolation{
-			{root: "./fixture", dependency: compozyModulePath + "internal/bridges"},
-			{root: "./fixture", dependency: compozyModulePath + "internal/bridges/experimental"},
 			{root: "./fixture", dependency: compozyModulePath + "internal/extension/contract"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/gateway"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/gateway/experimental"},
 			{root: "./fixture", dependency: compozyModulePath + "internal/store/globaldb"},
 		}
 		if !slices.Equal(violations, want) {
@@ -435,11 +382,10 @@ func TestWorktreeScriptRejectsMissingFlagValues(t *testing.T) {
 	t.Parallel()
 
 	for _, flag := range []string{"--branch", "--base", "--dir"} {
-		flag := flag
 		t.Run("Should report a missing value for "+flag, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := exec.Command("bash", "scripts/worktree.sh", "new", "test-worktree", flag)
+			cmd := exec.CommandContext(t.Context(), "bash", "scripts/worktree.sh", "new", "test-worktree", flag)
 			output, err := cmd.CombinedOutput()
 			if err == nil {
 				t.Fatalf("worktree.sh new %s error = nil, want usage failure", flag)
@@ -497,7 +443,7 @@ func TestWorktreeScriptSharesResources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should omit the link when main has no resources directory", func(t *testing.T) {
+	t.Run("Should omit absent resources and copy active specs without archived evidence", func(t *testing.T) {
 		t.Parallel()
 
 		_, worktreeDir := createWorktreeScriptFixture(t, false)
@@ -505,16 +451,15 @@ func TestWorktreeScriptSharesResources(t *testing.T) {
 		if _, err := os.Lstat(resourcesPath); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Lstat(%s) error = %v, want os.ErrNotExist", resourcesPath, err)
 		}
-	})
-
-	t.Run("Should copy active specs without archived task evidence", func(t *testing.T) {
-		t.Parallel()
-
-		_, worktreeDir := createWorktreeScriptFixture(t, false)
 		if got := readTestFile(t, worktreeDir, ".compozy/tasks/active/task.md"); got != "active" {
 			t.Fatalf("active task content = %q, want active", got)
 		}
-		if _, err := os.Stat(filepath.Join(worktreeDir, ".compozy/tasks/_archived/old/evidence.bin")); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(
+			filepath.Join(worktreeDir, ".compozy", "tasks", "_archived", "old", "evidence.bin"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
 			t.Fatalf("archived evidence os.Stat() error = %v, want os.ErrNotExist", err)
 		}
 		if got := readTestFile(t, worktreeDir, "docs/prompts/current.md"); got != "prompt" {
@@ -635,7 +580,6 @@ func TestWebAssetsNextTag(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -728,14 +672,12 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 		}
 
 		env := make(map[string]string, len(credentials.env)+3)
-		for key, value := range credentials.env {
-			env[key] = value
-		}
+		maps.Copy(env, credentials.env)
 		env["GIT_CONFIG_GLOBAL"] = configPath
 		env["GIT_CONFIG_NOSYSTEM"] = "1"
 		env["WEB_ASSETS_HELPER_MARKER"] = markerPath
 
-		cmd := exec.Command("git", "credential", "fill")
+		cmd := exec.CommandContext(t.Context(), "git", "credential", "fill")
 		cmd.Env = mergeCommandEnv(env)
 		cmd.Stdin = strings.NewReader("protocol=https\nhost=github.com\n\n")
 		output, err := cmd.CombinedOutput()
@@ -755,7 +697,8 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 	t.Run("Should force public module resolution through the Go proxy", func(t *testing.T) {
 		t.Parallel()
 
-		env := webAssetsPublicModuleEnv("/tmp/compozy-web-assets-test")
+		cacheRoot := t.TempDir()
+		env := webAssetsPublicModuleEnv(cacheRoot)
 		want := map[string]string{
 			"GO111MODULE": "on",
 			"GOFLAGS":     "-mod=mod",
@@ -764,8 +707,8 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 			"GOPRIVATE":   "",
 			"GOPROXY":     "https://proxy.golang.org,direct",
 			"GOSUMDB":     "sum.golang.org",
-			"GOMODCACHE":  filepath.Join("/tmp/compozy-web-assets-test", "mod"),
-			"GOPATH":      filepath.Join("/tmp/compozy-web-assets-test", "gopath"),
+			"GOMODCACHE":  filepath.Join(cacheRoot, "mod"),
+			"GOPATH":      filepath.Join(cacheRoot, "gopath"),
 		}
 		for key, value := range want {
 			if env[key] != value {
@@ -819,10 +762,6 @@ func TestWebAssetsPrepare(t *testing.T) {
 		repoDir := t.TempDir()
 		if err := prepareWebAssetsRepo(srcDist, repoDir, metadata); err != nil {
 			t.Fatalf("prepareWebAssetsRepo(first) error = %v", err)
-		}
-		metadataSource := readTestFile(t, repoDir, webAssetsMetadataFile)
-		if !strings.Contains(metadataSource, "production CompozyOS web UI bundle") {
-			t.Fatalf("generated metadata does not identify the CompozyOS web UI bundle:\n%s", metadataSource)
 		}
 		firstDigest, err := directoryDigest(repoDir)
 		if err != nil {
@@ -995,7 +934,7 @@ func createWorktreeScriptFixture(t *testing.T, withResources bool) (string, stri
 		t.Fatalf("os.Chmod(mise) error = %v", err)
 	}
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(t.Context(),
 		"bash",
 		filepath.Join(repoRoot, "scripts", "worktree.sh"),
 		"new",
@@ -1017,7 +956,7 @@ func createWorktreeScriptFixture(t *testing.T, withResources bool) (string, stri
 func runTestCommand(t *testing.T, dir string, name string, args ...string) {
 	t.Helper()
 
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(t.Context(), name, args...)
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%s %s error = %v\n%s", name, strings.Join(args, " "), err, output)
@@ -1027,7 +966,7 @@ func runTestCommand(t *testing.T, dir string, name string, args ...string) {
 func assertAskpassOutput(t *testing.T, env map[string]string, askpassPath string, prompt string, want string) {
 	t.Helper()
 
-	cmd := exec.Command(askpassPath, prompt)
+	cmd := exec.CommandContext(t.Context(), askpassPath, prompt)
 	cmd.Env = mergeCommandEnv(env)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

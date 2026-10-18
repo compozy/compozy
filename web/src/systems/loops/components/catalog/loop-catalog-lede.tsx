@@ -16,7 +16,7 @@ export function LoopCatalogLede({ total, workspaceLabel }: LoopCatalogLedeProps)
   const count = `${total} ${total === 1 ? "loop" : "loops"}`;
   return (
     <LoopPageLede
-      lede="Reusable, guardrailed cycles that pursue a goal until it is verified."
+      lede="Repeatable jobs that keep working on a goal until it's done."
       meta={[count, ...(workspaceLabel ? [workspaceLabel] : [])]}
       name="Loops"
       tags={[]}

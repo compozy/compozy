@@ -7,6 +7,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  Empty,
   dialogShellClass,
   EntityDialogBody,
   EntityDialogFooter,
@@ -141,7 +142,7 @@ export function MCPOverrideEditor({
                 type="button"
                 variant="ghost"
               >
-                <RotateCcw aria-hidden="true" className="size-3" />
+                <RotateCcw aria-hidden="true" />
                 Reset override
               </Button>
             ) : undefined
@@ -185,9 +186,12 @@ function MCPOverridePairsEditor({
       <MCPFieldLabel hint="name / value">{label}</MCPFieldLabel>
       <div className="flex flex-col gap-1.5" data-testid={`${testPrefix}-list`}>
         {pairs.length === 0 ? (
-          <p className="text-form-hint text-subtle" data-testid={`${testPrefix}-empty`}>
-            No override yet — the package values apply.
-          </p>
+          <Empty
+            data-testid={`${testPrefix}-empty`}
+            description="The extension's own values apply."
+            size="compact"
+            title="No changes yet"
+          />
         ) : null}
         {pairs.map((pair, index) => {
           const rowError = errors?.[index];
@@ -237,7 +241,7 @@ function MCPOverridePairsEditor({
                   type="button"
                   variant="ghost"
                 >
-                  <Trash2 aria-hidden="true" className="size-3" />
+                  <Trash2 aria-hidden="true" />
                 </Button>
               </div>
               {rowError ? (
@@ -260,7 +264,7 @@ function MCPOverridePairsEditor({
           type="button"
           variant="ghost"
         >
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           {addLabel}
         </Button>
       </div>

@@ -33,7 +33,7 @@ type transcriptSnapshotServedPayload struct {
 	Reason             string `json:"reason,omitempty"`
 	MaxSequence        int64  `json:"max_sequence"`
 	HasOlder           bool   `json:"has_older"`
-	NextBeforeSequence int64  `json:"next_before_sequence,omitempty"`
+	NextBeforeSequence int64  `json:"next_before_sequence,omitzero"`
 }
 
 func (h *BaseHandlers) writeTranscriptSnapshot(

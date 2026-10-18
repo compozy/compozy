@@ -354,20 +354,12 @@
   const permissionNotes = {
     'perm-deny': 'Maps to deny all. Every tool call pauses for approval before it runs.',
     'perm-reads': 'Maps to approve reads. Sessions read the workspace freely and pause on writes, commands, and network calls.',
-    'perm-all': 'Maps to approve all. Sessions act without approval gates; pair this policy with a sandbox profile.'
-  };
-  const bridgeCredentialCopy = {
-    'slack-secrets': 'Slack declares two write-only slots.',
-    'discord-secrets': 'Discord declares two write-only slots.'
+    'perm-all': 'Maps to approve all. Sessions act without approval gates.'
   };
   root.addEventListener('compozy:choice', (event) => {
     if (event.detail.group === 'permission') {
       const note = root.getElementById('perm-note-txt');
       if (note && permissionNotes[event.detail.value]) note.textContent = permissionNotes[event.detail.value];
-    }
-    if (event.detail.group === 'provider') {
-      const sub = root.getElementById('cred-sub');
-      if (sub && bridgeCredentialCopy[event.detail.value]) sub.textContent = bridgeCredentialCopy[event.detail.value];
     }
   });
 
@@ -504,22 +496,6 @@
       status.classList.toggle('notice--danger', failed);
       status.classList.toggle('notice--success', !failed);
     }, 620);
-  }));
-
-  /* bridge delivery test */
-  root.querySelectorAll('[data-delivery-test]').forEach((button) => button.addEventListener('click', () => {
-    const status = root.querySelector('[data-delivery-status]');
-    const original = button.textContent;
-    button.disabled = true;
-    button.textContent = 'Testing…';
-    if (status) status.textContent = 'Sending through the bridge test endpoint…';
-    window.setTimeout(() => {
-      const failed = query.get('delivery') === 'error';
-      button.disabled = false;
-      button.textContent = failed ? 'Retry test' : original;
-      if (status) status.textContent = failed ? 'Delivery failed. Review the endpoint response and retry.' : 'Test delivery accepted by the bridge endpoint.';
-      notify(failed ? 'Delivery test failed.' : 'Delivery test completed.');
-    }, 720);
   }));
 
   /* edit surfaces: dirty tracking gates the primary action */
@@ -719,7 +695,7 @@
     '/Users': ['you'],
     '/Users/you': ['Desktop', 'Dev', 'Documents', 'Downloads', 'Movies', 'Music', 'Pictures'],
     '/Users/you/Dev': ['compozy-extensions', 'billing', 'checkout-platform', 'design-tokens', 'growth-experiments', 'shared-libs'],
-    '/Users/you/Dev/compozy-extensions': ['bridge-sdk', 'hooks', 'marketplace'],
+    '/Users/you/Dev/compozy-extensions': ['sdk', 'hooks', 'marketplace'],
     '/Users/you/Dev/billing': ['api', 'migrations', 'worker'],
     '/Users/you/Dev/checkout-platform': ['apps', 'docs', 'infra', 'packages', 'scripts'],
     '/Users/you/Dev/shared-libs': ['auth-kit', 'http-clients', 'telemetry'],

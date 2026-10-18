@@ -66,6 +66,8 @@ type InboxQuery struct {
 	Cursor           string
 	Limit            int
 	ExcludeCreatedBy []ActorRef
+	// SkipFacets omits counts and facets without changing item or cursor identity.
+	SkipFacets bool
 }
 
 // InboxItem is one action-ready task inbox item.
@@ -76,7 +78,7 @@ type InboxItem struct {
 	ApprovalState    ApprovalState  `json:"approval_state,omitempty"`
 	BlockingReason   string         `json:"blocking_reason,omitempty"`
 	LatestActivityAt time.Time      `json:"latest_activity_at"`
-	Run              *RunSummary    `json:"run,omitempty"`
+	Run              *RunSummary    `json:"run,omitzero"`
 	Triage           TriageState    `json:"triage"`
 }
 

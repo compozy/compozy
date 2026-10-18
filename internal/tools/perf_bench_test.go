@@ -107,7 +107,7 @@ func BenchmarkToolUnmarshalJSON(b *testing.B) {
 func BenchmarkValidateToolSpec(b *testing.B) {
 	b.ReportAllocs()
 
-	ctx := context.Background()
+	ctx := b.Context()
 	for b.Loop() {
 		if _, err := validateToolSpec(ctx, benchmarkToolScope, benchmarkToolSpec); err != nil {
 			b.Fatalf("validateToolSpec() error = %v", err)

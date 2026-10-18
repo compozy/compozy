@@ -46,15 +46,6 @@ describe("doc-masthead-meta", () => {
     expect(resolveAudience(["loops"])).toBe("people running agent work");
   });
 
-  it("resolves protocol product labels for pages nested under network/protocol", () => {
-    expect(resolveProductLabel(["network", "protocol", "envelope"])).toBe(
-      "Compozy Network Protocol"
-    );
-    expect(resolveProductLabel(["network", "threads"])).toBe("CompozyOS");
-    expect(resolveAudience(["network", "protocol"])).toBe("protocol implementers");
-    expect(resolveAudience(["network"])).toBe("people running agent work");
-  });
-
   it("counts navigable pages in the immediate parent folder including the index", () => {
     expect(sectionPageCount(loopsTree, "/docs/loops")).toBe(3);
     expect(sectionPageCount(loopsTree, "/docs/loops/catalog")).toBe(3);

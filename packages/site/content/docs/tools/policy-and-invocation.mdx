@@ -90,8 +90,30 @@ compozy tool invoke <tool-id> \
   -o json
 ```
 
-Do not persist approval tokens in memory, docs, logs, bridge messages, or task descriptions. Treat
+Do not persist approval tokens in memory, docs, logs, or task descriptions. Treat
 them as short-lived credentials.
+
+### Pending command-palette approvals
+
+A palette invocation can return `approval_pending` with an `approval_id`. In the Web palette,
+choose **Approve** or **Deny** and wait for the displayed execution result. For an invocation from
+the CLI or API, use the profile that originally created the approval:
+
+```bash
+compozy approvals show <approval-id> --profile <owner> -o json
+compozy approvals resolve <approval-id> --decision approved --profile <owner> -o json
+compozy approvals show <approval-id> --profile <owner> -o json
+```
+
+Use `--decision denied` to refuse execution, or `compozy approvals cancel <approval-id>` with the
+same profile to cancel. A successful decision can still report `execution_status: dispatching`;
+only the later status read confirms completion or failure. Expired and resolved approvals cannot
+run again. Selecting another profile does not transfer ownership.
+
+HTTP and UDS expose `POST /api/tools/approvals/{id}/resolve?profile=<owner>` with
+`{"decision":"approved"}` or `{"decision":"denied"}`. HTTP decisions require a loopback listener.
+The daemon checks profile availability and session binding again before accepting the decision,
+and the deferred tool call rechecks current tool policy under the recorded owner.
 
 ### Remembered native-tool decisions
 
@@ -108,7 +130,7 @@ prompt-origin decision.
 CompozyOS checks a supplied single-use approval token first. Without one, it checks the remembered
 decision before opening another prompt. A remembered allow continues to dispatch; a remembered
 reject blocks the invocation. These decisions survive daemon restarts and remain workspace-scoped.
-They do not broaden sandbox, ACP, or workspace policy.
+They do not broaden ACP or workspace policy.
 
 Set, list, or revoke remembered decisions from any management surface:
 
@@ -136,7 +158,7 @@ for agent scope and forbidden for tool scope. Managed agents can use `compozy__t
 same wider set, workspace list, and revoke actions.
 
 An explicit wider allow only skips the prompt when the workspace tool policy already permits the
-invocation. It does not change the configured tool mode or broaden sandbox, ACP, capability, or
+invocation. It does not change the configured tool mode or broaden ACP, capability, or
 workspace boundaries.
 
 ## Sensitive input fields
@@ -152,6 +174,23 @@ compozy tool invoke <tool-id> \
 
 What happened: CompozyOS still received the input needed by the handler, but the specified field is
 treated as sensitive in diagnostic and event surfaces.
+
+## Retired tool IDs
+
+The removed memory tool IDs and the two removed memory toolsets stay reserved and are never reused.
+A tool policy that still names one of them by its exact ID is never an error. CompozyOS drops the
+entry and applies the rest of the policy:
+
+- in an agent definition's `tools`, `toolsets`, or `deny_tools`;
+- in the tool list of a spawned or coordinator session's permission policy, or in a session's
+  allowed-tools override.
+
+CompozyOS logs one `tools.retired_ids_ignored` warning per policy owner (`agent:<source path or name>`
+or `session:<session id>`) for the life of the daemon process, with the owner and the dropped `ids`.
+A wildcard pattern in `tools` or `deny_tools` is not a retired entry. It is kept and matches no tool
+because the memory tools no longer exist. An allow-list that held only retired entries stays
+enforced, so it grants no tools; it never becomes an unrestricted policy. The filter is removed in
+v0.6.0. See the [migration guide](/docs/migration#memory-removal).
 
 ## Common failures
 

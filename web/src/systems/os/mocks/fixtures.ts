@@ -54,7 +54,7 @@ type WindowManagerStorySnapshot = CompozyApiOkJsonResponseFor<
 
 export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
   // SnapshotVersion (internal/windowmanager/types.go).
-  version: 4,
+  version: 5,
   workspace_id: storyDefaultWorkspaceId,
   revision: 12,
   desktops: [

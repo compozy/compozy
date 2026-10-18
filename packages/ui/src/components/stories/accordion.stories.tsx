@@ -28,16 +28,15 @@ const faq = [
       "Events live in the per-session SQLite database until the workspace retention policy purges them. Default is 14 days.",
   },
   {
-    value: "memory",
-    question: "When does memory dream?",
+    value: "retention",
+    question: "When does the retention sweep run?",
     answer:
-      "The dream consolidator runs on a cron plus idle triggers, any quiet window over 30 minutes kicks off a pass.",
+      "The retention sweep runs on a cron plus idle triggers, any quiet window over 30 minutes kicks off a pass.",
   },
   {
-    value: "network",
+    value: "remote",
     question: "Can agents talk across workspaces?",
-    answer:
-      "Only when the Phase 3 network layer is enabled and both peers trust the shared channel certificate.",
+    answer: "Remote access requires an active Gateway provider and the configured access policy.",
   },
 ] as const;
 

@@ -22,17 +22,13 @@ func (m *Manager) dispatchSessionHealthUpdateAfter(
 		return nil
 	}
 	payload := hookspkg.SessionHealthUpdateAfterPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionHealthUpdateAfter,
-			Timestamp: current.UpdatedAt.UTC(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   current.SessionID,
-			AgentName:   current.AgentName,
-			WorkspaceID: current.WorkspaceID,
-			State:       string(current.State),
-			UpdatedAt:   current.UpdatedAt.UTC(),
-		},
+		Event:               hookspkg.HookSessionHealthUpdateAfter,
+		Timestamp:           current.UpdatedAt.UTC(),
+		SessionID:           current.SessionID,
+		AgentName:           current.AgentName,
+		WorkspaceID:         current.WorkspaceID,
+		State:               string(current.State),
+		UpdatedAt:           current.UpdatedAt.UTC(),
 		Health:              string(current.Health),
 		ActivePrompt:        current.ActivePrompt,
 		Attachable:          current.Attachable,

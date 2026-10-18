@@ -122,7 +122,7 @@ func sessionClarificationsBundle(response ClarificationsRecord) outputBundle {
 				item.AgentName,
 				item.Question,
 				stringOrDash(strings.Join(item.Choices, " | ")),
-				formatTime(item.Deadline),
+				stringOrDash(formatTimePtr(item.Deadline)),
 			}
 		},
 		func(item ClarificationPendingRecord) []string {
@@ -131,7 +131,7 @@ func sessionClarificationsBundle(response ClarificationsRecord) outputBundle {
 				item.AgentName,
 				item.Question,
 				strings.Join(item.Choices, " | "),
-				formatTime(item.Deadline),
+				formatTimePtr(item.Deadline),
 			}
 		},
 	)

@@ -11,7 +11,7 @@ const meta: Meta<typeof OsTrafficLights> = {
     docs: {
       description: {
         component:
-          "The three OS window controls (close / minimize / zoom). Neutral at rest; each shows its signal color on hover or keyboard focus. Buttons only when a callback is supplied.",
+          "Quiet window controls in the order minimize, zoom, close: subtle icons that wash to `surface-2` on hover. They trail the deck row, or the head when there is no deck. Buttons only when a callback is supplied.",
       },
     },
   },
@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Interactive — hover or focus a control to reveal its signal color.
+ * Interactive — hover or focus a control to reveal its wash.
  */
 export const Interactive: Story = {
   args: { onSelect: fn() },
@@ -45,8 +45,20 @@ export const PresentationOnly: Story = {
 };
 
 /**
- * Compact inert chrome keeps the 15px glyphs visibly separated without
- * pretending the controls are interactive.
+ * Zoomed — the zoom control reads as pressed and offers Restore.
+ */
+export const Zoomed: Story = {
+  args: { onSelect: fn(), zoomed: true },
+  render: args => (
+    <div className="rounded-md border border-line bg-canvas p-4">
+      <OsTrafficLights {...args} />
+    </div>
+  ),
+};
+
+/**
+ * Compact inert chrome drops zoom and keeps 44px cells without pretending the
+ * controls are interactive.
  */
 export const CompactPresentationOnly: Story = {
   args: { compact: true },

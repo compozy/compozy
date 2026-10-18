@@ -13,7 +13,6 @@ import { WorkspaceSetupDialog } from "../workspace-setup";
 
 const storyDefaults: WorkspaceSetupDefaultsModel = {
   agents: { state: "ready", entries: [] },
-  sandboxes: { state: "ready", entries: [] },
 };
 
 const meta: Meta<typeof WorkspaceSetupDialog> = {

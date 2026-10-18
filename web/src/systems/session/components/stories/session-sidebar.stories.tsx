@@ -1,81 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { BULK_SESSION_FAMILY, BULK_SELECTED_SESSIONS } from "./session-bulk-fixtures";
+import {
+  GOAL_OWNER,
+  HISTORICAL_JUDGES,
+  LONG_AGENT,
+  MIXED_RUNTIMES,
+  PROFILE_OWNERS,
+  PROVENANCE_FAMILY,
+  STABLE_FAMILY,
+  STORY_FOLDERS,
+  SUBAGENT_PARENTS,
+  VIEWED_SUBAGENT,
+  inProfile,
+  minutesAgo,
+  onRuntime,
+  sidebarSession,
+  withSubagents,
+} from "./session-sidebar-fixtures";
+import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
-import { sessionRuntime } from "../../mocks/fixtures";
-import type { SessionPayload } from "../../types";
 import { SessionSidebar } from "../session-sidebar";
-
-function sidebarSession(
-  id: string,
-  name: string,
-  agentName: string,
-  badge: string,
-  parentId?: string
-): SessionPayload {
-  return {
-    supervision: null,
-    profile_id: "00000000000000000000000000",
-    profile_name: "default",
-    id,
-    name,
-    agent_name: agentName,
-    runtime: sessionRuntime("claude"),
-    workspace_id: "ws-product",
-    state: badge === "stopped" ? "stopped" : "active",
-    badge,
-    attachable: true,
-    archived_at: null,
-    available_commands: [],
-    pending_interactions: [],
-    ...(parentId
-      ? {
-          lineage: {
-            parent_session_id: parentId,
-            root_session_id: parentId,
-            spawn_depth: 1,
-            auto_stop_on_parent: false,
-            notify_creator: true,
-            spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
-            permission_policy: {
-              tools: [],
-              skills: [],
-              mcp_servers: [],
-              workspace_paths: [],
-              network_channels: [],
-              sandbox_profiles: [],
-            },
-          },
-        }
-      : {}),
-    created_at: "2026-08-06T12:00:00Z",
-    updated_at: "2026-08-06T18:09:00Z",
-  };
-}
-
-const PROVENANCE_FAMILY: SessionPayload[] = [
-  sidebarSession("sess-migration", "Calm transcript migration", "webgen", "running"),
-  sidebarSession(
-    "sess-digest",
-    "Digest calm-surface references",
-    "research",
-    "stopped",
-    "sess-migration"
-  ),
-  sidebarSession(
-    "sess-markers",
-    "Migrate marker components",
-    "webgen",
-    "running",
-    "sess-migration"
-  ),
-  sidebarSession("sess-empty-states", "Marketplace empty states", "webgen", "waiting-for-auth"),
-  sidebarSession("sess-pricing", "Competitor pricing scan", "research", "running"),
-  sidebarSession("sess-scrape", "Scrape pricing pages", "research", "failed", "sess-pricing"),
-  sidebarSession("sess-deps", "Nightly deps sweep", "infra", "running"),
-];
 
 const meta: Meta<typeof SessionSidebar> = {
   title: "systems/session/components/SessionSidebar",
@@ -85,7 +32,7 @@ const meta: Meta<typeof SessionSidebar> = {
     docs: {
       description: {
         component:
-          "In-window sessions rail with provenance threads: child sessions nest under their origin behind a hairline connector.",
+          "In-window sessions rail with provenance threads: child sessions hang off their origin by a tree elbow. Line 1 belongs to the title; owner, provider, agent, attention words, and the trailing chip and fold share line 2.",
       },
     },
   },
@@ -146,6 +93,35 @@ export const ProvenanceThreads: Story = {
 };
 
 /**
+ * Folders from the workspace layout group root rows in Manual order; each row
+ * keeps its two-line anatomy, and filed threads still hang from their elbow.
+ */
+export const Folders: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    view: {
+      ...ProvenanceThreads.args!.view!,
+      sort: "manual",
+      layout: {
+        folders: STORY_FOLDERS,
+        createFolder: fn(async () => STORY_FOLDERS[0]!),
+        renameFolder: fn(async () => undefined),
+        deleteFolder: fn(async () => undefined),
+        moveFolder: fn(),
+        reorderFolders: fn(),
+        moveSession: fn(),
+        reorderSessions: fn(),
+      },
+    },
+    sessions: PROVENANCE_FAMILY.map(session =>
+      session.id === "sess-migration" || session.id === "sess-empty-states"
+        ? { ...session, folder_id: "fld-calm" }
+        : session
+    ),
+  },
+};
+
+/**
  * A collapsed thread keeps the most urgent child state on its toggle — the
  * failed scrape surfaces as a danger dot beside the child count.
  */
@@ -192,5 +168,241 @@ export const SelectionMenuOpen: Story = {
   play: async ({ canvasElement }) => {
     await selectBoardSessions(canvasElement);
     await userEvent.click(within(canvasElement).getByTestId("session-sidebar-selection-more"));
+  },
+};
+
+/**
+ * Subagents (nav VC-02): subagent sessions take no rows; each parent carries one
+ * chip — attention, delegated while its turn is idle, or the failed total — and
+ * plain spawned children keep their thread.
+ */
+export const SubagentParents: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: SUBAGENT_PARENTS,
+    currentSessionId: "sess-ship",
+  },
+};
+
+/** Viewing a subagent reveals only that session, nested under its parent row. */
+export const RevealedSubagent: Story = {
+  args: {
+    ...SubagentParents.args,
+    currentSessionId: VIEWED_SUBAGENT.id,
+    revealedSession: VIEWED_SUBAGENT,
+  },
+};
+
+export const CreatedOrder: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    view: { ...ProvenanceThreads.args!.view!, sort: "created" },
+    sessions: STABLE_FAMILY,
+    currentSessionId: "stable-parent",
+  },
+};
+
+export const NameOrder: Story = {
+  args: {
+    ...CreatedOrder.args,
+    view: { ...CreatedOrder.args!.view!, sort: "name" },
+    sessions: [STABLE_FAMILY[2]!, STABLE_FAMILY[1]!, STABLE_FAMILY[3]!, STABLE_FAMILY[0]!],
+  },
+};
+
+export const StableSortMenu: Story = {
+  tags: ["play-fn"],
+  args: CreatedOrder.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Sort sessions" }));
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("menuitemradio", {
+        name: "Created",
+      })
+    ).toHaveAttribute("aria-checked", "true");
+  },
+};
+
+/** Historical unfiltered catalog fixture for before/after evidence. */
+export const BeforeGateFiltering: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: [GOAL_OWNER, ...HISTORICAL_JUDGES],
+    currentSessionId: GOAL_OWNER.id,
+  },
+};
+
+/** The default server catalog omits system rows; the Goal retains audit access. */
+export const GateSessionsHidden: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: [GOAL_OWNER],
+    currentSessionId: GOAL_OWNER.id,
+  },
+};
+
+/**
+ * Each row names its runtime with the provider's mark before the agent, in its
+ * brand ink as in the runtime selector; the unbound session shows none, and a
+ * child repeating its root's agent and provider collapses to one line.
+ */
+export const MixedRuntimes: Story = {
+  parameters: { msw: { handlers: MIXED_RUNTIME_CATALOG } },
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: MIXED_RUNTIMES,
+    currentSessionId: "sess-orch",
+  },
+};
+
+/** Selection keeps every provider mark; the checkbox covers only the state mark. */
+export const MixedRuntimesSelection: Story = {
+  ...MixedRuntimes,
+  tags: ["play-fn"],
+  args: {
+    ...MixedRuntimes.args,
+    sessionActions: SelectionMode.args!.sessionActions!,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}");
+    await user.click(canvas.getByTestId("session-sidebar-session-sess-sort"));
+    await user.click(canvas.getByTestId("session-sidebar-session-sess-claim"));
+    await user.keyboard("{/Control}");
+    await expect(canvas.getByTestId("session-sidebar-selection-count")).toHaveTextContent(
+      "2 selected"
+    );
+  },
+};
+
+/**
+ * All profiles: the owner glyph leads the meta line of roots only, a child in
+ * its root's profile repeats nothing, and the title keeps line 1 even with the
+ * subagent chip and the thread fold on the row.
+ */
+export const AllProfiles: Story = {
+  parameters: { msw: { handlers: MIXED_RUNTIME_CATALOG } },
+  args: {
+    ...MixedRuntimes.args,
+    view: {
+      ...ProvenanceThreads.args!.view!,
+      aggregate: true,
+      scopeLabel: "All profiles",
+      ownerOf: session =>
+        PROFILE_OWNERS[session.profile_id as keyof typeof PROFILE_OWNERS] ??
+        PROFILE_OWNERS["00000000000000000000000000"],
+    },
+    sessions: [
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            withSubagents(
+              sidebarSession("sess-qa", "Release v0.3.1 QA cycle", "general", "running"),
+              1,
+              14
+            ),
+            0
+          ),
+          "claude",
+          "claude-opus-5-5"
+        ),
+        "00000000000000000000000000"
+      ),
+      ...MIXED_RUNTIMES.map(session =>
+        inProfile(
+          session,
+          session.id === "sess-cart-2" ? "profile-design" : "00000000000000000000000000"
+        )
+      ),
+    ],
+  },
+};
+
+/**
+ * Bulletproof meta line: a long agent name gives way first, attention words and
+ * the trailing chip and fold never truncate, notes truncate before the agent.
+ */
+export const LongAgentNames: Story = {
+  parameters: { msw: { handlers: MIXED_RUNTIME_CATALOG } },
+  args: {
+    ...AllProfiles.args,
+    sessions: [
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            withSubagents(
+              sidebarSession(
+                "sess-long-root",
+                "Migrate the session store to the new schema",
+                LONG_AGENT,
+                "needs-attention"
+              ),
+              12,
+              148
+            ),
+            12
+          ),
+          "codex",
+          "gpt-6.1-sol"
+        ),
+        "profile-design"
+      ),
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            sidebarSession(
+              "sess-long-child",
+              "Slice 1 — migrate session rows",
+              LONG_AGENT,
+              "running",
+              "sess-long-root"
+            ),
+            1
+          ),
+          "codex",
+          "gpt-6.1-sol"
+        ),
+        "profile-design"
+      ),
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            sidebarSession(
+              "sess-long-other",
+              "Slice 2 — rebuild indexes",
+              "general",
+              "failed",
+              "sess-long-root"
+            ),
+            4
+          ),
+          "claude",
+          "claude-opus-5-5"
+        ),
+        "profile-design"
+      ),
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            {
+              ...sidebarSession(
+                "sess-long-archived",
+                "fix/silent-idle-session-reclaim-and-runtime-rebind-after-session-load",
+                LONG_AGENT,
+                "stopped"
+              ),
+              archived_at: "2026-08-06T18:00:00Z",
+            },
+            60 * 24 * 40
+          ),
+          "claude",
+          "claude-sonnet-5-5"
+        ),
+        "00000000000000000000000000"
+      ),
+    ],
+    currentSessionId: "sess-long-child",
   },
 };

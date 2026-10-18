@@ -107,26 +107,31 @@ deletes target the effective winner. Deleting the workspace winner can therefore
 definition immediately; the delete response reports that transition in `unshadowed_origin`. CompozyOS
 does not merge either definition before or after the delete.
 
-## Browse a workspace fleet
+## Browse an agent fleet
 
-Use the workspace catalog when a client needs a bounded fleet view instead of the complete
+Use the catalog when a client needs a bounded fleet view instead of the complete
 definition list:
 
 ```http
 GET /api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50
 ```
 
+Omit `workspace` for Global: the catalog resolves the acting profile's shared definitions and
+aggregates visible sessions with the same agent name across all projects, including no-workspace
+sessions. It does not merge project-local definitions into the Global definition list. Selecting
+a project retains that project's effective definitions and narrows session metrics to that project.
+
 The daemon applies exact `name`, substring `q`, `category`, and `status` filters before the cursor
 page is cut. Each result combines
 the effective agent definition with exact metrics over every visible retained session for that
-workspace and agent. The `sessions` object reports `total`, currently `active`, terminal `failed`,
+scope and agent name. The `sessions` object reports `total`, currently `active`, terminal `failed`,
 summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for an
 active session and creation to the last persisted update for a stopped session. Failed includes
 stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason.
 
 `last_activity_at` follows the session catalog's canonical activity timestamp. `facets.total` and
-`facets.categories` describe the complete workspace fleet; `facets.active` and `facets.idle` are
-exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same filters
+`facets.categories` describe the complete selected fleet; `facets.active` and `facets.idle` are
+exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same workspace, profile and filters
 to load another page.
 
 If the session authority is unavailable, the endpoint still returns definitions with
@@ -241,9 +246,11 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 | `category_path`    | string array                | no       | empty                                                | Ordered display-only path such as `["Marketing", "Sales"]`. Segments are trimmed and must not be blank, `.`, `..`, or contain `/` or `\`.                                                                                                                                                                               |
 | `mcp_servers`      | array of MCP server objects | no       | merged with config/provider servers                  | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                                                                                                                                                                               |
 | `hooks`            | array of hook declarations  | no       | none                                                 | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                                                                                                                                                                                     |
+| `fallback_chain`   | array of route objects      | no       | empty                                                | Ordered fallback routes with the same shape as `[[roles.<role>.fallback_chain]]`: `provider` and `model` are required; `reasoning_effort`, `speed`, `acp_options`, and `command` are optional. See [Fallback chain](#fallback-chain).                                                                                   |
 
 The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
 both formats, unknown fields fail validation.
+
 `category_path` has one canonical shape: an array of path segments. CompozyOS rejects `categories` and
 slash-string values such as `"Marketing/Sales"`.
 
@@ -251,8 +258,57 @@ For standard ACP providers, session creation/load happens first. CompozyOS appli
 option snapshot with the response, applies Reasoning and Fast, then applies remaining options in stable
 ID order while refreshing and revalidating after every response. Cursor compiles that same logical
 selection into a private launch alias and replaces the process when a launch-bound value changes.
-OpenClaw is provider-managed and rejects these runtime controls. Empty effort sends no RPC; explicit
+Empty effort sends no RPC; explicit
 `none` does when advertised.
+
+### Fallback chain
+
+`fallback_chain` lists ordered routes to try when a provider refuses a session **before** ACP accepts
+it. A route's `command` names the account (seat) the same way `command` does for the agent: shell-style
+quoting, no shell, and leading `NAME=value` tokens become private environment forwarded literally — `~`
+and `$HOME` are not expanded, so write absolute paths. Empty `command` inherits the agent command on the
+agent's own provider, or the route provider's command on another provider.
+
+```yaml
+---
+name: reviewer
+provider: claude
+model: opus-4-8
+reasoning_effort: high
+fallback_chain:
+  - provider: claude
+    model: opus-4-8
+    command: "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp" # other seat, same provider
+  - provider: cursor
+    model: grok-4.6
+    reasoning_effort: high # last resort: another provider
+---
+You review pull requests…
+```
+
+TOML frontmatter uses `[[fallback_chain]]` tables with the same keys. The chain is validated when the
+definition loads and on `compozy agent create|update` (`agent "reviewer" fallback_chain[0].command:
+command is missing an executable`, `agent "reviewer" fallback_chain[1].provider: … unknown provider
+"grokk"`), and it is projected by `compozy agent show` and `GET /api/agents/{name}` with a
+`command_fingerprint` (`sha256:`) for every route that sets `command`. There is no limit on the number of
+routes or on command length.
+
+Only one chain owns a launch. Sessions that a background role launches with this agent (an inherited
+`auto_title`, for example) always run the role's own `fallback_chain` from `config.toml`, never this one.
+
+Edit the chain from the CLI with the repeatable, ordered `--fallback-route` flag. Keys are `provider`,
+`model`, `reasoning_effort`, `speed`, and `command`; `command` must be the last key and takes the rest
+of the value verbatim, commas and quotes included:
+
+```bash
+compozy agent update reviewer --expected-digest <digest> \
+  --fallback-route 'provider=claude,model=opus-4-8,command=CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp' \
+  --fallback-route provider=cursor,model=grok-4.6,reasoning_effort=high
+
+compozy agent update reviewer --expected-digest <digest> --clear-fallback-chain
+```
+
+`--fallback-route` replaces the whole chain; omitting both flags keeps the current chain.
 
 ## MCP servers
 
@@ -311,7 +367,7 @@ model: claude-sonnet-5
 reasoning_effort: max
 tools: ["mcp__github__*"]
 toolsets: ["compozy__coordination"]
-deny_tools: ["compozy__network_send"]
+deny_tools: ["compozy__task_create"]
 permissions: approve-reads
 mcp_servers:
   - name: github
@@ -348,18 +404,15 @@ surface, run the relevant verification commands, and summarize the exact files c
 RFC 001 proposes a larger portable agent format. The current parser and runtime diverge from that
 draft in these ways today:
 
-| RFC field                 | Proposed type | Current behavior                                                                                                                   |
-| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `description`             | string        | Rejected as an unknown field.                                                                                                      |
-| `skills.inherit`          | boolean       | Rejected as an unknown field.                                                                                                      |
-| `skills.disabled`         | string array  | Accepted. Disables the logical skill for this agent without falling back to a lower-precedence copy.                               |
-| `skills.extra_sources`    | string array  | Rejected as an unknown field. Scan roots are runtime config: [`skills.sources` and `skills.custom_sources`](/docs/skills/sources). |
-| `memory.inherit`          | boolean       | Rejected as an unknown field.                                                                                                      |
-| `memory.scope`            | string        | Rejected as an unknown field.                                                                                                      |
-| `memory.auto_consolidate` | boolean       | Rejected as an unknown field.                                                                                                      |
+| RFC field              | Proposed type | Current behavior                                                                                                                   |
+| ---------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `description`          | string        | Rejected as an unknown field.                                                                                                      |
+| `skills.inherit`       | boolean       | Rejected as an unknown field.                                                                                                      |
+| `skills.disabled`      | string array  | Accepted. Disables the logical skill for this agent without falling back to a lower-precedence copy.                               |
+| `skills.extra_sources` | string array  | Rejected as an unknown field. Scan roots are runtime config: [`skills.sources` and `skills.custom_sources`](/docs/skills/sources). |
 
-Agent-scoped memory is still part of the design direction. Skill resolution remains runtime-owned,
-but `skills.disabled` is now persisted in `AGENT.md` as the agent-scoped tombstone list.
+Skill resolution remains runtime-owned, but `skills.disabled` is now persisted in `AGENT.md` as the
+agent-scoped tombstone list.
 
 ## Common validation failures
 
@@ -375,7 +428,7 @@ but `skills.disabled` is now persisted in `AGENT.md` as the agent-scoped tombsto
 ## Related pages
 
 - [Agent Capabilities](/docs/agents/capabilities) covers the optional capability catalog
-  sidecar that sits next to `AGENT.md` and feeds network discovery.
+  sidecar that sits next to `AGENT.md` and feeds task selection.
 - [Providers](/docs/agents/providers) lists every built-in provider and the provider config
   shape.
 - [Spawning](/docs/agents/spawning) follows the ACP subprocess startup path.

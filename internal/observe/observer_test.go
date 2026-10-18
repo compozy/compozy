@@ -14,10 +14,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -26,26 +25,9 @@ import (
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
-func TestOnSessionCreatedTracksSessionSnapshot(t *testing.T) {
-	t.Run("Should cache session snapshot on creation", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		sess := newSession("sess-created", session.StateActive, h.workspace, h.now)
-
-		h.observeSessionCreated(t, sess)
-
-		snapshot, ok := h.observer.sessionSnapshot(sess.ID)
-		if !ok {
-			t.Fatal("sessionSnapshot() cached = false, want true")
-		}
-		if snapshot.agentName != "coder" || snapshot.workspaceID != h.workspaceID {
-			t.Fatalf("sessionSnapshot() = %#v, want coder workspace snapshot", snapshot)
-		}
-	})
-}
-
 func TestAgentEventCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should resolve auth once until the runtime selection changes", func(t *testing.T) {
 		t.Parallel()
 
@@ -159,6 +141,8 @@ func TestAgentEventCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
 }
 
 func TestOnSessionStoppedClearsSessionSnapshot(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should clear session snapshot on stop", func(t *testing.T) {
 		t.Parallel()
 
@@ -166,6 +150,13 @@ func TestOnSessionStoppedClearsSessionSnapshot(t *testing.T) {
 		sess := newSession("sess-stopped", session.StateActive, h.workspace, h.now)
 
 		h.observeSessionCreated(t, sess)
+		snapshot, ok := h.observer.sessionSnapshot(sess.ID)
+		if !ok {
+			t.Fatal("sessionSnapshot() cached = false, want true")
+		}
+		if snapshot.agentName != "coder" || snapshot.workspaceID != h.workspaceID {
+			t.Fatalf("sessionSnapshot() = %#v, want coder workspace snapshot", snapshot)
+		}
 		sess.State = session.StateStopped
 		sess.UpdatedAt = h.now.Add(2 * time.Minute)
 		h.observer.OnSessionStopped(testutil.Context(t), sess)
@@ -187,6 +178,7 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 		ParentSessionID: "sess-parent",
 		RootSessionID:   "sess-root",
 		SpawnDepth:      1,
+		Kind:            store.LineageKindProvenance,
 	}
 	h.observeSessionCreated(t, sess)
 
@@ -218,171 +210,6 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 		events[0].SpawnDepth != 1 {
 		t.Fatalf("events[0] lineage = %#v", events[0])
 	}
-}
-
-func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
-	t.Run("Should merge memory events after durable registry events", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		sess := newSession("sess-memory-observe", session.StateActive, h.workspace, h.now)
-		h.observeSessionCreated(t, sess)
-		h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
-			Type:      "agent_message",
-			TurnID:    "turn-1",
-			Timestamp: h.now.Add(time.Minute),
-			Text:      "assistant replied",
-		})
-
-		source := &stubMemoryEventSource{
-			events: []store.EventSummary{{
-				ID:        "memevt-workspace-01",
-				Type:      "memory.recall.executed",
-				AgentName: "coder",
-				Summary:   "workspace recall executed",
-				Timestamp: h.now.Add(2 * time.Minute),
-			}},
-		}
-		h.observer.mu.Lock()
-		h.observer.memoryEventSource = source
-		h.observer.mu.Unlock()
-
-		events, err := h.observer.QueryEvents(
-			testutil.Context(t),
-			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
-		)
-		if err != nil {
-			t.Fatalf("QueryEvents() error = %v", err)
-		}
-		if got, want := len(events), 2; got != want {
-			t.Fatalf("len(events) = %d, want %d; events=%#v", got, want, events)
-		}
-		if got, want := events[0].Type, "agent_message"; got != want {
-			t.Fatalf("events[0].Type = %q, want %q", got, want)
-		}
-		if got, want := events[1].Type, "memory.recall.executed"; got != want {
-			t.Fatalf("events[1].Type = %q, want %q", got, want)
-		}
-		if len(source.workspaces) != 1 || source.workspaces[0] != h.workspace {
-			t.Fatalf("memory source workspaces = %#v, want [%q]", source.workspaces, h.workspace)
-		}
-	})
-}
-
-func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
-	t.Run("Should translate public workspace id to memory workspace identity", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		memoryIdentity, err := compozyworkspace.EnsureIdentity(testutil.Context(t), h.workspace)
-		if err != nil {
-			t.Fatalf("EnsureIdentity(%q) error = %v", h.workspace, err)
-		}
-		source := &stubMemoryEventSource{
-			events: []store.EventSummary{{
-				ID:          "memevt-workspace-filter-01",
-				Type:        "memory.write.reindex",
-				WorkspaceID: memoryIdentity.WorkspaceID,
-				Summary:     "scope=workspace indexed=3",
-				Timestamp:   h.now.Add(time.Minute),
-			}},
-		}
-		h.observer.mu.Lock()
-		h.observer.memoryEventSource = source
-		h.observer.mu.Unlock()
-
-		events, err := h.observer.QueryEvents(
-			testutil.Context(t),
-			store.EventSummaryQuery{
-				ReadScope:   store.ReadScope{AllProfiles: true},
-				WorkspaceID: h.workspaceID,
-				Type:        "memory.write.reindex",
-			},
-		)
-		if err != nil {
-			t.Fatalf("QueryEvents(workspace) error = %v", err)
-		}
-		if got, want := len(events), 1; got != want {
-			t.Fatalf("len(events) = %d, want %d; events=%#v", got, want, events)
-		}
-		if got, want := source.query.WorkspaceID, memoryIdentity.WorkspaceID; got != want {
-			t.Fatalf("memory source query workspace_id = %q, want %q", got, want)
-		}
-		if len(source.workspaces) != 1 || source.workspaces[0] != h.workspace {
-			t.Fatalf("memory source workspaces = %#v, want [%q]", source.workspaces, h.workspace)
-		}
-	})
-}
-
-func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
-	t.Run("Should not fan memory source into session-scoped queries yet", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		sess := newSession("sess-memory-filter", session.StateActive, h.workspace, h.now)
-		h.observeSessionCreated(t, sess)
-		source := &stubMemoryEventSource{
-			events: []store.EventSummary{{
-				ID:        "memevt-workspace-02",
-				Type:      "memory.write.committed",
-				SessionID: sess.ID,
-				AgentName: "coder",
-				Summary:   "workspace write committed",
-				Timestamp: h.now.Add(time.Minute),
-			}},
-		}
-		h.observer.mu.Lock()
-		h.observer.memoryEventSource = source
-		h.observer.mu.Unlock()
-
-		events, err := h.observer.QueryEvents(
-			testutil.Context(t),
-			store.EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, SessionID: sess.ID},
-		)
-		if err != nil {
-			t.Fatalf("QueryEvents(session) error = %v", err)
-		}
-		if len(events) != 0 {
-			t.Fatalf("session scoped events = %#v, want no memory source fan-in yet", events)
-		}
-		if len(source.workspaces) != 0 {
-			t.Fatalf("memory source workspaces = %#v, want source not queried for session scope", source.workspaces)
-		}
-	})
-}
-
-func TestObserverQueryEventsKeepsWorktreeScopedEventsNarrow(t *testing.T) {
-	t.Run("Should not merge unsequenced memory events into a worktree replay", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		source := &stubMemoryEventSource{events: []store.EventSummary{{
-			ID: "memevt-worktree-01", Type: "memory.write.committed", Sequence: 0,
-			Summary: "workspace write committed", Timestamp: h.now.Add(time.Minute),
-		}}}
-		h.observer.mu.Lock()
-		h.observer.memoryEventSource = source
-		h.observer.mu.Unlock()
-
-		events, err := h.observer.QueryEvents(
-			testutil.Context(t),
-			store.EventSummaryQuery{
-				ReadScope:   store.ReadScope{AllProfiles: true},
-				WorkspaceID: h.workspaceID,
-				WorktreeID:  "wt-a",
-				Limit:       500,
-			},
-		)
-		if err != nil {
-			t.Fatalf("QueryEvents(worktree) error = %v", err)
-		}
-		if len(events) != 0 {
-			t.Fatalf("worktree events = %#v, want no memory source fan-in", events)
-		}
-		if len(source.workspaces) != 0 {
-			t.Fatalf("memory source workspaces = %#v, want source not queried for worktree scope", source.workspaces)
-		}
-	})
 }
 
 func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
@@ -437,9 +264,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 				meta := sess.Meta()
 				meta.SetEffectiveProviderAuthMode(string(compozyconfig.ProviderAuthModeNativeCLI))
 				if err := store.WriteSessionMeta(
-					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)),
-					meta,
-				); err != nil {
+					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)), &meta); err != nil {
 					t.Fatalf("WriteSessionMeta() error = %v", err)
 				}
 			},
@@ -465,9 +290,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 				meta := sess.Meta()
 				meta.SetEffectiveProviderAuthMode(string(compozyconfig.ProviderAuthModeNativeCLI))
 				if err := store.WriteSessionMeta(
-					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)),
-					meta,
-				); err != nil {
+					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)), &meta); err != nil {
 					t.Fatalf("WriteSessionMeta(stopped) error = %v", err)
 				}
 			},
@@ -569,7 +392,7 @@ func TestObserverSessionSnapshotRequiresContext(t *testing.T) {
 			name: "Should panic on a cached live session with nil context",
 			call: func(observer *Observer) {
 				info := &session.Info{ID: "sess-cached-context", AgentName: "coder"}
-				observer.trackLiveSession(context.Background(), info)
+				observer.trackLiveSession(t.Context(), info)
 				observer.trackLiveSession(nilContext(), info)
 			},
 		},
@@ -1119,34 +942,6 @@ func TestOnAgentEventSkipsUnknownSession(t *testing.T) {
 	}
 }
 
-func TestNotifierLifecycleWritesThroughObserver(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	sess := newSession("sess-nil-ctx", session.StateActive, h.workspace, h.now)
-
-	h.observeSessionCreated(t, sess)
-	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
-		Type:      "tool_result",
-		TurnID:    "turn-nil-ctx",
-		Timestamp: h.now.Add(time.Minute),
-		Title:     "ls",
-	})
-	sess.State = session.StateStopped
-	h.observer.OnSessionStopped(testutil.Context(t), sess)
-
-	events, err := h.observer.QueryEvents(
-		testutil.Context(t),
-		store.EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, SessionID: sess.ID},
-	)
-	if err != nil {
-		t.Fatalf("QueryEvents() error = %v", err)
-	}
-	if got, want := len(events), 1; got != want {
-		t.Fatalf("len(events) = %d, want %d", got, want)
-	}
-}
-
 func TestOnAgentEventGuardBranches(t *testing.T) {
 	t.Parallel()
 
@@ -1291,7 +1086,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 			SessionID: sess.ID,
 			Type:      "harness.context_resolved",
 			AgentName: sess.AgentName,
-			Summary:   "surface=startup sections=memory|skills|network",
+			Summary:   "surface=startup sections=memory|skills|tools",
 			Timestamp: base,
 		},
 		{
@@ -1299,7 +1094,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 			SessionID: sess.ID,
 			Type:      "harness.section_selected",
 			AgentName: sess.AgentName,
-			Summary:   "selected=memory|skills|network count=3",
+			Summary:   "selected=memory|skills|tools count=3",
 			Timestamp: base.Add(time.Second),
 		},
 		{
@@ -1665,7 +1460,6 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 type harness struct {
 	observer    *Observer
 	registry    *globaldb.GlobalDB
-	bridges     *observeBridgeSource
 	home        compozyconfig.HomePaths
 	source      *stubSessionSource
 	now         time.Time
@@ -1689,12 +1483,6 @@ type stubSessionSource struct {
 
 type listSessionsFailingRegistry struct {
 	Registry
-}
-
-type stubMemoryEventSource struct {
-	events     []store.EventSummary
-	workspaces []string
-	query      store.EventSummaryQuery
 }
 
 type stubCostCatalog struct {
@@ -1726,54 +1514,8 @@ func (r listSessionsFailingRegistry) ListSessions(
 	return nil, errors.New("registry fallback disabled")
 }
 
-type observeBridgeSource struct {
-	*bridgepkg.Service
-	broker *bridgepkg.Broker
-}
-
 func (s *stubSessionSource) List() []*session.Info {
 	return s.sessions
-}
-
-func (s *stubMemoryEventSource) ListMemoryEventSummaries(
-	_ context.Context,
-	workspaces []string,
-	query store.EventSummaryQuery,
-) ([]store.EventSummary, error) {
-	s.workspaces = append([]string(nil), workspaces...)
-	s.query = query
-	return append([]store.EventSummary(nil), s.events...), nil
-}
-
-func (s *observeBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
-	if s == nil || s.broker == nil {
-		return nil
-	}
-	return s.broker.DeliveryMetrics()
-}
-
-func (s *observeBridgeSource) DeliveryMetricsFor(
-	bridgeInstanceIDs []string,
-) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
-	if s == nil || s.broker == nil {
-		return nil, nil
-	}
-	return s.broker.DeliveryMetricsFor(bridgeInstanceIDs)
-}
-
-func (s *observeBridgeSource) CountBridgeRoutes(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string]int, error) {
-	counts := make(map[string]int, len(bridgeInstanceIDs))
-	for _, bridgeInstanceID := range bridgeInstanceIDs {
-		routes, err := s.ListRoutes(ctx, bridgeInstanceID)
-		if err != nil {
-			return nil, err
-		}
-		counts[bridgeInstanceID] = len(routes)
-	}
-	return counts, nil
 }
 
 func newHarness(t *testing.T) *harness {
@@ -1803,11 +1545,6 @@ func newHarness(t *testing.T) *harness {
 
 	now := time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)
 	source := &stubSessionSource{}
-	bridges := &observeBridgeSource{
-		Service: bridgepkg.NewRegistry(registry, bridgepkg.WithNow(func() time.Time { return now })),
-		broker:  bridgepkg.NewBroker(nil, bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now })),
-	}
-	t.Cleanup(bridges.broker.Close)
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
@@ -1843,7 +1580,6 @@ func newHarness(t *testing.T) *harness {
 		WithRegistry(registry),
 		WithHomePaths(home),
 		WithSessionSource(source),
-		WithBridgeSource(bridges),
 		WithWorkspaceResolver(workspaceResolver),
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithNow(func() time.Time { return now.Add(time.Hour) }),
@@ -1859,7 +1595,6 @@ func newHarness(t *testing.T) *harness {
 	return &harness{
 		observer:    observer,
 		registry:    registry,
-		bridges:     bridges,
 		home:        home,
 		source:      source,
 		now:         now,
@@ -1871,7 +1606,11 @@ func newHarness(t *testing.T) *harness {
 func observeTestContext(t testing.TB) context.Context {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	parent := t.Context()
+	if parent.Err() != nil {
+		parent = context.WithoutCancel(parent)
+	}
+	ctx, cancel := context.WithTimeout(parent, 3*time.Minute)
 	t.Cleanup(cancel)
 	return ctx
 }
@@ -1923,7 +1662,6 @@ func newSession(id string, state session.State, workspace string, now time.Time)
 		Provider:             "claude",
 		EffectivePermissions: "approve-all",
 		RuntimeStatus:        session.RuntimeStatusReady,
-		NetworkParticipation: participation.LocalSpec(),
 		WorkspaceID:          observerWorkspaceID,
 		Workspace:            workspace,
 		State:                state,

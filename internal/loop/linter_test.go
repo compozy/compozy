@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"maps"
-	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -12,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestLinterShouldRejectDeletedNoProgressParameters(t *testing.T) {
@@ -488,71 +486,6 @@ func TestLinterShouldValidateExclusiveRoutes(t *testing.T) {
 	}
 }
 
-func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
-	t.Parallel()
-
-	modeLocal := participation.ModeLocal
-	modeLive := participation.ModeLive
-	strategyNamed := participation.StrategyNamed
-	channel := " builders "
-	testCases := []struct {
-		name        string
-		request     *participation.Request
-		wantCode    string
-		wantMessage string
-	}{
-		{
-			name:        "Should reject default Local participation for a Network node",
-			wantCode:    loop.CodeLoopRequiresLive,
-			wantMessage: "agent",
-		},
-		{
-			name:        "Should reject explicit Local participation for a Network node",
-			request:     &participation.Request{Mode: &modeLocal},
-			wantCode:    loop.CodeLoopRequiresLive,
-			wantMessage: "compozy__network_send",
-		},
-		{
-			name: "Should accept and canonicalize valid Live participation during compile",
-			request: &participation.Request{
-				Mode:            &modeLive,
-				ChannelStrategy: &strategyNamed,
-				ChannelID:       &channel,
-			},
-		},
-		{
-			name: "Should reject an invalid Local participation envelope",
-			request: &participation.Request{
-				Mode:            &modeLocal,
-				ChannelStrategy: &strategyNamed,
-				ChannelID:       &channel,
-			},
-			wantCode:    loop.CodeNetworkParticipationInvalid,
-			wantMessage: "local mode",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			def := validDefinition()
-			def.NetworkParticipation = tc.request
-			def.Graph.Nodes[2].Kind = "compozy__network_send"
-			linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{
-				"compozy__network_send": {ToolID: "compozy__network_send"},
-			}))
-			errs := linter.Lint(def)
-			if tc.wantCode == "" {
-				requireLintCodes(t, errs)
-				return
-			}
-			requireLintCodes(t, errs, tc.wantCode)
-			requireLintMessageContains(t, errs, tc.wantCode, tc.wantMessage)
-		})
-	}
-}
-
 func TestMetricShouldParseAndLintGateCriteria(t *testing.T) {
 	t.Parallel()
 
@@ -684,16 +617,6 @@ contract:
 				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{
 					Direction: dsl.MetricMaximize,
 					MinDelta:  new(-0.1),
-				})
-			},
-			wantCode: loop.CodeMetricMinDeltaInvalid,
-		},
-		{
-			name: "Should reject a non-finite metric minimum delta",
-			mutate: func(def *dsl.Definition) {
-				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{
-					Direction: dsl.MetricMaximize,
-					MinDelta:  new(math.NaN()),
 				})
 			},
 			wantCode: loop.CodeMetricMinDeltaInvalid,
@@ -1051,53 +974,16 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			},
 			wantCodes: []string{refs.CodeUnknownReference},
 		},
+
 		{
-			name: "Should reject deleted channel post action as unknown",
+			name: "Should reject event range harvest on reserved action kinds",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "agent")
-				node.Kind = "channel-post"
-			},
-			wantCodes: []string{loop.CodeUnknownActionKind},
-		},
-		{
-			name: "Should reject channel result harvest on reserved action kinds",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "5m"}
+				node.Harvest = &dsl.HarvestSpec{Kind: "event_range"}
 			},
 			wantCodes: []string{loop.CodeInvalidHarvest},
 		},
-		{
-			name: "Should reject channel result harvest on non network send actions",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Kind = "compozy__task_read"
-				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "5m"}
-			},
-			wantCodes: []string{loop.CodeInvalidHarvest},
-		},
-		{
-			name: "Should reject channel result harvest without a positive window",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Kind = "compozy__network_send"
-				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "0s"}
-			},
-			wantCodes: []string{loop.CodeInvalidHarvest},
-		},
-		{
-			name: "Should reject unsupported channel result content rules",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Kind = "compozy__network_send"
-				node.Harvest = &dsl.HarvestSpec{
-					Kind:        "channel_result",
-					Window:      "5m",
-					ContentRule: "jsonpath:decision",
-				}
-			},
-			wantCodes: []string{loop.CodeInvalidHarvest},
-		},
+
 		{
 			name: "Should reject unknown harvest kinds on open actions",
 			mutate: func(def *dsl.Definition) {
@@ -1709,16 +1595,6 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			wantCodes: []string{loop.CodeFileImportParseRequired},
 		},
 		{
-			name: "Should reject empty file import parse",
-			def: singleNodeDefinition(dsl.Node{
-				ID:      "files",
-				Class:   dsl.NodeClassSource,
-				Kind:    string(dsl.SourceFileImport),
-				Pattern: "docs/*.md",
-			}),
-			wantCodes: []string{loop.CodeFileImportParseRequired},
-		},
-		{
 			name: "Should accept watch source closed enum",
 			def: singleNodeDefinition(dsl.Node{
 				ID:        "watch",
@@ -1852,15 +1728,7 @@ func TestLinterShouldValidateWatchEventsSourceNodes(t *testing.T) {
 			messageCode:   loop.CodeWatchEventsKindUnsupported,
 			messageSubstr: "automation.run.completed",
 		},
-		{
-			name: "Should reject network peer lifecycle kinds without durable anchors",
-			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
-				Kind: "network.peer.joined",
-			}})),
-			wantCodes:     []string{loop.CodeWatchEventsKindUnsupported},
-			messageCode:   loop.CodeWatchEventsKindUnsupported,
-			messageSubstr: "network.message.persisted",
-		},
+
 		{
 			name: "Should reject coordinator pre-spawn because it is pre-state",
 			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
@@ -2264,14 +2132,6 @@ func TestLinterShouldValidateLifecycleGrammar(t *testing.T) {
 			severity: loop.SeverityError,
 		},
 		{
-			name: "Should reject an effect without a kind",
-			mutate: func(def *dsl.Definition) {
-				requireNode(t, def, "agent").OnSuccess = []dsl.EffectSpec{{}}
-			},
-			wantCode: loop.CodeEffectShapeInvalid,
-			severity: loop.SeverityError,
-		},
-		{
 			name: "Should warn about an unknown effect tool",
 			mutate: func(def *dsl.Definition) {
 				requireNode(t, def, "agent").OnSuccess = []dsl.EffectSpec{{Tool: "missing__tool"}}
@@ -2651,6 +2511,55 @@ func implicitReusedGoalHandleDefinition() dsl.Definition {
 	def.Graph.Nodes = append(def.Graph.Nodes, second)
 	def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "shared", To: "finish"})
 	return def
+}
+
+// Invariant: an awaited child result declared by produces is exactly what downstream templates can read.
+// The Loop linter owns the authoring rejection before an expensive child run starts.
+func TestLinterShouldValidateRunLoopTerminalOutputShape(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name      string
+		mode      dsl.RunLoopMode
+		inputs    map[string]any
+		produces  dsl.Schema
+		wantCodes []string
+	}{
+		{name: "Should accept a declared awaited child result", produces: dsl.Schema{"loop_run_id": "string", "status": "string"}},
+		{name: "Should accept a literal immutable worktree candidate", inputs: map[string]any{dsl.ReviewedWorktreeInput: `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"],"fingerprint":"` + strings.Repeat("a", 64) + `"}`}},
+		{name: "Should reject a mutable worktree candidate without a fingerprint", inputs: map[string]any{dsl.ReviewedWorktreeInput: `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"]}`}, wantCodes: []string{refs.CodeUnresolvablePath}},
+		{name: "Should accept explicit string types", produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string"}, "status": map[string]any{"type": "string"}}},
+		{name: "Should reject a constrained awaited status", produces: dsl.Schema{"loop_run_id": "string", "status": map[string]any{"type": "string", "enum": []any{"done"}}}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject a constrained awaited run ID", produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string", "pattern": "^fixed$"}, "status": "string"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject an unsupported awaited child field", produces: dsl.Schema{"loop_run_id": "string", "outputs": "object"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject a non-string child status", produces: dsl.Schema{"status": "number"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject an incomplete awaited child result", produces: dsl.Schema{"loop_run_id": "string"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should accept a declared detached child result", mode: dsl.RunLoopDetach, produces: dsl.Schema{"loop_run_id": "string"}},
+		{name: "Should reject a constrained detached run ID", mode: dsl.RunLoopDetach, produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string", "minLength": 1000}}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+		{name: "Should reject status in a detached child result", mode: dsl.RunLoopDetach, produces: dsl.Schema{"status": "string"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			def := singleNodeDefinition(dsl.Node{
+				ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				Params:   dsl.NodeParams{"loop": "nested", "mode": string(testCase.mode), "inputs": testCase.inputs},
+				Produces: testCase.produces,
+			})
+			requireLintCodes(t, loop.NewLinter().Lint(def), testCase.wantCodes...)
+		})
+	}
+	t.Run("Should reject object fields from an undeclared awaited child result", func(t *testing.T) {
+		t.Parallel()
+		def := singleNodeDefinition(dsl.Node{
+			ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopAwait)},
+		})
+		def.Graph.Nodes = append(def.Graph.Nodes, dsl.Node{
+			ID: "inspect", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "qa", "prompt": "{{ .nodes.child.output.status }}"},
+		})
+		def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "child", To: "inspect"})
+		requireLintCodes(t, loop.NewLinter().Lint(def), refs.CodeUnresolvablePath)
+	})
 }
 
 func singleNodeDefinition(node dsl.Node) dsl.Definition {

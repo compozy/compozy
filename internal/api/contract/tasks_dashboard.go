@@ -3,7 +3,6 @@ package contract
 import (
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -110,7 +109,6 @@ type TaskDashboardQueuePayload struct {
 
 // TaskDashboardQueueDepthPayload reports queued work by channel.
 type TaskDashboardQueueDepthPayload struct {
-	ChannelID           string    `json:"channel_id,omitempty"`
 	Count               int       `json:"count"`
 	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
 	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
@@ -136,26 +134,25 @@ type TaskDashboardActiveRunsPayload struct {
 
 // TaskDashboardActiveRunPayload exposes one recent active-run card payload.
 type TaskDashboardActiveRunPayload struct {
-	TaskID                       string              `json:"task_id"`
-	TaskIdentifier               string              `json:"task_identifier,omitempty"`
-	TaskTitle                    string              `json:"task_title"`
-	TaskStatus                   taskpkg.Status      `json:"task_status"`
-	TaskPriority                 taskpkg.Priority    `json:"task_priority,omitempty"`
-	TaskOwner                    *taskpkg.Ownership  `json:"task_owner,omitempty"`
-	Scope                        taskpkg.Scope       `json:"scope"`
-	WorkspaceID                  string              `json:"workspace_id,omitempty"`
-	LatestEventSeq               int64               `json:"latest_event_seq"`
-	RunID                        string              `json:"run_id"`
-	RunStatus                    taskpkg.RunStatus   `json:"run_status"`
-	Attempt                      int                 `json:"attempt"`
-	MaxAttempts                  int                 `json:"max_attempts"`
-	SessionID                    string              `json:"session_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
-	LastActivityAt               time.Time           `json:"last_activity_at"`
-	AgeMilli                     int64               `json:"age_ms"`
-	HealthStatus                 string              `json:"health_status"`
-	Stuck                        bool                `json:"stuck"`
-	Error                        string              `json:"error,omitempty"`
+	TaskID         string             `json:"task_id"`
+	TaskIdentifier string             `json:"task_identifier,omitempty"`
+	TaskTitle      string             `json:"task_title"`
+	TaskStatus     taskpkg.Status     `json:"task_status"`
+	TaskPriority   taskpkg.Priority   `json:"task_priority,omitempty"`
+	TaskOwner      *taskpkg.Ownership `json:"task_owner,omitempty"`
+	Scope          taskpkg.Scope      `json:"scope"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	LatestEventSeq int64              `json:"latest_event_seq"`
+	RunID          string             `json:"run_id"`
+	RunStatus      taskpkg.RunStatus  `json:"run_status"`
+	Attempt        int                `json:"attempt"`
+	MaxAttempts    int                `json:"max_attempts"`
+	SessionID      string             `json:"session_id,omitempty"`
+	LastActivityAt time.Time          `json:"last_activity_at"`
+	AgeMilli       int64              `json:"age_ms"`
+	HealthStatus   string             `json:"health_status"`
+	Stuck          bool               `json:"stuck"`
+	Error          string             `json:"error,omitempty"`
 }
 
 // TaskDashboardFreshnessPayload exposes recency and stale-warning state for the dashboard snapshot.

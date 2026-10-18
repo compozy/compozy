@@ -26,14 +26,10 @@ compozy task fan-out <task-id> [flags]
 ### Options
 
 ```
-      --designation stringArray           Designation brief for one sibling run; repeatable
-  -h, --help                              help for fan-out
-      --idempotency-key string            Fan-out idempotency key
-      --network string                    Network participation mode: local or live
-      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
-      --network-channel string            Named channel id when strategy is named
-      --network-channel-strategy string   Live channel strategy: named, run, or loop_run
-      --worktree-per-run                  Create a dedicated worktree for each run
+      --designation stringArray   Designation brief for one sibling run; repeatable
+  -h, --help                      help for fan-out
+      --idempotency-key string    Fan-out idempotency key
+      --worktree-per-run          Create a dedicated worktree for each run
 ```
 
 ### Options inherited from parent commands

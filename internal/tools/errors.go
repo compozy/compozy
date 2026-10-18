@@ -37,6 +37,11 @@ var (
 // ErrorCode is the stable public tool error code.
 type ErrorCode string
 
+const ErrorCodeSessionMessageHopLimit ErrorCode = "message_hop_limit"
+
+// ErrorCodeSessionMessageRateLimited reports an exhausted per sender→target session message budget.
+const ErrorCodeSessionMessageRateLimited ErrorCode = "message_rate_limited"
+
 const (
 	// ErrorCodeNotFound maps to ErrToolNotFound.
 	ErrorCodeNotFound ErrorCode = "tool_not_found"
@@ -50,6 +55,8 @@ const (
 	ErrorCodeApprovalRequired ErrorCode = "tool_approval_required"
 	// ErrorCodeInvalidInput maps to ErrToolInvalidInput.
 	ErrorCodeInvalidInput ErrorCode = "tool_invalid_input"
+	// ErrorCodeInvalidRequest reports a native tool request validation failure.
+	ErrorCodeInvalidRequest ErrorCode = "invalid_request"
 	// ErrorCodeResultTooLarge maps to ErrToolResultTooLarge.
 	ErrorCodeResultTooLarge ErrorCode = "tool_result_too_large"
 	// ErrorCodeResultPersistenceFailed maps to ErrToolResultPersistence.
@@ -66,6 +73,10 @@ const (
 	ErrorCodeReasoningEffortUnsupported ErrorCode = "reasoning_effort_unsupported"
 	// ErrorCodeAgentNameReserved reports an authored agent identity reserved for daemon roles.
 	ErrorCodeAgentNameReserved ErrorCode = "agent_name_reserved"
+	// ErrorCodeSessionBusy reports exclusive prompt admission contention.
+	ErrorCodeSessionBusy ErrorCode = "session_busy"
+	// ErrorCodeCompactionUnsupported reports a missing native compaction capability.
+	ErrorCodeCompactionUnsupported ErrorCode = "compaction_unsupported"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.
@@ -74,8 +85,8 @@ type ToolError struct {
 	ToolID        ToolID           `json:"tool_id,omitempty"`
 	Message       string           `json:"message"`
 	ReasonCodes   []ReasonCode     `json:"reason_codes,omitempty"`
-	Operator      *OperatorFailure `json:"operator,omitempty"`
-	PartialResult *ToolResult      `json:"partial_result,omitempty"`
+	Operator      *OperatorFailure `json:"operator,omitzero"`
+	PartialResult *ToolResult      `json:"partial_result,omitzero"`
 	Err           error            `json:"-"`
 }
 
@@ -85,8 +96,7 @@ func (e *ToolError) WithPartialResult(result ToolResult) *ToolError {
 		return nil
 	}
 	cloned := *e
-	partial := cloneToolResult(result)
-	cloned.PartialResult = &partial
+	cloned.PartialResult = new(cloneToolResult(result))
 	return &cloned
 }
 

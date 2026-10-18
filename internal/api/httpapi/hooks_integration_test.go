@@ -13,7 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -116,10 +115,8 @@ func TestHTTPHookCatalogEndpointFiltersWorkspaceScopedHooks(t *testing.T) {
 				t.Fatalf("Resolve() ref = %q, want alpha", ref)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-alpha",
-					RootDir: "/workspace/alpha",
-				},
+				ID:          "ws-alpha",
+				RootDir:     "/workspace/alpha",
 				WorkspaceID: "ws-alpha",
 			}, nil
 		},
@@ -140,59 +137,6 @@ func TestHTTPHookCatalogEndpointFiltersWorkspaceScopedHooks(t *testing.T) {
 	}
 	if response.Hooks[0].Name != "workspace-alpha" || response.Hooks[0].Source != "config" {
 		t.Fatalf("hooks[0] = %#v", response.Hooks[0])
-	}
-}
-
-func TestHTTPHookRunsEndpointReturnsExecutionHistoryWithPatchDiffs(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	observer := newHookIntegrationObserver(t, homePaths)
-	sessionID := "sess-history"
-	db := openHookRunSessionDB(t, homePaths, sessionID)
-	recordedAt := time.Date(2026, 4, 9, 18, 30, 0, 0, time.UTC)
-	if err := db.RecordHookRun(testutilpkg.Context(t), hookspkg.HookRunRecord{
-		HookName:      "permission-history",
-		Event:         hookspkg.HookPermissionRequest,
-		Source:        hookspkg.HookSourceConfig,
-		Mode:          hookspkg.HookModeSync,
-		Duration:      15 * time.Millisecond,
-		Outcome:       hookspkg.HookRunOutcomeDenied,
-		DispatchDepth: 2,
-		PatchApplied:  []byte(`{"decision":"deny","reason":"policy"}`),
-		Required:      true,
-		RecordedAt:    recordedAt,
-	}); err != nil {
-		t.Fatalf("RecordHookRun() error = %v", err)
-	}
-	closeHookRunSessionDB(t, db)
-
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return newSessionInfo(id), nil
-		},
-	}
-
-	engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/hooks/runs?session="+sessionID,
-		nil,
-	)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
-
-	var response struct {
-		Runs []contract.HookRunPayload `json:"runs"`
-	}
-	decodeJSONResponse(t, recorder, &response)
-	if got, want := len(response.Runs), 1; got != want {
-		t.Fatalf("len(runs) = %d, want %d", got, want)
-	}
-	if response.Runs[0].HookName != "permission-history" ||
-		string(response.Runs[0].PatchApplied) != `{"decision":"deny","reason":"policy"}` {
-		t.Fatalf("runs[0] = %#v", response.Runs[0])
 	}
 }
 
@@ -405,7 +349,7 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 					deny := "deny"
 					return hookspkg.PermissionRequestPatch{
 						Decision: &deny,
-						Reason:   hookStringPointer("policy"),
+						Reason:   new("policy"),
 					}, nil
 				},
 			),
@@ -413,11 +357,9 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 	)
 
 	_, err := hooksRuntime.DispatchPermissionRequest(testutilpkg.Context(t), hookspkg.PermissionRequestPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookPermissionRequest},
-		SessionContext: hookspkg.SessionContext{
-			SessionID: sessionID,
-		},
-		Decision: "allow",
+		Event:     hookspkg.HookPermissionRequest,
+		SessionID: sessionID,
+		Decision:  "allow",
 	})
 	if err != nil {
 		t.Fatalf("DispatchPermissionRequest() error = %v", err)
@@ -553,16 +495,13 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 		t.Fatalf("OpenSessionDB(%q) error = %v", sessionID, err)
 	}
 	if err := store.WriteSessionMeta(
-		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
-		store.SessionMeta{
-			ID:                   sessionID,
-			AgentName:            "coder",
-			WorkspaceID:          "ws-http-hooks",
-			State:                "stopped",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		},
-	); err != nil {
+		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)), &store.SessionMeta{
+			ID:            sessionID,
+			AgentName:     "coder",
+			WorkspaceID:   "ws-http-hooks",
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+		}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", sessionID, err)
 	}
 	return db
@@ -576,8 +515,4 @@ func closeHookRunSessionDB(t *testing.T, db *sessiondb.SessionDB) {
 	if err := db.Close(ctx); err != nil {
 		t.Fatalf("SessionDB.Close() error = %v", err)
 	}
-}
-
-func hookStringPointer(value string) *string {
-	return &value
 }

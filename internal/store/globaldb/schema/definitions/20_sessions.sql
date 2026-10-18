@@ -12,6 +12,9 @@ CREATE TABLE session_input_clear_traces (
 CREATE INDEX idx_session_input_clear_traces_pending
     ON session_input_clear_traces(session_id, created_at, entry_id) WHERE projected_at IS NULL;
 
+CREATE INDEX idx_session_input_clear_traces_session
+    ON session_input_clear_traces(session_id);
+
 CREATE TABLE session_creation_profiles (
 		profile_ref TEXT PRIMARY KEY CHECK (length(trim(profile_ref)) > 0),
 		profile_json TEXT NOT NULL CHECK (json_valid(profile_json)),
@@ -48,6 +51,7 @@ CREATE TABLE session_health (
 		authored_text TEXT NOT NULL DEFAULT '',
 		skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 		attachments_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(attachments_json)),
+		origin_json TEXT,
 		runtime_provider TEXT NOT NULL DEFAULT '',
 		runtime_model TEXT NOT NULL DEFAULT '',
 		runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
@@ -68,6 +72,7 @@ CREATE TABLE session_health (
 	);
 
 	CREATE TABLE session_input_queue (
+			goal_input_batch_max_rowid INTEGER CHECK (goal_input_batch_max_rowid IS NULL OR goal_input_batch_max_rowid >= 0),
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 			prompt_admission_id TEXT REFERENCES session_prompt_admissions(id) ON DELETE SET NULL,
@@ -85,6 +90,7 @@ CREATE TABLE session_health (
 			synthetic_prompt_json TEXT CHECK (synthetic_prompt_json IS NULL OR json_valid(synthetic_prompt_json)),
 			skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 			attachments_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(attachments_json)),
+		origin_json TEXT,
 			runtime_provider TEXT NOT NULL DEFAULT '',
 			runtime_model TEXT NOT NULL DEFAULT '',
 			runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
@@ -104,7 +110,9 @@ CREATE TABLE session_health (
 			updated_at TEXT NOT NULL
 		, loop_run_id TEXT, owner_kind TEXT, owner_epoch INTEGER, binding_epoch INTEGER, prompt_id TEXT, prompt_kind TEXT, operation_usage_base_tokens INTEGER, prompt_attempt INTEGER NOT NULL DEFAULT 0 CHECK (prompt_attempt >= 0), dispatchable INTEGER NOT NULL DEFAULT 1 CHECK (dispatchable IN (0,1)), activated_at TIMESTAMP, dispatch_token_hash TEXT, fence_kind TEXT, fence_disposition TEXT, fence_reason_code TEXT, fenced_at TIMESTAMP, terminal_event_start_seq INTEGER, terminal_event_end_seq INTEGER, terminal_kind TEXT, terminal_stop_reason TEXT, terminal_disposition TEXT, terminal_reason_code TEXT, terminal_tokens_reported INTEGER NOT NULL DEFAULT 0
 				CHECK (terminal_tokens_reported IN (0,1)), terminal_tokens_used INTEGER
-				CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0), terminal_at TIMESTAMP);
+				CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0), terminal_at TIMESTAMP, priority INTEGER NOT NULL DEFAULT 0,
+			origin_class TEXT NOT NULL DEFAULT 'human' CHECK (origin_class IN ('human', 'agent', 'synthetic')),
+			origin_session_id TEXT NOT NULL DEFAULT '');
 
 CREATE TABLE sessions (
 		id             TEXT PRIMARY KEY,
@@ -158,31 +166,36 @@ CREATE TABLE sessions (
 		last_seen_revision INTEGER NOT NULL DEFAULT 0 CHECK (last_seen_revision >= 0),
 		last_seen_at TEXT,
 		attention_changed_at TEXT,
-		sandbox_id TEXT NOT NULL DEFAULT '',
-		sandbox_backend TEXT NOT NULL DEFAULT 'local',
-		sandbox_profile TEXT NOT NULL DEFAULT '',
-		sandbox_instance_id TEXT NOT NULL DEFAULT '',
-		sandbox_state TEXT NOT NULL DEFAULT '',
-		sandbox_provider_state_json TEXT NOT NULL DEFAULT '',
-		sandbox_last_sync_at TEXT,
-		sandbox_last_sync_error TEXT NOT NULL DEFAULT '',
 		created_at     TEXT NOT NULL,
 		updated_at     TEXT NOT NULL
 	, failure_kind TEXT, failure_summary TEXT NOT NULL DEFAULT '', crash_bundle_path TEXT NOT NULL DEFAULT '', parent_session_id TEXT, root_session_id TEXT, spawn_depth INTEGER NOT NULL DEFAULT 0, spawn_role TEXT, ttl_expires_at TEXT, auto_stop_on_parent BOOLEAN NOT NULL DEFAULT 0, notify_creator BOOLEAN NOT NULL DEFAULT 1, spawn_budget_json TEXT NOT NULL DEFAULT '{}', permission_policy_json TEXT NOT NULL DEFAULT '{}', soul_snapshot_id TEXT
 				REFERENCES agent_soul_snapshots(id) ON DELETE SET NULL, soul_digest TEXT NOT NULL DEFAULT '', parent_soul_digest TEXT NOT NULL DEFAULT '', input_generation INTEGER NOT NULL DEFAULT 0, creation_digest TEXT
 				CHECK (creation_digest IS NULL OR length(trim(creation_digest)) > 0), policy_spec_digest TEXT
 				CHECK (policy_spec_digest IS NULL OR length(trim(policy_spec_digest)) > 0), creation_profile_ref TEXT
-				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), network_spec_json TEXT NOT NULL DEFAULT '{"version":"network-participation/v1","mode":"local","source":"built_in_local"}'
-				CHECK (json_valid(network_spec_json)), network_mode TEXT NOT NULL DEFAULT 'local'
-				CHECK (network_mode IN ('local', 'live')), network_channel TEXT, network_source TEXT NOT NULL DEFAULT 'built_in_local'
-				CHECK (network_source IN (
-					'explicit_request', 'task_profile', 'workspace_coordination',
-					'loop_definition', 'automation_job', 'built_in_local'
-				)),
+				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), lineage_kind TEXT NOT NULL DEFAULT ''
+				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
 		UNIQUE (workspace_id, id));
+
+CREATE TABLE session_derivations (
+		workspace_id TEXT NOT NULL,
+		idempotency_key TEXT NOT NULL,
+		profile_id TEXT NOT NULL,
+		request_fingerprint TEXT NOT NULL,
+		source_session_id TEXT NOT NULL,
+		child_session_id TEXT NOT NULL,
+		kind TEXT NOT NULL CHECK (kind IN ('continue', 'fork')),
+		outcome_json TEXT NOT NULL CHECK (json_valid(outcome_json)),
+		created_at TEXT NOT NULL,
+		child_deleted_at TEXT,
+		PRIMARY KEY (workspace_id, idempotency_key)
+	);
+
+CREATE INDEX idx_session_derivations_source ON session_derivations(source_session_id);
+
+CREATE INDEX idx_session_derivations_child ON session_derivations(child_session_id);
 
 CREATE TABLE session_pending_interactions (
 		interaction_id TEXT PRIMARY KEY CHECK (length(trim(interaction_id)) > 0),
@@ -254,7 +267,7 @@ CREATE INDEX idx_session_input_queue_goal_owner
 			ON session_input_queue(loop_run_id, task_run_id, owner_epoch, status, dispatchable, fence_kind);
 
 	CREATE INDEX idx_session_input_queue_pending
-			ON session_input_queue(session_id, status, delivery DESC, enqueued_at ASC, id ASC);
+			ON session_input_queue(session_id, status, origin_class, delivery DESC, priority DESC, enqueued_at ASC, id ASC);
 
 	CREATE UNIQUE INDEX uq_session_input_queue_prompt_admission
 			ON session_input_queue(prompt_admission_id)
@@ -265,6 +278,23 @@ CREATE INDEX idx_session_input_queue_goal_owner
 
 CREATE INDEX idx_sessions_attach_lock
 			ON sessions(attached_to, attach_expires_at);
+
+CREATE INDEX idx_sessions_global_catalog_recent
+ ON sessions(archived_at, updated_at DESC, created_at DESC, id DESC);
+
+CREATE INDEX idx_sessions_global_catalog_activity
+ ON sessions(archived_at, COALESCE(last_update_at, updated_at) DESC, updated_at DESC, created_at DESC, id DESC);
+
+CREATE INDEX idx_sessions_global_catalog_attention
+ ON sessions(archived_at, (CASE
+ WHEN (stop_verification_failed = 1 AND state <> 'stopped')
+ OR pending_permission_count > 0 OR pending_clarify_count > 0
+ OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure')
+ OR (state = 'stopped' AND trim(COALESCE(failure_kind, '')) <> '' AND trim(COALESCE(failure_kind, '')) <> 'cancellation') THEN 0
+ WHEN state = 'active' AND trim(COALESCE(stall_state, '')) <> 'stalled'
+ AND trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) = ''
+ AND last_settled_revision > last_seen_revision THEN 1
+ ELSE 2 END), COALESCE(attention_changed_at, updated_at) DESC, updated_at DESC, created_at DESC, id DESC);
 
 CREATE INDEX idx_sessions_catalog_activity
 			ON sessions(
@@ -283,6 +313,60 @@ CREATE INDEX idx_sessions_catalog_recent
 
 CREATE INDEX idx_sessions_profile_catalog_recent
 			ON sessions(profile_id, workspace_id, state, updated_at DESC, created_at DESC, id DESC);
+
+CREATE INDEX idx_sessions_global_catalog_navigator
+ ON sessions(archived_at, (CASE
+ WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
+ WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' THEN 3
+ WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
+ WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
+ ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
+
+CREATE INDEX idx_sessions_profile_global_catalog_navigator
+ ON sessions(profile_id, archived_at, (CASE
+ WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
+ WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' THEN 3
+ WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
+ WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
+ ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
+
+CREATE INDEX idx_sessions_workspace_catalog_navigator
+ ON sessions(workspace_id, archived_at, (CASE
+ WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
+ WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' THEN 3
+ WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
+ WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
+ ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
+
+CREATE INDEX idx_sessions_profile_workspace_catalog_navigator
+ ON sessions(profile_id, workspace_id, archived_at, (CASE
+ WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
+ WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' THEN 3
+ WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
+ WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
+ ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
+
+CREATE INDEX idx_sessions_catalog_created
+ ON sessions(workspace_id, archived_at, created_at DESC, id DESC);
+
+CREATE INDEX idx_sessions_profile_catalog_created
+ ON sessions(profile_id, workspace_id, archived_at, created_at DESC, id DESC);
 
 CREATE INDEX idx_sessions_catalog_archive_recent
 			ON sessions(
@@ -333,14 +417,98 @@ CREATE TRIGGER trg_sessions_archive_update_guard
 
 CREATE INDEX idx_token_stats_session ON token_stats(session_id);
 
+CREATE INDEX idx_token_stats_updated ON token_stats(updated_at);
+
 CREATE UNIQUE INDEX idx_token_stats_session_agent ON token_stats(session_id, agent_name);
 
 CREATE INDEX idx_token_usage_daily_workspace ON token_usage_daily(workspace_id, day);
 
 CREATE UNIQUE INDEX uq_session_input_queue_active_steer
-			ON session_input_queue(session_id)
+			ON session_input_queue(session_id, origin_session_id)
 			WHERE mode = 'steer' AND status = 'queued';
 
 CREATE UNIQUE INDEX uq_session_input_queue_goal_prompt
 			ON session_input_queue(loop_run_id, prompt_id)
 			WHERE prompt_id IS NOT NULL;
+
+CREATE UNIQUE INDEX uq_session_input_queue_synthetic_message
+ ON session_input_queue(session_id, message_id)
+ WHERE owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching');
+
+CREATE TABLE session_subagent_wakes (
+ wake_message_id TEXT PRIMARY KEY,
+ workspace_id TEXT NOT NULL,
+ parent_session_id TEXT NOT NULL,
+ state TEXT NOT NULL CHECK (state IN ('open','dispatched','settled','canceled')),
+ route TEXT NOT NULL CHECK (route IN ('queue','steer')),
+ input_entry_id TEXT NOT NULL DEFAULT '',
+ steer_requeued INTEGER NOT NULL DEFAULT 0,
+ attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ FOREIGN KEY (workspace_id, parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE
+);
+CREATE INDEX idx_session_subagent_wakes_parent_state ON session_subagent_wakes(parent_session_id,state);
+CREATE UNIQUE INDEX uq_session_subagent_wakes_open ON session_subagent_wakes(parent_session_id) WHERE state = 'open';
+
+CREATE TABLE session_subagents (
+ id TEXT PRIMARY KEY,
+ workspace_id TEXT NOT NULL,
+ parent_session_id TEXT NOT NULL,
+ parent_turn_id TEXT NOT NULL,
+ parent_tool_call_id TEXT NOT NULL DEFAULT '',
+ child_session_id TEXT UNIQUE REFERENCES sessions(id) ON DELETE SET NULL,
+ origin TEXT NOT NULL CHECK (origin IN ('delegated','provider_native')),
+ provider_tool_call_id TEXT NOT NULL DEFAULT '',
+ idempotency_key TEXT NOT NULL,
+ request_fingerprint TEXT NOT NULL,
+ title TEXT NOT NULL CHECK (length(title) <= 512),
+ role TEXT NOT NULL DEFAULT 'general',
+ task_chars INTEGER NOT NULL,
+ pending_task TEXT,
+ runtime_agent TEXT NOT NULL DEFAULT '',
+ runtime_provider TEXT NOT NULL DEFAULT '',
+ runtime_model TEXT NOT NULL DEFAULT '',
+ runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
+ runtime_speed TEXT NOT NULL DEFAULT '',
+ depth INTEGER NOT NULL CHECK (depth >= 1),
+ status TEXT NOT NULL CHECK (status IN ('queued','running','waiting','completed','failed','canceled','interrupted')),
+ work_state TEXT NOT NULL CHECK (work_state IN ('working','waiting_for_children','result_available')),
+ progress TEXT NOT NULL DEFAULT '' CHECK (length(progress) <= 280),
+ result TEXT,
+ result_truncated INTEGER NOT NULL DEFAULT 0,
+ error TEXT,
+ wake_policy TEXT NOT NULL CHECK (wake_policy IN ('always','settled_only')),
+ delivery TEXT NOT NULL DEFAULT 'none' CHECK (delivery IN ('none','pending','claimed','delivered','acknowledged','disposed')),
+ wake_message_id TEXT REFERENCES session_subagent_wakes(wake_message_id) ON DELETE SET NULL,
+ acknowledged_turn_id TEXT NOT NULL DEFAULT '',
+ started_at TEXT,
+ settled_at TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ isolation TEXT NOT NULL DEFAULT 'shared' CHECK (isolation IN ('shared','worktree')),
+ worktree_id TEXT,
+ worktree_name TEXT,
+ worktree_branch TEXT,
+ worktree_base_ref TEXT,
+ worktree_path TEXT,
+ worktree_base_sha TEXT,
+ worktree_cleanup TEXT CHECK (worktree_cleanup IN ('pending','done')),
+ git_head_sha TEXT,
+ git_commits_ahead INTEGER,
+ git_dirty_files INTEGER,
+ git_observed_at TEXT,
+ pr_status TEXT CHECK (pr_status IN ('unknown','none','open','draft','merged','closed')),
+ pr_url TEXT,
+ pr_number INTEGER,
+ FOREIGN KEY (workspace_id,parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE,
+ UNIQUE (parent_session_id,idempotency_key)
+);
+CREATE INDEX idx_session_subagents_parent_created ON session_subagents(parent_session_id,created_at);
+CREATE INDEX idx_session_subagents_workspace_status ON session_subagents(workspace_id,status);
+CREATE INDEX idx_session_subagents_workspace_created ON session_subagents(workspace_id,created_at DESC,id DESC);
+CREATE INDEX idx_session_subagents_wake_created ON session_subagents(wake_message_id,created_at,id);
+CREATE INDEX idx_session_subagents_parent_delivery ON session_subagents(parent_session_id,delivery) WHERE delivery IN ('pending','claimed');
+CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_session_id,provider_tool_call_id) WHERE origin = 'provider_native';
+
+CREATE INDEX idx_session_subagents_worktree_cleanup ON session_subagents(worktree_cleanup) WHERE worktree_cleanup = 'pending';

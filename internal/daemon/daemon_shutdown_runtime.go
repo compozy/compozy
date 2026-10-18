@@ -1,6 +1,9 @@
 package daemon
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
 	if targets.backgroundUpdates != nil {
@@ -8,22 +11,6 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 	}
 	if targets.clarify != nil {
 		appendWrappedError(errs, "daemon: close clarification broker", targets.clarify.Close(ctx))
-	}
-	if targets.networkWakeRunner != nil {
-		appendWrappedError(errs, "daemon: shutdown network wake runner", targets.networkWakeRunner.Shutdown(ctx))
-	}
-	if targets.dreamRuntime != nil {
-		targets.dreamRuntime.Shutdown()
-	}
-	if targets.memoryExtractor != nil {
-		appendWrappedError(errs, "daemon: shutdown memory extractor", targets.memoryExtractor.Close(ctx))
-	}
-	if targets.memoryStore != nil {
-		appendWrappedError(
-			errs,
-			"daemon: shutdown recall signal recorders",
-			targets.memoryStore.CloseRecallSignalRecorders(ctx),
-		)
 	}
 	if targets.modelCatalog != nil {
 		appendWrappedError(errs, "daemon: shutdown model catalog", targets.modelCatalog.Shutdown(ctx))
@@ -87,13 +74,22 @@ func (d *Daemon) shutdownSessionTargets(ctx context.Context, targets *shutdownTa
 	d.shutdownRuntimeSessions(ctx, targets, errs)
 }
 
+type replyWatchQuiescer interface {
+	QuiesceReplyWatches(context.Context) error
+}
+
 func (d *Daemon) shutdownRuntimeSessions(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	// Reply watches close first: a target that settles while sessions stop must not resume a sender
+	// being stopped; its fired watch is delivered by the next boot's recovery.
+	if quiescer, ok := targets.sessions.(replyWatchQuiescer); ok {
+		if err := quiescer.QuiesceReplyWatches(ctx); err != nil {
+			*errs = append(*errs, fmt.Errorf("daemon: quiesce reply watches: %w", err))
+		}
+	}
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)
 	}
-	if targets.localMemoryProvider != nil {
-		appendWrappedError(errs, "daemon: shutdown local memory provider", targets.localMemoryProvider.Shutdown(ctx))
-	}
+
 	if err := d.shutdownSessionManager(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)
 	}

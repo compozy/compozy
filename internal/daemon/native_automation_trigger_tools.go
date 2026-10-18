@@ -33,7 +33,11 @@ func (n *daemonNativeTools) automationTriggersGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	payload := core.TriggerPayloadFromTrigger(trigger)
+	payloads, err := n.automationTriggerPayloads(ctx, []automationpkg.Trigger{trigger})
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
+	}
+	payload := payloads[0]
 	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
 }
 
@@ -335,7 +339,21 @@ func (n *daemonNativeTools) automationJobPayloads(
 	if err != nil {
 		return nil, err
 	}
-	return core.JobPayloadsFromJobs(jobs, stateByID), nil
+	ids := make([]string, len(jobs))
+	for i, job := range jobs {
+		ids[i] = job.ID
+	}
+	runs, err := n.automationManager().LatestRunsByOwner(ctx, automationpkg.RunOwnerJob, ids)
+	if err != nil {
+		return nil, err
+	}
+	payloads := core.JobPayloadsFromJobs(jobs, stateByID)
+	for i := range payloads {
+		if run, ok := runs[payloads[i].ID]; ok {
+			payloads[i].LastRun = core.AutomationLastRunPayloadFromRun(run)
+		}
+	}
+	return payloads, nil
 }
 
 func (n *daemonNativeTools) automationJobPayload(

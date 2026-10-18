@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// RunReadAuthorizer owns task-backed and taskless run-read policy.
+// RunReadAuthorizer owns task run-read policy.
 type RunReadAuthorizer interface {
 	AuthorizeRunRead(ctx context.Context, actor ActorContext, run Run, task *Task) error
 }
@@ -33,21 +33,5 @@ func (a taskRunReadAuthorizer) AuthorizeRunRead(
 		}
 		return nil
 	}
-	return authorizeTasklessRunRead(actor, run)
-}
-
-func authorizeTasklessRunRead(actor ActorContext, run Run) error {
-	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon {
-		return nil
-	}
-	if run.RunKind.Normalize() != RunKindNetworkWake || actor.Actor.Kind.Normalize() != ActorKindAgentSession {
-		return ErrPermissionDenied
-	}
-
-	_, targetSessionID, _ := run.NetworkWakeCorrelation()
-	if strings.TrimSpace(actor.Scope.SessionID) != strings.TrimSpace(targetSessionID) ||
-		strings.TrimSpace(actor.Scope.WorkspaceID) != strings.TrimSpace(run.WorkspaceID) {
-		return ErrTaskRunNotFound
-	}
-	return nil
+	return ErrTaskRunNotFound
 }

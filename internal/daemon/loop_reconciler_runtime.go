@@ -12,13 +12,14 @@ import (
 )
 
 type loopReconcilerRuntime struct {
-	reconciler looppkg.RunReconciler
-	interval   time.Duration
-	logger     *slog.Logger
-	cancel     context.CancelFunc
-	done       chan struct{}
-	startOnce  sync.Once
-	stopOnce   sync.Once
+	reconciler      looppkg.RunReconciler
+	interval        time.Duration
+	logger          *slog.Logger
+	cancel          context.CancelFunc
+	done            chan struct{}
+	startOnce       sync.Once
+	stopOnce        sync.Once
+	provenanceReady bool
 }
 
 func newLoopReconcilerRuntime(
@@ -57,6 +58,7 @@ func (r *loopReconcilerRuntime) run(ctx context.Context, ready <-chan struct{}) 
 		r.logger.Error("daemon: Loop provenance backfill failed", "error", err,
 			"duration_ms", time.Since(started).Milliseconds())
 	} else {
+		r.provenanceReady = true
 		r.logger.Info("daemon: Loop provenance backfill complete", "provenance_backfilled", backfilled,
 			"duration_ms", time.Since(started).Milliseconds())
 	}
@@ -77,8 +79,9 @@ func (r *loopReconcilerRuntime) sweep(ctx context.Context) {
 	started := time.Now()
 	report, err := r.reconciler.SweepOnce(ctx)
 	provenanceBackfilled := 0
-	if err == nil {
+	if err == nil && !r.provenanceReady {
 		provenanceBackfilled, err = r.reconciler.BackfillProvenance(ctx)
+		r.provenanceReady = err == nil
 	}
 	attrs := []any{
 		"runs_examined", report.RunsExamined,

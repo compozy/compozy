@@ -124,7 +124,7 @@ function shortcutCommand(
     execution: { retry_safe: true, single_flight: false },
     visible: true,
     available,
-    reason: available ? "" : "runtime unavailable",
+    reason: available ? "" : "CompozyOS isn't reachable right now",
     chords: [],
   } as ResolvedPaletteCommand;
 }
@@ -148,7 +148,7 @@ function shortcutRegistry(
 }
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 4,
+  version: 5,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [],
@@ -214,10 +214,10 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     focusedId: primary.id,
     wallpaper: "ember",
     reduceMotion: false,
-    dockMagnify: true,
     presentation: "floating",
     viewportState: "ready",
     hydration: authoritative ? "live" : "pending",
+    loadError: null,
     connectionStatus: live ? "connected" : "disconnected",
     desktopBounds: { width: 1280, height: 800, origin: { x: 0, y: 0 } },
   };
@@ -260,7 +260,6 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     reopenWindow: vi.fn(() => acceptedOutcome()),
     closeWindowScoped: vi.fn(async () => true),
     setWallpaper: vi.fn(),
-    setDockMagnify: vi.fn(),
     setReduceMotion: vi.fn(),
     setDesktopBounds: vi.fn(),
     createDesktop: vi.fn(),
@@ -1196,6 +1195,26 @@ describe("useWindowMergeTarget", () => {
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
   });
 
+  it("Should not advertise a group target while the layer origin is unmeasured", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
+    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
+      wrapper: shell.wrapper,
+    });
+    result.current.chromeRef.current = chromeWithHead();
+
+    act(() => {
+      beginPrimarySnapGesture();
+      windowManagerStore.trigger.workAreaMeasured({ workArea: null });
+    });
+    act(() => pointerMove(200, 60));
+    frames.flush();
+
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+    expect(result.current.mergeTargeted).toBe(false);
+  });
+
   it("Should preserve a drop target published by a deck", () => {
     const frames = installAnimationFrameQueue();
     const shell = createShell();
@@ -1718,6 +1737,40 @@ describe("useOsZoomMenu", () => {
 });
 
 describe("useOsWinLayer", () => {
+  it("Should wait for layout configuration before exposing restored desktops", () => {
+    const shell = createShell();
+    const desktop = {
+      id: "desktop:main",
+      name: "Main",
+      order: 0,
+      groups: [],
+      floating: ["window:primary"],
+      floatingStacks: [],
+    };
+    const frame = primaryFrame();
+    shell.setRuntimeState({
+      desktops: [desktop],
+      windowManagerConfig: null,
+      hydration: "pending",
+      frames: {},
+    });
+    const { result } = renderHook(() => useOsWinLayer(), { wrapper: shell.wrapper });
+
+    expect(result.current.desktops).toEqual([]);
+
+    act(() => {
+      shell.setRuntimeState({
+        windowManagerConfig: CONFIG,
+        hydration: "live",
+        frames: { [desktop.id]: [frame] },
+      });
+    });
+
+    expect(result.current.desktops).toEqual([
+      { desktop, frames: [frame], active: true, anyVisible: true },
+    ]);
+  });
+
   it("Should refresh the work-area origin when viewport chrome moves without resizing content", () => {
     let callback!: ResizeObserverCallback;
     let observer!: ResizeObserver;

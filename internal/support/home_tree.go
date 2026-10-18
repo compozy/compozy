@@ -1,13 +1,14 @@
 package support
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -133,7 +134,9 @@ func collectHomeTree(ctx context.Context, root string, limit int, excludedDirs .
 	if walkErr != nil {
 		return nil, fmt.Errorf("support: collect home tree: %w", walkErr)
 	}
-	sort.SliceStable(entries, func(i int, j int) bool { return entries[i].Path < entries[j].Path })
+	slices.SortStableFunc(entries, func(a, b HomeTreeEntry) int {
+		return cmp.Compare(a.Path, b.Path)
+	})
 	return entries, nil
 }
 

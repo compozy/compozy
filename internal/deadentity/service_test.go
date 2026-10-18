@@ -367,7 +367,7 @@ func TestServiceFailureClassificationAndIsolation(t *testing.T) {
 		failed := deadEntityTestKey("ws-a")
 		differentWorkspace := deadEntityTestKey("ws-b")
 		differentKind := failed
-		differentKind.Kind = store.DeadEntityKindBridge
+		differentKind.Kind = store.DeadEntityKindLoopTarget
 		differentEntity := failed
 		differentEntity.EntityID = "gitlab"
 		for range DefaultPermanentFailureThreshold {

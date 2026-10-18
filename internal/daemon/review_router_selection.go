@@ -52,13 +52,10 @@ func (r *reviewRouter) routeRunReview(
 		info = created.Info()
 	}
 
-	peerID := reviewRouterPeerID(info)
 	if _, err := r.tasks.BindRunReviewSession(ctx, taskpkg.BindRunReviewSessionRequest{
 		ReviewID:          review.ReviewID,
 		SessionID:         info.ID,
 		ReviewerAgentName: info.AgentName,
-		ReviewerPeerID:    peerID,
-		ReviewerChannelID: info.NetworkParticipation.ChannelID,
 	}, actor); err != nil {
 		if route.create != nil {
 			err = errors.Join(err, r.cleanupCreatedReviewerSession(ctx, info))
@@ -105,7 +102,6 @@ func (r *reviewRouter) selectRoute(
 type originalWorkerIdentity struct {
 	sessionID string
 	agentName string
-	peerID    string
 }
 
 func (r *reviewRouter) originalWorkerIdentity(
@@ -138,7 +134,6 @@ func (r *reviewRouter) originalWorkerIdentity(
 			continue
 		}
 		identity.agentName = strings.TrimSpace(info.AgentName)
-		identity.peerID = reviewRouterPeerID(info)
 		return identity
 	}
 	return identity
@@ -173,7 +168,6 @@ func (r *reviewRouter) requesterIdentity(
 			continue
 		}
 		identity.agentName = strings.TrimSpace(info.AgentName)
-		identity.peerID = reviewRouterPeerID(info)
 		return identity
 	}
 	return identity

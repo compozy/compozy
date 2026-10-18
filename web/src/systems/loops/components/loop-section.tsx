@@ -27,8 +27,8 @@ export function LoopSection({
   ...props
 }: LoopSectionProps) {
   return (
-    <Collapsible className={cn("group/sec mb-6", className)} defaultOpen={defaultOpen} {...props}>
-      <div className="flex min-h-6 items-center gap-2 pb-2.5">
+    <Collapsible className={cn("group/sec", className)} defaultOpen={defaultOpen} {...props}>
+      <div className="flex min-h-6 items-center gap-2 pb-2">
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <span className="shrink-0 text-subtle [&_svg]:size-3.5">{icon}</span>
           <Eyebrow className="text-subtle">{title}</Eyebrow>

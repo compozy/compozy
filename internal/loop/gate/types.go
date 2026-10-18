@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -96,6 +95,7 @@ func GateFromGoalJudge(nodeID string, criteria []dsl.GateCriterion) Gate {
 //
 //revive:disable-next-line:exported // GateInput is the TechSpec contract name.
 type GateInput struct {
+	JudgeParentSessionID     string
 	LoopRunID                string
 	Placement                Placement
 	Contract                 *dsl.Contract
@@ -111,7 +111,6 @@ type GateInput struct {
 	JudgeRuntime             dsl.RuntimeSpec
 	JudgeUsageReporter       JudgeUsageReporter
 	JudgeEvidence            JudgeEvidence
-	NetworkParticipation     *participation.Spec
 }
 
 // JudgeEvidence is the authoritative completed candidate supplied to an agent judge.
@@ -179,13 +178,14 @@ func (o VerdictOutcome) Valid() bool {
 type CriterionResult struct {
 	ID                  string              `json:"id"`
 	Type                dsl.CriterionType   `json:"type"`
+	Prompt              string              `json:"prompt,omitempty"`
 	Outcome             VerdictOutcome      `json:"outcome"`
 	Passed              bool                `json:"passed"`
-	Broken              bool                `json:"broken,omitempty"`
-	ExitCode            *int                `json:"exit_code,omitempty"`
+	Broken              bool                `json:"broken,omitzero"`
+	ExitCode            *int                `json:"exit_code,omitzero"`
 	Stdout              string              `json:"stdout,omitempty"`
 	Stderr              string              `json:"stderr,omitempty"`
-	Score               *float64            `json:"score,omitempty"`
+	Score               *float64            `json:"score,omitzero"`
 	Evidence            json.RawMessage     `json:"evidence,omitempty"`
 	BlockingIssues      []BlockingIssue     `json:"blocking_issues,omitempty"`
 	Warnings            []DiagnosticWarning `json:"warnings,omitempty"`
@@ -241,10 +241,10 @@ type Verdict struct {
 	// Payload carries the first aggregate verdict-source evidence or payload.
 	Payload json.RawMessage `json:"payload,omitempty"`
 	// Broken marks fail-open transport failure; consumers must use Route for control flow.
-	Broken                 bool                `json:"broken,omitempty"`
+	Broken                 bool                `json:"broken,omitzero"`
 	Warnings               []DiagnosticWarning `json:"warnings,omitempty"`
 	Route                  RouteDecision       `json:"route"`
-	NextBrokenJudgeStreak  int                 `json:"next_broken_judge_streak,omitempty"`
+	NextBrokenJudgeStreak  int                 `json:"next_broken_judge_streak,omitzero"`
 	BlockingIssueSignature []string            `json:"blocking_issue_signature,omitempty"`
 }
 
@@ -277,18 +277,18 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
-	LoopRunID            string
-	GateID               string
-	CriterionID          string
-	Attempt              int
-	CorrelationID        string
-	ProfileID            string
-	WorkspaceID          string
-	Agent                string
-	Runtime              dsl.RuntimeSpec
-	Rubric               string
-	Contract             dsl.Contract
-	NetworkParticipation *participation.Spec
+	ParentSessionID string
+	LoopRunID       string
+	GateID          string
+	CriterionID     string
+	Attempt         int
+	CorrelationID   string
+	ProfileID       string
+	WorkspaceID     string
+	Agent           string
+	Runtime         dsl.RuntimeSpec
+	Rubric          string
+	Contract        dsl.Contract
 }
 
 // JudgeResponse is the raw judge response payload.

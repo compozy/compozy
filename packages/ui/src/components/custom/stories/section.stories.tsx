@@ -28,7 +28,7 @@ export const Basic: Story = {
       <Section label="Routes">
         <ul className="divide-y divide-line text-sm text-muted">
           <li className="py-2">/runtime/sessions</li>
-          <li className="py-2">/runtime/memory</li>
+          <li className="py-2">/runtime/vault</li>
           <li className="py-2">/runtime/skills</li>
         </ul>
       </Section>

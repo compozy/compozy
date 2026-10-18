@@ -22,9 +22,12 @@ function actionErrorMessage(error: unknown, fallback: string): string {
 
 export function AutomationSuggestionsPanel({
   className,
+  timeZone,
   workspaceID,
 }: {
   className?: string;
+  /** The global automation time zone the suggested schedules read in. */
+  timeZone?: string;
   workspaceID: string;
 }) {
   const suggestionsQuery = useAutomationSuggestions(workspaceID);
@@ -69,6 +72,7 @@ export function AutomationSuggestionsPanel({
 
   return (
     <AutomationSuggestionsCard
+      timeZone={timeZone}
       actionErrors={actionErrors}
       className={className}
       errorMessage={suggestionsQuery.isError ? LOAD_ERROR : null}

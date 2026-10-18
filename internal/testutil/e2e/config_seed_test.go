@@ -8,7 +8,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 )
 
 func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
@@ -69,27 +68,27 @@ func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
 	}
 }
 
-func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
+func TestSeedConfigPersistsLogOverlay(t *testing.T) {
 	t.Parallel()
 
-	homePaths := NewHomePaths(t)
-	SeedConfig(t, homePaths, ConfigSeedOptions{
-		Mutate: func(cfg *compozyconfig.Config) {
-			cfg.Network.Enabled = false
-			cfg.Network.Live.Defaults.MaxWakes = 12
-		},
-	})
+	t.Run("Should persist the log overlay in seeded config", func(t *testing.T) {
+		t.Parallel()
 
-	loaded, err := compozyconfig.LoadForHome(homePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome() error = %v", err)
-	}
-	if loaded.Network.Enabled {
-		t.Fatal("loaded.Network.Enabled = true, want false")
-	}
-	if got, want := loaded.Network.Live.Defaults.MaxWakes, 12; got != want {
-		t.Fatalf("loaded.Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
-	}
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Log.Level = "debug"
+			},
+		})
+
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Log.Level != "debug" {
+			t.Fatalf("loaded.Log.Level = %q, want debug", loaded.Log.Level)
+		}
+	})
 }
 
 func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
@@ -101,7 +100,7 @@ func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
 		homePaths := NewHomePaths(t)
 		SeedConfig(t, homePaths, ConfigSeedOptions{
 			Mutate: func(cfg *compozyconfig.Config) {
-				cfg.Roles.Dream.Model = "routed-dream-model"
+				cfg.Roles.AutoTitle.Model = "routed-auto-title-model"
 				cfg.Roles.AutoTitle.Enabled = false
 			},
 		})
@@ -110,39 +109,8 @@ func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		if loaded.Roles.Dream.Model != "routed-dream-model" || loaded.Roles.AutoTitle.Enabled {
-			t.Fatalf("LoadForHome().Roles = %#v, want routed dream and disabled auto-title", loaded.Roles)
-		}
-	})
-}
-
-func TestSeedConfigPersistsMemoryOverlay(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should persist memory mutations in seeded config", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths := NewHomePaths(t)
-		SeedConfig(t, homePaths, ConfigSeedOptions{
-			Mutate: func(cfg *compozyconfig.Config) {
-				cfg.Memory.Dream.MinSessions = 1
-				cfg.Memory.Dream.Gates.MinUnpromoted = 1
-				cfg.Memory.Dream.Gates.MinRecallCount = 1
-			},
-		})
-
-		loaded, err := compozyconfig.LoadForHome(homePaths)
-		if err != nil {
-			t.Fatalf("LoadForHome() error = %v", err)
-		}
-		if got, want := loaded.Memory.Dream.MinSessions, 1; got != want {
-			t.Fatalf("loaded.Memory.Dream.MinSessions = %d, want %d", got, want)
-		}
-		if got, want := loaded.Memory.Dream.Gates.MinUnpromoted, 1; got != want {
-			t.Fatalf("loaded.Memory.Dream.Gates.MinUnpromoted = %d, want %d", got, want)
-		}
-		if got, want := loaded.Memory.Dream.Gates.MinRecallCount, 1; got != want {
-			t.Fatalf("loaded.Memory.Dream.Gates.MinRecallCount = %d, want %d", got, want)
+		if loaded.Roles.AutoTitle.Model != "routed-auto-title-model" || loaded.Roles.AutoTitle.Enabled {
+			t.Fatalf("LoadForHome().Roles = %#v, want routed auto-title and disabled auto-title", loaded.Roles)
 		}
 	})
 }
@@ -238,53 +206,6 @@ func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 	})
 }
 
-func TestSeedConfigPersistsSandboxProfilesAndDefault(t *testing.T) {
-	t.Parallel()
-
-	homePaths := NewHomePaths(t)
-	SeedConfig(t, homePaths, ConfigSeedOptions{
-		DefaultSandbox: "local-sandbox",
-		Sandboxes: map[string]compozyconfig.SandboxProfile{
-			"local-sandbox": {
-				Backend:     "local",
-				Persistence: "reuse",
-				RuntimeRoot: "/workspace/runtime",
-				Env: map[string]string{
-					"APP_MODE": "test",
-				},
-			},
-		},
-	})
-
-	loaded, err := compozyconfig.LoadForHome(homePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome() error = %v", err)
-	}
-	if got, want := loaded.Defaults.Sandbox, "local-sandbox"; got != want {
-		t.Fatalf("loaded.Defaults.Sandbox = %q, want %q", got, want)
-	}
-
-	resolved, err := loaded.ResolveSandbox("local-sandbox")
-	if err != nil {
-		t.Fatalf("ResolveSandbox(local-sandbox) error = %v", err)
-	}
-	if got, want := resolved.Backend, sandbox.BackendLocal; got != want {
-		t.Fatalf("resolved.Backend = %q, want %q", got, want)
-	}
-	if got, want := resolved.Profile, "local-sandbox"; got != want {
-		t.Fatalf("resolved.Profile = %q, want %q", got, want)
-	}
-	if got, want := resolved.RuntimeRootDir, "/workspace/runtime"; got != want {
-		t.Fatalf("resolved.RuntimeRootDir = %q, want %q", got, want)
-	}
-	if resolved.DestroyOnStop {
-		t.Fatal("resolved.DestroyOnStop = true, want false for reuse persistence")
-	}
-	if got, want := resolved.Env["APP_MODE"], "test"; got != want {
-		t.Fatalf("resolved.Env[APP_MODE] = %q, want %q", got, want)
-	}
-}
-
 func TestWriteSeedConfigFileRewritesOverlayWithPermissionsAndToolPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -327,47 +248,6 @@ func TestWriteSeedConfigFileRewritesOverlayWithPermissionsAndToolPolicy(t *testi
 	}
 	if got, want := reloaded.Tools.Policy.ExternalDefault, compozyconfig.ToolsExternalDefaultEnabled; got != want {
 		t.Fatalf("reloaded.Tools.Policy.ExternalDefault = %q, want %q", got, want)
-	}
-}
-
-func TestPrepareRuntimeLayoutSandboxSeedDoesNotLeakBetweenRuns(t *testing.T) {
-	t.Parallel()
-
-	first := prepareRuntimeLayout(t, &RuntimeHarnessOptions{
-		ConfigSeed: ConfigSeedOptions{
-			DefaultSandbox: "local-sandbox",
-			Sandboxes: map[string]compozyconfig.SandboxProfile{
-				"local-sandbox": {
-					Backend:     "local",
-					Persistence: "reuse",
-				},
-			},
-		},
-	})
-
-	second := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
-
-	firstLoaded, err := compozyconfig.LoadForHome(first.HomePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome(first) error = %v", err)
-	}
-	secondLoaded, err := compozyconfig.LoadForHome(second.HomePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome(second) error = %v", err)
-	}
-
-	if got, want := firstLoaded.Defaults.Sandbox, "local-sandbox"; got != want {
-		t.Fatalf("firstLoaded.Defaults.Sandbox = %q, want %q", got, want)
-	}
-	if _, err := firstLoaded.ResolveSandbox("local-sandbox"); err != nil {
-		t.Fatalf("firstLoaded.ResolveSandbox(local-sandbox) error = %v", err)
-	}
-
-	if got := secondLoaded.Defaults.Sandbox; got != "" {
-		t.Fatalf("secondLoaded.Defaults.Sandbox = %q, want empty default sandbox", got)
-	}
-	if _, err := secondLoaded.ResolveSandbox("local-sandbox"); err == nil {
-		t.Fatal("secondLoaded.ResolveSandbox(local-sandbox) error = nil, want profile isolation")
 	}
 }
 

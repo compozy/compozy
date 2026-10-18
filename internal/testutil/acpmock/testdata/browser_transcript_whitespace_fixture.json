@@ -1,0 +1,38 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "transcript-whitespace-agent",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "Render the fixture response.",
+            "turns": [
+                {
+                    "name": "split-markdown-boundaries",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "show the diagram"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                "```mermaid",
+                                "\n",
+                                "flowchart LR",
+                                "\n",
+                                "A --> B",
+                                "\n",
+                                "```",
+                                "\n\n",
+                                "## After the diagram",
+                                "\n\n",
+                                "The paragraph is outside the code block."
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

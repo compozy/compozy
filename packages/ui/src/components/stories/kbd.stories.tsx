@@ -9,7 +9,8 @@ const meta: Meta<typeof Kbd> = {
     layout: "centered",
     docs: {
       description: {
-        component: "Inline keyboard key indicator. Compose multiple keys with KbdGroup.",
+        component:
+          "Inline keyboard key: a 6px-radius `surface-2` cap with an inset hairline and `fg-2` glyph. Inside a Tooltip or Button it drops the plate and renders as a quiet hint in the host's ink. Compose multiple keys with KbdGroup.",
       },
     },
   },

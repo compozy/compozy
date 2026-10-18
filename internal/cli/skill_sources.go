@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +23,7 @@ type skillSourcesRecord struct {
 	Scope       string                                          `json:"scope"`
 	WorkspaceID string                                          `json:"workspace_id,omitempty"`
 	Sources     []contract.SettingsSkillSourcePayload           `json:"sources"`
-	Inherits    *contract.SettingsSkillSourceInheritancePayload `json:"inherits,omitempty"`
+	Inherits    *contract.SettingsSkillSourceInheritancePayload `json:"inherits,omitzero"`
 	workspace   string
 }
 
@@ -129,10 +130,7 @@ func skillSourcesBundle(record skillSourcesRecord) outputBundle {
 func skillSourceRows(sources []contract.SettingsSkillSourcePayload) [][]string {
 	rows := make([][]string, 0, len(sources))
 	for _, source := range sources {
-		globalPath := source.GlobalPath
-		if globalPath == "" {
-			globalPath = source.Path
-		}
+		globalPath := cmp.Or(source.GlobalPath, source.Path)
 		rows = append(rows, []string{
 			source.Slug,
 			skillSourceState(source),

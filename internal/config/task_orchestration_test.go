@@ -44,20 +44,17 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 		if got := orchestration.DefaultMaxRuntime; got != 0 {
 			t.Fatalf("DefaultWithHome() Task.Orchestration.DefaultMaxRuntime = %s, want disabled", got)
 		}
-		if got, want := orchestration.BridgeNotificationTimeout, 10*time.Second; got != want {
-			t.Fatalf("DefaultWithHome() Task.Orchestration.BridgeNotificationTimeout = %s, want %s", got, want)
-		}
 		if got, want := orchestration.DesignatedRunMax, DefaultTaskDesignatedRunMax; got != want {
 			t.Fatalf("DefaultWithHome() Task.Orchestration.DesignatedRunMax = %d, want %d", got, want)
 		}
 		if got, want := orchestration.MaxActiveRunsPerWorkspace, DefaultTaskMaxActiveRunsPerWorkspace; got != want {
 			t.Fatalf("DefaultWithHome() Task.Orchestration.MaxActiveRunsPerWorkspace = %d, want %d", got, want)
 		}
-		if got, want := orchestration.NetworkStatusQueueSize, DefaultTaskNetworkStatusQueueSize; got != want {
-			t.Fatalf("DefaultWithHome() Task.Orchestration.NetworkStatusQueueSize = %d, want %d", got, want)
+		if got, want := orchestration.StatusProjectionQueueSize, DefaultTaskStatusProjectionQueueSize; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.StatusProjectionQueueSize = %d, want %d", got, want)
 		}
-		if got, want := orchestration.NetworkStatusTimeout, DefaultTaskNetworkStatusTimeout; got != want {
-			t.Fatalf("DefaultWithHome() Task.Orchestration.NetworkStatusTimeout = %s, want %s", got, want)
+		if got, want := orchestration.StatusProjectionTimeout, DefaultTaskStatusProjectionTimeout; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.StatusProjectionTimeout = %s, want %s", got, want)
 		}
 		if got, want := orchestration.Profile.DefaultCoordinatorMode, TaskCoordinatorModeInherit; got != want {
 			t.Fatalf("DefaultWithHome() profile DefaultCoordinatorMode = %q, want %q", got, want)
@@ -65,17 +62,11 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 		if got, want := orchestration.Profile.DefaultWorkerMode, TaskWorkerModeInherit; got != want {
 			t.Fatalf("DefaultWithHome() profile DefaultWorkerMode = %q, want %q", got, want)
 		}
-		if got, want := orchestration.Profile.DefaultSandboxMode, TaskSandboxModeInherit; got != want {
-			t.Fatalf("DefaultWithHome() profile DefaultSandboxMode = %q, want %q", got, want)
-		}
 		if got, want := orchestration.Profile.DefaultWorktreeMode, TaskWorktreeModeInherit; got != want {
 			t.Fatalf("DefaultWithHome() profile DefaultWorktreeMode = %q, want %q", got, want)
 		}
 		if !orchestration.Profile.AllowTaskProviderOverride {
 			t.Fatal("DefaultWithHome() profile AllowTaskProviderOverride = false, want true")
-		}
-		if !orchestration.Profile.AllowTaskSandboxNone {
-			t.Fatal("DefaultWithHome() profile AllowTaskSandboxNone = false, want true")
 		}
 		if !cfg.Task.Recovery.AllowAgentForce {
 			t.Fatal("DefaultWithHome() recovery AllowAgentForce = false, want true")
@@ -170,11 +161,6 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 			wantErr: "task.orchestration.default_max_runtime",
 		},
 		{
-			name:    "Should reject zero bridge notification timeout",
-			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.BridgeNotificationTimeout = 0 },
-			wantErr: "task.orchestration.bridge_notification_timeout",
-		},
-		{
 			name:    "Should reject designated run max above the configured cap",
 			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.DesignatedRunMax = MaxTaskDesignatedRunMax + 1 },
 			wantErr: "task.orchestration.designated_run_max",
@@ -183,16 +169,6 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 			name:    "Should reject negative workspace active run cap",
 			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.MaxActiveRunsPerWorkspace = -1 },
 			wantErr: "task.orchestration.max_active_runs_per_workspace",
-		},
-		{
-			name:    "Should reject zero network status queue size",
-			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.NetworkStatusQueueSize = 0 },
-			wantErr: "task.orchestration.network_status_queue_size",
-		},
-		{
-			name:    "Should reject fractional network status timeout",
-			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.NetworkStatusTimeout = 1500 * time.Millisecond },
-			wantErr: "task.orchestration.network_status_timeout",
 		},
 		{
 			name: "Should reject unknown coordinator default mode",
@@ -207,14 +183,6 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 				cfg.Orchestration.Profile.DefaultWorkerMode = "custom"
 			},
 			wantErr: "task.orchestration.profile.default_worker_mode",
-		},
-		{
-			name: "Should reject sandbox none default when gate is disabled",
-			mutate: func(cfg *TaskConfig) {
-				cfg.Orchestration.Profile.DefaultSandboxMode = TaskSandboxModeNone
-				cfg.Orchestration.Profile.AllowTaskSandboxNone = false
-			},
-			wantErr: "task.orchestration.profile.default_sandbox_mode",
 		},
 		{
 			name: "Should reject unknown worktree default mode",
@@ -318,7 +286,6 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 			name: "Should accept guided coordinator and disabled default runtime",
 			mutate: func(cfg *TaskConfig) {
 				cfg.Orchestration.Profile.DefaultCoordinatorMode = TaskCoordinatorModeGuided
-				cfg.Orchestration.Profile.DefaultSandboxMode = TaskSandboxModeNone
 				cfg.Orchestration.Review.DefaultPolicy = TaskReviewPolicyAlways
 				cfg.Orchestration.Review.FailurePolicy = TaskReviewFailureFailTask
 			},
@@ -374,8 +341,8 @@ scheduler_bad_tick_threshold = 5
 scheduler_bad_tick_cooldown = "4m"
 default_max_runtime = "1h"
 max_active_runs_per_workspace = 24
-network_status_queue_size = 17
-network_status_timeout = "7s"
+status_projection_queue_size = 17
+status_projection_timeout = "7s"
 
 [task.recovery]
 allow_agent_force = false
@@ -383,10 +350,8 @@ allow_agent_force = false
 [task.orchestration.profile]
 default_coordinator_mode = "guided"
 default_worker_mode = "inherit"
-default_sandbox_mode = "none"
 default_worktree_mode = "per_run"
 allow_task_provider_override = false
-allow_task_sandbox_none = true
 
 [task.orchestration.review]
 default_policy = "always"
@@ -407,7 +372,7 @@ failure_policy = "fail_task"
 summary_max_bytes = 3000
 default_max_runtime = "0s"
 max_active_runs_per_workspace = 0
-network_status_timeout = "3s"
+status_projection_timeout = "3s"
 
 [task.orchestration.profile]
 default_worktree_mode = "none"
@@ -438,17 +403,14 @@ timeout = "10m"
 		if got := orchestration.MaxActiveRunsPerWorkspace; got != 0 {
 			t.Fatalf("LoadForHome() MaxActiveRunsPerWorkspace = %d, want workspace-disabled cap", got)
 		}
-		if got, want := orchestration.NetworkStatusQueueSize, 17; got != want {
-			t.Fatalf("LoadForHome() NetworkStatusQueueSize = %d, want global value %d", got, want)
+		if got, want := orchestration.StatusProjectionQueueSize, 17; got != want {
+			t.Fatalf("LoadForHome() StatusProjectionQueueSize = %d, want global value %d", got, want)
 		}
-		if got, want := orchestration.NetworkStatusTimeout, 3*time.Second; got != want {
-			t.Fatalf("LoadForHome() NetworkStatusTimeout = %s, want workspace override %s", got, want)
+		if got, want := orchestration.StatusProjectionTimeout, 3*time.Second; got != want {
+			t.Fatalf("LoadForHome() StatusProjectionTimeout = %s, want workspace override %s", got, want)
 		}
 		if got, want := orchestration.Profile.DefaultCoordinatorMode, TaskCoordinatorModeGuided; got != want {
 			t.Fatalf("LoadForHome() DefaultCoordinatorMode = %q, want %q", got, want)
-		}
-		if got, want := orchestration.Profile.DefaultSandboxMode, TaskSandboxModeNone; got != want {
-			t.Fatalf("LoadForHome() DefaultSandboxMode = %q, want %q", got, want)
 		}
 		if got, want := orchestration.Profile.DefaultWorktreeMode, TaskWorktreeModeNone; got != want {
 			t.Fatalf("LoadForHome() DefaultWorktreeMode = %q, want workspace override %q", got, want)

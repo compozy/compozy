@@ -72,29 +72,38 @@ describe("session permission decision store", () => {
   });
 
   it("Should surface a rejected executor and return the active request to idle", async () => {
-    const store = createSessionPermissionDecisionLogic().createStore();
-    const failure = new Error("transport unavailable");
-    vi.mocked(toast.error).mockClear();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const store = createSessionPermissionDecisionLogic().createStore();
+      const failure = new Error("transport unavailable");
+      vi.mocked(toast.error).mockClear();
 
-    store.trigger.decisionSubmitted({
-      workspaceId: "ws_alpha",
-      sessionId: "session-1",
-      decision: "reject-once",
-      permissionKey: "request-1",
-      permission: {
-        requestId: "request-1",
-        turnId: "turn-1",
-        toolName: "Bash",
-        toolInput: {},
-        action: "Run command",
-        resource: "/workspace",
-      },
-      execute: vi.fn().mockRejectedValue(failure),
-    });
+      store.trigger.decisionSubmitted({
+        workspaceId: "ws_alpha",
+        sessionId: "session-1",
+        decision: "reject-once",
+        permissionKey: "request-1",
+        permission: {
+          requestId: "request-1",
+          turnId: "turn-1",
+          toolName: "Bash",
+          toolInput: {},
+          action: "Run command",
+          resource: "/workspace",
+        },
+        execute: vi.fn().mockRejectedValue(failure),
+      });
 
-    await waitFor(() => expect(store.getSnapshot().context.phase).toBe("idle"));
-    expect(toast.error).toHaveBeenCalledWith(
-      "Failed to send permission response. The agent may continue waiting."
-    );
+      await waitFor(() => expect(store.getSnapshot().context.phase).toBe("idle"));
+      expect(toast.error).toHaveBeenCalledWith(
+        "Failed to send permission response. The agent may continue waiting."
+      );
+      expect(consoleError).toHaveBeenCalledExactlyOnceWith(
+        "Failed to submit permission decision",
+        failure
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

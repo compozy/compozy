@@ -78,6 +78,6 @@ type LoopResolvedRuntime struct {
 	Reasoning       string                    `json:"reasoning,omitempty"`
 	Speed           Speed                     `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	SpeedResolution *SpeedResolution          `json:"speed_resolution,omitempty"`
+	SpeedResolution *SpeedResolution          `json:"speed_resolution,omitzero"`
 	Source          LoopRuntimeProvenance     `json:"source"`
 }

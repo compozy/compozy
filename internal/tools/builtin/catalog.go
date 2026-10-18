@@ -62,7 +62,7 @@ func toolListDescriptor() toolspkg.Descriptor {
 		[]string{catalogToolsKey, catalogRegistryKey, catalogCatalogKey},
 		[]string{"available tools", "tool registry"},
 	)
-	descriptor.MaxResultBytes = toolListMaxResultBytes
+	descriptor.SetMaxResultBytes(toolListMaxResultBytes)
 	return descriptor
 }
 

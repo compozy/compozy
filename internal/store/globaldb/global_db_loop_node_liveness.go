@@ -138,8 +138,7 @@ func loadLiveLivenessCell(
 		return nodeLivenessCell{}, false, fmt.Errorf("store: load Loop node liveness control: %w", err)
 	}
 	if last.Valid {
-		value := last.Time.UTC()
-		cell.last = &value
+		cell.last = new(last.Time.UTC())
 	}
 	return cell, true, nil
 }

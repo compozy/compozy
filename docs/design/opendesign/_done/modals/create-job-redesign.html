@@ -477,10 +477,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
                   <label class="label" for="task-title">Task title <span class="opt">— defaults to job name</span></label>
                   <input id="task-title" class="input" value="" placeholder="daily-code-review">
                 </div>
-                <div class="field">
-                  <label class="label" for="task-channel">Network channel <span class="opt">— optional</span></label>
-                  <input id="task-channel" class="input mono" value="" placeholder="peer ingress channel">
-                </div>
+
               </div>
               <div class="field">
                 <label class="label" for="task-desc">Description <span class="opt">— defaults to the prompt</span></label>
@@ -496,7 +493,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
                     <option value="human">Human</option>
                     <option value="automation">Automation</option>
                     <option value="extension">Extension</option>
-                    <option value="network_peer">Network peer</option>
+
                   </select>
                   <input class="input mono" id="owner-ref" value="" placeholder="select an owner kind first" disabled>
                 </div>
@@ -770,7 +767,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
   const MON_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const OWNER_PH = {
     pool:"worker-pool id or agent name", agent_session:"sess-…", human:"human id or handle",
-    automation:"automation id", extension:"extension id", network_peer:"peer id"
+    automation:"automation id", extension:"extension id"
   };
 
   /* ── default `at` value: next round hour, +1 day, as datetime-local string ── */
@@ -799,7 +796,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
     output:"agent",
     agent:"reviewer",
     prompt:$("prompt").value,
-    taskTitle:"", taskChannel:"", taskDesc:$("task-desc").value, ownerKind:"", ownerRef:"",
+    taskTitle:"", taskDesc:$("task-desc").value, ownerKind:"", ownerRef:"",
     schedMode:"cron",
     cronExpr:"0 9 * * 1-5",
     interval:"30m",
@@ -1173,7 +1170,6 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
         '<dl class="kv">'
         + '<dt>Title</dt><dd>'+esc(title)+'</dd>'
         + '<dt>Owner</dt><dd class="mono">'+(state.ownerKind?esc(state.ownerKind)+(state.ownerRef?":"+esc(state.ownerRef):""):"unassigned")+'</dd>'
-        + (state.taskChannel?'<dt>Channel</dt><dd class="mono">'+esc(state.taskChannel)+'</dd>':'')
         + '<dt>Run status</dt><dd class="mono" style="color:var(--info)">delegated</dd>'
         + '</dl>'
         + '<div class="rendered" style="margin-top:11px;padding-top:11px;border-top:1px solid var(--line-soft)">'+esc(desc)+'</div>';
@@ -1208,7 +1204,6 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
       if(state.taskTitle) t.push(k("title")+": "+str(state.taskTitle));
       if(state.taskDesc)  t.push(k("description")+": "+str(state.taskDesc));
       if(state.ownerKind) t.push(k("owner")+": { "+k("kind")+": "+str(state.ownerKind)+", "+k("ref")+": "+str(state.ownerRef)+" }");
-      if(state.taskChannel) t.push(k("network_channel")+": "+str(state.taskChannel));
       L.push("  "+k("task")+": { "+(t.length?t.join(", "):"")+" },");
     }
     if(state.output==="agent"){
@@ -1250,7 +1245,6 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
   $("agent-select").addEventListener("change",e=>{ state.agent=e.target.value; $("agent-av").textContent=e.target.value.charAt(0); renderPreview(); });
   $("prompt").addEventListener("input",e=>{ state.prompt=e.target.value; renderPreview(); });
   $("task-title").addEventListener("input",e=>{ state.taskTitle=e.target.value; renderPreview(); });
-  $("task-channel").addEventListener("input",e=>{ state.taskChannel=e.target.value.trim(); renderPreview(); });
   $("task-desc").addEventListener("input",e=>{ state.taskDesc=e.target.value; renderPreview(); });
   $("owner-kind").addEventListener("change",e=>{ state.ownerKind=e.target.value; syncOwner(); renderPreview(); });
   $("owner-ref").addEventListener("input",e=>{ state.ownerRef=e.target.value.trim(); renderPreview(); });

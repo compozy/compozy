@@ -25,15 +25,15 @@ func TestServiceDiscovery(t *testing.T) {
 			State: StateReady, Origin: OriginManual, SetupState: SetupNone,
 			CreatedAt: fixture.now, UpdatedAt: fixture.now,
 		}
-		if err := fixture.store.Insert(context.Background(), item); err != nil {
+		if err := fixture.store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed owned worktree: %v", err)
 		}
-		got, err := fixture.service.Get(context.Background(), fixture.workspace.ID, item.Name)
+		got, err := fixture.service.Get(t.Context(), fixture.workspace.ID, item.Name)
 		if err != nil || got.ID != item.ID {
 			t.Fatalf("Get(owner) = %#v, %v, want %s", got, err, item.ID)
 		}
 		if crossWorkspace, err := fixture.service.Get(
-			context.Background(),
+			t.Context(),
 			"ws-other",
 			item.ID,
 		); !errors.Is(err, ErrNotFound) ||
@@ -51,7 +51,7 @@ func TestServiceDiscovery(t *testing.T) {
 			err:                 storeErr,
 		}
 
-		item, err := fixture.service.Resolve(context.Background(), fixture.workspace.ID, "feature")
+		item, err := fixture.service.Resolve(t.Context(), fixture.workspace.ID, "feature")
 		if !errors.Is(err, storeErr) || errors.Is(err, ErrNotFound) || item != nil {
 			t.Fatalf("Resolve(store failure) = %#v, %v, want wrapped store error", item, err)
 		}
@@ -64,7 +64,7 @@ func TestServiceDiscovery(t *testing.T) {
 		discoveredPath := t.TempDir()
 		missingPath := filepath.Join(t.TempDir(), "unreachable")
 		now := fixture.now
-		if err := fixture.store.Insert(context.Background(), Worktree{
+		if err := fixture.store.Insert(t.Context(), Worktree{
 			ID: "wt-registered", WorkspaceID: fixture.workspace.ID, Name: "registered",
 			Branch: "registered", Path: registeredPath, State: StateReady, Origin: OriginManual,
 			SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
@@ -79,7 +79,7 @@ func TestServiceDiscovery(t *testing.T) {
 				"worktree " + missingPath + "\x00HEAD stale\x00branch refs/heads/stale\x00prunable missing admin dir\x00\x00" +
 				"worktree " + detachedPath + "\x00HEAD abc1234567890def\x00detached\x00\x00",
 		)
-		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
+		listing, err := fixture.service.List(t.Context(), fixture.workspace.ID, true)
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
@@ -101,17 +101,17 @@ func TestServiceDiscovery(t *testing.T) {
 		t.Parallel()
 		fixture := newDiscoveryTestFixture(t)
 		fixture.listOutput = worktreeListFixture(fixture.workspace.Root, "main")
-		if _, err := fixture.service.List(context.Background(), fixture.workspace.ID, false); err != nil {
+		if _, err := fixture.service.List(t.Context(), fixture.workspace.ID, false); err != nil {
 			t.Fatalf("List(first) error = %v", err)
 		}
 		firstCalls := len(fixture.runner.invocations())
-		if _, err := fixture.service.List(context.Background(), fixture.workspace.ID, false); err != nil {
+		if _, err := fixture.service.List(t.Context(), fixture.workspace.ID, false); err != nil {
 			t.Fatalf("List(cached) error = %v", err)
 		}
 		if got := len(fixture.runner.invocations()); got != firstCalls {
 			t.Fatalf("cached List() added %d Git calls, want zero", got-firstCalls)
 		}
-		if _, err := fixture.service.List(context.Background(), fixture.workspace.ID, true); err != nil {
+		if _, err := fixture.service.List(t.Context(), fixture.workspace.ID, true); err != nil {
 			t.Fatalf("List(refresh) error = %v", err)
 		}
 		if got := len(fixture.runner.invocations()); got <= firstCalls {
@@ -142,7 +142,7 @@ func TestServiceDiscovery(t *testing.T) {
 			}
 			firstDone := make(chan error, 1)
 			go func() {
-				_, err := fixture.service.List(context.Background(), fixture.workspace.ID, false)
+				_, err := fixture.service.List(t.Context(), fixture.workspace.ID, false)
 				firstDone <- err
 			}()
 			<-entered
@@ -151,7 +151,7 @@ func TestServiceDiscovery(t *testing.T) {
 			if err := <-firstDone; err != nil {
 				t.Fatalf("List(in-flight) error = %v", err)
 			}
-			if _, err := fixture.service.List(context.Background(), fixture.workspace.ID, false); err != nil {
+			if _, err := fixture.service.List(t.Context(), fixture.workspace.ID, false); err != nil {
 				t.Fatalf("List(after invalidation) error = %v", err)
 			}
 			if got := calls.Load(); got != 2 {
@@ -165,13 +165,13 @@ func TestServiceDiscovery(t *testing.T) {
 		fixture := newDiscoveryTestFixture(t)
 		fixture.scanErr = errors.New("scan failed with token ghp_abcdefghijklmnopqrstuvwxyz0123456789")
 		now := fixture.now
-		if err := fixture.store.Insert(context.Background(), Worktree{
+		if err := fixture.store.Insert(t.Context(), Worktree{
 			ID: "wt-retained", WorkspaceID: fixture.workspace.ID, Name: "retained", Path: t.TempDir(),
 			State: StateReady, Origin: OriginManual, SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("seed retained worktree: %v", err)
 		}
-		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
+		listing, err := fixture.service.List(t.Context(), fixture.workspace.ID, true)
 		if err != nil {
 			t.Fatalf("List(failed discovery) error = %v", err)
 		}
@@ -185,14 +185,14 @@ func TestServiceDiscovery(t *testing.T) {
 		t.Parallel()
 		fixture := newDiscoveryTestFixture(t)
 		fixture.service.capability = &CapabilityGate{}
-		if err := fixture.store.Insert(context.Background(), Worktree{
+		if err := fixture.store.Insert(t.Context(), Worktree{
 			ID: "wt-offline", WorkspaceID: fixture.workspace.ID, Name: "offline", Path: t.TempDir(),
 			State: StateReady, Origin: OriginManual, SetupState: SetupNone,
 			CreatedAt: fixture.now, UpdatedAt: fixture.now,
 		}); err != nil {
 			t.Fatalf("seed offline worktree: %v", err)
 		}
-		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, false)
+		listing, err := fixture.service.List(t.Context(), fixture.workspace.ID, false)
 		if err != nil {
 			t.Fatalf("List(Git unavailable) error = %v", err)
 		}
@@ -204,7 +204,7 @@ func TestServiceDiscovery(t *testing.T) {
 		if calls := fixture.runner.invocations(); len(calls) != 0 {
 			t.Fatalf("List(Git unavailable) calls = %#v, want no Git I/O", calls)
 		}
-		inspection, err := fixture.service.Inspect(context.Background(), fixture.workspace.ID, "wt-offline")
+		inspection, err := fixture.service.Inspect(t.Context(), fixture.workspace.ID, "wt-offline")
 		if err != nil {
 			t.Fatalf("Inspect(Git unavailable) error = %v", err)
 		}
@@ -270,17 +270,17 @@ func TestServiceDiscovery(t *testing.T) {
 					"prunable gitdir file points to non-existent location\x00\x00",
 			)...,
 		)
-		if err := fixture.store.Insert(context.Background(), Worktree{
+		if err := fixture.store.Insert(t.Context(), Worktree{
 			ID: "wt-vanished", WorkspaceID: fixture.workspace.ID, Name: "vanished", Path: vanished,
 			State: StateReady, Origin: OriginManual, SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("seed vanished worktree: %v", err)
 		}
-		first, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
+		first, err := fixture.service.List(t.Context(), fixture.workspace.ID, true)
 		if err != nil || len(first.Worktrees) != 1 || first.Worktrees[0].State != StateMissing {
 			t.Fatalf("List(vanished) = %#v, %v, want missing", first, err)
 		}
-		second, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
+		second, err := fixture.service.List(t.Context(), fixture.workspace.ID, true)
 		if err != nil || len(second.Worktrees) != 1 || second.Worktrees[0].State != StateMissing {
 			t.Fatalf("List(vanished repeat) = %#v, %v, want stable missing", second, err)
 		}
@@ -303,12 +303,12 @@ func TestServiceDiscovery(t *testing.T) {
 			if index == 0 {
 				item.PendingPhase = PhaseBranch
 			}
-			if err := fixture.store.Insert(context.Background(), item); err != nil {
+			if err := fixture.store.Insert(t.Context(), item); err != nil {
 				t.Fatalf("seed %s worktree: %v", state, err)
 			}
 		}
 
-		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
+		listing, err := fixture.service.List(t.Context(), fixture.workspace.ID, true)
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
@@ -333,7 +333,7 @@ func TestServiceDiscovery(t *testing.T) {
 			newMemoryWorktreeStore(), runner, WithCapabilityGate(readyCapabilityGate()),
 			WithWorkspaceResolver(staticWorkspaceResolver{workspaces: map[string]Workspace{workspace.ID: workspace}}),
 		)
-		listing, err := service.List(context.Background(), workspace.ID, false)
+		listing, err := service.List(t.Context(), workspace.ID, false)
 		if err != nil || listing.Repo.GitBacked || len(listing.Worktrees) != 0 || len(runner.invocations()) != 0 {
 			t.Fatalf(
 				"List(non-git) = %#v, %v calls=%#v, want empty truthful listing",
@@ -348,7 +348,7 @@ func TestServiceDiscovery(t *testing.T) {
 		t.Parallel()
 		fixture := newDiscoveryTestFixture(t)
 		fixture.listOutput = worktreeListFixture(fixture.workspace.Root, "main")
-		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
+		listing, err := fixture.service.List(t.Context(), fixture.workspace.ID, true)
 		if err != nil || !listing.Repo.GitBacked || len(listing.Worktrees) != 0 || len(listing.Discovered) != 0 {
 			t.Fatalf("List(empty Git repository) = %#v, %v, want empty Git-backed listing", listing, err)
 		}

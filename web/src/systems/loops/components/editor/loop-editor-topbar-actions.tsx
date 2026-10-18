@@ -2,6 +2,7 @@ import { Check, Upload } from "lucide-react";
 
 import { Button, Pill } from "@compozy/ui";
 
+import { loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopSource } from "../../types";
 
 interface LoopEditorTopbarActionsProps {
@@ -26,19 +27,14 @@ export function LoopEditorTopbarStatus({
 }: LoopEditorTopbarStatusProps) {
   const readOnlySource = source !== undefined && source !== "workspace";
   const state = readOnlySource
-    ? source
+    ? loopSourceLabel({ source })
     : isDirty
-      ? "unpublished edits"
+      ? "Draft"
       : positionsDirty
-        ? "layout unsaved"
-        : "published";
-  const tone = readOnlySource
-    ? "neutral"
-    : isDirty
-      ? "warning"
-      : positionsDirty
-        ? "neutral"
-        : "success";
+        ? "Layout not saved"
+        : "Published";
+  // Only unpublished edits carry signal color; a resting published Loop stays neutral.
+  const tone = !readOnlySource && isDirty ? "warning" : "neutral";
 
   return (
     <span
@@ -52,20 +48,18 @@ export function LoopEditorTopbarStatus({
     >
       <Pill
         data-testid="loop-editor-version"
-        mono
-        size="xs"
-        title={`v${version ?? "?"} · ${state}`}
-        tone={tone}
+        form="plain"
+        title={`Version ${version ?? "?"} · ${state}`}
       >
-        <Pill.Dot size="sm" tone={tone} />v{version ?? "?"} · {state}
+        <Pill.Dot tone={tone} />v{version ?? "?"} · {state}
       </Pill>
     </span>
   );
 }
 
 /**
- * Trailing shell-topbar actions for the loop editor: one secondary validation
- * action and the primary publish action.
+ * Trailing shell-topbar actions for the loop editor: a quiet validation action
+ * and the publish action. Window heads carry no inverted primary (polish P4).
  */
 export function LoopEditorTopbarActions({
   busy,
@@ -77,7 +71,7 @@ export function LoopEditorTopbarActions({
     <div className="flex items-center gap-2" data-testid="loop-editor-topbar-actions">
       <Button
         type="button"
-        variant="neutral"
+        variant="ghost"
         size="sm"
         disabled={busy}
         onClick={onValidate}
@@ -88,6 +82,7 @@ export function LoopEditorTopbarActions({
       </Button>
       <Button
         type="button"
+        variant="secondary"
         size="sm"
         disabled={publishDisabled}
         onClick={onPublish}

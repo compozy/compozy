@@ -36,7 +36,7 @@ func terminalRunCommandInsertParams(
 		AdmittedAt:           storepkg.FormatTimestamp(record.AdmittedAt),
 		UpdatedAt:            storepkg.FormatTimestamp(record.UpdatedAt),
 		RunID:                record.RunID,
-		TaskID:               sql.NullString{String: record.TaskID, Valid: true},
+		TaskID:               record.TaskID,
 		WorkspaceID:          sql.NullString{String: record.WorkspaceID, Valid: true},
 	}, nil
 }

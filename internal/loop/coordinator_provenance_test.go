@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +29,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			StartedBy: task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: "sess-starter"},
 			Origin:    &RunOrigin{Kind: RunOriginSession, SessionID: "sess-inline"},
 		}
-		got, err := newRunner(nil).provenanceParentSessionID(context.Background(), run)
+		got, err := newRunner(nil).provenanceParentSessionID(t.Context(), run)
 		if err != nil || got != "sess-inline" {
 			t.Fatalf("provenanceParentSessionID() = %q, %v, want sess-inline", got, err)
 		}
@@ -46,7 +45,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := newRunner(nil).provenanceParentSessionID(context.Background(), tt.run)
+			_, err := newRunner(nil).provenanceParentSessionID(t.Context(), tt.run)
 			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "identity is incomplete") {
 				t.Fatalf("provenanceParentSessionID(incomplete identity) error = %v, want validation", err)
 			}
@@ -60,7 +59,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			StartedBy: task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: "sess-starter"},
 			Origin:    &RunOrigin{Kind: RunOriginCatalog},
 		}
-		got, err := newRunner(nil).provenanceParentSessionID(context.Background(), run)
+		got, err := newRunner(nil).provenanceParentSessionID(t.Context(), run)
 		if err != nil || got != "sess-starter" {
 			t.Fatalf("provenanceParentSessionID() = %q, %v, want sess-starter", got, err)
 		}
@@ -84,7 +83,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			Origin:    &RunOrigin{Kind: RunOriginCatalog},
 		}
 		got, err := newRunner(map[RunID]Run{root.ID: root, parent.ID: parent}).
-			provenanceParentSessionID(context.Background(), child)
+			provenanceParentSessionID(t.Context(), child)
 		if err != nil || got != "sess-root" {
 			t.Fatalf("provenanceParentSessionID() = %q, %v, want sess-root", got, err)
 		}
@@ -97,7 +96,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			StartedBy: task.ActorIdentity{Kind: task.ActorKindHuman, Ref: "operator"},
 			Origin:    &RunOrigin{Kind: RunOriginCatalog},
 		}
-		got, err := newRunner(nil).provenanceParentSessionID(context.Background(), run)
+		got, err := newRunner(nil).provenanceParentSessionID(t.Context(), run)
 		if err != nil || got != "" {
 			t.Fatalf("provenanceParentSessionID() = %q, %v, want empty", got, err)
 		}
@@ -110,7 +109,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			StartedBy: task.ActorIdentity{Kind: task.ActorKindDaemon, Ref: "loop-runner"},
 			Origin:    &RunOrigin{Kind: RunOriginCatalog},
 		}
-		got, err := newRunner(map[RunID]Run{}).provenanceParentSessionID(context.Background(), run)
+		got, err := newRunner(map[RunID]Run{}).provenanceParentSessionID(t.Context(), run)
 		if err != nil || got != "" {
 			t.Fatalf("provenanceParentSessionID() = %q, %v, want graceful empty", got, err)
 		}
@@ -129,7 +128,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			Origin:    &RunOrigin{Kind: RunOriginCatalog},
 		}
 		_, err := newRunner(map[RunID]Run{first.ID: first, second.ID: second}).
-			provenanceParentSessionID(context.Background(), first)
+			provenanceParentSessionID(t.Context(), first)
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("provenanceParentSessionID(cycle) error = %v, want %v", err, ErrValidation)
 		}
@@ -148,7 +147,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			Origin:    &RunOrigin{Kind: RunOriginCatalog},
 		}
 		_, err := newRunner(map[RunID]Run{parent.ID: parent}).
-			provenanceParentSessionID(context.Background(), child)
+			provenanceParentSessionID(t.Context(), child)
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("provenanceParentSessionID(foreign) error = %v, want %v", err, ErrValidation)
 		}
@@ -165,7 +164,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 		runner.store = &coordinatorRunnerLoopStore{getRun: func(RunID) (Run, error) {
 			return Run{ID: "looprun-other", WorkspaceID: workspaceID}, nil
 		}}
-		_, err := runner.provenanceParentSessionID(context.Background(), child)
+		_, err := runner.provenanceParentSessionID(t.Context(), child)
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("provenanceParentSessionID(mismatched ID) error = %v, want %v", err, ErrValidation)
 		}
@@ -183,7 +182,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 		runner.store = &coordinatorRunnerLoopStore{getRun: func(RunID) (Run, error) {
 			return Run{}, storeErr
 		}}
-		_, err := runner.provenanceParentSessionID(context.Background(), child)
+		_, err := runner.provenanceParentSessionID(t.Context(), child)
 		if !errors.Is(err, storeErr) {
 			t.Fatalf("provenanceParentSessionID(store failure) error = %v, want %v", err, storeErr)
 		}
@@ -192,7 +191,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 	t.Run("Should reject ancestry beyond the canonical depth", func(t *testing.T) {
 		t.Parallel()
 		runs := make(map[RunID]Run, LoopMaxAncestryDepth+1)
-		for index := 0; index <= LoopMaxAncestryDepth; index++ {
+		for index := range LoopMaxAncestryDepth + 1 {
 			id := RunID(fmt.Sprintf("looprun-depth-%d", index))
 			parentID := RunID("")
 			if index < LoopMaxAncestryDepth {
@@ -204,7 +203,7 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 				Origin:    &RunOrigin{Kind: RunOriginCatalog},
 			}
 		}
-		_, err := newRunner(runs).provenanceParentSessionID(context.Background(), runs["looprun-depth-0"])
+		_, err := newRunner(runs).provenanceParentSessionID(t.Context(), runs["looprun-depth-0"])
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("provenanceParentSessionID(depth) error = %v, want %v", err, ErrValidation)
 		}

@@ -11,7 +11,7 @@ export default function NotFound() {
         </h1>
         <p className="mt-5 max-w-[58ch] text-base leading-7 text-muted">
           The requested page is not part of the published CompozyOS site. Use the runtime docs or
-          the network protocol reference to re-enter the catalog.
+          the sessions reference to re-enter the catalog.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
@@ -21,10 +21,10 @@ export default function NotFound() {
             Runtime docs
           </Link>
           <Link
-            href="/docs/network/protocol/"
+            href="/docs/sessions/"
             className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-5 text-sm font-medium text-fg transition-colors hover:border-accent hover:text-accent active:translate-y-px"
           >
-            Network protocol
+            Sessions
           </Link>
         </div>
       </section>

@@ -31,7 +31,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		t.Parallel()
 
 		descriptor := loopToolSchemaDescriptor(t)
-		source := newLoopToolSchemaSource(context.Background(), loopToolSchemaRegistry{
+		source := newLoopToolSchemaSource(t.Context(), loopToolSchemaRegistry{
 			views: map[toolspkg.ToolID]toolspkg.ToolView{
 				descriptor.ID: {Descriptor: descriptor},
 			},
@@ -71,7 +71,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		t.Parallel()
 
 		source := newLoopToolSchemaSource(
-			context.Background(),
+			t.Context(),
 			loopToolSchemaRegistry{views: map[toolspkg.ToolID]toolspkg.ToolView{}},
 		)
 		if _, ok := source.Snapshot("not a valid tool id"); ok {
@@ -90,7 +90,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		second.ID = toolspkg.ToolID("ext__spec_cycle__second")
 		listCalls := 0
 		getCalls := 0
-		source := newLoopToolSchemaSource(context.Background(), loopToolSchemaRegistry{
+		source := newLoopToolSchemaSource(t.Context(), loopToolSchemaRegistry{
 			views: map[toolspkg.ToolID]toolspkg.ToolView{
 				first.ID:  {Descriptor: first},
 				second.ID: {Descriptor: second},
@@ -265,7 +265,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		if source := newLoopToolSchemaSource(missingContext, loopToolSchemaRegistry{}); source != nil {
 			t.Fatalf("newLoopToolSchemaSource(nil context) = %T, want nil", source)
 		}
-		if source := newLoopToolSchemaSource(context.Background(), nil); source != nil {
+		if source := newLoopToolSchemaSource(t.Context(), nil); source != nil {
 			t.Fatalf("newLoopToolSchemaSource(nil) = %T, want nil", source)
 		}
 	})
@@ -649,11 +649,11 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 			Kind:  toolspkg.SourceExtension,
 			Owner: "spec-cycle",
 		},
-		Visibility:      toolspkg.VisibilityModel,
-		Risk:            toolspkg.RiskMutating,
-		ReadOnly:        false,
-		ConcurrencySafe: false,
-		MaxResultBytes:  4096,
+		Visibility:            toolspkg.VisibilityModel,
+		Risk:                  toolspkg.RiskMutating,
+		ReadOnly:              false,
+		ConcurrencySafe:       false,
+		ToolExecutionMetadata: toolspkg.NewToolExecutionMetadata(false, "", 4096),
 	}
 	withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
 	if err != nil {

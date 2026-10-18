@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	memorypkg "github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -57,22 +56,21 @@ func (d *Daemon) automationManagerDependencies(
 		tasks = state.tasks.manager
 	}
 	return automationManagerDeps{
-		Store:                 store,
-		Sessions:              state.sessions,
-		Tasks:                 tasks,
-		WorkspaceResolver:     state.workspaceResolver,
-		Config:                state.cfg.Automation,
-		Hooks:                 state.hooks,
-		WebhookSecrets:        state.providerVault,
-		Logger:                state.logger.With("component", "automation"),
-		GlobalWorkspacePath:   d.homePaths.HomeDir,
-		ResourceStore:         resourceRawStore(state.resourceKernel),
-		ResourceCodecs:        state.resourceCodecs,
-		LoopCatalog:           state.loopCatalog,
-		ToolRegistry:          state.deps.ToolRegistry,
-		ParticipationResolver: state.participationResolver,
-		LoopInputEntities:     daemonLoopInputEntityCatalog{state: state},
-		Profiles:              state.profiles,
+		Store:               store,
+		Sessions:            state.sessions,
+		Tasks:               tasks,
+		WorkspaceResolver:   state.workspaceResolver,
+		Config:              state.cfg.Automation,
+		Hooks:               state.hooks,
+		WebhookSecrets:      state.providerVault,
+		Logger:              state.logger.With("component", "automation"),
+		GlobalWorkspacePath: d.homePaths.HomeDir,
+		ResourceStore:       resourceRawStore(state.resourceKernel),
+		ResourceCodecs:      state.resourceCodecs,
+		LoopCatalog:         state.loopCatalog,
+		ToolRegistry:        state.deps.ToolRegistry,
+		LoopInputEntities:   daemonLoopInputEntityCatalog{state: state},
+		Profiles:            state.profiles,
 		LoopRuntimeCatalog: loopRuntimeCatalogFactory{
 			homePaths: d.homePaths, workspaceResolver: state.workspaceResolver,
 		},
@@ -87,18 +85,6 @@ func (d *Daemon) automationManagerDependencies(
 }
 
 func wireAutomationObservers(state *bootState, manager automationRuntime) {
-	if state.dreamRuntime != nil {
-		memoryObserver := manager.MemoryObserver()
-		state.dreamRuntime.SetCompletionObserver(func(
-			ctx context.Context,
-			result memorypkg.ConsolidationResult,
-		) error {
-			return memoryObserver.OnMemoryConsolidated(ctx, automationpkg.MemoryConsolidatedEvent{
-				WorkspaceID: result.WorkspaceID,
-				Timestamp:   result.CompletedAt,
-			})
-		})
-	}
 	if state.lifecycleObservers != nil {
 		state.lifecycleObservers.Add(manager.SessionObserver())
 	}

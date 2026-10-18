@@ -13,7 +13,7 @@ type UpdateSettingsAttentionPayload struct {
 	Toasts          bool      `json:"toasts"`
 	Sound           bool      `json:"sound"`
 	System          bool      `json:"system"`
-	MutedWorkspaces *[]string `json:"muted_workspaces,omitempty"`
+	MutedWorkspaces *[]string `json:"muted_workspaces,omitzero"`
 }
 
 // UpdateSettingsAttentionRequest updates the attention section for the selected profile.

@@ -62,7 +62,7 @@ const POPULATED: TaskDashboardView = buildDashboardFixture({
         task_id: "task_a2",
         task_identifier: "TASK-43",
         task_status: "in_progress",
-        task_title: "Bridge health telemetry",
+        task_title: "Runtime health telemetry",
       },
     ],
   },

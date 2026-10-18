@@ -1,10 +1,9 @@
 import { Link } from "@tanstack/react-router";
 
-import { CatalogCard, KindIcon, Pill, providerKindIconRegistry } from "@compozy/ui";
+import { CatalogCard, KindIcon, Pill, StateGlyph, providerKindIconRegistry } from "@compozy/ui";
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
-import { AgentLayerProvenance } from "./agent-layer-provenance";
 
 export interface AgentFleetCardProps {
   row: AgentFleetRowModel;
@@ -45,26 +44,16 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
             </div>
             <CatalogCard.Meta data-testid={`agent-fleet-card-meta-${agent.name}`}>
               {category ? <span>{category}</span> : null}
-              {!category && agent.provider ? <span>{agent.provider}</span> : null}
-              {model ? <span className="font-mono">{model}</span> : null}
+              {model ? <span>{model}</span> : null}
             </CatalogCard.Meta>
-            <AgentLayerProvenance
-              data-testid={`agent-fleet-provenance-${agent.name}`}
-              layer={row.layer}
-              shadows={row.shadowLayers}
-            />
           </div>
         </div>
       </Link>
       <CatalogCard.Actions className="justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {sessionsAvailable && signals ? (
-            <Pill
-              size="sm"
-              tone={signals.status === "active" ? "success" : "neutral"}
-              data-testid={`agent-fleet-status-${agent.name}`}
-            >
-              <Pill.Dot tone={signals.status === "active" ? "success" : "neutral"} size="sm" />
+            <Pill form="plain" data-testid={`agent-fleet-status-${agent.name}`}>
+              <StateGlyph state={signals.status === "active" ? "running" : "idle"} size="sm" />
               {signals.status === "active" ? "Active" : "Idle"}
             </Pill>
           ) : null}

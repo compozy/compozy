@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import { dashboardKeys } from "@/systems/dashboard";
 import {
   acknowledgeAttentionNotifications,
@@ -8,17 +10,27 @@ import {
   type AttentionNotification,
 } from "@/systems/notifications";
 import { useProfileReadScope } from "@/systems/profiles";
-import { toSessionBadge } from "@/systems/session";
+import { getSessionDisplayTitle, toSessionBadge } from "@/systems/session";
 import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
+
+const BELL_REFETCH_INTERVAL_MS = 5_000;
+const BELL_HIDDEN_OR_ERROR_REFETCH_INTERVAL_MS = 30_000;
 
 export function useBellNotifications(mutedWorkspaceIds: ReadonlySet<string>) {
   const { destination } = useProfileReadScope();
   const queryClient = useQueryClient();
+  const documentVisible = useDocumentVisible();
   const query = useQuery({
     ...attentionNotificationsOptions(destination),
-    // The tab title must stay current even when the shell is in the background.
-    refetchInterval: 5_000,
+    // The notification count also owns the tab title while the document is hidden,
+    // where nobody reads the bell itself, so the hidden cadence only keeps that title.
+    refetchInterval: query =>
+      query.state.status === "error" || !documentVisible
+        ? BELL_HIDDEN_OR_ERROR_REFETCH_INTERVAL_MS
+        : BELL_REFETCH_INTERVAL_MS,
     refetchIntervalInBackground: true,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const mutation = useMutation({
     mutationFn: ({ snapshot, id, profile }: { snapshot: string; id?: string; profile: string }) =>
@@ -73,6 +85,12 @@ function notificationRow(
       return {
         ...common,
         kind: "session",
+        // The daemon titles an untitled session by its id; show it as its window does.
+        title: getSessionDisplayTitle({
+          id: item.source_id,
+          name: item.title,
+          agent_name: item.agent_name,
+        }),
         badge: toSessionBadge(item.badge),
         agentName: item.agent_name ?? "",
         reason: item.detail,

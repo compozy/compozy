@@ -4,12 +4,21 @@ import (
 	"context"
 	"time"
 
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/store"
+)
+
+type RunOwnerKind = modelpkg.RunOwnerKind
+
+const (
+	RunOwnerJob     = modelpkg.RunOwnerJob
+	RunOwnerTrigger = modelpkg.RunOwnerTrigger
 )
 
 // Store is the persistence surface consumed by the composed automation manager.
 type Store interface {
 	RunStore
+	LatestRunsByOwner(ctx context.Context, owner RunOwnerKind, ids []string) (map[string]Run, error)
 	GetRun(ctx context.Context, id string) (Run, error)
 	CreateJob(ctx context.Context, job Job) (Job, error)
 	UpdateJob(ctx context.Context, job Job) (Job, error)

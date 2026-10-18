@@ -2,31 +2,19 @@ import type { ComponentType, SVGProps } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import {
-  BlackboxLogo,
   ClaudeLogo,
-  ClineLogo,
   CursorLogo,
   DiscordLogo,
   GeminiLogo,
   GithubLogo,
   GoogleChatLogo,
-  GooseLogo,
-  GroqLogo,
-  HermesLogo,
-  JunieLogo,
   KimiLogo,
-  KiroLogo,
   LinearLogo,
   MicrosoftTeamsLogo,
-  MinimaxLogo,
-  MistralLogo,
   OpenAILogo,
-  OpenClawLogo,
   OpenCodeLogo,
-  OpenHandsLogo,
   OpenRouterLogo,
   PiLogo,
-  QoderLogo,
   QwenLogo,
   SlackLogo,
   TelegramLogo,
@@ -38,40 +26,28 @@ import {
 
 type LogoProps = Pick<SVGProps<SVGSVGElement>, "aria-label" | "className">;
 type LogoComponent = ComponentType<LogoProps>;
-type LogoGroup = "all" | "agents" | "bridges";
+type LogoGroup = "all" | "agents" | "integrations";
 
 interface LogoGalleryProps {
   group?: LogoGroup;
 }
 
 const AGENT_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
-  { label: "Blackbox", Logo: BlackboxLogo },
   { label: "Claude", Logo: ClaudeLogo },
-  { label: "Cline", Logo: ClineLogo },
   { label: "Cursor", Logo: CursorLogo },
   { label: "Gemini", Logo: GeminiLogo },
-  { label: "Goose", Logo: GooseLogo },
-  { label: "Groq", Logo: GroqLogo },
-  { label: "Hermes", Logo: HermesLogo },
-  { label: "Junie", Logo: JunieLogo },
   { label: "Kimi", Logo: KimiLogo },
-  { label: "Kiro", Logo: KiroLogo },
-  { label: "Minimax", Logo: MinimaxLogo },
-  { label: "Mistral", Logo: MistralLogo },
   { label: "OpenAI", Logo: OpenAILogo },
-  { label: "OpenClaw", Logo: OpenClawLogo },
   { label: "OpenCode", Logo: OpenCodeLogo },
-  { label: "OpenHands", Logo: OpenHandsLogo },
   { label: "OpenRouter", Logo: OpenRouterLogo },
   { label: "Pi", Logo: PiLogo },
-  { label: "Qoder", Logo: QoderLogo },
   { label: "Qwen", Logo: QwenLogo },
   { label: "Vercel", Logo: VercelLogo },
   { label: "xAI", Logo: XAILogo },
   { label: "Z.ai", Logo: ZAILogo },
 ];
 
-const BRIDGE_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
+const INTEGRATION_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
   { label: "Discord", Logo: DiscordLogo },
   { label: "GitHub", Logo: GithubLogo },
   { label: "Google Chat", Logo: GoogleChatLogo },
@@ -113,7 +89,7 @@ function LogoSection({
 
 function LogoGallery({ group = "all" }: LogoGalleryProps) {
   const showAgents = group === "all" || group === "agents";
-  const showBridges = group === "all" || group === "bridges";
+  const showIntegrations = group === "all" || group === "integrations";
 
   return (
     <div className="grid w-[min(960px,calc(100vw-2rem))] gap-8 rounded-lg border border-line bg-canvas p-6 text-fg">
@@ -121,13 +97,15 @@ function LogoGallery({ group = "all" }: LogoGalleryProps) {
         <p className="font-mono text-eyebrow font-medium uppercase tracking-badge text-accent">
           Logo registry
         </p>
-        <h1 className="text-xl font-medium">Agent and bridge logos</h1>
+        <h1 className="text-xl font-medium">Agent and integration logos</h1>
         <p className="max-w-[62ch] text-sm leading-6 text-muted">
           Brand SVGs exported by `@compozy/ui/logos` for Compozy site and runtime surfaces.
         </p>
       </div>
       {showAgents ? <LogoSection title="Agent providers" logos={AGENT_LOGOS} /> : null}
-      {showBridges ? <LogoSection title="Bridge surfaces" logos={BRIDGE_LOGOS} /> : null}
+      {showIntegrations ? (
+        <LogoSection title="Integration services" logos={INTEGRATION_LOGOS} />
+      ) : null}
     </div>
   );
 }
@@ -140,14 +118,14 @@ const meta: Meta<typeof LogoGallery> = {
     docs: {
       description: {
         component:
-          "Shared brand logo registry for agent providers and bridge surfaces consumed by Compozy public pages.",
+          "Shared brand logo registry for agent providers and integration services consumed by Compozy public pages.",
       },
     },
   },
   argTypes: {
     group: {
       control: "select",
-      options: ["all", "agents", "bridges"],
+      options: ["all", "agents", "integrations"],
     },
   },
 };
@@ -174,10 +152,10 @@ export const AgentProviders: Story = {
 };
 
 /**
- * Bridge logos used by bridge and integration sections.
+ * Brand logos used by integration sections.
  */
-export const BridgeSurfaces: Story = {
+export const IntegrationServices: Story = {
   args: {
-    group: "bridges",
+    group: "integrations",
   },
 };

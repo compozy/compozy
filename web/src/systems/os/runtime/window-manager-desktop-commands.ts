@@ -1,13 +1,14 @@
 import { orderedDesktops } from "../lib/desktop-order";
+import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { WindowManagerSnapRuntime } from "./window-manager-snap-commands";
 
 /** Desktop lifecycle commands shared by the geometry runtime. */
 export abstract class WindowManagerDesktopRuntime extends WindowManagerSnapRuntime {
-  createDesktop(): void {
-    this.dispatch({
+  createDesktop(desktopId = ""): WindowManagerCommandOutcome {
+    return this.dispatch({
       commandId: "desktop.create",
-      payload: { desktop_id: "", name: "" },
+      payload: { desktop_id: desktopId, name: "" },
     });
   }
 

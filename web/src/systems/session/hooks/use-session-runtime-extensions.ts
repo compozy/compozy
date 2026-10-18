@@ -9,18 +9,20 @@ import {
   derivePendingPermissions,
 } from "../lib/pending-permissions";
 import { sessionDetailOptions } from "../lib/query-options";
+import { isSessionRunning } from "../lib/session-running";
 import { sessionStore } from "../stores/session-store";
 import { useMergedSessionRuntimeTranscript } from "./use-merged-session-runtime-transcript";
 import { useSessionClarifications } from "./use-session-clarifications";
 import { useSessionExpiredInteractions } from "./use-session-expired-interactions";
 import { useSessionInputs } from "./use-session-inputs";
 import { useSessionResolvedInteractions } from "./use-session-resolved-interactions";
+import { useSubagentRosterControlPoll } from "./use-subagent-roster-control-poll";
 import type { SessionStreamEventSourceFactory } from "./use-session-live-tail";
 
 /**
  * While a prompt POST streams, the transcript SSE stays closed (HTTP/1.1 pool)
  * and the POST owns active-turn data; a bounded 1s control poll — session
- * detail, queue, pending decisions — owns control-plane freshness until the
+ * detail, queue, pending decisions, subagent roster — owns control-plane freshness until the
  * live tail reopens at the durable cursor on settle (Part II topology).
  */
 export const PROMPT_POST_CONTROL_POLL_MS = 1_000;
@@ -64,6 +66,12 @@ export function useSessionRuntimeExtensions({
     workspaceId,
   });
   const controlPolling = liveTailEnabled && promptPending;
+  useSubagentRosterControlPoll({
+    workspaceId,
+    sessionId,
+    enabled: controlPolling,
+    intervalMs: PROMPT_POST_CONTROL_POLL_MS,
+  });
   const clarifications = useSessionClarifications(workspaceId, sessionId, {
     enabled: liveTailEnabled,
     refetchInterval: controlPolling ? PROMPT_POST_CONTROL_POLL_MS : false,
@@ -95,6 +103,7 @@ export function useSessionRuntimeExtensions({
       aui.thread.reset();
     },
     rewindBlocked,
+    sessionRunning: session.data ? isSessionRunning(session.data) : false,
     transcript,
   };
 }

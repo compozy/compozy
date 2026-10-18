@@ -18,13 +18,26 @@ func (g *SessionRepo) MarkSessionInputSent(
 	entryID string,
 	now time.Time,
 ) error {
+	return g.MarkSessionInputSentInTurn(ctx, sessionID, entryID, "", now)
+}
+
+// MarkSessionInputSentInTurn records successful dispatch and the turn that consumed the entry; a
+// batched dispatch stamps every entry with the one turn that carried them. An empty turn id keeps
+// the stored one.
+func (g *SessionRepo) MarkSessionInputSentInTurn(
+	ctx context.Context,
+	sessionID string,
+	entryID string,
+	turnID string,
+	now time.Time,
+) error {
 	return g.updateSessionInputTerminal(
 		ctx,
 		"mark session input sent",
 		sessionID,
 		entryID,
 		store.SessionInputQueueStatusSent,
-		"",
+		strings.TrimSpace(turnID),
 		now,
 	)
 }
@@ -81,13 +94,16 @@ func (g *SessionRepo) MarkSessionInputFailed(
 	)
 }
 
+// updateSessionInputTerminal settles one dispatching entry. detail is the failure summary of a
+// failed entry and the consuming turn id of a sent one.
+
 func (g *SessionRepo) updateSessionInputTerminal(
 	ctx context.Context,
 	action string,
 	sessionID string,
 	entryID string,
 	status string,
-	summary string,
+	detail string,
 	now time.Time,
 ) error {
 	if err := g.checkReady(ctx, action); err != nil {
@@ -107,19 +123,25 @@ func (g *SessionRepo) updateSessionInputTerminal(
 		if getErr != nil {
 			return getErr
 		}
+		if status == store.SessionInputQueueStatusSent && entry.Status == store.SessionInputQueueStatusSent {
+			// A retried sent receipt after the turn started is already settled.
+			return nil
+		}
 		var affected int64
 		var updateErr error
 		if status == store.SessionInputQueueStatusFailed {
 			affected, updateErr = sqlcgen.New(exec).MarkSessionInputFailed(ctx, sqlcgen.MarkSessionInputFailedParams{
-				FailedStatus: status, Now: nullableSessionTime(now), FailureSummary: strings.TrimSpace(summary),
+				FailedStatus: status, Now: nullableSessionTime(now), FailureSummary: strings.TrimSpace(detail),
 				UpdatedAt: nowRaw, ID: entryID, SessionID: target,
 				DispatchingStatus: store.SessionInputQueueStatusDispatching,
 			})
 		} else {
-			affected, updateErr = sqlcgen.New(exec).MarkSessionInputSent(ctx, sqlcgen.MarkSessionInputSentParams{
-				SentStatus: status, Now: nullableSessionTime(now), UpdatedAt: nowRaw,
-				ID: entryID, SessionID: target, DispatchingStatus: store.SessionInputQueueStatusDispatching,
-			})
+			affected, updateErr = sqlcgen.New(exec).MarkSessionInputSentInTurn(
+				ctx,
+				sqlcgen.MarkSessionInputSentInTurnParams{
+					Now: nullableSessionTime(now), TurnID: detail, ID: entryID, SessionID: target,
+				},
+			)
 		}
 		if updateErr != nil {
 			return fmt.Errorf("store: %s: %w", action, updateErr)
@@ -128,7 +150,7 @@ func (g *SessionRepo) updateSessionInputTerminal(
 			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
 		}
 		if status == store.SessionInputQueueStatusFailed {
-			return markQueuedPromptAdmissionIndeterminate(ctx, exec, &entry, strings.TrimSpace(summary), nowRaw)
+			return markQueuedPromptAdmissionIndeterminate(ctx, exec, &entry, strings.TrimSpace(detail), nowRaw)
 		}
 		return completeQueuedPromptAdmissionDispatch(ctx, exec, &entry, nowRaw)
 	})
@@ -218,4 +240,34 @@ func (g *SessionRepo) CancelPendingSessionInputs(
 		return 0, fmt.Errorf("store: cancel pending session inputs: %w", err)
 	}
 	return int(rows), nil
+}
+
+// FailStaleDispatchingSessionInputs settles non-Goal leases left by a previous
+// daemon process. Their dispatch outcome is unknown, so they fail (marking any
+// admission receipt indeterminate) instead of requeueing and risking a
+// duplicate turn; either way they stop holding queue capacity. Steers staged
+// but never reserved are recovered first so they cannot stay undispatchable.
+func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now time.Time) (int, error) {
+	if err := g.checkReady(ctx, "fail stale dispatching session inputs"); err != nil {
+		return 0, err
+	}
+	rows, err := g.queries.ListStaleDispatchingSessionInputs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("store: list stale dispatching session inputs: %w", err)
+	}
+	failed := 0
+	var errs []error
+	if _, err := g.queries.RecoverStagedSessionSteers(ctx, store.FormatTimestamp(now.UTC())); err != nil {
+		errs = append(errs, fmt.Errorf("store: recover staged session steers: %w", err))
+	}
+	for _, row := range rows {
+		if err := g.MarkSessionInputFailed(
+			ctx, row.SessionID, row.ID, store.SessionInputStaleDispatchSummary, now,
+		); err != nil {
+			errs = append(errs, fmt.Errorf("store: fail stale dispatching input %s: %w", row.ID, err))
+			continue
+		}
+		failed++
+	}
+	return failed, errors.Join(errs...)
 }

@@ -27,7 +27,7 @@ lines. Long titles scale to the available width.
 
 ## Reusing the release
 
-Edit `src/releases/beta26.json`. Its `version` and `features` populate both the
+Edit `src/releases/beta27.json`. Its `version` and `features` populate both the
 film and all standalone openings. Change `introDuration` for the film's opening.
 Use the Studio sidebar to experiment; keep final values in the JSON file.
 
@@ -59,6 +59,10 @@ interaction scenes are specifically framed for the captured UI:
   `hoverSrc`, `secondarySrc`, and `expandedSrc` supply those states. Different UI
   layouts need their coordinates and framing adjusted in `shot.tsx`.
 
+The beta.27 configuration reuses the beta.26 demo shots and timing, with the
+opening version updated to `v0.3.0-beta.27`. The original beta.26 configuration
+and export are preserved. Cross-surface impact: not applicable — editorial only.
+
 ## Media quality and provenance
 
 The beta.26 sources are in `public/releases/beta26/`.
@@ -82,7 +86,7 @@ camera zoom. Export Ultramock at the highest available resolution and avoid
 upscaling already compressed video. A higher final bitrate cannot restore detail
 missing from the source. Keep the original PNGs and camera export separately.
 
-The final beta.26 delivery is `out/compozyos-beta26-release.mp4`, H.264, 1080p60,
+The current beta.27 delivery is `out/compozyos-beta27-release.mp4`, H.264, 1080p60,
 CRF 16, without audio. The source export is also silent.
 
 ## Workspace and local assets
@@ -108,7 +112,7 @@ The local pre-migration lockfile and integrity inventory are retained under
 ```bash
 bunx remotion render ReleaseFilm out/proof.mp4 --scale=0.5 --concurrency=2
 bunx remotion still ReleaseFilm out/click.png --frame=228
-bunx remotion render ReleaseFilm out/compozyos-beta26-release.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --muted --concurrency=3
+bunx remotion render ReleaseFilm out/compozyos-beta27-release.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --muted --concurrency=3
 ```
 
 Review the full export, especially cursor arrival, disclosure movement, and scene

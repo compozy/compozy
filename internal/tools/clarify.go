@@ -105,7 +105,7 @@ type ClarifyAnswerResult struct {
 
 // ClarifyAnswerRequest is the public answer mutation payload.
 type ClarifyAnswerRequest struct {
-	ChoiceIndex *int   `json:"choice_index,omitempty"`
+	ChoiceIndex *int   `json:"choice_index,omitzero"`
 	Text        string `json:"text,omitempty"`
 }
 
@@ -136,8 +136,7 @@ func (r ClarifyAnswerRequest) Normalize(question ClarifyQuestion) (ClarifyAnswer
 				index,
 			)
 		}
-		choice := index
-		return ClarifyAnswer{Choice: &choice}, nil
+		return ClarifyAnswer{Choice: new(index)}, nil
 	}
 	return ClarifyAnswer{Text: text}, nil
 }
@@ -165,7 +164,7 @@ func (p ClarifyPending) Clone() ClarifyPending {
 type ClarifyEvent struct {
 	Status     ClarifyStatus  `json:"status"`
 	Request    ClarifyPending `json:"request"`
-	Answer     *ClarifyAnswer `json:"answer,omitempty"`
+	Answer     *ClarifyAnswer `json:"answer,omitzero"`
 	ResolvedBy string         `json:"resolved_by,omitempty"`
 	At         time.Time      `json:"at"`
 }
@@ -178,7 +177,8 @@ func (e ClarifyEvent) Validate() error {
 	if strings.TrimSpace(e.Request.WorkspaceID) == "" || strings.TrimSpace(e.Request.AgentName) == "" {
 		return errors.New("tools: clarification event workspace and agent are required")
 	}
-	if e.At.IsZero() || e.Request.AskedAt.IsZero() || e.Request.Deadline.IsZero() {
+	// A zero Deadline selects an unbounded wait.
+	if e.At.IsZero() || e.Request.AskedAt.IsZero() {
 		return errors.New("tools: clarification event timestamps are required")
 	}
 	switch e.Status {
@@ -193,6 +193,9 @@ func (e ClarifyEvent) Validate() error {
 	case ClarifyStatusTimedOut:
 		if e.Answer == nil || e.Answer.Choice != nil || e.Answer.Text != "" || !e.Answer.Fallback {
 			return errors.New("tools: timed-out clarification event requires the exact fallback sentinel")
+		}
+		if e.Request.Deadline.IsZero() {
+			return errors.New("tools: timed-out clarification event requires a finite deadline")
 		}
 	case ClarifyStatusCanceled:
 		if e.Answer != nil {

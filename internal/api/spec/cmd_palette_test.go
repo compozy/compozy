@@ -27,6 +27,7 @@ func TestCmdPaletteOperationsSupportHTTPAndUDS(t *testing.T) {
 			"GET /api/cmd-palette/stream":                          "streamCmdPalette",
 			"GET /api/tools/approvals/{id}":                        "getPendingToolApproval",
 			"POST /api/tools/approvals/{id}/cancel":                "cancelPendingToolApproval",
+			"POST /api/tools/approvals/{id}/resolve":               "resolvePendingToolApproval",
 		}
 		seen := make(map[string]OperationSpec, len(want))
 		for _, operation := range Operations() {

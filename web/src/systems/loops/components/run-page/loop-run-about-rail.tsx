@@ -53,7 +53,7 @@ export function LoopRunAboutRail({
   const hasStatusRows = Boolean(showBest || lastWakeAt);
   return (
     <div
-      className={cn("border-t border-line-soft px-4.5 py-4", className)}
+      className={cn("border-t border-line-soft px-4 py-4", className)}
       data-testid="loop-run-about"
       {...props}
     >
@@ -62,7 +62,7 @@ export function LoopRunAboutRail({
         <PropertyRow label="Best result" data-testid="loop-run-about-best">
           <a
             aria-label={`Best result · ${best}`}
-            className="inline-flex min-h-6 items-center rounded-xs font-mono text-mono-id text-info hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
+            className="inline-flex min-h-6 items-center rounded-xs font-mono text-mono-id text-fg underline-offset-3 hover:underline focus-visible:outline-none focus-visible:shadow-focus-ring"
             href={`#loop-generation-${run.best_generation}`}
             onClick={event => {
               if (!onOpenGeneration) return;
@@ -113,7 +113,7 @@ export function LoopRunAboutRail({
               >
                 <span
                   aria-hidden="true"
-                  className="grid size-4 shrink-0 place-items-center rounded-xs bg-badge-fill font-mono text-pill-group-badge font-semibold text-muted"
+                  className="grid size-4 shrink-0 place-items-center rounded-xs bg-surface-2 font-mono text-pill-group-badge font-semibold text-muted"
                 >
                   {avatarSeed(row.value)}
                 </span>

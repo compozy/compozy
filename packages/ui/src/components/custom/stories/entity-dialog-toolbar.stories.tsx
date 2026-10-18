@@ -10,7 +10,7 @@ const meta: Meta<typeof EntityDialogToolbar> = {
     docs: {
       description: {
         component:
-          "Layout row between a modal header and its body. Unpainted on its own. `EntityModeToolbar` composes this, adds the Simple/Advanced pills, and paints the recessed `--color-canvas-tint` chrome strip. Trailing is compact status. Workspace scope belongs in the footer hint, not this row.",
+          "Layout row between a modal header and its body. Unpainted on its own. `EntityModeToolbar` composes this, adds the Simple/Advanced pills, and paints the recessed `--color-sunken` chrome strip. Trailing is compact status. Workspace scope belongs in the footer hint, not this row.",
       },
     },
   },

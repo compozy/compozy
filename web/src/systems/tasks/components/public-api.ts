@@ -62,8 +62,6 @@ export { TaskAutoEnqueueSwitch, TaskPriorityEditor } from "./task-rail-editors";
 export { TaskInspectDrawer } from "./task-inspect-drawer";
 export type { TaskInspectDrawerProps, TaskInspectDrawerTab } from "./task-inspect-drawer";
 export { TaskRawPane } from "./task-raw-pane";
-export { TaskBridgeSubscriptionsPane } from "./task-bridge-subscriptions-pane";
-export type { TaskBridgeSubscriptionsPaneProps } from "./task-bridge-subscriptions-pane";
 export { TaskSetupSheet } from "./task-setup-sheet";
 export type { TaskSetupSheetProps } from "./task-setup-sheet";
 export { TaskFanOutDialog } from "./task-fan-out-dialog";

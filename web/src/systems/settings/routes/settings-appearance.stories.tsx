@@ -14,7 +14,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Appearance settings rendered through the daemon-authoritative app shell: desktop wallpaper, Dock magnification, and the in-product reduce-motion preference.",
+          "Appearance settings rendered through the daemon-authoritative app shell: this browser's theme (Light, Dark, System), the in-product reduce-motion preference, and desktop wallpaper.",
       },
     },
   },

@@ -279,9 +279,7 @@ func newExtensionKitAutomationManager(
 	t.Helper()
 	workspaceRoot := t.TempDir()
 	resolver := &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID: "workspace-a", Name: "kit-automation", RootDir: workspaceRoot,
-		},
+		ID: "workspace-a", Name: "kit-automation", RootDir: workspaceRoot,
 		WorkspaceID: "workspace-a",
 	}}
 	manager, err := automationpkg.New(

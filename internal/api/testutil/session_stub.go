@@ -12,6 +12,10 @@ import (
 )
 
 type StubSessionManager struct {
+	RequestCompactionFn func(
+		context.Context, string,
+	) (session.CompactionRequestResult, <-chan acp.AgentEvent, error)
+	CompactionBoundaryFn         func(context.Context, string) (*int64, error)
 	UsageEventsFn                func(context.Context, string) ([]session.UsageEventEnvelope, error)
 	DeliveriesFn                 func(context.Context, string) ([]session.DeliveryEventEnvelope, error)
 	CompactionsFn                func(context.Context, string) ([]session.CompactionEnvelope, error)
@@ -23,12 +27,14 @@ type StubSessionManager struct {
 	ListFn                       func() []*session.Info
 	ListAllFn                    func(context.Context) ([]*session.Info, error)
 	ListPageFn                   func(context.Context, session.ListQuery) (session.ListPage, error)
+	CatalogFacetsFn              func(context.Context, session.ListQuery) (store.SessionCatalogFacetResult, error)
 	SubscribeCatalogFn           func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error)
 	MetricsByAgentFn             func(
 		context.Context, store.ReadScope, string,
 	) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn          func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn                func(context.Context, string) (*session.Info, error)
+	SessionOwnerFn          func(context.Context, string) (store.SessionOwner, error)
 	ActivePromptRunFn       func(context.Context, string) (session.PromptRunIdentity, error)
 	EventsFn                func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	LatestEventFn           func(context.Context, string, string) (*store.SessionEvent, error)
@@ -47,6 +53,9 @@ type StubSessionManager struct {
 	SetRuntimeSelectionFn   func(context.Context, string, session.RuntimeSelection, int64) (*session.Info, error)
 	ClearRuntimeSelectionFn func(context.Context, string, int64) (*session.Info, error)
 	ClearFn                 func(context.Context, string) (*session.Session, error)
+	ContinueFn              func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error)
+	ForkFn                  func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error)
+	DerivePreviewFn         func(context.Context, string, string, string) (session.DerivePreview, error)
 	RewindFn                func(
 		context.Context,
 		string,
@@ -165,7 +174,7 @@ func (s StubSessionManager) AggregateSessionsByAgent(
 	}
 	metrics := make(map[string]session.AgentSessionMetrics)
 	for _, info := range infos {
-		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream ||
+		if info == nil || info.WorkspaceID != workspaceID ||
 			!readScope.Matches(info.ProfileID) {
 			continue
 		}
@@ -232,6 +241,18 @@ func (s StubSessionManager) Status(ctx context.Context, id string) (*session.Inf
 		return s.StatusFn(ctx, id)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+// SessionOwner delegates to SessionOwnerFn, else derives the owner from Status.
+func (s StubSessionManager) SessionOwner(ctx context.Context, id string) (store.SessionOwner, error) {
+	if s.SessionOwnerFn != nil {
+		return s.SessionOwnerFn(ctx, id)
+	}
+	info, err := s.Status(ctx, id)
+	if err != nil {
+		return store.SessionOwner{}, err
+	}
+	return store.SessionOwner{SessionID: info.ID, WorkspaceID: info.WorkspaceID}, nil
 }
 
 func (s StubSessionManager) ActivePromptRun(
@@ -388,7 +409,44 @@ func (s StubSessionManager) RewindConversation(
 	return session.ConversationRewindResult{}, session.ErrSessionNotFound
 }
 
+// ContinueSession delegates to ContinueFn.
+func (s StubSessionManager) ContinueSession(
+	ctx context.Context,
+	opts session.ContinueSessionOpts,
+) (session.DeriveResult, error) {
+	if s.ContinueFn != nil {
+		return s.ContinueFn(ctx, opts)
+	}
+	return session.DeriveResult{}, session.ErrSessionNotFound
+}
+
+// ForkSession delegates to ForkFn.
+func (s StubSessionManager) ForkSession(
+	ctx context.Context,
+	opts session.ForkSessionOpts,
+) (session.DeriveResult, error) {
+	if s.ForkFn != nil {
+		return s.ForkFn(ctx, opts)
+	}
+	return session.DeriveResult{}, session.ErrSessionNotFound
+}
+
+// DerivePreview delegates to DerivePreviewFn.
+func (s StubSessionManager) DerivePreview(
+	ctx context.Context,
+	workspaceID string,
+	sourceSessionID string,
+	messageID string,
+) (session.DerivePreview, error) {
+	if s.DerivePreviewFn != nil {
+		return s.DerivePreviewFn(ctx, workspaceID, sourceSessionID, messageID)
+	}
+	return session.DerivePreview{}, session.ErrSessionNotFound
+}
+
 var _ core.SessionManager = (*StubSessionManager)(nil)
+var _ core.SessionDeriveManager = (*StubSessionManager)(nil)
+var _ core.SessionOwnerReader = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
 var _ core.SessionCatalogEventSubscriber = (*StubSessionManager)(nil)
 var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
@@ -419,4 +477,14 @@ func (s StubSessionManager) LatestSettledTurn(ctx context.Context, id string) (s
 		return s.LatestSettledTurnFn(ctx, id)
 	}
 	return session.SettledTurn{}, nil
+}
+
+func (s StubSessionManager) CatalogFacets(
+	ctx context.Context,
+	query session.ListQuery,
+) (store.SessionCatalogFacetResult, error) {
+	if s.CatalogFacetsFn != nil {
+		return s.CatalogFacetsFn(ctx, query)
+	}
+	return store.SessionCatalogFacetResult{ByWorkspace: []store.WorkspaceSessionCatalogFacets{}}, nil
 }

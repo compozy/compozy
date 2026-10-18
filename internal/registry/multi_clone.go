@@ -21,6 +21,5 @@ func cloneRegistryDownloadResult(result *DownloadResult) *DownloadResult {
 	if result == nil {
 		return nil
 	}
-	cloned := *result
-	return &cloned
+	return new(*result)
 }

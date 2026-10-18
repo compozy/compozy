@@ -62,5 +62,5 @@ if ((status != 0)); then
 fi
 
 echo "$matches" >&2
-echo "Retired product-language 'Compozy' found. Use 'CompozyOS'; preserve only 'Compozy Network' and X-Compozy-* headers." >&2
+echo "Retired product-language 'Compozy' found. Use 'CompozyOS'; preserve X-Compozy-* headers." >&2
 exit 1

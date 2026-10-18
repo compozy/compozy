@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/heartbeat"
+
+	"github.com/compozy/compozy/internal/api/contract"
+
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -30,6 +32,9 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
+		return nil, err
 	}
 	return h.decorateSessionOwners(ctx, payloads)
 }

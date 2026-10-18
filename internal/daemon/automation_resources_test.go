@@ -126,11 +126,11 @@ func TestAutomationProjectorsDelegateBuildAndApply(t *testing.T) {
 	if got, want := jobProjector.Kind(), automationpkg.JobResourceKind; got != want {
 		t.Fatalf("jobProjector.Kind() = %q, want %q", got, want)
 	}
-	jobPlan, err := jobProjector.Build(context.Background(), []resources.Record[automationpkg.Job]{{ID: "job-1"}})
+	jobPlan, err := jobProjector.Build(t.Context(), []resources.Record[automationpkg.Job]{{ID: "job-1"}})
 	if err != nil {
 		t.Fatalf("jobProjector.Build() error = %v", err)
 	}
-	if err := jobProjector.Apply(context.Background(), jobPlan); err != nil {
+	if err := jobProjector.Apply(t.Context(), jobPlan); err != nil {
 		t.Fatalf("jobProjector.Apply() error = %v", err)
 	}
 	if got, want := len(target.jobBuildRecords), 1; got != want {
@@ -151,13 +151,13 @@ func TestAutomationProjectorsDelegateBuildAndApply(t *testing.T) {
 		t.Fatalf("triggerProjector.Kind() = %q, want %q", got, want)
 	}
 	triggerPlan, err := triggerProjector.Build(
-		context.Background(),
+		t.Context(),
 		[]resources.Record[automationpkg.Trigger]{{ID: "trigger-1"}},
 	)
 	if err != nil {
 		t.Fatalf("triggerProjector.Build() error = %v", err)
 	}
-	if err := triggerProjector.Apply(context.Background(), triggerPlan); err != nil {
+	if err := triggerProjector.Apply(t.Context(), triggerPlan); err != nil {
 		t.Fatalf("triggerProjector.Apply() error = %v", err)
 	}
 	if got, want := len(target.triggerBuildRecords), 1; got != want {
@@ -168,18 +168,18 @@ func TestAutomationProjectorsDelegateBuildAndApply(t *testing.T) {
 	}
 
 	var nilJobProjector *automationJobProjector
-	if _, err := nilJobProjector.Build(context.Background(), nil); err == nil {
+	if _, err := nilJobProjector.Build(t.Context(), nil); err == nil {
 		t.Fatal("nil job projector Build() error = nil, want target failure")
 	}
-	if err := nilJobProjector.Apply(context.Background(), automationProjectionPlanStub{}); err == nil {
+	if err := nilJobProjector.Apply(t.Context(), automationProjectionPlanStub{}); err == nil {
 		t.Fatal("nil job projector Apply() error = nil, want target failure")
 	}
 
 	var nilTriggerProjector *automationTriggerProjector
-	if _, err := nilTriggerProjector.Build(context.Background(), nil); err == nil {
+	if _, err := nilTriggerProjector.Build(t.Context(), nil); err == nil {
 		t.Fatal("nil trigger projector Build() error = nil, want target failure")
 	}
-	if err := nilTriggerProjector.Apply(context.Background(), automationProjectionPlanStub{}); err == nil {
+	if err := nilTriggerProjector.Apply(t.Context(), automationProjectionPlanStub{}); err == nil {
 		t.Fatal("nil trigger projector Apply() error = nil, want target failure")
 	}
 }

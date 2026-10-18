@@ -23,10 +23,10 @@
 </div>
 
 Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops,
-triggers, cron, memory, permissions, approvals, observability, and the glue scripts that hold them
+triggers, cron, permissions, approvals, observability, and the glue scripts that hold them
 together. CompozyOS turns that entire agent stack into one product, a complete environment to
 create, automate, and supervise agent work with the agent CLIs you already use (Claude Code,
-OpenClaw, and Hermes). Built first for developers and technical operators.
+Codex, and Cursor). Built first for developers and technical operators.
 
 > [!WARNING]
 > The v0.3 line is in beta. The previous v0.2.15 product is deprecated and maintained only for
@@ -46,18 +46,16 @@ OpenClaw, and Hermes). Built first for developers and technical operators.
   while work continues in the background.
 - **Work survives the terminal.** Sessions and Loop runs belong to the daemon, so closing one client
   does not erase the work.
-- **Runs the agents you already use.** ACP-compatible CLIs (Claude Code, OpenClaw, and Hermes)
+- **Runs the agents you already use.** ACP-compatible CLIs (Claude Code, Codex, and Cursor)
   operate the same daemon-owned state.
-- **Batteries included.** One runtime, one state model: loops, approvals, and memory are core
+- **Batteries included.** One runtime, one state model: loops and approvals are core
   objects, not plugins, reachable from web, CLI, HTTP/SSE, UDS, MCP, and native tools.
 - **Local-first by default.** One Go binary and SQLite-backed stores keep runtime state on the
   operator's machine unless a configured provider or extension owns an external boundary.
 - **Remote access stays explicit.** The [Gateway](https://compozy.com/docs/gateway)
   pairs devices and exposes only the private or public surfaces an operator enables.
-- **Built to extend.** Agents, skills, capabilities, hooks, bridges, and extension kits plug into
+- **Built to extend.** Agents, skills, capabilities, hooks, and extension kits plug into
   explicit runtime contracts.
-- **Compozy Network.** Sessions can discover peers, exchange typed messages, delegate work, and close
-  it with receipts over `compozy-network/v0`.
 
 ## 📦 Installation
 
@@ -114,8 +112,8 @@ parallel model.
 ### Daemon Runtime Model
 
 `compozy daemon start`, `compozy status`, and `compozy daemon stop` manage the local daemon.
-Sessions, tasks, Loop runs, memory,
-automation, tools, and Compozy Network activity keep explicit owners and workspace boundaries. Use
+Sessions, tasks, Loop runs,
+automation and tools keep explicit owners and workspace boundaries. Use
 structured CLI output (`-o json`), HTTP/SSE, UDS, MCP, or native tools when another agent or program
 needs to manage the same resources.
 
@@ -223,9 +221,9 @@ compozy marketplace search --kind skill --query <term> -o json
 
 ### 🧠 Workflow Memory
 
-Durable memory is scoped and daemon-owned. Agents can inspect, propose, and consolidate memory through
-the same public contracts as people. The v0.2 workflow-memory files remain ordinary repository
-artifacts; they are not imported as hidden runtime state.
+Workflow memory is ordinary repository files under `.compozy/tasks/<name>/memory/`, written and read by
+the spec-cycle skills. The v0.2 workflow-memory files remain repository artifacts; they are not
+imported as hidden runtime state.
 
 ### 🤖 Supported Agents
 
@@ -252,7 +250,6 @@ compozy doctor -o json
 - [Quick Start](https://compozy.com/docs/getting-started/quick-start)
 - [Migrate from v0.2.15](MIGRATION_GUIDE.md)
 - [CLI reference](https://compozy.com/docs/cli-reference)
-- [Compozy Network protocol](https://compozy.com/protocol)
 - [GitHub releases](https://github.com/compozy/compozy/releases)
 
 ## 🛠️ Development
@@ -263,6 +260,34 @@ Vite HMR:
 ```bash
 make dev
 ```
+
+To populate the Northstar Pay demo and leave its daemon running in the background:
+
+```bash
+make demo-seed
+# Optional isolated home and secondary port:
+make demo-seed DEMO_HOME="$HOME/.compozy-demo-other" DEMO_PORT=2125
+```
+
+This builds the daemon and Web bundle, replaces the seed-owned scenario, and starts
+the demo at `http://localhost:2124` using `~/.compozy-demo` by default. The main
+instance is unchanged. To reseed a running demo, first stop its daemon with
+`COMPOZY_HOME="$HOME/.compozy-demo" ./bin/compozy daemon stop` (use your custom home
+if overridden). The raw `go run ./scripts/demo-seed --home <path>` command remains
+available for data-only seeding. Existing demos in `~/.agh` can still be selected
+explicitly with `DEMO_HOME`.
+
+To prepare the same demo and open it in the Electron desktop shell:
+
+```bash
+make demo-seed-desktop
+# The same overrides apply:
+make demo-seed-desktop DEMO_HOME="$HOME/.compozy-demo-other" DEMO_PORT=2125
+```
+
+The desktop shell uses the demo home for its runtime connection and Electron
+profile. Quitting Electron leaves the demo daemon running in the background.
+As with `demo-seed`, stop an already-running demo before reseeding it.
 
 Run the affected local gate before committing or pushing:
 

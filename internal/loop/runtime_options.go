@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -45,11 +46,7 @@ func runtimeACPOptionFromValue(value any) (dsl.ACPOptionSelection, error) {
 	if err != nil {
 		return dsl.ACPOptionSelection{}, err
 	}
-	keys := make([]string, 0, len(fields))
-	for key := range fields {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(fields))
 	selection := dsl.ACPOptionSelection{}
 	for _, key := range keys {
 		raw := fields[key]

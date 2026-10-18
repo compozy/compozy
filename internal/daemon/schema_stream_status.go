@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -26,7 +25,7 @@ func newDaemonSchemaStreamStatusReader(registry Registry) core.SchemaStreamStatu
 }
 
 func (r *daemonSchemaStreamStatusReader) SchemaStreamStatuses(ctx context.Context) ([]store.StreamStatus, error) {
-	streams := []store.MigrationStream{globaldb.MigrationStream(), memory.MigrationStream()}
+	streams := []store.MigrationStream{globaldb.MigrationStream()}
 	statuses := make([]store.StreamStatus, 0, len(streams))
 	for _, stream := range streams {
 		status, err := store.Status(ctx, r.db, stream)

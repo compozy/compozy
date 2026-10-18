@@ -37,11 +37,7 @@ export function useTaskFanOutDialog({ onOpenChange, onFanOut }: UseTaskFanOutDia
     formError: state.formError,
     handleOpenChange,
     handleSubmit,
-    networkParticipation: state.networkParticipation,
-    networkStrategies: ["named", "run"] as const,
     setDesignationsText: (value: string) => store.trigger.designationsChanged({ value }),
-    setNetworkParticipation: (value: typeof state.networkParticipation) =>
-      store.trigger.networkParticipationChanged({ value }),
     setWorktreePerRun: (value: boolean) => store.trigger.worktreePerRunChanged({ value }),
     worktreePerRun: state.worktreePerRun,
     result: state.result,

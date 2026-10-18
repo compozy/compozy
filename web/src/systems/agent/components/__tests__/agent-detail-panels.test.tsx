@@ -82,9 +82,6 @@ function instructionsViewModel(
   overrides: Partial<AgentInstructionsTabViewModel> = {}
 ): AgentInstructionsTabViewModel {
   return {
-    promptWordCount: "~4 words",
-    soulMissing: true,
-    heartbeatMissing: true,
     soul: {
       resourceKey: '["ws-test","coder","soul"]',
       payload: undefined,
@@ -123,7 +120,7 @@ function instructionsViewModel(
 }
 
 describe("agent detail panels", () => {
-  it("Should render AGENT.md truth, missing badges, and file navigation", async () => {
+  it("Should render AGENT.md truth and file navigation without missing-file warnings", async () => {
     const user = userEvent.setup();
     const onFileChange = vi.fn();
     const onEditAgentPrompt = vi.fn();
@@ -140,9 +137,8 @@ describe("agent detail panels", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Release" })).toBeVisible();
-    expect(screen.getByTestId("agent-file-meta")).toHaveTextContent("Read-only here");
-    expect(screen.getByTestId("agent-file-soul-missing-badge")).toBeVisible();
-    expect(screen.getByTestId("agent-file-heartbeat-missing-badge")).toBeVisible();
+    expect(screen.queryByTestId("agent-file-soul-missing-badge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-file-tab-soul")).toHaveTextContent("SOUL.md");
     await user.click(screen.getByTestId("agent-file-edit-prompt"));
     await user.click(screen.getByTestId("agent-file-tab-soul"));
     expect(onEditAgentPrompt).toHaveBeenCalledTimes(1);
@@ -171,11 +167,14 @@ describe("agent detail panels", () => {
       />
     );
 
-    expect(screen.getAllByText("Default")).toHaveLength(2);
+    expect(screen.getByTestId("agent-overview-permissions")).toHaveTextContent(
+      "Use the provider's setting"
+    );
+    expect(screen.queryByText("Command")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("agent-overview-runtime")).getByText("Model")).toBeVisible();
     expect(screen.getByTestId("agent-detail-runtime")).toBeVisible();
     expect(screen.queryByText("Provider")).not.toBeInTheDocument();
-    expect(screen.getByTestId("agent-overview-skills")).toHaveTextContent("1 skill disabled");
+    expect(screen.queryByTestId("agent-overview-glance")).not.toBeInTheDocument();
     expect(screen.getAllByTestId(/^agent-overview-live-sess-/)).toHaveLength(3);
     expect(screen.getByTestId("agent-overview-live-sess-active")).toHaveTextContent("59s");
     expect(screen.getByTestId("agent-overview-live-sess-active")).not.toHaveTextContent("1m");
@@ -257,7 +256,7 @@ describe("agent detail panels", () => {
     expect(onEditSection.mock.calls.map(call => call[0])).toEqual(["runtime", "access", "mcp"]);
   });
 
-  it("Should synchronize the Sessions filter action and preserve metric skeleton geometry", async () => {
+  it("Should synchronize the Sessions filter action and show counts only once metrics settle", async () => {
     const user = userEvent.setup();
     const onFilterChange = vi.fn();
     const view = render(
@@ -267,10 +266,8 @@ describe("agent detail panels", () => {
         total={2}
         active={1}
         failed={0}
-        runtimeSeconds={120}
         metricsUnavailable={false}
         metricsLoading
-        lastActivityAt="2026-04-01T01:00:00Z"
         status="ready"
         onLoadMore={vi.fn()}
         filter="all"
@@ -279,7 +276,8 @@ describe("agent detail panels", () => {
         onClearFilter={vi.fn()}
       />
     );
-    expect(screen.getByTestId("agent-sessions-metrics-loading").children).toHaveLength(4);
+    expect(screen.queryByTestId("agent-stats-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-sessions-filter-all")).toHaveTextContent(/^All$/);
     expect(screen.getByTestId("agent-session-row-sess-done")).toBeInTheDocument();
 
     view.rerender(
@@ -289,10 +287,8 @@ describe("agent detail panels", () => {
         total={2}
         active={1}
         failed={0}
-        runtimeSeconds={120}
         metricsUnavailable={false}
         metricsLoading={false}
-        lastActivityAt="2026-04-01T01:00:00Z"
         status="ready"
         onLoadMore={vi.fn()}
         filter="all"
@@ -301,6 +297,8 @@ describe("agent detail panels", () => {
         onClearFilter={vi.fn()}
       />
     );
+    expect(screen.getByTestId("agent-sessions-filter-all")).toHaveTextContent("All2");
+    expect(screen.getByTestId("agent-sessions-filter-active")).toHaveTextContent("Active1");
     await user.click(screen.getByTestId("agent-sessions-filter-done"));
     expect(onFilterChange).toHaveBeenCalledWith("done");
   });
@@ -313,10 +311,8 @@ describe("agent detail panels", () => {
         total={0}
         active={0}
         failed={null}
-        runtimeSeconds={null}
         metricsUnavailable
         metricsLoading={false}
-        lastActivityAt={null}
         status="ready"
         onLoadMore={vi.fn()}
         filter="all"
@@ -325,8 +321,7 @@ describe("agent detail panels", () => {
         onClearFilter={vi.fn()}
       />
     );
-    expect(within(screen.getByTestId("agent-stat-active")).getByText("—")).toBeInTheDocument();
-    expect(within(screen.getByTestId("agent-stat-total")).getByText("—")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-sessions-filter-all")).toHaveTextContent(/^All$/);
     expect(screen.getByTestId("agent-session-row-sess-active")).toBeInTheDocument();
   });
 
@@ -341,10 +336,8 @@ describe("agent detail panels", () => {
         total={0}
         active={0}
         failed={0}
-        runtimeSeconds={0}
         metricsUnavailable={false}
         metricsLoading={false}
-        lastActivityAt={null}
         status="ready"
         onLoadMore={vi.fn()}
         filter="all"
@@ -364,10 +357,8 @@ describe("agent detail panels", () => {
         total={0}
         active={0}
         failed={0}
-        runtimeSeconds={0}
         metricsUnavailable={false}
         metricsLoading={false}
-        lastActivityAt={null}
         status="ready"
         onLoadMore={vi.fn()}
         filter="failed"
@@ -381,7 +372,8 @@ describe("agent detail panels", () => {
     expect(onClearFilter).toHaveBeenCalledTimes(1);
   });
 
-  it("Should list every diagnostic with kind, message, and source path", () => {
+  it("Should lead with each message and keep kind and source path under Details", async () => {
+    const user = userEvent.setup();
     render(
       <AgentDiagnosticsBanner
         diagnostics={[
@@ -390,13 +382,15 @@ describe("agent detail panels", () => {
         ]}
       />
     );
+    const banner = screen.getByTestId("agent-diagnostics-banner");
+    expect(banner).toHaveTextContent("Unknown field");
+    expect(banner).toHaveTextContent("Provider is required");
+    expect(screen.queryByText(/frontmatter\.invalid/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("agent-diagnostics-details"));
     const [frontmatterDiagnostic, providerDiagnostic] =
       screen.getAllByTestId("agent-diagnostic-item");
-    expect(frontmatterDiagnostic).toHaveTextContent("frontmatter.invalid");
-    expect(frontmatterDiagnostic).toHaveTextContent("Unknown field");
-    expect(frontmatterDiagnostic).toHaveTextContent("AGENT.md:3");
-    expect(providerDiagnostic).toHaveTextContent("provider.missing");
-    expect(providerDiagnostic).toHaveTextContent("Provider is required");
-    expect(providerDiagnostic).toHaveTextContent("AGENT.md");
+    expect(frontmatterDiagnostic).toHaveTextContent("AGENT.md:3 · frontmatter.invalid");
+    expect(providerDiagnostic).toHaveTextContent("AGENT.md · provider.missing");
   });
 });

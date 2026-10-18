@@ -32,8 +32,7 @@ func TestHostAPIAutomationJobsTriggerContract(t *testing.T) {
 					) (hookspkg.AutomationFirePatch, error) {
 						payloads <- payload.Payload
 						repo, _ := payload.Payload["repo"].(string)
-						prompt := "Manual trigger for " + repo
-						return hookspkg.AutomationFirePatch{Prompt: &prompt}, nil
+						return hookspkg.AutomationFirePatch{Prompt: new("Manual trigger for " + repo)}, nil
 					},
 				), nil
 			}),

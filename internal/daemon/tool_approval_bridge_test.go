@@ -255,6 +255,29 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalCanceled)
 	})
+	t.Run("Should retain the timeout reason when ACP returns its canceled outcome", func(t *testing.T) {
+		t.Parallel()
+		requester := permissionRequesterFunc(func(
+			ctx context.Context,
+			_ string,
+			_ acp.RequestPermissionRequest,
+		) (acp.RequestPermissionResponse, error) {
+			<-ctx.Done()
+			return acp.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+		})
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester }, time.Second, nil, nil, nil,
+		)
+		ctx, cancel := context.WithDeadline(t.Context(), time.Unix(1, 0))
+		defer cancel()
+		err := bridge.RequestToolApproval(
+			ctx,
+			toolspkg.Scope{SessionID: "sess-1"},
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
+			&view,
+		)
+		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
+	})
 
 	t.Run("Should return approval_canceled when ACP returns canceled outcome", func(t *testing.T) {
 		t.Parallel()

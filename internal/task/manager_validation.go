@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func requireReadAuthority(actor ActorContext) error {
@@ -62,23 +60,14 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 	normalized.Description = strings.TrimSpace(normalized.Description)
 	normalized.Priority = normalizePriorityOrDefault(normalized.Priority)
 	if normalized.MaxAttempts != nil {
-		maxAttempts := *normalized.MaxAttempts
-		normalized.MaxAttempts = &maxAttempts
+		normalized.MaxAttempts = new(*normalized.MaxAttempts)
 	}
 	if normalized.WakeCreator != nil {
-		wakeCreator := *normalized.WakeCreator
-		normalized.WakeCreator = &wakeCreator
+		normalized.WakeCreator = new(*normalized.WakeCreator)
 	}
 	normalized.ApprovalPolicy = normalizeApprovalPolicyOrDefault(normalized.ApprovalPolicy)
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
-	}
-	if normalized.NetworkParticipation != nil {
-		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
-		if err != nil {
-			return CreateTask{}, fmt.Errorf("create_task.network_participation: %w", err)
-		}
-		normalized.NetworkParticipation = &request
 	}
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("create_task"); err != nil {
@@ -97,42 +86,28 @@ func createTaskWakeCreator(spec CreateTask) bool {
 func normalizeTaskPatch(patch Patch) (Patch, error) {
 	normalized := patch
 	if normalized.Title != nil {
-		title := strings.TrimSpace(*normalized.Title)
-		normalized.Title = &title
+		normalized.Title = new(strings.TrimSpace(*normalized.Title))
 	}
 	if normalized.Description != nil {
-		description := strings.TrimSpace(*normalized.Description)
-		normalized.Description = &description
+		normalized.Description = new(strings.TrimSpace(*normalized.Description))
 	}
 	if normalized.Priority != nil {
-		priority := normalized.Priority.Normalize()
-		normalized.Priority = &priority
+		normalized.Priority = new(normalized.Priority.Normalize())
 	}
 	if normalized.MaxAttempts != nil {
-		maxAttempts := *normalized.MaxAttempts
-		normalized.MaxAttempts = &maxAttempts
+		normalized.MaxAttempts = new(*normalized.MaxAttempts)
 	}
 	if normalized.AutoEnqueueOnReady != nil {
-		autoEnqueue := *normalized.AutoEnqueueOnReady
-		normalized.AutoEnqueueOnReady = &autoEnqueue
+		normalized.AutoEnqueueOnReady = new(*normalized.AutoEnqueueOnReady)
 	}
 	if normalized.ApprovalPolicy != nil {
-		approvalPolicy := normalized.ApprovalPolicy.Normalize()
-		normalized.ApprovalPolicy = &approvalPolicy
+		normalized.ApprovalPolicy = new(normalized.ApprovalPolicy.Normalize())
 	}
 	if normalized.Metadata != nil {
-		metadata := normalizeRawJSON(*normalized.Metadata)
-		normalized.Metadata = &metadata
+		normalized.Metadata = new(normalizeRawJSON(*normalized.Metadata))
 	}
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
-	}
-	if normalized.NetworkParticipation != nil {
-		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
-		if err != nil {
-			return Patch{}, fmt.Errorf("task_patch.network_participation: %w", err)
-		}
-		normalized.NetworkParticipation = &request
 	}
 	if err := normalized.Validate("task_patch"); err != nil {
 		return Patch{}, err
@@ -169,13 +144,6 @@ func normalizeCancelTask(req CancelTask) (CancelTask, error) {
 func normalizeTaskExecutionRequest(req ExecutionRequest) (ExecutionRequest, error) {
 	normalized := req
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	if normalized.NetworkParticipation != nil {
-		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
-		if err != nil {
-			return ExecutionRequest{}, fmt.Errorf("task_execution.network_participation: %w", err)
-		}
-		normalized.NetworkParticipation = &request
-	}
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("task_execution"); err != nil {
 		return ExecutionRequest{}, err
@@ -196,16 +164,6 @@ func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {
 	normalized.RunKind = normalizeRunKindOrDefault(normalized.RunKind)
 	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	normalized.NetworkParticipationSource = participation.Source(strings.TrimSpace(
-		string(normalized.NetworkParticipationSource),
-	))
-	if normalized.NetworkParticipation != nil {
-		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
-		if err != nil {
-			return EnqueueRun{}, fmt.Errorf("enqueue_run.network_participation: %w", err)
-		}
-		normalized.NetworkParticipation = &request
-	}
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("enqueue_run"); err != nil {

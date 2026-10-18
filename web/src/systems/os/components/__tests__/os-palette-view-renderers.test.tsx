@@ -14,7 +14,6 @@ import { UIProvider } from "@compozy/ui";
 import { TASK_STATUS_TONE } from "@/lib/status-tone";
 
 import { contentForEnvelope } from "../../hooks/use-cmd-palette-declarative-view";
-import { viewActionCommandID } from "../../lib/cmd-palette-view-action-command";
 import type { OsPaletteDomainRow as DomainRow } from "../../hooks/use-os-palette-domain-search";
 import type {
   CmdPaletteViewAction,
@@ -201,7 +200,7 @@ describe("command palette view renderers", () => {
       "data-tone",
       TASK_STATUS_TONE.in_progress
     );
-    expect(screen.getByRole("toolbar", { name: "Domain filters" })).toBeVisible();
+    expect(screen.getByRole("toolbar", { name: "Filter results" })).toBeVisible();
     expect(screen.getByRole("button", { name: "All, 4" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Running, 1" }));
     expect(onChange).toHaveBeenCalledWith("running");
@@ -275,12 +274,6 @@ describe("command palette view renderers", () => {
       submit: { ...ACTION, title: "Save" },
     };
     const onSubmit = vi.fn().mockRejectedValue(new Error("Provider rejected the form"));
-    expect(
-      viewActionCommandID("ext.notes.capture", {
-        title: "Save",
-        action: { kind: "tool", tool: "capture" },
-      })
-    ).toBe("ext__notes__capture");
     withUI(<PaletteFormView form={form} onSubmit={onSubmit} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByLabelText("Title")).toHaveFocus();
@@ -386,7 +379,7 @@ describe("command palette view renderers", () => {
         onQueryChange={onQueryChange}
       />
     );
-    expect(screen.getByText("updating")).toBeVisible();
+    expect(screen.getByText("Updating…")).toBeVisible();
     expect(screen.getByText("Last good row")).toBeVisible();
     await user.type(screen.getByPlaceholderText("Search notes…"), "n");
     expect(onQueryChange).toHaveBeenCalledWith("n");
@@ -411,7 +404,7 @@ describe("command palette view renderers", () => {
         />
       </UIProvider>
     );
-    expect(screen.getByText("degraded")).toBeVisible();
+    expect(screen.getByText("Some results may be out of date")).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
     expect(screen.getByText("Last good row")).toBeVisible();
     await user.type(screen.getByPlaceholderText("Search notes…"), "{Backspace}");
@@ -443,9 +436,9 @@ describe("command palette view renderers", () => {
         onQueryChange={vi.fn()}
       />
     );
-    expect(screen.getByText("view broken")).toBeVisible();
+    expect(screen.getByText("This view stopped working")).toBeVisible();
     expect(screen.getByText("Browse notes (ext.notes)")).toBeVisible();
-    expect(screen.getByText("until reopen")).toBeVisible();
+    expect(screen.getByText("Close and reopen the palette to try again")).toBeVisible();
     expect(screen.getByPlaceholderText("Search notes…")).toBeVisible();
   });
 

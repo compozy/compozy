@@ -18,7 +18,6 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -26,7 +25,6 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	skillbundled "github.com/compozy/compozy/skills"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
@@ -43,30 +41,6 @@ func (n *blockingSessionCreatedNotifier) OnSessionCreated(ctx context.Context, s
 		<-n.release
 	}
 	n.Notifier.OnSessionCreated(ctx, session)
-}
-
-// Invariant: Loop ownership alone never exempts silence. Owner: session supervision; canonical manager suite.
-func TestSupervisionShouldRequireWorkEvidenceForLoopOwnership(t *testing.T) {
-	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
-	cfg := testSupervisionConfig()
-	cfg.QuietAfter = time.Second
-	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
-	target := createSession(t, h)
-	target.NetworkOwnerKey = participation.OwnerKey(
-		participation.OwnerRef{Kind: participation.OwnerKindLoopRun, ID: "run-1"},
-	)
-	installAbsentWorkSources(h.manager)
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	now = now.Add(time.Second)
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	if target.Info().Supervision.QuietWarning == nil {
-		t.Fatal("loop-owned silence did not warn")
-	}
-	reportSessionStop(t, h, target.ID)
 }
 
 func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
@@ -114,14 +88,8 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if got := session.Info().Type; got != SessionTypeUser {
 		t.Fatalf("Create() type = %q, want %q", got, SessionTypeUser)
 	}
-	if got, want := session.Info().NetworkParticipation, participation.LocalSpec(); got != want {
-		t.Fatalf("Create() participation = %#v, want %#v", got, want)
-	}
 	if meta := readMeta(t, session.MetaPath()); meta.SessionType != string(SessionTypeUser) {
 		t.Fatalf("meta session type = %q, want %q", meta.SessionType, SessionTypeUser)
-	}
-	if meta := readMeta(t, session.MetaPath()); meta.NetworkSpecSnapshot() != participation.LocalSpec() {
-		t.Fatalf("meta participation = %#v, want Local", meta.NetworkSpecSnapshot())
 	}
 	if got := len(h.resolver.resolveCalls); got != 2 {
 		t.Fatalf("resolver Resolve() calls = %d, want 2", got)
@@ -174,7 +142,8 @@ func TestSessionWorktreeBinding(t *testing.T) {
 		if got := created.Info().WorktreeID; got != "wt-ready" {
 			t.Fatalf("Info.WorktreeID = %q, want wt-ready", got)
 		}
-		if got := readMeta(t, created.MetaPath()).WorktreeIDValue(); got != "wt-ready" {
+		createdMeta := readMeta(t, created.MetaPath())
+		if got := createdMeta.WorktreeIDValue(); got != "wt-ready" {
 			t.Fatalf("meta.WorktreeID = %q, want wt-ready", got)
 		}
 		if got, want := resolver.callsSnapshot(), []sessionWorktreeResolveCall{
@@ -380,6 +349,55 @@ func TestManagerPublishClarifyEvent(t *testing.T) {
 		if persisted.Answer == nil || persisted.Answer.Choice == nil || *persisted.Answer.Choice != 1 {
 			t.Fatalf("clarification answer = %#v, want choice 1", persisted.Answer)
 		}
+		if got, want := persisted.Request.Deadline, clarifyEvent.Request.Deadline; !got.Equal(want) {
+			t.Fatalf("clarification deadline = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should project an unbounded deadline as null in the durable payload", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := createSession(t, h)
+		askedAt := time.Date(2026, 9, 17, 12, 0, 0, 0, time.UTC)
+		h.manager.attentionStore = &committingAttentionStore{at: askedAt}
+		clarifyEvent := toolspkg.ClarifyEvent{
+			Status: toolspkg.ClarifyStatusPending,
+			Request: toolspkg.ClarifyPending{
+				RequestID:   "clarify-request-unbounded",
+				WorkspaceID: h.workspaceID,
+				SessionID:   sess.ID,
+				AgentName:   sess.Info().AgentName,
+				Question:    "Which environment should deploy first?",
+				AskedAt:     askedAt,
+			},
+			At: askedAt,
+		}
+
+		if err := h.manager.PublishClarifyEvent(testutil.Context(t), clarifyEvent); err != nil {
+			t.Fatalf("PublishClarifyEvent() error = %v", err)
+		}
+		stored, err := sess.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if got, want := len(stored), 1; got != want {
+			t.Fatalf("len(events) = %d, want %d", got, want)
+		}
+		decoded, err := transcript.UnmarshalAgentEvent(stored[0].Content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if !strings.Contains(string(decoded.Raw), `"deadline":null`) {
+			t.Fatalf("durable clarify payload = %s, want a null deadline", decoded.Raw)
+		}
+		var persisted toolspkg.ClarifyEvent
+		if err := json.Unmarshal(decoded.Raw, &persisted); err != nil {
+			t.Fatalf("json.Unmarshal(raw clarify event) error = %v", err)
+		}
+		if !persisted.Request.Deadline.IsZero() {
+			t.Fatalf("clarification deadline = %s, want zero for unbounded", persisted.Request.Deadline)
+		}
 	})
 
 	t.Run(
@@ -524,88 +542,97 @@ func TestManagerWorkAdmission(t *testing.T) {
 			t.Fatalf("Stop() error = %v", stopErr)
 		}
 	})
-
-	t.Run("Should finish an admitted dream continuation while public work is draining", func(t *testing.T) {
-		t.Parallel()
-
-		gate := &admission.Gate{}
-		gate.Drain()
-		h := newHarness(t, WithWorkAdmissionChecker(gate))
-		if _, err := h.manager.CreateLifecycleContinuation(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-			Type:      SessionTypeUser,
-		}); err == nil || !strings.Contains(err.Error(), string(SessionTypeDream)) {
-			t.Fatalf("CreateLifecycleContinuation(user) error = %v, want dream-only validation", err)
-		}
-
-		continuation, err := h.manager.CreateLifecycleContinuation(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-			Type:      SessionTypeDream,
-		})
-		if err != nil {
-			t.Fatalf("CreateLifecycleContinuation(dream) error = %v", err)
-		}
-		if _, err := h.manager.Prompt(
-			testutil.Context(t),
-			continuation.ID,
-			"public turn",
-		); !errors.Is(err, admission.ErrDraining) {
-			t.Fatalf("Prompt(public) error = %v, want ErrDraining", err)
-		}
-
-		var continuationRequest acp.PromptRequest
-		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			continuationRequest = req
-			source := make(chan acp.AgentEvent, 1)
-			source <- acp.AgentEvent{
-				Type:             acp.EventTypeDone,
-				TurnID:           req.TurnID,
-				Timestamp:        time.Now().UTC(),
-				StopReason:       string(acp.PromptStopReasonEndTurn),
-				PromptStopReason: acp.PromptStopReasonEndTurn,
-			}
-			close(source)
-			return source, nil
-		}
-		events, err := h.manager.PromptLifecycleContinuation(
-			testutil.Context(t),
-			continuation.ID,
-			"finish accepted checkpoint",
-		)
-		if err != nil {
-			t.Fatalf("PromptLifecycleContinuation() error = %v", err)
-		}
-		var terminal acp.AgentEvent
-		for event := range events {
-			terminal = event
-		}
-		if terminal.Type != acp.EventTypeDone {
-			t.Fatalf("continuation terminal event = %q, want %q", terminal.Type, acp.EventTypeDone)
-		}
-		if continuationRequest.Meta.TurnSource != acp.PromptTurnSourceSynthetic {
-			t.Fatalf(
-				"continuation turn source = %q, want %q",
-				continuationRequest.Meta.TurnSource,
-				acp.PromptTurnSourceSynthetic,
-			)
-		}
-		if continuationRequest.Meta.Synthetic == nil ||
-			continuationRequest.Meta.Synthetic.Reason != promptReasonLifecycleContinuation {
-			t.Fatalf(
-				"continuation synthetic metadata = %#v, want lifecycle continuation reason",
-				continuationRequest.Meta.Synthetic,
-			)
-		}
-		if err := h.manager.Stop(testutil.Context(t), continuation.ID); err != nil {
-			t.Fatalf("Stop() error = %v", err)
-		}
-	})
 }
 
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Parallel()
+	for _, provider := range []string{"claude", "cursor"} {
+		t.Run("Should reuse fresh scoped "+provider+" catalog bindings", func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name        string
+				age         time.Duration
+				stale       bool
+				wantRefresh bool
+			}{
+				{name: "Should reuse recent live rows", age: time.Minute},
+				{name: "Should reuse rows beyond the discovery interval", age: 5*time.Minute + time.Second},
+				{name: "Should reuse rows just within the session window", age: 10*time.Minute - time.Nanosecond},
+				{name: "Should refresh rows at the session window boundary", age: 10 * time.Minute, wantRefresh: true},
+				{name: "Should refresh expired rows", age: 11 * time.Minute, wantRefresh: true},
+				{name: "Should refresh stale rows", age: time.Minute, stale: true, wantRefresh: true},
+				{name: "Should refresh future dated rows", age: -time.Minute, wantRefresh: true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					now := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
+					executionContext := modelCatalogExecutionContext("secondary", "workspace-b")
+					var calls []modelcatalog.ListOptions
+					manager := &Manager{now: func() time.Time { return now }, modelCatalog: modelCatalogStub{
+						onList: func(opts modelcatalog.ListOptions) { calls = append(calls, opts) },
+						models: []modelcatalog.Model{
+							{
+								ProviderID:        provider,
+								ModelID:           "test-model",
+								AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+								TransportBindings: []modelcatalog.ModelTransportBinding{
+									{TransportModelID: "private-transport"},
+								},
+								Sources: []modelcatalog.SourceRef{
+									{
+										SourceID:    modelcatalog.SourceKindProviderLiveID(provider),
+										RefreshedAt: now.Add(-tc.age),
+										Stale:       tc.stale,
+									},
+								},
+							},
+						},
+					}}
+					binding, err := manager.resolveCatalogTransportModel(
+						t.Context(),
+						provider,
+						RuntimeSelection{Provider: provider, Model: "test-model"},
+						executionContext,
+					)
+					wantBinding := "private-transport"
+					if tc.stale && provider == "cursor" {
+						wantBinding = ""
+						negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+						if !ok ||
+							negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
+							t.Fatalf("error = %v, want model-unavailable negotiation error", err)
+						}
+					} else {
+						if tc.stale {
+							wantBinding = "test-model"
+						}
+						if err != nil {
+							t.Fatalf("resolveCatalogTransportModel() error = %v, want nil", err)
+						}
+					}
+					if binding != wantBinding {
+						t.Fatalf("binding = %q, want %q", binding, wantBinding)
+					}
+					wantCalls := 1
+					if tc.wantRefresh {
+						wantCalls = 2
+					}
+					if len(calls) != wantCalls {
+						t.Fatalf("catalog calls = %d, want %d", len(calls), wantCalls)
+					}
+					for i, opts := range calls {
+						if opts.ExecutionContext != executionContext || opts.ProviderID != provider ||
+							opts.Refresh != (i == 1) {
+							t.Fatalf("catalog call %d = %#v", i, opts)
+						}
+					}
+					if !calls[0].SkipRefreshIfEmpty {
+						t.Fatal("cached read implicitly refreshes")
+					}
+				})
+			}
+		})
+	}
 
 	t.Run("Should layer agent runtime defaults under explicit session ACP options", func(t *testing.T) {
 		t.Parallel()
@@ -1028,16 +1055,18 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve the session with the explicit model override", func(t *testing.T) {
+	t.Run("Should resolve and persist explicit model reasoning and speed overrides", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Provider:  "codex",
-			Model:     "task-profile-model",
-			Name:      "profiled-worker",
-			Workspace: h.workspaceID,
+			AgentName:       "coder",
+			Provider:        "codex",
+			Model:           "task-profile-model",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+			Name:            "profiled-worker",
+			Workspace:       h.workspaceID,
 		})
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
@@ -1054,6 +1083,19 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		if meta := readMeta(t, session.MetaPath()); meta.Model != "task-profile-model" {
 			t.Fatalf("meta.Model = %q, want task-profile-model", meta.Model)
 		}
+		if got := session.Info().ReasoningEffort; got != "high" {
+			t.Fatalf("session.Info().ReasoningEffort = %q, want high", got)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.ReasoningEffort != "high" {
+			t.Fatalf("meta.ReasoningEffort = %q, want high", meta.ReasoningEffort)
+		}
+		if got, want := h.driver.startCalls[0].Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("StartOpts.Speed = %q, want %q", got, want)
+		}
+		if got, want := meta.Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("meta.Speed = %q, want %q", got, want)
+		}
 	})
 
 	t.Run("Should reject model override without provider override", func(t *testing.T) {
@@ -1067,34 +1109,6 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		})
 		if !errors.Is(err, ErrInvalidRuntimeOverride) {
 			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
-		}
-	})
-
-	t.Run("Should persist supported reasoning effort override", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName:       "coder",
-			Provider:        "codex",
-			ReasoningEffort: "high",
-			Name:            "reasoned-worker",
-			Workspace:       h.workspaceID,
-		})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-				t.Fatalf("Stop() error = %v", err)
-			}
-		})
-
-		if got := session.Info().ReasoningEffort; got != "high" {
-			t.Fatalf("session.Info().ReasoningEffort = %q, want high", got)
-		}
-		if meta := readMeta(t, session.MetaPath()); meta.ReasoningEffort != "high" {
-			t.Fatalf("meta.ReasoningEffort = %q, want high", meta.ReasoningEffort)
 		}
 	})
 
@@ -1233,36 +1247,6 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			hydrated.SpeedResolution == nil ||
 			hydrated.SpeedResolution.Status != speedpkg.ResolutionApplied {
 			t.Fatalf("Status(stopped) speed fields = %q, %#v", hydrated.Speed, hydrated.SpeedResolution)
-		}
-	})
-
-	t.Run("Should pass an explicit fast speed to the driver", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
-			if got, want := opts.Speed, speedpkg.SpeedFast; got != want {
-				t.Fatalf("StartOpts.Speed = %q, want %q", got, want)
-			}
-			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-speed-fast"), nil
-		}
-
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Speed:     speedpkg.SpeedFast,
-			Workspace: h.workspaceID,
-		})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-				t.Errorf("Stop() error = %v", err)
-			}
-		})
-
-		if got, want := readMeta(t, session.MetaPath()).Speed, speedpkg.SpeedFast; got != want {
-			t.Fatalf("meta.Speed = %q, want %q", got, want)
 		}
 	})
 
@@ -1482,139 +1466,6 @@ func TestCreateUsesProfileWorkspaceAgents(t *testing.T) {
 	})
 }
 
-func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should no-op for nil session blank channel and missing lifecycle", func(t *testing.T) {
-		t.Parallel()
-
-		capabilities := []NetworkPeerCapability{{
-			ID:      "review-pr",
-			Summary: "Review pull requests",
-		}}
-
-		tests := []struct {
-			name             string
-			session          *Session
-			installLifecycle bool
-		}{
-			{
-				name:             "Should no-op when session is nil",
-				session:          nil,
-				installLifecycle: true,
-			},
-			{
-				name: "Should no-op when channel is blank",
-				session: &Session{
-					ID:                   "sess-no-channel",
-					AgentName:            "Coder",
-					NetworkParticipation: participation.LocalSpec(),
-				},
-				installLifecycle: true,
-			},
-			{
-				name: "Should no-op when lifecycle is missing",
-				session: &Session{
-					ID:                   "sess-no-lifecycle",
-					AgentName:            "Coder",
-					NetworkParticipation: testLiveParticipation("ws-test", "builders"),
-				},
-				installLifecycle: false,
-			},
-		}
-
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				h := newHarness(t)
-				lifecycle := newFakeNetworkPeerLifecycle()
-				if tc.installLifecycle {
-					h.manager.SetNetworkPeerLifecycle(lifecycle)
-				}
-
-				if err := h.manager.joinNetworkPeer(testutil.Context(t), tc.session, capabilities); err != nil {
-					t.Fatalf("joinNetworkPeer() error = %v", err)
-				}
-				if got := lifecycle.joinCount(); got != 0 {
-					t.Fatalf("joinNetworkPeer() join count = %d, want 0", got)
-				}
-			})
-		}
-	})
-
-	t.Run("Should forward identity channel and capability-aware payload", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		lifecycle := newFakeNetworkPeerLifecycle()
-		h.manager.SetNetworkPeerLifecycle(lifecycle)
-
-		session := &Session{
-			ID:                   "sess-capabilities",
-			AgentName:            "Coder",
-			NetworkParticipation: testLiveParticipation("ws-test", "builders"),
-		}
-		capabilities := []NetworkPeerCapability{{
-			ID:      "review-pr",
-			Summary: "Review pull requests",
-		}}
-
-		if err := h.manager.joinNetworkPeer(testutil.Context(t), session, capabilities); err != nil {
-			t.Fatalf("joinNetworkPeer() error = %v", err)
-		}
-
-		if got := lifecycle.joinCount(); got != 1 {
-			t.Fatalf("joinNetworkPeer() join count = %d, want 1", got)
-		}
-		call := lifecycle.joinCall(0)
-		if got, want := call.sessionID, "sess-capabilities"; got != want {
-			t.Fatalf("join session_id = %q, want %q", got, want)
-		}
-		if got, want := call.peerID, "coder.sess-capabilities"; got != want {
-			t.Fatalf("join peer_id = %q, want %q", got, want)
-		}
-		if got, want := call.channel, "builders"; got != want {
-			t.Fatalf("join channel = %q, want %q", got, want)
-		}
-		if !reflect.DeepEqual(call.capabilities, capabilities) {
-			t.Fatalf("join capabilities = %#v, want %#v", call.capabilities, capabilities)
-		}
-	})
-
-	t.Run("Should rebind an active peer and restore its durable participation", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		lifecycle := newFakeNetworkPeerLifecycle()
-		h.manager.SetNetworkPeerLifecycle(lifecycle)
-		active := createLiveNetworkSession(t, h)
-		taskSpec := testLiveParticipation(h.workspaceID, "lifecycle-cadence")
-
-		if err := h.manager.BindNetworkPeer(
-			testutil.Context(t),
-			active.ID,
-			taskSpec,
-			"task_run:run-lifecycle",
-		); err != nil {
-			t.Fatalf("BindNetworkPeer() error = %v", err)
-		}
-		if got, want := lifecycle.joinCall(1).channel, "lifecycle-cadence"; got != want {
-			t.Fatalf("bound peer channel = %q, want %q", got, want)
-		}
-		if got, want := active.Info().NetworkParticipation.ChannelID, "builders"; got != want {
-			t.Fatalf("durable session channel = %q, want %q", got, want)
-		}
-
-		if err := h.manager.RestoreNetworkPeer(testutil.Context(t), active.ID); err != nil {
-			t.Fatalf("RestoreNetworkPeer() error = %v", err)
-		}
-		if got, want := lifecycle.joinCall(2).channel, "builders"; got != want {
-			t.Fatalf("restored peer channel = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestListAndGet(t *testing.T) {
 	t.Parallel()
 
@@ -1678,12 +1529,10 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 		},
 	}
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
@@ -1774,12 +1623,10 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 		},
 	}
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
@@ -1857,16 +1704,15 @@ func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
+		h.cfg.Providers["mcpless"] = compozyconfig.ProviderConfig{Command: "mcpless acp", SessionMCP: new(false)}
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: h.workspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
-				Provider: "openclaw",
+				Provider: "mcpless",
 				Prompt:   "You are helpful.",
 			}},
 		})
@@ -1961,16 +1807,15 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 
 		logs := newCaptureLogHandler()
 		h := newHarness(t, WithLogger(slog.New(logs)))
+		h.cfg.Providers["mcpless"] = compozyconfig.ProviderConfig{Command: "mcpless acp", SessionMCP: new(false)}
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: h.workspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
-				Provider: "openclaw",
+				Provider: "mcpless",
 				Prompt:   "You are helpful.",
 			}},
 		})
@@ -1998,8 +1843,8 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 			t.Fatalf("MCP-disabled delegation tools = %#v, want none", got)
 		}
 		got := h.driver.startCalls[0]
-		if got.Command != "openclaw acp" {
-			t.Fatalf("start command = %q, want openclaw acp", got.Command)
+		if got.Command != "mcpless acp" {
+			t.Fatalf("start command = %q, want mcpless acp", got.Command)
 		}
 		if len(got.MCPServers) != 0 {
 			t.Fatalf("start MCPServers = %#v, want none for provider without session MCP support", got.MCPServers)
@@ -2017,7 +1862,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 		if got, want := record.Attrs["reason"], "provider_session_mcp_disabled"; got != want {
 			t.Fatalf("session MCP skipped reason = %q, want %q", got, want)
 		}
-		if got, want := record.Attrs["resolved_provider"], "openclaw"; got != want {
+		if got, want := record.Attrs["resolved_provider"], "mcpless"; got != want {
 			t.Fatalf("session MCP skipped provider = %q, want %q", got, want)
 		}
 	})
@@ -2052,105 +1897,6 @@ func TestCreateBlocksMarketplaceSkillMCPServers(t *testing.T) {
 
 	if got := h.driver.startCalls[0].MCPServers; len(got) != 0 {
 		t.Fatalf("start MCPServers = %#v, want marketplace skill MCP blocked", got)
-	}
-}
-
-func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
-		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
-	}
-	if strings.Contains(h.driver.startCalls[0].SystemPrompt, networkSkill) {
-		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
-	}
-}
-
-func TestCreateWithChannelInjectsNetworkSessionEnv(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	env := h.driver.startCalls[0].Env
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != session.ID {
-		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); !ok || got != "builders" {
-		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); !ok || got != "coder."+session.ID {
-		t.Fatalf("COMPOZY_PEER_ID = %q, %v, want %q", got, ok, "coder."+session.ID)
-	}
-}
-
-func TestCreateWithoutChannelOmitsNetworkChannelEnv(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	env := h.driver.startCalls[0].Env
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != session.ID {
-		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); ok {
-		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, want unset", got)
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); ok {
-		t.Fatalf("COMPOZY_PEER_ID = %q, want unset", got)
 	}
 }
 

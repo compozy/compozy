@@ -16,6 +16,38 @@ import (
 func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should leave hosted native lifecycle dispatch to the registry", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		runtime := &fakeHookRuntime{
+			onToolPreCall:   func(context.Context, hookspkg.ToolPreCallPayload) error { calls++; return nil },
+			onToolPostCall:  func(context.Context, hookspkg.ToolPostCallPayload) error { calls++; return nil },
+			onToolPostError: func(context.Context, hookspkg.ToolPostErrorPayload) error { calls++; return nil },
+		}
+		for _, name := range []string{"compozy__workspace_info", "mcp.compozy-hosted-tools.compozy__workspace_info"} {
+			for _, phase := range []struct{ update, status string }{
+				{"tool_call", ""}, {"tool_call_update", "completed"}, {"tool_call_update", "failed"},
+			} {
+				raw := toolEventRaw(phase.update, phase.status, map[string]any{"ok": true})
+				raw["_meta"] = map[string]any{"claudeCode": map[string]any{"toolName": name}}
+				dispatchACPAgentHookEvent(
+					t.Context(),
+					discardLogger(),
+					runtime,
+					hookspkg.SessionContext{},
+					acp.AgentEvent{
+						Type: acp.EventTypeToolCall, Raw: mustMarshalJSON(t, raw),
+					},
+					time.Date(2026, 10, 3, 7, 0, 0, 0, time.UTC),
+				)
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("observational native dispatches = %d, want 0", calls)
+		}
+	})
+
 	sessionCtx := hookspkg.SessionContext{
 		SessionID:   "sess-1",
 		AgentName:   "codex",
@@ -330,7 +362,7 @@ func TestHookAgentEventHelpersHandlePointerAndAliasInputs(t *testing.T) {
 	}
 
 	warnHookAgentDispatch(testutil.Context(t), nil, hookspkg.HookToolPreCall, nil)
-	warnHookAgentDispatch(context.Background(), nil, hookspkg.HookToolPreCall, context.DeadlineExceeded)
+	warnHookAgentDispatch(t.Context(), nil, hookspkg.HookToolPreCall, context.DeadlineExceeded)
 
 	eventTimestamp := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 	if got := hookEventTimestamp(eventTimestamp, time.Time{}); !got.Equal(eventTimestamp) {
@@ -343,93 +375,81 @@ func TestHookAgentEventHelpersHandlePointerAndAliasInputs(t *testing.T) {
 }
 
 func TestNewHookBindingPublisherUsesResourceBackedSync(t *testing.T) {
-	t.Parallel()
+	t.Run("Should require the codec and publish resource-backed hook bindings", func(t *testing.T) {
+		t.Parallel()
 
-	db := openDaemonTestGlobalDB(t)
-	kernel, err := resources.NewKernel(db.DB())
-	if err != nil {
-		t.Fatalf("resources.NewKernel() error = %v", err)
-	}
-	codec, err := newHookBindingCodec()
-	if err != nil {
-		t.Fatalf("newHookBindingCodec() error = %v", err)
-	}
-	codecs := resources.NewCodecRegistry()
-	if err := resources.RegisterCodec(codecs, codec); err != nil {
-		t.Fatalf("RegisterCodec() error = %v", err)
-	}
-	store, err := newHookBindingStore(kernel, codec)
-	if err != nil {
-		t.Fatalf("newHookBindingStore() error = %v", err)
-	}
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
+		codec, err := newHookBindingCodec()
+		if err != nil {
+			t.Fatalf("newHookBindingCodec() error = %v", err)
+		}
+		codecs := resources.NewCodecRegistry()
+		if err := resources.RegisterCodec(codecs, codec); err != nil {
+			t.Fatalf("RegisterCodec() error = %v", err)
+		}
+		store, err := newHookBindingStore(kernel, codec)
+		if err != nil {
+			t.Fatalf("newHookBindingStore() error = %v", err)
+		}
 
-	homePaths := testHomePaths(t)
-	d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
-	runtime := hookspkg.NewHooks(hookspkg.WithLogger(discardLogger()))
-	t.Cleanup(runtime.Close)
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+		runtime := hookspkg.NewHooks(hookspkg.WithLogger(discardLogger()))
+		t.Cleanup(runtime.Close)
 
-	publisher, err := d.newHookBindingPublisher(&bootState{
-		logger:         discardLogger(),
-		resourceKernel: kernel,
-		resourceCodecs: codecs,
-	}, runtime, []hookBindingDeclarationProvider{
-		func(context.Context) ([]hookspkg.HookDecl, error) {
-			return []hookspkg.HookDecl{{
-				Name:    "tool-hook",
-				Event:   hookspkg.HookToolPreCall,
-				Source:  hookspkg.HookSourceNative,
-				Mode:    hookspkg.HookModeSync,
-				Command: "/bin/true",
-				Matcher: hookspkg.HookMatcher{ToolID: "Read"},
-			}}, nil
-		},
+		// Invariant: resource-backed publication requires the registered hook codec.
+		// Owner: daemon composition; canonical suite: this publisher lifecycle.
+		if _, err := d.newHookBindingPublisher(&bootState{
+			logger:         discardLogger(),
+			resourceKernel: kernel,
+			resourceCodecs: resources.NewCodecRegistry(),
+		}, runtime, nil); err == nil {
+			t.Fatal("newHookBindingPublisher() error = nil, want missing codec failure")
+		}
+
+		publisher, err := d.newHookBindingPublisher(&bootState{
+			logger:         discardLogger(),
+			resourceKernel: kernel,
+			resourceCodecs: codecs,
+		}, runtime, []hookBindingDeclarationProvider{
+			func(context.Context) ([]hookspkg.HookDecl, error) {
+				return []hookspkg.HookDecl{{
+					Name:    "tool-hook",
+					Event:   hookspkg.HookToolPreCall,
+					Source:  hookspkg.HookSourceNative,
+					Mode:    hookspkg.HookModeSync,
+					Command: "/bin/true",
+					Matcher: hookspkg.HookMatcher{ToolID: "Read"},
+				}}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("newHookBindingPublisher() error = %v", err)
+		}
+		if err := publisher.Sync(testutil.Context(t)); err != nil {
+			t.Fatalf("publisher.Sync() error = %v", err)
+		}
+
+		records, err := store.List(testutil.Context(t), resources.MutationActor{
+			Kind:     resources.MutationActorKindDaemon,
+			ID:       "reader",
+			Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "reader"},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}, resources.ResourceFilter{})
+		if err != nil {
+			t.Fatalf("store.List() error = %v", err)
+		}
+		if len(records) != 1 {
+			t.Fatalf("store.List() count = %d, want 1", len(records))
+		}
+		if got := records[0].Spec.Name; got != "tool-hook" {
+			t.Fatalf("record.Spec.Name = %q, want %q", got, "tool-hook")
+		}
 	})
-	if err != nil {
-		t.Fatalf("newHookBindingPublisher() error = %v", err)
-	}
-	if err := publisher.Sync(testutil.Context(t)); err != nil {
-		t.Fatalf("publisher.Sync() error = %v", err)
-	}
-
-	records, err := store.List(testutil.Context(t), resources.MutationActor{
-		Kind:     resources.MutationActorKindDaemon,
-		ID:       "reader",
-		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "reader"},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-	}, resources.ResourceFilter{})
-	if err != nil {
-		t.Fatalf("store.List() error = %v", err)
-	}
-	if len(records) != 1 {
-		t.Fatalf("store.List() count = %d, want 1", len(records))
-	}
-	if got := records[0].Spec.Name; got != "tool-hook" {
-		t.Fatalf("record.Spec.Name = %q, want %q", got, "tool-hook")
-	}
-}
-
-func TestNewHookBindingPublisherRequiresRegisteredHookCodec(t *testing.T) {
-	t.Parallel()
-
-	db := openDaemonTestGlobalDB(t)
-	kernel, err := resources.NewKernel(db.DB())
-	if err != nil {
-		t.Fatalf("resources.NewKernel() error = %v", err)
-	}
-
-	homePaths := testHomePaths(t)
-	d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
-	runtime := hookspkg.NewHooks(hookspkg.WithLogger(discardLogger()))
-	t.Cleanup(runtime.Close)
-
-	_, err = d.newHookBindingPublisher(&bootState{
-		logger:         discardLogger(),
-		resourceKernel: kernel,
-		resourceCodecs: resources.NewCodecRegistry(),
-	}, runtime, nil)
-	if err == nil {
-		t.Fatal("newHookBindingPublisher() error = nil, want missing codec failure")
-	}
 }
 
 func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomically(t *testing.T) {
@@ -612,7 +632,7 @@ func TestHookBindingProjectorPreservesPermissionEscalationGuard(t *testing.T) {
 	}
 
 	payload, err := runtime.DispatchPermissionRequest(ctx, hookspkg.PermissionRequestPayload{
-		PayloadBase:   hookspkg.PayloadBase{Event: hookspkg.HookPermissionRequest},
+		Event:         hookspkg.HookPermissionRequest,
 		RequestID:     "perm-1",
 		Action:        "session/request_permission",
 		Resource:      "/tmp/secret.txt",
@@ -693,132 +713,91 @@ func TestHookBindingCodecPreservesInternalDeclarationFields(t *testing.T) {
 	}
 }
 
-func TestHookBindingReconcileFiresToolHookThroughNotifierUnit(t *testing.T) {
-	t.Parallel()
-
-	toolPayloads := make(chan hookspkg.ToolPreCallPayload, 1)
-	h := newHookBindingUnitHarness(t, map[string]hookspkg.Executor{
-		"tool-hook": hookspkg.NewTypedNativeExecutor(
-			func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
-				toolPayloads <- payload
-				return hookspkg.ToolCallPatch{}, nil
-			},
-		),
-	})
-
-	h.putBinding(t, "tool-hook", 0, resources.ResourceScope{
-		Kind: resources.ResourceScopeKindWorkspace,
-		ID:   "ws-1",
-	}, hookspkg.HookDecl{
-		Name:         "tool-hook",
-		Event:        hookspkg.HookToolPreCall,
-		Source:       hookspkg.HookSourceNative,
-		Mode:         hookspkg.HookModeSync,
-		ExecutorKind: hookspkg.HookExecutorNative,
-		Matcher: hookspkg.HookMatcher{
-			AgentName: "codex",
-			ToolID:    "Read",
-		},
-	})
-	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
-		t.Fatalf("driver.RunBoot() error = %v", err)
-	}
-
-	h.notifier.OnAgentEventForSession(testutil.Context(t), unitIntegrationSession(), acp.AgentEvent{
-		Type:       acp.EventTypeToolCall,
-		SessionID:  "acp-session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "tool-1",
-		Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
-	})
-
-	select {
-	case payload := <-toolPayloads:
-		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" || payload.ToolID != "Read" {
-			t.Fatalf("payload = %#v, want sess-1/ws-1/Read", payload)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for reconciled tool hook")
-	}
-}
-
 func TestHookBindingReconcileFailurePreservesAppliedRuntimeStateUnit(t *testing.T) {
-	t.Parallel()
+	t.Run("Should dispatch reconciled hooks and preserve them after rebuild failure", func(t *testing.T) {
+		t.Parallel()
 
-	toolPayloads := make(chan hookspkg.ToolPreCallPayload, 2)
-	h := newHookBindingUnitHarness(t, map[string]hookspkg.Executor{
-		"tool-stable": hookspkg.NewTypedNativeExecutor(
-			func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
-				toolPayloads <- payload
-				return hookspkg.ToolCallPatch{}, nil
+		toolPayloads := make(chan hookspkg.ToolPreCallPayload, 2)
+		h := newHookBindingUnitHarness(t, map[string]hookspkg.Executor{
+			"tool-stable": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
+					toolPayloads <- payload
+					return hookspkg.ToolCallPatch{}, nil
+				},
+			),
+		})
+
+		record := h.putBinding(t, "tool-hook", 0, resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspace,
+			ID:   "ws-1",
+		}, hookspkg.HookDecl{
+			Name:         "tool-stable",
+			Event:        hookspkg.HookToolPreCall,
+			Source:       hookspkg.HookSourceNative,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+			Matcher: hookspkg.HookMatcher{
+				AgentName: "codex",
+				ToolID:    "Read",
 			},
-		),
-	})
-
-	record := h.putBinding(t, "tool-hook", 0, resources.ResourceScope{
-		Kind: resources.ResourceScopeKindWorkspace,
-		ID:   "ws-1",
-	}, hookspkg.HookDecl{
-		Name:         "tool-stable",
-		Event:        hookspkg.HookToolPreCall,
-		Source:       hookspkg.HookSourceNative,
-		Mode:         hookspkg.HookModeSync,
-		ExecutorKind: hookspkg.HookExecutorNative,
-		Matcher: hookspkg.HookMatcher{
-			AgentName: "codex",
-			ToolID:    "Read",
-		},
-	})
-	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
-		t.Fatalf("driver.RunBoot(stable) error = %v", err)
-	}
-
-	h.notifier.OnAgentEventForSession(testutil.Context(t), unitIntegrationSession(), acp.AgentEvent{
-		Type:       acp.EventTypeToolCall,
-		SessionID:  "acp-session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "tool-1",
-		Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
-	})
-	select {
-	case <-toolPayloads:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for initial stable hook dispatch")
-	}
-
-	h.putBinding(t, "tool-hook", record.Version, resources.ResourceScope{
-		Kind: resources.ResourceScopeKindWorkspace,
-		ID:   "ws-1",
-	}, hookspkg.HookDecl{
-		Name:         "tool-missing",
-		Event:        hookspkg.HookToolPreCall,
-		Source:       hookspkg.HookSourceNative,
-		Mode:         hookspkg.HookModeSync,
-		ExecutorKind: hookspkg.HookExecutorNative,
-		Matcher: hookspkg.HookMatcher{
-			AgentName: "codex",
-			ToolID:    "Read",
-		},
-	})
-	if err := h.driver.RunBoot(testutil.Context(t)); err == nil {
-		t.Fatal("driver.RunBoot(broken) error = nil, want missing executor failure")
-	}
-
-	h.notifier.OnAgentEventForSession(testutil.Context(t), unitIntegrationSession(), acp.AgentEvent{
-		Type:       acp.EventTypeToolCall,
-		SessionID:  "acp-session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "tool-1",
-		Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
-	})
-	select {
-	case payload := <-toolPayloads:
-		if payload.SessionID != "sess-1" || payload.ToolID != "Read" {
-			t.Fatalf("post-failure payload = %#v, want stable tool payload", payload)
+		})
+		if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
+			t.Fatalf("driver.RunBoot(stable) error = %v", err)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for preserved tool hook after failure")
-	}
+
+		h.notifier.OnAgentEventForSession(testutil.Context(t), unitIntegrationSession(), acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			SessionID:  "acp-session-1",
+			TurnID:     "turn-1",
+			ToolCallID: "tool-1",
+			Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
+		})
+		// Invariant: reconciled hooks receive the notifier's session/workspace/tool identity,
+		// and that same applied binding survives a later failed rebuild.
+		// Owner: daemon resource-to-notifier integration; canonical suite: this lifecycle.
+		select {
+		case payload := <-toolPayloads:
+			if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" || payload.ToolID != "Read" {
+				t.Fatalf("payload = %#v, want sess-1/ws-1/Read", payload)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for initial stable hook dispatch")
+		}
+
+		h.putBinding(t, "tool-hook", record.Version, resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspace,
+			ID:   "ws-1",
+		}, hookspkg.HookDecl{
+			Name:         "tool-missing",
+			Event:        hookspkg.HookToolPreCall,
+			Source:       hookspkg.HookSourceNative,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+			Matcher: hookspkg.HookMatcher{
+				AgentName: "codex",
+				ToolID:    "Read",
+			},
+		})
+		if err := h.driver.RunBoot(testutil.Context(t)); err == nil {
+			t.Fatal("driver.RunBoot(broken) error = nil, want missing executor failure")
+		}
+
+		h.notifier.OnAgentEventForSession(testutil.Context(t), unitIntegrationSession(), acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			SessionID:  "acp-session-1",
+			TurnID:     "turn-1",
+			ToolCallID: "tool-1",
+			Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
+		})
+		select {
+		case payload := <-toolPayloads:
+			if payload.SessionID != "sess-1" || payload.ToolID != "Read" {
+				t.Fatalf("post-failure payload = %#v, want stable tool payload", payload)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for preserved tool hook after failure")
+		}
+	})
 }
 
 func testHookBindingRecord(
@@ -847,21 +826,15 @@ func dispatchProjectedToolID(t *testing.T, runtime *hookspkg.Hooks) string {
 	t.Helper()
 
 	payload, err := runtime.DispatchToolPreCall(testutil.Context(t), hookspkg.ToolPreCallPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookToolPreCall,
-			Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   "sess-1",
-			AgentName:   "codex",
-			WorkspaceID: "ws-1",
-			Workspace:   "/tmp/ws-1",
-		},
-		TurnContext: hookspkg.TurnContext{TurnID: "turn-1"},
-		ToolCallRef: hookspkg.ToolCallRef{
-			ToolCallID: "tool-1",
-			ToolID:     "Read",
-		},
+		Event:       hookspkg.HookToolPreCall,
+		Timestamp:   time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+		SessionID:   "sess-1",
+		AgentName:   "codex",
+		WorkspaceID: "ws-1",
+		Workspace:   "/tmp/ws-1",
+		TurnID:      "turn-1",
+		ToolCallID:  "tool-1",
+		ToolID:      "Read",
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPreCall() error = %v", err)

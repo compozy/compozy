@@ -25,7 +25,7 @@ const meta: Meta<typeof ProfileSwitcher> = {
     docs: {
       description: {
         component:
-          "The menubar profile switcher. Quiet until a second profile exists; once plural it carries the identity and answers the boundary question in one sentence.",
+          "The rail-foot profile switcher: a 40px rail item. Quiet until a second profile exists; once plural it carries the identity glyph (name in the tooltip) and answers the boundary question in one sentence.",
       },
     },
   },
@@ -39,7 +39,7 @@ const meta: Meta<typeof ProfileSwitcher> = {
   decorators: [
     Story => (
       <StorySurface>
-        <div className="flex justify-end">
+        <div className="flex w-rail justify-center bg-rail py-2.5">
           <Story />
         </div>
       </StorySurface>

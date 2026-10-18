@@ -1,18 +1,5 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
-export type NotificationPresetCollection = OperationResponse<"listNotificationPresets", 200>;
-export type NotificationPresetEntry = NotificationPresetCollection["presets"][number];
-export type NotificationPresetTarget = NotificationPresetEntry["targets"][number];
-export type NotificationPresetFilter = NonNullable<OperationQuery<"listNotificationPresets">>;
-export type CreateNotificationPresetRequest = OperationRequestBody<"createNotificationPreset">;
-export type UpdateNotificationPresetRequest = OperationRequestBody<"updateNotificationPreset">;
-export type SetNotificationPresetEnablementRequest =
-  OperationRequestBody<"setNotificationPresetEnablement">;
-export type NotificationPresetEnablement = OperationResponse<
-  "setNotificationPresetEnablement",
-  200
->;
-
 export type AttentionNotifications = OperationResponse<"listAttentionNotifications", 200>;
 export type AttentionNotification = AttentionNotifications["items"][number];
 export type AcknowledgeAttentionRequest = OperationRequestBody<"acknowledgeAttentionNotifications">;

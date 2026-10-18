@@ -84,7 +84,7 @@ function RunCard({
     <Surface
       data-slot="run-card"
       data-status={status}
-      className={cn("flex flex-col gap-3", className)}
+      className={cn("@container/run-card flex flex-col gap-3", className)}
       {...props}
     >
       <header
@@ -120,7 +120,7 @@ function RunCard({
           {warning.message}
         </div>
       ) : null}
-      <div data-slot="run-card-grid" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div data-slot="run-card-grid" className="grid grid-cols-2 gap-3 @md/run-card:grid-cols-4">
         <RunCardStat label="Channel" value={channel ?? PLACEHOLDER} slot="channel" />
         <RunCardStat
           label="Queued"

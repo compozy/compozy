@@ -19,27 +19,27 @@ export interface TerminalQuoteBlockProps {
 export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps) {
   return (
     <div
-      className="tm-quote overflow-hidden rounded-xs border border-line border-l-2 border-l-line-strong"
+      className="tm-quote overflow-hidden rounded-lg bg-sunken"
       data-testid="terminal-quote-block"
     >
-      <div className="flex min-h-6 items-center gap-1.75 bg-canvas-tint px-2.25 font-mono text-micro text-subtle">
-        <TerminalSquare aria-hidden="true" className="size-2.5" />
+      <div className="flex min-h-7 items-center gap-1.75 pr-1 pl-3 font-mono text-micro text-subtle">
+        <TerminalSquare aria-hidden="true" className="size-3" />
         <span>
           {quote.terminalId} · lines {quote.fromLine}–{quote.toLine}
         </span>
         <Button
           aria-label="Remove quote"
-          className="ml-auto size-5"
+          className="ml-auto"
           onClick={onRemove}
           size="icon-xs"
           type="button"
-          variant="ghost"
+          variant="quiet"
         >
-          <X aria-hidden="true" className="size-2.5" />
+          <X aria-hidden="true" />
         </Button>
       </div>
       {/* A quoted excerpt sits below the live grid's 12.5px — never at it. */}
-      <div className="bg-chat-fill-code px-2.25 py-1.5 font-mono text-badge leading-normal text-fg">
+      <div className="px-3 pb-1.5 font-mono text-badge leading-normal text-fg-3">
         {quote.lines.map((line, index) => (
           <span className="block" key={`${quote.fromLine + index}`}>
             <span aria-hidden="true" className="mr-2.5 text-faint select-none">
@@ -49,7 +49,7 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
           </span>
         ))}
       </div>
-      <div className="bg-canvas-tint px-2.25 pt-0.75 pb-1.25 text-micro text-faint">
+      <div className="px-3 pt-0.75 pb-2 text-eyebrow text-subtle">
         Line numbers can shift as old output is trimmed.
       </div>
     </div>
@@ -108,7 +108,7 @@ export function TerminalSelectionActions({
     return (
       <div
         aria-label="Selection actions"
-        className="relative z-10 min-w-36 flex-none rounded-lg bg-canvas-soft p-1 shadow-hairline"
+        className="relative z-10 min-w-36 flex-none rounded-lg bg-popover p-1 shadow-pop"
         data-testid="terminal-selection-actions"
         role="group"
       >
@@ -124,7 +124,7 @@ export function TerminalSelectionActions({
   return (
     <div
       aria-label="Selection actions — no active session"
-      className="relative z-10 min-w-36 flex-none rounded-lg bg-canvas-soft p-1 shadow-hairline"
+      className="relative z-10 min-w-36 flex-none rounded-lg bg-popover p-1 shadow-pop"
       data-testid="terminal-selection-actions-no-session"
       role="group"
     >
@@ -150,8 +150,8 @@ function SelectionAction({
       className={cn(
         "relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1",
         "text-left text-small-body select-none",
-        "hover:bg-elevated hover:text-fg-strong",
-        "focus-visible:bg-elevated focus-visible:text-fg-strong",
+        "hover:bg-surface-2 hover:text-fg",
+        "focus-visible:bg-surface-2 focus-visible:text-fg",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4"
       )}

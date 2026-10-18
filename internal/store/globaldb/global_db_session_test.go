@@ -3,7 +3,6 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -13,7 +12,6 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
@@ -29,31 +27,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		db := openScanSessionInfoDB(t)
 		subprocessStartedAt := time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)
 		lastUpdateAt := time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)
-		liveSpec := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-1",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "builders",
-			Source:          participation.SourceExplicitRequest,
-			Bounds: participation.Bounds{
-				MaxWakes:         1,
-				MaxWakeWallTime:  "1m",
-				MaxTotalWallTime: "5m",
-				MaxInputTokens:   1024,
-				MaxOutputTokens:  512,
-				MaxWakeDepth:     1,
-				CoalesceWindow:   "500ms",
-			},
-		}
-		if err := participation.ValidateSpec(liveSpec); err != nil {
-			t.Fatalf("ValidateSpec() error = %v", err)
-		}
-		liveJSON, err := json.Marshal(liveSpec)
-		if err != nil {
-			t.Fatalf("json.Marshal(live spec) error = %v", err)
-		}
-		row := db.QueryRowContext(context.Background(), `
+		row := db.QueryRowContext(t.Context(), `
 		SELECT
 			'sess-scan',
 			?,
@@ -78,10 +52,6 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			4,
 			'ws-1',
 			'wt-scan',
-			?,
-			'live',
-			'builders',
-			'explicit_request',
 			'user',
 			NULL,
 			NULL,
@@ -92,6 +62,9 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			true,
 			'{}',
 			'{}',
+			'',
+			NULL,
+			'',
 			'stopped',
 			NULL,
 			'acp-123',
@@ -121,21 +94,12 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'snap-scan',
 			'sha256:scan',
 			'sha256:parent',
-			'env-scan',
-			'local',
-			'local',
-			'instance-scan',
-			'prepared',
-			'{"local":true}',
 			?,
-			'sync failed',
 			?,
-			?`,
+			false`,
 			store.DefaultProfileID,
-			string(liveJSON),
 			formatTimestamp(subprocessStartedAt),
 			formatTimestamp(lastUpdateAt),
-			formatTimestamp(time.Date(2026, 4, 3, 12, 4, 30, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
 		)
@@ -205,9 +169,6 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			info.SpeedResolution.Status != "applied" {
 			t.Fatalf("info.SpeedResolution = %#v, want applied fast", info.SpeedResolution)
 		}
-		if got, want := info.NetworkSpecSnapshot(), liveSpec; got != want {
-			t.Fatalf("info Network participation = %#v, want %#v", got, want)
-		}
 		if info.ACPSessionID == nil || *info.ACPSessionID != "acp-123" {
 			t.Fatalf("info.ACPSessionID = %#v, want acp-123", info.ACPSessionID)
 		}
@@ -236,9 +197,6 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := attention.LastSeenRevision, int64(5); got != want {
 			t.Fatalf("info.LastSeenRevision = %d, want %d", got, want)
 		}
-		if info.Sandbox == nil {
-			t.Fatal("info.Sandbox = nil, want sandbox metadata")
-		}
 		if info.Liveness == nil {
 			t.Fatal("info.Liveness = nil, want liveness metadata")
 		}
@@ -260,12 +218,6 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		}
 		if got, want := info.Liveness.StallReason, "activity_timeout"; got != want {
 			t.Fatalf("info.Liveness.StallReason = %q, want %q", got, want)
-		}
-		if got, want := info.Sandbox.SandboxID, "env-scan"; got != want {
-			t.Fatalf("info.Sandbox.SandboxID = %q, want %q", got, want)
-		}
-		if got, want := info.Sandbox.LastSyncError, "sync failed"; got != want {
-			t.Fatalf("info.Sandbox.LastSyncError = %q, want %q", got, want)
 		}
 	})
 }
@@ -330,7 +282,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		t.Parallel()
 
 		db := openScanSessionInfoDB(t)
-		row := db.QueryRowContext(context.Background(), `
+		row := db.QueryRowContext(t.Context(), `
 		SELECT
 			'sess-null',
 			?,
@@ -355,10 +307,6 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			0,
 			'ws-1',
 			NULL,
-			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
-			'local',
-			NULL,
-			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -369,6 +317,9 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			true,
 			'{}',
 			'{}',
+			'',
+			NULL,
+			'',
 			'active',
 			NULL,
 			NULL,
@@ -398,16 +349,9 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			NULL,
 			'',
 			'',
-			'',
-			'',
-			'',
-			'',
-			'',
-			'',
-			NULL,
-			'',
 			?,
-			?`,
+			?,
+			false`,
 			store.DefaultProfileID,
 			formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
@@ -425,9 +369,6 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		}
 		if info.Provider != "" {
 			t.Fatalf("info.Provider = %q, want empty", info.Provider)
-		}
-		if channel := info.NetworkSpecSnapshot().ChannelID; channel != "" {
-			t.Fatalf("info Network channel = %q, want empty", channel)
 		}
 		if info.ACPSessionID != nil {
 			t.Fatalf("info.ACPSessionID = %#v, want nil", info.ACPSessionID)
@@ -450,106 +391,6 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 	})
 }
 
-func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject invalid sandbox last sync timestamps", func(t *testing.T) {
-		t.Parallel()
-
-		db := openScanSessionInfoDB(t)
-		row := db.QueryRowContext(context.Background(), `
-		SELECT
-			'sess-invalid-last-sync',
-			?,
-			'Demo',
-			'coder',
-			'claude',
-			'',
-			'',
-			'',
-			'',
-			'',
-			'unbound',
-			'',
-			'',
-			0,
-			'',
-			'',
-			'',
-			'',
-			'',
-			'[]',
-			0,
-			'ws-1',
-			NULL,
-			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
-			'local',
-			NULL,
-			'built_in_local',
-			'user',
-			NULL,
-			NULL,
-			0,
-			NULL,
-			NULL,
-			false,
-			true,
-			'{}',
-			'{}',
-			'active',
-			NULL,
-			NULL,
-			NULL,
-			0,
-			0,
-			NULL,
-			NULL,
-			'',
-			'',
-			0,
-			NULL,
-			NULL,
-			'',
-			'',
-			'',
-			'',
-			NULL,
-			0,
-			0,
-			0,
-			0,
-			0,
-			0,
-			NULL,
-			NULL,
-			NULL,
-			'',
-			'',
-			'env-invalid',
-			'local',
-			'local',
-			'instance-invalid',
-			'prepared',
-			'{"local":true}',
-			'not-a-timestamp',
-			'',
-			?,
-			?`,
-			store.DefaultProfileID,
-			formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
-			formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
-		)
-
-		_, err := scanSessionInfo(row)
-		if err == nil {
-			t.Fatal("scanSessionInfo() error = nil, want invalid sandbox_last_sync_at failure")
-		}
-		if got, want := err.Error(), `store: parse timestamp "not-a-timestamp"`; !strings.Contains(got, want) {
-			t.Fatalf("scanSessionInfo() error = %v, want substring %q", err, want)
-		}
-	})
-}
-
 func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 	t.Parallel()
 
@@ -557,7 +398,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 		t.Parallel()
 
 		db := openScanSessionInfoDB(t)
-		row := db.QueryRowContext(context.Background(), `
+		row := db.QueryRowContext(t.Context(), `
 		SELECT
 			'sess-invalid-stall',
 			?,
@@ -582,10 +423,6 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			0,
 			'ws-1',
 			NULL,
-			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
-			'local',
-			NULL,
-			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -596,6 +433,9 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			true,
 			'{}',
 			'{}',
+			'',
+			NULL,
+			'',
 			'active',
 			NULL,
 			NULL,
@@ -625,16 +465,9 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			NULL,
 			'',
 			'',
-			'',
-			'local',
-			'',
-			'',
-			'',
-			'',
-			NULL,
-			'',
 			?,
-			?`,
+			?,
+			false`,
 			store.DefaultProfileID,
 			formatTimestamp(time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)),
@@ -777,80 +610,94 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 	})
 }
 
+func TestGlobalDBRegisterSessionProfileAdmission(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		archived bool
+		identity bool
+	}{
+		{"Should classify an archived profile at session insertion", true, false},
+		{"Should classify an unavailable profile at session insertion", false, false},
+		{"Should classify an archived profile at identity registration", true, true},
+		{"Should classify an unavailable profile at identity registration", false, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspace := registerWorkspaceForGlobalTests(
+				t,
+				db,
+				"profile-admission",
+				filepath.Join(t.TempDir(), "workspace"),
+			)
+			const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+			now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+			if _, err := db.db.ExecContext(
+				ctx,
+				`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'editorial','#8E8EB5','circle','active',?)`,
+				profileID,
+				formatTimestamp(now),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if test.archived {
+				if _, err := db.db.ExecContext(
+					ctx,
+					`UPDATE profiles SET state='archived',archived_at=? WHERE id=?`,
+					formatTimestamp(now),
+					profileID,
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if _, err := db.db.ExecContext(
+					ctx,
+					`INSERT INTO profile_lifecycle_ops (id,kind,profile_id,old_name,new_name,plan_revision,status,created_at,updated_at)
+					VALUES ('op_admission','rename',?,'editorial','publication','revision','failed',?,?)`,
+					profileID,
+					formatTimestamp(now),
+					formatTimestamp(now),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			info := sessionInfoForWorkspaceStateIndexTest(
+				"session-refused",
+				workspace,
+				globalDBSessionStateStarting,
+				now,
+			)
+			info.ProfileID = profileID
+			var err error
+			if test.identity {
+				_, err = db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{
+					CreationProfileRef: "profile-v1", PolicySpecDigest: "policy-v1", CreationDigest: "creation-v1",
+				})
+			} else {
+				err = db.RegisterSession(ctx, info)
+			}
+			refusal, ok := errors.AsType[*store.ProfileAdmissionError](err)
+			if !ok || refusal.ProfileID != profileID || refusal.Archived != test.archived {
+				t.Fatalf("register session error = %v, want profile admission refusal", err)
+			}
+			if strings.Contains(err.Error(), "constraint failed") || !strings.Contains(err.Error(), "compozy profile") {
+				t.Fatalf("register session error = %v, want recovery guidance without SQLite internals", err)
+			}
+			sessions, err := db.ListSessions(
+				ctx,
+				store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: profileID}, ID: info.ID},
+			)
+			if err != nil || len(sessions) != 0 {
+				t.Fatalf("sessions = %#v, error = %v, want no admitted session", sessions, err)
+			}
+		})
+	}
+}
+
 func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should reject a participation snapshot change", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			"immutable-participation-workspace",
-			filepath.Join(t.TempDir(), "immutable-participation-workspace"),
-		)
-		now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
-		session := store.SessionInfo{
-			ProfileID:     store.DefaultProfileID,
-			ID:            "sess-immutable-participation",
-			Name:          "Immutable Participation",
-			AgentName:     "coder",
-			Provider:      "claude",
-			RuntimeStatus: store.SessionRuntimeUnbound,
-			WorkspaceID:   workspaceID,
-			SessionType:   defaultSessionType,
-			State:         globalDBSessionStateActive,
-			CreatedAt:     now,
-			UpdatedAt:     now,
-		}
-		session.SetNetworkSpec(participation.LocalSpec())
-		if err := globalDB.RegisterSession(ctx, session); err != nil {
-			t.Fatalf("RegisterSession(Local) error = %v", err)
-		}
-
-		session.SetNetworkSpec(participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     workspaceID,
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "immutable-builders",
-			Source:          participation.SourceExplicitRequest,
-			Bounds: participation.Bounds{
-				MaxWakes:         4,
-				MaxWakeWallTime:  "30s",
-				MaxTotalWallTime: "2m",
-				MaxInputTokens:   4096,
-				MaxOutputTokens:  4096,
-				MaxWakeDepth:     4,
-				CoalesceWindow:   "250ms",
-			},
-		})
-		session.State = globalDBSessionStateStopped
-		session.UpdatedAt = now.Add(time.Minute)
-		err := globalDB.RegisterSession(ctx, session)
-		if !errors.Is(err, store.ErrSessionParticipationMismatch) {
-			t.Fatalf("RegisterSession(Live refresh) error = %v, want participation mismatch", err)
-		}
-
-		stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{
-			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
-			ID:        session.ID,
-		})
-		if err != nil {
-			t.Fatalf("ListSessions() error = %v", err)
-		}
-		if len(stored) != 1 {
-			t.Fatalf("len(stored) = %d, want 1", len(stored))
-		}
-		if got, want := stored[0].NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-			t.Fatalf("stored participation = %#v, want %#v", got, want)
-		}
-		if got, want := stored[0].State, globalDBSessionStateActive; got != want {
-			t.Fatalf("stored state = %q, want unchanged %q", got, want)
-		}
-	})
 
 	t.Run("Should reject a workspace owner change", func(t *testing.T) {
 		t.Parallel()
@@ -1068,16 +915,6 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 
 		assertSessionDeleteRowCounts(t, globalDB, sessionID, 0, 0, 0)
 		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
-	})
-
-	t.Run("Should return session not found when the catalog row is absent", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		err := globalDB.DeleteSession(testutil.Context(t), "sess-missing-delete")
-		if !errors.Is(err, store.ErrSessionNotFound) {
-			t.Fatalf("DeleteSession(missing) error = %v, want ErrSessionNotFound", err)
-		}
 	})
 
 	t.Run("Should roll back dependent deletes when the session row cannot be deleted", func(t *testing.T) {
@@ -1309,67 +1146,133 @@ func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 	})
 }
 
-func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
+func TestGlobalDBSessionReadsIgnoreExpiredAttachLocks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should clear expired attach holder fields before returning sessions", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			"expired-attach-workspace",
-			filepath.Join(t.TempDir(), "expired-attach-workspace"),
-		)
-		now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
-		expiredAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-			ProfileID:     store.DefaultProfileID,
-			ID:            "sess-expired-attach",
-			Name:          "Expired Attach",
-			AgentName:     "coder",
-			Provider:      "claude",
-			RuntimeStatus: store.SessionRuntimeUnbound,
-			WorkspaceID:   workspaceID,
-			SessionType:   defaultSessionType,
-			State:         globalDBSessionStateActive,
-			SessionAttachState: &store.SessionAttachState{
-				AttachedTo:      "operator-old",
-				AttachExpiresAt: &expiredAt,
-			},
-			CreatedAt: now.Add(-time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
-		}); err != nil {
-			t.Fatalf("RegisterSession() error = %v", err)
-		}
-
-		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
-			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
-			ID:        "sess-expired-attach",
-		})
-		if err != nil {
-			t.Fatalf("ListSessions() error = %v", err)
-		}
-		if len(sessions) != 1 {
-			t.Fatalf("len(sessions) = %d, want 1", len(sessions))
-		}
-		if sessions[0].AttachedToValue() != "" || sessions[0].AttachExpiresAtValue() != nil {
-			t.Fatalf(
-				"session attach fields = %#v/%#v, want cleared",
-				sessions[0].AttachedToValue(),
-				sessions[0].AttachExpiresAtValue(),
+	t.Run(
+		"Should read expired leases without waiting for an unrelated writer or changing ordering",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspaceID := registerWorkspaceForGlobalTests(t, db, "expired-attach-workspace",
+				filepath.Join(t.TempDir(), "workspace"))
+			now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
+			attachedAt := now.Add(-time.Hour)
+			info := sessionInfoForWorkspaceStateIndexTest("sess-expired-attach", workspaceID,
+				globalDBSessionStateActive, attachedAt)
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+				SessionID: info.ID, AttachedTo: "operator-old", Now: attachedAt, TTL: time.Minute,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			writer, err := db.db.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := writer.Close(); err != nil {
+					t.Errorf("close writer: %v", err)
+				}
+			})
+			if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+					t.Errorf("rollback writer: %v", err)
+				}
+			})
+			readCtx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			sessions, err := db.ListSessions(readCtx, store.SessionListQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, ID: info.ID, Resumable: true,
+			})
+			if err != nil {
+				t.Fatalf("ListSessions with a held writer: %v", err)
+			}
+			if len(sessions) != 1 || sessions[0].AttachedToValue() != "" || sessions[0].AttachExpiresAtValue() != nil {
+				t.Fatalf("expired lease projection = %#v, want one unattached session", sessions)
+			}
+			if !sessions[0].UpdatedAt.Equal(attachedAt) {
+				t.Fatalf("updated_at = %v, want %v", sessions[0].UpdatedAt, attachedAt)
+			}
+			page, err := db.PageSessions(readCtx, store.SessionCatalogPageQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID,
+				Sort: sessionCatalogSortRecent, Limit: 10, Resumable: true,
+			})
+			if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].AttachedToValue() != "" {
+				t.Fatalf("PageSessions with a held writer = %#v, %v", page, err)
+			}
+			metrics, err := db.AggregateSessionsByAgent(readCtx, store.SessionAgentMetricsQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID,
+			})
+			if err != nil || len(metrics) != 1 || metrics[0].Total != 1 ||
+				!metrics[0].LastActivityAt.Equal(attachedAt) {
+				t.Fatalf("AggregateSessionsByAgent with a held writer = %#v, %v", metrics, err)
+			}
+			var holder, updatedAt string
+			if err := db.db.QueryRowContext(ctx, "SELECT attached_to, updated_at FROM sessions WHERE id = ?", info.ID).
+				Scan(&holder, &updatedAt); err != nil {
+				t.Fatal(err)
+			}
+			if holder != "operator-old" || updatedAt != store.FormatTimestamp(attachedAt) {
+				t.Fatalf("persisted lease = %q, %q, want original holder and ordering", holder, updatedAt)
+			}
+		},
+	)
+	t.Run(
+		"Should reclaim only the attached session and leave global cleanup to the explicit sweep",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspaceID := registerWorkspaceForGlobalTests(
+				t,
+				db,
+				"lease-scope",
+				filepath.Join(t.TempDir(), "workspace"),
 			)
-		}
-		cleared, err := globalDB.SweepExpiredSessionAttachLocks(ctx, now)
-		if err != nil {
-			t.Fatalf("SweepExpiredSessionAttachLocks(after list) error = %v", err)
-		}
-		if cleared != 0 {
-			t.Fatalf("SweepExpiredSessionAttachLocks(after list) = %d, want 0", cleared)
-		}
-	})
+			now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
+			for _, id := range []string{"target", "unrelated"} {
+				if err := db.RegisterSession(ctx, sessionInfoForWorkspaceStateIndexTest(
+					id, workspaceID, globalDBSessionStateActive, now.Add(-time.Hour),
+				)); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+					SessionID: id, AttachedTo: "old", Now: now.Add(-time.Hour), TTL: time.Minute,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+				SessionID: "target", AttachedTo: "new", Now: now, TTL: time.Minute,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			var holder string
+			if err := db.db.QueryRowContext(ctx, "SELECT attached_to FROM sessions WHERE id = 'unrelated'").
+				Scan(&holder); err != nil {
+				t.Fatal(err)
+			}
+			if holder != "old" {
+				t.Fatalf("unrelated holder = %q, want old", holder)
+			}
+			cleared, err := db.SweepExpiredSessionAttachLocks(ctx, now)
+			if err != nil || cleared != 1 {
+				t.Fatalf("explicit sweep = %d, %v, want one expired lease", cleared, err)
+			}
+			if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+				SessionID: "target", AttachedTo: "other", Now: now, TTL: time.Minute,
+			}); !errors.Is(err, store.ErrSessionAttachLocked) {
+				t.Fatalf("active target lease = %v, want ErrSessionAttachLocked", err)
+			}
+		},
+	)
 }
 
 func openScanSessionInfoDB(t *testing.T) *sql.DB {
@@ -1565,74 +1468,5 @@ func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {
 		if onDelete != "CASCADE" {
 			t.Fatalf("%s session foreign key on_delete = %q, want CASCADE", table, onDelete)
 		}
-	}
-}
-
-func TestGlobalDBPreviousReleaseCreationProfile(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name        string
-		old         string
-		replacement string
-		valid       bool
-	}{
-		{name: "Should reopen the beta 21 catalog profile without changing its content address", valid: true},
-		{name: "Should reject a tampered catalog profile", old: "historical policy", replacement: "tampered policy"},
-		{name: "Should reject a future catalog profile", old: `"version":4`, replacement: `"version":6`},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t)
-			payload, err := os.ReadFile("../testdata/session-profile-v4/profile.json.golden")
-			if err != nil {
-				t.Fatal(err)
-			}
-			meta, err := store.ReadSessionMeta("../testdata/session-profile-v4/meta.json.golden")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if tc.old != "" {
-				payload = []byte(strings.ReplaceAll(string(payload), tc.old, tc.replacement))
-			}
-			db := openTestGlobalDB(t)
-			if _, err := db.db.ExecContext(
-				ctx,
-				`INSERT INTO session_creation_profiles(profile_ref,profile_json,created_at) VALUES(?,?,?)`,
-				meta.CreationProfileRef,
-				string(payload),
-				store.FormatTimestamp(meta.CreatedAt),
-			); err != nil {
-				t.Fatal(err)
-			}
-			if err := db.Close(ctx); err != nil {
-				t.Fatal(err)
-			}
-			reopened := openGlobalDBForTest(t, db.path)
-			profile, err := reopened.GetSessionCreationProfile(ctx, meta.CreationProfileRef)
-			if !tc.valid {
-				if err == nil {
-					t.Fatal("accepted invalid catalog profile")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			ref, err := reopened.PutSessionCreationProfile(ctx, profile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if ref != meta.CreationProfileRef {
-				t.Fatal("idempotent write changed historical reference")
-			}
-			var stored string
-			if err := reopened.db.QueryRowContext(ctx, `SELECT profile_json FROM session_creation_profiles WHERE profile_ref=?`, ref).
-				Scan(&stored); err != nil {
-				t.Fatal(err)
-			}
-			if stored != string(payload) {
-				t.Fatal("catalog lookup rewrote historical bytes")
-			}
-		})
 	}
 }

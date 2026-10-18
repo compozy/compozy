@@ -10,7 +10,6 @@ const (
 	RunEventNodeFailed           RunEventKind = "node_failed"
 	RunEventGateVerdict          RunEventKind = "gate_verdict"
 	RunEventGenerationStarted    RunEventKind = "generation_started"
-	RunEventChannelMsg           RunEventKind = "channel_msg"
 	RunEventTokenTick            RunEventKind = "token_tick"
 	RunEventNeedsApproval        RunEventKind = "needs_approval"
 	RunEventStatusChanged        RunEventKind = "status_changed"
@@ -48,7 +47,7 @@ const (
 func RunEventKindValues() []string {
 	return []string{
 		string(RunEventNodeRunning), string(RunEventNodeSucceeded), string(RunEventNodeFailed),
-		string(RunEventGateVerdict), string(RunEventGenerationStarted), string(RunEventChannelMsg),
+		string(RunEventGateVerdict), string(RunEventGenerationStarted),
 		string(RunEventTokenTick), string(RunEventNeedsApproval), string(RunEventStatusChanged),
 		string(RunEventGoalTurnStarted), string(RunEventGoalTurnCompleted), string(RunEventGoalStatusChanged),
 		string(RunEventRuntimeApplied), string(RunEventPredicateDiagnostic), string(RunEventRouteTaken),

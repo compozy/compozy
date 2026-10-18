@@ -8,9 +8,8 @@ import (
 	"time"
 )
 
-func executeDispatch[P any, R any](
+func (h *Hooks) executeDispatch[P any, R any](
 	ctx context.Context,
-	h *Hooks,
 	event HookEvent,
 	payload P,
 	cfg dispatchConfig[P, R],
@@ -22,7 +21,7 @@ func executeDispatch[P any, R any](
 		return payload, errors.New("hooks: dispatch context is nil")
 	}
 
-	syncHooks, asyncHooks, err := matchingDispatchHooks(h, event, payload, cfg.match)
+	syncHooks, asyncHooks, err := h.matchingDispatchHooks(event, payload, cfg.match)
 	if err != nil {
 		return payload, err
 	}
@@ -62,7 +61,7 @@ func executeDispatch[P any, R any](
 	}
 
 	if dispatchErr == nil && !report.Denied && len(asyncHooks) > 0 {
-		submitAsyncHooks(ctx, h, result, asyncHooks, pipe)
+		h.submitAsyncHooks(ctx, result, asyncHooks, pipe)
 	}
 
 	reportDispatchResult(h, event, dispatchDepth, dispatchStarted, report, dispatchErr, len(syncHooks), len(asyncHooks))
@@ -70,8 +69,7 @@ func executeDispatch[P any, R any](
 	return result, dispatchErr
 }
 
-func matchingDispatchHooks[P any](
-	h *Hooks,
+func (h *Hooks) matchingDispatchHooks[P any](
 	event HookEvent,
 	payload P,
 	match matcherFunc[P],

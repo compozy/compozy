@@ -81,7 +81,6 @@ function renderWindow(overrides: Partial<TerminalWindowAppProps> = {}) {
       actions={actions}
       engineLoader={stubEngineLoader}
       inputRequests={[]}
-      interactiveAvailable
       journal={<div data-testid="journal-slot">journal</div>}
       limit={TERMINAL_LIMIT}
       profile={TERMINAL_FIXTURE_PROFILE}
@@ -115,7 +114,8 @@ describe("TerminalWindowApp — S1 states", () => {
     await waitFor(() =>
       expect(screen.getByRole("log", { name: PSQL_TERMINAL.title })).toBeInTheDocument()
     );
-    expect(screen.getByTestId("terminal-viewers")).toBeInTheDocument();
+    // A lone viewer is the default, so the head shows no viewer count.
+    expect(screen.queryByTestId("terminal-viewers")).not.toBeInTheDocument();
   });
 
   it("Should render a pipe terminal as a log with no interactive affordance", async () => {
@@ -304,7 +304,6 @@ describe("TerminalWindowApp — S1 states", () => {
         actions={actions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={remaining.length}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -325,20 +324,14 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(actions.onCloseTerminal).toHaveBeenLastCalledWith(remaining[0].id);
   });
 
-  it("Should state an execute-only platform instead of offering a screen", async () => {
-    renderWindow({ interactiveAvailable: false, terminals: [] });
+  // Invariant: a terminal the shell has not titled yet is named after its shell,
+  // never left as an empty head. Owning layer: the window's identity row.
+  it("Should name an untitled terminal after its shell", async () => {
+    const untitled = { ...DEV_SERVER_TERMINAL, title: "", shell: "/bin/zsh" };
+    renderWindow({ terminals: [untitled] });
+    await waitForTerminalRenderer(untitled.id);
 
-    expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-new")).not.toBeInTheDocument();
-    expect(screen.getByTestId("terminal-execute-only")).not.toHaveTextContent("On this platform");
-
-    await userEvent.click(screen.getByRole("button", { name: "View journal" }));
-    expect(screen.queryByTestId("terminal-execute-only")).not.toBeInTheDocument();
-    expect(screen.getByTestId("journal-slot")).toBeVisible();
-
-    await userEvent.click(screen.getByTestId("terminal-journal-back"));
-    expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
-    expect(screen.getByTestId("journal-slot")).not.toBeVisible();
+    expect(screen.getByTestId("terminal-header")).toHaveTextContent("zsh");
   });
 
   it("Should publish identity into the OS head instead of drawing a second row", async () => {
@@ -364,7 +357,6 @@ describe("TerminalWindowApp — S1 states", () => {
           actions={stubWindowActions()}
           engineLoader={stubEngineLoader}
           inputRequests={[]}
-          interactiveAvailable
           journal={<div>Marketing journal</div>}
           profile={TERMINAL_FIXTURE_PROFILE}
           socketFactory={silentSocketFactory}
@@ -376,7 +368,6 @@ describe("TerminalWindowApp — S1 states", () => {
           actions={stubWindowActions()}
           engineLoader={stubEngineLoader}
           inputRequests={[]}
-          interactiveAvailable
           journal={<div>Operations journal</div>}
           profile="operations"
           socketFactory={silentSocketFactory}
@@ -502,7 +493,7 @@ describe("TerminalWindowApp — S1 states", () => {
 
     await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
 
-    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("rec 02:14");
+    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("Recording 02:14");
     expect(screen.getByRole("button", { name: "Stop recording" })).toBeEnabled();
 
     view.rerender(
@@ -510,7 +501,6 @@ describe("TerminalWindowApp — S1 states", () => {
         actions={view.actions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -529,7 +519,6 @@ describe("TerminalWindowApp — S1 states", () => {
         actions={view.actions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -540,7 +529,7 @@ describe("TerminalWindowApp — S1 states", () => {
         workspaceId="ws-atlas"
       />
     );
-    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("rec 05:00");
+    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("Recording 05:00");
     expect(screen.getByRole("button", { name: "Stop recording" })).toBeEnabled();
   });
 
@@ -796,7 +785,6 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
         actions={renderedActions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -830,7 +818,6 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
         actions={renderedActions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}

@@ -82,7 +82,7 @@ export function ShortcutPresetCard({
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-small-body font-semibold text-fg-strong">Terminal preset</h3>
+            <h3 className="text-body font-medium text-fg">Terminal preset</h3>
             {applied ? (
               <Pill size="xs" tone="success">
                 <Check aria-hidden="true" className="size-3" /> Applied
@@ -99,14 +99,14 @@ export function ShortcutPresetCard({
           <Clipboard aria-hidden="true" className="size-3.5" /> Copy as TOML
         </Button>
         {revertToken ? (
-          <Button size="sm" type="button" variant="outline" onClick={revert}>
+          <Button size="sm" type="button" variant="secondary" onClick={revert}>
             <RotateCcw aria-hidden="true" className="size-3.5" /> Revert
           </Button>
         ) : (
           <Button
             size="sm"
             type="button"
-            variant={previewOpen ? "outline" : "default"}
+            variant="secondary"
             onClick={() => setPreviewOpen(open => !open)}
           >
             {previewOpen ? "Cancel" : "Preview"}
@@ -114,7 +114,7 @@ export function ShortcutPresetCard({
         )}
       </div>
       {previewOpen ? (
-        <div className="border-t border-line-soft bg-canvas px-4 py-3">
+        <div className="border-t border-line-soft bg-sunken px-4 py-3">
           <div className="max-h-64 overflow-y-auto rounded-md border border-line">
             {preview.map(change => (
               <div
@@ -147,6 +147,7 @@ export function ShortcutPresetCard({
           <div className="mt-3 flex justify-end">
             <Button
               disabled={preview.length === 0 || blockingConflicts.length > 0}
+              size="sm"
               type="button"
               onClick={apply}
             >

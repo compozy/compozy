@@ -70,21 +70,6 @@ export const storySessionIds = {
   compliance: "sess_compliance_review",
 } as const;
 
-export const storyChannels = {
-  launchWarRoom: "launch-war-room",
-  execSignal: "exec-signal",
-  financeWatch: "finance-watch",
-  landingPage: "landing-page",
-  supportSwarm: "support-swarm",
-  riskOps: "risk-ops",
-  merchantEscalations: "merchant-escalations",
-  growthLaunch: "growth-launch",
-  releaseControl: "release-control",
-  partnerSync: "partner-sync",
-} as const;
-
-export const storyHeroNetworkChannel = storyChannels.launchWarRoom;
-
 export const storyPeerIds = {
   local: "peer_northstar_launch",
   partner: "peer_partner_bank",

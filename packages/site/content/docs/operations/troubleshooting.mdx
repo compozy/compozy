@@ -59,7 +59,7 @@ compozy daemon start
 | Field      | What to check                                                                                                                                                                                                                                                                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Symptoms   | A daemon-global refusal stops boot and names `$COMPOZY_HOME/compozy.db`. A per-session refusal can instead appear after CompozyOS is ready when `compozy session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                   |
-| Diagnosis  | `legacy_database` means the file predates CompozyOS's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                               |
+| Diagnosis  | `legacy_database` means the file predates CompozyOS's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global stream, not every lazily opened per-session stream.                                           |
 | Resolution | For `schema_ahead`, run a newer compatible CompozyOS binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `COMPOZY_HOME` or workspace `.compozy` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
 
 Stopped-daemon provider-auth, extension, and MCP-auth commands return the same refusal as one structured error
@@ -78,8 +78,8 @@ compozy daemon start
 compozy status -o json | jq '.daemon.schema_streams'
 ```
 
-The final command should report the `global` and `memory` streams with their applied versions and
-schema digests. It does not validate every per-session `events.db`; exercise the affected session-history
+The final command should report the `global` stream with its applied version and
+schema digest. It does not validate every per-session `events.db`; exercise the affected session-history
 reader separately. Do not copy legacy tables or session directories into the fresh home. Keep
 `$legacy_home` separate for inspection with its matching pre-Goose binary. For `schema_ahead`, keep the
 original home in place and use a newer compatible binary instead of this state-discarding path. See
@@ -98,11 +98,16 @@ digest remain intact. Upgrading requires no reset or manual database edit. Unkno
 versions and corrupt witnesses remain unreadable and unchanged: preserve the full
 home and inspect the sampled errors before choosing a repair or compatible binary.
 
-Session listing and memory scanning each log a summary with at most five examples.
+Session listing logs a summary with at most five examples.
 An unchanged failure set repeats at most once every five minutes; changed failures
 are reported on the next scan. Doctor remains available between warnings. Its scan
 checks metadata and creation witnesses, not every session event database; verify
 history separately with `compozy session history <id> -o json`.
+
+A session directory whose `meta.json` names a session type or internal spawn role from the removed
+memory feature is skipped on purpose: the daemon logs `observe.session_recovery_skipped` once per
+daemon run and never changes the files. See
+[Session directories the daemon does not recover](/docs/sessions/lifecycle#session-directories-the-daemon-does-not-recover).
 
 ## Unix socket cannot be created or opened
 
@@ -277,6 +282,17 @@ compozy status
 
 For systemd or launchd installs, define `COMPOZY_HOME` in the service environment and keep provider API
 keys in the same environment.
+
+## Retired settings are not archived
+
+| Field      | What to check                                                                                                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | The log holds a `config.retired_keys_archive_failed` warning with the `path` of a `config.toml` and a `reason`, for example `config changed during retirement migration` or a write error. The daemon and your commands keep working, and the file still holds its retired settings.                               |
+| Diagnosis  | The loader found retired settings in `<path>` and tried to archive them as comments. The file changed or was replaced between the read and the write, or the loader could not replace it, for example in a read-only directory. Nothing was written, so the retired values are inactive until an archive succeeds. |
+| Resolution | Stop whatever else edits the file and make the file and its directory writable. The next load archives the current content and logs `config.retired_keys_archived`; the warning stops once that happens. Nothing else needs changing, because the retired settings no longer apply.                                |
+
+See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings) for what
+the loader archives.
 
 ## Related pages
 

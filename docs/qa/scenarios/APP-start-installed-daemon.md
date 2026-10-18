@@ -31,3 +31,11 @@ product state with one listener, and kept the daemon healthy after app quit. Pac
 and Linux artifact evidence remain blocked for the mandatory pre-publish smoke.
 
 Issue 559 changes the slow-start expectation: a polling-window expiration alone is not a boot failure. Stalled live processes remain pending with periodic diagnostics; cancellation releases the startup mutation lock without terminating the daemon. Owning CLI cancellation/exit tests and the 30-second isolated runtime pause are recorded in `docs/qa/reports/2026-09-09-issue-559-safe-update-recovery.md`. This slice does not re-claim the historical browser/session or full OS matrix evidence.
+
+Issue 666 Linux regression: install an AppImage in `~/Applications`, remove its desktop entry,
+and verify `app status` remains installed while the authenticated shell is running and reports
+the shell's current version. Quit and run `app open /workspaces`: direct executable launch must
+receive the URL as one argument. On launch, inspect the recreated desktop entry for the current
+AppImage path/version, `%u`, and `MimeType=x-scheme-handler/compozyos;`; verify `xdg-mime query
+default x-scheme-handler/compozyos` and launch the URL through KDE without protocol recursion.
+Native KDE/AppImage evidence remains a platform QA requirement; macOS checks do not prove it.

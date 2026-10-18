@@ -8,25 +8,8 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/coordinator"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 )
-
-func bindCoordinatorParticipation(decision coordinator.Decision) (participation.Spec, error) {
-	spec := decision.NetworkParticipation
-	if err := participation.ValidateSpec(spec); err != nil {
-		return participation.Spec{}, fmt.Errorf("daemon: validate coordinator network participation: %w", err)
-	}
-	if spec.Mode == participation.ModeLive &&
-		strings.TrimSpace(spec.WorkspaceID) != strings.TrimSpace(decision.WorkspaceID) {
-		return participation.Spec{}, fmt.Errorf(
-			"daemon: coordinator participation workspace %q does not match coordinator workspace %q",
-			spec.WorkspaceID,
-			decision.WorkspaceID,
-		)
-	}
-	return spec, nil
-}
 
 func (r *coordinatorRuntime) dispatchPreSpawn(
 	ctx context.Context,
@@ -53,20 +36,18 @@ func (r *coordinatorRuntime) dispatchSpawned(
 		return
 	}
 	_, err := r.hooks.DispatchCoordinatorSpawned(ctx, hookspkg.CoordinatorSpawnedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorSpawned, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:                    decision.ProfileID,
-			WorkspaceID:                  decision.WorkspaceID,
-			Workspace:                    info.Workspace,
-			AgentName:                    info.AgentName,
-			CoordinatorSessionID:         info.ID,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
-			Provider:                     cfg.Provider,
-			Model:                        cfg.Model,
-		},
+		Event: hookspkg.HookCoordinatorSpawned, Timestamp: r.now().UTC(),
+		ProfileID:            decision.ProfileID,
+		WorkspaceID:          decision.WorkspaceID,
+		Workspace:            info.Workspace,
+		AgentName:            info.AgentName,
+		CoordinatorSessionID: info.ID,
+		TaskID:               decision.TaskID,
+		RunID:                decision.RunID,
+		WorkflowID:           decision.WorkflowID,
+
+		Provider:     cfg.Provider,
+		Model:        cfg.Model,
 		DecisionKind: "lifecycle",
 		Decision:     reason,
 	})
@@ -80,16 +61,14 @@ func (r *coordinatorRuntime) dispatchStopped(ctx context.Context, info *session.
 		return
 	}
 	_, err := r.hooks.DispatchCoordinatorStopped(ctx, hookspkg.CoordinatorStoppedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorStopped, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:                    info.ProfileID,
-			WorkspaceID:                  info.WorkspaceID,
-			Workspace:                    info.Workspace,
-			AgentName:                    info.AgentName,
-			CoordinatorSessionID:         info.ID,
-			ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
-			Provider:                     info.Provider,
-		},
+		Event: hookspkg.HookCoordinatorStopped, Timestamp: r.now().UTC(),
+		ProfileID:            info.ProfileID,
+		WorkspaceID:          info.WorkspaceID,
+		Workspace:            info.Workspace,
+		AgentName:            info.AgentName,
+		CoordinatorSessionID: info.ID,
+
+		Provider:     info.Provider,
 		DecisionKind: "lifecycle",
 		Decision:     coordinator.ReasonCoordinatorStopped,
 		StopReason:   string(info.StopReason),
@@ -102,7 +81,6 @@ func (r *coordinatorRuntime) dispatchStopped(ctx context.Context, info *session.
 func (r *coordinatorRuntime) dispatchFailed(
 	ctx context.Context,
 	decision coordinator.Decision,
-	coordinatorParticipation *participation.Spec,
 	reason string,
 	failed error,
 ) {
@@ -110,15 +88,12 @@ func (r *coordinatorRuntime) dispatchFailed(
 		return
 	}
 	_, err := r.hooks.DispatchCoordinatorFailed(ctx, hookspkg.CoordinatorFailedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorFailed, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:                    decision.ProfileID,
-			WorkspaceID:                  decision.WorkspaceID,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: cloneCoordinatorParticipation(coordinatorParticipation),
-		},
+		Event: hookspkg.HookCoordinatorFailed, Timestamp: r.now().UTC(),
+		ProfileID:    decision.ProfileID,
+		WorkspaceID:  decision.WorkspaceID,
+		TaskID:       decision.TaskID,
+		RunID:        decision.RunID,
+		WorkflowID:   decision.WorkflowID,
 		DecisionKind: "bootstrap",
 		Decision:     reason,
 		Error:        failed.Error(),
@@ -131,7 +106,6 @@ func (r *coordinatorRuntime) dispatchFailed(
 func (r *coordinatorRuntime) dispatchDecision(
 	ctx context.Context,
 	decision coordinator.Decision,
-	coordinatorParticipation *participation.Spec,
 	reason string,
 	override string,
 ) {
@@ -143,15 +117,12 @@ func (r *coordinatorRuntime) dispatchDecision(
 		value = strings.TrimSpace(override)
 	}
 	_, err := r.hooks.DispatchCoordinatorDecision(ctx, hookspkg.CoordinatorDecisionPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorDecision, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:                    decision.ProfileID,
-			WorkspaceID:                  decision.WorkspaceID,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: cloneCoordinatorParticipation(coordinatorParticipation),
-		},
+		Event: hookspkg.HookCoordinatorDecision, Timestamp: r.now().UTC(),
+		ProfileID:    decision.ProfileID,
+		WorkspaceID:  decision.WorkspaceID,
+		TaskID:       decision.TaskID,
+		RunID:        decision.RunID,
+		WorkflowID:   decision.WorkflowID,
 		DecisionKind: "bootstrap",
 		Decision:     firstNonEmpty(value, reason),
 	})
@@ -163,29 +134,19 @@ func (r *coordinatorRuntime) dispatchDecision(
 func (r *coordinatorRuntime) preSpawnPayload(
 	decision coordinator.Decision,
 	cfg compozyconfig.ResolvedCoordinatorRole,
-	coordinatorParticipation participation.Spec,
 	reason string,
 ) hookspkg.CoordinatorPreSpawnPayload {
 	return hookspkg.CoordinatorPreSpawnPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorPreSpawn, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:                    decision.ProfileID,
-			WorkspaceID:                  decision.WorkspaceID,
-			AgentName:                    cfg.AgentName,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: participation.CloneSpec(coordinatorParticipation),
-			Provider:                     cfg.Provider,
-			Model:                        cfg.Model,
-		},
-		Reason: reason,
-	}
-}
+		Event: hookspkg.HookCoordinatorPreSpawn, Timestamp: r.now().UTC(),
+		ProfileID:   decision.ProfileID,
+		WorkspaceID: decision.WorkspaceID,
+		AgentName:   cfg.AgentName,
+		TaskID:      decision.TaskID,
+		RunID:       decision.RunID,
+		WorkflowID:  decision.WorkflowID,
 
-func cloneCoordinatorParticipation(spec *participation.Spec) *participation.Spec {
-	if spec == nil {
-		return nil
+		Provider: cfg.Provider,
+		Model:    cfg.Model,
+		Reason:   reason,
 	}
-	return participation.CloneSpec(*spec)
 }

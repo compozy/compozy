@@ -15,10 +15,7 @@ interface LoopEditorFoldProps {
  */
 export function LoopEditorFold({ label, subLabel, defaultOpen, children }: LoopEditorFoldProps) {
   return (
-    <Collapsible
-      className="rounded-md border border-line-soft bg-canvas-soft"
-      defaultOpen={defaultOpen}
-    >
+    <Collapsible className="rounded-md bg-sunken" defaultOpen={defaultOpen}>
       <CollapsibleTrigger className="group flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-form-label font-medium text-fg-strong">
         {label}
         {subLabel ? <span className="text-badge font-normal text-faint">{subLabel}</span> : null}

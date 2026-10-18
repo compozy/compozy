@@ -34,8 +34,8 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 	if err != nil {
 		if invalidField, ok := errors.AsType[*invalidTaskQueryFieldError](err); ok {
 			c.JSON(http.StatusBadRequest, contract.TaskQueryErrorPayload{
-				ErrorPayload: contract.ErrorPayload{Error: "invalid_query_field"},
-				Field:        invalidField.field,
+				Error: "invalid_query_field",
+				Field: invalidField.field,
 			})
 			return
 		}
@@ -347,10 +347,10 @@ func (h *BaseHandlers) taskDetailPayload(ctx context.Context, view *taskpkg.View
 	if err := h.decorateTaskDetailOwners(ctx, &payload); err != nil {
 		return contract.TaskDetailPayload{}, err
 	}
-	if h == nil || h.NetworkStore == nil || view == nil || strings.TrimSpace(view.Task.ID) == "" {
+	if h == nil || h.TaskDesignations == nil || view == nil || strings.TrimSpace(view.Task.ID) == "" {
 		return payload, nil
 	}
-	rollups, err := h.NetworkStore.ListTaskDesignationRollups(ctx, store.TaskDesignationRollupQuery{
+	rollups, err := h.TaskDesignations.ListTaskDesignationRollups(ctx, store.TaskDesignationRollupQuery{
 		TaskID: strings.TrimSpace(view.Task.ID),
 		Limit:  taskDesignationRollupDetailLimit,
 	})
@@ -359,62 +359,6 @@ func (h *BaseHandlers) taskDetailPayload(ctx context.Context, view *taskpkg.View
 	}
 	payload.DesignationRollups = TaskDesignationRollupPayloadsFromStore(rollups)
 	return payload, nil
-}
-
-// InspectTask returns a diagnostic snapshot for one task.
-func (h *BaseHandlers) InspectTask(c *gin.Context) {
-	manager, ok := h.requireTaskManager(c)
-	if !ok {
-		return
-	}
-
-	taskID, err := requiredPathID(c.Param("id"), "task id")
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	actor, err := h.taskActorContext(c, taskActionInspect)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	view, err := manager.InspectTask(c.Request.Context(), taskID, actor)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.TaskInspectResponse{Inspect: TaskInspectPayloadFromView(view)})
-}
-
-// InspectRun returns a diagnostic snapshot rooted at one run.
-func (h *BaseHandlers) InspectRun(c *gin.Context) {
-	manager, ok := h.requireTaskManager(c)
-	if !ok {
-		return
-	}
-
-	runID, err := requiredPathID(c.Param("id"), "run id")
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	actor, err := h.taskActorContext(c, taskActionInspect)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	view, err := manager.InspectRun(c.Request.Context(), runID, actor)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.TaskInspectResponse{Inspect: TaskInspectPayloadFromView(view)})
 }
 
 // DeleteTask removes one task record and any cascade-owned child rows.
@@ -489,5 +433,10 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
+	payload := TaskPayloadFromTask(record)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskResponse{Task: payload})
 }

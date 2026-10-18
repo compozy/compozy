@@ -57,6 +57,36 @@ export function formatRelativeTime(iso: string, now: number = Date.now()): strin
   return formatAbsoluteTime(iso);
 }
 
+const COMPACT_THRESHOLDS = [
+  { limit: 3_600_000, divisor: 60_000, unit: "m" },
+  { limit: 86_400_000, divisor: 3_600_000, unit: "h" },
+  { limit: 604_800_000, divisor: 86_400_000, unit: "d" },
+  { limit: 2_592_000_000, divisor: 604_800_000, unit: "w" },
+  { limit: 31_536_000_000, divisor: 2_592_000_000, unit: "mo" },
+] as const;
+
+/**
+ * Renders the compact relative form for dense rows: `"now"` under a minute,
+ * then `"5m"`, `"2h"`, `"3d"`, `"2w"`, `"4mo"`, `"1y"`. No `"ago"` suffix; a
+ * future timestamp reads `"in 5m"`. Invalid ISO strings render the `—` sentinel.
+ */
+export function formatCompactRelativeTime(iso: string, now: number = Date.now()): string {
+  const target = parseIso(iso);
+  if (target === null) return FALLBACK;
+
+  const deltaMs = now - target;
+  const absMs = Math.abs(deltaMs);
+  if (absMs < 60_000) return "now";
+
+  const unitFor = (): string => {
+    for (const { limit, divisor, unit } of COMPACT_THRESHOLDS) {
+      if (absMs < limit) return `${Math.max(1, Math.floor(absMs / divisor))}${unit}`;
+    }
+    return `${Math.floor(absMs / 31_536_000_000)}y`;
+  };
+  return deltaMs < 0 ? `in ${unitFor()}` : unitFor();
+}
+
 /**
  * Renders an absolute timestamp using the runtime's default locale settings.
  * Invalid ISO strings render the `—` sentinel.
@@ -67,11 +97,20 @@ export function formatAbsoluteTime(iso: string): string {
   return ABSOLUTE_FORMATTER.format(new Date(target));
 }
 
+export interface FormatDurationOptions {
+  /**
+   * Keep the second unit even when it is zero, zero-padded to two digits
+   * ("12m 05s", "1h 00m"), so a ticking value keeps its width.
+   */
+  padded?: boolean;
+}
+
 /**
  * Formats a millisecond duration to its two largest non-zero units, including days.
- * Returns `"0s"` for non-positive or non-finite durations.
+ * Returns `"0s"` for non-positive or non-finite durations. `padded` keeps the
+ * unit after the largest one, zero-padded.
  */
-export function formatDuration(ms: number): string {
+export function formatDuration(ms: number, options: FormatDurationOptions = {}): string {
   if (!Number.isFinite(ms) || ms <= 0) return "0s";
   const total = Math.floor(ms / 1_000);
   const days = Math.floor(total / 86_400);
@@ -86,6 +125,15 @@ export function formatDuration(ms: number): string {
     { value: minutes, suffix: "m" },
     { value: seconds, suffix: "s" },
   ];
+  if (options.padded) {
+    const lead = units.findIndex(unit => unit.value > 0);
+    if (lead < 0) return "0s";
+    const head = units[lead]!;
+    const next = units[lead + 1];
+    return next
+      ? `${head.value}${head.suffix} ${String(next.value).padStart(2, "0")}${next.suffix}`
+      : `${head.value}${head.suffix}`;
+  }
   const formatted = units
     .filter(unit => unit.value > 0)
     .slice(0, 2)

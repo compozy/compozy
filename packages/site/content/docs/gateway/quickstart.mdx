@@ -53,12 +53,12 @@ install — details on the [Tailscale extension](/docs/gateway/tailscale) page.
 compozy extension enable tailscale
 ```
 
-The first enable refuses with a network requirement digest — the extension declares that it carries
+The first enable refuses with a gateway requirement digest — the extension declares that it carries
 gateway traffic, and CompozyOS asks you to confirm exactly that. The refusal prints the exact command
 to run, in the shape:
 
 ```bash
-compozy extension enable tailscale --confirm-network-requirement <digest>
+compozy extension enable tailscale --confirm-gateway-requirement <digest>
 ```
 
 Run it and the extension is on.

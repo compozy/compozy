@@ -3,8 +3,9 @@ package acp
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
-	"sort"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 func parseCommandString(command string) (string, []string, error) {
 	parts, err := shellquote.Split(command)
 	if err != nil {
-		return "", nil, fmt.Errorf("acp: parse command %q: %w", command, err)
+		return "", nil, fmt.Errorf("acp: parse command %s: %w", compozyconfig.CommandFingerprint(command), err)
 	}
 	if len(parts) == 0 {
 		return "", nil, errors.New("acp: command is empty")
@@ -38,11 +39,7 @@ func toSDKMCPServers(servers []compozyconfig.MCPServer) []acpsdk.McpServer {
 		if strings.TrimSpace(server.Command) == "" {
 			continue
 		}
-		envKeys := make([]string, 0, len(server.Env))
-		for key := range server.Env {
-			envKeys = append(envKeys, key)
-		}
-		sort.Strings(envKeys)
+		envKeys := slices.Sorted(maps.Keys(server.Env))
 
 		env := make([]acpsdk.EnvVariable, 0, len(server.Env))
 		for _, key := range envKeys {

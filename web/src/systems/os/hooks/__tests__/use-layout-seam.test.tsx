@@ -59,4 +59,13 @@ describe("useLayoutSeam", () => {
 
     expect(onResize).toHaveBeenCalledWith("split:root", 0, 0.02);
   });
+
+  it("Should take a 10% keyboard step while Shift is held", () => {
+    const onResize = vi.fn();
+    render(<SeamHarness seam={SEAM} onResize={onResize} />);
+
+    fireEvent.keyDown(screen.getByTestId("seam"), { key: "ArrowRight", shiftKey: true });
+
+    expect(onResize).toHaveBeenCalledWith("split:root", 0, 0.1);
+  });
 });

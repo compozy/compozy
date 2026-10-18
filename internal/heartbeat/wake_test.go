@@ -1,10 +1,11 @@
 package heartbeat
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -17,28 +18,19 @@ import (
 func TestManagedWakeServiceDecision(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should use the latest valid policy snapshot at decision time", func(t *testing.T) {
+	t.Run("Should project the policy snapshot returned by the store into wake prompts", func(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
-		older := wakeSnapshot(t, cfg, "hb-older", "ws-1", "coder", base.Add(-time.Hour), "Older policy")
-		invalid := older
-		invalid.ID = "hb-invalid-newer"
-		invalid.Digest = "sha256:invalid"
-		invalid.ResolvedJSON = []byte(
-			`{"schema_version":1,"present":true,"active":false,"valid":false,"config_provenance":{"digest":"sha256:config"}}`,
-		)
-		invalid.CreatedAt = base.Add(-time.Minute)
-		latest := wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")
-		store.snapshots = []Snapshot{older, invalid, latest}
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")}
 		health := newFakeWakeHealth()
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -73,7 +65,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -123,7 +115,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 			t.Fatalf("NewManagedWakeService() error = %v", err)
 		}
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -176,7 +168,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 			t.Fatalf("NewManagedWakeService() error = %v", err)
 		}
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -214,7 +206,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -272,7 +264,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -325,7 +317,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		health.rows["sess-manual"] = eligibleWakeHealth("sess-manual", "ws-1", "coder", base)
 		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, cfg, base)
 
-		schedulerDecision, err := service.Wake(context.Background(), WakeRequest{
+		schedulerDecision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-scheduler",
@@ -334,7 +326,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Wake(scheduler) error = %v", err)
 		}
-		manualDecision, err := service.Wake(context.Background(), WakeRequest{
+		manualDecision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-manual",
@@ -368,7 +360,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, cfg, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -395,7 +387,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		prompter := &fakeWakePrompter{err: ErrSyntheticPromptBusy}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -411,39 +403,6 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 			t.Fatalf("prompt requests = %d, want %d", got, want)
 		}
 		assertLastWakeEvent(t, store, WakeResultSkipped, WakeReasonSessionPromptRace, "hb-policy")
-	})
-
-	t.Run("Should write failed audit events when synthetic prompt dispatch fails", func(t *testing.T) {
-		t.Parallel()
-
-		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := compozyconfig.DefaultHeartbeatConfig()
-		store := newFakeWakeStore(t)
-		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
-		health := newFakeWakeHealth()
-		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
-		service := newTestWakeService(
-			t,
-			store,
-			health,
-			&fakeWakePrompter{err: errors.New("driver refused prompt")},
-			cfg,
-			base,
-		)
-
-		decision, err := service.Wake(context.Background(), WakeRequest{
-			WorkspaceID: "ws-1",
-			AgentName:   "coder",
-			SessionID:   "sess-1",
-			Source:      WakeSourceScheduler,
-		})
-		if err != nil {
-			t.Fatalf("Wake() error = %v", err)
-		}
-		if decision.Result != WakeResultFailed || decision.Reason != WakeReasonSyntheticPromptFailed {
-			t.Fatalf("Wake() = %#v, want failed synthetic prompt decision", decision)
-		}
-		assertLastWakeEvent(t, store, WakeResultFailed, WakeReasonSyntheticPromptFailed, "hb-policy")
 	})
 
 	t.Run("Should redact synthetic prompt errors in wake diagnostics", func(t *testing.T) {
@@ -468,7 +427,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 			base,
 		)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -523,7 +482,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 				prompter := &fakeWakePrompter{}
 				service := newTestWakeService(t, store, health, prompter, cfg, base)
 
-				_, err := service.Wake(context.Background(), WakeRequest{
+				_, err := service.Wake(t.Context(), WakeRequest{
 					WorkspaceID: "ws-1",
 					AgentName:   "coder",
 					SessionID:   "sess-1",
@@ -553,7 +512,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
-		decisions, err := service.WakeMany(context.Background(), []WakeRequest{
+		decisions, err := service.WakeMany(t.Context(), []WakeRequest{
 			{WorkspaceID: "ws-1", AgentName: "coder", SessionID: "sess-1", Source: WakeSourceScheduler},
 			{WorkspaceID: "ws-1", AgentName: "coder", SessionID: "sess-2", Source: WakeSourceScheduler},
 		})
@@ -587,7 +546,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, cfg, base)
 
-		decisions, err := service.WakeMany(context.Background(), []WakeRequest{
+		decisions, err := service.WakeMany(t.Context(), []WakeRequest{
 			{WorkspaceID: "ws-1", AgentName: "coder", SessionID: "sess-1", Source: WakeSourceScheduler},
 			{AgentName: "coder", SessionID: "sess-2", Source: WakeSourceScheduler},
 		})
@@ -624,7 +583,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, cfg, base)
 
-		decisions, err := service.WakeMany(context.Background(), []WakeRequest{
+		decisions, err := service.WakeMany(t.Context(), []WakeRequest{
 			{WorkspaceID: "ws-1", AgentName: "coder", SessionID: "sess-1", Source: WakeSourceScheduler},
 		})
 		if err == nil {
@@ -670,7 +629,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 			t.Fatal("NewManagedWakeService(invalid config) error = nil, want validation error")
 		}
 		service := newTestWakeService(t, store, health, prompter, cfg, time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC))
-		if _, err := service.Wake(context.Background(), WakeRequest{}); err == nil {
+		if _, err := service.Wake(t.Context(), WakeRequest{}); err == nil {
 			t.Fatal("Wake(empty request) error = nil, want validation error")
 		}
 	})
@@ -685,7 +644,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		health := newFakeWakeHealth()
 		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, cfg, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -717,7 +676,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 			t.Fatalf("NewManagedWakeService() error = %v", err)
 		}
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -749,7 +708,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, serviceConfig, base)
 
-		decision, err := service.Wake(context.Background(), WakeRequest{
+		decision, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -769,7 +728,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 			wakeDisabledSnapshot(t, snapshotConfig, "hb-disabled", "ws-1", "coder", base),
 		}
 		disabledService := newTestWakeService(t, disabledStore, health, &fakeWakePrompter{}, snapshotConfig, base)
-		decision, err = disabledService.Wake(context.Background(), WakeRequest{
+		decision, err = disabledService.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -800,7 +759,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		health.rows["sess-detached"] = notAttachable
 		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, cfg, base)
 
-		missing, err := service.Wake(context.Background(), WakeRequest{
+		missing, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-missing",
@@ -809,7 +768,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Wake(missing health) error = %v", err)
 		}
-		mismatch, err := service.Wake(context.Background(), WakeRequest{
+		mismatch, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-mismatch",
@@ -818,7 +777,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Wake(mismatched health) error = %v", err)
 		}
-		detached, err := service.Wake(context.Background(), WakeRequest{
+		detached, err := service.Wake(t.Context(), WakeRequest{
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-detached",
@@ -947,7 +906,7 @@ func wakeSnapshotFromContent(
 
 	root := t.TempDir()
 	sourcePath := root + "/agents/" + agentName + "/" + FileName
-	resolved, err := Parse(context.Background(), ParseRequest{
+	resolved, err := Parse(t.Context(), ParseRequest{
 		SourcePath:    sourcePath,
 		WorkspaceRoot: root,
 		Content:       []byte(content),
@@ -1044,11 +1003,8 @@ func (s *fakeWakeStore) GetLatestValidHeartbeatSnapshot(
 	defer s.mu.Unlock()
 
 	candidates := append([]Snapshot(nil), s.snapshots...)
-	sort.SliceStable(candidates, func(i int, j int) bool {
-		if !candidates[i].CreatedAt.Equal(candidates[j].CreatedAt) {
-			return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
-		}
-		return candidates[i].ID > candidates[j].ID
+	slices.SortStableFunc(candidates, func(a, b Snapshot) int {
+		return cmp.Or(b.CreatedAt.Compare(a.CreatedAt), cmp.Compare(b.ID, a.ID))
 	})
 	for _, snapshot := range candidates {
 		if snapshot.WorkspaceID != workspaceID || snapshot.AgentName != agentName {

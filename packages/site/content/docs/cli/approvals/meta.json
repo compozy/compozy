@@ -1,4 +1,4 @@
 {
     "title": "Approvals",
-    "pages": ["index", "cancel", "show"]
+    "pages": ["index", "cancel", "resolve", "show"]
 }

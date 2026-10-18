@@ -241,8 +241,8 @@ exit "$status"
 `
 
 func isExpectedSSHShutdown(err error) bool {
-	var exitErr *exec.ExitError
-	return errors.As(err, &exitErr) || errors.Is(err, context.Canceled)
+	_, ok := errors.AsType[*exec.ExitError](err)
+	return ok || errors.Is(err, context.Canceled)
 }
 
 type sshCommandError struct {

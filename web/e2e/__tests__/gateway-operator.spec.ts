@@ -71,7 +71,7 @@ test("E2E-001 (local legs) operator mints a pairing, the daemon redeems it once,
     "Private overlay"
   );
   await expect(appPage.getByTestId("gateway-exposure-public-webhook-ingress")).toContainText(
-    "signed webhook and bridge deliveries only"
+    "signed webhook deliveries only"
   );
   await expect(appPage.getByTestId("gateway-exposure-public-operator-ui")).toContainText(
     "pairing is never offered there"

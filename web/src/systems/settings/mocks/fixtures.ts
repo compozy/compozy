@@ -3,8 +3,6 @@ import type {
   SettingsAutomationSection,
   SettingsAttentionSection,
   SettingsCmdPaletteSection,
-  SettingsSandboxCollection,
-  SettingsSandboxEntry,
   SettingsApplyResponse,
   SettingsGeneralSection,
   SettingsHookEntry,
@@ -12,10 +10,7 @@ import type {
   SettingsMarketplaceSection,
   SettingsMCPServerCollection,
   SettingsMCPServerEntry,
-  SettingsMemorySection,
   SettingsMutationResult,
-  SettingsNetworkSection,
-  SettingsNotificationPresetCollection,
   SettingsObservabilitySection,
   SettingsProviderCollection,
   SettingsProviderEntry,
@@ -52,7 +47,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     busy_input: { default_mode: "steer" },
     daemon: {
       memory_report_interval: "5m",
-      reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+      reload_timeouts: { mcp: "10s", providers: "5s" },
       socket: "/tmp/compozy.sock",
     },
     http: { host: "127.0.0.1", port: 2123 },
@@ -60,6 +55,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     permissions: { mode: "approve-all" },
     redact: { enabled: true },
     session_timeout: "0s",
+    idle_release_after: "30m0s",
     terminal: terminalSettingsFixture,
   },
   config_paths: {
@@ -79,48 +75,6 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     total_sessions: 12,
     uptime_seconds: 3600,
   },
-};
-
-export const settingsNetworkSectionFixture: SettingsNetworkSection = {
-  section: "network",
-  scope: "user",
-  available_scopes: ["user"],
-  config: {
-    enabled: true,
-    max_replay_age: 300,
-    live: {
-      defaults: {
-        max_wakes: 8,
-        max_wake_wall_time: "5m",
-        max_total_wall_time: "30m",
-        max_input_tokens: 200_000,
-        max_output_tokens: 50_000,
-        max_wake_depth: 3,
-        coalesce_window: "500ms",
-      },
-      limits: {
-        max_wakes: 64,
-        max_wake_wall_time: "15m",
-        max_total_wall_time: "2h",
-        max_input_tokens: 1_000_000,
-        max_output_tokens: 200_000,
-        max_wake_depth: 5,
-        min_coalesce_window: "100ms",
-        max_coalesce_window: "5s",
-      },
-    },
-  },
-  runtime: {
-    available: true,
-    enabled: true,
-    status: "active",
-    local_peers: 2,
-    channels: 4,
-    messages_received: 7,
-    messages_delivered: 5,
-    messages_rejected: 1,
-  },
-  links: [{ label: "network", path: "/network" }],
 };
 
 export const settingsMarketplaceSectionFixture: SettingsMarketplaceSection = {
@@ -155,70 +109,6 @@ export const settingsCmdPaletteSectionFixture: SettingsCmdPaletteSection = {
   personalization: true,
 };
 
-export const settingsNotificationPresetCollectionFixture: SettingsNotificationPresetCollection = {
-  presets: [
-    {
-      profile: "default",
-      name: "task_terminal",
-      events: ["task.run_*"],
-      targets: [
-        {
-          bridge_id: "bridge_slack_ops",
-          canonical_route: "channel:ops",
-          display_name: "#ops",
-          delivery_mode: "direct-send",
-        },
-      ],
-      filter: "outcome >= warning",
-      enabled: true,
-      built_in: true,
-      default_version: "1",
-      default_hash: "hash_task_terminal_v1",
-      user_modified: true,
-      default_update_available: false,
-      created_at: "2026-04-17T09:00:00Z",
-      updated_at: "2026-04-17T11:00:00Z",
-    },
-    {
-      profile: "default",
-      name: "session_unhealthy",
-      events: ["session.unhealthy", "session.hung", "session.recovered"],
-      targets: [],
-      filter: "",
-      enabled: false,
-      built_in: true,
-      default_version: "1",
-      default_hash: "hash_session_unhealthy_v1",
-      user_modified: false,
-      default_update_available: false,
-      created_at: "2026-04-17T09:00:00Z",
-      updated_at: "2026-04-17T09:00:00Z",
-    },
-    {
-      profile: "default",
-      name: "provider_failure",
-      events: [
-        "provider.auth_required",
-        "provider.rate_limited",
-        "provider.permission_denied",
-        "provider.unavailable",
-      ],
-      targets: [],
-      filter: "",
-      enabled: false,
-      built_in: true,
-      default_version: "1",
-      default_hash: "hash_provider_failure_v1",
-      user_modified: false,
-      default_update_available: false,
-      created_at: "2026-04-17T09:00:00Z",
-      updated_at: "2026-04-17T09:00:00Z",
-    },
-  ],
-  total: 3,
-  generated_at: "2026-04-17T11:00:00Z",
-};
-
 export const settingsAutomationSectionFixture: SettingsAutomationSection = {
   section: "automation",
   scope: "user",
@@ -240,137 +130,7 @@ export const settingsAutomationSectionFixture: SettingsAutomationSection = {
     last_synced_at: "2026-04-17T10:00:00Z",
     next_fire: "2026-04-17T12:00:00Z",
   },
-  links: [
-    { label: "jobs", path: "/jobs" },
-    { label: "triggers", path: "/triggers" },
-  ],
-};
-
-export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
-  controller: {
-    default_op_on_fail: "noop",
-    max_latency: "300ms",
-    mode: "hybrid",
-    policy: {
-      allow_origins: ["cli", "http", "uds", "tool", "extractor", "dreaming", "file", "provider"],
-      max_content_chars: 4096,
-      max_writes_per_min: 60,
-    },
-  },
-  daily: {
-    archive_path: "_system/archive",
-    cold_archive_days: 30,
-    dreaming_window: 7,
-    hard_delete_days: 0,
-    max_archive_bytes: 1073741824,
-    max_bytes: 1048576,
-    max_lines: 5000,
-    rotate_format: "{date}.{seq}.md",
-    sweep_hour: 3,
-  },
-  decisions: {
-    keep_audit_summary: true,
-    max_post_content_bytes: 65536,
-    prune_after_applied_days: 90,
-  },
-  dream: {
-    check_interval: "30m",
-    debounce: "10m",
-    gates: {
-      min_recall_count: 2,
-      min_score: 0.75,
-      min_unpromoted: 5,
-    },
-    min_hours: 24,
-    min_sessions: 3,
-    prompt_version: "v1",
-    scoring: {
-      recency_half_life_days: 14,
-      weights: {
-        frequency: 0.3,
-        freshness: 0.15,
-        recency: 0.2,
-        relevance: 0.35,
-      },
-    },
-  },
-  enabled: true,
-  extractor: {
-    deadline: "60s",
-    dlq_path: "~/.compozy/memory/_system/extractor/failures",
-    inbox_path: "~/.compozy/memory/_inbox",
-    mode: "post_message",
-    queue: {
-      capacity: 1,
-      coalesce_max: 16,
-    },
-    sandbox_inbox_only: true,
-    throttle_turns: 1,
-  },
-  file: {
-    max_bytes: 25600,
-    max_lines: 200,
-  },
-  global_dir: "~/.compozy/memory",
-  provider: {
-    cooldown: "30s",
-    failure_threshold: 5,
-    name: "",
-    timeout: "2s",
-  },
-  recall: {
-    freshness: {
-      banner_after_days: 1,
-    },
-    fusion: "weighted",
-    include_already_surfaced: false,
-    include_system: false,
-    raw_candidates: 50,
-    signals: {
-      queue_capacity: 256,
-      worker_retry_max: 3,
-    },
-    top_k: 5,
-    weights: {
-      bm25_trigram: 0.2,
-      bm25_unicode: 0.55,
-      recall_signal: 0.1,
-      recency: 0.15,
-    },
-  },
-  session: {
-    cold_archive_days: 30,
-    events_purge_grace: "24h",
-    hard_delete_days: 0,
-    ledger_format: "jsonl",
-    ledger_root: "~/.compozy/sessions",
-    max_archive_bytes: 10737418240,
-    unbound_partition: "_unbound",
-  },
-  workspace: {
-    auto_create: true,
-    toml_path: "<workspace>/.compozy/workspace.toml",
-  },
-};
-
-export const settingsMemorySectionFixture: SettingsMemorySection = {
-  section: "memory",
-  scope: "user",
-  available_scopes: ["user"],
-  actions: {
-    consolidate: {
-      available: true,
-      behavior: "action_trigger",
-      name: "consolidate",
-    },
-  },
-  config: settingsMemoryConfigFixture,
-  health: {
-    available: true,
-    dream_enabled: true,
-    file_count: 42,
-    last_consolidated_at: "2026-04-17T14:00:00Z",
-  },
+  links: [{ label: "automation", path: "/automation" }],
 };
 
 export const settingsObservabilitySectionFixture: SettingsObservabilitySection = {
@@ -467,7 +227,7 @@ export const settingsSkillSourcesFixture: SettingsSkillSource[] = [
         scanned_count: 5,
         skill_count: 3,
         truncated: false,
-        native_readers: ["openclaw", "hermes"],
+        native_readers: [],
         skipped_links: [
           { path: `${storyWorkspacePaths.hq}/.agents/skills/review-old`, reason: "dangling" },
           { path: `${storyWorkspacePaths.hq}/.agents/skills/vendor-link`, reason: "escape" },
@@ -490,7 +250,7 @@ export const settingsSkillSourcesFixture: SettingsSkillSource[] = [
         scanned_count: 2,
         skill_count: 2,
         truncated: false,
-        native_readers: ["openclaw"],
+        native_readers: [],
       },
     ],
   },
@@ -665,13 +425,13 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
       },
     },
     {
-      name: "daytona",
+      name: "forge-github",
       enabled: true,
       version: "1.2.3",
       state: "running",
       health: "healthy",
-      requires_env: ["DAYTONA_TOKEN"],
-      missing_env: ["DAYTONA_TOKEN"],
+      requires_env: ["GITHUB_TOKEN"],
+      missing_env: ["GITHUB_TOKEN"],
     },
   ],
   transport_parity: {
@@ -881,138 +641,12 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
   },
   {
-    name: "blackbox",
-    default: false,
-    command_available: true,
-    settings: {
-      command: "blackbox --experimental-acp",
-      display_name: "BLACKBOX AI",
-      harness: "acp",
-      auth_mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-    },
-    auth_status: {
-      mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-      state: "unknown",
-      code: "provider_classification_unknown",
-      message:
-        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
-      login: {
-        configured: false,
-        presence: "unknown",
-        recommended_action: "inspect",
-      },
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "cline",
-    default: false,
-    command_available: true,
-    settings: { command: "npx -y cline@latest --acp", display_name: "Cline", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "goose",
-    default: false,
-    command_available: true,
-    settings: { command: "goose acp", display_name: "Goose", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "hermes",
-    default: false,
-    command_available: true,
-    settings: { command: "hermes acp", display_name: "Hermes", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "junie",
-    default: false,
-    command_available: true,
-    settings: {
-      command: "junie --acp true",
-      display_name: "Junie",
-      harness: "acp",
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
     name: "kimi-cli",
     default: false,
     command_available: true,
     settings: {
       command: "kimi acp",
       display_name: "Kimi CLI",
-      harness: "acp",
-      auth_mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-    },
-    auth_status: {
-      mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-      state: "unknown",
-      code: "provider_classification_unknown",
-      message:
-        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
-      login: {
-        configured: false,
-        presence: "unknown",
-        recommended_action: "inspect",
-      },
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "openclaw",
-    default: false,
-    command_available: true,
-    settings: { command: "openclaw acp", display_name: "OpenClaw", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "openhands",
-    default: false,
-    command_available: true,
-    settings: { command: "openhands acp", display_name: "OpenHands", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "qoder",
-    default: false,
-    command_available: true,
-    settings: {
-      command: "npx -y @qoder-ai/qodercli@latest --acp",
-      display_name: "Qoder CLI",
       harness: "acp",
       auth_mode: "native_cli",
       env_policy: "filtered",
@@ -1046,71 +680,6 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       display_name: "Qwen Code",
       models: { default: "qwen3.6-plus", curated: [{ id: "qwen3.6-plus" }] },
       harness: "acp",
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-];
-
-export const settingsSandboxFixtures: SettingsSandboxEntry[] = [
-  {
-    name: "local",
-    workspace_usage_count: 3,
-    profile: {
-      backend: "local",
-      sync_mode: "none",
-      persistence: "transient",
-      runtime_root: "~",
-      network: {
-        allow_outbound: true,
-        allow_public_ingress: false,
-        allow_list: [],
-        deny_list: [],
-      },
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "global-config", scope: "user" },
-    },
-  },
-  {
-    name: "daytona-eu",
-    workspace_usage_count: 2,
-    profile: {
-      backend: "daytona",
-      sync_mode: "session-bidir",
-      persistence: "reuse",
-      runtime_root: "/workspace",
-      daytona: {
-        image: "compozy/daytona:latest",
-        target: "eu-central",
-        auto_stop: "30",
-        auto_archive: "120",
-      },
-      network: {
-        allow_outbound: true,
-        allow_public_ingress: false,
-        allow_list: ["api.github.com", "registry.npmjs.org"],
-        deny_list: [],
-      },
-      env: { NODE_ENV: "production" },
-      secret_env: { DAYTONA_API_KEY: "vault:providers/daytona/api-key" },
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "global-config", scope: "user" },
-    },
-  },
-  {
-    name: "builtin-local",
-    workspace_usage_count: 0,
-    profile: {
-      backend: "local",
-      sync_mode: "none",
-      persistence: "transient",
-      runtime_root: "~",
     },
     source_metadata: {
       available_targets: ["global-config"],
@@ -1154,13 +723,6 @@ export const settingsProvidersCollectionFixture = {
   providers: settingsProviderFixtures,
   scope: "user",
 } satisfies SettingsProviderCollection;
-
-export const settingsSandboxesCollectionFixture = {
-  available_scopes: ["user"],
-  collection: "sandboxes",
-  sandboxes: settingsSandboxFixtures,
-  scope: "user",
-} satisfies SettingsSandboxCollection;
 
 export const settingsMCPServersCollectionFixture = {
   available_scopes: ["user", "profile", "workspace"],

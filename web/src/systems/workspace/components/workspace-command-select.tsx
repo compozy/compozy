@@ -85,7 +85,7 @@ export function WorkspaceCommandSelect({
     onOpenChange,
     worktreesByWorkspace,
   });
-  const label = state.selected?.name ?? "No workspace";
+  const label = state.selected?.name ?? "No project";
   const hasWorkspaces = state.projectWorkspaces.length > 0;
   const isDisabled = disabled || !hasWorkspaces;
 
@@ -95,14 +95,14 @@ export function WorkspaceCommandSelect({
         aria-haspopup="listbox"
         aria-expanded={state.open}
         aria-labelledby={ariaLabelledBy}
-        aria-label={hasWorkspaces ? `Workspace: ${label}` : "No workspace"}
+        aria-label={hasWorkspaces ? `Project: ${label}` : "No project"}
         data-size={size}
         data-testid={triggerTestId}
         disabled={isDisabled}
         selected={Boolean(state.selected)}
         className={cn(
           size === "compact"
-            ? "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-subtle shadow-none hover:bg-row-hover hover:text-fg-strong focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
+            ? "h-(--height-pill-group-segment-md) min-w-0 gap-1.5 rounded-pill border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-muted shadow-none hover:bg-surface-2 hover:text-fg focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
             : "h-12 w-full gap-2.5 border-0 bg-transparent px-2 py-0 shadow-none hover:bg-hover focus-visible:border-0 focus-visible:shadow-none [&>svg:last-child]:hidden",
           className
         )}
@@ -118,7 +118,7 @@ export function WorkspaceCommandSelect({
             data-testid="workspace-switcher-avatar"
             className={cn(
               "inline-flex shrink-0 items-center justify-center rounded-sm font-mono text-eyebrow font-medium tracking-mono text-fg",
-              size === "compact" ? "size-4 bg-canvas-tint" : "size-button-icon-xs bg-elevated"
+              size === "compact" ? "size-4 bg-surface-2" : "size-button-icon-xs bg-surface-2"
             )}
           >
             {workspaceInitial(label)}
@@ -137,13 +137,13 @@ export function WorkspaceCommandSelect({
           <ChevronsUpDown
             aria-hidden="true"
             data-testid="workspace-switcher-chevron"
-            className="size-3 shrink-0 text-subtle"
+            className="size-3.5 shrink-0 text-subtle"
           />
         </span>
       </CommandSelectTrigger>
       <CommandSelectShell
         className={cn(size === "compact" ? "min-w-56" : "min-w-64")}
-        inputPlaceholder="Search workspaces..."
+        inputPlaceholder="Search projects…"
         commandProps={{
           value: state.activeCommandValue,
           onValueChange: state.changeCommandValue,
@@ -153,9 +153,9 @@ export function WorkspaceCommandSelect({
       >
         <CommandList>
           <CommandEmpty data-testid={`${testIdPrefix}-empty`}>
-            No workspaces match your search.
+            No projects match your search.
           </CommandEmpty>
-          <CommandSelectGroup heading="Workspaces" data-testid={`${testIdPrefix}-group`}>
+          <CommandSelectGroup heading="Projects" data-testid={`${testIdPrefix}-group`}>
             {state.projectWorkspaces.map(workspace => {
               const isActive = workspace.id === value;
               const node = state.nodeByWorkspaceId.get(workspace.id);
@@ -179,7 +179,7 @@ export function WorkspaceCommandSelect({
                   <span
                     aria-hidden="true"
                     data-testid={`${testIdPrefix}-item-avatar-${workspace.id}`}
-                    className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
+                    className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-surface-2 font-mono text-eyebrow font-medium tracking-mono text-fg"
                   >
                     {workspaceInitial(workspace.name)}
                   </span>
@@ -190,7 +190,7 @@ export function WorkspaceCommandSelect({
                   {gitBacked ? (
                     <ChevronRight
                       aria-hidden="true"
-                      className="ml-auto size-3 shrink-0 text-faint"
+                      className="ml-auto size-3.5 shrink-0 text-faint"
                     />
                   ) : null}
                 </CommandItem>
@@ -232,12 +232,12 @@ export function WorkspaceCommandSelect({
               <CommandSeparator />
               <CommandSelectGroup>
                 <CommandItem
-                  value="add workspace"
+                  value="add project"
                   onSelect={state.addWorkspace}
                   data-testid={`${testIdPrefix}-add`}
                 >
                   <Plus aria-hidden="true" className="size-4 shrink-0 text-subtle" />
-                  <span className="text-small-body text-fg">Add workspace</span>
+                  <span className="text-small-body text-fg">Add project</span>
                 </CommandItem>
               </CommandSelectGroup>
             </>

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ type profileListRecord struct {
 	State                  string                                  `json:"state"`
 	Current                bool                                    `json:"current"`
 	WorkItems              int                                     `json:"work_items"`
-	NeedsSetup             bool                                    `json:"needs_setup,omitempty"`
+	NeedsSetup             bool                                    `json:"needs_setup,omitzero"`
 	CredentialRequirements []contract.ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
@@ -91,10 +92,7 @@ func profileCountLabel(count int, singular string) string {
 }
 
 func profileCurrentBundle(resolution profileResolution) outputBundle {
-	workspace := resolution.WorkspaceName
-	if workspace == "" {
-		workspace = resolution.WorkspaceID
-	}
+	workspace := cmp.Or(resolution.WorkspaceName, resolution.WorkspaceID)
 	record := profileCurrentRecord{
 		Profile: resolution.Profile.Name, Source: resolution.Source, Note: resolution.Note, Workspace: workspace,
 	}
@@ -131,10 +129,7 @@ func profileUseBundle(
 ) outputBundle {
 	message := "Active global profile: " + selection.Profile + "."
 	if hasWorkspace {
-		name := workspace.Detail.Workspace.Name
-		if name == "" {
-			name = workspace.ID
-		}
+		name := cmp.Or(workspace.Detail.Workspace.Name, workspace.ID)
 		message = "Active profile for workspace " + name + ": " + selection.Profile + "."
 	}
 	return simpleProfileBundle(selection, message)
@@ -150,7 +145,7 @@ func simpleProfileBundle(value any, message string) outputBundle {
 		jsonl:     func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, value) },
 		human:     func() (string, error) { return message, nil },
 		toon: func() (string, error) {
-			return renderToonObject("result", []string{bridgeMessageKey}, []string{message}), nil
+			return renderToonObject("result", []string{cliOutputMessageKey}, []string{message}), nil
 		},
 	}
 }
@@ -257,7 +252,7 @@ func renderProfileDeletePreview(name string, removed contract.ProfileRemovalSumm
 	return fmt.Sprintf(
 		"%s owns no work. This removes permanently:\n"+
 			"  agents: %d   skills: %d   loops: %d   mcp servers: %d\n"+
-			"  config overrides: %d keys   credential overrides: %d   memory: %d entries"+
+			"  config overrides: %d keys   credential overrides: %d"+
 			"   desktops: %d saved arrangements",
 		name,
 		removed.Agents,
@@ -266,7 +261,6 @@ func renderProfileDeletePreview(name string, removed contract.ProfileRemovalSumm
 		removed.MCPServers,
 		removed.ConfigKeys,
 		removed.CredentialOverrides,
-		removed.MemoryEntries,
 		removed.DesktopPartitions,
 	)
 }

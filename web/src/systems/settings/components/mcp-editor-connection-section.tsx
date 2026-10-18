@@ -60,27 +60,27 @@ export function MCPEditorConnectionSection({
       )}
 
       <div
-        aria-label="Transport"
+        aria-label="How it runs"
         className="grid gap-2 sm:grid-cols-2"
         data-testid="settings-mcp-servers-editor-transport"
         role="radiogroup"
       >
         <RadioCard
           data-testid="settings-mcp-servers-editor-transport-stdio"
-          description="CompozyOS spawns a command and talks over stdio."
+          description="Runs a program on this computer."
           icon={TerminalSquare}
           onSelect={() => onChange(current => withTransport(current, "stdio"))}
           selected={!isRemote}
-          title="Local process"
+          title="Local program"
           titleClassName="min-w-0 flex-1 truncate"
         />
         <RadioCard
           data-testid="settings-mcp-servers-editor-transport-remote"
-          description="Connects to a hosted MCP server, optionally with OAuth."
+          description="Connects to a server on the internet, with sign-in if it needs one."
           icon={Globe}
           onSelect={() => onChange(current => withTransport(current, "http"))}
           selected={isRemote}
-          title="Remote endpoint"
+          title="Remote URL"
           titleClassName="min-w-0 flex-1 truncate"
         />
       </div>

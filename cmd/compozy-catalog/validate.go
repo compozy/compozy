@@ -111,11 +111,10 @@ func validateExtensionArtifact(
 
 func curatedArtifactFilename(rawURL string) (string, error) {
 	trimmed := strings.TrimSpace(rawURL)
-	separator := strings.LastIndex(trimmed, "/")
-	if separator < 0 || separator == len(trimmed)-1 {
+	_, filename, found := strings.CutLast(trimmed, "/")
+	if !found || filename == "" {
 		return "", errors.New("artifact_url must end with a versioned .tar.gz filename")
 	}
-	filename := trimmed[separator+1:]
 	if !strings.HasSuffix(strings.ToLower(filename), ".tar.gz") || strings.ContainsAny(filename, "?#") {
 		return "", errors.New("artifact_url must end with a versioned .tar.gz filename")
 	}

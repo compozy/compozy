@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	yaml "gopkg.in/yaml.v3"
+
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"gopkg.in/yaml.v3"
 )
 
 // LoopDefinitionDocument is the public compozy.loop/v1 authoring document.

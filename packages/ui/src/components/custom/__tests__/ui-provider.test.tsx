@@ -1,9 +1,24 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { Search } from "lucide-react";
 import { m, MotionConfigContext, useReducedMotionConfig } from "motion/react";
 import { useContext, type ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { ICON_STROKE_WIDTH } from "../../../lib/icon-stroke";
 import { UIProvider, type UIProviderProps } from "../ui-provider";
+
+const motionPreference = Object.assign(new EventTarget(), { matches: false });
+const originalMatchMedia = window.matchMedia;
+
+beforeAll(() => {
+  vi.stubGlobal("matchMedia", (query: string) =>
+    query.includes("prefers-reduced-motion") ? motionPreference : originalMatchMedia(query)
+  );
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 function Probe() {
   const reduced = useReducedMotionConfig();
@@ -36,6 +51,24 @@ describe("UIProvider", () => {
     expect(screen.getByTestId("child")).toHaveTextContent("content");
   });
 
+  it("Should draw every bare lucide icon at the shared stroke width", () => {
+    const { container } = renderWithProvider(
+      {},
+      <>
+        <Search data-testid="bare" />
+        <Search data-testid="override" strokeWidth={1} />
+      </>
+    );
+    expect(container.querySelector('[data-testid="bare"]')).toHaveAttribute(
+      "stroke-width",
+      String(ICON_STROKE_WIDTH)
+    );
+    expect(container.querySelector('[data-testid="override"]')).toHaveAttribute(
+      "stroke-width",
+      "1"
+    );
+  });
+
   it("Should load LazyMotion features for m.* animation primitives", async () => {
     renderWithProvider({ reducedMotion: "never" }, <MotionProbe />);
 
@@ -58,10 +91,26 @@ describe("UIProvider", () => {
     expect(screen.getByTestId("skip-animations-probe")).toHaveTextContent("true");
   });
 
-  it("Should default to reducedMotion='user' which defers to OS preference", async () => {
-    // test-setup.ts matchMedia returns `matches: true` for prefers-reduced-motion: reduce,
-    // so 'user' mode should resolve to reduced=true in this environment.
-    renderWithProvider();
-    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("true"));
-  });
+  it.each([false, true])(
+    "Should default to reducedMotion='user' and respect OS preference %s",
+    async matches => {
+      motionPreference.matches = matches;
+      motionPreference.dispatchEvent(new Event("change"));
+      const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      try {
+        renderWithProvider();
+        await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent(String(matches)));
+        if (matches) {
+          // Motion intentionally advises developers when this OS preference is active.
+          expect(warning).toHaveBeenCalledExactlyOnceWith(
+            expect.stringContaining("Reduced Motion enabled")
+          );
+        } else {
+          expect(warning).not.toHaveBeenCalled();
+        }
+      } finally {
+        warning.mockRestore();
+      }
+    }
+  );
 });

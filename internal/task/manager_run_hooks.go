@@ -19,10 +19,8 @@ func (m *Service) dispatchTaskRunEnqueued(
 	idempotencyKey string,
 ) {
 	payload := hookspkg.TaskRunEnqueuedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunEnqueued,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunEnqueued,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		IdempotencyKey: strings.TrimSpace(idempotencyKey),
 	}
@@ -39,10 +37,8 @@ func (m *Service) dispatchTaskRunPostClaim(
 	actor ActorContext,
 ) {
 	payload := hookspkg.TaskRunPostClaimPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunPostClaim,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunPostClaim,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		ClaimedAt:      run.ClaimedAt,
 	}
@@ -62,10 +58,8 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 	recovery RunBootRecovery,
 ) {
 	payload := hookspkg.TaskRunLeaseRecoveredPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunLeaseRecovered,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookTaskRunLeaseRecovered,
+		Timestamp:         m.now().UTC(),
 		TaskRunContext:    m.taskRunHookContext(run, taskRecord, actor),
 		PreviousRunStatus: previousStatus.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(previousSessionID),
@@ -103,38 +97,35 @@ func (m *Service) taskRunHookContext(
 	actor ActorContext,
 ) hookspkg.TaskRunContext {
 	soulSnapshotID, soulDigest := taskRunSoulMetadata(run.Metadata)
-	runKind := run.RunKind.Normalize().String()
-	networkSpec := run.NetworkSpecSnapshot()
 	workspaceID := strings.TrimSpace(run.WorkspaceID)
 	if workspaceID == "" {
 		workspaceID = strings.TrimSpace(taskRecord.WorkspaceID)
 	}
-	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
+	profileID := strings.TrimSpace(run.ProfileID)
+	if profileID == "" {
+		profileID = strings.TrimSpace(taskRecord.ProfileID)
+	}
 	return hookspkg.TaskRunContext{
-		ProfileID:                    strings.TrimSpace(run.ProfileID),
-		TaskID:                       strings.TrimSpace(run.TaskID),
-		RunID:                        strings.TrimSpace(run.ID),
-		RunKind:                      &runKind,
-		WakeID:                       strings.TrimSpace(wakeID),
-		OwnerKey:                     strings.TrimSpace(ownerKey),
-		TargetSessionID:              strings.TrimSpace(targetSessionID),
-		LoopRunID:                    strings.TrimSpace(run.LoopRunID),
-		WorkspaceID:                  workspaceID,
-		WorkflowID:                   taskRunMetadataString(run.Metadata, "workflow_id"),
-		ResolvedNetworkParticipation: new(networkSpec),
-		AgentName:                    taskRunHookAgentName(run, actor),
-		SessionID:                    strings.TrimSpace(run.SessionID),
-		ActorKind:                    string(actor.Actor.Kind.Normalize()),
-		ActorID:                      strings.TrimSpace(actor.Actor.Ref),
-		OriginKind:                   string(actor.Origin.Kind.Normalize()),
-		OriginRef:                    strings.TrimSpace(actor.Origin.Ref),
-		TaskStatus:                   string(taskRecord.Status.Normalize()),
-		RunStatus:                    run.Status.Normalize().String(),
-		SoulSnapshotID:               soulSnapshotID,
-		SoulDigest:                   soulDigest,
-		Attempt:                      int(run.Attempt),
-		LeaseUntil:                   run.LeaseUntil,
-		Error:                        strings.TrimSpace(run.Error),
+		ProfileID:      profileID,
+		TaskID:         strings.TrimSpace(run.TaskID),
+		RunID:          strings.TrimSpace(run.ID),
+		RunKind:        new(run.RunKind.Normalize().String()),
+		LoopRunID:      strings.TrimSpace(run.LoopRunID),
+		WorkspaceID:    workspaceID,
+		WorkflowID:     taskRunMetadataString(run.Metadata, "workflow_id"),
+		AgentName:      taskRunHookAgentName(run, actor),
+		SessionID:      strings.TrimSpace(run.SessionID),
+		ActorKind:      string(actor.Actor.Kind.Normalize()),
+		ActorID:        strings.TrimSpace(actor.Actor.Ref),
+		OriginKind:     string(actor.Origin.Kind.Normalize()),
+		OriginRef:      strings.TrimSpace(actor.Origin.Ref),
+		TaskStatus:     string(taskRecord.Status.Normalize()),
+		RunStatus:      run.Status.Normalize().String(),
+		SoulSnapshotID: soulSnapshotID,
+		SoulDigest:     soulDigest,
+		Attempt:        int(run.Attempt),
+		LeaseUntil:     run.LeaseUntil,
+		Error:          strings.TrimSpace(run.Error),
 	}
 }
 

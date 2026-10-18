@@ -8,27 +8,18 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
-// Launcher starts an ACP-capable agent process inside a sandbox.
-type Launcher = sandbox.Launcher
-
-// Handle represents a running agent process.
-type Handle = sandbox.Handle
-
-// LaunchSpec describes the ACP-capable command to start inside a sandbox.
-type LaunchSpec = sandbox.LaunchSpec
-
 var (
-	_ sandbox.Launcher = (*localLauncher)(nil)
-	_ sandbox.Handle   = (*localProcessHandle)(nil)
+	_ Launcher = (*localLauncher)(nil)
+	_ Handle   = (*localProcessHandle)(nil)
 )
 
 type localLauncher struct {
 	logger      *slog.Logger
 	stopTimeout time.Duration
+	niceness    int
 }
 
 type localProcessHandle struct {
@@ -37,11 +28,11 @@ type localProcessHandle struct {
 }
 
 // NewLocalLauncher returns the local daemon-host subprocess launcher.
-func NewLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) sandbox.Launcher {
-	return newLocalLauncher(logger, stopTimeout)
+func NewLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) Launcher {
+	return newLocalLauncher(logger, stopTimeout, 0)
 }
 
-func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) *localLauncher {
+func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration, niceness int) *localLauncher {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -51,13 +42,14 @@ func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) *localLaun
 	return &localLauncher{
 		logger:      logger,
 		stopTimeout: stopTimeout,
+		niceness:    niceness,
 	}
 }
 
 func (l *localLauncher) Launch(
 	ctx context.Context,
-	spec sandbox.LaunchSpec,
-) (sandbox.Handle, error) {
+	spec LaunchSpec,
+) (Handle, error) {
 	if ctx == nil {
 		return nil, errors.New("acp: launch context is required")
 	}
@@ -75,9 +67,10 @@ func (l *localLauncher) Launch(
 		Logger:           l.logger,
 		DisableTransport: true,
 		ShutdownTimeout:  l.stopTimeout,
+		Niceness:         l.niceness,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("acp: start subprocess %q: %w", prepared.Command, err)
+		return nil, fmt.Errorf("acp: start subprocess %s: %w", launchCommandIdentity(prepared.Command), err)
 	}
 
 	return &localProcessHandle{

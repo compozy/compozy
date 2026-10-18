@@ -61,6 +61,7 @@ export interface BrowserRouteState {
   url: string;
   pathname: string;
   title: string;
+  /** Daemon entity of the open `/automations/{jobs,triggers}/:id` detail route. */
   automation_active_tab?: "jobs" | "triggers";
   automation_delete_visible?: boolean;
   automation_detail_overflow_visible?: boolean;
@@ -69,24 +70,13 @@ export interface BrowserRouteState {
   automation_editor_open?: boolean;
   automation_item_count?: number;
   automation_run_count?: number;
-  automation_run_history_visible?: boolean;
-  automation_scheduler_visible?: boolean;
+  automation_inspect_visible?: boolean;
+  automation_run_list_visible?: boolean;
   automation_scope_filter?: "all" | "global" | "workspace";
   automation_selected_item?: string;
   automation_session_link_count?: number;
-  automation_trigger_visible?: boolean;
+  automation_run_now_visible?: boolean;
   automation_view_visible?: boolean;
-  bridge_create_dialog_open?: boolean;
-  bridge_detail_visible?: boolean;
-  bridge_edit_dialog_open?: boolean;
-  bridge_item_count?: number;
-  bridge_route_count?: number;
-  bridge_scope_filter?: "all" | "global" | "workspace";
-  bridge_secret_binding_count?: number;
-  bridge_selected_item?: string;
-  bridge_test_delivery_open?: boolean;
-  bridge_test_delivery_result_visible?: boolean;
-  bridge_view_visible?: boolean;
   chat_view_visible: boolean;
   composer_clear_button_enabled?: boolean;
   composer_clear_button_visible?: boolean;
@@ -103,17 +93,6 @@ export interface BrowserRouteState {
   home_usage_value?: string;
   home_view_visible?: boolean;
   home_working_now_value?: string;
-  knowledge_create_dialog_open?: boolean;
-  knowledge_decisions_count?: number;
-  knowledge_delete_dialog_open?: boolean;
-  knowledge_detail_visible?: boolean;
-  knowledge_edit_dialog_open?: boolean;
-  knowledge_item_count?: number;
-  knowledge_revert_button_count?: number;
-  knowledge_scope?: "profile" | "workspace" | "agent";
-  knowledge_search_active?: boolean;
-  knowledge_selected_item?: string;
-  knowledge_view_visible?: boolean;
   skills_content_visible?: boolean;
   skills_detail_visible?: boolean;
   skills_enabled_state?: "enabled" | "disabled";
@@ -121,16 +100,6 @@ export interface BrowserRouteState {
   skills_search_active?: boolean;
   skills_selected_item?: string;
   skills_view_visible?: boolean;
-  sandbox_action_result_visible?: boolean;
-  sandbox_delete_dialog_open?: boolean;
-  sandbox_editor_open?: boolean;
-  sandbox_empty_visible?: boolean;
-  sandbox_profile_count?: number;
-  sandbox_profile_names?: string[];
-  sandbox_restart_notice_visible?: boolean;
-  sandbox_total_text?: string;
-  sandbox_view_visible?: boolean;
-  sandbox_workspace_references_text?: string;
   settings_action_result_visible?: boolean;
   settings_active_section?: string;
   settings_mcp_server_count?: number;
@@ -161,22 +130,7 @@ export interface BrowserRouteState {
   permission_prompt_visible: boolean;
   processing_indicator_visible: boolean;
   stop_button_visible: boolean;
-  resume_button_visible: boolean;
   message_count: number;
-  network_view_visible: boolean;
-  network_active_tab?: "threads" | "directs" | "activity";
-  network_channel_count: number;
-  network_create_dialog_open?: boolean;
-  network_disabled_visible?: boolean;
-  network_thread_count: number;
-  network_direct_count: number;
-  network_activity_count?: number;
-  network_message_count: number;
-  network_no_channels_visible?: boolean;
-  network_work_count?: number;
-  network_selected_channel?: string;
-  network_selected_thread?: string;
-  network_selected_direct?: string;
 }
 
 export function isLikelyViteDevHTML(html: string): boolean {

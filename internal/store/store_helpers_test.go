@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	"testing/iotest"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -49,10 +47,6 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 	}{
 		{name: "Should require an event summary profile owner", validate: func() error { return (EventSummary{}).Validate() }},
 		{name: "Should require a dead entity profile owner", validate: func() error { return (DeadEntity{}).Validate() }},
-		{name: "Should require a network channel profile owner", validate: func() error { return (NetworkChannelEntry{}).Validate() }},
-		{name: "Should require a direct room profile owner", validate: func() error { return (NetworkDirectRoomEntry{}).Validate() }},
-		{name: "Should require a network work profile owner", validate: func() error { return (NetworkWorkEntry{}).Validate() }},
-		{name: "Should require a network message profile owner", validate: func() error { return (NetworkConversationMessage{}).Validate() }},
 		{name: "Should require a token usage profile owner", validate: func() error { return (TokenUsageDailyUpdate{}).Validate() }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -70,8 +64,6 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		validate func(ReadScope) error
 	}{
 		{name: "event summary query", validate: func(scope ReadScope) error { return (EventSummaryQuery{ReadScope: scope}).Validate() }},
-		{name: "network audit query", validate: func(scope ReadScope) error { return (NetworkAuditQuery{ReadScope: scope}).Validate() }},
-		{name: "network channel query", validate: func(scope ReadScope) error { return (NetworkChannelQuery{ReadScope: scope}).Validate() }},
 		{name: "overview since query", validate: func(scope ReadScope) error { return (OverviewSinceQuery{ReadScope: scope}).Validate() }},
 		{name: "overview day query", validate: func(scope ReadScope) error { return (OverviewDayQuery{ReadScope: scope}).Validate() }},
 		{name: "overview workspace query", validate: func(scope ReadScope) error { return (OverviewWorkspaceQuery{ReadScope: scope}).Validate() }},
@@ -365,12 +357,6 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			},
 		},
 		{
-			name: "global event summary memory provider collision",
-			validate: func() error {
-				return (EventSummary{ProfileID: DefaultProfileID, Type: "memory.provider.collision"}).Validate()
-			},
-		},
-		{
 			name: "event summary query invalid",
 			validate: func() error {
 				return (EventSummaryQuery{ReadScope: ReadScope{AllProfiles: true}, Limit: -1}).Validate()
@@ -472,126 +458,24 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "token usage valid",
-			validate: func() error {
-				return (TokenUsage{TurnID: "turn-1"}).Validate()
-			},
-		},
-		{
-			name: "token usage invalid",
-			validate: func() error {
-				return (TokenUsage{}).Validate()
-			},
-			wantError: true,
-		},
-		{
-			name: "network audit entry valid",
-			validate: func() error {
-				return (NetworkAuditEntry{
-					ProfileID:   DefaultProfileID,
-					SessionID:   "sess-1",
-					WorkspaceID: "ws-store-helpers",
-					Direction:   "rejected",
-					Kind:        "message",
-					Channel:     "builders",
-					PeerFrom:    "peer-a",
-					MessageID:   "msg-1",
-					Reason:      "policy",
-					Size:        0,
-				}).Validate()
-			},
-		},
-		{
-			name: "network audit entry invalid direction",
-			validate: func() error {
-				return (NetworkAuditEntry{
-					ProfileID:   DefaultProfileID,
-					SessionID:   "sess-1",
-					WorkspaceID: "ws-store-helpers",
-					Direction:   "replayed",
-					Kind:        "message",
-					Channel:     "builders",
-					PeerFrom:    "peer-a",
-					MessageID:   "msg-1",
-				}).Validate()
-			},
-			wantError: true,
-		},
-		{
-			name: "network audit entry rejected requires reason",
-			validate: func() error {
-				return (NetworkAuditEntry{
-					ProfileID:   DefaultProfileID,
-					SessionID:   "sess-1",
-					WorkspaceID: "ws-store-helpers",
-					Direction:   "rejected",
-					Kind:        "message",
-					Channel:     "builders",
-					PeerFrom:    "peer-a",
-					MessageID:   "msg-1",
-				}).Validate()
-			},
-			wantError: true,
-		},
-		{
-			name: "network audit query invalid",
-			validate: func() error {
-				return (NetworkAuditQuery{Limit: -1}).Validate()
-			},
-			wantError: true,
-		},
-		{
-			name: "network message entry valid",
-			validate: func() error {
-				return (NetworkMessageEntry{
-					ProfileID:   DefaultProfileID,
-					WorkspaceID: "ws-store-helpers",
-					MessageID:   "msg-1",
-					Channel:     "builders",
-					Surface:     NetworkSurfaceThread,
-					ThreadID:    "thread_helpers",
-					Direction:   "sent",
-					PeerFrom:    "peer-a",
-					Kind:        "say",
-					PreviewText: "hello",
-					Body:        json.RawMessage(`{"text":"hello"}`),
-				}).Validate()
-			},
-		},
-		{
-			name: "network message entry invalid",
-			validate: func() error {
-				return (NetworkMessageEntry{MessageID: "msg-1"}).Validate()
-			},
-			wantError: true,
-		},
-		{
-			name: "network message query invalid",
-			validate: func() error {
-				return (NetworkMessageQuery{Limit: -1}).Validate()
-			},
-			wantError: true,
-		},
-		{
 			name: "session meta valid",
 			validate: func() error {
-				return (SessionMeta{
-					ID:                   "sess-meta",
-					AgentName:            "coder",
-					WorkspaceID:          "ws-meta",
-					ProfileID:            DefaultProfileID,
-					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-					State:                "active",
-					RuntimeStatus:        SessionRuntimeReady,
-					CreatedAt:            now,
-					UpdatedAt:            now,
+				return (&SessionMeta{
+					ID:            "sess-meta",
+					AgentName:     "coder",
+					WorkspaceID:   "ws-meta",
+					ProfileID:     DefaultProfileID,
+					State:         "active",
+					RuntimeStatus: SessionRuntimeReady,
+					CreatedAt:     now,
+					UpdatedAt:     now,
 				}).Validate()
 			},
 		},
 		{
 			name: "session meta invalid",
 			validate: func() error {
-				return (SessionMeta{}).Validate()
+				return (&SessionMeta{}).Validate()
 			},
 			wantError: true,
 		},
@@ -763,10 +647,10 @@ func TestMetaReadWriteErrors(t *testing.T) {
 		t.Fatal("ReadSessionMeta(invalid JSON) error = nil, want non-nil")
 	}
 
-	if err := WriteSessionMeta("", SessionMeta{}); err == nil {
+	if err := WriteSessionMeta("", &SessionMeta{}); err == nil {
 		t.Fatal("WriteSessionMeta(\"\") error = nil, want non-nil")
 	}
-	if err := WriteSessionMeta(filepath.Join(t.TempDir(), SessionMetaName), SessionMeta{}); err == nil {
+	if err := WriteSessionMeta(filepath.Join(t.TempDir(), SessionMetaName), &SessionMeta{}); err == nil {
 		t.Fatal("WriteSessionMeta(invalid meta) error = nil, want non-nil")
 	}
 }

@@ -54,21 +54,48 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventReadCl
 }
 
 // UpgradeSessionDatabase lets the daemon migrate retained histories before
-// publishing read-only surfaces. Only a validated, older schema opens a writer;
+// publishing read-only surfaces. Older schemas and stale rewind baselines open a writer;
 // unknown, ahead, corrupt, or foreign databases retain their refusal unchanged.
 func (m *Manager) UpgradeSessionDatabase(ctx context.Context, id string) error {
-	_, cleanup, err := m.openQueryRecorder(ctx, id)
+	reader, cleanup, err := m.openQueryRecorder(ctx, id)
 	if err == nil {
-		return cleanup()
+		stateReader, ok := reader.(store.ConversationRewindReader)
+		stale := false
+		var readErr error
+		if ok {
+			state, found, stateErr := stateReader.ConversationRewindState(ctx)
+			readErr = stateErr
+			stale = found && state.BaselineStale
+		}
+		if closeErr := cleanup(); readErr != nil || closeErr != nil {
+			return errors.Join(readErr, closeErr)
+		}
+		if !stale {
+			return nil
+		}
 	}
-	if !errors.Is(err, store.ErrSchemaBehind) {
+	if errors.Is(err, ErrSessionNotFound) {
+		meta, metaErr := m.readMetaWithContext(ctx, id)
+		if metaErr == nil &&
+			meta.RuntimeStatus == store.SessionRuntimeUnbound &&
+			meta.RuntimeTransition == store.SessionRuntimeTransitionNone &&
+			meta.ACPSessionID == nil {
+			dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, meta.ID))
+			if _, statErr := os.Stat(dbPath); errors.Is(statErr, os.ErrNotExist) {
+				// Accepted sessions have metadata before their first runtime binds an event database.
+				return nil
+			}
+		}
+	}
+	if err != nil && !errors.Is(err, store.ErrSchemaBehind) {
 		return err
 	}
-	_, cleanup, err = m.openMutationRecorder(ctx, id)
+	recorder, cleanup, err := m.openMutationRecorder(ctx, id)
 	if err != nil {
 		return err
 	}
-	return cleanup()
+	_, _, refreshErr := refreshStaleConversationRewindBaseline(ctx, recorder)
+	return errors.Join(refreshErr, cleanup())
 }
 
 func (m *Manager) openMutationRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
@@ -153,7 +180,7 @@ func (m *Manager) resolveRecorderOpenTarget(
 	}
 
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
-	owner, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID)
+	owner, err := m.resolveStoredSessionOwner(ctx, &meta)
 	if err != nil {
 		return recorderOpenTarget{}, fmt.Errorf("session: resolve catalog owner for %q: %w", target, err)
 	}

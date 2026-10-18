@@ -1,8 +1,9 @@
 package skills
 
 import (
+	"cmp"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -103,13 +104,17 @@ type mcpOrigin struct {
 
 func orderSkillsBySource(skills []*Skill) []*Skill {
 	ordered := append([]*Skill(nil), skills...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		left := ordered[i]
-		right := ordered[j]
-		if left == nil || right == nil {
-			return left != nil
+	slices.SortStableFunc(ordered, func(left, right *Skill) int {
+		if left == nil && right == nil {
+			return 0
 		}
-		return SkillPrecedenceRank(left.Source) < SkillPrecedenceRank(right.Source)
+		if left == nil {
+			return 1
+		}
+		if right == nil {
+			return -1
+		}
+		return cmp.Compare(SkillPrecedenceRank(left.Source), SkillPrecedenceRank(right.Source))
 	})
 	return ordered
 }

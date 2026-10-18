@@ -2,7 +2,6 @@ package udsapi
 
 import (
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -39,7 +38,7 @@ func assertGatewayUDSRoutesMatchDocumentedOperations(t *testing.T) {
 		).Replace(route.Path)
 		actual = append(actual, route.Method+" "+path)
 	}
-	sort.Strings(actual)
+	slices.Sort(actual)
 
 	want := make([]string, 0)
 	for _, operation := range apispec.Operations() {
@@ -48,7 +47,7 @@ func assertGatewayUDSRoutesMatchDocumentedOperations(t *testing.T) {
 			want = append(want, operation.Method+" "+operation.Path)
 		}
 	}
-	sort.Strings(want)
+	slices.Sort(want)
 	if !slices.Equal(actual, want) {
 		t.Fatalf("UDS gateway routes = %v, want documented operations %v", actual, want)
 	}

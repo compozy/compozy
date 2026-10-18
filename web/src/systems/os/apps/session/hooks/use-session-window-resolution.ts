@@ -47,8 +47,8 @@ export function useSessionWindowResolution({
   const scopedMiss = query.isError && isNotFound(query.error);
   const foreign = useForeignProfileSession(sessionId, scopedMiss);
   const foreignSession = foreign.status === "found" ? foreign.session : undefined;
-  const sessionWorkspaceId =
-    query.data?.workspace_id?.trim() || foreignSession?.workspace_id?.trim() || null;
+  const resolvedSession = query.data ?? foreignSession;
+  const sessionWorkspaceId = resolvedSession ? (resolvedSession.workspace_id?.trim() ?? "") : null;
   return {
     session: query.data,
     workspaceId: sessionWorkspaceId ?? runtimeWorkspaceId,

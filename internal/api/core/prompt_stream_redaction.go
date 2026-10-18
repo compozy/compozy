@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/internal/diagnostics"
 
-	ssepkg "github.com/compozy/compozy/internal/sse"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -53,7 +52,7 @@ func promptRedactValue(value any) any {
 }
 
 func promptRedactString(value string) string {
-	return ssepkg.ScrubMemoryContextString(diagnostics.Redact(taskpkg.RedactClaimTokens(value)))
+	return diagnostics.Redact(taskpkg.RedactClaimTokens(value))
 }
 
 func promptKeyCarriesSecret(key string) bool {

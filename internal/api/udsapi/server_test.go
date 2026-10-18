@@ -12,7 +12,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
@@ -32,11 +31,9 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		customLoader := func(name string, _ compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
 			return compozyconfig.AgentDef{Name: name, Provider: "fake", Prompt: "hello"}, nil
 		}
-		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
-		dream := &stubDreamTrigger{}
-		bridgeService := &stubBridgeService{}
+
 		extensionService := &stubExtensionService{}
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -50,11 +47,8 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 			WithSessionManager(stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
-			WithBridgeService(bridgeService),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 			WithSkillsRegistry(stubSkillsRegistry{}),
-			WithMemoryStore(store),
-			WithDreamTrigger(dream),
 			WithAgentLoader(customLoader),
 			WithExtensionService(extensionService),
 			WithEngine(engine),
@@ -79,15 +73,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		}
 		if server.handlers.AgentLoader == nil {
 			t.Fatal("expected custom agent loader to be installed")
-		}
-		if server.handlers.MemoryStore != store {
-			t.Fatal("expected memory store option to be installed")
-		}
-		if server.handlers.DreamTrigger != dream {
-			t.Fatal("expected dream trigger option to be installed")
-		}
-		if server.handlers.Bridges != bridgeService {
-			t.Fatal("expected bridge service option to be installed")
 		}
 		if server.handlers.Extensions != extensionService {
 			t.Fatal("expected extension service option to be installed")
@@ -119,7 +104,7 @@ func TestNewRejectsOverlongSocketPath(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := "/tmp/" + strings.Repeat("a", maxSocketPathBytes)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		_, err := New(
@@ -222,7 +207,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -244,7 +229,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 			t.Fatalf("New() error = %v", err)
 		}
 
-		if err := server.Start(context.Background()); err != nil {
+		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 
@@ -258,7 +243,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 
 		client := newUnixClient(t, socketPath)
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"http://unix/api/status",
 			http.NoBody,
@@ -277,7 +262,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 			t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 		}
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
@@ -288,7 +273,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 	})
 }
 
-func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
+func TestServerStartRejectsNilContext(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should reject nil start and shutdown contexts", func(t *testing.T) {
@@ -296,7 +281,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -321,43 +306,6 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 			t.Fatal("Shutdown(nil) error = nil, want non-nil")
 		}
 	})
-
-	t.Run("Should reject duplicate starts", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths := newTestHomePaths(t)
-		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
-		cfg.Daemon.Socket = socketPath
-
-		server, err := New(
-			WithHomePaths(homePaths),
-			WithConfig(&cfg),
-			WithSocketPath(socketPath),
-			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{}),
-			WithTaskService(&stubTaskManager{}),
-			WithObserver(stubObserver{}),
-			WithWorkspaceResolver(stubWorkspaceService{}),
-			WithSkillsRegistry(stubSkillsRegistry{}),
-		)
-		if err != nil {
-			t.Fatalf("New() error = %v", err)
-		}
-		if err := server.Start(context.Background()); err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-		t.Cleanup(func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			if err := server.Shutdown(shutdownCtx); err != nil {
-				t.Errorf("Shutdown() error = %v", err)
-			}
-		})
-		if err := server.Start(context.Background()); err == nil {
-			t.Fatal("Start(second) error = nil, want non-nil")
-		}
-	})
 }
 
 func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
@@ -368,7 +316,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 		entered := make(chan struct{})
 		release := make(chan struct{})
@@ -393,7 +341,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		if err := server.Start(context.Background()); err != nil {
+		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 		released := false
@@ -414,7 +362,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 		errCh := make(chan error, 1)
 		go func() {
 			req, requestErr := http.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				http.MethodGet,
 				"http://unix/api/sessions?all_workspaces=true",
 				http.NoBody,
@@ -444,13 +392,13 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 
 		shutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 			shutdownDone <- server.Shutdown(shutdownCtx)
 		}()
 		waitForServerState(t, server, serverStateStopping)
 
-		if err := server.Start(context.Background()); err == nil {
+		if err := server.Start(t.Context()); err == nil {
 			t.Fatal("Start(during shutdown) error = nil, want non-nil")
 		}
 
@@ -508,7 +456,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -529,7 +477,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		if err := server.Start(context.Background()); err != nil {
+		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {
@@ -540,7 +488,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 			}
 		})
 
-		if err := server.Start(context.Background()); err == nil {
+		if err := server.Start(t.Context()); err == nil {
 			t.Fatal("Start(second) error = nil, want non-nil")
 		}
 		if info, err := os.Lstat(socketPath); err != nil {
@@ -551,7 +499,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 
 		client := newUnixClient(t, socketPath)
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"http://unix/api/status",
 			http.NoBody,
@@ -582,7 +530,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 		if err := os.WriteFile(socketPath, []byte("not-a-socket"), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(socketPath) error = %v", err)
@@ -603,7 +551,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 			t.Fatalf("New() error = %v", err)
 		}
 
-		if err := server.Start(context.Background()); err == nil {
+		if err := server.Start(t.Context()); err == nil {
 			t.Fatal("Start() error = nil, want non-nil")
 		}
 	})
@@ -629,7 +577,7 @@ func TestEnsureSocketParentDirAndWaitForServeDone(t *testing.T) {
 
 		done := make(chan struct{})
 		close(done)
-		if err := waitForServeDone(context.Background(), done); err != nil {
+		if err := waitForServeDone(t.Context(), done); err != nil {
 			t.Fatalf("waitForServeDone(done) error = %v", err)
 		}
 	})
@@ -637,7 +585,7 @@ func TestEnsureSocketParentDirAndWaitForServeDone(t *testing.T) {
 	t.Run("Should return context error while waiting for serve goroutine", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 		defer cancel()
 		if err := waitForServeDone(ctx, make(chan struct{})); err == nil {
 			t.Fatal("waitForServeDone(timeout) error = nil, want non-nil")

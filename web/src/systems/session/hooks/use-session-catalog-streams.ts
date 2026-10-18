@@ -21,6 +21,9 @@ import {
   type SessionCatalogStreamStatus,
 } from "./session-catalog-streams-store";
 
+// Covers multiple transport backoff attempts without introducing another read.
+const SESSION_CATALOG_DISCONNECT_GRACE_MS = 10_000;
+
 const SESSION_CATALOG_CHANGED_EVENT = "session_catalog_changed";
 /** Transition edges — ephemeral delivery signals, never a state patch. */
 const SESSION_ATTENTION_CHANGED_EVENT = "session_attention_changed";
@@ -50,13 +53,19 @@ export function sessionCatalogStreamURL(scope: ProfileScopeParams): string {
 }
 
 function defaultEventSourceFactory(url: string): SessionCatalogEventSource {
-  return createStreamEventSource(url);
+  return createStreamEventSource(url, { transport: "websocket", resumeWithLastEventId: true });
 }
 
 function parseSessionCatalogEvent(event: Event): SessionCatalogEventPayload | undefined {
   if (!(event instanceof MessageEvent) || typeof event.data !== "string") return undefined;
   try {
     const payload = JSON.parse(event.data) as Partial<SessionCatalogEventPayload>;
+    // A folder or manual-order change names its workspace but no session.
+    if (payload.kind === "layout") {
+      return typeof payload.workspace_id === "string" && payload.workspace_id.trim() !== ""
+        ? (payload as SessionCatalogEventPayload)
+        : undefined;
+    }
     if (
       (payload.kind !== "upserted" && payload.kind !== "deleted") ||
       typeof payload.workspace_id !== "string" ||
@@ -93,10 +102,125 @@ export interface SessionCatalogStreamHandlers {
   onOperatorNotification?: (notification: OperatorNotificationEventPayload) => void;
 }
 
-function invalidateGlobalSessionViews(queryClient: QueryClient): void {
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
-  void queryClient.invalidateQueries({ queryKey: notificationKeys.attentionRoot() });
+// One wake window per stream, independent of the number of lifecycle/attention frames.
+// An in-flight read is allowed to finish; cancelling it on every frame amplified
+// one background transition into repeated full-catalog walks.
+function createCatalogReconciler(queryClient: QueryClient) {
+  const workspaces = new Set<string>();
+  const pending = new Set<string>();
+  let lastRead = -Infinity;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let focused = true;
+  const visible = () =>
+    focused && (typeof document === "undefined" || document.visibilityState !== "hidden");
+  const flush = () => {
+    timer = undefined;
+    if ((workspaces.size === 0 && pending.size === 0) || !visible()) return;
+    lastRead = Date.now();
+    const hashes = new Set(pending);
+    pending.clear();
+    const prefixes = [
+      ...Array.from(workspaces, workspace => sessionKeys.workspaceLists(workspace)),
+      ...(workspaces.size > 0
+        ? [sessionKeys.attentionSummary(), notificationKeys.attentionRoot()]
+        : []),
+    ];
+    workspaces.clear();
+    for (const queryKey of prefixes) {
+      for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
+        hashes.delete(query.queryHash);
+      }
+    }
+    // A retry retains only blocked identities. Healthy siblings require a new wake.
+    const predicate = (query: {
+      queryHash: string;
+      state: { status: string; errorUpdatedAt: number; fetchStatus: string };
+      getObserversCount: () => number;
+    }) => {
+      const blocked =
+        query.getObserversCount() > 0 &&
+        (query.state.fetchStatus === "fetching" ||
+          (query.state.status === "error" && Date.now() - query.state.errorUpdatedAt < 30_000));
+      if (blocked) pending.add(query.queryHash);
+      return !blocked;
+    };
+    for (const queryKey of prefixes) {
+      void queryClient.invalidateQueries({ queryKey, predicate }, { cancelRefetch: false });
+    }
+    if (hashes.size > 0) {
+      void queryClient.invalidateQueries(
+        { predicate: query => hashes.has(query.queryHash) && predicate(query) },
+        { cancelRefetch: false }
+      );
+    }
+    schedule();
+  };
+  const schedule = () => {
+    if (timer !== undefined || !visible() || (workspaces.size === 0 && pending.size === 0)) return;
+    const delay = Math.max(0, 5_000 - (Date.now() - lastRead));
+    if (delay === 0) flush();
+    else timer = setTimeout(flush, delay);
+  };
+  const onVisibility = () => schedule();
+  const onFocus = () => {
+    focused = true;
+    schedule();
+  };
+  const onBlur = () => {
+    focused = false;
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+  }
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+  return {
+    wake(workspace?: string) {
+      workspaces.add("");
+      if (workspace !== undefined) workspaces.add(workspace);
+      schedule();
+    },
+    close() {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+        window.removeEventListener("blur", onBlur);
+      }
+      if (timer !== undefined) clearTimeout(timer);
+      if (typeof document !== "undefined")
+        document.removeEventListener("visibilitychange", onVisibility);
+    },
+  };
+}
+
+/** Trailing window for a parent's cold subagent list re-read. */
+export const SUBAGENT_LIST_WAKE_MS = 1_000;
+
+/**
+ * Every subagent transition upserts its parent (`_spec.md` §Catalog liveness).
+ * A burst of upserts for one parent collapses into one trailing re-read of its
+ * cold list (chip preview or an inspector without a live roster); a parent
+ * whose session stream is open reads its roster instead, so this stays idle.
+ */
+function createSubagentListReconciler(queryClient: QueryClient) {
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  return {
+    wake(workspaceId: string, sessionId: string) {
+      const queryKey = sessionKeys.subagents(workspaceId, sessionId);
+      const id = JSON.stringify(queryKey);
+      if (timers.has(id)) return;
+      timers.set(
+        id,
+        setTimeout(() => {
+          timers.delete(id);
+          void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
+        }, SUBAGENT_LIST_WAKE_MS)
+      );
+    },
+    close() {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    },
+  };
 }
 
 /**
@@ -133,21 +257,38 @@ function openSessionCatalogStream(
   handlers: SessionCatalogStreamHandlers,
   url: string
 ): () => void {
-  const reconcileWorkspaces: EventListener = () => {
-    onStatusChange("live");
-    invalidateGlobalSessionViews(queryClient);
+  const reconciler = createCatalogReconciler(queryClient);
+  const subagentLists = createSubagentListReconciler(queryClient);
+  let staleTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearStaleTimer = () => {
+    if (staleTimer !== undefined) clearTimeout(staleTimer);
+    staleTimer = undefined;
   };
-  const handleStreamError: EventListener = () => onStatusChange("stale");
+  const markLive = () => {
+    clearStaleTimer();
+    onStatusChange("live");
+  };
+  const handleStreamError = () => {
+    if (staleTimer !== undefined) return;
+    staleTimer = setTimeout(() => {
+      staleTimer = undefined;
+      onStatusChange("stale");
+    }, SESSION_CATALOG_DISCONNECT_GRACE_MS);
+  };
+  const reconcileWorkspaces: EventListener = () => {
+    markLive();
+    reconciler.wake();
+  };
   const handleCatalogChange: EventListener = event => {
     const payload = parseSessionCatalogEvent(event);
     if (!payload) return;
-    void queryClient.invalidateQueries({
-      queryKey: sessionKeys.workspaceLists(payload.workspace_id),
-    });
+    markLive();
+    reconciler.wake(payload.workspace_id);
+    if (payload.kind === "layout") return;
     void refreshSessionDetail(queryClient, payload);
     // Same session, whichever lens is holding it open.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
-    invalidateGlobalSessionViews(queryClient);
+    subagentLists.wake(payload.workspace_id, payload.session_id);
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [
@@ -159,11 +300,9 @@ function openSessionCatalogStream(
       "at",
     ]);
     if (!payload) return;
-    void queryClient.invalidateQueries({
-      queryKey: sessionKeys.workspaceLists(payload.workspace_id),
-    });
+    markLive();
+    reconciler.wake(payload.workspace_id);
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
-    invalidateGlobalSessionViews(queryClient);
     handlers.onAttentionEdge?.(payload);
   };
   const handleOperatorNotification: EventListener = event => {
@@ -175,6 +314,7 @@ function openSessionCatalogStream(
       "at",
     ]);
     if (!payload) return;
+    markLive();
     handlers.onOperatorNotification?.(payload);
   };
   const listeners: Array<[string, EventListener]> = [
@@ -186,8 +326,12 @@ function openSessionCatalogStream(
   ];
   const source = eventSourceFactory(url);
   const detach = () => {
+    clearStaleTimer();
+    reconciler.close();
+    subagentLists.close();
     for (const [type, listener] of listeners) source.removeEventListener(type, listener);
   };
+  handleStreamError();
   try {
     for (const [type, listener] of listeners) source.addEventListener(type, listener);
   } catch (error) {
@@ -219,7 +363,7 @@ export function useSessionCatalogStreams({
   const canConnect =
     enabled &&
     typeof window !== "undefined" &&
-    (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
+    (eventSourceFactory !== undefined || typeof WebSocket !== "undefined");
   const store = useStore(sessionCatalogStreamsLogic);
   const status = useSelector(store, snapshot => snapshot.context.status);
   // The URL carries the profile scope, so it doubles as the reconnect identity:

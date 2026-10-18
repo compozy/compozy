@@ -19,10 +19,6 @@ func registrySettingsOperations() []OperationSpec {
 		triggerSettingsRestartOperationSpec(),
 		getSettingsAutomationOperationSpec(),
 		updateSettingsAutomationOperationSpec(),
-		listSettingsSandboxesOperationSpec(),
-		getSettingsSandboxOperationSpec(),
-		putSettingsSandboxOperationSpec(),
-		deleteSettingsSandboxOperationSpec(),
 		getSettingsGeneralOperationSpec(),
 		updateSettingsGeneralOperationSpec(),
 		getSettingsPersonaOperationSpec(),
@@ -200,78 +196,7 @@ func updateSettingsAutomationOperationSpec() OperationSpec {
 		},
 	}
 }
-func listSettingsSandboxesOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        "/api/settings/sandboxes",
-		OperationID: "listSettingsSandboxes",
-		Summary:     "List settings-backed execution sandboxes",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsSandboxesResponse{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func getSettingsSandboxOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPISettingsSandboxesNamePath,
-		OperationID: "getSettingsSandbox",
-		Summary:     "Read one settings-backed execution sandbox",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Sandbox name"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsSandboxResponse{}},
-			{Status: 404, Description: "Sandbox not found", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func putSettingsSandboxOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPut,
-		Path:        specAPISettingsSandboxesNamePath,
-		OperationID: "putSettingsSandbox",
-		Summary:     "Create or replace one settings-backed execution sandbox",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Sandbox name"),
-		},
-		RequestBody: contract.PutSettingsSandboxRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
-			{Status: 400, Description: "Invalid sandbox payload", Body: contract.ErrorPayload{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Conflicting sandbox change", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func deleteSettingsSandboxOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodDelete,
-		Path:        specAPISettingsSandboxesNamePath,
-		OperationID: "deleteSettingsSandbox",
-		Summary:     "Delete one settings-backed execution sandbox overlay",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Sandbox name"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Sandbox not found", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
+
 func getSettingsGeneralOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,

@@ -25,8 +25,7 @@ func cloneMetricSpec(metric *dsl.MetricSpec) *dsl.MetricSpec {
 	}
 	cloned := *metric
 	if metric.MinDelta != nil {
-		value := *metric.MinDelta
-		cloned.MinDelta = &value
+		cloned.MinDelta = new(*metric.MinDelta)
 	}
 	return &cloned
 }

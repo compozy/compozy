@@ -24,7 +24,6 @@ type automationCreateTargetInput struct {
 	LoopWorkspaceRef      string
 	LoopInputFlags        []string
 	LoopInputMappingFlags []string
-	NetworkFlags          networkParticipationFlags
 }
 
 type automationCreateTarget struct {
@@ -77,7 +76,6 @@ func bindAutomationCreateTargetFlags(
 			"Loop input mapping as key=template; repeat for multiple mappings",
 		)
 	}
-	bindNetworkParticipationFlags(cmd, &input.NetworkFlags)
 }
 
 func buildAutomationCreateTarget(
@@ -168,18 +166,13 @@ func buildAutomationLoopTarget(
 	if err != nil {
 		return automationCreateTarget{}, err
 	}
-	networkRequest, err := input.NetworkFlags.request()
-	if err != nil {
-		return automationCreateTarget{}, err
-	}
 	return automationCreateTarget{
 		Kind: automationpkg.TargetKindLoop,
 		LoopTarget: &automationpkg.LoopTarget{
-			WorkspaceID:          workspaceID,
-			LoopName:             loopName,
-			Inputs:               inputs,
-			InputMapping:         inputMapping,
-			NetworkParticipation: networkRequest,
+			WorkspaceID:  workspaceID,
+			LoopName:     loopName,
+			Inputs:       inputs,
+			InputMapping: inputMapping,
 		},
 	}, nil
 }
@@ -187,11 +180,7 @@ func buildAutomationLoopTarget(
 func automationLoopTargetOptionsPresent(input automationCreateTargetInput) bool {
 	return strings.TrimSpace(input.LoopWorkspaceRef) != "" ||
 		len(input.LoopInputFlags) > 0 ||
-		len(input.LoopInputMappingFlags) > 0 ||
-		strings.TrimSpace(input.NetworkFlags.mode) != "" ||
-		strings.TrimSpace(input.NetworkFlags.channelStrategy) != "" ||
-		strings.TrimSpace(input.NetworkFlags.channel) != "" ||
-		strings.TrimSpace(input.NetworkFlags.boundsJSON) != ""
+		len(input.LoopInputMappingFlags) > 0
 }
 
 func resolveAutomationLoopWorkspace(

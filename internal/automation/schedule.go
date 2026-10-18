@@ -22,8 +22,9 @@ var (
 )
 
 const (
-	defaultSchedulerStopTimeout = 10 * time.Second
-	schedulerCatchUpJitterGrace = time.Second
+	defaultSchedulerStopTimeout  = 10 * time.Second
+	defaultSchedulerClaimTimeout = time.Second
+	schedulerCatchUpJitterGrace  = time.Second
 )
 
 // ScheduleDispatcher is the execution surface used by scheduled jobs.
@@ -57,10 +58,10 @@ type ScheduledJobState struct {
 	LastScheduledAt     *time.Time             `json:"last_scheduled_at,omitempty"`
 	LastFireID          string                 `json:"last_fire_id,omitempty"`
 	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitzero"`
 	LastMisfireAt       *time.Time             `json:"last_misfire_at,omitempty"`
-	MisfireCount        int                    `json:"misfire_count,omitempty"`
-	Durable             *SchedulerState        `json:"durable,omitempty"`
+	MisfireCount        int                    `json:"misfire_count,omitzero"`
+	Durable             *SchedulerState        `json:"durable,omitzero"`
 }
 
 // Scheduler owns durable cursor-driven scheduled-job dispatch.
@@ -71,6 +72,7 @@ type Scheduler struct {
 	clock        clockwork.Clock
 	location     *time.Location
 	stopTimeout  time.Duration
+	claimTimeout time.Duration
 	policyForJob SchedulerCatchUpPolicyResolver
 
 	mu            sync.RWMutex
@@ -113,6 +115,7 @@ func NewScheduler(dispatcher ScheduleDispatcher, opts ...SchedulerOption) (*Sche
 		clock:         clockwork.NewRealClock(),
 		location:      time.UTC,
 		stopTimeout:   defaultSchedulerStopTimeout,
+		claimTimeout:  defaultSchedulerClaimTimeout,
 		registrations: make(map[string]scheduledRegistration),
 	}
 
@@ -134,8 +137,18 @@ func NewScheduler(dispatcher ScheduleDispatcher, opts ...SchedulerOption) (*Sche
 	if scheduler.stopTimeout <= 0 {
 		scheduler.stopTimeout = defaultSchedulerStopTimeout
 	}
+	if scheduler.claimTimeout <= 0 {
+		scheduler.claimTimeout = defaultSchedulerClaimTimeout
+	}
 
 	return scheduler, nil
+}
+
+// WithSchedulerClaimTimeout bounds each claim attempt; nonpositive values use the default.
+func WithSchedulerClaimTimeout(timeout time.Duration) SchedulerOption {
+	return func(scheduler *Scheduler) {
+		scheduler.claimTimeout = timeout
+	}
 }
 
 // WithSchedulerLogger overrides the scheduler logger.

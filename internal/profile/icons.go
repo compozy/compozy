@@ -12,14 +12,39 @@ import (
 var lucideIconData string
 
 var lucideIcons = sync.OnceValue(func() map[string]struct{} {
+	return parseIconCatalog(lucideIconData)
+})
+
+func parseIconCatalog(data string) map[string]struct{} {
 	set := make(map[string]struct{}, 1800)
-	for slug := range strings.SplitSeq(strings.TrimSpace(lucideIconData), "\n") {
+	for slug := range strings.SplitSeq(strings.TrimSpace(data), "\n") {
+		slug = strings.TrimSuffix(slug, "\r")
 		set[slug] = struct{}{}
 	}
 	return set
-})
+}
 
 func isCatalogIcon(slug string) bool {
 	_, found := lucideIcons()[slug]
 	return found
+}
+
+// Remove in v0.5.0 after migrating persisted pre-1.52 Lucide names.
+func canonicalIcon(slug string) string {
+	switch slug {
+	case "album":
+		return "square-bookmark"
+	case "book-marked":
+		return "book-bookmark"
+	case "building-2":
+		return "building-complex"
+	case "flip-horizontal-2":
+		return "triangles-centerline-dashed-horizontal"
+	case "flip-vertical-2":
+		return "triangles-centerline-dashed-vertical"
+	case "trash-2":
+		return "trash"
+	default:
+		return slug
+	}
 }

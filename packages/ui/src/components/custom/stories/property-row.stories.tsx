@@ -66,7 +66,7 @@ export const WithEditor: Story = {
     <PropertyRow
       editor={
         <button
-          className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover"
+          className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2"
           type="button"
         >
           High
@@ -75,5 +75,29 @@ export const WithEditor: Story = {
       }
       label="Priority"
     />
+  ),
+};
+
+/**
+ * `facts`: a fixed label column with start-aligned values in caption type,
+ * for dense fact lists in hover cards (subagent worktree facts, VC-07).
+ */
+export const Facts: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-col gap-1">
+      <PropertyRow variant="facts" label="Worktree" mono>
+        extract-billing-client-3f9a0c12
+      </PropertyRow>
+      <PropertyRow variant="facts" label="Branch" mono>
+        run/extract-billing-client-3f9a0c12
+      </PropertyRow>
+      <PropertyRow variant="facts" label="Commits">
+        3 ahead · clean
+      </PropertyRow>
+      <PropertyRow variant="facts" label="PR">
+        PR status unknown
+      </PropertyRow>
+    </div>
   ),
 };

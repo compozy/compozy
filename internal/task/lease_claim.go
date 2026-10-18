@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
@@ -14,7 +12,6 @@ func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.RunKind = normalized.RunKind.Normalize()
-	normalized.TargetSessionID = strings.TrimSpace(normalized.TargetSessionID)
 	if normalized.Scope == "" {
 		if normalized.WorkspaceID != "" {
 			normalized.Scope = ScopeWorkspace
@@ -36,18 +33,6 @@ func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
 		}
 	}
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
-	normalized.ParticipationChannel = strings.TrimSpace(normalized.ParticipationChannel)
-	if normalized.CallerNetworkParticipation != nil {
-		callerParticipation := *normalized.CallerNetworkParticipation
-		if err := participation.ValidateSpec(callerParticipation); err != nil {
-			return ClaimCriteria{}, fmt.Errorf(
-				"%w: claim_criteria.caller_network_participation: %v",
-				ErrValidation,
-				err,
-			)
-		}
-		normalized.CallerNetworkParticipation = participation.CloneSpec(callerParticipation)
-	}
 	normalized.RequiredCapabilities = normalizeCapabilityCriteria(normalized.RequiredCapabilities)
 	if normalized.LeaseDuration == 0 {
 		normalized.LeaseDuration = DefaultRunLeaseDuration
@@ -75,40 +60,6 @@ func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
 	return normalized, nil
 }
 
-func (c ClaimCriteria) validateTargetSessionBinding(path string) error {
-	if c.RunKind.Normalize() != RunKindNetworkWake {
-		if strings.TrimSpace(c.TargetSessionID) != "" {
-			return fmt.Errorf(
-				"%w: %s is only valid for network_wake claims",
-				ErrValidation,
-				nestedPath(path, "target_session_id"),
-			)
-		}
-		return nil
-	}
-	if c.Scope.Normalize() != ScopeWorkspace || strings.TrimSpace(c.WorkspaceID) == "" {
-		return fmt.Errorf(
-			"%w: network_wake claims require workspace scope",
-			ErrInvalidScopeBinding,
-		)
-	}
-	if strings.TrimSpace(c.TargetSessionID) == "" {
-		return fmt.Errorf(
-			"%w: %s is required for network_wake claims",
-			ErrValidation,
-			nestedPath(path, "target_session_id"),
-		)
-	}
-	if strings.TrimSpace(c.TargetSessionID) != strings.TrimSpace(c.ClaimerSessionID) {
-		return fmt.Errorf(
-			"%w: %s must match claimer_session_id for network_wake claims",
-			ErrPermissionDenied,
-			nestedPath(path, "target_session_id"),
-		)
-	}
-	return nil
-}
-
 // claimantRequiresSession reports whether the claimant identity is session-backed.
 // Session-backed claims carry the executing session; daemon-owned claims bind one later.
 func claimantRequiresSession(claimedBy *ActorIdentity) bool {
@@ -124,9 +75,6 @@ func (c ClaimCriteria) Validate(path string) error {
 		if err := c.RunKind.Validate(nestedPath(path, "run_kind")); err != nil {
 			return err
 		}
-	}
-	if err := c.validateTargetSessionBinding(path); err != nil {
-		return err
 	}
 	if strings.TrimSpace(c.ClaimerSessionID) == "" && claimantRequiresSession(c.ClaimedBy) {
 		return fmt.Errorf(

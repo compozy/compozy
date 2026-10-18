@@ -38,9 +38,9 @@ type ExtensionInfo struct {
 	RegistryName             *string
 	RemoteVersion            *string
 	Provenance               ExtensionProvenance
-	NetworkRequirementDigest string
-	NetworkConfirmedBy       string
-	NetworkConfirmedAt       time.Time
+	GatewayRequirementDigest string
+	GatewayConfirmedBy       string
+	GatewayConfirmedAt       time.Time
 }
 
 type installConfig struct {
@@ -83,8 +83,7 @@ func WithInstallReplaceExisting() InstallOption {
 
 func withInstallInstalledAt(installedAt time.Time) InstallOption {
 	return func(cfg *installConfig) {
-		value := installedAt.UTC()
-		cfg.installedAt = &value
+		cfg.installedAt = new(installedAt.UTC())
 	}
 }
 

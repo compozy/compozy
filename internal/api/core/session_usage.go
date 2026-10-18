@@ -77,9 +77,7 @@ func addOptionalInt64(acc *int64, delta *int64) *int64 {
 		return acc
 	}
 	if acc == nil {
-		total := *delta
-		return &total
+		return new(*delta)
 	}
-	total := *acc + *delta
-	return &total
+	return new(*acc + *delta)
 }

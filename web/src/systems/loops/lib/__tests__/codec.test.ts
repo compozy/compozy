@@ -95,36 +95,6 @@ describe("loop codec", () => {
     expect(rebuilt).toEqual(def);
   });
 
-  it("Should preserve route grammar and gate object routes as structured values", () => {
-    const def = richDefinition();
-    const { nodes, edges } = definitionToGraph(def);
-    const rebuilt = graphToDefinition(def, nodes, edges);
-    const rawNodes = (rebuilt.graph as unknown as { nodes: Record<string, unknown>[] }).nodes;
-    expect(rawNodes.find(node => node.id === "router")).toMatchObject({
-      routes: [
-        { when: "nodes.execute.output.score >= 0.8", to: "review" },
-        { when: "nodes.execute.output.needs_repair", to: "remediate" },
-      ],
-      default: "publish",
-    });
-    expect(rawNodes.find(node => node.id === "review")?.on_result).toEqual({
-      fail: { route: "remediate" },
-      pass: "continue",
-    });
-  });
-
-  it("Should preserve strategy thresholds and iteration names", () => {
-    const def = richDefinition();
-    const { nodes, edges } = definitionToGraph(def);
-    const rebuilt = graphToDefinition(def, nodes, edges);
-    const rawNodes = (rebuilt.graph as unknown as { nodes: Record<string, unknown>[] }).nodes;
-    expect(rawNodes.find(node => node.id === "fan")).toMatchObject({
-      strategy: { kind: "best_effort", threshold: "66%", missing: "acceptable" },
-      bind_as: "file",
-      index_as: "file_index",
-    });
-  });
-
   it("Should round-trip the real implement-tasks definition", () => {
     const def = loopDetailByName.get("implement-tasks")!.definition;
     const { nodes, edges } = definitionToGraph(def);
@@ -203,17 +173,6 @@ describe("loop codec", () => {
       filter: "event.payload.to_status == 'completed'",
     });
     expect(graphToDefinition(def, nodes, edges)).toEqual(def);
-  });
-
-  it("Should round-trip strict predicate policies", () => {
-    const def = richDefinition();
-    const { nodes, edges } = definitionToGraph(def);
-    const rebuilt = graphToDefinition(def, nodes, edges);
-
-    expect(rebuilt.contract.stop_when).toEqual({
-      expr: "generation >= 4",
-      on_eval_error: "fail",
-    });
   });
 
   it("Should synthesize a raw edge for a connection drawn with no original JSON", () => {

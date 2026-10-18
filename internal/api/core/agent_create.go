@@ -103,6 +103,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		Permissions:     string(agent.Permissions),
 		Skills:          compozyconfig.AgentSkillsConfig{Disabled: disabledSkills},
 		CategoryPath:    append([]string(nil), agent.CategoryPath...),
+		FallbackChain:   agentFallbackChainFromContract(agent.FallbackChain),
 		Prompt:          agent.Prompt,
 	}, nil
 }
@@ -117,6 +118,9 @@ func validateAgentDraftRuntime(draft compozyconfig.AgentDefinitionDraft, cfg *co
 			errCreateAgentRequestInvalid,
 			fmt.Errorf("agent runtime cannot be resolved in the target scope: %w", err),
 		)
+	}
+	if err := cfg.ValidateAgentFallbackChain(agent); err != nil {
+		return errors.Join(errCreateAgentRequestInvalid, compozyconfig.ErrInvalidAgentDefinition, err)
 	}
 	return nil
 }

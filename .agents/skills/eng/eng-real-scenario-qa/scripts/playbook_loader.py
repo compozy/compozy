@@ -43,8 +43,6 @@ REQUIRED_TOP_LEVEL = {
     "kickoff_brief",
     "workspaces",
     "agents",
-    "channels",
-    "knowledge_files",
     "open_tasks",
     "required_deliverables",
     "required_collaboration",
@@ -170,8 +168,6 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
 
     workspaces = _as_list(data, "workspaces", "playbook", errors)
     agents = _as_list(data, "agents", "playbook", errors)
-    channels = _as_list(data, "channels", "playbook", errors)
-    knowledge_files = _as_list(data, "knowledge_files", "playbook", errors)
     open_tasks = _as_list(data, "open_tasks", "playbook", errors)
     required_deliverables = _as_dict(data, "required_deliverables", "playbook", errors)
     required_collaboration = _as_dict(data, "required_collaboration", "playbook", errors)
@@ -180,16 +176,11 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
         errors.append("playbook.workspaces must contain at least 3 entries")
     if len(agents) < 6:
         errors.append("playbook.agents must contain at least 6 entries")
-    if len(channels) < 4:
-        errors.append("playbook.channels must contain at least 4 entries")
-    if len(knowledge_files) < 3:
-        errors.append("playbook.knowledge_files must contain at least 3 entries")
     if len(open_tasks) < 4:
         errors.append("playbook.open_tasks must contain at least 4 entries")
 
     workspace_ids = _indexed_ids(workspaces, "id", "playbook.workspaces", errors)
     agent_ids = _indexed_ids(agents, "id", "playbook.agents", errors)
-    channel_ids = _indexed_ids(channels, "id", "playbook.channels", errors)
 
     rules = load_forbidden_rules(repo_root)
     kickoff = data.get("kickoff_brief")
@@ -210,16 +201,6 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
             continue
         _require_keys(workspace, {"id", "name", "purpose"}, f"playbook.workspaces[{index}]", errors)
 
-    for index, channel in enumerate(channels):
-        if not isinstance(channel, dict):
-            continue
-        _require_keys(channel, {"id", "purpose"}, f"playbook.channels[{index}]", errors)
-        primary_workspace = channel.get("primary_workspace")
-        if isinstance(primary_workspace, str) and primary_workspace and primary_workspace not in workspace_ids:
-            errors.append(
-                f"playbook.channels[{index}].primary_workspace references unknown workspace {primary_workspace!r}"
-            )
-
     for index, agent in enumerate(agents):
         if not isinstance(agent, dict):
             continue
@@ -235,49 +216,6 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
         else:
             errors.append(f"playbook.agents[{index}].system_prompt must be a string")
 
-    knowledge_paths: set[str] = set()
-    for index, entry in enumerate(knowledge_files):
-        if not isinstance(entry, dict):
-            errors.append(f"playbook.knowledge_files[{index}] must be an object")
-            continue
-        _require_keys(entry, {"path", "content"}, f"playbook.knowledge_files[{index}]", errors)
-        path = entry.get("path")
-        if isinstance(path, str):
-            _validate_relative_path(f"playbook.knowledge_files[{index}].path", path, errors)
-            if path in knowledge_paths:
-                errors.append(f"playbook.knowledge_files contains duplicate path {path!r}")
-            knowledge_paths.add(path)
-
-    assigned_scoped_paths: set[str] = set()
-    for index, workspace in enumerate(workspaces):
-        if not isinstance(workspace, dict):
-            continue
-        refs = workspace.get("knowledge_files", [])
-        if refs is None:
-            refs = []
-        if not isinstance(refs, list):
-            errors.append(f"playbook.workspaces[{index}].knowledge_files must be an array")
-            continue
-        for ref in refs:
-            if not isinstance(ref, str) or not ref.strip():
-                errors.append(
-                    f"playbook.workspaces[{index}].knowledge_files entries must be non-empty strings"
-                )
-                continue
-            if ref not in knowledge_paths:
-                errors.append(
-                    f"playbook.workspaces[{index}].knowledge_files references unknown path {ref!r}"
-                )
-            assigned_scoped_paths.add(ref)
-    unassigned_scoped = sorted(
-        path for path in knowledge_paths if not path.startswith("global/") and path not in assigned_scoped_paths
-    )
-    if unassigned_scoped:
-        errors.append(
-            "playbook workspace-scoped knowledge must be assigned: "
-            + ", ".join(unassigned_scoped)
-        )
-
     for index, task in enumerate(open_tasks):
         if not isinstance(task, dict):
             errors.append(f"playbook.open_tasks[{index}] must be an object")
@@ -289,9 +227,6 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
         reviewer = task.get("review_required_by")
         if isinstance(reviewer, str) and reviewer and reviewer not in agent_ids:
             errors.append(f"playbook.open_tasks[{index}].review_required_by references unknown agent {reviewer!r}")
-        channel = task.get("channel")
-        if isinstance(channel, str) and channel and channel not in channel_ids:
-            errors.append(f"playbook.open_tasks[{index}].channel references unknown channel {channel!r}")
         deliverable_type = task.get("deliverable_type")
         if deliverable_type not in DELIVERABLE_EXTENSIONS:
             errors.append(f"playbook.open_tasks[{index}].deliverable_type is unknown: {deliverable_type!r}")
@@ -312,21 +247,18 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
     if non_markdown_required < 4:
         errors.append("playbook.required_deliverables must require at least 4 non-markdown deliverables")
 
-    for key in ("peer_messages_min", "review_cycles_min", "disagreements_resolved_min"):
+    for key in ("review_cycles_min", "disagreements_resolved_min"):
         value = required_collaboration.get(key)
         if not isinstance(value, int):
             errors.append(f"playbook.required_collaboration.{key} must be an integer")
-    channels_active = required_collaboration.get("channels_active_min")
-    if channels_active is not None and not isinstance(channels_active, int):
-        errors.append("playbook.required_collaboration.channels_active_min must be an integer when set")
 
     for index, seed in enumerate(data.get("disruption_probe_seeds", []) or []):
         if not isinstance(seed, dict):
             errors.append(f"playbook.disruption_probe_seeds[{index}] must be an object")
             continue
         _require_keys(seed, {"type", "seed_at_minute", "expected_recovery"}, f"playbook.disruption_probe_seeds[{index}]", errors)
-        delivery = seed.get("delivery", "knowledge_file")
-        if delivery not in {"knowledge_file", "channel_message", "task_event", "config_change"}:
+        delivery = seed.get("delivery", "task_event")
+        if delivery not in {"task_event", "config_change"}:
             errors.append(f"playbook.disruption_probe_seeds[{index}].delivery is invalid: {delivery!r}")
 
     if errors:

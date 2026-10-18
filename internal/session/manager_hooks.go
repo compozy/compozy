@@ -13,10 +13,9 @@ import (
 )
 
 const (
-	hookInputClassUserMessage    = acp.EventTypeUserMessage
-	hookInputClassNetworkMessage = "network_message"
-	hookInputClassSynthetic      = acp.EventTypeSyntheticReentry
-	hookInputClassStartup        = "startup_prompt"
+	hookInputClassUserMessage = acp.EventTypeUserMessage
+	hookInputClassSynthetic   = acp.EventTypeSyntheticReentry
+	hookInputClassStartup     = "startup_prompt"
 
 	hookMessageRoleAssistant = "assistant"
 
@@ -57,8 +56,6 @@ func newPromptRequestDispatchState(
 
 func inputClassForTurnSource(source TurnSource) string {
 	switch normalizeTurnSource(source) {
-	case TurnSourceNetwork:
-		return hookInputClassNetworkMessage
 	case TurnSourceSynthetic:
 		return hookInputClassSynthetic
 	default:
@@ -72,19 +69,15 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 	}
 
 	request := hookspkg.SessionPreCreatePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPreCreate,
-			Timestamp: m.now(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			ProfileID:   normalizeCreateProfileID(opts.ProfileID),
-			SessionName: strings.TrimSpace(opts.Name),
-			SessionType: string(normalizeSessionType(opts.Type)),
-			AgentName:   strings.TrimSpace(opts.AgentName),
-			WorkspaceID: strings.TrimSpace(opts.Workspace),
-			Workspace:   strings.TrimSpace(opts.WorkspacePath),
-			State:       string(StateStarting),
-		},
+		Event:       hookspkg.HookSessionPreCreate,
+		Timestamp:   m.now(),
+		ProfileID:   normalizeCreateProfileID(opts.ProfileID),
+		SessionName: strings.TrimSpace(opts.Name),
+		SessionType: string(normalizeSessionType(opts.Type)),
+		AgentName:   strings.TrimSpace(opts.AgentName),
+		WorkspaceID: strings.TrimSpace(opts.Workspace),
+		Workspace:   strings.TrimSpace(opts.WorkspacePath),
+		State:       string(StateStarting),
 	}
 	payload, err := m.hooks.session().DispatchSessionPreCreate(ctx, request)
 	if err != nil {
@@ -118,30 +111,29 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 	return next, nil
 }
 
-func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.SessionMeta) (store.SessionMeta, error) {
+func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta *store.SessionMeta) (store.SessionMeta, error) {
+	if meta == nil {
+		return store.SessionMeta{}, errors.New("session: pre-resume metadata is required")
+	}
 	if m == nil {
-		return meta, nil
+		return *meta, nil
 	}
 
 	request := hookspkg.SessionPreResumePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPreResume,
-			Timestamp: m.now(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			ProfileID:   strings.TrimSpace(meta.ProfileID),
-			SessionID:   strings.TrimSpace(meta.ID),
-			SessionName: strings.TrimSpace(meta.Name),
-			SessionType: string(normalizeSessionType(Type(meta.SessionType))),
-			AgentName:   strings.TrimSpace(meta.AgentName),
-			WorkspaceID: strings.TrimSpace(meta.WorkspaceID),
-			SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(
-				meta.WorktreeIDValue(), derefString(meta.ACPSessionID),
-			),
-			State:     strings.TrimSpace(meta.State),
-			CreatedAt: meta.CreatedAt,
-			UpdatedAt: meta.UpdatedAt,
-		},
+		Event:       hookspkg.HookSessionPreResume,
+		Timestamp:   m.now(),
+		ProfileID:   strings.TrimSpace(meta.ProfileID),
+		SessionID:   strings.TrimSpace(meta.ID),
+		SessionName: strings.TrimSpace(meta.Name),
+		SessionType: string(normalizeSessionType(Type(meta.SessionType))),
+		AgentName:   strings.TrimSpace(meta.AgentName),
+		WorkspaceID: strings.TrimSpace(meta.WorkspaceID),
+		SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(
+			meta.WorktreeIDValue(), derefString(meta.ACPSessionID),
+		),
+		State:     strings.TrimSpace(meta.State),
+		CreatedAt: meta.CreatedAt,
+		UpdatedAt: meta.UpdatedAt,
 	}
 	payload, err := m.hooks.session().DispatchSessionPreResume(ctx, request)
 	if err != nil {
@@ -154,7 +146,7 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.Sessi
 		return store.SessionMeta{}, fmt.Errorf("session: validate session.pre_resume patch: %w", err)
 	}
 
-	next := meta
+	next := *meta
 	next.Name = strings.TrimSpace(payload.SessionName)
 	next.AgentName = strings.TrimSpace(payload.AgentName)
 	next.SessionType = string(normalizeSessionType(Type(strings.TrimSpace(payload.SessionType))))

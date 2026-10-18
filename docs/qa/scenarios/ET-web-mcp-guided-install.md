@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The extension confirmation renders declared typed inputs, preserves the approved artifact digest and explicit trust decision, and recovers a refused update using only missing candidate fields. Stored values and secret references do not appear in responses or logs.
 entry_points: /marketplace/$entryId; catalog Install; Installed Update; Install from GitHub or local build
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: untested
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-marketplace-detail-redesign; ET-agent-plugin-marketplace-install; ET-web-marketplace-installed-management
 ---
 
@@ -38,3 +38,7 @@ Fill only missing fields and retry the same name/profile/workspace and existing 
 field is required on retry, preserve values already submitted. Publication errors keep the step
 editable; duplicate confirmations send one request. The installed row reports "Needs configuration"
 from missing_inputs. Installation does not start OAuth; explicit Authorize remains a separate action.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

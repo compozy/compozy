@@ -123,7 +123,7 @@ func (m *Manager) runRecoveredStop(
 			RuntimeGeneration: meta.RuntimeGeneration, CreatedAt: meta.CreatedAt,
 		},
 	}
-	proc, target := m.recoveredTerminationTarget(meta)
+	proc, target := recoveredTerminationTarget(meta)
 	target.beforeAction = func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
 		outcome := StopOutcome{
 			FinalState: StateStopping, Escalated: true, Phase: phase, Cause: cause, Elapsed: elapsed,
@@ -166,6 +166,7 @@ func (m *Manager) persistRecoveredStop(
 		if outcome.Verified {
 			if interruptedStartupMeta(&meta) {
 				meta.ACPSessionID = nil
+				meta.AcceptedRoute = nil
 				meta.Failure = interruptedSessionFailure(meta.Failure, store.FailureStartup, detail)
 			}
 			meta.State = string(StateStopped)
@@ -184,7 +185,7 @@ func (m *Manager) persistRecoveredStop(
 	}
 	meta.UpdatedAt = m.now().UTC()
 	path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, id))
-	if err := store.WriteSessionMeta(path, meta); err != nil {
+	if err := store.WriteSessionMeta(path, &meta); err != nil {
 		return err
 	}
 	return m.persistRecoveryCatalog(ctx, &meta)

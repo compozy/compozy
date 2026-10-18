@@ -51,7 +51,7 @@ var (
 type RequestIntent struct {
 	WorkspaceID     WorkspaceID              `json:"workspace_id"`
 	NodeID          NodeID                   `json:"node_id"`
-	ItemIndex       int                      `json:"item_index,omitempty"`
+	ItemIndex       int                      `json:"item_index,omitzero"`
 	Kind            string                   `json:"kind"`
 	Prompt          string                   `json:"prompt"`
 	Context         json.RawMessage          `json:"context"`
@@ -77,8 +77,7 @@ func (i RequestIntent) normalized() RequestIntent {
 		i.Agents = dsl.ResponderAgentsDeny
 	}
 	if i.ExpiresAt != nil {
-		value := i.ExpiresAt.UTC()
-		i.ExpiresAt = &value
+		i.ExpiresAt = new(i.ExpiresAt.UTC())
 	}
 	i.OpenedAt = i.OpenedAt.UTC()
 	i.Context = cloneRawMessage(i.Context)

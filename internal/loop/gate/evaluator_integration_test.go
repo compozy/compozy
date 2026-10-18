@@ -100,7 +100,7 @@ func TestEvaluatorExtensionGateIntegration(t *testing.T) {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
 		evaluator := NewEvaluator(WithToolCaller(registry))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "extension_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
@@ -154,10 +154,10 @@ func validExtensionDescriptor() tools.Descriptor {
 			Kind:  tools.SourceExtension,
 			Owner: "quality",
 		},
-		Visibility:      tools.VisibilityModel,
-		Risk:            tools.RiskRead,
-		ReadOnly:        true,
-		ConcurrencySafe: true,
-		MaxResultBytes:  1024,
+		Visibility:            tools.VisibilityModel,
+		Risk:                  tools.RiskRead,
+		ReadOnly:              true,
+		ConcurrencySafe:       true,
+		ToolExecutionMetadata: tools.NewToolExecutionMetadata(false, "", 1024),
 	}
 }

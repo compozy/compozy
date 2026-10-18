@@ -25,10 +25,10 @@ function openAdvanced() {
 }
 
 describe("LoopRunOverrides", () => {
-  it("Should state generations, budget status and source while folded", () => {
+  it("Should state rounds, budget status and source while folded", () => {
     render(<Harness />);
     expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
-      `${loopEffectiveConfigFixture.iteration_cap} generations · budgets set · loop defaults`
+      `${loopEffectiveConfigFixture.iteration_cap} rounds · budgets set · loop defaults`
     );
     expect(screen.queryByTestId("loop-run-override-input-iteration_cap")).not.toBeInTheDocument();
   });
@@ -49,7 +49,9 @@ describe("LoopRunOverrides", () => {
     const input = screen.getByTestId("loop-run-override-input-iteration_cap");
     fireEvent.change(input, { target: { value: "150" } });
     expect(input).toHaveValue(100);
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
+      "changed for this run"
+    );
   });
 
   it("Should return to 'loop defaults' when a field is cleared", () => {
@@ -57,21 +59,23 @@ describe("LoopRunOverrides", () => {
     openAdvanced();
     const input = screen.getByTestId("loop-run-override-input-gate_max_revisions");
     fireEvent.change(input, { target: { value: "9" } });
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
+      "changed for this run"
+    );
     fireEvent.change(input, { target: { value: "" } });
     expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("loop defaults");
   });
 
-  it("Should track the generation count and budget state as the draft changes", () => {
+  it("Should track the round count and budget state as the draft changes", () => {
     render(<Harness />);
     openAdvanced();
     fireEvent.change(screen.getByTestId("loop-run-override-input-iteration_cap"), {
       target: { value: "7" },
     });
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("7 generations");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("7 rounds");
     fireEvent.change(screen.getByTestId("loop-run-override-input-budget_tokens"), {
       target: { value: "0" },
     });
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("no budgets set");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("no budgets");
   });
 });

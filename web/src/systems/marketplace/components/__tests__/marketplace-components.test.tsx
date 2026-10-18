@@ -94,7 +94,7 @@ const server = setupServer(
 );
 const clients: QueryClient[] = [];
 const managers: WindowManagerRuntime[] = [];
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterAll(() => server.close());
 afterEach(() => {
   cleanup();
@@ -342,7 +342,7 @@ describe("Marketplace page and cards", () => {
   it("Should distinguish an empty catalog from a query with no matches", async () => {
     catalog = { ...catalog, items: [], total: 0 };
     const view = setup(undefined, "/marketplace?q=missing");
-    expect(await screen.findByText("No extensions match this query")).toBeVisible();
+    expect(await screen.findByText(`No results for "missing"`)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
     await waitFor(() => expect(view.router.state.location.searchStr).toBe(""));
     expect(await screen.findByText("No extensions yet")).toBeVisible();
@@ -850,7 +850,7 @@ describe("Marketplace page and cards", () => {
 
   // Invariant: Installed is a flat name-ordered inventory, including sideloads and scope metadata.
   it("Should show sideload descriptions and exact installation or server scope", async () => {
-    const emptyContents = { skills: 0, mcp_servers: 0, agents: 0, loops: 0, hooks: 0, bridges: 0 };
+    const emptyContents = { skills: 0, mcp_servers: 0, agents: 0, loops: 0, hooks: 0 };
     extensions = [
       {
         ...extensionFixtures[0]!,
@@ -905,12 +905,12 @@ describe("Marketplace page and cards", () => {
       "marketplace-installed-card-Zulu",
     ]);
     expect(rows[0]).toHaveTextContent("1 MCP server · 2 skills");
-    expect(rows[0]).toHaveTextContent("workspace · ws-a");
+    expect(rows[0]).toHaveTextContent("This project");
     expect(rows[0]).toHaveTextContent("Local review utilities");
     expect(rows[1]).toHaveTextContent("profile · work");
     expect(rows[2]).toHaveTextContent("profile · engineering");
     expect(rows[3]).not.toHaveTextContent("MCP server");
-    expect(rows[3]).not.toHaveTextContent("workspace ·");
+    expect(rows[3]).not.toHaveTextContent("This project");
     expect(rows[3]).not.toHaveTextContent("profile ·");
     await act(async () => {
       await view.router.navigate({ to: "/marketplace/installed", search: { q: "utilities" } });
@@ -926,7 +926,7 @@ describe("Marketplace page and cards", () => {
       await view.router.navigate({ to: "/marketplace/installed", search: { q: "missing" } });
       await view.client.invalidateQueries();
     });
-    expect(await screen.findByText("No installed extensions match this query")).toBeVisible();
+    expect(await screen.findByText(`No results for "missing"`)).toBeVisible();
   });
 });
 
@@ -946,13 +946,14 @@ describe("Extension source installation", () => {
       ],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
-      network_requirement_digest: "sha256:local-network",
+      gateway_requirement_digest: "sha256:local-network",
       placements: [],
     });
     renderInstaller();
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
-    await user.type(screen.getByTestId("extension-install-ref"), "relative/dist");
+    await user.click(screen.getByTestId("extension-install-ref"));
+    await user.paste("relative/dist");
     await user.click(screen.getByTestId("extension-install-submit"));
 
     expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
@@ -961,14 +962,19 @@ describe("Extension source installation", () => {
     expect(mocks.installExtension).not.toHaveBeenCalled();
 
     await user.clear(screen.getByTestId("extension-install-ref"));
-    await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    await user.click(screen.getByTestId("extension-install-ref"));
+    await user.paste("/srv/hello/dist/gen-a1b2c3");
+    // Rarely needed options, including the unverified opt-in, start folded.
+    expect(screen.queryByTestId("extension-install-allow-unverified")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More options" }));
     await user.click(screen.getByTestId("extension-install-allow-unverified"));
     await user.click(screen.getByTestId("extension-install-submit"));
 
     expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
     expect(mocks.installExtension).not.toHaveBeenCalled();
     expect(screen.getByTestId("extension-install-submit")).toBeDisabled();
-    await user.type(screen.getByLabelText("API key"), "literal-secret");
+    await user.click(screen.getByLabelText("API key"));
+    await user.paste("literal-secret");
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(mocks.previewExtensionInstall).toHaveBeenCalledOnce();
 
@@ -981,7 +987,7 @@ describe("Extension source installation", () => {
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: true,
         expected_digest: "a".repeat(64),
-        confirm_network_digest: "sha256:local-network",
+        confirm_gateway_digest: "sha256:local-network",
         inputs: { token: { value: "literal-secret" } },
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",
@@ -1008,19 +1014,24 @@ describe("Extension source installation", () => {
     renderInstaller();
     const user = userEvent.setup();
     await user.click(screen.getByTestId("marketplace-extension-install"));
-    await user.type(screen.getByTestId("extension-install-ref"), "/srv/kit");
+    await user.click(screen.getByTestId("extension-install-ref"));
+    await user.paste("/srv/kit");
     await user.click(screen.getByTestId("extension-install-submit"));
-    await user.type(await screen.findByLabelText("API key"), "discarded-secret");
+    await user.click(await screen.findByLabelText("API key"));
+    await user.paste("discarded-secret");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByTestId("marketplace-extension-install"));
     const ref = screen.getByTestId("extension-install-ref");
     await user.clear(ref);
-    await user.type(ref, "/srv/kit");
+    await user.click(ref);
+    await user.paste("/srv/kit");
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(await screen.findByLabelText("API key")).toHaveValue("");
-    await user.type(screen.getByLabelText("API key"), "also-discarded");
+    await user.click(screen.getByLabelText("API key"));
+    await user.paste("also-discarded");
     await user.clear(ref);
-    await user.type(ref, "/srv/other-kit");
+    await user.click(ref);
+    await user.paste("/srv/other-kit");
     expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(await screen.findByLabelText("API key")).toHaveValue("");
@@ -1058,35 +1069,40 @@ describe("Extension source installation", () => {
     ).toBeInTheDocument();
 
     const ref = screen.getByTestId("extension-install-ref");
-    await user.type(ref, "ssh://git.example.com/acme/hello.git");
+    await user.click(ref);
+    await user.paste("ssh://git.example.com/acme/hello.git");
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
       "public HTTPS repository URL"
     );
 
     await user.clear(ref);
-    await user.type(ref, "https://@git.example.com/acme/hello.git");
+    await user.click(ref);
+    await user.paste("https://@git.example.com/acme/hello.git");
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
       "Remove credentials"
     );
 
     await user.clear(ref);
-    await user.type(ref, "https://git.example.com/acme/hello.git?");
+    await user.click(ref);
+    await user.paste("https://git.example.com/acme/hello.git?");
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
       "Put the Git ref in the Version field"
     );
 
     await user.clear(ref);
-    await user.type(ref, "https://git.example.com./acme/hello.git");
+    await user.click(ref);
+    await user.paste("https://git.example.com./acme/hello.git");
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
       "valid host and repository path"
     );
 
     await user.clear(ref);
-    await user.type(ref, "https://git.example.com/acme/hello.git@v1.2.3");
+    await user.click(ref);
+    await user.paste("https://git.example.com/acme/hello.git@v1.2.3");
     await user.click(screen.getByTestId("extension-install-submit"));
     expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
     await user.click(screen.getByTestId("extension-install-submit"));
@@ -1264,7 +1280,11 @@ describe("Marketplace extension MCP controls", () => {
     const toggle = await screen.findByRole("button", { name: /^Server/ });
     if (toggle.getAttribute("aria-expanded") === "false") await user.click(toggle);
     const section = screen.getByTestId("marketplace-extension-server-github");
-    for (const label of ["Launch", "Auth", "Inputs", "Scope", "Owner"])
+    for (const label of ["Sign-in", "Inputs"])
+      expect(within(section).getByText(label)).toBeVisible();
+    expect(within(section).queryByText("Launch")).not.toBeInTheDocument();
+    await user.click(within(section).getByRole("button", { name: "Technical details" }));
+    for (const label of ["Launch", "Scope", "Owner"])
       expect(within(section).getByText(label)).toBeVisible();
     expect(within(section).getByText("extension:github")).toBeVisible();
     expect(within(section).queryByText("Runtime name")).not.toBeInTheDocument();
@@ -1349,9 +1369,6 @@ describe("Marketplace extension MCP controls", () => {
     const { client } = setup(undefined, "/marketplace/installed");
     const authorize = await screen.findByRole("button", { name: "Authorize github for github" });
     await waitFor(() => expect(authorize).toBeEnabled());
-    expect(screen.getByTestId("marketplace-installed-runtime-name-github")).toHaveTextContent(
-      "github.github"
-    );
     await user.click(authorize);
     await screen.findByRole("dialog", { name: "Authorize github" });
     await waitFor(() => expect(requests).toHaveLength(1));

@@ -12,7 +12,6 @@ import (
 	loggerpkg "github.com/compozy/compozy/internal/logger"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -65,33 +64,27 @@ func TestDeadEntityProbe(t *testing.T) {
 		source := deadEntityProbeSource{entities: map[string][]store.DeadEntity{
 			workspace.ID: {
 				{
-					DeadEntityKey: store.DeadEntityKey{
-						ProfileID:   store.DefaultProfileID,
-						WorkspaceID: workspace.ID,
-						Kind:        store.DeadEntityKindMCPSidecar,
-						EntityID:    "github",
-					},
-					Reason:   "invalid api_key=super-secret",
-					MarkedAt: time.Date(2026, 7, 15, 19, 0, 0, 0, time.UTC),
+					ProfileID:   store.DefaultProfileID,
+					WorkspaceID: workspace.ID,
+					Kind:        store.DeadEntityKindMCPSidecar,
+					EntityID:    "github",
+					Reason:      "invalid api_key=super-secret",
+					MarkedAt:    time.Date(2026, 7, 15, 19, 0, 0, 0, time.UTC),
 				},
 				{
-					DeadEntityKey: store.DeadEntityKey{
-						ProfileID:   "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-						WorkspaceID: workspace.ID,
-						Kind:        store.DeadEntityKindMCPSidecar,
-						EntityID:    "github",
-					},
-					Reason:   "profile-specific outage",
-					MarkedAt: time.Date(2026, 7, 15, 19, 0, 1, 0, time.UTC),
+					ProfileID:   "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+					WorkspaceID: workspace.ID,
+					Kind:        store.DeadEntityKindMCPSidecar,
+					EntityID:    "github",
+					Reason:      "profile-specific outage",
+					MarkedAt:    time.Date(2026, 7, 15, 19, 0, 1, 0, time.UTC),
 				},
 				{
-					DeadEntityKey: store.DeadEntityKey{
-						WorkspaceID: workspace.ID,
-						Kind:        store.DeadEntityKindBridge,
-						EntityID:    "telegram",
-					},
-					Reason:   "bridge unavailable",
-					MarkedAt: time.Date(2026, 7, 15, 19, 1, 0, 0, time.UTC),
+					WorkspaceID: workspace.ID,
+					Kind:        store.DeadEntityKindExtension,
+					EntityID:    "tool-provider",
+					Reason:      "extension unavailable",
+					MarkedAt:    time.Date(2026, 7, 15, 19, 1, 0, 0, time.UTC),
 				},
 			},
 		}}
@@ -104,7 +97,7 @@ func TestDeadEntityProbe(t *testing.T) {
 			t.Fatalf("Register(dead entity probe) error = %v", err)
 		}
 		runner := NewRunner(registry)
-		items, err := runner.Run(context.Background(), RunOptions{Only: []string{contract.CategoryMCP}})
+		items, err := runner.Run(t.Context(), RunOptions{Only: []string{contract.CategoryMCP}})
 		if err != nil {
 			t.Fatalf("Run(mcp) error = %v", err)
 		}
@@ -138,7 +131,7 @@ func TestDeadEntityProbe(t *testing.T) {
 			Workspaces: deadEntityProbeWorkspaceSource{workspaces: []workspacepkg.Workspace{{ID: "ws-empty"}}},
 			Kind:       store.DeadEntityKindExtension,
 		}
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run(empty) error = %v", err)
 		}
@@ -197,7 +190,7 @@ func TestRunner(t *testing.T) {
 		}
 		runner := NewRunner(registry)
 
-		items, err := runner.Run(context.Background(), RunOptions{})
+		items, err := runner.Run(t.Context(), RunOptions{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -227,7 +220,7 @@ func TestRunner(t *testing.T) {
 		}
 		runner := NewRunner(registry)
 
-		items, err := runner.Run(context.Background(), RunOptions{})
+		items, err := runner.Run(t.Context(), RunOptions{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -311,7 +304,7 @@ func TestRunner(t *testing.T) {
 		}
 		runner := NewRunner(registry)
 
-		items, err := runner.Run(context.Background(), RunOptions{ProbeTimeout: time.Millisecond})
+		items, err := runner.Run(t.Context(), RunOptions{ProbeTimeout: time.Millisecond})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -394,7 +387,7 @@ func TestRuntimeMemoryProbe(t *testing.T) {
 				UptimeSeconds:           60,
 			},
 		}}
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -421,7 +414,7 @@ func TestRuntimeMemoryProbe(t *testing.T) {
 		probe := &RuntimeMemoryProbe{Source: runtimeMemorySnapshotSourceStub{
 			snapshot: RuntimeMemorySnapshot{Phase: "disabled"},
 		}}
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -459,7 +452,7 @@ func TestSubprocessHealthProbe(t *testing.T) {
 			}},
 		}}
 
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -482,111 +475,6 @@ func TestSubprocessHealthProbe(t *testing.T) {
 	})
 }
 
-func TestBridgeProbeCategoryFilter(t *testing.T) {
-	t.Run("Should skip bridge checks without an explicit bridge filter", func(t *testing.T) {
-		t.Parallel()
-
-		source := &bridgeProbeSourceStub{
-			instances: []bridgepkg.BridgeInstance{{
-				ID:            "brg-slack",
-				Platform:      "slack",
-				ExtensionName: "slack",
-			}},
-		}
-		registry := NewRegistry()
-		if err := registry.Register(&BridgeProbe{Source: source}); err != nil {
-			t.Fatalf("Register(bridge) error = %v", err)
-		}
-		runner := NewRunner(registry)
-
-		items, err := runner.Run(context.Background(), RunOptions{})
-		if err != nil {
-			t.Fatalf("Run() error = %v", err)
-		}
-		if source.listCalls != 0 || source.checkCalls != 0 {
-			t.Fatalf("bridge source calls = list:%d check:%d, want 0/0", source.listCalls, source.checkCalls)
-		}
-		if len(items) != 0 {
-			t.Fatalf("bridge diagnostic count = %d, want 0", len(items))
-		}
-	})
-
-	t.Run("Should run only bridge checks and preserve failing secret remediation", func(t *testing.T) {
-		t.Parallel()
-
-		source := &bridgeProbeSourceStub{
-			instances: []bridgepkg.BridgeInstance{{
-				ID:            "brg-slack",
-				Platform:      "slack",
-				ExtensionName: "slack",
-			}},
-			response: bridgepkg.BridgeCheckResponse{Checks: []bridgepkg.BridgeCheckRecord{{
-				Check:       "provider.identity",
-				Status:      bridgepkg.BridgeCheckStatusFail,
-				Remediation: "Bind the required bot_token bridge secret and retry.",
-			}}},
-		}
-		otherProbeCalls := 0
-		registry := NewRegistry()
-		if err := registry.Register(&ProbeFunc{
-			ProbeID:       "runtime.providers",
-			ProbeCategory: contract.CategoryProvider,
-			RunFunc: func(context.Context, *ProbeEnv) ([]contract.DiagnosticItem, error) {
-				otherProbeCalls++
-				return nil, nil
-			},
-		}); err != nil {
-			t.Fatalf("Register(provider) error = %v", err)
-		}
-		if err := registry.Register(&BridgeProbe{Source: source}); err != nil {
-			t.Fatalf("Register(bridge) error = %v", err)
-		}
-		runner := NewRunner(registry)
-
-		items, err := runner.Run(context.Background(), RunOptions{Only: []string{contract.CategoryBridge}})
-		if err != nil {
-			t.Fatalf("Run(bridge only) error = %v", err)
-		}
-		if otherProbeCalls != 0 {
-			t.Fatalf("provider probe calls = %d, want 0", otherProbeCalls)
-		}
-		if source.listCalls != 1 || source.checkCalls != 1 {
-			t.Fatalf("bridge source calls = list:%d check:%d, want 1/1", source.listCalls, source.checkCalls)
-		}
-		if len(items) != 1 {
-			t.Fatalf("bridge diagnostic count = %d, want 1", len(items))
-		}
-		item := items[0]
-		if item.Category != contract.CategoryBridge || item.Severity != contract.SeverityError ||
-			!strings.Contains(item.Message, "bot_token") {
-			t.Fatalf("bridge diagnostic = %#v, want failed bot_token remediation", item)
-		}
-		if item.SuggestedCommand != "compozy bridge verify brg-slack" {
-			t.Fatalf("SuggestedCommand = %q, want bridge verify follow-up", item.SuggestedCommand)
-		}
-	})
-
-	t.Run("Should never describe a failed check without remediation as passed", func(t *testing.T) {
-		t.Parallel()
-
-		item := bridgeCheckDiagnosticItem(
-			bridgepkg.BridgeInstance{ID: "brg-slack", Platform: "slack", ExtensionName: "slack"},
-			bridgepkg.BridgeCheckRecord{Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusFail},
-		)
-		if item.Severity != contract.SeverityError || strings.Contains(strings.ToLower(item.Message), "passed") ||
-			!strings.Contains(strings.ToLower(item.Message), "no remediation") {
-			t.Fatalf("bridge failure diagnostic = %#v, want explicit missing-remediation error", item)
-		}
-	})
-}
-
-type bridgeProbeSourceStub struct {
-	instances  []bridgepkg.BridgeInstance
-	response   bridgepkg.BridgeCheckResponse
-	listCalls  int
-	checkCalls int
-}
-
 type runtimeMemorySnapshotSourceStub struct {
 	snapshot RuntimeMemorySnapshot
 }
@@ -601,23 +489,6 @@ func (s runtimeMemorySnapshotSourceStub) RuntimeMemorySnapshot() RuntimeMemorySn
 
 func (s subprocessHealthSnapshotSourceStub) SubprocessHealthSnapshots() []session.SubprocessHealthSnapshot {
 	return append([]session.SubprocessHealthSnapshot(nil), s.snapshots...)
-}
-
-func (s *bridgeProbeSourceStub) ListInstances(context.Context) ([]bridgepkg.BridgeInstance, error) {
-	s.listCalls++
-	return append([]bridgepkg.BridgeInstance(nil), s.instances...), nil
-}
-
-func (s *bridgeProbeSourceStub) CheckBridge(
-	_ context.Context,
-	extensionName string,
-	request bridgepkg.BridgeCheckRequest,
-) (bridgepkg.BridgeCheckResponse, error) {
-	s.checkCalls++
-	if extensionName != "slack" || request.BridgeInstanceID != "brg-slack" {
-		return bridgepkg.BridgeCheckResponse{}, errors.New("unexpected bridge check request")
-	}
-	return s.response, nil
 }
 
 func TestSessionMetadataProbe(t *testing.T) {

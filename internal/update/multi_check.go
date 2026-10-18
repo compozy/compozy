@@ -24,6 +24,10 @@ type appStateSnapshot struct {
 
 // CheckAll computes both installed tracks and the live operation from one release lookup.
 func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, *Release, error) {
+	operation, err := m.operationStore.Read(ctx)
+	if err != nil {
+		return MultiState{}, nil, err
+	}
 	runtimeState, release, checkErr := m.Check(ctx, opts)
 	if checkErr != nil && strings.TrimSpace(runtimeState.Message) == "" &&
 		strings.TrimSpace(runtimeState.LastError) == "" {
@@ -43,10 +47,6 @@ func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, 
 		return MultiState{}, release, err
 	}
 	applyArchivedAppFailure(app, archivedApp, opts.ForceRefresh)
-	operation, err := m.operationStore.Read(ctx)
-	if err != nil {
-		return MultiState{}, release, err
-	}
 	return ProjectMultiState(runtimeState, app, operation), release, checkErr
 }
 

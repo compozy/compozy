@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 
 /**
- * The behaviour options, drawn. Each picture keeps the accent for one thing —
- * "the window this is about" — so selecting an option never repaints the
- * drawing: the colour is information, and it means the same in every state.
+ * The behaviour options, drawn. Each picture keeps the full `fg` ink for one
+ * thing — "the window this is about" — against `subtle` panes, so selecting an
+ * option never repaints the drawing: the emphasis is information and means the
+ * same in every state. (Orange stays reserved for needs-you.)
  */
 function Diagram({ children }: { children: ReactNode }) {
   return (
@@ -44,7 +45,7 @@ function Pane({
 function Subject({ x, y, width, height }: { x: number; y: number; width: number; height: number }) {
   return (
     <rect
-      className="fill-accent stroke-accent"
+      className="fill-fg stroke-fg"
       fillOpacity="0.32"
       height={height}
       rx="2"
@@ -60,7 +61,7 @@ export function DiagramFloatOnTop() {
     <Diagram>
       <Pane height={30} width={38} x={3} y={4} />
       <Pane height={30} width={40} x={45} y={4} />
-      <rect className="fill-elevated stroke-accent" height="24" rx="2" width="40" x="26" y="12" />
+      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="40" x="26" y="12" />
     </Diagram>
   );
 }
@@ -70,6 +71,16 @@ export function DiagramSplitBesideFocus() {
     <Diagram>
       <Pane height={30} width={38} x={3} y={4} />
       <Subject height={30} width={40} x={45} y={4} />
+    </Diagram>
+  );
+}
+
+export function DiagramTabInFocus() {
+  return (
+    <Diagram>
+      <Pane height={6} width={22} x={3} y={3} />
+      <Subject height={6} width={22} x={27} y={3} />
+      <Subject height={25} width={82} x={3} y={10} />
     </Diagram>
   );
 }
@@ -112,7 +123,7 @@ export function DiagramClickAndKeys() {
     <Diagram>
       <Pane height={30} width={38} x={3} y={4} />
       <Subject height={30} width={40} x={45} y={4} />
-      <path className="fill-fg-strong" d="m58 16 10 9-4 1 2 5-2 1-2-5-3 3z" />
+      <path className="fill-fg" d="m58 16 10 9-4 1 2 5-2 1-2-5-3 3z" />
     </Diagram>
   );
 }
@@ -123,7 +134,7 @@ export function DiagramKeysOnly() {
       <Pane height={30} width={38} x={3} y={4} />
       <Subject height={30} width={40} x={45} y={4} />
       <path
-        className="stroke-fg-strong"
+        className="stroke-fg"
         d="M69 19h-12M57 19l4-4M57 19l4 4"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -138,7 +149,7 @@ export function DiagramDragWindow() {
     <Diagram>
       <Pane height={26} width={26} x={3} y={8} />
       <Pane height={26} width={26} x={33} y={8} />
-      <rect className="fill-elevated stroke-accent" height="24" rx="2" width="32" x="52" y="2" />
+      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="32" x="52" y="2" />
     </Diagram>
   );
 }
@@ -147,8 +158,8 @@ export function DiagramDragGroup() {
   return (
     <Diagram>
       <Pane height={26} width={26} x={3} y={8} />
-      <rect className="fill-elevated stroke-accent" height="24" rx="2" width="20" x="42" y="2" />
-      <rect className="fill-elevated stroke-accent" height="24" rx="2" width="20" x="64" y="2" />
+      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="20" x="42" y="2" />
+      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="20" x="64" y="2" />
     </Diagram>
   );
 }
@@ -159,7 +170,7 @@ export function DiagramSlide() {
       <Pane height={26} width={34} x={2} y={6} />
       <Subject height={26} width={34} x={50} y={6} />
       <path
-        className="stroke-fg-strong"
+        className="stroke-fg"
         d="M40 19h8M44 15l4 4-4 4"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -174,7 +185,7 @@ export function DiagramCrossfade() {
     <Diagram>
       <Pane height={26} opacity={0.08} width={40} x={12} y={6} />
       <rect
-        className="fill-accent stroke-accent"
+        className="fill-fg stroke-fg"
         fillOpacity="0.2"
         height="26"
         rx="2"
@@ -193,7 +204,7 @@ export function DiagramInstant() {
       <Pane height={26} opacity={0.08} width={40} x={2} y={6} />
       <Subject height={26} width={40} x={46} y={6} />
       <path
-        className="stroke-fg-strong"
+        className="stroke-fg"
         d="M44 2v34"
         strokeDasharray="2 2"
         strokeOpacity="0.5"

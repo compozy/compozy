@@ -274,8 +274,8 @@ func TestNativeWorktreeTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDWorktreeRemove,
 			Input:  json.RawMessage(`{"workspace":"ws-a","ref":"feature-a"}`),
 		})
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.PartialResult == nil {
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.PartialResult == nil {
 			t.Fatalf("worktree_remove error = %T %v, want partial ToolError", err, err)
 		}
 		var refusal contract.WorktreeRemovalRefusalPayload
@@ -349,8 +349,8 @@ func TestNativeWorktreeTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDWorktreeRemove,
 			Input:  json.RawMessage(`{"workspace":"ws-a","ref":"feature-a"}`),
 		})
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || !errors.Is(err, resolveErr) {
+		_, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || !errors.Is(err, resolveErr) {
 			t.Fatalf("worktree_remove error = %T %v, want wrapped ToolError", err, err)
 		}
 		if removeCalls != 0 {
@@ -440,12 +440,12 @@ func nativeWorktreeWorkspaceService() core.WorkspaceService {
 		switch ref {
 		case "ws-a", "registry-a":
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "registry-a", Name: "alpha"},
+				ID: "registry-a", Name: "alpha",
 				WorkspaceID: "ws-a",
 			}, nil
 		case "ws-b", "registry-b":
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "registry-b", Name: "beta"},
+				ID: "registry-b", Name: "beta",
 				WorkspaceID: "ws-b",
 			}, nil
 		default:

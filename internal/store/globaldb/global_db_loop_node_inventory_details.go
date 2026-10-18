@@ -236,10 +236,8 @@ func nodeOutputIdentity(runID looppkg.RunID, output looppkg.GenerationOutput) no
 
 func nodeAttemptIdentity(attempt looppkg.NodeAttempt) nodeInventoryAttemptIdentity {
 	return nodeInventoryAttemptIdentity{
-		nodeInventoryIdentity: nodeInventoryIdentity{
-			runID: attempt.LoopRunID, generation: attempt.Generation,
-			nodeID: attempt.NodeID, itemIndex: attempt.ItemIndex,
-		},
+		runID: attempt.LoopRunID, generation: attempt.Generation,
+		nodeID: attempt.NodeID, itemIndex: attempt.ItemIndex,
 		attempt: attempt.Attempt,
 	}
 }

@@ -36,7 +36,6 @@ export {
   terminalsRunning,
   type TerminalBadgeInput,
   type TerminalBadgeProjection,
-  type TerminalPendingApproval,
 } from "./lib/terminal-badge";
 export {
   parseTerminalCatalogEvent,
@@ -127,7 +126,6 @@ export {
 } from "./components/terminal-approval-detail";
 export {
   TerminalEmptyState,
-  TerminalExecuteOnlyState,
   TerminalExpiredState,
   TerminalNotFoundState,
 } from "./components/terminal-empty-states";

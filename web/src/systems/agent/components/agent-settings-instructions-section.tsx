@@ -32,7 +32,6 @@ export function AgentSettingsInstructionsSection({
           id="agent-settings-prompt"
           data-testid="agent-settings-prompt"
           variant="mono"
-          className="min-h-form-textarea"
           value={draft.prompt}
           disabled={disabled}
           readOnly={readOnly}

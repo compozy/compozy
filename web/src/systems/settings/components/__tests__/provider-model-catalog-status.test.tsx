@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ModelCatalogApiError } from "@/systems/model-catalog";
 import { ProviderModelCatalogStatus } from "../provider-model-catalog-status";
 
 const { mockRefreshMutation, mockStatusQuery } = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const { mockRefreshMutation, mockStatusQuery } = vi.hoisted(() => ({
         {
           source_id: "models.dev",
           source_kind: "models_dev",
+          failure_reason: "",
           refresh_state: "succeeded",
           row_count: 42,
           stale: true,
@@ -55,6 +57,7 @@ describe("ProviderModelCatalogStatus", () => {
         {
           source_id: "models.dev",
           source_kind: "models_dev",
+          failure_reason: "",
           refresh_state: "succeeded",
           row_count: 42,
           stale: true,
@@ -82,6 +85,26 @@ describe("ProviderModelCatalogStatus", () => {
     const list = container.querySelector("ul");
     expect(list).toBeInTheDocument();
     expect(row.closest("li")?.parentElement).toBe(list);
+  });
+
+  it("Should explain an authentication failure on its source", () => {
+    mockStatusQuery.data.sources[0].refresh_state = "failed";
+    mockStatusQuery.data.sources[0].failure_reason = "auth_required";
+    renderStatus();
+    expect(screen.getByTestId("provider-catalog-source-models.dev")).toHaveTextContent(
+      "Sign in to update the model list."
+    );
+  });
+
+  it("Should keep a new request error visible alongside an older source failure", () => {
+    mockStatusQuery.data.sources[0].refresh_state = "failed";
+    mockStatusQuery.data.sources[0].failure_reason = "auth_required";
+    mockRefreshMutation.error = new ModelCatalogApiError("storage failure", 500);
+    renderStatus();
+    expect(screen.getByTestId("provider-catalog-refresh-error")).toHaveTextContent(
+      "Could not refresh the model list. Try again."
+    );
+    expect(screen.getByText("Sign in to update the model list.")).toBeInTheDocument();
   });
 
   it("Should request a forced refresh for the current provider", async () => {

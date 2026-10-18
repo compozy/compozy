@@ -25,6 +25,8 @@ type ForgeStatusRequest struct {
 	WorktreeID  string
 	RemoteURLs  []string
 	Branch      string
+	Base        string
+	HeadSHA     string
 }
 
 type ForgePRRequest struct {
@@ -32,6 +34,7 @@ type ForgePRRequest struct {
 	WorktreeID  string
 	RemoteURLs  []string
 	Head        string
+	HeadSHA     string
 	Base        string
 	Title       string
 	Body        string

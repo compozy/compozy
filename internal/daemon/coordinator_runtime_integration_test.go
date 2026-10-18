@@ -8,7 +8,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -17,7 +17,7 @@ import (
 )
 
 func TestCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
-	t.Run("Should start one builtin coordinator with configured limits", func(t *testing.T) {
+	t.Run("Should reuse one configured coordinator and recover it after stopping", func(t *testing.T) {
 		runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t)
 	})
 }
@@ -46,9 +46,10 @@ func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTask(first) error = %v", err)
 	}
-	if got, want := execution.Run.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-		t.Fatalf("StartTask(first) participation = %#v, want %#v", got, want)
+	if execution.Run.TaskID != created.ID || execution.Run.ID == "" {
+		t.Fatalf("StartTask(first) run = %#v, want executable run for %q", execution.Run, created.ID)
 	}
+
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after first start = %d, want 1", got)
 	}
@@ -80,28 +81,6 @@ func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after second start = %d, want singleton reuse", got)
 	}
-}
-
-func TestCoordinatorRecoveryRestartsAfterStoppedCoordinatorIntegration(t *testing.T) {
-	ctx := testutil.Context(t)
-	manager, sessions := newCoordinatorTaskManagerIntegration(t, ctx)
-	actor := coordinatorTaskActor()
-
-	created, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		ProfileID:   storepkg.DefaultProfileID,
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: "ws-int",
-		Title:       "Recoverable task",
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	if _, err := manager.StartTask(ctx, created.ID, taskpkg.ExecutionRequest{}, actor); err != nil {
-		t.Fatalf("StartTask() error = %v", err)
-	}
-	if got := sessions.createCount(); got != 1 {
-		t.Fatalf("Create count after start = %d, want 1", got)
-	}
 
 	stopped := sessions.stopCoordinatorForTest(t, "coord-1")
 	runtime := sessions.runtime
@@ -130,14 +109,12 @@ func newCoordinatorTaskManagerIntegration(
 	}
 	notifier := newHooksNotifier(discardLogger(), func() time.Time { return now })
 	sessions := &coordinatorRuntimeSessionsWithRuntime{
-		coordinatorRuntimeSessions: coordinatorRuntimeSessions{
-			infos: []*session.Info{{
-				ID:          "manual-1",
-				Type:        session.SessionTypeUser,
-				WorkspaceID: "ws-int",
-				State:       session.StateActive,
-			}},
-		},
+		infos: []*session.Info{{
+			ID:          "manual-1",
+			Type:        session.SessionTypeUser,
+			WorkspaceID: "ws-int",
+			State:       session.StateActive,
+		}},
 	}
 	runtime, err := newCoordinatorRuntime(
 		ctx,
@@ -198,16 +175,16 @@ func (s *coordinatorRuntimeSessionsWithRuntime) stopCoordinatorForTest(
 		}
 		info.State = session.StateStopped
 		return &session.Session{
-			ID:                   info.ID,
-			Name:                 info.Name,
-			AgentName:            info.AgentName,
-			Provider:             info.Provider,
-			WorkspaceID:          info.WorkspaceID,
-			Workspace:            info.Workspace,
-			NetworkParticipation: info.NetworkParticipation,
-			Type:                 info.Type,
-			Lineage:              info.Lineage,
-			State:                session.StateStopped,
+			ID:          info.ID,
+			Name:        info.Name,
+			AgentName:   info.AgentName,
+			Provider:    info.Provider,
+			WorkspaceID: info.WorkspaceID,
+			Workspace:   info.Workspace,
+
+			Type:    info.Type,
+			Lineage: info.Lineage,
+			State:   session.StateStopped,
 		}
 	}
 	t.Fatalf("coordinator session %q not found", id)

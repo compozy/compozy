@@ -29,7 +29,7 @@ type ToolDescriptorPayload struct {
 	OpenWorld           bool                  `json:"open_world"`
 	RequiresInteraction bool                  `json:"requires_interaction"`
 	ConcurrencySafe     bool                  `json:"concurrency_safe"`
-	MaxResultBytes      int64                 `json:"max_result_bytes,omitempty"`
+	MaxResultBytes      int64                 `json:"max_result_bytes,omitzero"`
 	Toolsets            []tools.ToolsetID     `json:"toolsets,omitempty"`
 	Tags                []string              `json:"tags,omitempty"`
 	SearchHints         []string              `json:"search_hints,omitempty"`
@@ -105,7 +105,7 @@ type ToolResponse struct {
 // ToolSearchRequest filters the scoped registry projection.
 type ToolSearchRequest struct {
 	Query       string `json:"query"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
@@ -162,8 +162,8 @@ type ToolCallEventPayload struct {
 	ApprovalMode         string                  `json:"approval_mode,omitempty"`
 	Decision             string                  `json:"decision,omitempty"`
 	ReasonCodes          []tools.ReasonCode      `json:"reason_codes,omitempty"`
-	DurationMS           int64                   `json:"duration_ms,omitempty"`
-	ResultBytes          int64                   `json:"result_bytes,omitempty"`
+	DurationMS           int64                   `json:"duration_ms,omitzero"`
+	ResultBytes          int64                   `json:"result_bytes,omitzero"`
 	Truncated            bool                    `json:"truncated"`
 	CorrelationID        string                  `json:"correlation_id,omitempty"`
 	ErrorCode            tools.ErrorCode         `json:"error_code,omitempty"`
@@ -223,7 +223,7 @@ type ToolErrorPayload struct {
 	ReasonCodes   []tools.ReasonCode         `json:"reason_codes,omitempty"`
 	Layer         string                     `json:"layer,omitempty"`
 	Details       map[string]json.RawMessage `json:"details,omitempty"`
-	PartialResult *tools.ToolResult          `json:"partial_result,omitempty"`
+	PartialResult *tools.ToolResult          `json:"partial_result,omitzero"`
 }
 
 // ToolErrorResponse returns one structured tool error.

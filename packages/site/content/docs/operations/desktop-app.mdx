@@ -123,3 +123,24 @@ by editing a manifest in place. See [Desktop release operations](/docs/operation
 The desktop app loads the daemon-served product from the same machine and creates no second public
 listener. Remote access is a separate trust boundary and must use the authenticated
 [Gateway](/docs/gateway/security). Do not expose the local daemon port directly to a network.
+
+## Text menus and spelling
+
+Right-click selected text to copy it, or right-click an editable field for Cut,
+Copy, Paste, Select All, Undo, and Redo. Right-click a link to copy its address.
+The app's own tab, dock, and editor context menus keep their existing actions.
+
+For a misspelled word, the menu offers the available dictionary suggestions and
+**Add to dictionary**. Under **Spelling**, toggle **Check spelling** to enable or
+disable checking. On Windows and Linux, **Spelling → Languages** lets you select
+multiple dictionaries, such as `en-US` and `pt-BR`. Keep at least one language
+selected; use **Check spelling** to disable checking entirely. Dictionaries may
+need to download before suggestions become available.
+
+On macOS, the operating system manages spellcheck languages. The app exposes the
+spelling toggle and suggestions but does not replace the system language settings.
+
+These desktop-only preferences survive app restarts in `desktop-window.json`
+under the selected CompozyOS home, alongside window geometry and zoom. Existing
+window files remain valid. Browser users continue to use their browser's spelling
+and context-menu preferences; no daemon `config.toml` key is needed.

@@ -1,10 +1,11 @@
 package resources
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 )
 
@@ -191,20 +192,18 @@ func (d *reconcileDriver) scheduleCascade(root ResourceKind) []ResourceKind {
 		queue = append(queue, d.dependents[kind]...)
 	}
 
-	sort.Slice(reachable, func(i int, j int) bool {
-		left := reachable[i]
-		right := reachable[j]
+	slices.SortFunc(reachable, func(left, right ResourceKind) int {
 		leftRank, leftOK := d.topoRank[left]
 		rightRank, rightOK := d.topoRank[right]
 		switch {
 		case leftOK && rightOK:
-			return leftRank < rightRank
+			return cmp.Compare(leftRank, rightRank)
 		case leftOK:
-			return true
+			return -1
 		case rightOK:
-			return false
+			return 1
 		default:
-			return string(left) < string(right)
+			return cmp.Compare(left, right)
 		}
 	})
 

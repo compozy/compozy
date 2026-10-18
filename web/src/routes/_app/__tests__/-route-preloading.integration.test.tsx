@@ -4,6 +4,12 @@
 // Boundary OUT: HTTP adapters, which have their own contract suites.
 import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,14 +20,6 @@ import {
   useAutomationTriggers,
 } from "@/systems/automation";
 import {
-  useBridge,
-  useBridgeProviders,
-  useBridgeRoutes,
-  useBridgeSecretBindings,
-  useBridgeTargets,
-  useBridges,
-} from "@/systems/bridges";
-import {
   useLoop,
   useLoopAnnotations,
   useLoopConfig,
@@ -29,35 +27,40 @@ import {
   useLoopRuns,
   useLoops,
 } from "@/systems/loops";
-import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
-import { useNotificationPresets } from "@/systems/notifications";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
-import { resetProfileViews, setProfileView } from "@/systems/profiles";
+import {
+  profileSelectionOptions,
+  readProfileLens,
+  resetProfileViews,
+  setProfileView,
+} from "@/systems/profiles";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
 import { statusOptions } from "@/systems/status";
 import {
   taskDashboardOptions,
+  useTask,
   useTaskDashboard,
   useTaskInbox,
   useTaskInboxBadge,
+  useTaskRuns,
+  useTaskRunDetail,
   useTasks,
 } from "@/systems/tasks";
 import {
   useSettingsApplyRecords,
   useSettingsGeneral,
   useSettingsHooksExtensions,
-  useSettingsMemory,
   useSettingsObservability,
   useSettingsProviders,
-  useSettingsSandboxes,
   useSettingsSkills,
   useSettingsUpdate,
 } from "@/systems/settings";
 import { useVaultSecrets, vaultSecretsListOptions } from "@/systems/vault";
 import {
   setActiveWorkspaceId,
+  enableGlobalScope,
   useWorkspace,
   useWorkspaces,
   workspacesListOptions,
@@ -69,11 +72,11 @@ const adapterMocks = vi.hoisted(() => ({
   fetchAgentCatalog: vi.fn(),
   fetchAgents: vi.fn(),
   fetchOnboardingStatus: vi.fn(),
+  fetchProfileSelection: vi.fn(),
   fetchStatus: vi.fn(),
   fetchSessions: vi.fn(),
   fetchWorkspace: vi.fn(),
   fetchWorkspaces: vi.fn(),
-  getBridge: vi.fn(),
   getLoop: vi.fn(),
   getLoopAnnotations: vi.fn(),
   getLoopConfig: vi.fn(),
@@ -82,22 +85,19 @@ const adapterMocks = vi.hoisted(() => ({
   getAutomationTrigger: vi.fn(),
   getScheduler: vi.fn(),
   getSchedulerBacklog: vi.fn(),
+  getTask: vi.fn(),
+  getTaskRun: vi.fn(),
   getTaskDashboard: vi.fn(),
+  listTaskRuns: vi.fn(),
   getTaskInbox: vi.fn(),
   getSettingsGeneral: vi.fn(),
   getSettingsHooksExtensions: vi.fn(),
-  getSettingsMemory: vi.fn(),
   getSettingsObservability: vi.fn(),
   getSettingsSkills: vi.fn(),
   getSettingsUpdate: vi.fn(),
   getSkill: vi.fn(),
   getSkillContent: vi.fn(),
   getSkillShadows: vi.fn(),
-  listBridgeProviders: vi.fn(),
-  listBridgeRoutes: vi.fn(),
-  listBridgeSecretBindings: vi.fn(),
-  listBridgeTargets: vi.fn(),
-  listBridges: vi.fn(),
   listAutomationJobs: vi.fn(),
   listAutomationJobRuns: vi.fn(),
   listAutomationTriggerRuns: vi.fn(),
@@ -105,13 +105,10 @@ const adapterMocks = vi.hoisted(() => ({
   listAutomationTriggers: vi.fn(),
   listLoopRuns: vi.fn(),
   listLoops: vi.fn(),
-  listMemories: vi.fn(),
   listTasks: vi.fn(),
-  listNotificationPresets: vi.fn(),
   listSettingsApplyRecords: vi.fn(),
   listSettingsMCPServers: vi.fn(),
   listSettingsProviders: vi.fn(),
-  listSettingsSandboxes: vi.fn(),
   listSkills: vi.fn(),
   listVaultSecrets: vi.fn(),
 }));
@@ -134,6 +131,11 @@ vi.mock("@/systems/onboarding/adapters/onboarding-api", async importOriginal => 
   fetchOnboardingStatus: adapterMocks.fetchOnboardingStatus,
 }));
 
+vi.mock("@/systems/profiles/adapters/profiles-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles/adapters/profiles-api")>()),
+  fetchProfileSelection: adapterMocks.fetchProfileSelection,
+}));
+
 vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/session/adapters/session-api")>()),
   fetchSessions: adapterMocks.fetchSessions,
@@ -146,7 +148,10 @@ vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => ({
 
 vi.mock("@/systems/tasks/adapters/tasks-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/tasks/adapters/tasks-api")>()),
+  getTask: adapterMocks.getTask,
+  getTaskRun: adapterMocks.getTaskRun,
   getTaskDashboard: adapterMocks.getTaskDashboard,
+  listTaskRuns: adapterMocks.listTaskRuns,
   listTasks: adapterMocks.listTasks,
   getTaskInbox: adapterMocks.getTaskInbox,
 }));
@@ -161,19 +166,12 @@ vi.mock("@/systems/settings/adapters/settings-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/settings/adapters/settings-api")>()),
   getSettingsGeneral: adapterMocks.getSettingsGeneral,
   getSettingsHooksExtensions: adapterMocks.getSettingsHooksExtensions,
-  getSettingsMemory: adapterMocks.getSettingsMemory,
   getSettingsObservability: adapterMocks.getSettingsObservability,
   getSettingsSkills: adapterMocks.getSettingsSkills,
   getSettingsUpdate: adapterMocks.getSettingsUpdate,
   listSettingsApplyRecords: adapterMocks.listSettingsApplyRecords,
   listSettingsMCPServers: adapterMocks.listSettingsMCPServers,
   listSettingsProviders: adapterMocks.listSettingsProviders,
-  listSettingsSandboxes: adapterMocks.listSettingsSandboxes,
-}));
-
-vi.mock("@/systems/notifications/adapters/notifications-api", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/notifications/adapters/notifications-api")>()),
-  listNotificationPresets: adapterMocks.listNotificationPresets,
 }));
 
 vi.mock("@/systems/vault/adapters/vault-api", async importOriginal => ({
@@ -187,16 +185,6 @@ vi.mock("@/systems/skill/adapters/skill-api", async importOriginal => ({
   getSkillContent: adapterMocks.getSkillContent,
   getSkillShadows: adapterMocks.getSkillShadows,
   listSkills: adapterMocks.listSkills,
-}));
-
-vi.mock("@/systems/bridges/adapters/bridges-api", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/bridges/adapters/bridges-api")>()),
-  getBridge: adapterMocks.getBridge,
-  listBridgeProviders: adapterMocks.listBridgeProviders,
-  listBridgeRoutes: adapterMocks.listBridgeRoutes,
-  listBridgeSecretBindings: adapterMocks.listBridgeSecretBindings,
-  listBridgeTargets: adapterMocks.listBridgeTargets,
-  listBridges: adapterMocks.listBridges,
 }));
 
 vi.mock("@/systems/automation/adapters/automation-api", async importOriginal => ({
@@ -226,21 +214,13 @@ vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
   listLoops: adapterMocks.listLoops,
 }));
 
-vi.mock("@/systems/knowledge/adapters/knowledge-api", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/knowledge/adapters/knowledge-api")>()),
-  listMemories: adapterMocks.listMemories,
-}));
-
 import { Route as AppRoute } from "../../_app";
 import { Route as AgentDetailRoute } from "../agents.$name.index";
 import { Route as AgentSettingsRoute } from "../agents.$name.settings";
 import { Route as AgentsRoute } from "../agents.index";
-import { Route as BridgeDetailRoute } from "../bridges.$id";
-import { Route as BridgesRoute } from "../bridges";
 import { Route as HomeRoute } from "../index";
-import { Route as JobDetailRoute } from "../jobs.$jobId";
-import { Route as JobsRoute } from "../jobs";
-import { Route as KnowledgeRoute } from "../knowledge";
+import { Route as JobDetailRoute } from "../automations.jobs.$jobId";
+import { Route as AutomationsRoute } from "../automations";
 import { Route as LoopRunDetailRoute } from "../loop-runs.$runId";
 import { Route as LoopRunsRoute } from "../loop-runs";
 import { Route as LoopConfigureRoute } from "../loops.$name.configure";
@@ -248,15 +228,14 @@ import { Route as LoopEditorRoute } from "../loops.$name.editor";
 import { Route as LoopRunFormRoute } from "../loops.$name.run";
 import { Route as LoopDetailRoute } from "../loops.$name";
 import { Route as LoopsRoute } from "../loops";
-import { Route as SandboxRoute } from "../sandbox";
-import { Route as TriggersRoute } from "../triggers";
-import { Route as TriggerDetailRoute } from "../triggers.$triggerId";
+import { Route as TriggerDetailRoute } from "../automations.triggers.$triggerId";
 import { Route as TasksRoute } from "../tasks";
+import { Route as TaskDetailRoute } from "../tasks.$id";
+import { preloadTaskRunRoute } from "../-tasks-preload";
 import { Route as VaultRoute } from "../vault";
 import { Route as SettingsGeneralRoute } from "../settings/general";
 import { Route as SettingsExtensionsRoute } from "../settings/extensions";
 import { Route as SettingsHooksRoute } from "../settings/hooks";
-import { Route as SettingsMemoryRoute } from "../settings/memory";
 import { Route as SettingsObservabilityRoute } from "../settings/observability";
 import { Route as SettingsProvidersRoute } from "../settings/providers";
 import { Route as SettingsSkillsRoute } from "../settings/skills";
@@ -317,6 +296,31 @@ function createDeferred<T>() {
   return { promise, resolve };
 }
 
+function createRunEntryRouter(queryClient: QueryClient) {
+  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({});
+  const app = createRoute({
+    getParentRoute: () => root,
+    id: "_app",
+    beforeLoad: AppRoute.options.beforeLoad,
+    loader: args => invokeLoader(AppRoute, args),
+  });
+  const task = createRoute({
+    getParentRoute: () => app,
+    path: "tasks/$id",
+    loader: args => invokeLoader(TaskDetailRoute, args),
+  });
+  const run = createRoute({
+    getParentRoute: () => task,
+    path: "runs/$runId",
+    loader: ({ params }) => preloadTaskRunRoute(queryClient, params.id, params.runId),
+  });
+  return createRouter({
+    routeTree: root.addChildren([app.addChildren([task.addChildren([run])])]),
+    context: { queryClient },
+    history: createMemoryHistory({ initialEntries: ["/tasks/task-1/runs/run-1"] }),
+  });
+}
+
 const cases: PreloadCase[] = [
   {
     name: "app shell → onboarding/workspace/agent/exact-summary options",
@@ -360,21 +364,6 @@ const cases: PreloadCase[] = [
       adapterMocks.fetchAgents,
       adapterMocks.fetchSessions,
     ],
-  },
-  {
-    name: "knowledge → exact default-global infinite catalog options",
-    load: queryClient => invokeLoader(KnowledgeRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useMemories({
-          profile: "default",
-          scope: "profile",
-          includeSystem: false,
-          limit: DEFAULT_MEMORY_LIST_LIMIT,
-          sort: "recent",
-        });
-      }),
-    requests: [adapterMocks.listMemories],
   },
   {
     name: "tasks → exact route-filtered active-workspace catalog options",
@@ -485,15 +474,6 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "sandbox → settingsSandboxesListOptions",
-    load: queryClient => invokeLoader(SandboxRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useSettingsSandboxes();
-      }),
-    requests: [adapterMocks.listSettingsSandboxes],
-  },
-  {
     name: "vault → exact filtered vaultSecretsListOptions",
     load: queryClient =>
       invokeLoader(VaultRoute, {
@@ -507,9 +487,9 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.listVaultSecrets],
   },
   {
-    name: "jobs → exact filtered infinite catalog options",
+    name: "automations scheduled view → exact filtered jobs catalog options",
     load: queryClient =>
-      invokeLoader(JobsRoute, {
+      invokeLoader(AutomationsRoute, {
         ...context(queryClient),
         deps: {
           enabled: false,
@@ -517,7 +497,9 @@ const cases: PreloadCase[] = [
           q: "review",
           scope: "workspace" as const,
           source: "package" as const,
+          start: "schedule" as const,
         },
+        location: { pathname: "/automations" },
       }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -535,85 +517,36 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listAutomationJobs],
   },
   {
-    name: "triggers → exact filtered infinite catalog options",
+    name: "automations event view → exact filtered triggers catalog options",
     load: queryClient =>
-      invokeLoader(TriggersRoute, {
+      invokeLoader(AutomationsRoute, {
         ...context(queryClient),
         deps: {
           enabled: true,
-          event: "ext.github.push",
           loop: "delivery",
           q: "review",
           scope: "workspace" as const,
           source: "dynamic" as const,
+          start: "event" as const,
+          target: "loop" as const,
         },
+        location: { pathname: "/automations" },
       }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
         useAutomationTriggers({
           enabled: true,
-          event: "ext.github.push",
           limit: 50,
           loop: "delivery",
           q: "review",
           scope: "workspace",
           source: "dynamic",
+          target: "loop",
           workspace_id: workspace.id,
         });
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listAutomationTriggers],
-  },
-  {
-    name: "bridges → workspace-scoped bridgesListOptions + bridgeProvidersOptions",
-    load: queryClient =>
-      invokeLoader(BridgesRoute, {
-        ...context(queryClient),
-        deps: { scope: "all" as const },
-      }),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useBridges({
-          limit: 50,
-          scope: "all",
-          sort: "name",
-          workspace_id: workspace.id,
-        });
-        useBridgeProviders();
-      }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.listBridges,
-      adapterMocks.listBridgeProviders,
-    ],
-  },
-  {
-    name: "bridge detail → list/provider/detail/routes/targets/secret-binding options",
-    load: queryClient =>
-      invokeLoader(BridgeDetailRoute, {
-        ...context(queryClient),
-        params: { id: "bridge-1" },
-      }),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useBridges({ scope: "all", workspace_id: workspace.id });
-        useBridgeProviders();
-        useBridge("bridge-1");
-        useBridgeRoutes("bridge-1");
-        useBridgeTargets("bridge-1", { limit: 50, q: "" });
-        useBridgeSecretBindings("bridge-1");
-      }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.listBridges,
-      adapterMocks.listBridgeProviders,
-      adapterMocks.getBridge,
-      adapterMocks.listBridgeRoutes,
-      adapterMocks.listBridgeTargets,
-      adapterMocks.listBridgeSecretBindings,
-    ],
   },
   {
     name: "loops catalog → loopsCatalogOptions",
@@ -773,15 +706,6 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "memory settings → settingsMemoryOptions",
-    load: queryClient => invokeLoader(SettingsMemoryRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useSettingsMemory();
-      }),
-    requests: [adapterMocks.getSettingsMemory],
-  },
-  {
     name: "observability settings → settingsObservabilityOptions",
     load: queryClient => invokeLoader(SettingsObservabilityRoute, context(queryClient)),
     mountConsumer: queryClient =>
@@ -791,14 +715,13 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.getSettingsObservability],
   },
   {
-    name: "hooks settings → section and notification-preset options",
+    name: "hooks settings → section options",
     load: queryClient => invokeLoader(SettingsHooksRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useSettingsHooksExtensions();
-        useNotificationPresets();
       }),
-    requests: [adapterMocks.getSettingsHooksExtensions, adapterMocks.listNotificationPresets],
+    requests: [adapterMocks.getSettingsHooksExtensions],
   },
   {
     name: "extensions settings → combined policy section option",
@@ -825,6 +748,7 @@ describe("route query preloading", () => {
     adapterMocks.fetchWorkspace.mockResolvedValue({ ...workspace, providers: [] });
     adapterMocks.fetchOnboardingStatus.mockResolvedValue({ completed: true });
     adapterMocks.fetchStatus.mockResolvedValue({ daemon: { user_home_dir: "/home/operator" } });
+    adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "default" });
     adapterMocks.fetchAgents.mockResolvedValue([]);
     adapterMocks.fetchAgentCatalog.mockResolvedValue({
       agents: [],
@@ -837,22 +761,19 @@ describe("route query preloading", () => {
       sessions: [],
       page: { has_more: false, limit: 50, total: 0 },
     });
-    adapterMocks.listSettingsSandboxes.mockResolvedValue({ sandboxes: [] });
     adapterMocks.listSettingsMCPServers.mockResolvedValue({ mcp_servers: [] });
     adapterMocks.getSettingsGeneral.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsUpdate.mockResolvedValue({ status: "idle" });
     adapterMocks.listSettingsApplyRecords.mockResolvedValue({ records: [] });
     adapterMocks.listSettingsProviders.mockResolvedValue({ providers: [] });
     adapterMocks.getSettingsSkills.mockResolvedValue({ config: {}, scope: "user" });
-    adapterMocks.getSettingsMemory.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsObservability.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsHooksExtensions.mockResolvedValue({ config: {} });
-    adapterMocks.listNotificationPresets.mockResolvedValue([]);
     adapterMocks.listVaultSecrets.mockResolvedValue([]);
     adapterMocks.listSkills.mockResolvedValue([]);
-    adapterMocks.getSkill.mockResolvedValue({ name: "memory" });
+    adapterMocks.getSkill.mockResolvedValue({ name: "review" });
     adapterMocks.getSkillShadows.mockResolvedValue([]);
-    adapterMocks.getSkillContent.mockResolvedValue({ content: "# Memory" });
+    adapterMocks.getSkillContent.mockResolvedValue({ content: "# Review" });
     adapterMocks.listAutomationJobs.mockResolvedValue({
       jobs: [],
       page: { has_more: false, limit: 50, total: 0 },
@@ -872,35 +793,10 @@ describe("route query preloading", () => {
     });
     adapterMocks.listAutomationJobRuns.mockResolvedValue([]);
     adapterMocks.listAutomationTriggerRuns.mockResolvedValue([]);
-    adapterMocks.listBridges.mockResolvedValue({
-      bridge_health: {},
-      bridges: [],
-      facets: {
-        platforms: {},
-        statuses: {
-          auth_required: 0,
-          degraded: 0,
-          disabled: 0,
-          error: 0,
-          ready: 0,
-          starting: 0,
-        },
-      },
-      page: { has_more: false, limit: 50, total: 0 },
-    });
-    adapterMocks.listBridgeProviders.mockResolvedValue([]);
-    adapterMocks.getBridge.mockResolvedValue({ bridge: { id: "bridge-1" } });
-    adapterMocks.listBridgeRoutes.mockResolvedValue([]);
-    adapterMocks.listBridgeTargets.mockResolvedValue({ targets: [] });
-    adapterMocks.listBridgeSecretBindings.mockResolvedValue([]);
     adapterMocks.listLoops.mockResolvedValue({
       facets: { categories: {}, kinds: {}, statuses: {} },
       loops: [],
       page: { has_more: false, limit: 50, total: 0 },
-    });
-    adapterMocks.listMemories.mockResolvedValue({
-      memories: [],
-      page: { has_more: false, limit: DEFAULT_MEMORY_LIST_LIMIT, total: 0 },
     });
     adapterMocks.listTasks.mockResolvedValue({
       facets: { owners: [], statuses: [] },
@@ -951,6 +847,35 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it.each(["marketing", "@all"])(
+    "Should reuse Loop catalog preloads under the %s profile view",
+    async profile => {
+      const queryClient = createQueryClient();
+      setProfileView(
+        readProfileLens(),
+        profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile }
+      );
+      const scope = profile === "@all" ? { all_profiles: true } : { profile };
+      await invokeLoader(LoopsRoute, {
+        ...context(queryClient),
+        deps: { limit: 50, sort: "name" as const },
+        location: { pathname: "/loops" },
+      });
+      expect(adapterMocks.listLoops).toHaveBeenCalledExactlyOnceWith(
+        workspace.id,
+        expect.objectContaining({ limit: 50, sort: "name", ...scope }),
+        expect.any(AbortSignal)
+      );
+      const unmount = mountQueries(queryClient, () => {
+        useLoops(workspace.id, { limit: 50, sort: "name" });
+      });
+      await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+      expect(adapterMocks.listLoops).toHaveBeenCalledTimes(1);
+      unmount();
+      queryClient.clear();
+    }
+  );
+
   it("Should preload loop destinations in the workspace carried by a trigger link", async () => {
     const queryClient = createQueryClient();
     const targetWorkspaceId = "ws_target";
@@ -976,12 +901,13 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should skip workspace suggestions when the jobs route is globally scoped", async () => {
+  it("Should skip workspace suggestions when the automations route is globally scoped", async () => {
     const queryClient = createQueryClient();
 
-    await invokeLoader(JobsRoute, {
+    await invokeLoader(AutomationsRoute, {
       ...context(queryClient),
-      deps: { scope: "global" as const },
+      deps: { scope: "global" as const, start: "schedule" as const },
+      location: { pathname: "/automations" },
     });
 
     expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
@@ -990,22 +916,46 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it("Should preload and reuse the Global agent catalog without a project", async () => {
+    const queryClient = createQueryClient();
+    enableGlobalScope();
+    await invokeLoader(AgentsRoute, {
+      ...context(queryClient),
+      deps: { q: "reading", limit: 50 },
+    });
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ profile: "default", q: "reading", limit: 50 }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.fetchAgentCatalog.mock.calls[0]?.[0].workspace).toBeUndefined();
+    const unmount = mountQueries(queryClient, () => {
+      useAgentCatalog("", { q: "reading", limit: 50 });
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(1);
+    unmount();
+    queryClient.clear();
+  });
+
   it("Should preload pending suggestions only for an unfiltered zero-inventory catalog", async () => {
     const queryClient = createQueryClient();
 
-    await invokeLoader(JobsRoute, {
+    await invokeLoader(AutomationsRoute, {
       ...context(queryClient),
       deps: {},
+      location: { pathname: "/automations" },
     });
     await waitFor(() => expect(adapterMocks.listAutomationSuggestions).toHaveBeenCalledTimes(1));
 
     const unmount = mountQueries(queryClient, () => {
       useAutomationJobs({ limit: 50 });
+      useAutomationTriggers({ limit: 50 });
       useAutomationSuggestions(workspace.id, "pending");
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
     expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listAutomationTriggers).toHaveBeenCalledTimes(1);
     expect(adapterMocks.listAutomationSuggestions).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
@@ -1032,9 +982,10 @@ describe("route query preloading", () => {
     const queryClient = createQueryClient();
     adapterMocks.listAutomationJobs.mockResolvedValueOnce(jobs);
 
-    await invokeLoader(JobsRoute, {
+    await invokeLoader(AutomationsRoute, {
       ...context(queryClient),
       deps,
+      location: { pathname: "/automations" },
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
@@ -1052,9 +1003,10 @@ describe("route query preloading", () => {
     adapterMocks.listAutomationJobs.mockReturnValueOnce(jobsRequest.promise);
 
     await expect(
-      invokeLoader(JobsRoute, {
+      invokeLoader(AutomationsRoute, {
         ...context(queryClient),
-        deps: { scope: "global" as const },
+        deps: { scope: "global" as const, start: "schedule" as const },
+        location: { pathname: "/automations" },
       })
     ).resolves.toBeUndefined();
 
@@ -1089,21 +1041,16 @@ describe("route query preloading", () => {
       expect(state?.error).toEqual(new Error("vault unavailable"));
     });
 
-    adapterMocks.listMemories.mockRejectedValueOnce(new Error("knowledge unavailable"));
-    await expect(invokeLoader(KnowledgeRoute, context(queryClient))).resolves.toBeUndefined();
+    adapterMocks.getTaskDashboard.mockRejectedValueOnce(new Error("dashboard unavailable"));
+    await expect(invokeLoader(HomeRoute, context(queryClient))).resolves.toBeUndefined();
 
     await waitFor(() => {
-      const knowledgeState = queryClient.getQueryState(
-        memoriesListOptions({
-          profile: "default",
-          scope: "profile",
-          includeSystem: false,
-          limit: DEFAULT_MEMORY_LIST_LIMIT,
-          sort: "recent",
-        }).queryKey
+      const dashboardState = queryClient.getQueryState(
+        taskDashboardOptions({ scope: "workspace", workspace: workspace.id, profile: "default" })
+          .queryKey
       );
-      expect(knowledgeState?.status).toBe("error");
-      expect(knowledgeState?.error).toEqual(new Error("knowledge unavailable"));
+      expect(dashboardState?.status).toBe("error");
+      expect(dashboardState?.error).toEqual(new Error("dashboard unavailable"));
     });
     queryClient.clear();
   });
@@ -1350,6 +1297,195 @@ describe("route query preloading", () => {
     ]) {
       expect(request).toHaveBeenCalledTimes(1);
     }
+    unmount();
+    queryClient.clear();
+  });
+
+  it.each(["marketing", "@all"])(
+    "Should reuse run preloads under the %s profile view",
+    async profile => {
+      const queryClient = createQueryClient();
+      setProfileView(
+        readProfileLens(),
+        profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile }
+      );
+      const scope = profile === "@all" ? { all_profiles: true } : { profile };
+      adapterMocks.getTaskRun.mockResolvedValueOnce({ run: { id: "run-1", status: "completed" } });
+      adapterMocks.getTask.mockResolvedValueOnce({
+        task: { id: "task-1" },
+        summary: { active_run: null },
+      });
+      adapterMocks.listTaskRuns.mockResolvedValueOnce([]);
+
+      await createRunEntryRouter(queryClient).load();
+      expect(adapterMocks.fetchProfileSelection).not.toHaveBeenCalled();
+      const unmount = mountQueries(queryClient, () => {
+        useTaskRunDetail("run-1");
+        useTaskRuns("task-1");
+      });
+      await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+      expect(adapterMocks.getTaskRun).toHaveBeenCalledExactlyOnceWith(
+        "run-1",
+        scope,
+        expect.any(AbortSignal)
+      );
+      expect(adapterMocks.listTaskRuns).toHaveBeenCalledExactlyOnceWith(
+        "task-1",
+        scope,
+        expect.any(AbortSignal)
+      );
+      unmount();
+      queryClient.clear();
+    }
+  );
+
+  it.each(["workspace", "global"])(
+    "Should restore the remembered %s profile before cold-entry task and shell reads",
+    async scope => {
+      const queryClient = createQueryClient();
+      if (scope === "global") enableGlobalScope();
+      adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "marketing" });
+      adapterMocks.getTaskRun.mockResolvedValue({ run: { id: "run-1", status: "completed" } });
+      adapterMocks.getTask.mockResolvedValue({
+        task: { id: "task-1" },
+        summary: { active_run: null },
+      });
+      adapterMocks.listTaskRuns.mockResolvedValue([]);
+
+      await createRunEntryRouter(queryClient).load();
+      await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+      expect(adapterMocks.getTaskRun).toHaveBeenCalledExactlyOnceWith(
+        "run-1",
+        { profile: "marketing" },
+        expect.any(AbortSignal)
+      );
+      expect(adapterMocks.getTask).toHaveBeenCalledExactlyOnceWith(
+        "task-1",
+        { profile: "marketing" },
+        expect.any(AbortSignal)
+      );
+      expect(adapterMocks.listTaskRuns).toHaveBeenCalledExactlyOnceWith(
+        "task-1",
+        { profile: "marketing" },
+        expect.any(AbortSignal)
+      );
+      if (scope === "workspace") {
+        expect(adapterMocks.fetchAgents).toHaveBeenCalledExactlyOnceWith(
+          workspace.id,
+          expect.any(AbortSignal),
+          "marketing"
+        );
+      } else {
+        expect(adapterMocks.fetchAgents).not.toHaveBeenCalled();
+      }
+      expect(adapterMocks.fetchProfileSelection).toHaveBeenCalledExactlyOnceWith(
+        readProfileLens(),
+        expect.any(AbortSignal)
+      );
+
+      const unmount = mountQueries(queryClient, () => {
+        useTaskRunDetail("run-1");
+        useTaskRuns("task-1");
+      });
+      await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+      expect(adapterMocks.getTaskRun).toHaveBeenCalledTimes(1);
+      expect(adapterMocks.listTaskRuns).toHaveBeenCalledTimes(1);
+      unmount();
+      queryClient.clear();
+    }
+  );
+
+  it("Should retain a failed initial profile read without loading work in default", async () => {
+    const queryClient = createQueryClient();
+    const failure = new Error("profile selection unavailable");
+    adapterMocks.fetchProfileSelection.mockRejectedValue(failure);
+    const router = createRunEntryRouter(queryClient);
+
+    await router.load();
+
+    expect(adapterMocks.getTaskRun).not.toHaveBeenCalled();
+    expect(adapterMocks.getTask).not.toHaveBeenCalled();
+    expect(adapterMocks.listTaskRuns).not.toHaveBeenCalled();
+    expect(adapterMocks.fetchAgents).not.toHaveBeenCalled();
+    expect(
+      router.state.matches.some(match => match.status === "error" && match.error === failure)
+    ).toBe(true);
+    queryClient.clear();
+  });
+
+  it.each([false, true])(
+    "Should await the current profile after reconnect cancellation (workspace changed: %s)",
+    async changeWorkspace => {
+      const queryClient = createQueryClient();
+      adapterMocks.getTaskRun.mockResolvedValue({ run: { id: "run-1", status: "completed" } });
+      adapterMocks.getTask.mockResolvedValue({
+        task: { id: "task-1" },
+        summary: { active_run: null },
+      });
+      adapterMocks.listTaskRuns.mockResolvedValue([]);
+      const lens = readProfileLens();
+      const options = profileSelectionOptions(lens);
+      queryClient.setQueryData(options.queryKey, { profile: "default", scope: lens.scope });
+      const firstRead = createDeferred<{ profile: string; scope: string }>();
+      const replacementRead = createDeferred<{ profile: string; scope: string }>();
+      adapterMocks.fetchProfileSelection
+        .mockReturnValueOnce(firstRead.promise)
+        .mockReturnValueOnce(replacementRead.promise);
+      const backgroundRead = queryClient.fetchQuery(options);
+      const router = createRunEntryRouter(queryClient);
+      const entry = router.load();
+      await Promise.resolve();
+      if (changeWorkspace) {
+        const destination = { ...workspace, id: "ws-destination", root_dir: "/destination" };
+        adapterMocks.fetchWorkspaces.mockResolvedValue([workspace, destination]);
+        adapterMocks.fetchProfileSelection.mockResolvedValueOnce({
+          profile: "engineering",
+          scope: "workspace",
+        });
+        setActiveWorkspaceId(destination.id);
+      }
+      const reconciliation = queryClient.refetchQueries({ queryKey: options.queryKey });
+      await waitFor(() =>
+        expect(adapterMocks.fetchProfileSelection.mock.calls.length).toBeGreaterThanOrEqual(2)
+      );
+      if (!changeWorkspace) {
+        expect(adapterMocks.fetchProfileSelection).toHaveBeenCalledTimes(2);
+        expect(adapterMocks.getTaskRun).not.toHaveBeenCalled();
+      }
+
+      replacementRead.resolve({ profile: "marketing", scope: lens.scope });
+      await Promise.all([backgroundRead, reconciliation, entry]);
+      await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+      expect(router.state.matches.some(match => match.status === "error")).toBe(false);
+      expect(adapterMocks.getTaskRun).toHaveBeenCalledExactlyOnceWith(
+        "run-1",
+        { profile: changeWorkspace ? "engineering" : "marketing" },
+        expect.any(AbortSignal)
+      );
+      queryClient.clear();
+    }
+  );
+
+  it("Should preload a task detail and its runs on intent and reuse them on mount", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getTask.mockResolvedValueOnce({
+      task: { id: "task-1" },
+      summary: { active_run: null },
+    });
+    adapterMocks.listTaskRuns.mockResolvedValueOnce([]);
+
+    await invokeLoader(TaskDetailRoute, { ...context(queryClient), params: { id: "task-1" } });
+    await waitFor(() => expect(adapterMocks.listTaskRuns).toHaveBeenCalledTimes(1));
+    expect(adapterMocks.getTask).toHaveBeenCalledTimes(1);
+
+    const unmount = mountQueries(queryClient, () => {
+      useTask("task-1");
+      useTaskRuns("task-1");
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.getTask).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listTaskRuns).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
   });

@@ -123,12 +123,10 @@ func agentSpawnPayloadFromSession(info *session.Info) (contract.AgentSpawnPayloa
 func sessionPermissionPolicyFromPayload(payload contract.SpawnPermissionPolicyPayload) store.SessionPermissionPolicy {
 	normalized := contract.NormalizeSpawnPermissionPolicyPayload(payload)
 	return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
-		Tools:           append([]string(nil), normalized.Tools...),
-		Skills:          append([]string(nil), normalized.Skills...),
-		MCPServers:      append([]string(nil), normalized.MCPServers...),
-		WorkspacePaths:  append([]string(nil), normalized.WorkspacePaths...),
-		NetworkChannels: append([]string(nil), normalized.NetworkChannels...),
-		SandboxProfiles: append([]string(nil), normalized.SandboxProfiles...),
+		Tools:          append([]string(nil), normalized.Tools...),
+		Skills:         append([]string(nil), normalized.Skills...),
+		MCPServers:     append([]string(nil), normalized.MCPServers...),
+		WorkspacePaths: append([]string(nil), normalized.WorkspacePaths...),
 	})
 }
 

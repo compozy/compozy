@@ -261,7 +261,7 @@ describe("SecretField", () => {
     expect(selected).toHaveAttribute("aria-checked", "true");
     expect(unselected).toHaveAttribute("aria-checked", "false");
     // Accent is reserved for true CTAs; selection reads as glaze + rim.
-    expect(selected.className).toContain("data-[selected]:bg-row-selected");
+    expect(selected.className).toContain("data-[selected]:bg-selected");
     expect(selected.className).toContain("data-[selected]:border-line-strong");
     expect(selected.className).not.toMatch(/accent/);
     expect(selected).toHaveClass(DIALOG_TOUCH_TARGET_CLASS);

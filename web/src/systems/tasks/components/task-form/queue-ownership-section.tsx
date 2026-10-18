@@ -54,12 +54,6 @@ const OWNER_KIND_OPTIONS: OwnerKindOption[] = [
     placeholder: "Extension id",
     description: "Use this when an installed extension owns the task.",
   },
-  {
-    value: "network_peer",
-    label: "Network peer",
-    placeholder: "Peer id",
-    description: "Use this when a Network peer owns the task.",
-  },
 ];
 
 const ATTEMPT_VALUES = [1, 2, 3, 5] as const;

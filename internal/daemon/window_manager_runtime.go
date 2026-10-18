@@ -8,11 +8,12 @@ import (
 	"path/filepath"
 	"sync"
 
+	"uuid"
+
 	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	"github.com/google/uuid"
 )
 
 type windowManagerBootState struct {
@@ -158,7 +159,7 @@ func (r *windowManagerStoreWorkspaceResolver) resolveGenerationLocked(
 }
 
 func newWindowManagerWorkspaceGeneration() clientstate.WorkspaceGeneration {
-	return clientstate.WorkspaceGeneration(uuid.NewString())
+	return clientstate.WorkspaceGeneration(uuid.NewV4().String())
 }
 
 func (r *windowManagerStoreWorkspaceResolver) ResolveWorkspaceForPurge(

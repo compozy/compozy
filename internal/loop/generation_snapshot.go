@@ -23,28 +23,28 @@ type GenerationSnapshotPayload struct {
 	StrategyCancellations []StrategyCancellationIntent      `json:"strategy_cancellations,omitempty"`
 	OutputBlobs           []GenerationOutputBlob            `json:"output_blobs,omitempty"`
 	Verdicts              []gate.VerdictIntent              `json:"verdicts,omitempty"`
-	BestUpdate            *gate.BestUpdateIntent            `json:"best_update,omitempty"`
-	GenerationProvenance  *GenerationIntent                 `json:"generation_provenance,omitempty"`
+	BestUpdate            *gate.BestUpdateIntent            `json:"best_update,omitzero"`
+	GenerationProvenance  *GenerationIntent                 `json:"generation_provenance,omitzero"`
 	Events                []GenerationLifecycleEventIntent  `json:"events,omitempty"`
 	BoundaryEffects       map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
 }
 
 // GenerationOutput is one loop_generation_outputs row mutation.
 type GenerationOutput struct {
-	Generation       int              `json:"generation,omitempty"`
+	Generation       int              `json:"generation,omitzero"`
 	NodeID           string           `json:"node_id"`
-	ItemIndex        int              `json:"item_index,omitempty"`
+	ItemIndex        int              `json:"item_index,omitzero"`
 	OutputID         string           `json:"output_id,omitempty"`
 	ArtifactName     string           `json:"artifact_name,omitempty"`
 	Status           string           `json:"status"`
 	OutputRef        string           `json:"output_ref,omitempty"`
 	TaskRunID        string           `json:"task_run_id,omitempty"`
 	ChildLoopRunID   string           `json:"child_loop_run_id,omitempty"`
-	ResolvedRuntime  *ResolvedRuntime `json:"resolved_runtime,omitempty"`
-	Attempt          int              `json:"attempt,omitempty"`
+	ResolvedRuntime  *ResolvedRuntime `json:"resolved_runtime,omitzero"`
+	Attempt          int              `json:"attempt,omitzero"`
 	NextAttemptAt    *time.Time       `json:"next_attempt_at,omitempty"`
 	FirstScheduledAt *time.Time       `json:"first_scheduled_at,omitempty"`
-	Epoch            int64            `json:"epoch,omitempty"`
+	Epoch            int64            `json:"epoch,omitzero"`
 	// SessionID is the ACP session bound to the cell's task run; it is a
 	// read-model join and never part of snapshot state.
 	SessionID string `json:"-"`
@@ -56,7 +56,7 @@ type GenerationOutput struct {
 	TaskRunTokensUsed int64 `json:"-"`
 	// ExpectedEpoch is the cell epoch observed by the planner. It is used only
 	// for compare-and-swap and is never stored as domain state.
-	ExpectedEpoch *int64 `json:"expected_epoch,omitempty"`
+	ExpectedEpoch *int64 `json:"expected_epoch,omitzero"`
 	// runtimePayload is hydrated in-process and intentionally omitted from snapshots.
 	runtimePayload json.RawMessage
 }
@@ -316,23 +316,19 @@ func (o GenerationOutput) normalized() GenerationOutput {
 	o.ArtifactName = strings.TrimSpace(o.ArtifactName)
 	o.Status = strings.TrimSpace(o.Status)
 	if o.ResolvedRuntime != nil {
-		normalized := normalizeResolvedRuntime(*o.ResolvedRuntime)
-		o.ResolvedRuntime = &normalized
+		o.ResolvedRuntime = new(normalizeResolvedRuntime(*o.ResolvedRuntime))
 	}
 	if o.Attempt == 0 {
 		o.Attempt = 1
 	}
 	if o.NextAttemptAt != nil {
-		value := o.NextAttemptAt.UTC()
-		o.NextAttemptAt = &value
+		o.NextAttemptAt = new(o.NextAttemptAt.UTC())
 	}
 	if o.FirstScheduledAt != nil {
-		value := o.FirstScheduledAt.UTC()
-		o.FirstScheduledAt = &value
+		o.FirstScheduledAt = new(o.FirstScheduledAt.UTC())
 	}
 	if o.ExpectedEpoch != nil {
-		value := *o.ExpectedEpoch
-		o.ExpectedEpoch = &value
+		o.ExpectedEpoch = new(*o.ExpectedEpoch)
 	}
 	return o
 }

@@ -1,4 +1,14 @@
-import { Field, FieldError, FieldLabel, Input, SymbolPicker, type SymbolValue } from "@compozy/ui";
+import {
+  Field,
+  FieldError,
+  FieldLabel,
+  Input,
+  identitySurfaceFor,
+  SymbolPicker,
+  type SymbolValue,
+} from "@compozy/ui";
+
+import { useThemePreference } from "@/systems/theme";
 
 import type { ProfileIconCatalogViewModel } from "../hooks/use-profile-icon-catalog";
 import {
@@ -49,6 +59,7 @@ export function ProfileIdentityFields(props: ProfileIdentityFieldsProps) {
     testIdPrefix,
     catalog,
   } = props;
+  const { resolvedTheme } = useThemePreference();
   return (
     <div className="flex flex-col gap-3">
       {props.showName !== false ? (
@@ -84,6 +95,7 @@ export function ProfileIdentityFields(props: ProfileIdentityFieldsProps) {
         spriteUrl={PROFILE_SPRITE_URL}
         emojibaseUrl={PROFILE_EMOJIBASE_URL}
         swatches={PROFILE_IDENTITY_SWATCHES}
+        surface={identitySurfaceFor(resolvedTheme)}
         data-testid={`${testIdPrefix}-symbol-picker`}
       />
     </div>

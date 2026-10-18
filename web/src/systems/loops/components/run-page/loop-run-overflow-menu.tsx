@@ -1,4 +1,4 @@
-import { CodeXml, Ellipsis, Workflow } from "lucide-react";
+import { Ellipsis, Info, Workflow } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -29,14 +29,14 @@ export function LoopRunOverflowMenu({ loopName }: LoopRunOverflowMenuProps) {
           render={<Link params={{ name: loopName }} to="/loops/$name/editor" />}
         >
           <Workflow aria-hidden="true" className="size-3.5" />
-          View graph
+          Open in builder
         </DropdownMenuItem>
         <DropdownMenuItem
           data-testid="loop-run-view-definition"
           render={<Link params={{ name: loopName }} to="/loops/$name" />}
         >
-          <CodeXml aria-hidden="true" className="size-3.5" />
-          View definition
+          <Info aria-hidden="true" className="size-3.5" />
+          Loop details
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

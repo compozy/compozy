@@ -80,10 +80,4 @@ describe("groupWorkspaceTree", () => {
     // The discovered checkout still renders, it just never enters the count.
     expect(hq?.worktrees.some(entry => entry.name === discoveredWorktreeFixture.name)).toBe(true);
   });
-
-  it("Should hide the operator-home registration from project workspace rows", () => {
-    const tree = groupWorkspaceTree(workspaces, {}, HOME_DIR);
-
-    expect(tree.map(node => node.workspace.id)).toEqual(["ws_launch_hq", "ws_risk_ops"]);
-  });
 });

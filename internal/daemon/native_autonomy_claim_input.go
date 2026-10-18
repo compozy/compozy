@@ -11,8 +11,8 @@ type autonomyClaimNextInput struct {
 	RunID                string   `json:"run_id,omitempty"`
 	WorkspaceID          string   `json:"workspace,omitempty"`
 	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
-	PriorityMin          int      `json:"priority_min,omitempty"`
-	LeaseSeconds         int64    `json:"lease_seconds,omitempty"`
+	PriorityMin          int      `json:"priority_min,omitzero"`
+	LeaseSeconds         int64    `json:"lease_seconds,omitzero"`
 }
 
 func (i autonomyClaimNextInput) criteria(scope toolspkg.Scope, sessionID string) (taskpkg.ClaimCriteria, error) {

@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -208,13 +209,9 @@ func (p *Pool) Close(ctx context.Context) error {
 	p.entries = make(map[string]*DB)
 	p.mu.Unlock()
 	errs := make([]error, 0, len(entries))
-	workspaceIDs := make([]string, 0, len(entries))
-	for workspaceID := range entries {
-		workspaceIDs = append(workspaceIDs, workspaceID)
-	}
-	sort.Strings(workspaceIDs)
-	sort.Slice(openings, func(left, right int) bool {
-		return openings[left].workspaceID < openings[right].workspaceID
+	workspaceIDs := slices.Sorted(maps.Keys(entries))
+	slices.SortFunc(openings, func(left, right namedWorkspaceOpening) int {
+		return strings.Compare(left.workspaceID, right.workspaceID)
 	})
 	for _, workspaceID := range workspaceIDs {
 		db := entries[workspaceID]

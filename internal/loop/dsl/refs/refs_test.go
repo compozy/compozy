@@ -132,8 +132,8 @@ func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
 		)
 		_, conditionErr := compiler.Compile("nodes.load.output.tasks.summary == 'missing'")
 		for label, compileErr := range map[string]error{"template": templateErr, "condition": conditionErr} {
-			var refErr *refs.Error
-			if !errors.As(compileErr, &refErr) {
+			refErr, ok := errors.AsType[*refs.Error](compileErr)
+			if !ok {
 				t.Fatalf("%s compile error = %v, want refs.Error", label, compileErr)
 			}
 			if refErr.Code != refs.CodeUnresolvablePath ||
@@ -193,8 +193,8 @@ func TestCommandTemplateShouldQuoteRuntimeValuesAsShellData(t *testing.T) {
 				t.Parallel()
 
 				_, err := refs.CompileCommandTemplate("command", test.raw, namespace(false))
-				var refErr *refs.Error
-				if !errors.As(err, &refErr) || refErr.Code != refs.CodeUnsafeCommandInterpolation {
+				refErr, ok := errors.AsType[*refs.Error](err)
+				if !ok || refErr.Code != refs.CodeUnsafeCommandInterpolation {
 					t.Fatalf("CompileCommandTemplate() error = %v, want unsafe command interpolation", err)
 				}
 			})
@@ -216,8 +216,8 @@ func TestCommandTemplateShouldQuoteRuntimeValuesAsShellData(t *testing.T) {
 
 		raw := `{{ if .inputs.done }}'{{ else }}'{{ end }}value{{ if .inputs.done }}'{{ else }}'{{ end }}`
 		_, err := refs.CompileCommandTemplate("command", raw, namespace(false))
-		var refErr *refs.Error
-		if !errors.As(err, &refErr) || refErr.Code != refs.CodeUnsafeCommandInterpolation {
+		refErr, ok := errors.AsType[*refs.Error](err)
+		if !ok || refErr.Code != refs.CodeUnsafeCommandInterpolation {
 			t.Fatalf("CompileCommandTemplate() error = %v, want conditional shell quote rejection", err)
 		}
 	})

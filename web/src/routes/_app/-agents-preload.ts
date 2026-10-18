@@ -22,10 +22,11 @@ export async function preloadAgentsRoute(
   filters: AgentCatalogStableFilter
 ): Promise<void> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
-  if (!workspaceId) return;
   const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
   await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { ...filters, profile })),
+    queryClient.ensureInfiniteQueryData(
+      agentCatalogOptions(workspaceId ?? "", { ...filters, profile })
+    ),
   ]);
 }
 
@@ -34,11 +35,10 @@ export async function preloadAgentSettingsRoute(
   name: string
 ): Promise<void> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
-  if (!workspaceId) return;
   const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
   await settleRouteQueries([
     queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
-    queryClient.ensureQueryData(workspaceDetailOptions(workspaceId)),
+    ...(workspaceId ? [queryClient.ensureQueryData(workspaceDetailOptions(workspaceId))] : []),
     queryClient.ensureQueryData(settingsProvidersListOptions()),
   ]);
 }
@@ -49,14 +49,14 @@ export async function preloadAgentDetailRoute(
 ): Promise<void> {
   const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
-  if (!workspaceId) return;
+  const workspaceScope = workspaceId ? { workspace_id: workspaceId } : { all_workspaces: true };
 
   const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
   await settleRouteQueries([
     queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
-        workspace_id: workspaceId,
+        ...workspaceScope,
         agent: name,
         type: "user",
         sort: "last_activity",
@@ -65,7 +65,7 @@ export async function preloadAgentDetailRoute(
     ),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
-        workspace_id: workspaceId,
+        ...workspaceScope,
         agent: name,
         state: "active",
         type: "user",
@@ -75,7 +75,7 @@ export async function preloadAgentDetailRoute(
     ),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
-        workspace_id: workspaceId,
+        ...workspaceScope,
         agent: name,
         type: "user",
         resumable: true,

@@ -41,7 +41,6 @@ export const QuarantineEntry: Story = {
         onOpenChange={() => {}}
         onVerb={() => {}}
         open
-        runId="r-7c4e19"
       />
     </div>
   ),
@@ -54,13 +53,7 @@ export const RequeueConfirmation: Story = {
     const node = quarantinedNode();
     return (
       <div className="h-dvh bg-canvas">
-        <LoopQuarantineSheet
-          node={node}
-          onOpenChange={() => {}}
-          onVerb={() => {}}
-          open
-          runId="r-7c4e19"
-        >
+        <LoopQuarantineSheet node={node} onOpenChange={() => {}} onVerb={() => {}} open>
           <LoopNodeControlDialog
             onConfirm={() => {}}
             onOpenChange={() => {}}
@@ -82,7 +75,6 @@ export const QuarantineEntryAfterRequeue: Story = {
         onOpenChange={() => {}}
         onVerb={() => {}}
         open
-        runId="r-7c4e19"
       />
     </div>
   ),

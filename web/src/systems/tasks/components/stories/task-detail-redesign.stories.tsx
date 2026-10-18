@@ -152,12 +152,10 @@ export const PropertiesRail: Story = {
     <PanelSurface className="max-w-[360px] p-5">
       <TaskPropertiesRail
         detail={runningDetail}
-        onApprove={() => undefined}
         onAutoEnqueueChange={() => undefined}
         onEditSetup={() => undefined}
         onInspect={() => undefined}
         onPriorityChange={() => undefined}
-        onReject={() => undefined}
         runs={runningRuns}
       />
     </PanelSurface>

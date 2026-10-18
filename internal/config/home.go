@@ -20,8 +20,6 @@ const (
 	SkillsDirName = "skills"
 	// LoopsDirName is the directory used for persisted user loop definitions.
 	LoopsDirName = LoopsConfigKey
-	// MemoryDirName is the directory used for persistent memory files.
-	MemoryDirName = "memory"
 	// ProfilesDirName is the directory used for profile-owned state.
 	ProfilesDirName = "profiles"
 	// DefaultProfileDirName is the permanent default profile directory.
@@ -54,8 +52,6 @@ const (
 	DaemonInfoName = "daemon.json"
 	// LogFileName is the structured daemon log filename.
 	LogFileName = "compozy.log"
-	// NetworkAuditFileName is the append-only network audit filename.
-	NetworkAuditFileName = "network.audit"
 	// AppStateFileName is the desktop shell state filename.
 	AppStateFileName = "app.json"
 	// UpdateOperationFileName is the live host update journal filename.
@@ -81,7 +77,6 @@ type HomePaths struct {
 	LoopsDir              string
 	ProfilesDir           string
 	DefaultProfileDir     string
-	MemoryDir             string
 	SessionsDir           string
 	ToolArtifactsDir      string
 	SessionAttachmentsDir string
@@ -92,7 +87,6 @@ type HomePaths struct {
 	ExtensionDataRoot     string
 	BinDir                string
 	LogFile               string
-	NetworkAuditFile      string
 	AppStateFile          string
 	UpdateOperationFile   string
 	UpdateOperationLock   string
@@ -253,7 +247,6 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		LoopsDir:              filepath.Join(root, LoopsDirName),
 		ProfilesDir:           filepath.Join(root, ProfilesDirName),
 		DefaultProfileDir:     filepath.Join(root, ProfilesDirName, DefaultProfileDirName),
-		MemoryDir:             filepath.Join(root, ProfilesDirName, DefaultProfileDirName, MemoryDirName),
 		SessionsDir:           filepath.Join(root, SessionsDirName),
 		ToolArtifactsDir:      filepath.Join(root, ToolArtifactsDirName),
 		SessionAttachmentsDir: filepath.Join(root, SessionAttachmentsDirName),
@@ -264,7 +257,6 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		ExtensionDataRoot:     filepath.Join(root, ExtensionDataDirName),
 		BinDir:                filepath.Join(root, BinDirName),
 		LogFile:               filepath.Join(root, LogsDirName, LogFileName),
-		NetworkAuditFile:      filepath.Join(root, LogsDirName, NetworkAuditFileName),
 		AppStateFile:          filepath.Join(root, AppStateFileName),
 		UpdateOperationFile:   filepath.Join(root, UpdateOperationFileName),
 		UpdateOperationLock:   filepath.Join(root, UpdateOperationLockName),
@@ -286,7 +278,6 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.LoopsDir,
 		paths.ProfilesDir,
 		paths.DefaultProfileDir,
-		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
 		paths.SessionAttachmentsDir,

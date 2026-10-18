@@ -140,18 +140,10 @@ func (m *Manager) pendingSteps(ctx context.Context, opID string) (steps []lifecy
 
 func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleStep) error {
 	switch step.Action {
+	case stepReconcileAutomations:
+		return m.reconcileProfileAutomations(ctx, opID)
 	case stepMkdirProfile:
-		path, err := m.containedProfilePath(step.PathNew)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(path, 0o700); err != nil {
-			return fmt.Errorf("profile: create profile directory %q: %w", path, err)
-		}
-		if err := os.Chmod(path, 0o700); err != nil {
-			return fmt.Errorf("profile: set profile directory permissions %q: %w", path, err)
-		}
-		return nil
+		return m.createProfileDirectory(step.PathNew)
 	case stepWriteDeclaredSeed:
 		return m.writeDeclaredSeed(ctx, opID, step.PathNew)
 	case stepRenameProfile:
@@ -222,21 +214,35 @@ func (m *Manager) removeDesktopPartitions(ctx context.Context, opID string) erro
 	return nil
 }
 
+func (m *Manager) createProfileDirectory(profilePath string) error {
+	path, err := m.containedProfilePath(profilePath)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return fmt.Errorf("profile: create profile directory %q: %w", path, err)
+	}
+	if err := os.Chmod(path, 0o700); err != nil {
+		return fmt.Errorf("profile: set profile directory permissions %q: %w", path, err)
+	}
+	return nil
+}
+
 func (m *Manager) writeDeclaredSeed(ctx context.Context, opID, profilePath string) error {
 	path, err := m.containedProfilePath(profilePath)
 	if err != nil {
 		return err
 	}
-	var agent, provider, sandbox sql.NullString
+	var agent, provider sql.NullString
 	if err := m.store.DB().QueryRowContext(
 		ctx,
-		`SELECT default_agent, default_provider, default_sandbox
+		`SELECT default_agent, default_provider
 		 FROM profile_lifecycle_op_seed WHERE op_id = ?`,
 		opID,
-	).Scan(&agent, &provider, &sandbox); err != nil {
+	).Scan(&agent, &provider); err != nil {
 		return fmt.Errorf("profile: read declared seed for operation %s: %w", opID, err)
 	}
-	if !agent.Valid && !provider.Valid && !sandbox.Valid {
+	if !agent.Valid && !provider.Valid {
 		return nil
 	}
 	target, err := compozyconfig.ResolveConfigWriteTarget(
@@ -255,7 +261,6 @@ func (m *Manager) writeDeclaredSeed(ctx context.Context, opID, profilePath strin
 		}{
 			{key: "agent", value: agent},
 			{key: "provider", value: provider},
-			{key: "sandbox", value: sandbox},
 		} {
 			if !candidate.value.Valid {
 				continue

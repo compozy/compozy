@@ -34,6 +34,20 @@ describe("Time", () => {
     expect(node?.getAttribute("title")).toBe("5m ago");
   });
 
+  it("Should render the compact relative text with the absolute timestamp as its title", () => {
+    const past = new Date(FIXED_NOW - 5 * 60_000).toISOString();
+    const { container } = render(<Time iso={past} mode="compact" />);
+    const node = container.querySelector<HTMLTimeElement>('[data-slot="time"]');
+    expect(node?.dataset.mode).toBe("compact");
+    expect(node?.textContent).toBe("5m");
+    expect(node?.getAttribute("title")).toMatch(/2026/);
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(node?.textContent).toBe("6m");
+  });
+
   it("Should refresh the rendered relative string after the 30s tick", () => {
     const start = new Date(FIXED_NOW - 5_000).toISOString();
     const { container } = render(<Time iso={start} />);

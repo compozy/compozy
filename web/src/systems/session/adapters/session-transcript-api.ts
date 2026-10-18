@@ -39,16 +39,19 @@ export async function fetchSessionTranscript(
   query: SessionTranscriptQuery = {},
   signal?: AbortSignal
 ): Promise<NormalizedSessionTranscriptResponse> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
-    {
-      params: {
-        path: { workspace_id: workspaceId, session_id: id },
-        query: Object.keys(query).length > 0 ? query : undefined,
-      },
-      signal,
-    }
-  );
+  const { data, error, response } =
+    workspaceId === ""
+      ? await apiClient.GET("/api/sessions/{session_id}/transcript", {
+          params: { path: { session_id: id }, query: { ...query, all_profiles: true } },
+          signal,
+        })
+      : await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", {
+          params: {
+            path: { workspace_id: workspaceId, session_id: id },
+            query: Object.keys(query).length > 0 ? query : undefined,
+          },
+          signal,
+        });
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to fetch session transcript "${id}"`, id);
   }

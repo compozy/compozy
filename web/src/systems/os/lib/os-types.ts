@@ -28,14 +28,9 @@ export type OsAppId =
   | "terminal"
   | "tasks"
   | "agents"
-  | "network"
   | "loops"
-  | "jobs"
-  | "triggers"
+  | "automations"
   | "marketplace"
-  | "bridges"
-  | "knowledge"
-  | "sandbox"
   | "vault"
   | "settings";
 
@@ -73,11 +68,11 @@ export interface OsWindow {
   parentAxis: LayoutAxis | null;
 }
 
-export type OsWallpaper = "ember" | "mesh" | "carbon";
+export type OsWallpaper = "flat" | "ember" | "mesh" | "carbon";
 export type OsPresentation = "floating" | "compact";
 export type OsViewportState = "ready" | "rejected";
 export type OsHydration = "pending" | "live" | "degraded";
-export type OsArrangePreset = "two-up" | "grid";
+export type OsArrangePreset = "two-up" | "grid" | "main-stack" | "columns";
 
 export interface OsOpenTarget {
   app: OsAppId;
@@ -87,6 +82,14 @@ export interface OsOpenTarget {
   stackTargetWindowId?: string;
   /** Skip focus-first resolution and always create another instance (ADR-002). */
   forceNewInstance?: boolean;
+  /**
+   * Explicit placement for a window this open creates. Omitted follows the
+   * daemon's new-window policy (a tab in the focused window by default):
+   * `split` tiles beside the focused window, `floating` opens a free window.
+   */
+  placement?: "split" | "floating";
+  /** Open onto this desktop instead of the client's active one. */
+  desktopId?: string;
   /** Classified navigation intent when the target resolves to a live window (ADR-011). */
   navigateMode?: OsNavigateMode;
 }
@@ -156,10 +159,10 @@ export interface OsDesktopRuntimeStore {
   focusedId: string | null;
   wallpaper: OsWallpaper;
   reduceMotion: boolean;
-  dockMagnify: boolean;
   presentation: OsPresentation;
   viewportState: OsViewportState;
   hydration: OsHydration;
+  loadError: Error | null;
   connectionStatus: WindowManagerConnectionStatus;
   desktopBounds: OsDesktopBounds | null;
 }
@@ -211,7 +214,7 @@ export interface WindowManagerController extends OsDesktopRuntime {
     instanceKey: string,
     route: OsWindowRoute
   ): WindowManagerCommandOutcome;
-  popWindowRoute(id: string): WindowManagerCommandOutcome;
+  popWindowRoute(id: string, expectedRoute?: OsWindowRoute): WindowManagerCommandOutcome;
   groupWindows(
     targetWindowId: string,
     windowIds: readonly string[],
@@ -223,10 +226,10 @@ export interface WindowManagerController extends OsDesktopRuntime {
   reopenWindow(): WindowManagerCommandOutcome;
   closeWindowScoped(windowId: string, scope: OsCloseScope): Promise<boolean>;
   setWallpaper(wallpaper: OsWallpaper): void;
-  setDockMagnify(on: boolean): void;
   setReduceMotion(on: boolean): void;
   setDesktopBounds(bounds: OsDesktopBounds): void;
-  createDesktop(): void;
+  /** Creates a desktop; callers that act on it next pass their own ID. */
+  createDesktop(desktopId?: string): WindowManagerCommandOutcome;
   renameDesktop(desktopId: string, name: string): void;
   reorderDesktop(desktopId: string, order: number): void;
   switchDesktop(desktopId: string): void;
@@ -249,5 +252,6 @@ export interface WindowManagerController extends OsDesktopRuntime {
 }
 
 export const OS_COMPACT_BREAKPOINT = 960;
-export const OS_WINDOW_MIN_WIDTH = 280;
-export const OS_WINDOW_MIN_HEIGHT = 180;
+/** Per-pane floor (shell-rail VC-03): seams and free edges stop at 220px on either axis. */
+export const OS_WINDOW_MIN_WIDTH = 220;
+export const OS_WINDOW_MIN_HEIGHT = 220;

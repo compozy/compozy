@@ -10,7 +10,6 @@ import {
   deleteSession,
   repairSession,
   renameSession,
-  resumeSession,
   SessionApiError,
   SessionGoalCommandError,
   sendSessionPrompt,
@@ -49,27 +48,29 @@ interface UseSessionWorkspaceOptions {
   workspaceId?: string | null;
 }
 
-export interface RenameSessionParams {
-  id: string;
+export type SessionActionTarget = Pick<SessionPayload, "id" | "workspace_id" | "profile_name">;
+
+export interface RenameSessionParams extends SessionActionTarget {
   name: string;
 }
 
-export function useRenameSession(options: UseSessionWorkspaceOptions = {}) {
+/** Renames the supplied row and invalidates its owning workspace after settlement. */
+export function useRenameSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, name }: RenameSessionParams) =>
-      request(signal => renameSession(requireWorkspace(workspaceId), id, { name }, signal)),
+    mutationFn: ({ id, workspace_id, profile_name, name }: RenameSessionParams) =>
+      request(signal =>
+        renameSession(requireWorkspace(workspace_id), id, profile_name, { name }, signal)
+      ),
     onSuccess: session => {
       const successWorkspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(successWorkspaceId, session.id), session);
     },
     onSettled: (_data, _error, variables) => {
-      if (workspaceId) {
-        void invalidateSessionMutationQueries(queryClient, workspaceId, variables.id);
+      if (variables.workspace_id) {
+        void invalidateSessionMutationQueries(queryClient, variables.workspace_id, variables.id);
       }
     },
   });
@@ -105,22 +106,22 @@ export function useCreateSession() {
   });
 }
 
-export interface StopSessionParams {
-  id: string;
+export interface StopSessionParams extends Pick<
+  SessionPayload,
+  "id" | "workspace_id" | "profile_name"
+> {
   /** Wait for the settled outcome instead of the 202 acceptance. */
   wait?: boolean;
 }
 
-export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
+export function useStopSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
-    mutationFn: ({ id, wait }: StopSessionParams) =>
-      stopSession(requireWorkspace(workspaceId), id, { wait }),
-    onSettled: (_data, _error, { id }) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    mutationFn: ({ id, workspace_id, profile_name, wait }: StopSessionParams) =>
+      stopSession(requireWorkspace(workspace_id), id, profile_name, { wait }),
+    onSettled: (_data, _error, { id, workspace_id }) => {
+      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },
   });
 }
@@ -160,60 +161,30 @@ export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {})
   });
 }
 
-export function useArchiveSession(options: UseSessionWorkspaceOptions = {}) {
+/** Archives the supplied row without depending on the currently selected workspace. */
+export function useArchiveSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: (id: string) =>
-      request(signal => archiveSession(requireWorkspace(workspaceId), id, signal)),
-    onSettled: (_data, _error, id) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+      request(signal => archiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
+    onSettled: (_data, _error, { id, workspace_id }) => {
+      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },
   });
 }
 
-export function useUnarchiveSession(options: UseSessionWorkspaceOptions = {}) {
+/** Restores the supplied row and refreshes the catalog in its owning workspace. */
+export function useUnarchiveSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: (id: string) =>
-      request(signal => unarchiveSession(requireWorkspace(workspaceId), id, signal)),
-    onSettled: (_data, _error, id) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
-    },
-  });
-}
-
-export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
-
-  return useMutation({
-    mutationFn: (id: string) => resumeSession(requireWorkspace(workspaceId), id),
-    onMutate: async id => {
-      const resumeWorkspaceId = requireWorkspace(workspaceId);
-      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: sessionKeys.detail(resumeWorkspaceId, id) }),
-        queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
-      ]);
-    },
-    onSettled: (_data, _error, id) => {
-      if (!workspaceId) {
-        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
-        return;
-      }
-
-      return invalidateSessionMutationQueries(queryClient, workspaceId, id).finally(() => {
-        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
-      });
+    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+      request(signal => unarchiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
+    onSettled: (_data, _error, { id, workspace_id }) => {
+      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },
   });
 }

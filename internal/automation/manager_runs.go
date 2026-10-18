@@ -169,3 +169,10 @@ func (m *Manager) SetTriggerEnabled(ctx context.Context, id string, enabled bool
 	}
 	return current, nil
 }
+
+func (m *Manager) LatestRunsByOwner(ctx context.Context, owner RunOwnerKind, ids []string) (map[string]Run, error) {
+	if ctx == nil {
+		return nil, errors.New("automation: latest runs context is required")
+	}
+	return m.store.LatestRunsByOwner(ctx, owner, ids)
+}

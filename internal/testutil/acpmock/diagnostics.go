@@ -24,13 +24,13 @@ type DiagnosticsRecord struct {
 	ConfigOptionValue string             `json:"config_option_value,omitempty"`
 	LifecycleEvent    string             `json:"lifecycle_event,omitempty"`
 	MCPServers        []acpsdk.McpServer `json:"mcp_servers,omitempty"`
-	NetworkEnv        []string           `json:"network_env,omitempty"`
-	PromptIndex       int                `json:"prompt_index"`
-	Prompt            string             `json:"prompt"`
-	PromptMeta        acp.PromptMeta     `json:"prompt_meta"`
-	TurnName          string             `json:"turn_name,omitempty"`
-	Match             TurnMatch          `json:"match"`
-	Steps             []DiagnosticsStep  `json:"steps"`
+
+	PromptIndex int               `json:"prompt_index"`
+	Prompt      string            `json:"prompt"`
+	PromptMeta  acp.PromptMeta    `json:"prompt_meta"`
+	TurnName    string            `json:"turn_name,omitempty"`
+	Match       TurnMatch         `json:"match"`
+	Steps       []DiagnosticsStep `json:"steps"`
 }
 
 // DiagnosticsForProvider returns structured records for one canonical provider identity.
@@ -81,7 +81,7 @@ type DiagnosticsStep struct {
 	Decision     string              `json:"decision,omitempty"`
 	Command      string              `json:"command,omitempty"`
 	Args         []string            `json:"args,omitempty"`
-	ExitCode     *int                `json:"exit_code,omitempty"`
+	ExitCode     *int                `json:"exit_code,omitzero"`
 	Output       string              `json:"output,omitempty"`
 	Error        string              `json:"error,omitempty"`
 	DriverAction DriverControlAction `json:"driver_action,omitempty"`

@@ -48,21 +48,6 @@ func (g *lifecycleRWGate) lock(ctx context.Context, shared bool) (func(), error)
 	}
 }
 
-func (g *lifecycleRWGate) lockUncancelable(shared bool) func() {
-	waitingWriter := false
-	for {
-		g.mu.Lock()
-		unlock, acquired := g.tryAcquireLocked(shared, &waitingWriter)
-		if acquired {
-			g.mu.Unlock()
-			return unlock
-		}
-		changed := g.changed
-		g.mu.Unlock()
-		<-changed
-	}
-}
-
 func (g *lifecycleRWGate) tryAcquireLocked(shared bool, waitingWriter *bool) (func(), bool) {
 	g.ensureChangedLocked()
 	if shared {

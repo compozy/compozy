@@ -2,7 +2,8 @@ package heartbeat
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -73,7 +74,7 @@ func forbiddenOwner(key string) string {
 		return "task lease heartbeat"
 	case "network", "greet", "presence", "peer_presence", "peers",
 		"channels", "channel":
-		return "Compozy Network membership"
+		return "runtime state"
 	case "provider", "providers", "model", "command", "tools", "toolsets", "deny_tools",
 		"permissions", "capabilities", "capability", "hooks", "mcp_servers", "env", "config":
 		return "agent definition or runtime config"
@@ -138,11 +139,8 @@ func normalizeKey(value string) string {
 }
 
 func sortedKeys(raw map[string]any) []string {
-	keys := make([]string, 0, len(raw))
-	for key := range raw {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(raw)), maps.Keys(raw))
+	slices.Sort(keys)
 	return keys
 }
 

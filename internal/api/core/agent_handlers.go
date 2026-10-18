@@ -42,34 +42,17 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		)
 		return
 	}
-	cfg, err := h.activeConfig(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
 	profileScope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	if h.AgentCatalog != nil {
-		entries, listErr := h.AgentCatalog.ListAgentsForWorkspace(
-			c.Request.Context(),
-			&workspacepkg.ResolvedWorkspace{ProfileID: profileScope.ProfileID, ProfileName: profileName},
-		)
-		if listErr != nil {
-			h.respondError(c, http.StatusInternalServerError, listErr)
-			return
-		}
-		h.respondAgentEntries(c, entries, &cfg, "")
-		return
-	}
-	agentDefs, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, h.HomePaths, profileName)
+	resolved, err := h.globalAgentEntries(c.Request.Context(), profileScope.ProfileID, profileName)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	h.respondAgentDefs(c, agentDefs, &cfg, "")
+	h.respondAgentEntries(c, resolved.Entries, &resolved.Config, "")
 }
 
 // CreateAgent writes a new global or workspace-local AGENT.md definition.

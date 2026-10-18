@@ -5,10 +5,13 @@ package terminal
 // Boundary IN: process/output state changes. Boundary OUT: WaitResult reasons.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 func TestWaitEngineContract(t *testing.T) {
@@ -20,7 +23,7 @@ func TestWaitEngineContract(t *testing.T) {
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		code := 7
 		starter.latest().complete(terminalExit("exited", &code, nil))
-		result, err := handle.Wait(context.Background(), WaitCondition{Until: "exit"})
+		result, err := handle.Wait(t.Context(), WaitCondition{Until: "exit"})
 		if err != nil {
 			t.Fatalf("Wait(exit) error = %v", err)
 		}
@@ -33,6 +36,47 @@ func TestWaitEngineContract(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		viewer, err := handle.Attach(t.Context(), AttachOptions{
+			Mode: "read", Flow: "ack",
+			Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+		})
+		if err != nil {
+			t.Fatalf("Attach() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := viewer.Close(); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		assertAttachedFrame(t, receiveSubscriptionFrame(t, viewer), 0, false)
+		// Fill the ACK window before timing Wait; leave every output frame unacknowledged.
+		if err := starter.latest().emit(bytes.Repeat([]byte("x"), terminalwire.AckHighWatermark)); err != nil {
+			t.Fatalf("emit(stalled viewer setup) error = %v", err)
+		}
+		waitForTerminalTail(t, handle, "setup output did not fill the ACK window", func(tail *ReadResult) bool {
+			return tail.Seq == terminalwire.AckHighWatermark &&
+				viewer.(*subscription).queue.PendingBytes() >= terminalwire.AckHighWatermark
+		})
+		// Consume any read already in flight when the ACK window became full.
+		probe := []byte("settled\r\n")
+		probeDone := make(chan error, 1)
+		go func() { probeDone <- starter.latest().emit(probe) }()
+		setupCtx, cancelSetup := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelSetup()
+		waitForTerminalTail(t, handle, "setup probe or screen did not settle", func(tail *ReadResult) bool {
+			wantSeq := uint64(terminalwire.AckHighWatermark + len(probe))
+			if tail.Seq != wantSeq {
+				return false
+			}
+			screen, err := handle.Screen(setupCtx, ReadOptions{View: terminalViewScreen})
+			if err != nil {
+				t.Fatalf("Screen(stalled viewer setup) error = %v", err)
+			}
+			return !screen.Busy && screen.Seq == wantSeq
+		})
+		if err := <-probeDone; err != nil {
+			t.Fatalf("emit(setup probe) error = %v", err)
+		}
 		type waitOutcome struct {
 			result *WaitResult
 			err    error
@@ -47,13 +91,15 @@ func TestWaitEngineContract(t *testing.T) {
 			resultDone <- waitOutcome{result: result, err: err}
 		}()
 		<-waitStarted
-		if err := starter.latest().emit([]byte("ready-42\r\n")); err != nil {
-			t.Fatalf("emit() error = %v", err)
-		}
+		emitDone := make(chan error, 1)
+		go func() { emitDone <- starter.latest().emit([]byte("ready-42\r\n")) }()
 		select {
 		case outcome := <-resultDone:
 			if outcome.err != nil || outcome.result.Reason != "match" {
 				t.Fatalf("Wait(match) = %#v error=%v", outcome.result, outcome.err)
+			}
+			if err := <-emitDone; err != nil {
+				t.Fatalf("emit() error = %v", err)
 			}
 		case <-time.After(200 * time.Millisecond):
 			t.Fatal("matching output did not wake wait")
@@ -113,7 +159,7 @@ func TestWaitEngineContract(t *testing.T) {
 				}
 			}
 		}()
-		holding, err := handle.Wait(context.Background(), WaitCondition{Until: "idle"})
+		holding, err := handle.Wait(t.Context(), WaitCondition{Until: "idle"})
 		close(stop)
 		<-tickerDone
 		if err != nil || holding.Reason != "still_running" {
@@ -140,7 +186,7 @@ func TestWaitEngineContract(t *testing.T) {
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		item := handle.(*session)
 		item.markReaderEnded()
-		result, err := handle.Wait(context.Background(), WaitCondition{Until: "match", Pattern: "never"})
+		result, err := handle.Wait(t.Context(), WaitCondition{Until: "match", Pattern: "never"})
 		if err != nil || result.Reason != "stalled" {
 			t.Fatalf("Wait(stalled) = %#v error=%v", result, err)
 		}
@@ -148,7 +194,7 @@ func TestWaitEngineContract(t *testing.T) {
 		managerTwo, _, _ := newTestManager(t, DefaultSettings())
 		handleTwo := openTestTerminal(t, managerTwo, "workspace-a", "profile-a")
 		started := time.Now()
-		result, err = handleTwo.Wait(context.Background(), WaitCondition{Until: "idle"})
+		result, err = handleTwo.Wait(t.Context(), WaitCondition{Until: "idle"})
 		elapsed := time.Since(started)
 		const expectedIdleDebounce = 300 * time.Millisecond
 		const expectedIdleMaximum = 700 * time.Millisecond

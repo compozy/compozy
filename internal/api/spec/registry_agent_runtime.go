@@ -6,10 +6,6 @@ func registryAgentRuntimeOperations() []OperationSpec {
 	return []OperationSpec{
 		getAgentMeOperationSpec(),
 		getAgentContextOperationSpec(),
-		listAgentChannelsOperationSpec(),
-		receiveAgentChannelMessagesOperationSpec(),
-		sendAgentChannelMessageOperationSpec(),
-		replyAgentChannelMessageOperationSpec(),
 		claimNextAgentTaskOperationSpec(),
 		startAgentTaskRunOperationSpec(),
 		heartbeatAgentTaskRunOperationSpec(),
@@ -127,123 +123,6 @@ func getAgentContextOperationSpec() OperationSpec {
 				Body:        contract.ErrorPayload{},
 			},
 			{Status: 404, Description: "Caller session not found", Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func listAgentChannelsOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        "/api/agent/channels",
-		OperationID: "listAgentChannels",
-		Summary:     "List coordination channels visible to the calling agent",
-		Tags:        []string{specAgentKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.AgentChannelsResponse{}},
-			{Status: 401, Description: specAgentCallerIdentityIsMissingDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      403,
-				Description: specForbiddenWorkspaceOrPermissionMismatchDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{
-				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func receiveAgentChannelMessagesOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        "/api/agent/channels/{channel}/recv",
-		OperationID: "receiveAgentChannelMessages",
-		Summary:     "Receive task-bound coordination channel messages",
-		Tags:        []string{specAgentKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("channel", "Coordination channel id"),
-			boolQueryParam("wait", "Wait for the next message when no messages are immediately available"),
-			intQueryParam("limit", "Maximum number of messages to return"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.AgentChannelMessagesResponse{}},
-			{Status: 400, Description: "Invalid channel receive query", Body: contract.ErrorPayload{}},
-			{Status: 401, Description: specAgentCallerIdentityIsMissingDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      403,
-				Description: specForbiddenWorkspaceOrPermissionMismatchDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 404, Description: "Coordination channel not found", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid channel receive request", Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func sendAgentChannelMessageOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        "/api/agent/channels/{channel}/send",
-		OperationID: "sendAgentChannelMessage",
-		Summary:     "Send one task-bound coordination channel message",
-		Tags:        []string{specAgentKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("channel", "Coordination channel id"),
-		},
-		RequestBody: contract.AgentChannelSendRequest{},
-		Responses: []ResponseSpec{
-			{Status: 202, Description: specAcceptedDescription, Body: contract.AgentChannelMessageResponse{}},
-			{Status: 401, Description: specAgentCallerIdentityIsMissingDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      403,
-				Description: specForbiddenWorkspaceOrPermissionMismatchDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 404, Description: "Coordination channel not found", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid channel send request", Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func replyAgentChannelMessageOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        "/api/agent/channels/reply",
-		OperationID: "replyAgentChannelMessage",
-		Summary:     "Reply to one delivered coordination channel message",
-		Tags:        []string{specAgentKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.AgentChannelReplyRequest{},
-		Responses: []ResponseSpec{
-			{Status: 202, Description: specAcceptedDescription, Body: contract.AgentChannelMessageResponse{}},
-			{Status: 401, Description: specAgentCallerIdentityIsMissingDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      403,
-				Description: specForbiddenWorkspaceOrPermissionMismatchDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 404, Description: "Coordination message not found", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid channel reply request", Body: contract.ErrorPayload{}},
 			{
 				Status:      503,
 				Description: specServiceUnavailableDependentServiceMissingDescription,

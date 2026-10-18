@@ -147,12 +147,12 @@ func (m *Manager) RepairSession(
 		return nil, fmt.Errorf("session: query events for repair %q: %w", target, err)
 	}
 
-	result, actions := planSessionRepair(target, meta, opts, events)
+	result, actions := planSessionRepair(target, &meta, opts, events)
 	if len(actions) == 0 {
 		return result, nil
 	}
 
-	persisted, err := m.persistRepairActions(ctx, recorder, meta, actions)
+	persisted, err := m.persistRepairActions(ctx, recorder, &meta, actions)
 	if err != nil {
 		return result, err
 	}
@@ -163,7 +163,7 @@ func (m *Manager) RepairSession(
 
 func planSessionRepair(
 	target string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	opts RepairOpts,
 	events []store.SessionEvent,
 ) (*RepairResult, []RepairAction) {
@@ -199,7 +199,7 @@ func planSessionRepair(
 		})
 		return result, nil
 	}
-	stopReason := sessionMetaStopReason(&meta)
+	stopReason := sessionMetaStopReason(meta)
 	if !opts.Force && !repairDefaultStopReason(stopReason) {
 		result.Issues = append(result.Issues, RepairIssue{
 			Code:     RepairIssueStopReasonRequiresForce,

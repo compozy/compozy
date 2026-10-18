@@ -1,8 +1,7 @@
-import { AlertCircle, Activity, RefreshCw, Repeat2 } from "lucide-react";
+import { AlertCircle, Activity, Repeat2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
-  Button,
   Empty,
   ListingPage,
   ListingToolbar,
@@ -20,7 +19,7 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   const loopCount = page.loopsQuery.total;
 
   const toolbar =
-    page.workspaceId === "" || page.loopsQuery.isLoading ? undefined : (
+    page.workspaceId === "" ? undefined : (
       <ListingToolbar>
         <ListingToolbar.Leading>
           <ListingToolbar.Search
@@ -32,8 +31,9 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
           />
           <ListingToolbar.Filters>
             <LoopCatalogFilters
-              onStatusFilterChange={page.setStatusFilter}
-              statusFilter={page.filter.status}
+              categoryOptions={page.categoryOptions}
+              filter={page.filter}
+              onFiltersChange={page.setFilters}
             />
           </ListingToolbar.Filters>
         </ListingToolbar.Leading>
@@ -49,23 +49,13 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
       page.workspaceId === "" ? undefined : (
         <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
           <Link
-            className={buttonVariants({ size: "sm", variant: "ghost" })}
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
             data-testid="loops-runs-link"
             to="/loop-runs"
           >
-            <Activity aria-hidden="true" className="size-3" />
+            <Activity aria-hidden="true" />
             Runs
           </Link>
-          <Button
-            data-testid="loops-refresh"
-            onClick={page.handleRefresh}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <RefreshCw aria-hidden="true" className="size-3" />
-            Refresh
-          </Button>
         </div>
       ),
     toolbar,
@@ -74,9 +64,9 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   if (page.workspaceId === "") {
     return (
       <CatalogState
-        description="Select a workspace to browse its Loops."
+        description="Select a project to browse its Loops."
         testId="loops-no-workspace"
-        title="No workspace selected"
+        title="No project selected"
       />
     );
   }

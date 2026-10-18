@@ -9,6 +9,7 @@ import (
 func cloneToolSpec(src toolspkg.Tool) toolspkg.Tool {
 	cloned := src
 	cloned.ToolPresentation = toolspkg.CloneToolPresentation(src.ToolPresentation)
+	cloned.ToolExecutionMetadata = toolspkg.CloneToolExecutionMetadata(src.ToolExecutionMetadata)
 	if len(src.InputSchema) > 0 {
 		cloned.InputSchema = append([]byte(nil), src.InputSchema...)
 	}

@@ -5,16 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { RadioGroup, RadioGroupItem } from "../radio-group";
 
 describe("RadioGroup", () => {
-  it("Should render the group and items with data-slots", () => {
-    const { container } = render(
-      <RadioGroup aria-label="mode">
-        <RadioGroupItem aria-label="fast" value="fast" />
-      </RadioGroup>
-    );
-    expect(container.querySelector("[data-slot=radio-group]")).not.toBeNull();
-    expect(container.querySelector("[data-slot=radio-group-item]")).not.toBeNull();
-  });
-
   it("Should select an item when clicked", async () => {
     const user = userEvent.setup();
     render(

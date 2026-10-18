@@ -30,16 +30,13 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			{path: "/api/settings/update", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/general", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/persona", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/memory", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/memory", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/roles", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/roles", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/skills", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/skills", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/automation", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/automation", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/network", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/network", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
+
 			{
 				path:       "/api/settings/cmd-palette",
 				method:     "GET",
@@ -132,22 +129,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				method:     "DELETE",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
-			{path: "/api/settings/sandboxes", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
-			{
-				path:       "/api/settings/sandboxes/{name}",
-				method:     "GET",
-				transports: []Transport{TransportHTTP, TransportUDS},
-			},
-			{
-				path:       "/api/settings/sandboxes/{name}",
-				method:     "PUT",
-				transports: []Transport{TransportHTTP, TransportUDS},
-			},
-			{
-				path:       "/api/settings/sandboxes/{name}",
-				method:     "DELETE",
-				transports: []Transport{TransportHTTP, TransportUDS},
-			},
+
 			{path: "/api/settings/hooks", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/hooks/{name}", method: "PUT", transports: []Transport{TransportHTTP, TransportUDS}},
 			{
@@ -296,11 +278,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			t,
 			rolesConfig,
 			"coordinator",
-			"dream",
-			"checkpoint_summary",
-			"memory_extractor",
 			"auto_title",
-			"memory_controller",
 		)
 
 		mutationSchema := jsonResponseSchema(t, updateGeneral, 200)
@@ -406,8 +384,11 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(
 			t,
 			propertySchema(t, shellSessionsSchema, "sort"),
+			"created",
+			"name",
 			"attention",
 			"last_activity",
+			"manual",
 		)
 		assertEnumValues(
 			t,
@@ -450,6 +431,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			propertySchema(t, windowManagerConfigSchema, "new_window_policy"),
 			"beside_focus",
 			"floating",
+			"tab",
 		)
 		assertEnumValues(
 			t,

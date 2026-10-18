@@ -182,8 +182,7 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 	)
 	if cached, err := readCache(m.cachePath()); err == nil {
 		latest = cached.release()
-		checked := cached.CheckedAt.UTC()
-		checkedAt = &checked
+		checkedAt = new(cached.CheckedAt.UTC())
 	} else if err != nil && !errors.Is(err, ErrNoCachedRelease) {
 		return State{}, nil, err
 	}

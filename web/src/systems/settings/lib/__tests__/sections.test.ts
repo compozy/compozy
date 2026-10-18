@@ -17,15 +17,13 @@ describe("settings sections metadata", () => {
       "appearance",
       "layouts",
       "profiles",
-      "palette",
       "providers",
-      "memory",
       "roles",
       "skills",
       "mcp",
       "automation",
-      "network",
       "gateway",
+      "palette",
       "attention",
       "observability",
       "hooks",
@@ -35,12 +33,12 @@ describe("settings sections metadata", () => {
   });
 
   it("groups operator-facing sections together", () => {
-    // Attention and Observability are about how the operator works, not how the
-    // workspace or the runtime is configured.
+    // Palette, Attention and Observability are about how the operator works, not
+    // how the workspace or the runtime is configured.
     const operator = SETTINGS_SECTIONS.filter(section => section.group === "operator").map(
       section => section.slug
     );
-    expect(operator).toEqual(["attention", "observability"]);
+    expect(operator).toEqual(["palette", "attention", "observability"]);
   });
 
   it("provides nested paths rooted under the settings shell", () => {
@@ -53,7 +51,7 @@ describe("settings sections metadata", () => {
   });
 
   it("looks sections up by slug", () => {
-    expect(findSettingsSection("memory")?.label).toBe("Memory");
+    expect(findSettingsSection("roles")?.label).toBe("Roles");
     expect(findSettingsSection("terminal")?.label).toBe("Terminal");
     expect(findSettingsSection("nope")).toBeUndefined();
     expect(findSettingsSection(null)).toBeUndefined();

@@ -34,8 +34,12 @@ type SendPromptRequest struct {
 	IdempotencyKey string                         `json:"idempotency_key"`
 	Mode           PromptMode                     `json:"mode,omitempty"`
 	ExpectedTurnID string                         `json:"expected_turn_id,omitempty"`
-	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
 	Attachments    []PromptAttachmentRef          `json:"attachments,omitempty"`
+	// InReplyTo names the message id this prompt answers. It requires a calling agent session.
+	InReplyTo string `json:"in_reply_to,omitempty"`
+	// Supersede replaces the caller's own older queued prompt to the same session.
+	Supersede bool `json:"supersede,omitempty"`
 }
 
 // PromptAttachmentRef is one provider-neutral attachment on a prompt request.
@@ -73,7 +77,14 @@ type SteerPromptRequest struct {
 }
 
 // SendPromptResultPayload reports non-streaming busy-input outcomes.
+type ReplyWatchRefPayload struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+}
+
 type SendPromptResultPayload struct {
+	ReplyWatch            *ReplyWatchRefPayload   `json:"reply_watch,omitempty"`
+	TargetWorkspaceID     string                  `json:"target_workspace_id,omitempty"`
 	Disposition           session.Disposition     `json:"disposition,omitempty"`
 	SteerDelivery         store.SteerDeliveryMode `json:"steer_delivery,omitempty"`
 	TurnID                string                  `json:"turn_id,omitempty"`
@@ -86,16 +97,17 @@ type SendPromptResultPayload struct {
 	Replayed              bool                    `json:"replayed"`
 	QueueEntryID          string                  `json:"queue_entry_id,omitempty"`
 	QueuePosition         int                     `json:"queue_position"`
-	QueueGeneration       int64                   `json:"queue_generation,omitempty"`
+	QueueGeneration       int64                   `json:"queue_generation,omitzero"`
 	EstimatedSendAt       *time.Time              `json:"estimated_send_at,omitempty"`
 	PreviousTurnID        string                  `json:"previous_turn_id,omitempty"`
 	NewTurnID             string                  `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries int                     `json:"canceled_queued_entries,omitempty"`
-	Goal                  *GoalCommandResult      `json:"goal,omitempty"`
+	CanceledQueuedEntries int                     `json:"canceled_queued_entries,omitzero"`
+	Goal                  *GoalCommandResult      `json:"goal,omitzero"`
 }
 
 // SessionInputPayload is one durable operator input waiting for session dispatch.
 type SessionInputPayload struct {
+	Origin           *PromptOriginMeta               `json:"origin,omitzero"`
 	ID               string                          `json:"id"`
 	SessionID        string                          `json:"session_id"`
 	OwnerKind        string                          `json:"owner_kind,omitempty"`
@@ -110,7 +122,7 @@ type SessionInputPayload struct {
 	Text             string                          `json:"text"`
 	QueueGeneration  int64                           `json:"queue_generation"`
 	EnqueuedAt       time.Time                       `json:"enqueued_at"`
-	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitempty"`
+	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitzero"`
 	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
 	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
 }
@@ -118,7 +130,7 @@ type SessionInputPayload struct {
 // SessionInputListResponse returns current-generation pending input in dispatch order.
 type SessionInputListResponse struct {
 	Inputs []SessionInputPayload       `json:"inputs"`
-	Queue  *SessionQueueSummaryPayload `json:"queue,omitempty"`
+	Queue  *SessionQueueSummaryPayload `json:"queue,omitzero"`
 }
 
 // SessionQueueSummaryPayload exposes the daemon's current admission capacity.

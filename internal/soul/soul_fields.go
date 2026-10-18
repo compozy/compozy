@@ -36,13 +36,11 @@ func forbiddenOwner(key string) string {
 	case "scheduler", "heartbeat", "lease", "session", "session_liveness", "activity", "wake":
 		return "runtime state"
 	case "network", "channels", "peers", "presence":
-		return "Compozy Network presence"
+		return "runtime state"
 	case "spawn":
 		return "session spawn overlays"
 	case "env", soulConfigKey, "defaults", "providers", "sandboxes", "settings":
 		return soulConfigKey
-	case "memory", "memory_store", "memory_scope", "memory_type", "memories":
-		return "memory runtime"
 	default:
 		return ""
 	}

@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/situation"
@@ -25,6 +24,7 @@ import (
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
+	Subagents           session.SubagentService
 	Config              compozyconfig.Config
 	AgentProbeConfig    *agentProbeConfigState
 	HomePaths           compozyconfig.HomePaths
@@ -32,7 +32,6 @@ type RuntimeDeps struct {
 	Sessions            SessionManager
 	DrainController     core.DaemonDrainController
 	Tasks               taskpkg.Manager
-	Network             core.NetworkService
 	ToolRegistry        toolspkg.Registry
 	Toolsets            core.ToolsetRegistry
 	ToolArtifacts       toolspkg.ToolArtifactStore
@@ -48,15 +47,10 @@ type RuntimeDeps struct {
 	SchemaStreams       core.SchemaStreamStatusReader
 	Automation          core.AutomationManager
 	Loops               core.LoopService
-	Bridges             core.BridgeService
-	Notifications       core.NotificationPresetService
 	Registry            Registry
 	Profiles            *profile.Manager
-	MemoryStore         *memory.Store
-	MemoryExtractor     core.MemoryExtractorService
-	MemoryProviders     core.MemoryProviderService
-	MemorySessionLedger core.MemorySessionLedgerService
 	RuntimeMemory       doctor.RuntimeMemorySnapshotSource
+	HostLoad            doctor.HostLoadSnapshotSource
 	DeadEntities        doctor.DeadEntitySource
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	WorkspaceService    core.WorkspaceService
@@ -81,7 +75,6 @@ type RuntimeDeps struct {
 	Roles               core.RolesStatusProvider
 	SkillsRegistry      core.SkillsRegistry
 	SkillResources      core.SkillResourceSyncer
-	DreamTrigger        DreamTrigger
 	Settings            core.SettingsService
 	SettingsRestart     core.SettingsRestartController
 	SettingsUpdate      core.SettingsUpdateController

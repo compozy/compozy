@@ -11,7 +11,7 @@ type SessionSpawnBudget struct {
 	MaxChildren           int   `json:"max_children"`
 	MaxDepth              int   `json:"max_depth"`
 	TTLSeconds            int64 `json:"ttl_seconds"`
-	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
+	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitzero"`
 }
 
 func validateSessionSpawnBudget(budget SessionSpawnBudget) error {

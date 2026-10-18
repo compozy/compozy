@@ -13,6 +13,13 @@ type promptRuntimePlan struct {
 	selection RuntimeSelection
 	spec      sessionStartSpec
 	runtime   sessionStartRuntime
+	// attempt is the fallback chain index this plan binds (0 = primary route).
+	attempt int
+	// reloadACPSessionID rebinds a released runtime through session/load; a failed load
+	// falls back to a transcript replay.
+	reloadACPSessionID string
+	// replayHistory carries the transcript into a bind that cannot load the prior session.
+	replayHistory bool
 }
 
 func (m *Manager) ensurePromptRuntime(
@@ -42,6 +49,11 @@ func (m *Manager) ensurePromptRuntime(
 	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
 		return nil, err
 	}
+	if snapshot.process == nil {
+		if proc, handled, err := m.bindUnboundPromptRuntime(ctx, session, &snapshot, plan); handled {
+			return proc, err
+		}
+	}
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
 		runtimeProvider := strings.TrimSpace(plan.runtime.agent.RuntimeProvider)
@@ -64,6 +76,32 @@ func (m *Manager) ensurePromptRuntime(
 	}
 
 	return m.replacePromptRuntime(ctx, session, &snapshot, plan)
+}
+
+// bindUnboundPromptRuntime owns the binds that differ for a session without a process:
+// a released idle runtime reloads its ACP session, a derived child binds its pending
+// route, and a logical session's first bind walks the agent's fallback_chain (ADR-004).
+func (m *Manager) bindUnboundPromptRuntime(
+	ctx context.Context,
+	session *Session,
+	snapshot *runtimeBindingSnapshot,
+	plan *promptRuntimePlan,
+) (*AgentProcess, bool, error) {
+	if snapshot.runtimeRelease != nil {
+		proc, err := m.rebindReleasedRuntime(ctx, session, snapshot, plan)
+		return proc, true, err
+	}
+	if pending := session.pendingRouteSnapshot(); pending != nil {
+		proc, handled, err := m.bindPendingRoute(ctx, session, snapshot, plan, *pending)
+		if handled {
+			return proc, true, err
+		}
+	}
+	if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
+		proc, err := m.bindPromptRuntimeWithFallback(ctx, session, snapshot, plan, routes)
+		return proc, true, err
+	}
+	return nil, false, nil
 }
 
 func (m *Manager) configurePromptRuntime(
@@ -151,30 +189,44 @@ func (m *Manager) replacePromptRuntime(
 		return nil, fmt.Errorf("session: resolve runtime MCP servers: %w", err)
 	}
 	runtime.mcpServers = mcpServers
-	plan.spec.resumeReplay = snapshot.process != nil
+	// A replacement rebuilds history; so does the first bind of a derived child, whose
+	// carried context rides in front of its first prompt.
+	plan.spec.resumeReplay = snapshot.process != nil || plan.replayHistory || session.hasImportedContext()
 	plan.spec.startAction = "bind runtime"
+
+	// A fork child's first bind loads its pending native clone instead of replaying.
+	native := m.prepareNativeBootstrapBind(session, snapshot, plan)
+	if native == nil && plan.reloadACPSessionID != "" {
+		plan.spec.acpSessionID = plan.reloadACPSessionID
+		plan.spec.resumeReplay = false
+	}
 
 	if err := session.beginRuntimeTransition(status, strategy, m.now()); err != nil {
 		return nil, err
 	}
-	startOpts, err := m.prepareSessionLaunch(ctx, &plan.spec, session, &runtime, nil)
-	if err != nil {
-		return nil, m.restorePromptRuntime(session, snapshot, err)
-	}
-	candidate, err := m.startAgentProcess(ctx, &plan.spec, session, startOpts)
+	candidate, err := m.launchPromptRuntimeCandidate(ctx, session, plan, &runtime, native)
 	if err != nil {
 		return nil, m.restorePromptRuntime(session, snapshot, err)
 	}
 
 	previous := session.completeRuntimeTransition(candidate, plan.selection, strategy, m.now())
+	// The accepted binding is committed with the ACP id in the same meta write.
+	session.commitAcceptedRoute(
+		acceptedRouteRecord(plan.attempt, runtime.agent, plan.selection.Model),
+		plan.spec.command,
+	)
 	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
+	if plan.spec.resumeReplay {
+		session.setPendingResumeReplay(plan.spec.resumeReplayBlock)
+	}
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
 		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 		stopErr := m.stopReplacedRuntime(session, candidate, false)
-		return nil, errors.Join(err, restoreErr, stopErr)
+		// ACP already accepted the candidate: report an accepted failure (ADR-005).
+		return nil, acp.WrapAcceptedStart(candidate.SessionID, errors.Join(err, restoreErr, stopErr))
 	}
 
 	session.setProviderRouting(runtime.agent)
@@ -251,16 +303,24 @@ func (m *Manager) preparePromptRuntimePlan(
 	session *Session,
 	selection RuntimeSelection,
 ) (*promptRuntimePlan, error) {
+	return m.preparePromptRuntimePlanForRoute(ctx, session, selection, "")
+}
+
+// preparePromptRuntimePlanForRoute plans a binding with an explicit route command
+// (a fallback route's account or the accepted route's command); empty keeps resolution.
+func (m *Manager) preparePromptRuntimePlanForRoute(
+	ctx context.Context,
+	session *Session,
+	selection RuntimeSelection,
+	command string,
+) (*promptRuntimePlan, error) {
 	if session == nil {
 		return nil, ErrSessionNotFound
 	}
 	meta := session.Meta()
-	workspace, err := m.resolveResumeWorkspace(ctx, meta)
+	workspace, err := m.resolveResumeWorkspace(ctx, &meta)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve runtime workspace: %w", err)
-	}
-	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), workspace.ID); err != nil {
-		return nil, err
 	}
 	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, workspace.ID, meta.WorktreeIDValue())
 	if err != nil {
@@ -270,11 +330,11 @@ func (m *Manager) preparePromptRuntimePlan(
 	if worktreeRoot != "" {
 		executionRoot = worktreeRoot
 	}
-	cwd, err := resumeSessionCWD(meta, executionRoot)
+	cwd, err := resumeSessionCWD(&meta, executionRoot)
 	if err != nil {
 		return nil, err
 	}
-	spec, err := sessionStartSpecFromMeta(meta, &workspace, cwd)
+	spec, err := sessionStartSpecFromMeta(&meta, &workspace, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("session: reconstruct runtime start spec: %w", err)
 	}
@@ -285,9 +345,19 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
-	runtime, err := m.resolveSessionStartRuntime(ctx, &spec)
+	spec.command = strings.TrimSpace(command)
+	// The bound route records whether an unrestricted preference was already present at session start.
+	boundRoute := session.providerRoutingSnapshot()
+	dropInheritedUnrestricted := hasUnrestrictedACPMode(boundRoute.ACPOptionsValue())
+	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err
+	}
+	if err := acp.ValidateACPModePermissions(
+		spec.acpOptions,
+		m.startPermissions(startSpecPermissions(&spec, runtime.agent.Permissions)),
+	); err != nil {
+		return nil, fmt.Errorf("session: validate prompt runtime ACP mode: %w", err)
 	}
 	existingDefinition, manifest := session.startupDefinition()
 	runtime.startupManifest = manifest

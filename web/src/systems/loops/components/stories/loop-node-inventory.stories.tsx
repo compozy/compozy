@@ -252,6 +252,7 @@ export const RunsRosterCanceled: Story = {
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
       <LoopRunsView
+        nowMs={STORY_NOW}
         profileScope={scopedListingScopeFixture}
         outcome="canceled"
         runs={[...loopRunFixtures, ...CANCELED_RUNS]}

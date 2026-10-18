@@ -4,9 +4,9 @@ area: MS
 title: Inspect effective background role routing
 persona: Ada
 journey: J-route-background-work
-expected: CLI, HTTP, and UDS expose the same six-role projection with truthful per-field provenance, nullable inherited values, actionable diagnostics, and no builtin identities in agent catalogs.
+expected: CLI, HTTP, and UDS expose the same two-role projection (coordinator, auto_title) with truthful per-field provenance, nullable inherited values, actionable diagnostics, and no builtin identities in agent catalogs.
 entry_points: compozy roles list|show -o json; GET /api/roles and GET /api/roles/{role} over HTTP; GET /api/roles and GET /api/roles/{role} over UDS; docs runtime/api-reference/roles
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -22,21 +22,13 @@ Planning 2026-07-24 (Task 05): entry points widened to include the single-role r
 
 QA 2026-07-24: normalized list/show payloads matched across CLI, HTTP, and UDS; equal-value workspace provenance remained `workspace`; inherited fields stayed null; a ghost route returned a 200 projection with `role_agent_not_found`; and unknown roles returned the exact nonzero/404 `role_unknown` contract.
 
-Regression walk for issue #639 (automated in PR CI; execution results are recorded in the PR):
+Regression walk for issue #639 (retired 2026-10-07): it covered `checkpoint_summary` availability gated by `memory.enabled` and `session.compaction.enabled`. Both consumers and the role are gone, so the walk no longer applies.
 
-1. Start an isolated daemon with `memory.enabled=false`, `session.compaction.enabled=true` and
-   `roles.checkpoint_summary.enabled=true`, plus an explicit checkpoint provider/model.
-2. Run `roles list -o json`, `roles show checkpoint_summary -o json` and human-readable `roles show`.
-   Expect `enabled=true`, preserved provider/model, `enabled` provenance `global`, and no diagnostics.
-   Compare the list with `GET /api/roles` over HTTP and UDS.
-3. Cover every combination of memory, compaction and the role switch in the canonical projection
-   suite: either consumer permits availability; an explicit role disable always wins. Dream,
-   extractor and controller remain gated only by memory.
-4. Verify workspace/profile role opt-outs remain isolated. Scoped compaction overrides must not
-   replace daemon-level compaction availability in either direction; the session manager owns it.
-   Invocation context must not turn an administratively disabled status on. With memory off,
-   ordinary checkpoint invocations remain disabled even while configured compaction is available.
+Replacement walk (2026-10-07, memory removal):
 
-Owning evidence: `TestRoleStatusProjection` and `TestRoleResolverIntegration` in PR CI. This walk
-proves configuration reporting and public transport parity; it does not claim a pressure threshold
-was crossed or that a live provider produced a summary.
+1. Start an isolated daemon. Run `roles list -o json` and human-readable `roles list`. Expect exactly two roles, `coordinator` and `auto_title`, with the same fields and provenance on `GET /api/roles` over HTTP and UDS. `compozy status -o json` carries no `memory` object (the `runtime.memory` doctor probe reports process memory and stays).
+2. Run `roles show dream`, `roles show checkpoint_summary`, `roles show memory_extractor`, and `roles show memory_controller`. Each exits non-zero with `role_unknown`; `GET /api/roles/{role}` over HTTP and UDS returns the 404 `role_unknown` body for each.
+3. Keep `roles.auto_title.enabled=false` in one workspace and confirm the opt-out stays isolated from a sibling workspace and from the daemon-level setting.
+4. Upgrade leg: on a home whose `config.toml` still carries `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`, or `[roles.memory_controller]`, the daemon starts, the tables are archived into the commented block at the end of the file, and `roles list` still shows the two live roles. Owned by `RT-upgrade-memory-removal-home`.
+
+This walk proves configuration reporting and public transport parity; it does not claim a live provider produced a title.

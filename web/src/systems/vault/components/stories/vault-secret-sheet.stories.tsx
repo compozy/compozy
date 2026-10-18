@@ -44,7 +44,7 @@ const meta: Meta<typeof SheetHarness> = {
     docs: {
       description: {
         component:
-          "Right-side inspect sheet for a vault secret — redacted tiles, masked value, rotate Store, danger delete, CLI foot.",
+          "Right-side inspect sheet for a vault secret — friendly title, copyable ref, updated/created facts, masked value with a Saved/Missing word, replace, and delete.",
       },
     },
   },

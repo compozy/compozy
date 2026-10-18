@@ -42,7 +42,7 @@ export function LoopRunDiffValue({ value }: LoopRunDiffValueProps) {
 function LoopRunDiffSummary({ row }: LoopRunDiffRowProps) {
   return (
     <div
-      className="mt-1.5 flex flex-col gap-1.5 rounded-sm border border-line-soft bg-input-fill px-2.5 py-2"
+      className="mt-1.5 flex flex-col gap-1.5 rounded-md bg-sunken px-2.5 py-2"
       data-testid="loop-diff-value-summary"
     >
       {SIDES.map(side => (
@@ -78,7 +78,7 @@ export function LoopRunDiffRow({ row }: LoopRunDiffRowProps) {
     .join(" · ");
   return (
     <li
-      className="flex items-start gap-2.5 border-t border-line-soft px-3 py-2.5 first:border-t-0 hover:bg-row-hover"
+      className="flex items-start gap-2.5 border-t border-line-soft px-3 py-2.5 first:border-t-0 hover:bg-surface-2"
       data-change={row.change}
       data-testid={`loop-diff-row-${row.nodeId}`}
     >

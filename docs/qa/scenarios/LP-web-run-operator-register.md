@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: e96962c
 evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-506-filtered-fanout-roster-20260901-131013-477371-lab/qa-artifacts/qa/screenshots/web-sparse-roster-refresh.png
 last_report: docs/qa/reports/2026-09-01-issue-506-filtered-fanout.md
-overlaps: LP-web-detail-inventory-contract;LP-web-timeline-graph-rows;LP-quarantine-diagnose-requeue;LP-web-attention-loop-rows
+overlaps: LP-web-detail-inventory-contract; LP-web-timeline-graph-rows; LP-quarantine-diagnose-requeue; LP-web-attention-loop-rows
 ---
 
 story: As an operator diagnosing a run I open one disclosure and see the executing graph, locate the hot or failed node, read its attempts and error class, and jump to its session or execution record without leaving the page.

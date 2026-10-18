@@ -4,11 +4,11 @@
  * the session list reads — how wide, and whether it shows the archive.
  */
 export const SESSION_SCOPE_COPY = {
-  controlName: "All workspaces",
-  tooltipOn: "Showing every workspace",
-  tooltipOff: "Showing this workspace",
-  liveOn: "Sessions from every workspace",
-  liveOff: "Sessions from this workspace",
+  controlName: "All projects",
+  tooltipOn: "Showing every project",
+  tooltipOff: "Showing this project",
+  liveOn: "Sessions from every project",
+  liveOff: "Sessions from this project",
 } as const;
 
 export const SESSION_ARCHIVED_COPY = {

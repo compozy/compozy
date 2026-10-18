@@ -59,7 +59,7 @@ type responseFrame struct {
 	JSONRPC string              `json:"jsonrpc"`
 	ID      json.RawMessage     `json:"id"`
 	Result  json.RawMessage     `json:"result,omitempty"`
-	Error   *JSONRPCErrorObject `json:"error,omitempty"`
+	Error   *JSONRPCErrorObject `json:"error,omitzero"`
 }
 
 type cancelRequestParams struct {
@@ -292,7 +292,7 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 		Method  string              `json:"method,omitempty"`
 		Params  json.RawMessage     `json:"params,omitempty"`
 		Result  json.RawMessage     `json:"result,omitempty"`
-		Error   *JSONRPCErrorObject `json:"error,omitempty"`
+		Error   *JSONRPCErrorObject `json:"error,omitzero"`
 	}
 	if err := json.Unmarshal(trimmed, &envelope); err != nil {
 		t.fail(NewRPCError(-32700, "Parse error", map[string]any{transportErrorKey: err.Error()}))

@@ -1,6 +1,5 @@
 import { useId, useState, type ComponentProps } from "react";
-import { Minimize2 } from "lucide-react";
-import { Button, Pill, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 import type { SessionContextRingState, SessionContextView } from "../lib/session-context";
 import {
   describeSessionContextControl,
@@ -13,16 +12,14 @@ const RING_RADIUS = 6.5;
 function SessionContextRing({
   state,
   fraction,
-  warning,
   className,
   ...props
 }: ComponentProps<"svg"> & {
   state: SessionContextRingState;
   fraction: number;
-  warning: boolean;
 }) {
   const maskId = `session-context-ring-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const ring = describeSessionContextRing(state, fraction, warning);
+  const ring = describeSessionContextRing(state, fraction);
   return (
     <svg
       aria-hidden="true"
@@ -83,20 +80,10 @@ function SessionContextTooltipLine({
   switch (row.kind) {
     case "numbers":
       return (
-        <p
-          className={cn("flex items-baseline gap-1 text-fg-strong tabular-nums", className)}
-          {...props}
-        >
+        <p className={cn("flex items-baseline gap-1 text-fg tabular-nums", className)} {...props}>
           {row.percent ? (
             <>
-              <b
-                className={cn(
-                  "text-small-body font-semibold tracking-tight",
-                  row.warning && "text-warning"
-                )}
-              >
-                {row.percent}
-              </b>
+              <b className="text-small-body font-semibold tracking-tight">{row.percent}</b>
               <span aria-hidden="true" className="text-faint">
                 {" · "}
               </span>
@@ -114,16 +101,7 @@ function SessionContextTooltipLine({
     case "stale":
       return (
         <p className={cn("flex items-center", className)} {...props}>
-          <Pill size="xs" tone="warning">
-            stale
-          </Pill>
-        </p>
-      );
-    case "policy":
-      return (
-        <p className={cn("flex items-center gap-1.5 text-warning", className)} {...props}>
-          <Minimize2 aria-hidden="true" className="size-3 shrink-0" />
-          {row.text}
+          <span className="text-micro text-subtle">Updated a while ago</span>
         </p>
       );
     default:
@@ -154,28 +132,27 @@ export function SessionContextControl({
         render={
           <Button
             type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`${view.label}${context.stale ? ", stale" : ""}`}
+            variant="quiet"
+            size="icon"
+            aria-label={`${view.label}${context.stale ? ", may be out of date" : ""}`}
             aria-describedby={tipOpen ? tooltipId : undefined}
             aria-busy={context.loading}
             onClick={onOpen}
             data-testid="composer-context-button"
             data-state={view.state}
             className={cn(
-              "shrink-0 text-muted hover:text-fg data-[popup-open]:bg-btn-default-hover data-[popup-open]:text-fg",
-              view.state === "warning" && "text-warning hover:text-warning",
-              open && "bg-btn-default-hover text-fg-strong"
+              "shrink-0 text-fg-2 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
+              open && "bg-surface-2 text-fg"
             )}
           />
         }
       >
-        <SessionContextRing state={view.state} fraction={view.fraction} warning={view.warning} />
+        <SessionContextRing state={view.state} fraction={view.fraction} />
       </TooltipTrigger>
       <TooltipContent
         role="tooltip"
         id={tooltipId}
-        className="min-w-53 max-w-70 flex-col items-start gap-1.25 px-2.75 py-2.25 text-eyebrow leading-[1.45] text-muted"
+        className="min-w-53 max-w-70 flex-col items-start gap-1.25 px-2.75 py-2.25 text-eyebrow leading-normal text-muted"
         side="top"
         align="start"
       >

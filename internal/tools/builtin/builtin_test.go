@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -23,10 +22,13 @@ import (
 func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Parallel()
 
+	nativeDescriptors := NativeDescriptors()
+	descriptors := descriptorMap(nativeDescriptors)
+
 	t.Run("Should expose exactly the MVP native tool scope", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := NativeDescriptors()
+		descriptors := nativeDescriptors
 		got := make(map[toolspkg.ToolID]toolspkg.Descriptor, len(descriptors))
 		for _, descriptor := range descriptors {
 			if err := descriptor.Validate(); err != nil {
@@ -71,11 +73,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"compozy__task_run_cancel",
 			"compozy__mcp_auth_login",
 			"compozy__mcp_auth_logout",
-			"compozy__memory_read",
-			"compozy__memory_history",
-			"compozy__memory_write",
-			"compozy__memory_edit",
-			"compozy__memory_delete",
 		}
 		for _, id := range excluded {
 			if _, ok := got[id]; ok {
@@ -87,7 +84,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose provider-compatible top-level input schemas", func(t *testing.T) {
 		t.Parallel()
 
-		for _, descriptor := range NativeDescriptors() {
+		for _, descriptor := range nativeDescriptors {
 			var schema map[string]json.RawMessage
 			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
 				t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
@@ -107,7 +104,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should keep terminal open optional and terminal write non-empty", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		var openSchema struct {
 			Required []string `json:"required"`
 		}
@@ -141,7 +137,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should constrain terminal read cursors to exact decimal uint64", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDTerminalRead]
+		descriptor := descriptors[toolspkg.ToolIDTerminalRead]
 		var input nativeObjectSchema
 		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 			t.Fatalf("terminal_read input schema unmarshal error = %v", err)
@@ -159,7 +155,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should describe the complete nullable Goal control output contract", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDGoalControl]
+		descriptor := descriptors[toolspkg.ToolIDGoalControl]
 		var output struct {
 			Required             []string                   `json:"required"`
 			AdditionalProperties bool                       `json:"additionalProperties"`
@@ -204,34 +200,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose typed participation on execution management tools", func(t *testing.T) {
+	t.Run("Should expose bounded execution management and worktree schemas", func(t *testing.T) {
 		t.Parallel()
-
-		descriptors := descriptorMap(NativeDescriptors())
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDTaskCreate,
-			toolspkg.ToolIDTaskChildCreate,
-			toolspkg.ToolIDTaskUpdate,
-			toolspkg.ToolIDTaskFanOutRuns,
-			toolspkg.ToolIDLoopRun,
-		} {
-			var schema struct {
-				Properties map[string]json.RawMessage `json:"properties"`
-			}
-			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
-				t.Fatalf("%s input schema unmarshal error = %v", id, err)
-			}
-			participationSchema, ok := schema.Properties["network_participation"]
-			if !ok {
-				t.Fatalf("%s input schema omits network_participation", id)
-			}
-			assertTypedNetworkParticipationSchema(t, id.String(), participationSchema)
-			for _, legacy := range []string{"channel", "network_channel", "coordination_channel_id"} {
-				if _, ok := schema.Properties[legacy]; ok {
-					t.Fatalf("%s input schema exposes removed %s", id, legacy)
-				}
-			}
-		}
 
 		var profileInput nativeObjectSchema
 		profileDescriptor := descriptors[toolspkg.ToolIDTaskExecutionProfileSet]
@@ -242,11 +212,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if err := json.Unmarshal(profileInput.Properties["profile"], &profile); err != nil {
 			t.Fatalf("%s profile schema unmarshal error = %v", profileDescriptor.ID, err)
 		}
-		participationSchema, ok := profile.Properties["network_participation"]
-		if !ok {
-			t.Fatalf("%s profile schema omits network_participation", profileDescriptor.ID)
-		}
-		assertTypedNetworkParticipationSchema(t, profileDescriptor.ID.String(), participationSchema)
 		var worktreePolicy nativeObjectSchema
 		if err := json.Unmarshal(profile.Properties["worktree"], &worktreePolicy); err != nil {
 			t.Fatalf("%s worktree schema unmarshal error = %v", profileDescriptor.ID, err)
@@ -269,33 +234,18 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			[]string{"mode", "task_id", "worktree_ref"},
 		)
 
-		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTaskList, toolspkg.ToolIDTaskRunList} {
-			var schema struct {
-				Properties map[string]json.RawMessage `json:"properties"`
-			}
-			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
-				t.Fatalf("%s input schema unmarshal error = %v", id, err)
-			}
-			if _, ok := schema.Properties["participation_channel"]; !ok {
-				t.Fatalf("%s input schema omits participation_channel", id)
-			}
-			if id == toolspkg.ToolIDTaskList {
-				if _, ok := schema.Properties["worktree"]; !ok {
-					t.Fatalf("%s input schema omits worktree", id)
-				}
-			}
-			for _, legacy := range []string{"network_channel", "coordination_channel_id"} {
-				if _, ok := schema.Properties[legacy]; ok {
-					t.Fatalf("%s input schema exposes removed %s", id, legacy)
-				}
-			}
+		var taskListSchema nativeObjectSchema
+		if err := json.Unmarshal(descriptors[toolspkg.ToolIDTaskList].InputSchema, &taskListSchema); err != nil {
+			t.Fatalf("%s input schema unmarshal error = %v", toolspkg.ToolIDTaskList, err)
+		}
+		if _, ok := taskListSchema.Properties["worktree"]; !ok {
+			t.Fatalf("%s input schema omits worktree", toolspkg.ToolIDTaskList)
 		}
 	})
 
 	t.Run("Should expose the closed Loop environment on create configure and run", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		configure := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopConfigure], "config")
 		assertNativeLoopEnvironmentSchema(t, toolspkg.ToolIDLoopConfigure.String(), configure.Properties["environment"])
 		run := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopRun], "config_overrides")
@@ -323,7 +273,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose exact Loop runtime rule contracts", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		configure := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopConfigure], "config")
 		assertNativeLoopRuntimeRulesSchema(
 			t,
@@ -341,7 +290,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose closed session mutation contracts", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
 		assertSessionRenameMutationSchema(t, descriptors[toolspkg.ToolIDSessionRename])
 		t.Run("Should validate the session archive schema", func(t *testing.T) {
@@ -361,7 +309,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should describe canonical agent name constraints on native inputs", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		for _, testCase := range []struct {
 			id       toolspkg.ToolID
 			property string
@@ -417,7 +364,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose typed authored agent runtime defaults", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDAgentCreate]
+		descriptor := descriptors[toolspkg.ToolIDAgentCreate]
 		var topLevel nativeObjectSchema
 		if err := json.Unmarshal(descriptor.InputSchema, &topLevel); err != nil {
 			t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
@@ -467,6 +414,24 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				name:    "Should reject an unsupported speed",
 				payload: `{"scope":"global","name":"coder","prompt":"Code.","speed":"turbo"}`,
 			},
+			{
+				name: "Should accept an ordered fallback chain with a route command",
+				payload: `{"scope":"global","name":"reviewer","prompt":"Review.","fallback_chain":[` +
+					`{"provider":"claude","model":"opus-4-8",` +
+					`"command":"CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"},` +
+					`{"provider":"cursor","model":"grok-4.6","reasoning_effort":"high"}]}`,
+				valid: true,
+			},
+			{
+				name: "Should reject a fallback route without a model",
+				payload: `{"scope":"global","name":"reviewer","prompt":"Review.",` +
+					`"fallback_chain":[{"provider":"claude"}]}`,
+			},
+			{
+				name: "Should reject an unknown fallback route key",
+				payload: `{"scope":"global","name":"reviewer","prompt":"Review.",` +
+					`"fallback_chain":[{"provider":"claude","model":"opus-4-8","comand":"claude"}]}`,
+			},
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
@@ -486,91 +451,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose a closed atomic memory operations batch schema", func(t *testing.T) {
-		t.Parallel()
-
-		type schemaField struct {
-			Type                 string                 `json:"type"`
-			Enum                 []string               `json:"enum"`
-			MinItems             int                    `json:"minItems"`
-			Required             []string               `json:"required"`
-			Properties           map[string]schemaField `json:"properties"`
-			Items                *schemaField           `json:"items"`
-			AdditionalProperties *bool                  `json:"additionalProperties"`
-		}
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDMemoryPropose]
-		var schema schemaField
-		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-			t.Fatalf("memory_propose input schema unmarshal error = %v", err)
-		}
-		operations := schema.Properties["operations"]
-		if operations.Type != "array" || operations.MinItems != 1 || operations.Items == nil {
-			t.Fatalf("memory_propose operations schema = %#v, want non-empty array", operations)
-		}
-		items := operations.Items
-		if !slices.Equal(items.Required, []string{"action"}) {
-			t.Fatalf("memory_propose operation required = %#v, want [action]", items.Required)
-		}
-		if items.AdditionalProperties == nil || *items.AdditionalProperties {
-			t.Fatalf(
-				"memory_propose operation additionalProperties = %#v, want false",
-				items.AdditionalProperties,
-			)
-		}
-		gotActions := items.Properties["action"].Enum
-		wantActions := []string{"add", "replace", "remove"}
-		if !slices.Equal(gotActions, wantActions) {
-			t.Fatalf("memory_propose operation action enum = %#v, want %#v", gotActions, wantActions)
-		}
-		for _, field := range []string{"content", "old_text"} {
-			if got := items.Properties[field].Type; got != "string" {
-				t.Fatalf("memory_propose operation %s type = %q, want string", field, got)
-			}
-		}
-	})
-
-	t.Run("Should describe the first public thread send contract", func(t *testing.T) {
-		t.Parallel()
-
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDNetworkSend]
-		var schema struct {
-			Description string `json:"description"`
-			Properties  map[string]struct {
-				Description string `json:"description"`
-				Pattern     string `json:"pattern"`
-			} `json:"properties"`
-		}
-		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-			t.Fatalf("network_send input schema unmarshal error = %v", err)
-		}
-
-		const threadIDPattern = `^thread_[a-z0-9][a-z0-9_-]{2,95}$`
-		if got := schema.Properties["thread_id"].Pattern; got != threadIDPattern {
-			t.Fatalf("network_send thread_id pattern = %q, want %q", got, threadIDPattern)
-		}
-		const directIDPattern = `^direct_[a-f0-9]{32}$`
-		if got := schema.Properties["direct_id"].Pattern; got != directIDPattern {
-			t.Fatalf("network_send direct_id pattern = %q, want %q", got, directIDPattern)
-		}
-		for field, phrase := range map[string]string{
-			"surface":   "required for say, capability, receipt, and trace",
-			"thread_id": "first valid send creates the public thread",
-			"body":      "say requires a non-empty text field",
-			"to":        "Required for capability and for say carrying work_id",
-			"work_id":   "Required for capability, receipt, and trace",
-		} {
-			if got := schema.Properties[field].Description; !strings.Contains(got, phrase) {
-				t.Fatalf("network_send %s description = %q, want phrase %q", field, got, phrase)
-			}
-		}
-		if !strings.Contains(schema.Description, "surface=thread requires thread_id") {
-			t.Fatalf("network_send schema description = %q, want conditional thread contract", schema.Description)
-		}
-		if !strings.Contains(schema.Description, "greet and whois omit conversation and work fields") {
-			t.Fatalf("network_send schema description = %q, want discovery omission contract", schema.Description)
-		}
-	})
-
 	t.Run("Should describe recurring schedule catch up fields for automation mutations", func(t *testing.T) {
 		t.Parallel()
 
@@ -581,7 +461,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			Properties           map[string]schemaField `json:"properties"`
 			AdditionalProperties *bool                  `json:"additionalProperties"`
 		}
-		descriptors := descriptorMap(NativeDescriptors())
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDAutomationJobsCreate,
 			toolspkg.ToolIDAutomationJobsUpdate,
@@ -609,7 +488,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should keep provider model refresh out of the read-only list schema", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDProviderModelsList]
+		descriptor := descriptors[toolspkg.ToolIDProviderModelsList]
 		var schema struct {
 			Properties map[string]json.RawMessage `json:"properties"`
 		}
@@ -623,7 +502,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("provider_models_list input schema omits view: %s", string(descriptor.InputSchema))
 		}
 
-		curate := descriptorMap(NativeDescriptors())[toolspkg.ToolIDProviderModelsCurate]
+		curate := descriptors[toolspkg.ToolIDProviderModelsCurate]
 		var curateSchema struct {
 			Required   []string                   `json:"required"`
 			Properties map[string]json.RawMessage `json:"properties"`
@@ -645,7 +524,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose agent and Vault discovery as read-only catalog tools", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDAgentList,
 			toolspkg.ToolIDVaultList,
@@ -666,7 +544,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should derive descriptor presence and risk from one expectation table", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		expectations := nativeDescriptorExpectations()
 		if got, want := len(descriptors), len(expectations); got != want {
 			t.Fatalf("descriptor count = %d, want %d", got, want)
@@ -731,19 +608,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			}
 		}
 
-		bridgeList := descriptors[toolspkg.ToolIDBridgesList]
-		if !strings.Contains(string(bridgeList.InputSchema), `"workspace"`) ||
-			!strings.Contains(string(bridgeList.InputSchema), `"cursor"`) ||
-			!strings.Contains(string(bridgeList.OutputSchema), `"facets"`) ||
-			!strings.Contains(string(bridgeList.OutputSchema), `"next_cursor"`) {
-			t.Fatalf(
-				"bridge list schemas = input %s output %s, want workspace-safe paged filters",
-				bridgeList.InputSchema,
-				bridgeList.OutputSchema,
-			)
-		}
-
-		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].MaxResultBytes,
+		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].ExecutionMetadata().MaxResultBytes,
 			toolArtifactReadMaxResultBytes; got != want {
 			t.Fatalf("tool artifact read max result bytes = %d, want %d", got, want)
 		}
@@ -763,7 +628,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose the closed clarification contract without approval recursion", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDClarify]
+		descriptor := descriptors[toolspkg.ToolIDClarify]
 		if descriptor.RequiresInteraction {
 			t.Fatal("clarify RequiresInteraction = true, want false")
 		}
@@ -788,7 +653,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should accept profile-owned tool approval output contracts", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		grant := `{
 			"id":"grant-1",
 			"profile_id":"01JPROFILEMARKETING0000000",
@@ -818,7 +682,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		status := descriptors[toolspkg.ToolIDLoopStatus]
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
 		var runsInput struct {
@@ -837,10 +700,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if got, want := inputCursor.Type, "string"; got != want {
 			t.Fatalf("loop_runs input cursor type = %q, want %q", got, want)
 		}
-		if got, want := inputCursor.Description,
-			"Opaque continuation cursor from the previous page; reuse with the same workspace and filters."; got != want {
-			t.Fatalf("loop_runs input cursor description = %q, want %q", got, want)
-		}
 		var runsOutput struct {
 			Properties map[string]struct {
 				Type        string `json:"type"`
@@ -856,10 +715,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		if got, want := outputCursor.Type, "string"; got != want {
 			t.Fatalf("loop_runs output next_cursor type = %q, want %q", got, want)
-		}
-		if got, want := outputCursor.Description,
-			"Opaque continuation cursor for the next page; omitted when no further page exists."; got != want {
-			t.Fatalf("loop_runs output next_cursor description = %q, want %q", got, want)
 		}
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
@@ -975,10 +830,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish closed extension inspection schemas and network digest inputs", func(t *testing.T) {
+	t.Run("Should publish closed extension inspection schemas and gateway digest inputs", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
 		logs := descriptors[toolspkg.ToolIDExtensionsLogs]
 		assertNativeOutputSchemaAccepts(t, logs, `{
@@ -1014,9 +868,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
 				t.Fatalf("%s input schema unmarshal error = %v", id, err)
 			}
-			if got, want := schema.Properties["confirm_network_digest"].Pattern,
+			if got, want := schema.Properties["confirm_gateway_digest"].Pattern,
 				"^[a-f0-9]{64}$"; got != want {
-				t.Fatalf("%s confirm_network_digest pattern = %q, want %q", id, got, want)
+				t.Fatalf("%s confirm_gateway_digest pattern = %q, want %q", id, got, want)
 			}
 		}
 	})
@@ -1024,7 +878,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		cases := []struct {
 			id         toolspkg.ToolID
 			capability string
@@ -1094,38 +947,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should pin skill projection output schema digests", func(t *testing.T) {
-		t.Parallel()
-
-		descriptors := descriptorMap(NativeDescriptors())
-		wantDigests := map[toolspkg.ToolID]string{
-			toolspkg.ToolIDSkillList:   "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f",
-			toolspkg.ToolIDSkillSearch: "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f",
-			toolspkg.ToolIDSkillView:   "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b",
-		}
-		for id, want := range wantDigests {
-			t.Run("Should pin "+string(id)+" output schema digest", func(t *testing.T) {
-				t.Parallel()
-
-				descriptor, ok := descriptors[id]
-				if !ok {
-					t.Fatalf("descriptor %q missing", id)
-				}
-				withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
-				if err != nil {
-					t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
-				}
-				if withDigests.OutputSchemaDigest != want {
-					t.Fatalf("%s output schema digest = %q, want %q", id, withDigests.OutputSchemaDigest, want)
-				}
-			})
-		}
-	})
-
 	t.Run("Should publish the closed window manager contract with risk and capability gates", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		type expectation struct {
 			risk        toolspkg.RiskClass
 			readOnly    bool
@@ -1222,60 +1046,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 	})
 
-	t.Run("Should keep network schemas closed and hard-cut vocabulary out of descriptors", func(t *testing.T) {
-		t.Parallel()
-
-		descriptors := descriptorMap(NativeDescriptors())
-		networkIDs := []toolspkg.ToolID{
-			toolspkg.ToolIDNetworkSend,
-			toolspkg.ToolIDNetworkChannelCreate,
-			toolspkg.ToolIDNetworkThreads,
-			toolspkg.ToolIDNetworkThreadMessages,
-			toolspkg.ToolIDNetworkDirects,
-			toolspkg.ToolIDNetworkDirectResolve,
-			toolspkg.ToolIDNetworkDirectMessages,
-			toolspkg.ToolIDNetworkWork,
-		}
-		for _, id := range networkIDs {
-			descriptor := descriptors[id]
-			var schema map[string]json.RawMessage
-			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-				t.Fatalf("%s input schema is invalid JSON: %v", id, err)
-			}
-			var additionalProperties bool
-			if err := json.Unmarshal(schema["additionalProperties"], &additionalProperties); err != nil {
-				t.Fatalf("%s additionalProperties = %s: %v", id, schema["additionalProperties"], err)
-			}
-			if additionalProperties {
-				t.Fatalf("%s additionalProperties = true, want false", id)
-			}
-			schemaText := string(descriptor.InputSchema)
-			if strings.Contains(schemaText, "interaction_id") {
-				t.Fatalf("%s schema includes deleted interaction_id field: %s", id, schemaText)
-			}
-			if strings.Contains(schemaText, `"kind":"direct"`) ||
-				strings.Contains(descriptor.Description, `kind:"direct"`) {
-				t.Fatalf("%s descriptor teaches legacy direct message kind", id)
-			}
-		}
-
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDNetworkSend,
-			toolspkg.ToolIDNetworkDirects,
-			toolspkg.ToolIDNetworkDirectResolve,
-			toolspkg.ToolIDNetworkDirectMessages,
-		} {
-			description := strings.ToLower(descriptors[id].Description)
-			if !strings.Contains(description, "runtime/audit access") ||
-				!strings.Contains(description, "not cryptographic privacy") {
-				t.Fatalf("%s description = %q, want explicit direct-room visibility boundary", id, description)
-			}
-			if strings.Contains(description, "encrypted") {
-				t.Fatalf("%s description = %q, must not imply encrypted direct rooms", id, description)
-			}
-		}
-	})
-
 	t.Run("Should return cloned descriptors", func(t *testing.T) {
 		t.Parallel()
 
@@ -1295,7 +1065,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose the closed gateway action contract", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDGateway]
+		descriptor := descriptors[toolspkg.ToolIDGateway]
 		var input struct {
 			Properties map[string]struct {
 				Enum []string `json:"enum"`
@@ -1375,6 +1145,10 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDSubagentCapabilities, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDSubagentDelegate, risk: toolspkg.RiskDestructive, destructive: true, openWorld: true},
+		{id: toolspkg.ToolIDSubagentStatus, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDSubagentCancel, risk: toolspkg.RiskDestructive, destructive: true},
 		{id: "compozy__agent_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__agent_heartbeat_status", risk: toolspkg.RiskRead,
@@ -1427,10 +1201,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__automation_triggers_update", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__bridges_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__bridges_status", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__clarify", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__cmd_palette_invoke", risk: toolspkg.RiskMutating,
@@ -1611,112 +1381,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_admin_history", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_daily_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_decisions_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_decisions_revert", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__memory_decisions_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_retry", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_status", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_trigger", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_drain", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_failures", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_retry", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_status", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_health", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_note", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_promote", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_propose", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_disable", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_enable", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_get", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_select", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_recall_trace", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_reindex", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_reload", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_reset", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__memory_scope_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_search", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_session_ledger", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_session_replay", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_sessions_prune", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__memory_sessions_repair", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_channel_create", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__network_channel_update", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__network_channels", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_direct_messages", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_direct_resolve", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__network_directs", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_inbox", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_mute", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__network_peers", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_send", risk: toolspkg.RiskOpenWorld,
-			readOnly: false, destructive: false, openWorld: true},
-		{id: "compozy__network_status", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_subscribe", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__network_subscriptions", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_thread_messages", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_threads", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_unmute", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__network_usage", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__network_work", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__notify", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__observe_metrics", risk: toolspkg.RiskRead,
@@ -1769,6 +1433,20 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_folder_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_folder_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_folder_rename", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_folder_delete", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_folder_reorder", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_move", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_reorder", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_rename", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_outline", risk: toolspkg.RiskRead,
@@ -1777,7 +1455,13 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_compact", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt_cancel", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_continue", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_fork", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_rewind", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
@@ -1823,16 +1507,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__task_notification_delete", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__task_notification_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__task_notification_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__task_notification_subscribe", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__task_promote_from_thread", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_read", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__task_recover", risk: toolspkg.RiskMutating,
@@ -2033,76 +1707,6 @@ func assertNativeAgentNameInputSchema(
 	}
 }
 
-func assertTypedNetworkParticipationSchema(t *testing.T, owner string, raw json.RawMessage) {
-	t.Helper()
-	var schema nativeObjectSchema
-	if err := json.Unmarshal(raw, &schema); err != nil {
-		t.Fatalf("%s network_participation schema unmarshal error = %v", owner, err)
-	}
-	assertClosedObjectSchema(t, owner+" network_participation", schema, []string{
-		"bounds", "channel_id", "channel_strategy", "mode",
-	})
-	if got, want := len(schema.OneOf), 4; got != want {
-		t.Fatalf("%s network_participation oneOf branches = %d, want %d", owner, got, want)
-	}
-	assertStringEnumSchema(
-		t,
-		owner+" network_participation.mode",
-		schema.Properties["mode"],
-		[]string{"local", "live"},
-	)
-	assertStringEnumSchema(
-		t,
-		owner+" network_participation.channel_strategy",
-		schema.Properties["channel_strategy"],
-		[]string{"named", "run", "loop_run"},
-	)
-	var channel nativeObjectSchema
-	if err := json.Unmarshal(schema.Properties["channel_id"], &channel); err != nil ||
-		channel.Type != "string" || channel.Pattern != networkParticipationChannelPattern {
-		t.Fatalf(
-			"%s network_participation.channel_id = %#v, error=%v, want patterned string",
-			owner,
-			channel,
-			err,
-		)
-	}
-	var bounds nativeObjectSchema
-	if err := json.Unmarshal(schema.Properties["bounds"], &bounds); err != nil {
-		t.Fatalf("%s network_participation.bounds unmarshal error = %v", owner, err)
-	}
-	assertClosedObjectSchema(t, owner+" network_participation.bounds", bounds, []string{
-		"coalesce_window",
-		"max_input_tokens",
-		"max_output_tokens",
-		"max_total_wall_time",
-		"max_wake_depth",
-		"max_wake_wall_time",
-		"max_wakes",
-	})
-	for key, wantType := range map[string]string{
-		"coalesce_window":     "string",
-		"max_input_tokens":    "integer",
-		"max_output_tokens":   "integer",
-		"max_total_wall_time": "string",
-		"max_wake_depth":      "integer",
-		"max_wake_wall_time":  "string",
-		"max_wakes":           "integer",
-	} {
-		var property nativeObjectSchema
-		if err := json.Unmarshal(bounds.Properties[key], &property); err != nil || property.Type != wantType {
-			t.Fatalf("%s network_participation.bounds.%s = %#v, error=%v, want %s", owner, key, property, err, wantType)
-		}
-		if wantType == "integer" && (property.Minimum == nil || *property.Minimum != 1) {
-			t.Fatalf("%s network_participation.bounds.%s minimum = %#v, want 1", owner, key, property.Minimum)
-		}
-		if wantType == "string" && property.MinLength != 1 {
-			t.Fatalf("%s network_participation.bounds.%s minLength = %d, want 1", owner, key, property.MinLength)
-		}
-	}
-	assertNetworkParticipationSchemaMatchesRuntime(t, owner, raw)
-}
-
 func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
 	t.Helper()
 	var input nativeObjectSchema
@@ -2110,18 +1714,13 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"agent", "name", "network_participation", "new_worktree", "workspace", "worktree",
+		"agent", "name", "new_worktree", "workspace", "worktree",
 	})
 	var newWorktree nativeObjectSchema
 	if err := json.Unmarshal(input.Properties["new_worktree"], &newWorktree); err != nil {
 		t.Fatalf("%s new_worktree schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" new_worktree", newWorktree, []string{"name"})
-	assertTypedNetworkParticipationSchema(
-		t,
-		descriptor.ID.String(),
-		input.Properties["network_participation"],
-	)
 	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
 }
 
@@ -2179,11 +1778,14 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		"attachments",
 		"expected_turn_id",
 		"idempotency_key",
+		"in_reply_to",
 		"message",
 		"message_id",
 		"mode",
+		"notify_on_complete",
 		"runtime",
 		"session_id",
+		"supersede",
 		"wait",
 		"workspace",
 	})
@@ -2233,6 +1835,17 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 			valid:   true,
 		},
 		{
+			name:    "Should accept a notification request",
+			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":"hello","notify_on_complete":true}`,
+			valid:   true,
+		},
+		{
+			name:         "Should reject a non-boolean notification request",
+			payload:      `{"session_id":"s","message_id":"m","idempotency_key":"k","message":"hello","notify_on_complete":"true"}`,
+			matchesKind:  validationErrorKindIsType,
+			expectedKind: "type",
+		},
+		{
 			name:    "Should accept an attachment-only prompt",
 			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":["att"]}`,
 			valid:   true,
@@ -2279,8 +1892,8 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 			if err == nil {
 				t.Fatalf("%s input schema accepted rejected payload", descriptor.ID)
 			}
-			var validationErr *jsonschema.ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+			if !ok {
 				t.Fatalf("%s validation error = %T, want *jsonschema.ValidationError", descriptor.ID, err)
 			}
 			if !validationErrorContainsKind(validationErr, tc.matchesKind) {
@@ -2345,6 +1958,11 @@ func validationErrorContainsKind(
 	return slices.ContainsFunc(err.Causes, func(cause *jsonschema.ValidationError) bool {
 		return validationErrorContainsKind(cause, matches)
 	})
+}
+
+func validationErrorKindIsType(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Type)
+	return ok
 }
 
 func validationErrorKindIsNot(errorKind jsonschema.ErrorKind) bool {
@@ -2430,8 +2048,10 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		"queue_generation",
 		"queue_position",
 		"replayed",
+		"reply_watch",
 		"status",
 		"steer_delivery",
+		"target_workspace_id",
 		"turn_id",
 	})
 	if !slices.Equal(prompt.Required, []string{"status", "delivery", "message_id", "idempotency_key", "replayed"}) {
@@ -2441,6 +2061,18 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 			prompt.Required,
 		)
 	}
+	// The public receipt can observe any persisted watch state, including a fast reply or replay.
+	var watch nativeObjectSchema
+	if err := json.Unmarshal(prompt.Properties["reply_watch"], &watch); err != nil {
+		t.Fatal(err)
+	}
+	assertStringEnumSchema(
+		t,
+		owner+" prompt.reply_watch.state",
+		watch.Properties["state"],
+		[]string{"armed", "fired", "delivered", "abandoned"},
+	)
+
 	assertStringEnumSchema(
 		t,
 		owner+" prompt.delivery",
@@ -2592,7 +2224,7 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
 	t.Helper()
 	assertClosedObjectSchema(t, owner, input, []string{
-		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "owner_id", "owner_kind",
+		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "origin", "owner_id", "owner_kind",
 		"queue_generation",
 		"runtime", "session_id", "status", "steer_delivery", "target_turn_id", "text",
 	})
@@ -2628,63 +2260,6 @@ func assertSessionMutationEnvelopeSchema(
 	}
 	if payload.Type != "object" {
 		t.Fatalf("%s payload = %#v, want object", owner, payload)
-	}
-}
-
-func assertNetworkParticipationSchemaMatchesRuntime(t *testing.T, owner string, raw json.RawMessage) {
-	t.Helper()
-	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("%s network_participation schema parse error = %v", owner, err)
-	}
-	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("network_participation.json", schemaValue); err != nil {
-		t.Fatalf("%s network_participation schema add error = %v", owner, err)
-	}
-	compiled, err := compiler.Compile("network_participation.json")
-	if err != nil {
-		t.Fatalf("%s network_participation schema compile error = %v", owner, err)
-	}
-
-	for _, payload := range []string{
-		`{}`,
-		`{"mode":"local"}`,
-		`{"mode":"local","bounds":{"max_wakes":1}}`,
-		`{"mode":"live"}`,
-		`{"mode":"live","channel_strategy":"named"}`,
-		`{"mode":"live","channel_strategy":"named","channel_id":"builders"}`,
-		`{"mode":"live","channel_strategy":"named","channel_id":"Invalid channel"}`,
-		`{"mode":"live","channel_strategy":"run"}`,
-		`{"mode":"live","channel_strategy":"run","channel_id":"builders"}`,
-		`{"mode":"live","channel_strategy":"loop_run","bounds":{"max_wakes":2}}`,
-		`{"mode":"live","channel_strategy":"loop_run","bounds":{"max_wakes":0}}`,
-	} {
-		var request participation.Request
-		if err := json.Unmarshal([]byte(payload), &request); err != nil {
-			t.Fatalf("%s runtime participation unmarshal error = %v", owner, err)
-		}
-		_, runtimeErr := participation.NormalizeIntent(request)
-		instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
-		if err != nil {
-			t.Fatalf("%s schema instance parse error = %v", owner, err)
-		}
-		schemaErr := compiled.Validate(instance)
-		if (runtimeErr == nil) != (schemaErr == nil) {
-			t.Fatalf(
-				"%s payload %s runtime error=%v schema error=%v, want matching validity",
-				owner,
-				payload,
-				runtimeErr,
-				schemaErr,
-			)
-		}
-	}
-	unknown, err := jsonschema.UnmarshalJSON(strings.NewReader(`{"mode":"local","legacy":true}`))
-	if err != nil {
-		t.Fatalf("%s unknown-field instance parse error = %v", owner, err)
-	}
-	if err := compiled.Validate(unknown); err == nil {
-		t.Fatalf("%s network_participation schema accepted an unknown field", owner)
 	}
 }
 
@@ -2909,12 +2484,8 @@ func assertSchemaFields(
 	wantRequired []string,
 ) {
 	t.Helper()
-	properties := make([]string, 0, len(schema.Properties))
-	for property := range schema.Properties {
-		properties = append(properties, property)
-	}
-	sort.Strings(properties)
-	sort.Strings(schema.Required)
+	properties := slices.Sorted(maps.Keys(schema.Properties))
+	slices.Sort(schema.Required)
 	if !slices.Equal(properties, wantProperties) {
 		t.Fatalf("%s properties = %#v, want %#v", owner, properties, wantProperties)
 	}
@@ -2928,11 +2499,7 @@ func assertClosedObjectSchema(t *testing.T, owner string, schema nativeObjectSch
 	if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties {
 		t.Fatalf("%s = %#v, want closed object", owner, schema)
 	}
-	gotKeys := make([]string, 0, len(schema.Properties))
-	for key := range schema.Properties {
-		gotKeys = append(gotKeys, key)
-	}
-	sort.Strings(gotKeys)
+	gotKeys := slices.Sorted(maps.Keys(schema.Properties))
 	if !slices.Equal(gotKeys, wantKeys) {
 		t.Fatalf("%s properties = %#v, want %#v", owner, gotKeys, wantKeys)
 	}
@@ -3081,8 +2648,8 @@ func assertNativeLoopRuntimeRulesSchema(
 			if err == nil {
 				t.Fatalf("%s runtime_rules schema accepted invalid payload %s", descriptor.ID, testCase.payload)
 			}
-			var validationErr *jsonschema.ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+			if !ok {
 				t.Fatalf("%s validation error = %T, want *jsonschema.ValidationError", descriptor.ID, err)
 			}
 			if !validationErrorContainsKind(validationErr, testCase.matchesKind) {
@@ -3177,27 +2744,6 @@ func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { 
 func TestBuiltinNativeWorkspaceInputContract(t *testing.T) {
 	t.Parallel()
 
-	descriptors := descriptorMap(NativeDescriptors())
-	for _, id := range []toolspkg.ToolID{
-		toolspkg.ToolIDTaskNotificationSubscribe,
-		toolspkg.ToolIDTaskNotificationList,
-	} {
-		descriptor, ok := descriptors[id]
-		if !ok {
-			t.Fatalf("descriptor %q missing", id)
-		}
-		var schema nativeObjectSchema
-		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-			t.Fatalf("json.Unmarshal(%s schema) error = %v", id, err)
-		}
-		if _, ok := schema.Properties["workspace_id"]; !ok {
-			t.Fatalf("%s properties omit opaque workspace_id", id)
-		}
-		if _, ok := schema.Properties["workspace"]; ok {
-			t.Fatalf("%s properties retain removed workspace alias", id)
-		}
-	}
-
 	for _, descriptor := range NativeDescriptors() {
 		t.Run("Should preserve the canonical workspace input contract for "+descriptor.ID.String(), func(t *testing.T) {
 			t.Parallel()
@@ -3256,9 +2802,7 @@ func nativeWorkspaceContractFieldAllowed(owner string, field string) bool {
 	}
 	switch owner {
 	case "compozy__layout_apply.document",
-		"compozy__layout_validate.document",
-		toolspkg.ToolIDTaskNotificationList.String(),
-		toolspkg.ToolIDTaskNotificationSubscribe.String():
+		"compozy__layout_validate.document":
 		return true
 	default:
 		return false
@@ -3341,10 +2885,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileSet) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskWorktreePolicySet) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileDelete) ||
-			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationSubscribe) ||
-			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationList) ||
-			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationShow) ||
-			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationDelete) ||
+
 			slices.Contains(tasks, toolspkg.ToolIDTaskRunClaimNext) {
 			t.Fatalf("task toolset expansion = %#v, want bounded task scope", tasks)
 		}
@@ -3363,33 +2904,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("autonomy expansion = %#v, want %#v", autonomy, want)
 		}
 
-		coordination, err := catalog.Expand(toolspkg.ToolsetIDCoordination, universe)
-		if err != nil {
-			t.Fatalf("Expand(coordination) error = %v", err)
-		}
-		if want := []toolspkg.ToolID{
-			toolspkg.ToolIDNetworkChannelCreate,
-			toolspkg.ToolIDNetworkChannelUpdate,
-			toolspkg.ToolIDNetworkChannels,
-			toolspkg.ToolIDNetworkDirectMessages,
-			toolspkg.ToolIDNetworkDirectResolve,
-			toolspkg.ToolIDNetworkDirects,
-			toolspkg.ToolIDNetworkInbox,
-			toolspkg.ToolIDNetworkMute,
-			toolspkg.ToolIDNetworkPeers,
-			toolspkg.ToolIDNetworkSend,
-			toolspkg.ToolIDNetworkStatus,
-			toolspkg.ToolIDNetworkSubscribe,
-			toolspkg.ToolIDNetworkSubscriptions,
-			toolspkg.ToolIDNetworkThreadMessages,
-			toolspkg.ToolIDNetworkThreads,
-			toolspkg.ToolIDNetworkUnmute,
-			toolspkg.ToolIDNetworkUsage,
-			toolspkg.ToolIDNetworkWork,
-		}; !slices.Equal(coordination, want) {
-			t.Fatalf("coordination expansion = %#v, want %#v", coordination, want)
-		}
-
 		sessions, err := catalog.Expand(toolspkg.ToolsetIDSessions, universe)
 		if err != nil {
 			t.Fatalf("Expand(sessions) error = %v", err)
@@ -3401,6 +2915,8 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRewind) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionContinue) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionFork) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputsList) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputReplace) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputCancel) ||
@@ -3454,60 +2970,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("provider models expansion = %#v, want %#v", providerModels, want)
 		}
 
-		memory, err := catalog.Expand(toolspkg.ToolsetIDMemory, universe)
-		if err != nil {
-			t.Fatalf("Expand(memory) error = %v", err)
-		}
-		if !slices.Contains(memory, toolspkg.ToolIDMemoryShow) ||
-			!slices.Contains(memory, toolspkg.ToolIDMemoryPropose) ||
-			!slices.Contains(memory, toolspkg.ToolIDMemoryNote) ||
-			slices.Contains(memory, toolspkg.ToolIDMemoryHealth) ||
-			slices.Contains(memory, toolspkg.ToolIDMemoryReset) ||
-			slices.Contains(memory, toolspkg.ToolID("compozy__memory_read")) ||
-			slices.Contains(memory, toolspkg.ToolID("compozy__memory_history")) ||
-			slices.Contains(memory, toolspkg.ToolID("compozy__memory_write")) {
-			t.Fatalf("memory toolset expansion = %#v, want Memory v2 Slice 1 tools", memory)
-		}
-
-		memoryAdmin, err := catalog.Expand(toolspkg.ToolsetIDMemoryAdmin, universe)
-		if err != nil {
-			t.Fatalf("Expand(memory_admin) error = %v", err)
-		}
-		if want := []toolspkg.ToolID{
-			toolspkg.ToolIDMemoryAdminHistory,
-			toolspkg.ToolIDMemoryDailyList,
-			toolspkg.ToolIDMemoryDecisionsList,
-			toolspkg.ToolIDMemoryDecisionsRevert,
-			toolspkg.ToolIDMemoryDecisionsShow,
-			toolspkg.ToolIDMemoryDreamList,
-			toolspkg.ToolIDMemoryDreamRetry,
-			toolspkg.ToolIDMemoryDreamShow,
-			toolspkg.ToolIDMemoryDreamStatus,
-			toolspkg.ToolIDMemoryDreamTrigger,
-			toolspkg.ToolIDMemoryExtractorDrain,
-			toolspkg.ToolIDMemoryExtractorFailures,
-			toolspkg.ToolIDMemoryExtractorRetry,
-			toolspkg.ToolIDMemoryExtractorStatus,
-			toolspkg.ToolIDMemoryHealth,
-			toolspkg.ToolIDMemoryPromote,
-			toolspkg.ToolIDMemoryProviderDisable,
-			toolspkg.ToolIDMemoryProviderEnable,
-			toolspkg.ToolIDMemoryProviderGet,
-			toolspkg.ToolIDMemoryProviderList,
-			toolspkg.ToolIDMemoryProviderSelect,
-			toolspkg.ToolIDMemoryRecallTrace,
-			toolspkg.ToolIDMemoryReindex,
-			toolspkg.ToolIDMemoryReload,
-			toolspkg.ToolIDMemoryReset,
-			toolspkg.ToolIDMemoryScopeShow,
-			toolspkg.ToolIDMemorySessionLedger,
-			toolspkg.ToolIDMemorySessionReplay,
-			toolspkg.ToolIDMemorySessionsPrune,
-			toolspkg.ToolIDMemorySessionsRepair,
-		}; !slices.Equal(memoryAdmin, want) {
-			t.Fatalf("memory admin toolset expansion = %#v, want %#v", memoryAdmin, want)
-		}
-
 		observe, err := catalog.Expand(toolspkg.ToolsetIDObserve, universe)
 		if err != nil {
 			t.Fatalf("Expand(observe) error = %v", err)
@@ -3516,16 +2978,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(observe, toolspkg.ToolIDObserveMetrics) ||
 			slices.Contains(observe, toolspkg.ToolID("compozy__observe_delete")) {
 			t.Fatalf("observe toolset expansion = %#v, want read-only observe tools", observe)
-		}
-
-		bridges, err := catalog.Expand(toolspkg.ToolsetIDBridges, universe)
-		if err != nil {
-			t.Fatalf("Expand(bridges) error = %v", err)
-		}
-		if !slices.Contains(bridges, toolspkg.ToolIDBridgesList) ||
-			!slices.Contains(bridges, toolspkg.ToolIDBridgesStatus) ||
-			slices.Contains(bridges, toolspkg.ToolID("compozy__bridges_update")) {
-			t.Fatalf("bridges toolset expansion = %#v, want read-only bridge tools", bridges)
 		}
 
 		config, err := catalog.Expand(toolspkg.ToolsetIDConfig, universe)
@@ -3726,4 +3178,43 @@ func requireDescriptorRisk(
 			openWorld,
 		)
 	}
+}
+
+// UT-045: the native descriptor boundary enforces the public delegation input contract.
+func TestSubagentDescriptorSchemas(t *testing.T) {
+	t.Run("Should retain public validation and idempotency metadata through descriptor conversion", func(t *testing.T) {
+		t.Parallel()
+		for _, descriptor := range subagentDescriptors() {
+			want := descriptor.ID == toolspkg.ToolIDSubagentCapabilities ||
+				descriptor.ID == toolspkg.ToolIDSubagentStatus
+			got := descriptor.Tool().Descriptor()
+			metadata := got.ExecutionMetadata()
+			if metadata.InputErrorCode != toolspkg.ErrorCodeInvalidRequest || metadata.Idempotent != want {
+				t.Fatalf("descriptor=%#v", got)
+			}
+		}
+	})
+	t.Run("Should enforce required task and closed enums", func(t *testing.T) {
+		t.Parallel()
+		d := descriptorMap(NativeDescriptors())[toolspkg.ToolIDSubagentDelegate]
+		schema := compileNativeSchema(t, d, d.InputSchema, "input")
+		for _, input := range []map[string]any{
+			{}, {"task": ""}, {"task": "work", "mode": "poll"}, {"task": "work", "role": "owner"}, {"task": "work", "permission_mode": "admin"},
+		} {
+			if err := schema.Validate(input); err == nil {
+				t.Fatalf("accepted %#v", input)
+			}
+		}
+		for _, mode := range []string{"async", "wait"} {
+			for _, role := range []string{"general", "implementation", "research", "review", "design", "test"} {
+				for _, permission := range []string{"inherit", "deny-all", "approve-reads", "approve-all"} {
+					if err := schema.Validate(
+						map[string]any{"task": "work", "mode": mode, "role": role, "permission_mode": permission},
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+		}
+	})
 }

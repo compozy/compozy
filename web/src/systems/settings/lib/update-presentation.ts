@@ -293,30 +293,3 @@ export function settingsUpdateApplicableTargets(
   if (app) return ["app"];
   return null;
 }
-
-/**
- * The version lane: a bare current version once nothing is pending, or the
- * `current → latest` transition while a different build is offered or targeted.
- */
-export function settingsUpdateVersionTransition(
-  track: Pick<SettingsUpdateTrackView, "currentVersion" | "latestVersion">
-): string | null {
-  if (!track.latestVersion || track.latestVersion === track.currentVersion) return null;
-  return track.latestVersion;
-}
-
-/**
- * Whether the menubar indicator should exist at all.
- *
- * True only while an update is genuinely offered and nothing is running: a live
- * operation suppresses the indicator outright, because applying, staged, and
- * failed are Settings' job and the menubar never renders progress or errors
- * (`_uiux.md` S2, US-029.EC-4).
- */
-export function settingsUpdateIndicatorAvailable(
-  snapshot: SettingsUpdateStatus | undefined
-): boolean {
-  if (!snapshot) return false;
-  if (snapshot.operation) return false;
-  return snapshot.runtime.status === "available" || snapshot.app?.status === "available";
-}

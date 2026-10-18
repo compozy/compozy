@@ -27,7 +27,7 @@ func TestStarvationSpawnerResolveAgent(t *testing.T) {
 			},
 		}
 
-		name, ok, err := spawner.resolveAgent(context.Background(), "ws-1", []string{"go"})
+		name, ok, err := spawner.resolveAgent(t.Context(), "ws-1", []string{"go"})
 		if err != nil {
 			t.Fatalf("resolveAgent() error = %v", err)
 		}
@@ -51,7 +51,7 @@ func TestStarvationSpawnerResolveAgent(t *testing.T) {
 			agents: reviewRouterAgentResolverStub{"docs-agent": spawnAgentDef("docs-agent", "docs")},
 		}
 
-		name, ok, err := spawner.resolveAgent(context.Background(), "ws-1", []string{"go"})
+		name, ok, err := spawner.resolveAgent(t.Context(), "ws-1", []string{"go"})
 		if err != nil {
 			t.Fatalf("resolveAgent() error = %v", err)
 		}
@@ -76,7 +76,7 @@ func TestStarvationSpawnerResolveAgent(t *testing.T) {
 			},
 		}
 
-		name, ok, err := spawner.resolveAgent(context.Background(), "ws-1", nil)
+		name, ok, err := spawner.resolveAgent(t.Context(), "ws-1", nil)
 		if err != nil {
 			t.Fatalf("resolveAgent(no caps) error = %v", err)
 		}

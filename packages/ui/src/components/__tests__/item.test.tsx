@@ -9,7 +9,6 @@ import {
   ItemGroup,
   ItemMedia,
   ItemSeparator,
-  ItemSelectionIndicator,
   ItemTitle,
 } from "../item";
 
@@ -46,19 +45,6 @@ describe("Item", () => {
     expect(slots).toEqual(["item-media", "item-content", "item-actions"]);
   });
 
-  it("Should expose variant + size via state for useRender", () => {
-    const { container } = render(
-      <Item variant="outline" size="xs">
-        <ItemContent>
-          <ItemTitle>Slim</ItemTitle>
-        </ItemContent>
-      </Item>
-    );
-    const item = container.querySelector('[data-slot="item"]');
-    expect(item?.getAttribute("data-variant")).toBe("outline");
-    expect(item?.getAttribute("data-size")).toBe("xs");
-  });
-
   it("Should expose selected state and render the rail indicator by default", () => {
     render(
       <Item selected indicator="rail" data-testid="selectable-item">
@@ -74,20 +60,6 @@ describe("Item", () => {
     expect(indicator).not.toBeNull();
     expect(indicator?.getAttribute("data-indicator")).toBe("rail");
     expect(indicator?.getAttribute("data-tone")).toBe("white");
-  });
-
-  it("Should expose data-tone=accent when indicatorTone='accent'", () => {
-    render(
-      <Item indicator="rail" indicatorTone="accent" data-testid="unread-item">
-        <ItemContent>
-          <ItemTitle>Unread row</ItemTitle>
-        </ItemContent>
-      </Item>
-    );
-
-    const item = screen.getByTestId("unread-item");
-    const indicator = item.querySelector('[data-slot="item-selection-indicator"]');
-    expect(indicator?.getAttribute("data-tone")).toBe("accent");
   });
 
   it("Should render as a pressed button when as=button and selected", () => {
@@ -120,13 +92,6 @@ describe("Item", () => {
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(onClick).not.toHaveBeenCalled();
-  });
-
-  it("Should render the dot indicator as a standalone subpart", () => {
-    render(<ItemSelectionIndicator kind="dot" data-testid="item-dot-indicator" />);
-
-    const indicator = screen.getByTestId("item-dot-indicator");
-    expect(indicator.dataset.indicator).toBe("dot");
   });
 
   it("Should render ItemSeparator as a horizontal separator between rows", () => {

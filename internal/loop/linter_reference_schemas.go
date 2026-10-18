@@ -101,7 +101,21 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		}
 		return convertSchema(params.OutputSchema), true
 	case dsl.ActionRunLoop:
-		return refs.Schema{reasonMetaStatus: jsonSchemaStringType, "outputs": map[string]any{}}, true
+		if c.legacyRunLoopOutputSchema {
+			return refs.Schema{
+				reasonMetaStatus:     jsonSchemaStringType,
+				"outputs":            map[string]any{},
+				metadataLoopRunIDKey: jsonSchemaStringType,
+			}, true
+		}
+		var params dsl.RunLoopParams
+		if err := node.Params.Decode(&params); err != nil {
+			return nil, false
+		}
+		if params.Mode == dsl.RunLoopDetach {
+			return refs.Schema{metadataLoopRunIDKey: jsonSchemaStringType}, true
+		}
+		return refs.Schema{jsonSchemaTypeKey: jsonSchemaStringType}, true
 	case dsl.ActionTransform:
 		var params dsl.TransformParams
 		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.

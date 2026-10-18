@@ -13,7 +13,7 @@ type coordinatorResultContextPayload struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	Name        string `json:"loop_name,omitempty"`
 	ParentRunID string `json:"parent_loop_run_id,omitempty"`
-	Generation  int    `json:"generation,omitempty"`
+	Generation  int    `json:"generation,omitzero"`
 	Status      string `json:"status,omitempty"`
 }
 

@@ -27,13 +27,11 @@ func curatedMarketplaceArtifactDetail(
 	trust *MarketplaceTrustEvidence,
 ) *registrypkg.Detail {
 	return &registrypkg.Detail{
-		Listing: registrypkg.Listing{
-			Slug:    strings.TrimSpace(slug),
-			Name:    strings.TrimSpace(slug),
-			Version: strings.TrimSpace(trust.Version),
-			Source:  MarketplaceCatalogRegistryName,
-			Type:    registrypkg.PackageTypeExtension,
-		},
+		Slug:       strings.TrimSpace(slug),
+		Name:       strings.TrimSpace(slug),
+		Version:    strings.TrimSpace(trust.Version),
+		Source:     MarketplaceCatalogRegistryName,
+		Type:       registrypkg.PackageTypeExtension,
 		Repository: strings.TrimSpace(trust.Repository),
 	}
 }

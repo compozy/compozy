@@ -13,11 +13,96 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestDaemonNativeAutomationTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should use registration identity for every automation workspace selector", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := workspacepkg.Workspace{ID: "ws-editorial", Name: "Editorial", RootDir: t.TempDir()}
+		for _, tc := range []struct {
+			name string
+			ref  string
+		}{
+			{name: "Should inherit the caller workspace"},
+			{name: "Should resolve the registration id", ref: workspace.ID},
+			{name: "Should resolve the durable identity", ref: "metadata-editorial"},
+			{name: "Should resolve the registered name", ref: workspace.Name},
+			{name: "Should resolve the registered path", ref: workspace.RootDir},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				job := nativeAutomationJobFixture("job-editorial", automationpkg.JobSourceDynamic)
+				job.Scope = automationpkg.AutomationScopeWorkspace
+				job.WorkspaceID = workspace.ID
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Workspaces: apitest.StubWorkspaceService{ResolveFn: func(
+						_ context.Context, ref string,
+					) (workspacepkg.ResolvedWorkspace, error) {
+						switch ref {
+						case workspace.ID, workspace.Name, workspace.RootDir, "metadata-editorial":
+							return workspacepkg.ResolvedWorkspace{
+								Workspace: workspace, WorkspaceID: "metadata-editorial",
+							}, nil
+						default:
+							return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+						}
+					}},
+					Automation: apitest.StubAutomationManager{
+						GetJobFn: func(context.Context, string) (automationpkg.Job, error) { return job, nil },
+						ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
+							if query.WorkspaceID != workspace.ID {
+								t.Errorf("ListJobs workspace = %q, want %q", query.WorkspaceID, workspace.ID)
+							}
+							return automationpkg.JobListPage{Jobs: []automationpkg.Job{job}, Total: 1}, nil
+						},
+						CreateJobFn: func(_ context.Context, created automationpkg.Job) (automationpkg.Job, error) {
+							if created.WorkspaceID != workspace.ID {
+								t.Errorf("CreateJob workspace = %q, want %q", created.WorkspaceID, workspace.ID)
+							}
+							created.ID = job.ID
+							return created, nil
+						},
+					},
+				}, nativeApproveAllPolicyInputs())
+				scope := toolspkg.Scope{Operator: true, WorkspaceID: workspace.ID}
+				for _, call := range []struct {
+					id    toolspkg.ToolID
+					input map[string]any
+				}{
+					{id: toolspkg.ToolIDAutomationJobsGet, input: map[string]any{"job_id": job.ID}},
+					{id: toolspkg.ToolIDAutomationJobsList, input: map[string]any{"scope": "workspace"}},
+					{id: toolspkg.ToolIDAutomationJobsCreate, input: map[string]any{
+						"scope": "workspace", "name": "release-review", "agent_name": "codex", "prompt": "Review the release",
+						"schedule": map[string]any{"mode": "every", "interval": "168h"}, "enabled": false,
+					}},
+				} {
+					if tc.ref != "" {
+						call.input["workspace"] = tc.ref
+					}
+					input, err := json.Marshal(call.input)
+					if err != nil {
+						t.Fatal(err)
+					}
+					result, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: call.id, Input: input},
+					)
+					if err != nil {
+						t.Errorf("Call(%s) error = %v", call.id, err)
+						continue
+					}
+					requireNativeStructuredContains(t, result, []byte(workspace.ID))
+				}
+			})
+		}
+	})
 
 	t.Run("Should route automation lifecycle tools through the automation manager", func(t *testing.T) {
 		t.Parallel()
@@ -50,6 +135,20 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
+				LatestRunsByOwnerFn: func(_ context.Context, owner automationpkg.RunOwnerKind, ids []string) (map[string]automationpkg.Run, error) {
+					expectedID := job.ID
+					latest := run
+					if owner == automationpkg.RunOwnerTrigger {
+						expectedID = trigger.ID
+						latest.ID = "trigger-last-run"
+						latest.JobID = ""
+						latest.TriggerID = trigger.ID
+					}
+					if len(ids) != 1 || ids[0] != expectedID {
+						t.Fatalf("latest lookup owner=%s ids=%v, want %s", owner, ids, expectedID)
+					}
+					return map[string]automationpkg.Run{expectedID: latest}, nil
+				},
 				ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
 					listJobQuery = query
 					return automationpkg.JobListPage{
@@ -164,17 +263,41 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsList,
-				Input:  json.RawMessage(`{"scope":"global","source":"package","enabled":false,"q":"review","limit":3}`),
+				Input: json.RawMessage(
+					`{"scope":"global","source":"package","target":"loop","enabled":false,"q":"review","limit":3}`,
+				),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_jobs_list) error = %v", err)
 		}
+		views, err := registry.List(t.Context(), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for id, description := range map[toolspkg.ToolID]string{
+			toolspkg.ToolIDAutomationJobsList:     "List automation jobs (the Web UI shows them as scheduled automations)",
+			toolspkg.ToolIDAutomationTriggersList: "List automation triggers (the Web UI shows them as automations on events)",
+		} {
+			found := false
+			for _, view := range views {
+				if view.Descriptor.ID == id {
+					found = true
+					if !strings.Contains(view.Descriptor.Description, description) {
+						t.Fatalf("%s description = %q, want %q", id, view.Descriptor.Description, description)
+					}
+				}
+			}
+			if !found {
+				t.Fatalf("missing native tool %s", id)
+			}
+		}
+		requireNativeAutomationLastRun(t, jobListResult, "jobs", "run-1")
 		requireNativeStructuredContains(t, jobListResult, []byte(`"job-1"`))
 		requireNativeStructuredContains(t, jobListResult, []byte(`"page"`))
 		requireNativeStructuredContains(t, jobListResult, []byte(`"total":4`))
 		if listJobQuery.Scope != automationpkg.AutomationScopeGlobal ||
-			listJobQuery.Source != automationpkg.JobSourcePackage ||
+			listJobQuery.Source != automationpkg.JobSourcePackage || listJobQuery.Target != "loop" ||
 			listJobQuery.Enabled == nil || *listJobQuery.Enabled ||
 			listJobQuery.Search != "review" ||
 			listJobQuery.Limit != 3 {
@@ -192,6 +315,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_jobs_get) error = %v", err)
 		}
+		requireNativeAutomationLastRun(t, jobGetResult, "job", "run-1")
 		requireNativeStructuredContains(t, jobGetResult, []byte(`"job-1"`))
 
 		jobCreateResult, err := registry.Call(
@@ -313,6 +437,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					"scope":"global",
 					"event":"session.created",
 					"source":"package",
+					"target":"agent",
 					"enabled":true,
 					"q":"review",
 					"limit":4
@@ -322,12 +447,13 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_triggers_list) error = %v", err)
 		}
+		requireNativeAutomationLastRun(t, triggerListResult, "triggers", "trigger-last-run")
 		requireNativeStructuredContains(t, triggerListResult, []byte(`"trigger-1"`))
 		requireNativeStructuredContains(t, triggerListResult, []byte(`"page"`))
 		requireNativeStructuredContains(t, triggerListResult, []byte(`"total":6`))
 		if listTriggerQuery.Scope != automationpkg.AutomationScopeGlobal ||
 			listTriggerQuery.Event != "session.created" ||
-			listTriggerQuery.Source != automationpkg.JobSourcePackage ||
+			listTriggerQuery.Source != automationpkg.JobSourcePackage || listTriggerQuery.Target != "agent" ||
 			listTriggerQuery.Enabled == nil || !*listTriggerQuery.Enabled ||
 			listTriggerQuery.Search != "review" ||
 			listTriggerQuery.Limit != 4 {
@@ -345,6 +471,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_triggers_get) error = %v", err)
 		}
+		requireNativeAutomationLastRun(t, triggerGetResult, "trigger", "trigger-last-run")
 		requireNativeStructuredContains(t, triggerGetResult, []byte(`"trigger-1"`))
 
 		triggerCreateResult, err := registry.Call(
@@ -591,7 +718,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return automationpkg.ManagerStatus{}, nil
 				},
 			},
-			Sessions: nativeNetworkTestSessionManager("ws-a"),
+			Sessions: nativeTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
 
@@ -872,7 +999,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return dismissed, nil
 				},
 			},
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -959,7 +1086,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return automationpkg.ManagerStatus{}, nil
 				},
 			},
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -1512,5 +1639,35 @@ func nativeAutomationTriggerFixture(id string, source automationpkg.JobSource) a
 		Source:    source,
 		CreatedAt: now,
 		UpdatedAt: now,
+	}
+}
+
+func requireNativeAutomationLastRun(t *testing.T, result toolspkg.ToolResult, field, id string) {
+	t.Helper()
+	var response map[string]json.RawMessage
+	if err := json.Unmarshal(result.Structured, &response); err != nil {
+		t.Fatal(err)
+	}
+	type item struct {
+		LastRun struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"last_run"`
+	}
+	var actual item
+	if field == "jobs" || field == "triggers" {
+		var items []item
+		if err := json.Unmarshal(response[field], &items); err != nil {
+			t.Fatal(err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("%s = %s, want one item", field, response[field])
+		}
+		actual = items[0]
+	} else if err := json.Unmarshal(response[field], &actual); err != nil {
+		t.Fatal(err)
+	}
+	if actual.LastRun.ID != id || actual.LastRun.Status != "completed" {
+		t.Fatalf("last run = %#v, want %s completed", actual.LastRun, id)
 	}
 }

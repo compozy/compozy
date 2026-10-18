@@ -376,7 +376,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 		nativeTools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{{
-				Profile: profilepkg.Profile{ID: profileID, Name: "marketing"},
+				ID: profileID, Name: "marketing",
 			}}},
 		}}
 		scope, workspaceID, profileName, err := nativeTools.marketplaceToolScope(

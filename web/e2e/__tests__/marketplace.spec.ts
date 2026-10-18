@@ -166,7 +166,7 @@ test.describe("Marketplace source catalog", () => {
     }
   });
 
-  test("E2E-001: operator browses three source sections and resolves duplicate entry IDs by source", async ({
+  test("E2E-001 / E2E-005: operator browses independent sources and retains installed packages across source recovery", async ({
     appPage,
     runtime,
   }) => {
@@ -183,30 +183,100 @@ test.describe("Marketplace source catalog", () => {
         });
       }
       await runtime.requestJSON("/api/marketplace/refresh", { method: "POST" });
-      await ensureProjectWorkspace(appPage, runtime);
-      await completeOnboardingIfPrompted(appPage);
-      await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
-      const win = appWindow(appPage, "marketplace");
-      for (const name of ["compozy-catalog", "team", "partner"]) {
-        await expect(win.getByTestId(`marketplace-section-${name}`)).toBeVisible();
-      }
-      const teamCard = win
-        .getByTestId("marketplace-section-team")
-        .getByTestId("marketplace-card-tool");
-      const partnerCard = win
-        .getByTestId("marketplace-section-partner")
-        .getByTestId("marketplace-card-tool");
-      await expect(teamCard).toBeVisible();
-      await expect(partnerCard).toBeVisible();
-      await teamCard.getByRole("link", { name: /View .* details/ }).click();
-      await expect.poll(() => new URL(appPage.url()).searchParams.get("source")).toBe("team");
-      await expect(win.getByTestId("marketplace-detail")).toContainText("Loop");
-      await appPage.goto(runtime.url("/marketplace?q=does-not-match-any-plugin"), {
-        waitUntil: "domcontentloaded",
+      await test.step("E2E-001: browse independent sources and recover an empty query", async () => {
+        await ensureProjectWorkspace(appPage, runtime);
+        await completeOnboardingIfPrompted(appPage);
+        await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
+        const win = appWindow(appPage, "marketplace");
+        for (const name of ["compozy-catalog", "team", "partner"]) {
+          await expect(win.getByTestId(`marketplace-section-${name}`)).toBeVisible();
+        }
+        const teamCard = win
+          .getByTestId("marketplace-section-team")
+          .getByTestId("marketplace-card-tool");
+        const partnerCard = win
+          .getByTestId("marketplace-section-partner")
+          .getByTestId("marketplace-card-tool");
+        await expect(teamCard).toBeVisible();
+        await expect(partnerCard).toBeVisible();
+        await teamCard.getByRole("link", { name: /View .* details/ }).click();
+        await expect.poll(() => new URL(appPage.url()).searchParams.get("source")).toBe("team");
+        await expect(win.getByTestId("marketplace-detail")).toContainText("Loop");
+        await appPage.goto(runtime.url("/marketplace?q=does-not-match-any-plugin"), {
+          waitUntil: "domcontentloaded",
+        });
+        await expect(win.getByTestId("marketplace-query-empty")).toBeVisible();
+        await win.getByRole("button", { name: "Clear search", exact: true }).click();
+        await expect(win.getByTestId("marketplace-section-team")).toBeVisible();
       });
-      await expect(win.getByTestId("marketplace-query-empty")).toBeVisible();
-      await win.getByRole("button", { name: "Clear search", exact: true }).click();
-      await expect(win.getByTestId("marketplace-section-team")).toBeVisible();
+      await test.step("E2E-005: retain diagnostics and installed packages across remove/re-add", async () => {
+        const listing = await runtime.requestJSON<{
+          items: Array<{ entry_id: string; source: string; digest_sha256: string }>;
+        }>("/api/marketplace");
+        const entry = listing.items.find(
+          item => item.source === "team" && item.entry_id === "tool"
+        );
+        if (!entry) throw new Error("Registered fixture plugin is missing from the catalog");
+        await runtime.requestJSON("/api/extensions", {
+          method: "POST",
+          body: JSON.stringify({
+            source: "marketplace",
+            ref: "team/tool",
+            expected_digest: entry.digest_sha256,
+            allow_unverified: true,
+          }),
+        });
+        await ensureProjectWorkspace(appPage, runtime);
+        await completeOnboardingIfPrompted(appPage);
+        await appPage.goto(runtime.url("/settings/marketplace"));
+        const settings = appWindow(appPage, "settings");
+        const row = settings.getByTestId("settings-page-marketplace-source-team");
+        await expect(row).toBeVisible();
+        await row.getByTestId("settings-page-marketplace-source-team-disclosure").click();
+        const documentPath = path.join(team.source, "marketplace.json");
+        const document = await readFile(documentPath, "utf8");
+        await writeFile(documentPath, "invalid document");
+        await row.getByTestId("settings-page-marketplace-source-team-refresh").click();
+        await expect(
+          row.getByTestId("settings-page-marketplace-source-team-degraded")
+        ).toBeVisible();
+        await expect(
+          row.getByTestId("settings-page-marketplace-source-team-reason")
+        ).not.toBeEmpty();
+        await expect(row.getByTestId("settings-page-marketplace-source-team-count")).toContainText(
+          "1"
+        );
+        await writeFile(documentPath, document);
+        await row.getByTestId("settings-page-marketplace-source-team-refresh").click();
+        await expect(
+          row.getByTestId("settings-page-marketplace-source-team-degraded")
+        ).not.toBeVisible();
+        await row.getByTestId("settings-page-marketplace-source-team-toggle").click();
+        await expect(row.getByTestId("settings-page-marketplace-source-team-off")).toBeVisible();
+        const disabled = await runtime.requestJSON<{ items: Array<{ source: string }> }>(
+          "/api/marketplace"
+        );
+        expect(disabled.items.some(item => item.source === "team")).toBe(false);
+        await row.getByTestId("settings-page-marketplace-source-team-remove").click();
+        await appPage.getByTestId("settings-page-marketplace-sources-remove-confirm").click();
+        await expect(row).not.toBeVisible();
+        const installed = await runtime.requestJSON<{ extension: { name: string } }>(
+          `/api/extensions/${team.instanceName}`
+        );
+        expect(installed.extension.name).toBe(team.instanceName);
+        await runtime.requestJSON("/api/marketplace/sources", {
+          method: "POST",
+          body: JSON.stringify({ name: "team", ref: team.source }),
+        });
+        const restored = await runtime.requestJSON<{
+          items: Array<{ source: string; entry_id: string; installed: boolean }>;
+        }>("/api/marketplace");
+        expect(
+          restored.items.find(item => item.source === "team" && item.entry_id === "tool")?.installed
+        ).toBe(true);
+        await appPage.reload();
+        await expect(row).toBeVisible();
+      });
     } finally {
       await team.cleanup();
       await partner.cleanup();
@@ -276,82 +346,6 @@ test.describe("Marketplace source catalog", () => {
       await expect(
         win.getByTestId(`marketplace-installed-card-${fixture.instanceName}`)
       ).toBeVisible();
-    } finally {
-      await fixture.cleanup();
-    }
-  });
-
-  // Invariant: source availability/removal changes discovery while preserving installed packages.
-  test("E2E-005: source settings retain cached diagnostics and installed packages across remove/re-add", async ({
-    appPage,
-    runtime,
-  }) => {
-    const fixture = await createPluginMarketplaceFixture();
-    try {
-      await runtime.requestJSON("/api/marketplace/sources", {
-        method: "POST",
-        body: JSON.stringify({ name: "team", ref: fixture.source }),
-      });
-      const listing = await runtime.requestJSON<{
-        items: Array<{ entry_id: string; source: string; digest_sha256: string }>;
-      }>("/api/marketplace");
-      const entry = listing.items.find(item => item.source === "team" && item.entry_id === "tool");
-      if (!entry) throw new Error("Registered fixture plugin is missing from the catalog");
-      await runtime.requestJSON("/api/extensions", {
-        method: "POST",
-        body: JSON.stringify({
-          source: "marketplace",
-          ref: "team/tool",
-          expected_digest: entry.digest_sha256,
-          allow_unverified: true,
-        }),
-      });
-      await ensureProjectWorkspace(appPage, runtime);
-      await completeOnboardingIfPrompted(appPage);
-      await appPage.goto(runtime.url("/settings/marketplace"));
-      const settings = appWindow(appPage, "settings");
-      const row = settings.getByTestId("settings-page-marketplace-source-team");
-      await expect(row).toBeVisible();
-      await row.getByTestId("settings-page-marketplace-source-team-disclosure").click();
-      const documentPath = path.join(fixture.source, "marketplace.json");
-      const document = await readFile(documentPath, "utf8");
-      await writeFile(documentPath, "invalid document");
-      await row.getByTestId("settings-page-marketplace-source-team-refresh").click();
-      await expect(row.getByTestId("settings-page-marketplace-source-team-degraded")).toBeVisible();
-      await expect(row.getByTestId("settings-page-marketplace-source-team-reason")).not.toBeEmpty();
-      await expect(row.getByTestId("settings-page-marketplace-source-team-count")).toContainText(
-        "1"
-      );
-      await writeFile(documentPath, document);
-      await row.getByTestId("settings-page-marketplace-source-team-refresh").click();
-      await expect(
-        row.getByTestId("settings-page-marketplace-source-team-degraded")
-      ).not.toBeVisible();
-      await row.getByTestId("settings-page-marketplace-source-team-toggle").click();
-      await expect(row.getByTestId("settings-page-marketplace-source-team-off")).toBeVisible();
-      const disabled = await runtime.requestJSON<{ items: Array<{ source: string }> }>(
-        "/api/marketplace"
-      );
-      expect(disabled.items.some(item => item.source === "team")).toBe(false);
-      await row.getByTestId("settings-page-marketplace-source-team-remove").click();
-      await appPage.getByTestId("settings-page-marketplace-sources-remove-confirm").click();
-      await expect(row).not.toBeVisible();
-      const installed = await runtime.requestJSON<{ extension: { name: string } }>(
-        `/api/extensions/${fixture.instanceName}`
-      );
-      expect(installed.extension.name).toBe(fixture.instanceName);
-      await runtime.requestJSON("/api/marketplace/sources", {
-        method: "POST",
-        body: JSON.stringify({ name: "team", ref: fixture.source }),
-      });
-      const restored = await runtime.requestJSON<{
-        items: Array<{ source: string; entry_id: string; installed: boolean }>;
-      }>("/api/marketplace");
-      expect(
-        restored.items.find(item => item.source === "team" && item.entry_id === "tool")?.installed
-      ).toBe(true);
-      await appPage.reload();
-      await expect(row).toBeVisible();
     } finally {
       await fixture.cleanup();
     }
@@ -441,8 +435,10 @@ test.describe("MCP Settings authorization", () => {
       });
       await appPage.getByTestId("settings-page-mcp-authorize-done").click();
 
+      // The row carries one summary status; the per-signal breakdown lives in the selection strip.
+      await serverRow.getByTestId(`settings-page-mcp-servers-row-${SERVER_NAME}-name`).click();
       await expect(
-        serverRow.getByTestId(`settings-page-mcp-servers-row-${SERVER_NAME}-auth`)
+        appPage.getByTestId(`settings-page-mcp-servers-row-${SERVER_NAME}-auth`)
       ).toContainText("Authenticated", { timeout: 15_000 });
 
       await browserArtifacts.captureScreenshot("mcp-authorize-confirmed", appPage);
@@ -945,7 +941,10 @@ test.describe("Extension marketplace runtime", () => {
     await expect(approvedUI.permissionPrompt).toBeVisible();
     await expect(approvedWin.getByRole("region", { name: "Permission required" })).toBeVisible();
     await expect(approvedWin.getByRole("button", { name: /always allow/i })).toBeVisible();
-    await expect(approvedWin.getByRole("button", { name: /^reject 3$/i })).toBeVisible();
+    // The keycap is decorative; the shortcut rides in aria-keyshortcuts.
+    const dontAllow = approvedWin.getByRole("button", { name: /^don't allow$/i });
+    await expect(dontAllow).toBeVisible();
+    await expect(dontAllow).toHaveAttribute("aria-keyshortcuts", "3");
     await assertPermissionKeyboardPath(approvedWin);
 
     const approveResponsePromise = appPage.waitForResponse(
@@ -1398,11 +1397,13 @@ test.describe("Extension marketplace runtime", () => {
 
   async function assertPermissionKeyboardPath(win: Locator): Promise<void> {
     const page = win.page();
+    // Focus follows the visual order: decline actions, then the allow pair with
+    // the primary "Allow once" last.
     const focusOrder = [
-      "permission-allow-once",
-      "permission-allow-always",
       "permission-reject-once",
       "permission-reject-menu-trigger",
+      "permission-allow-always",
+      "permission-allow-once",
     ];
     await win.getByTestId(focusOrder[0]).focus();
     for (const testID of focusOrder) {
@@ -1411,6 +1412,9 @@ test.describe("Extension marketplace runtime", () => {
         await page.keyboard.press("Tab");
       }
     }
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(win.getByTestId("permission-reject-menu-trigger")).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("permission-reject-menu")).toBeVisible();
     await expect(page.getByTestId("permission-reject-always")).toBeFocused();

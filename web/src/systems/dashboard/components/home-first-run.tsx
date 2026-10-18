@@ -24,16 +24,14 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
           <Button
             data-testid="home-first-run-session"
             onClick={() => sessionCreate.openForAgent("")}
-            size="sm"
             type="button"
-            variant="neutral"
+            variant="primary"
           >
             Start a session
           </Button>
           <Button
             nativeButton={false}
             render={<Link to="/tasks/new" />}
-            size="sm"
             variant="ghost"
             data-testid="home-first-run-task"
           >
@@ -42,7 +40,6 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
           <Button
             nativeButton={false}
             render={<Link to="/marketplace" />}
-            size="sm"
             variant="ghost"
             data-testid="home-first-run-marketplace"
           >
@@ -51,6 +48,7 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
         </>
       }
       data-testid="home-first-run"
+      support="Start a session with an agent, or set up a task that runs on its own."
       icon={Home}
       title={workspaceName ? `No agent work yet in ${workspaceName}` : "No agent work yet"}
     />

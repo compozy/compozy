@@ -96,7 +96,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
                 onChange(args.filter((_, i) => i !== index));
               }}
             >
-              <Trash2 className="size-3" />
+              <Trash2 />
             </Button>
           </div>
         ))}
@@ -111,7 +111,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
             onChange([...args, ""]);
           }}
         >
-          <Plus className="size-3" />
+          <Plus />
           Add argument
         </Button>
       </div>
@@ -173,7 +173,7 @@ function EnvEditor({
                   onChange(env.filter((_, i) => i !== index));
                 }}
               >
-                <Trash2 className="size-3" />
+                <Trash2 />
               </Button>
             </div>
             {errors?.[index] ? (
@@ -193,7 +193,7 @@ function EnvEditor({
             onChange([...env, { key: "", value: "" }]);
           }}
         >
-          <Plus className="size-3" />
+          <Plus />
           Add variable
         </Button>
       </div>
@@ -251,7 +251,7 @@ function SecretEnvSection({
                     onChange(secretEnv.filter((_, i) => i !== index));
                   }}
                 >
-                  <Trash2 className="size-3" />
+                  <Trash2 />
                 </Button>
               </div>
               <MCPSecretBindingControl
@@ -281,7 +281,7 @@ function SecretEnvSection({
             onChange([...secretEnv, { key: "", binding: emptyBinding() }]);
           }}
         >
-          <Plus className="size-3" />
+          <Plus />
           Add secret binding
         </Button>
         <p className="rounded-md bg-info-tint p-2.5 text-caption text-info">

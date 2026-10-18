@@ -41,6 +41,7 @@ func newCmdPaletteInvokeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			commandID = canonicalCmdPaletteCommandID(cmd, commandID)
 			command, ok := findCmdPaletteCommand(catalog.Commands, commandID)
 			if !ok {
 				return cmdPaletteCommandNotFoundError(commandID)
@@ -60,7 +61,7 @@ func newCmdPaletteInvokeCommand(deps commandDeps) *cobra.Command {
 				ApprovalID: result.ApprovalID, InvocationID: result.InvocationID,
 			}
 			if result.Status == cmdpalette.InvokeStatusApprovalPending {
-				output.Message = "destructive command requires approval"
+				output.Message = "command requires approval"
 			}
 			return writeCommandOutput(cmd, cmdPaletteInvokeOutput(output))
 		},
@@ -124,7 +125,7 @@ func cmdPaletteInvokeOutput(record cmdPaletteInvokeOutputRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"invocation",
-				[]string{automationStatusKey, configCommandKey, "approval_id", "invocation_id", bridgeMessageKey},
+				[]string{automationStatusKey, configCommandKey, "approval_id", "invocation_id", cliOutputMessageKey},
 				[]string{
 					string(record.Status), record.Command, record.ApprovalID, record.InvocationID, record.Message,
 				},

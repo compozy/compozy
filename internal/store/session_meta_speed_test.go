@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -60,16 +59,15 @@ func TestSessionMetaValidateSpeed(t *testing.T) {
 
 			now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
 			meta := SessionMeta{
-				ID:                   "sess-speed",
-				AgentName:            "coder",
-				WorkspaceID:          "ws-speed",
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				State:                "active",
-				RuntimeStatus:        SessionRuntimeReady,
-				Speed:                test.speed,
-				SpeedResolution:      speedpkg.CloneResolution(test.resolution),
-				CreatedAt:            now,
-				UpdatedAt:            now,
+				ID:              "sess-speed",
+				AgentName:       "coder",
+				WorkspaceID:     "ws-speed",
+				State:           "active",
+				RuntimeStatus:   SessionRuntimeReady,
+				Speed:           test.speed,
+				SpeedResolution: speedpkg.CloneResolution(test.resolution),
+				CreatedAt:       now,
+				UpdatedAt:       now,
 			}
 
 			err := meta.Validate()

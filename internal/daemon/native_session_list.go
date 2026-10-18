@@ -22,12 +22,12 @@ type sessionListInput struct {
 	Parent        string `json:"parent,omitempty"`
 	Root          string `json:"root,omitempty"`
 	Query         string `json:"q,omitempty"`
-	Resumable     bool   `json:"resumable,omitempty"`
+	Resumable     bool   `json:"resumable,omitzero"`
 	Archive       string `json:"archive,omitempty"`
-	IncludeHealth bool   `json:"include_health,omitempty"`
+	IncludeHealth bool   `json:"include_health,omitzero"`
 	Sort          string `json:"sort,omitempty"`
 	Cursor        string `json:"cursor,omitempty"`
-	Limit         int    `json:"limit,omitempty"`
+	Limit         int    `json:"limit,omitzero"`
 }
 
 func (n *daemonNativeTools) sessionList(
@@ -74,7 +74,7 @@ func (n *daemonNativeTools) sessionList(
 	})
 	if err != nil {
 		if errors.Is(err, session.ErrListQueryInvalid) || errors.Is(err, session.ErrListCursorInvalid) {
-			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+			return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 		}
 		return toolspkg.ToolResult{}, err
 	}
@@ -92,12 +92,13 @@ func (n *daemonNativeTools) sessionList(
 			return toolspkg.ToolResult{}, err
 		}
 	}
+	core.ApplySessionPlacements(payload, page.Placements)
 	response := contract.SessionCatalogResponse{
 		Sessions: payload,
-		Page: contract.CountedCursorPagePayload{
+		Page: contract.SessionCatalogPagePayload{
 			NextCursor: page.NextCursor,
 			HasMore:    page.HasMore,
-			Total:      page.Total,
+			Total:      &page.Total,
 			Limit:      page.Limit,
 		},
 	}

@@ -90,7 +90,7 @@ const SECOND_REPLY =
 
 /**
  * Two settled turns (timeline VC-05 both cells, find-trail VC-01..04): the
- * first folds behind "Worked for 4m 12s · Ran 6 commands, edited 2 files, read
+ * first folds behind "Worked for 4m 12s · Ran 6 commands · Edited 2 files · Read
  * 1 file" over the answer; the second has no tool work, so no fold row at all.
  * "lifecycle" occurs in every entry: the ask, the first turn (first inside the
  * fold, on the read path), and the second exchange — four matches, one folded.
@@ -280,11 +280,21 @@ export const inactivityStoppedSession: SessionPayload = {
   stop_cause: "inactivity",
 } as SessionPayload;
 
-/** A running session resource: durable turn start, current tool, spawned children. */
+/**
+ * A running session resource: durable turn start, current tool, spawned
+ * children, and — with `quietAgoMs` — the daemon's hung-turn quiet episode.
+ */
 export function runningSession(
-  options: { currentTool?: string; agents?: number; startedAgoMs?: number; turnId?: string } = {}
+  options: {
+    currentTool?: string;
+    agents?: number;
+    startedAgoMs?: number;
+    turnId?: string;
+    quietAgoMs?: number;
+  } = {}
 ): SessionPayload {
   const startedAgoMs = options.startedAgoMs ?? 134_000;
+  const quietSince = options.quietAgoMs === undefined ? null : Date.now() - options.quietAgoMs;
   return {
     ...primarySessionFixture,
     activity: {
@@ -298,7 +308,14 @@ export function runningSession(
       turn_started_at: new Date(Date.now() - startedAgoMs).toISOString(),
     },
     supervision: {
-      quiet_warning: null,
+      quiet_warning:
+        quietSince === null
+          ? null
+          : {
+              quiet_since: new Date(quietSince).toISOString(),
+              warned_at: new Date(Date.now()).toISOString(),
+              stop_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+            },
       sources: [],
       work_signals: Array.from({ length: options.agents ?? 0 }, (_, index) => ({
         kind: "active_child" as const,

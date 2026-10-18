@@ -3,16 +3,18 @@ package observe
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
@@ -29,21 +31,20 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		now := h.now.Add(30 * time.Minute)
 		stopReason := store.StopUserCanceled
 
-		if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-			ID:                   "sess-new",
-			ProfileID:            store.DefaultProfileID,
-			Name:                 "New",
-			AgentName:            "coder",
-			Provider:             "claude",
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-			State:                "stopped",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			StopReason:           &stopReason,
-			StopDetail:           "requested by API",
-			StopEscalated:        true,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+		if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
+			ID:            "sess-new",
+			ProfileID:     store.DefaultProfileID,
+			Name:          "New",
+			AgentName:     "coder",
+			Provider:      "claude",
+			WorkspaceID:   h.workspaceID,
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			StopReason:    &stopReason,
+			StopDetail:    "requested by API",
+			StopEscalated: true,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
@@ -52,7 +53,7 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Indexed)
+		slices.Sort(result.Indexed)
 		if got, want := result.Indexed, []string{"sess-new"}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
@@ -109,15 +110,13 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		creationProfile := store.SessionCreationProfile{
 			Version: store.SessionCreationProfileVersion, AgentName: "coder", Provider: "claude",
 			ProfileID:   store.DefaultProfileID,
-			WorkspaceID: h.workspaceID, CWD: h.workspace, SandboxMode: store.SessionCreationSandboxNone,
+			WorkspaceID: h.workspaceID, CWD: h.workspace,
 			Permissions: "approve-reads",
 		}
 		creationOptions := store.SessionCreationOptions{
-			SessionID:            childID,
-			Name:                 "Child",
-			NetworkOwnerKey:      "session:" + childID,
-			NetworkParticipation: participation.LocalSpec(),
-			SessionType:          "worker",
+			SessionID:   childID,
+			Name:        "Child",
+			SessionType: string(session.SessionTypeSpawned),
 		}
 		creationProfileRef, err := creationProfile.Ref()
 		if err != nil {
@@ -151,49 +150,43 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		}
 
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)),
-			store.SessionMeta{
-				ID:                   rootID,
-				ProfileID:            store.DefaultProfileID,
-				Name:                 "Root",
-				AgentName:            "coder",
-				Provider:             "claude",
-				WorkspaceID:          h.workspaceID,
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				State:                "stopped",
-				RuntimeStatus:        store.SessionRuntimeUnbound,
-				CreatedAt:            now,
-				UpdatedAt:            now,
-			},
-		); err != nil {
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)), &store.SessionMeta{
+				ID:            rootID,
+				ProfileID:     store.DefaultProfileID,
+				Name:          "Root",
+				AgentName:     "coder",
+				Provider:      "claude",
+				WorkspaceID:   h.workspaceID,
+				State:         "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}); err != nil {
 			t.Fatalf("WriteSessionMeta(root) error = %v", err)
 		}
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)),
-			store.SessionMeta{
-				ID:                   parentID,
-				ProfileID:            store.DefaultProfileID,
-				Name:                 "Parent",
-				AgentName:            "coder",
-				Provider:             "claude",
-				WorkspaceID:          h.workspaceID,
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				State:                "stopped",
-				RuntimeStatus:        store.SessionRuntimeUnbound,
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)), &store.SessionMeta{
+				ID:            parentID,
+				ProfileID:     store.DefaultProfileID,
+				Name:          "Parent",
+				AgentName:     "coder",
+				Provider:      "claude",
+				WorkspaceID:   h.workspaceID,
+				State:         "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound,
 				Lineage: &store.SessionLineage{
 					ParentSessionID: rootID,
 					RootSessionID:   rootID,
 					SpawnDepth:      1,
+					Kind:            store.LineageKindProvenance,
 				},
 				CreatedAt: now,
 				UpdatedAt: now,
-			},
-		); err != nil {
+			}); err != nil {
 			t.Fatalf("WriteSessionMeta(parent) error = %v", err)
 		}
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)),
-			store.SessionMeta{
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)), &store.SessionMeta{
 				ID:              childID,
 				ProfileID:       store.DefaultProfileID,
 				Name:            "Child",
@@ -220,13 +213,12 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 						}},
 					}, 1),
 				},
-				WorkspaceID:          h.workspaceID,
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				SessionType:          "worker",
-				State:                "stopped",
-				ACPSessionID:         &acpSessionID,
-				StopReason:           &stopReason,
-				StopDetail:           "agent process exited",
+				WorkspaceID:  h.workspaceID,
+				SessionType:  string(session.SessionTypeSpawned),
+				State:        "stopped",
+				ACPSessionID: &acpSessionID,
+				StopReason:   &stopReason,
+				StopDetail:   "agent process exited",
 				Failure: &store.SessionFailure{
 					Kind:            store.FailureProcess,
 					Summary:         "agent exited with status 1",
@@ -237,6 +229,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 					RootSessionID:    rootID,
 					SpawnDepth:       2,
 					SpawnRole:        "delegate_task",
+					Kind:             store.LineageKindSpawn,
 					TTLExpiresAt:     &ttl,
 					AutoStopOnParent: true,
 					SpawnBudget: store.SessionSpawnBudget{
@@ -260,8 +253,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				CreationDigest:     creationIdentity.CreationDigest,
 				CreatedAt:          now,
 				UpdatedAt:          now,
-			},
-		); err != nil {
+			}); err != nil {
 			t.Fatalf("WriteSessionMeta(child) error = %v", err)
 		}
 
@@ -269,7 +261,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Indexed)
+		slices.Sort(result.Indexed)
 		if got, want := result.Indexed, []string{rootID, parentID, childID}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
@@ -438,14 +430,12 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 			Version: store.SessionCreationProfileVersion, AgentName: "coder", Provider: "claude",
 			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: h.workspaceID, CWD: worktreePath, WorktreeRef: worktreeID,
-			SandboxMode: store.SessionCreationSandboxNone, Permissions: "approve-reads",
+			Permissions: "approve-reads",
 		}
 		creationOptions := store.SessionCreationOptions{
-			SessionID:            sessionID,
-			Name:                 "Worktree-bound session",
-			NetworkOwnerKey:      "session:" + sessionID,
-			NetworkParticipation: participation.LocalSpec(),
-			SessionType:          "user",
+			SessionID:   sessionID,
+			Name:        "Worktree-bound session",
+			SessionType: "user",
 		}
 		creationProfileRef, err := h.registry.PutSessionCreationProfile(ctx, creationProfile)
 		if err != nil {
@@ -478,36 +468,32 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		info.SetNetworkSpec(creationOptions.NetworkParticipation)
 		if _, err := h.registry.RegisterSessionWithCreationIdentity(ctx, info, creationIdentity); err != nil {
 			t.Fatalf("RegisterSessionWithCreationIdentity() error = %v", err)
 		}
 
 		meta := store.SessionMeta{
-			ProfileID:            store.DefaultProfileID,
-			ID:                   sessionID,
-			Name:                 creationOptions.Name,
-			AgentName:            creationProfile.AgentName,
-			Provider:             creationProfile.Provider,
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(creationOptions.NetworkParticipation),
-			SessionType:          creationOptions.SessionType,
-			State:                "stopped",
-			CreationProfile:      &creationProfile,
-			CreationOptions:      &creationOptions,
-			CreationProfileRef:   creationIdentity.CreationProfileRef,
-			PolicySpecDigest:     creationIdentity.PolicySpecDigest,
-			CreationDigest:       creationIdentity.CreationDigest,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ProfileID:          store.DefaultProfileID,
+			ID:                 sessionID,
+			Name:               creationOptions.Name,
+			AgentName:          creationProfile.AgentName,
+			Provider:           creationProfile.Provider,
+			RuntimeStatus:      store.SessionRuntimeUnbound,
+			WorkspaceID:        h.workspaceID,
+			SessionType:        creationOptions.SessionType,
+			State:              "stopped",
+			CreationProfile:    &creationProfile,
+			CreationOptions:    &creationOptions,
+			CreationProfileRef: creationIdentity.CreationProfileRef,
+			PolicySpecDigest:   creationIdentity.PolicySpecDigest,
+			CreationDigest:     creationIdentity.CreationDigest,
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
 		meta.SetCWD(worktreePath)
 		meta.SetWorktreeID(worktreeID)
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sessionID)),
-			meta,
-		); err != nil {
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sessionID)), &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
@@ -568,7 +554,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Orphaned)
+		slices.Sort(result.Orphaned)
 		if got, want := result.Orphaned, []string{"sess-orphan"}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Orphaned = %#v, want %#v", got, want)
 		}
@@ -599,34 +585,32 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		validDir := filepath.Join(h.home.SessionsDir, "sess-valid")
 		validMetaPath := store.SessionMetaFile(validDir)
 		now := h.now.Add(45 * time.Minute)
-		if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
-			ID:                   "sess-valid",
-			ProfileID:            store.DefaultProfileID,
-			Name:                 "Valid",
-			AgentName:            "coder",
-			Provider:             "claude",
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-			State:                "active",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+		if err := store.WriteSessionMeta(validMetaPath, &store.SessionMeta{
+			ID:            "sess-valid",
+			ProfileID:     store.DefaultProfileID,
+			Name:          "Valid",
+			AgentName:     "coder",
+			Provider:      "claude",
+			WorkspaceID:   h.workspaceID,
+			State:         "active",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta(valid) error = %v", err)
 		}
 
 		invalidMetaPath := store.SessionMetaFile(filepath.Join(h.home.SessionsDir, "sess-without-provider"))
-		if err := store.WriteSessionMeta(invalidMetaPath, store.SessionMeta{
-			ID:                   "sess-without-provider",
-			ProfileID:            store.DefaultProfileID,
-			Name:                 "Missing Provider",
-			AgentName:            "coder",
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-			State:                "stopped",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+		if err := store.WriteSessionMeta(invalidMetaPath, &store.SessionMeta{
+			ID:            "sess-without-provider",
+			ProfileID:     store.DefaultProfileID,
+			Name:          "Missing Provider",
+			AgentName:     "coder",
+			WorkspaceID:   h.workspaceID,
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta(invalid) error = %v", err)
 		}
@@ -639,7 +623,7 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Indexed)
+		slices.Sort(result.Indexed)
 		if got, want := result.Indexed, []string{"sess-valid"}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
@@ -712,4 +696,145 @@ func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
 			t.Fatalf("len(sessions) = %d, want 0", len(sessions))
 		}
 	})
+}
+
+func TestReconciliationRecoveryMetadataBoundary(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		sessionType string
+		spawnRole   string
+		reason      string
+	}{
+		{name: "Should leave a retired session type inert", sessionType: "dream", reason: "unknown_session_type"},
+		{name: "Should leave an extractor spawn role inert", sessionType: "spawned", spawnRole: "memory-extractor", reason: "retired_spawn_role"},
+		{name: "Should leave a checkpoint summary spawn role inert", sessionType: "spawned", spawnRole: "checkpoint-summary", reason: "retired_spawn_role"},
+		{name: "Should refuse any unsupported session type", sessionType: "future-type", reason: "unknown_session_type"},
+		{name: "Should recover an orphan with an arbitrary advisory spawn role", sessionType: "spawned", spawnRole: "future-role"},
+		{name: "Should recover an orphan with a reviewer spawn role", sessionType: "spawned", spawnRole: "reviewer"},
+		{name: "Should recover a normal user orphan", sessionType: "user"},
+		{name: "Should recover a system orphan", sessionType: "system"},
+		{name: "Should recover a coordinator orphan", sessionType: "coordinator", spawnRole: string(session.SessionTypeCoordinator)},
+		{name: "Should recover metadata with omitted lifecycle fields"},
+		{name: "Should recover a worker orphan", sessionType: "spawned", spawnRole: session.DefaultSpawnRole},
+		{name: "Should recover an auto title orphan", sessionType: "spawned", spawnRole: session.SpawnRoleAutoTitle},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			ctx := t.Context()
+			const sessionID = "orphan-session"
+			sessionDir := filepath.Join(h.home.SessionsDir, sessionID)
+			dbPath := store.SessionDBFile(sessionDir)
+			db, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+				SessionID: sessionID, WorkspaceID: h.workspaceID,
+			}, dbPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			metaPath := store.SessionMetaFile(sessionDir)
+			lineage := &store.SessionLineage{SpawnRole: tc.spawnRole}
+			if tc.sessionType == string(session.SessionTypeSpawned) {
+				lineage.Kind = store.LineageKindSpawn
+			}
+			if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
+				ID: sessionID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+				Provider: "claude", AgentName: "coder", SessionType: tc.sessionType,
+				Lineage: lineage, State: "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: h.now, UpdatedAt: h.now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			before := snapshotRecoveryFiles(t, sessionDir)
+			var logs bytes.Buffer
+			h.observer.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+			for attempt := range 2 {
+				result, err := h.observer.Reconcile(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantIndexed := 0
+				if tc.reason == "" && attempt == 0 {
+					wantIndexed = 1
+				}
+				if len(result.Indexed) != wantIndexed {
+					t.Fatalf("indexed = %v, want count %d", result.Indexed, wantIndexed)
+				}
+			}
+			rows, err := h.registry.ListSessions(ctx, store.SessionListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.reason == "" {
+				if len(rows) != 1 || rows[0].ID != sessionID {
+					t.Fatalf("recovered rows = %+v, want normal orphan", rows)
+				}
+				if tc.spawnRole != "" && (rows[0].Lineage == nil || rows[0].Lineage.SpawnRole != tc.spawnRole) {
+					t.Fatalf("recovered lineage = %+v, want spawn role %q", rows[0].Lineage, tc.spawnRole)
+				}
+				return
+			}
+			if len(rows) != 0 {
+				t.Fatalf("unsupported metadata was recataloged: %+v", rows)
+			}
+			after := snapshotRecoveryFiles(t, sessionDir)
+			if len(after) != len(before) {
+				t.Fatalf("recovery changed file set: before %v, after %v", before, after)
+			}
+			for path, original := range before {
+				current, ok := after[path]
+				if !ok || !bytes.Equal(original.content, current.content) ||
+					!original.modified.Equal(current.modified) {
+					t.Fatalf("recovery changed unsupported session file %s", path)
+				}
+			}
+			var warning map[string]any
+			if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &warning); err != nil {
+				t.Fatalf("want exactly one structured warning: %v; logs: %s", err, logs.String())
+			}
+			for key, want := range map[string]string{
+				"level": "WARN", "msg": "observe.session_recovery_skipped", "session_id": sessionID,
+				"session_type": tc.sessionType, "spawn_role": tc.spawnRole, "reason": tc.reason,
+			} {
+				if warning[key] != want {
+					t.Fatalf("warning[%s] = %v, want %s", key, warning[key], want)
+				}
+			}
+		})
+	}
+}
+
+type recoveryFileSnapshot struct {
+	content  []byte
+	modified time.Time
+}
+
+func snapshotRecoveryFiles(t *testing.T, dir string) map[string]recoveryFileSnapshot {
+	t.Helper()
+	files := make(map[string]recoveryFileSnapshot)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			t.Fatalf("unexpected nested recovery fixture directory %s", entry.Name())
+		}
+		path := filepath.Join(dir, entry.Name())
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[entry.Name()] = recoveryFileSnapshot{content: content, modified: info.ModTime()}
+	}
+	return files
 }

@@ -14,10 +14,12 @@ compozy worktree commit <ref> [flags]
 ### Options
 
 ```
-  -h, --help               help for commit
-  -m, --message string     Commit message
-      --push               Push after committing
-      --workspace string   Override workspace context (ID, name, or path)
+      --expected-scope string   Fingerprint from the scoped exit plan
+  -h, --help                    help for commit
+      --include stringArray     Exact reviewed worktree-relative file (repeatable)
+  -m, --message string          Commit message
+      --push                    Push after committing
+      --workspace string        Override workspace context (ID, name, or path)
 ```
 
 ### Options inherited from parent commands

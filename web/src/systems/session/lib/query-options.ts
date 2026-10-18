@@ -8,12 +8,10 @@ import {
   fetchSessionInputs,
   fetchSessionInteractions,
   fetchSessionGoal,
-  fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
   fetchSessionUsageTurns,
   fetchSessions,
-  SessionLedgerUnavailableError,
   SessionApiError,
 } from "../adapters/session-api";
 import { fetchSessionAttentionSummary } from "../adapters/session-attention-api";
@@ -26,10 +24,18 @@ import {
 import { fetchSessionOwner } from "../adapters/session-owner-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
-import type { SessionListFilters, SessionState, SessionsResponse } from "../types";
+import type { SessionListFilters, SessionState } from "../types";
 import { sessionKeys } from "./query-keys";
+import { EMPTY_SUBAGENT_ROSTER } from "./subagent-roster";
+import { fetchSessionSubagents, type SubagentPayload } from "../adapters/subagent-api";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
 import { normalizeTranscriptSearchQuery } from "./session-navigation";
+import {
+  isLiveSessionState,
+  SESSION_LIVE_REFETCH_INTERVAL_MS,
+  SESSION_STARTING_REFETCH_INTERVAL_MS,
+  sessionStreamBackedRefetchInterval,
+} from "./session-stream-liveness";
 import { expiredInteractionsByRequest } from "./session-pending-interactions";
 import {
   queryKeyHasScope,
@@ -40,8 +46,6 @@ import { PROFILE_AGGREGATE, profileViewKey, type ProfileScopeParams } from "@/sy
 
 import { fetchSessionAcrossProfiles, fetchSessionById } from "../adapters/session-owner-api";
 
-const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
-const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
 export const SESSION_OWNER_STALE_TIME_MS = 30_000;
 const TOOL_ARTIFACT_PAGE_BYTES = 64 * 1_024;
@@ -70,14 +74,14 @@ export function sessionOwnerOptions(sessionId: string) {
   });
 }
 
-/** Live sessions poll; stopped sessions are terminal and never refetch. */
-export function isLiveSessionState(state: SessionState | null | undefined): boolean {
-  return state === "active" || state === "starting" || state === "stopping";
-}
+export { isLiveSessionState };
 
-function sessionDetailRefetchInterval(state: SessionState | null | undefined): number | false {
+function sessionDetailRefetchInterval(
+  sessionId: string,
+  state: SessionState | null | undefined
+): number | false {
   if (state === "starting") return SESSION_STARTING_REFETCH_INTERVAL_MS;
-  return isLiveSessionState(state) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false;
+  return sessionStreamBackedRefetchInterval(sessionId, state);
 }
 
 export function sessionsListOptions(filters: SessionListFilters = {}) {
@@ -88,45 +92,9 @@ export function sessionsListOptions(filters: SessionListFilters = {}) {
       fetchSessions(sessionListRequest(normalizedFilters, pageParam), signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
-    staleTime: 2_000,
-  });
-}
-
-async function fetchCompleteSessionList(
-  filters: SessionListFilters,
-  signal: AbortSignal
-): Promise<SessionsResponse> {
-  const sessions: SessionsResponse["sessions"] = [];
-  const seenCursors = new Set<string>();
-  let cursor: string | undefined;
-  let response = await fetchSessions(sessionListRequest(filters, cursor), signal);
-  const total = response.page.total;
-
-  while (true) {
-    sessions.push(...response.sessions);
-    if (!response.page.has_more) break;
-    const nextCursor = response.page.next_cursor?.trim();
-    if (!nextCursor || seenCursors.has(nextCursor)) {
-      throw new Error("Session catalog pagination did not advance");
-    }
-    seenCursors.add(nextCursor);
-    cursor = nextCursor;
-    response = await fetchSessions(sessionListRequest(filters, cursor), signal);
-  }
-
-  return {
-    sessions,
-    page: { ...response.page, has_more: false, total },
-  };
-}
-
-/** Complete list for one isolated workspace group. */
-export function sessionsCompleteListOptions(filters: SessionListFilters = {}) {
-  const normalizedFilters = normalizeSessionListFilters(filters);
-  return queryOptions({
-    queryKey: sessionKeys.completeList(normalizedFilters),
-    queryFn: ({ signal }) => fetchCompleteSessionList(normalizedFilters, signal),
-    staleTime: 2_000,
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 }
 
@@ -134,7 +102,9 @@ export function sessionAttentionSummaryOptions() {
   return queryOptions({
     queryKey: sessionKeys.attentionSummary(),
     queryFn: ({ signal }) => fetchSessionAttentionSummary(signal),
-    staleTime: 2_000,
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 }
 
@@ -142,7 +112,7 @@ export function sessionDetailOptions(workspace: string, id: string) {
   return queryOptions({
     queryKey: sessionKeys.detail(workspace, id),
     queryFn: ({ signal }) => fetchSession(workspace, id, signal),
-    refetchInterval: query => sessionDetailRefetchInterval(query.state.data?.state),
+    refetchInterval: query => sessionDetailRefetchInterval(id, query.state.data?.state),
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
@@ -272,7 +242,7 @@ export function sessionResolvedInteractionsOptions(
   });
 }
 
-/** The queue list's own cadence while a session is watched; a prompt POST tightens it to 1s. */
+/** The queue list's fallback cadence while a session is watched; a prompt POST tightens it to 1s. */
 export const SESSION_INPUTS_REFETCH_INTERVAL_MS = SESSION_LIVE_REFETCH_INTERVAL_MS;
 
 /** Exact current-generation pending operator input, owned by the daemon. */
@@ -285,16 +255,10 @@ export function sessionInputsOptions(
     queryKey: sessionKeys.inputQueue(workspace, id),
     queryFn: ({ signal }) => fetchSessionInputs(workspace, id, signal),
     refetchInterval: query => {
-      if (
-        !isLiveSessionState(options.sessionState) ||
-        isTerminalInputReadError(query.state.error)
-      ) {
-        return false;
-      }
-      return Math.min(
-        options.refetchInterval ?? SESSION_INPUTS_REFETCH_INTERVAL_MS,
-        SESSION_INPUTS_REFETCH_INTERVAL_MS
-      );
+      if (isTerminalInputReadError(query.state.error)) return false;
+      const cadence = sessionStreamBackedRefetchInterval(id, options.sessionState);
+      if (cadence === false) return false;
+      return Math.min(options.refetchInterval ?? cadence, cadence);
     },
     retry: (failureCount, error) => !isTerminalInputReadError(error) && failureCount < 1,
     staleTime: 1_000,
@@ -331,7 +295,7 @@ export function sessionTranscriptSearchOptions(
   return queryOptions({
     queryKey: sessionKeys.transcriptSearch(workspace, id, q, limit),
     queryFn: ({ signal }) => searchSessionTranscript(workspace, id, { limit, q }, signal),
-    enabled: !!workspace && !!id && q.length > 0,
+    enabled: !!id && q.length > 0,
     placeholderData: keepPreviousData,
     staleTime: SESSION_NAVIGATION_STALE_TIME_MS,
     retry: false,
@@ -343,7 +307,7 @@ export function sessionTranscriptOutlineOptions(workspace: string, id: string, e
   return queryOptions({
     queryKey: sessionKeys.transcriptOutline(workspace, id),
     queryFn: ({ signal }) => fetchSessionTranscriptOutline(workspace, id, signal),
-    enabled: !!workspace && !!id && enabled,
+    enabled: !!id && enabled,
     placeholderData: keepPreviousData,
     staleTime: SESSION_NAVIGATION_STALE_TIME_MS,
   });
@@ -377,9 +341,9 @@ export function sessionRecapOptions(workspace: string, id: string, limit?: numbe
 }
 
 /**
- * Session token-usage aggregate. Usage accrues live as the agent reports it, so
- * poll on the same bounded cadence as the transcript while the session is live;
- * a stopped session is terminal and never refetches.
+ * Session token-usage aggregate. Usage accrues live as the agent reports it; the
+ * stream's `session_usage_changed` re-reads it, and the stream-backed cadence covers a
+ * session without a live stream. A stopped session is terminal and never refetches.
  */
 export function sessionUsageOptions(
   workspace: string,
@@ -389,34 +353,12 @@ export function sessionUsageOptions(
   return queryOptions({
     queryKey: sessionKeys.usage(workspace, id),
     queryFn: ({ signal }) => fetchSessionUsage(workspace, id, signal),
-    refetchInterval: isLiveSessionState(sessionState) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    refetchInterval: isLiveSessionState(sessionState)
+      ? () => sessionStreamBackedRefetchInterval(id, sessionState)
+      : false,
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
-  });
-}
-
-export interface SessionLedgerQueryOptions {
-  enabled?: boolean;
-}
-
-export function sessionLedgerOptions(
-  workspace: string,
-  id: string,
-  options?: SessionLedgerQueryOptions
-) {
-  const enabled = (options?.enabled ?? true) && !!workspace && !!id;
-  return queryOptions({
-    queryKey: sessionKeys.ledger(workspace, id),
-    queryFn: ({ signal }) => fetchSessionLedger(workspace, id, signal),
-    staleTime: 10_000,
-    enabled,
-    retry: (failureCount, error) => {
-      if (error instanceof SessionLedgerUnavailableError) {
-        return false;
-      }
-      return failureCount < 1;
-    },
   });
 }
 
@@ -448,7 +390,7 @@ export function sessionScopedDetailOptions(
     queryFn: ({ signal }) => fetchSessionById(id, normalizedScope, signal),
     refetchInterval: query => {
       if (!liveTail) return false;
-      return sessionDetailRefetchInterval(query.state.data?.state);
+      return sessionDetailRefetchInterval(id, query.state.data?.state);
     },
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
@@ -483,10 +425,51 @@ export function sessionUsageTurnsOptions(
   return queryOptions({
     queryKey: sessionKeys.usageTurns(workspace, id),
     queryFn: ({ signal }) => fetchSessionUsageTurns(workspace, id, signal),
-    refetchInterval: isLiveSessionState(sessionState) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    refetchInterval: isLiveSessionState(sessionState)
+      ? () => sessionStreamBackedRefetchInterval(id, sessionState)
+      : false,
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
+  });
+}
+
+/**
+ * The parent's subagent roster is stream-owned: the session stream's snapshot
+ * and row updates write it, and nothing fetches it.
+ */
+export function sessionSubagentRosterOptions(workspaceId: string, sessionId: string) {
+  return queryOptions({
+    queryKey: sessionKeys.subagentRoster(workspaceId, sessionId),
+    queryFn: () => EMPTY_SUBAGENT_ROSTER,
+    enabled: false,
+  });
+}
+
+/**
+ * Every subagent of the parent for the mid-prompt control poll (newest first). The
+ * poll replaces the whole roster, so it follows the cursor: a row left out would
+ * read as an unconfirmed, still-running card.
+ */
+export function sessionSubagentRosterPollOptions(workspaceId: string, sessionId: string) {
+  return queryOptions({
+    queryKey: sessionKeys.subagentRosterPoll(workspaceId, sessionId),
+    queryFn: async ({ signal }) => {
+      const subagents: SubagentPayload[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await fetchSessionSubagents(
+          workspaceId,
+          sessionId,
+          cursor ? { limit: 200, cursor } : { limit: 200 },
+          signal
+        );
+        subagents.push(...page.subagents);
+        cursor = page.next_cursor ?? undefined;
+      } while (cursor);
+      return { subagents, next_cursor: null };
+    },
+    retry: false,
   });
 }
 

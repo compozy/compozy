@@ -56,13 +56,13 @@ CREATE TABLE task_events (
 		event_type  TEXT NOT NULL,
 		actor_kind  TEXT NOT NULL CHECK (
 			actor_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+				'human', 'agent_session', 'automation', 'extension', 'daemon'
 			)
 		),
 		actor_id    TEXT NOT NULL,
 		origin_kind TEXT NOT NULL CHECK (
 			origin_kind IN (
-				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
+				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'agent_session', 'daemon'
 			)
 		),
 		origin_ref  TEXT NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE task_triage_state (
 		task_id               TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		actor_kind            TEXT NOT NULL CHECK (
 			actor_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+				'human', 'agent_session', 'automation', 'extension', 'daemon'
 			)
 		),
 		actor_id              TEXT NOT NULL,
@@ -108,19 +108,19 @@ CREATE TABLE "tasks" (
 		),
 		owner_kind      TEXT CHECK (
 			owner_kind IS NULL OR owner_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'pool'
+				'human', 'agent_session', 'automation', 'extension', 'pool'
 			)
 		),
 		owner_ref       TEXT,
 		created_by_kind TEXT NOT NULL CHECK (
 			created_by_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+				'human', 'agent_session', 'automation', 'extension', 'daemon'
 			)
 		),
 		created_by_ref  TEXT NOT NULL,
 		origin_kind     TEXT NOT NULL CHECK (
 			origin_kind IN (
-				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
+				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'agent_session', 'daemon'
 			)
 		),
 		origin_ref      TEXT NOT NULL,
@@ -178,6 +178,10 @@ CREATE INDEX idx_task_blocks_open
 			ON task_blocks(task_id)
 			WHERE cleared_at IS NULL;
 
+CREATE INDEX idx_task_blocks_task_created ON task_blocks(task_id, created_at, id);
+
+CREATE INDEX idx_task_designation_rollups_task ON task_designation_rollups(task_id);
+
 CREATE INDEX idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id, task_id ASC);
 
 CREATE INDEX idx_task_dependencies_task ON task_dependencies(task_id, created_at ASC, depends_on_task_id ASC);
@@ -226,3 +230,6 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_workspace ON tasks(workspace_id);
 
 CREATE UNIQUE INDEX uq_task_events_event_seq ON task_events(event_seq);
+
+CREATE INDEX idx_tasks_unsettled ON tasks(id)
+    WHERE status NOT IN ('completed','failed','canceled');

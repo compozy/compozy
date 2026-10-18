@@ -1,5 +1,6 @@
+import { sessionCatalogStreamHandler } from "@/systems/session/mocks";
 import type { Preview } from "@storybook/react-vite";
-import { withThemeByClassName } from "@storybook/addon-themes";
+import { withThemeByClassName, withThemeByDataAttribute } from "@storybook/addon-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider, UIProvider } from "@compozy/ui";
 import {
@@ -11,7 +12,8 @@ import {
 } from "@tanstack/react-router";
 import { Fragment, createElement, useState, type ReactNode } from "react";
 import { mswLoader } from "msw-storybook-addon/csf3";
-import type { UnhandledRequestCallback } from "msw";
+import type { UnhandledFrameHandle } from "msw";
+import { HttpNetworkFrame } from "msw/experimental";
 import { setupWorker } from "msw/browser";
 import { configure as configureStorybookTestingLibrary, sb } from "storybook/test";
 
@@ -65,7 +67,10 @@ export function isBypassableStorybookRequest(url: URL) {
   );
 }
 
-export const storybookUnhandledRequest: UnhandledRequestCallback = (request, print) => {
+export const storybookUnhandledRequest = (
+  request: Request,
+  print: { error(): void; warn(): void }
+) => {
   const url = new URL(request.url);
 
   if (isStorybookLocalApiRequest(url)) {
@@ -77,12 +82,20 @@ export const storybookUnhandledRequest: UnhandledRequestCallback = (request, pri
     return;
   }
 
-  print.warning();
+  print.warn();
+};
+
+export const storybookUnhandledFrame: UnhandledFrameHandle = ({ frame, defaults }) => {
+  if (frame instanceof HttpNetworkFrame) {
+    storybookUnhandledRequest(frame.data.request, defaults);
+    return;
+  }
+  defaults.warn();
 };
 
 export async function createStorybookMswWorker() {
-  const worker = setupWorker(windowManagerStreamHandler);
-  await worker.start({ onUnhandledRequest: storybookUnhandledRequest });
+  const worker = setupWorker(windowManagerStreamHandler, sessionCatalogStreamHandler);
+  await worker.start({ onUnhandledFrame: storybookUnhandledFrame });
   return worker;
 }
 
@@ -125,14 +138,19 @@ function createStubStorybookRouter(
     path: "session/$id",
     component: Story,
   });
-  const jobsRoute = createRoute({
+  const automationsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "jobs",
+    path: "automations",
     component: Story,
   });
-  const triggersRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "triggers",
+  const automationJobRoute = createRoute({
+    getParentRoute: () => automationsRoute,
+    path: "jobs/$jobId",
+    component: Story,
+  });
+  const automationTriggerRoute = createRoute({
+    getParentRoute: () => automationsRoute,
+    path: "triggers/$triggerId",
     component: Story,
   });
   const bridgesRoute = createRoute({
@@ -143,11 +161,6 @@ function createStubStorybookRouter(
   const networkRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "network",
-    component: Story,
-  });
-  const knowledgeRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "knowledge",
     component: Story,
   });
   const skillsRoute = createRoute({
@@ -210,11 +223,9 @@ function createStubStorybookRouter(
     routeTree: rootRoute.addChildren([
       storyRoute,
       sessionRoute,
-      jobsRoute,
-      triggersRoute,
+      automationsRoute.addChildren([automationJobRoute, automationTriggerRoute]),
       bridgesRoute,
       networkRoute,
-      knowledgeRoute,
       skillsRoute,
       loopsRoute.addChildren([loopDetailRoute.addChildren([loopEditorRoute])]),
       loopRunDetailRoute,
@@ -298,12 +309,25 @@ function StorybookProvidersBoundary({
   );
 }
 
-export const themeDecorator = withThemeByClassName({
+// The app theme contract: `data-theme` and `.dark` move together on <html>.
+// Both decorators read the same toolbar `theme` global, so they never diverge.
+export const themeAttributeDecorator = withThemeByDataAttribute({
+  themes: {
+    light: "light",
+    dark: "dark",
+  },
+  defaultTheme: "dark",
+  attributeName: "data-theme",
+  parentSelector: "html",
+});
+
+export const themeClassDecorator = withThemeByClassName({
   themes: {
     light: "",
     dark: "dark",
   },
   defaultTheme: "dark",
+  parentSelector: "html",
 });
 
 export const queryClientDecorator = (Story: StoryRenderer) =>
@@ -321,7 +345,12 @@ export const routerDecorator = (
     routerOptions: context?.parameters?.router,
   });
 
-export const storybookDecorators = [themeDecorator, uiProviderDecorator, routerDecorator];
+export const storybookDecorators = [
+  themeAttributeDecorator,
+  themeClassDecorator,
+  uiProviderDecorator,
+  routerDecorator,
+];
 export const storybookAppStateLoader = (context: {
   parameters?: { router?: StorybookRouterOptions };
 }) => {

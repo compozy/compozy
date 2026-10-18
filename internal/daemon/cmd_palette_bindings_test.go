@@ -61,7 +61,7 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 		root := t.TempDir()
 		resolver := &cmdPaletteBindingsResolver{
 			workspaces: &cmdPaletteWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "workspace-a", RootDir: root},
+				ID: "workspace-a", RootDir: root,
 				WorkspaceID: "workspace-a",
 			}},
 			loadGlobal: func() (compozyconfig.Config, error) {
@@ -133,7 +133,7 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 		want := errors.New("global config missing")
 		resolver := &cmdPaletteBindingsResolver{
 			workspaces: &cmdPaletteWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "workspace-a", RootDir: t.TempDir()},
+				ID: "workspace-a", RootDir: t.TempDir(),
 				WorkspaceID: "workspace-a",
 			}},
 			loadGlobal: func() (compozyconfig.Config, error) {
@@ -163,7 +163,7 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 		}
 		resolver := &cmdPaletteBindingsResolver{
 			workspaces: &cmdPaletteWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "workspace-a", RootDir: root},
+				ID: "workspace-a", RootDir: root,
 				WorkspaceID: "workspace-a",
 			}},
 			loadGlobal: func() (compozyconfig.Config, error) {

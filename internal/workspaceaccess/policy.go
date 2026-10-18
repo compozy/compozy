@@ -14,7 +14,6 @@ const (
 	ActorHuman        ActorKind = "human"
 	ActorExtension    ActorKind = "extension"
 	ActorAutomation   ActorKind = "automation"
-	ActorNetworkPeer  ActorKind = "network_peer"
 	ActorDaemon       ActorKind = "daemon"
 )
 
@@ -31,12 +30,11 @@ type ActorRef struct {
 type Seam string
 
 const (
-	SeamIdentity     Seam = "identity"
-	SeamTask         Seam = "task"
-	SeamTool         Seam = "tool"
-	SeamSpawn        Seam = "spawn"
-	SeamCoordination Seam = "coordination"
-	SeamCatalog      Seam = "catalog"
+	SeamIdentity Seam = "identity"
+	SeamTask     Seam = "task"
+	SeamTool     Seam = "tool"
+	SeamSpawn    Seam = "spawn"
+	SeamCatalog  Seam = "catalog"
 )
 
 // Request is the complete input to one workspace-access decision.

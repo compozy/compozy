@@ -22,11 +22,12 @@ func (e *Engine) RedactJSON(raw json.RawMessage, fields []string) json.RawMessag
 // RedactJSONWithProtectedStrings applies RedactJSON while preserving scalar
 // strings that the caller identifies as public structural handles. The
 // predicate is evaluated only after key-based secret protection, so a
-// sensitive field name can never opt out of redaction.
+// sensitive field name can never opt out of redaction. Paths contain object
+// keys; array elements inherit the enclosing field's path.
 func (e *Engine) RedactJSONWithProtectedStrings(
 	raw json.RawMessage,
 	fields []string,
-	protect func(key string, value string) bool,
+	protect func(path []string, value string) bool,
 ) json.RawMessage {
 	return e.RedactJSONWithProtection(raw, fields, protect, nil)
 }
@@ -38,7 +39,7 @@ func (e *Engine) RedactJSONWithProtectedStrings(
 func (e *Engine) RedactJSONWithProtection(
 	raw json.RawMessage,
 	fields []string,
-	protectString func(key string, value string) bool,
+	protectString func(path []string, value string) bool,
 	protectObject func(key string, value any) bool,
 ) json.RawMessage {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -56,7 +57,7 @@ func (e *Engine) RedactJSONWithProtection(
 	for _, field := range fields {
 		namedFields[normalizeFieldName(field)] = struct{}{}
 	}
-	redactedValue := e.redactJSONValue(value, "", namedFields, false, protectString, protectObject)
+	redactedValue := e.redactJSONValue(value, nil, namedFields, false, protectString, protectObject)
 	// Decoded JSON contains dynamic maps and slices, so structural equality needs
 	// reflection. BenchmarkEngineRedactStructuredLogValue tracks this hot path.
 	if reflect.DeepEqual(value, redactedValue) {
@@ -71,12 +72,16 @@ func (e *Engine) RedactJSONWithProtection(
 
 func (e *Engine) redactJSONValue(
 	value any,
-	key string,
+	path []string,
 	namedFields map[string]struct{},
 	heuristic bool,
-	protectString func(key string, value string) bool,
+	protectString func(path []string, value string) bool,
 	protectObject func(key string, value any) bool,
 ) any {
+	key := ""
+	if len(path) > 0 {
+		key = path[len(path)-1]
+	}
 	normalizedKey := normalizeFieldName(key)
 	if isProtectedEnvelopeKey(normalizedKey) {
 		switch typed := value.(type) {
@@ -84,7 +89,7 @@ func (e *Engine) redactJSONValue(
 			redacted := make([]any, len(typed))
 			for i, item := range typed {
 				redacted[i] = e.redactJSONValue(
-					item, "", namedFields, heuristic, protectString, protectObject,
+					item, append(path, ""), namedFields, heuristic, protectString, protectObject,
 				)
 			}
 			return redacted
@@ -92,7 +97,7 @@ func (e *Engine) redactJSONValue(
 			redacted := make(map[string]any, len(typed))
 			for childKey, item := range typed {
 				redacted[childKey] = e.redactJSONValue(
-					item, childKey, namedFields, heuristic, protectString, protectObject,
+					item, append(path, childKey), namedFields, heuristic, protectString, protectObject,
 				)
 			}
 			return redacted
@@ -109,7 +114,7 @@ func (e *Engine) redactJSONValue(
 
 	switch typed := value.(type) {
 	case string:
-		if protectString != nil && protectString(key, typed) {
+		if protectString != nil && protectString(path, typed) {
 			return typed
 		}
 		if heuristic {
@@ -120,7 +125,7 @@ func (e *Engine) redactJSONValue(
 		redacted := make([]any, len(typed))
 		for i, item := range typed {
 			redacted[i] = e.redactJSONValue(
-				item, key, namedFields, heuristic, protectString, protectObject,
+				item, path, namedFields, heuristic, protectString, protectObject,
 			)
 		}
 		return redacted
@@ -128,7 +133,7 @@ func (e *Engine) redactJSONValue(
 		redacted := make(map[string]any, len(typed))
 		for childKey, item := range typed {
 			redacted[childKey] = e.redactJSONValue(
-				item, childKey, namedFields, heuristic, protectString, protectObject,
+				item, append(path, childKey), namedFields, heuristic, protectString, protectObject,
 			)
 		}
 		return redacted

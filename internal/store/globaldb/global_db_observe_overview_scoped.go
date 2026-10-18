@@ -247,42 +247,6 @@ func (g *ObserveRepo) queryLatestEventSummaryAt(
 	return parsed, nil
 }
 
-func (g *ObserveRepo) queryNetworkMessageCount(ctx context.Context, query store.OverviewSinceQuery) (int, error) {
-	statement, args := store.BuildAndQuery(
-		`SELECT COUNT(1)
-		 FROM network_audit_log AS audit
-		 LEFT JOIN network_threads AS owner_thread
-			ON owner_thread.workspace_id = audit.workspace_id
-			AND owner_thread.channel = audit.channel
-			AND owner_thread.thread_id = audit.thread_id
-		 LEFT JOIN network_direct_rooms AS owner_direct
-			ON owner_direct.workspace_id = audit.workspace_id
-			AND owner_direct.channel = audit.channel
-			AND owner_direct.direct_id = audit.direct_id
-		 LEFT JOIN network_channels AS owner_channel
-			ON owner_channel.workspace_id = audit.workspace_id
-			AND owner_channel.channel = audit.channel
-		 LEFT JOIN sessions AS owner_session
-			ON owner_session.workspace_id = audit.workspace_id
-			AND owner_session.id = audit.session_id
-		 WHERE audit.timestamp >= ?`,
-		"",
-		store.ReadScopeCoalescedClause([]string{
-			"owner_thread.profile_id",
-			"owner_direct.profile_id",
-			"owner_channel.profile_id",
-			"owner_session.profile_id",
-		}, query.ReadScope),
-		store.StringClause("audit.workspace_id", strings.TrimSpace(query.WorkspaceID)),
-	)
-	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
-	var count int
-	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&count); err != nil {
-		return 0, fmt.Errorf("store: count network audit messages: %w", err)
-	}
-	return count, nil
-}
-
 func (g *ObserveRepo) queryHookDispatchCounts(
 	ctx context.Context,
 	query store.OverviewSinceQuery,

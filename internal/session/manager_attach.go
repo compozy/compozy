@@ -30,7 +30,7 @@ func (m *Manager) AttachSession(
 	if err != nil {
 		return store.SessionAttach{}, err
 	}
-	if err := m.rejectDeadSessionAttachment(ctx, normalized.SessionID, meta); err != nil {
+	if err := m.rejectDeadSessionAttachment(ctx, normalized.SessionID, &meta); err != nil {
 		return store.SessionAttach{}, err
 	}
 	attach, err := m.sessionCatalog.AttachSession(ctx, normalized)

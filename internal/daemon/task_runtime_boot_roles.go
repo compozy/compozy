@@ -188,6 +188,7 @@ func newLoopCoordinatorRunner(
 	actions *looppkg.ActionRegistry,
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
 	targetHealth looppkg.TargetHealth,
+	candidateVerifier looppkg.WorktreeCandidateVerifier,
 	logger *slog.Logger,
 ) (*looppkg.CoordinatorRunner, error) {
 	loopStore, ok := requireStoreCapability[looppkg.Store](store, logger, "loop store")
@@ -209,6 +210,7 @@ func newLoopCoordinatorRunner(
 	options := []looppkg.CoordinatorRunnerOption{
 		looppkg.WithCoordinatorHookDispatcher(hooks),
 		looppkg.WithCoordinatorVerdictReader(verdicts),
+		looppkg.WithCoordinatorWorktreeCandidateVerifier(candidateVerifier),
 	}
 	if watchPoller != nil {
 		options = append(options, looppkg.WithCoordinatorWatchPoller(watchPoller))
@@ -320,6 +322,7 @@ func newBootLoopCoordinatorRuntime(
 			homePaths: homePaths, workspaceResolver: workspaceResolver,
 		},
 		state.loopTargetHealth,
+		daemonReviewCandidateVerifier{state: state},
 		state.logger,
 	)
 	if err != nil {

@@ -175,11 +175,9 @@ func preStartContextCacheable(ctx context.Context) bool {
 }
 
 func (s *PreStarter) deleteExpiredLocked(now time.Time) {
-	for key, entry := range s.entries {
-		if !now.Before(entry.expiresAt) {
-			delete(s.entries, key)
-		}
-	}
+	maps.DeleteFunc(s.entries, func(_ preStartCacheKey, entry preStartCacheEntry) bool {
+		return !now.Before(entry.expiresAt)
+	})
 }
 
 func (s *PreStarter) nextAccessLocked() uint64 {

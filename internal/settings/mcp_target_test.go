@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -17,7 +16,7 @@ func TestMCPServerTargetSelectorValidation(t *testing.T) {
 	t.Run("Should reject invalid put selectors without mutating MCP sources", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
@@ -35,9 +34,9 @@ command = "config-before"
 		service := testService(t, homePaths, Dependencies{})
 
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "alpha",
-			Target:            TargetSelector("cfg"),
+			Collection: CollectionMCPServers,
+			Name:       "alpha",
+			Target:     TargetSelector("cfg"),
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "after",
 			},
@@ -59,7 +58,7 @@ command = "config-before"
 	t.Run("Should reject invalid delete selectors without mutating MCP sources", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
@@ -77,9 +76,9 @@ command = "config-before"
 		service := testService(t, homePaths, Dependencies{})
 
 		_, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "alpha",
-			Target:            TargetSelector("CONFIG"),
+			Collection: CollectionMCPServers,
+			Name:       "alpha",
+			Target:     TargetSelector("CONFIG"),
 		})
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("DeleteCollectionItem(invalid target) error = %v, want ErrValidation", err)
@@ -102,7 +101,7 @@ func TestMCPServerDefinitionMutationsInvalidatePendingOAuthSessions(t *testing.T
 	t.Run("Should invalidate pending state before deleting durable auth state", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
@@ -122,9 +121,9 @@ client_id = "client-id"
 		target := mcpauth.Target{Owner: "manual", Scope: mcpauth.ScopeUser, ServerName: "linear"}
 
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "linear",
-			Target:            TargetConfig,
+			Collection: CollectionMCPServers,
+			Name:       "linear",
+			Target:     TargetConfig,
 			MCPServer: &compozyconfig.MCPServer{
 				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://replacement.example/mcp",
@@ -140,9 +139,9 @@ client_id = "client-id"
 		assertMCPAuthLifecycle(t, runtime.operations, target, 1)
 
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "linear",
-			Target:            TargetConfig,
+			Collection: CollectionMCPServers,
+			Name:       "linear",
+			Target:     TargetConfig,
 		}); err != nil {
 			t.Fatalf("DeleteCollectionItem() error = %v", err)
 		}

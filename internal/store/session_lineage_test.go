@@ -27,6 +27,7 @@ func TestSessionLineageNormalizeAndValidate(t *testing.T) {
 			RootSessionID:   " sess-root ",
 			SpawnDepth:      1,
 			SpawnRole:       " worker ",
+			Kind:            " spawn ",
 			TTLExpiresAt:    &ttl,
 			PermissionPolicy: SessionPermissionPolicy{
 				Tools: []string{" compozy__skill_view ", "compozy__task_update", "compozy__task_update"},
@@ -35,6 +36,7 @@ func TestSessionLineageNormalizeAndValidate(t *testing.T) {
 		if child.ParentSessionID != "sess-root" ||
 			child.RootSessionID != "sess-root" ||
 			child.SpawnRole != "worker" ||
+			child.Kind != LineageKindSpawn ||
 			len(child.PermissionPolicy.Tools) != 2 ||
 			child.PermissionPolicy.Tools[0] != "compozy__skill_view" ||
 			child.PermissionPolicy.Tools[1] != "compozy__task_update" {
@@ -44,6 +46,31 @@ func TestSessionLineageNormalizeAndValidate(t *testing.T) {
 			t.Fatalf("ValidateSessionLineage(child) error = %v", err)
 		}
 	})
+}
+
+func TestHierarchyParentSessionID(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		lineage *SessionLineage
+		want    string
+	}{
+		{name: "no lineage", lineage: nil, want: ""},
+		{name: "a root session", lineage: &SessionLineage{RootSessionID: "sess-a"}, want: ""},
+		{name: "a spawned child", lineage: &SessionLineage{ParentSessionID: " sess-a ", Kind: LineageKindSpawn}, want: "sess-a"},
+		{name: "a provenance child", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: LineageKindProvenance}, want: "sess-a"},
+		{name: "a recovery child", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: LineageKindRecovery}, want: "sess-a"},
+		{name: "a continued session", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: LineageKindContinue}, want: ""},
+		{name: "a forked session", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: " fork "}, want: ""},
+	} {
+		t.Run("Should resolve the hierarchy parent of "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := HierarchyParentSessionID(tc.lineage); got != tc.want {
+				t.Fatalf("HierarchyParentSessionID() = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestSessionLineageValidationRejectsInvalidPolicyAndBudget(t *testing.T) {
@@ -149,6 +176,82 @@ func TestSessionLineageValidationRejectsInvalidPolicyAndBudget(t *testing.T) {
 				SpawnDepth:      1,
 			},
 			want: "root cannot be the session itself",
+		},
+		{
+			name: "Should reject a parented lineage without a kind",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+			},
+			want: "requires a kind",
+		},
+		{
+			name: "Should reject an unsupported lineage kind",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            "clone",
+			},
+			want: "unsupported session lineage kind",
+		},
+		{
+			name: "Should reject a continue lineage without an origin agent",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            LineageKindContinue,
+			},
+			want: "requires an origin agent name",
+		},
+		{
+			name: "Should reject a fork lineage without a parent",
+			id:   "sess-root",
+			lineage: &SessionLineage{
+				RootSessionID:   "sess-root",
+				Kind:            LineageKindFork,
+				OriginAgentName: "codex",
+			},
+			want: "requires a parent session id",
+		},
+		{
+			name: "Should reject a recovery lineage without a parent",
+			id:   "sess-root",
+			lineage: &SessionLineage{
+				RootSessionID: "sess-root",
+				Kind:          LineageKindRecovery,
+			},
+			want: "requires a parent session id",
+		},
+		{
+			name: "Should reject an origin message outside a fork",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            LineageKindContinue,
+				OriginAgentName: "codex",
+				OriginMessageID: "msg-1",
+			},
+			want: "only fork session lineage may carry an origin message id",
+		},
+		{
+			name: "Should reject an origin agent outside continue or fork",
+			id:   "sess-child",
+			lineage: &SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-root",
+				SpawnDepth:      1,
+				Kind:            LineageKindProvenance,
+				OriginAgentName: "codex",
+			},
+			want: "only continue or fork session lineage may carry an origin agent name",
 		},
 		{
 			name: "Should reject negative max depth",
@@ -269,12 +372,10 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 		}
 
 		policy := SessionPermissionPolicy{
-			Tools:           []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
-			Skills:          []string{"go"},
-			MCPServers:      []string{"memory"},
-			WorkspacePaths:  []string{"/repo"},
-			NetworkChannels: []string{"coord"},
-			SandboxProfiles: []string{"local"},
+			Tools:          []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
+			Skills:         []string{"go"},
+			MCPServers:     []string{"memory"},
+			WorkspacePaths: []string{"/repo"},
 		}
 		rawPolicy, err := EncodeSessionPermissionPolicy(policy)
 		if err != nil {
@@ -285,12 +386,10 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 			t.Fatalf("DecodeSessionPermissionPolicy() error = %v", err)
 		}
 		wantPolicy := SessionPermissionPolicy{
-			Tools:           []string{"compozy__skill_view", "compozy__task_update"},
-			Skills:          []string{"go"},
-			MCPServers:      []string{"memory"},
-			WorkspacePaths:  []string{"/repo"},
-			NetworkChannels: []string{"coord"},
-			SandboxProfiles: []string{"local"},
+			Tools:          []string{"compozy__skill_view", "compozy__task_update"},
+			Skills:         []string{"go"},
+			MCPServers:     []string{"memory"},
+			WorkspacePaths: []string{"/repo"},
 		}
 		if !reflect.DeepEqual(decodedPolicy, wantPolicy) {
 			t.Fatalf("decoded policy = %#v, want %#v", decodedPolicy, wantPolicy)
@@ -356,7 +455,7 @@ func TestSessionLineageJSONRejectsMalformedValues(t *testing.T) {
 		{
 			name: "Should reject decoding empty policy atom",
 			run: func() error {
-				_, err := DecodeSessionPermissionPolicy(`{"network_channels":["coord"," "]}`)
+				_, err := DecodeSessionPermissionPolicy(`{"skills":["go"," "]}`)
 				return err
 			},
 			want: "empty atom",

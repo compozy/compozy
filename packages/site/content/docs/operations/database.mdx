@@ -20,11 +20,11 @@ Set the home path used by the commands below:
 export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 ```
 
-| Path                                            | Purpose                                                                                                                                                                               |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one CompozyOS session.                                                                                                                                           |
-| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
+| Path                                            | Purpose                                                                                                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, extensions, tasks, tool process checkpoints, and task projections. |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one CompozyOS session.                                                                                                                             |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                             |
 
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
 session timeline.
@@ -147,7 +147,6 @@ CompozyOS versions each SQLite authority as an independent Goose migration strea
 | Stream      | Database family                                  | Version table                |
 | ----------- | ------------------------------------------------ | ---------------------------- |
 | `global`    | `$COMPOZY_HOME/compozy.db` global runtime tables | `goose_db_version_global`    |
-| `memory`    | `$COMPOZY_HOME/compozy.db` memory catalog tables | `goose_db_version_memory`    |
 | `session`   | Per-session `events.db`                          | `goose_db_version_session`   |
 | `workspace` | Workspace-local `.compozy/compozy.db`            | `goose_db_version_workspace` |
 
@@ -240,7 +239,9 @@ must move a directory, use the conservative filesystem procedure below instead o
 
 At boot, CompozyOS reconciles the global catalog with the session directories on disk. Sessions missing
 from disk are marked `orphaned` in the global catalog; CompozyOS does not physically purge the global
-session row.
+session row. Directories whose metadata names an unknown session type or a retired internal spawn role
+are skipped and logged, never deleted; see
+[Session directories the daemon does not recover](/docs/sessions/lifecycle#session-directories-the-daemon-does-not-recover).
 
 ## Handle corrupt database files
 

@@ -23,9 +23,9 @@ export function SessionRewindMessageAction() {
         onClick={action.trigger}
         size="xs"
         type="button"
-        variant="ghost"
+        variant="quiet"
       >
-        <RotateCcw aria-hidden="true" className="size-3" />
+        <RotateCcw aria-hidden="true" />
         Rewind to here
       </Button>
       <ConfirmDialog
@@ -33,7 +33,7 @@ export function SessionRewindMessageAction() {
         confirmButtonProps={{ "data-testid": "session-rewind-confirm" }}
         confirmLabel="Rewind to here"
         contentProps={{ "data-testid": "session-rewind-dialog" }}
-        description="Messages from this point onward will be removed from the active conversation. Files, tool effects, network actions, and saved memory will not be undone."
+        description="Messages from this point onward will be removed from the active conversation. Files and tool effects will not be undone."
         isPending={action.isPending}
         onConfirm={action.confirm}
         onOpenChange={action.setOpen}

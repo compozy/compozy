@@ -10,6 +10,7 @@ import {
   iterationCapLabel,
   type LoopCatalogFilter,
   loopCategory,
+  loopMonthActivity,
   loopInputCount,
   loopKind,
   loopKindFacetCount,
@@ -56,6 +57,24 @@ describe("loop-catalog", () => {
     expect(successRateLabel(0.9)).toBe("90%");
     expect(successRateLabel(1)).toBe("100%");
     expect(successRateLabel(Number.NaN)).toBe("—");
+  });
+
+  it("Should state no runs instead of a 0% success rate for an idle month", () => {
+    expect(loopMonthActivity(0, 0)).toEqual({
+      rate: "—",
+      runs: "No runs this month",
+      hasRuns: false,
+    });
+    expect(loopMonthActivity(1, 1)).toEqual({
+      rate: "100%",
+      runs: "1 run this month",
+      hasRuns: true,
+    });
+    expect(loopMonthActivity(42, 0.9)).toEqual({
+      rate: "90%",
+      runs: "42 runs this month",
+      hasRuns: true,
+    });
   });
 
   it("Should detect a human gate from verification criteria", () => {
@@ -152,18 +171,14 @@ describe("loop-catalog", () => {
     expect(loopKindFacetCount("read-only", 2, {})).toBe(2);
   });
 
-  it("Should lead facts with category and append best as a plain segment", () => {
-    expect(loopFactsSegments(delivery)).toEqual(["Engineering", "9 inputs", "iteration cap 50"]);
+  it("Should keep catalog facts to category and the human-approval note", () => {
+    expect(loopFactsSegments(delivery)).toEqual(["Engineering"]);
     const withBest: LoopCatalogEntry = {
       ...delivery,
       last_run: { ...delivery.last_run!, best_generation: 2, best_score: 0.92 },
     };
-    expect(loopFactsSegments(withBest)).toEqual([
-      "Engineering",
-      "9 inputs",
-      "iteration cap 50",
-      "best Gen 2 · 0.92",
-    ]);
+    // Inputs, the round cap, and the best score live on the detail page.
+    expect(loopFactsSegments(withBest)).toEqual(["Engineering"]);
     expect(loopLastRunFact(delivery)).toEqual({
       id: "looprun_running",
       iso: "2026-07-05T12:00:00Z",

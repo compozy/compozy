@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-profiles
 expected: A pending tool or palette approval records the profile that created it and resumes under that owner even after the operator switches, re-running the session-immutability, local-management, availability, and policy checks on resume; archive and delete refuse with profile_approvals_pending while an executable pending approval belongs to the profile, naming the approval ids to resolve or cancel; pending approvals are never counted as work items.
 entry_points: destructive palette or tool invocation awaiting approval; compozy approvals show|resolve; compozy profile archive|delete; GET /api/profiles/{name}/archive-plan|delete-plan; POST /api/profiles/{name}/archive; DELETE /api/profiles/{name}; compozy__cmd_palette_invoke
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-native-approval-timeout-pending; BUG-20261004-palette-approval-cannot-resume; BUG-20261004-extension-workspace-profile-host-binding
+fix_status: fixed
+retest_status: pass
+fix_commits: e9e4a46a6; 9f1457296; 073b1705b
+evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json; docs/qa/evidence/2026-10-02-untested/palette-decision-replay3-ended-summary.json; docs/qa/evidence/2026-10-02-untested/approval-session-conflict-ended.json; docs/qa/evidence/2026-10-02-untested/approval-unavailable-owner2-ended.json; docs/qa/evidence/2026-10-02-untested/approval-remote-ended.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-lifecycle-race-guards; ET-agent-command-invoke; ET-profile-cli-lifecycle
 ---
 
@@ -45,3 +45,44 @@ Expected evidence: the pending record showing its owner; the post-switch resume 
 stamped owner of the produced work; the unavailable, remote, and session-conflict refusals; both
 plan payloads before and after the approval is cleared; the refused mutation bodies naming the
 approval ids; and the work-items count on either side.
+
+QA 2026-10-03: a real pending palette approval blocks archive/delete and is excluded from work counts.
+Owner-selected approval show/cancel fail with not found; remaining lifecycle legs await that repair.
+
+QA 2026-10-03 repair replay: owner show/cancel now succeeds, foreign show/cancel stays refused,
+HTTP/UDS plan blockers clear after cancellation, and archive/unarchive/delete succeed with zero
+work items. BUG-20261003-approval-cli-profile-owner is verified; the complete scenario remains
+untested because its independent resume/concurrency legs have not all been walked.
+
+QA 2026-10-04: an owned durable palette approval can be inspected and canceled, but no public
+approval decision path is available before its timeout. BUG-20261004-palette-approval-cannot-resume
+blocks the owner-resume walk. A separate hosted native permission timeout leaves stale attention;
+BUG-20261004-native-approval-timeout-pending owns that independent lifecycle repair.
+
+The native cancellation slice is verified after 9f1457296: the real deadline clears pending
+attention, a late allow cannot execute, and a fresh timely approval stops its target under the
+original owner. The durable palette resume defect still keeps this full scenario at fail.
+
+The palette repair replay reaches the decision, then exposes a separate Host API binding defect:
+a workspace-profile extension cannot create its own task. The owning Host API regression is repaired
+in source; the scenario remains fail until a fresh command completes under its recorded owner.
+
+The third fresh Dora replay verifies both palette and Host API repairs: approved commands produce
+persisted work under the recorded owner after an operator profile switch. Foreign, malformed,
+repeated and concurrent decisions are refused; current extension policy is rechecked. The complete
+scenario returns to untested for its remaining pending-lifecycle, non-loopback and authenticated
+session refusal legs. No full-scenario pass is claimed.
+
+QA 2026-10-04 continuation: a real session-authenticated HTTP and UDS request refuses a foreign
+acting profile with profile_session_conflict while retaining its approval. A separate pending
+rename makes the actual command owner unavailable: both transports refuse the approval with
+profile_unavailable. Public operation retry retains the pending approval; denial clears it without
+creating work, and the original owner name is restored. Evidence: approval-session-conflict-ended.json
+and approval-unavailable-owner2-ended.json. The non-loopback resume refusal remains pending.
+
+QA 2026-10-04 completion: the actual non-loopback-bound listener returns 403 before approval
+execution. CLI read confirms the approval remains pending; UDS denial succeeds, and no task appears.
+The public config writer and restart restore the original loopback listener and user config.
+Together with the retained owner-switch, policy, blocker/count, lifecycle-availability and
+authenticated-session replays, all legs of this scenario are verified. The independent paired
+remote-tier management matrix belongs to ET-profile-remote-write-boundary and remains untested.

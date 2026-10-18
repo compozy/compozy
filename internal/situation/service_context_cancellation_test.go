@@ -67,7 +67,7 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 				t.Parallel()
 
 				service := NewService(tt.deps)
-				_, err := service.ContextForSession(context.Background(), tt.info)
+				_, err := service.ContextForSession(t.Context(), tt.info)
 				if !errors.Is(err, tt.wantErr) {
 					t.Fatalf("ContextForSession() error = %v, want %v", err, tt.wantErr)
 				}
@@ -92,7 +92,7 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 		info := sessionContextCancellationInfo()
 		info.SoulSnapshotID = "soul-snapshot-1"
 		info.SoulDigest = "digest-1"
-		payload, err := service.ContextForSession(context.Background(), info)
+		payload, err := service.ContextForSession(t.Context(), info)
 		if err != nil {
 			t.Fatalf("ContextForSession() error = %v, want nil", err)
 		}
@@ -138,7 +138,7 @@ func TestContextForStartupDependencyContextErrorsContract(t *testing.T) {
 
 			service := NewService(tt.deps)
 			_, err := service.ContextForStartup(
-				context.Background(),
+				t.Context(),
 				session.StartupPromptContext{
 					SessionID:   "sess-start",
 					AgentName:   "coder",

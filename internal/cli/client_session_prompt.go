@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -56,6 +57,17 @@ func (c *daemonClient) doSessionPrompt(
 	path string,
 	query url.Values,
 	requestBody any,
+) (SessionPromptRecord, error) {
+	return c.doSessionPromptAs(ctx, method, path, query, requestBody, agentidentity.Credentials{})
+}
+
+func (c *daemonClient) doSessionPromptAs(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	credentials agentidentity.Credentials,
 ) (record SessionPromptRecord, err error) {
 	query, err = c.withFreshStreamTicket(ctx, query)
 	if err != nil {
@@ -68,7 +80,7 @@ func (c *daemonClient) doSessionPrompt(
 		query,
 		requestBody,
 		"",
-		agentidentity.Credentials{},
+		credentials,
 		c.streamHTTPClient(),
 	)
 	if err != nil {
@@ -121,6 +133,17 @@ func (c *daemonClient) StreamPromptSession(
 	id string,
 	request SessionPromptRequest,
 	handler SSEHandler,
+) error {
+	return c.StreamPromptSessionAs(ctx, id, request, agentidentity.Credentials{}, handler)
+}
+
+// StreamPromptSessionAs streams a prompt sent on behalf of a validated agent session identity.
+func (c *daemonClient) StreamPromptSessionAs(
+	ctx context.Context,
+	id string,
+	request SessionPromptRequest,
+	credentials agentidentity.Credentials,
+	handler SSEHandler,
 ) (err error) {
 	path, err := c.sessionScopedPath(ctx, id, "/prompt")
 	if err != nil {
@@ -137,7 +160,7 @@ func (c *daemonClient) StreamPromptSession(
 		query,
 		request,
 		"",
-		agentidentity.Credentials{},
+		credentials,
 		c.streamHTTPClient(),
 	)
 	if err != nil {
@@ -211,17 +234,11 @@ func (s *sessionPromptStreamState) observe(event SSEEvent) error {
 			return fmt.Errorf("cli: decode prompt stream event: %w", err)
 		}
 	}
-	eventType := strings.TrimSpace(payload.Type)
-	if eventType == "" {
-		eventType = strings.TrimSpace(event.Event)
-	}
+	eventType := cmp.Or(strings.TrimSpace(payload.Type), strings.TrimSpace(event.Event))
 	switch eventType {
 	case automationErrorKey:
 		s.terminal = true
-		message := strings.TrimSpace(payload.ErrorText)
-		if message == "" {
-			message = strings.TrimSpace(payload.Error)
-		}
+		message := cmp.Or(strings.TrimSpace(payload.ErrorText), strings.TrimSpace(payload.Error))
 		if message == "" && payload.Failure != nil {
 			message = strings.TrimSpace(payload.Failure.Summary)
 		}

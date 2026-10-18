@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -130,7 +129,7 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 				}
 			})},
 		}
-		ctx := context.Background()
+		ctx := t.Context()
 		scope := contract.SettingsLayeredScopeWorkspace
 		target := SettingsMCPAuthTarget{Name: "linear", Scope: scope, WorkspaceID: "workspace-a"}
 		if _, err := client.ListSettingsMCPServers(ctx, scope, "workspace-a", ""); err != nil {

@@ -3,8 +3,6 @@ package dsl
 
 import (
 	"fmt"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const (
@@ -34,8 +32,7 @@ type Definition struct {
 
 // DefinitionExtensionState keeps optional authoring extensions off the hot Definition value.
 type DefinitionExtensionState struct {
-	Start                []StartBinding         `json:"start,omitempty"                 yaml:"start,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty" yaml:"network_participation,omitempty"`
+	Start []StartBinding `json:"start,omitempty" yaml:"start,omitempty"`
 }
 
 // Normalize applies document-level zero-value semantics without inventing authoring defaults.
@@ -76,7 +73,7 @@ func (d Definition) ValidateHeader() error {
 // Meta describes a loop definition for catalog and authoring surfaces.
 type Meta struct {
 	Name        string         `json:"name"                  yaml:"name"`
-	Version     int            `json:"version,omitempty"     yaml:"version,omitempty"`
+	Version     int            `json:"version,omitzero"      yaml:"version,omitempty"`
 	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
 	Catalog     CatalogMeta    `json:"catalog"               yaml:"catalog"`
 	Extra       map[string]any `json:"-"                     yaml:",inline"`
@@ -183,9 +180,9 @@ func (k EntityKind) Valid() bool {
 // Input declares one named loop input.
 type Input struct {
 	Type        InputType      `json:"type"                  yaml:"type"`
-	Required    bool           `json:"required,omitempty"    yaml:"required,omitempty"`
+	Required    bool           `json:"required,omitzero"     yaml:"required,omitempty"`
 	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
-	Ref         *InputRef      `json:"ref,omitempty"         yaml:"ref,omitempty"`
+	Ref         *InputRef      `json:"ref,omitzero"          yaml:"ref,omitempty"`
 	Enum        []string       `json:"enum,omitempty"        yaml:"enum,omitempty"`
 	Default     any            `json:"default,omitempty"     yaml:"default,omitempty"`
 	Extra       map[string]any `json:"-"                     yaml:",inline"`

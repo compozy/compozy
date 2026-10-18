@@ -16,13 +16,13 @@ import (
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/providerexec"
-	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -31,94 +31,10 @@ import (
 	"github.com/compozy/compozy/internal/toolruntime"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	skillbundled "github.com/compozy/compozy/skills"
 )
-
-func testLiveParticipation(workspaceID, channelID string) participation.Spec {
-	return participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     strings.TrimSpace(workspaceID),
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       strings.TrimSpace(channelID),
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
-	}
-}
-
-func testLocalParticipation() participation.Spec {
-	return participation.LocalSpec()
-}
 
 func testSessionDBOwner(sessionID string, workspaceID string) store.SessionDBOwner {
 	return store.SessionDBOwner{SessionID: sessionID, WorkspaceID: workspaceID}
-}
-
-func testLocalParticipationPtr() *participation.Spec {
-	return participation.CloneSpec(testLocalParticipation())
-}
-
-func testLiveParticipationPtr(workspaceID, channelID string) *participation.Spec {
-	spec := testLiveParticipation(workspaceID, channelID)
-	return &spec
-}
-
-type recordingSessionParticipationResolver struct {
-	inner        participation.Resolver
-	calls        int
-	observations []participation.ResolvedObservation
-}
-
-func (r *recordingSessionParticipationResolver) ObserveParticipationResolved(
-	_ context.Context,
-	observation participation.ResolvedObservation,
-) error {
-	r.observations = append(r.observations, observation)
-	return nil
-}
-
-func (r *recordingSessionParticipationResolver) Resolve(
-	ctx context.Context,
-	in participation.ResolveInput,
-) (participation.Spec, error) {
-	r.calls++
-	return r.inner.Resolve(ctx, in)
-}
-
-func newTestSessionParticipationResolver(t *testing.T, available bool) participation.Resolver {
-	t.Helper()
-	defaults := testLiveParticipation("ws-test", "builders").Bounds
-	resolver, err := participation.NewResolver(participation.ResolverOptions{
-		Defaults: defaults,
-		Limits: participation.Limits{
-			MaxWakes:          16,
-			MaxWakeWallTime:   "2m",
-			MaxTotalWallTime:  "10m",
-			MaxInputTokens:    65536,
-			MaxOutputTokens:   65536,
-			MaxWakeDepth:      16,
-			MinCoalesceWindow: "100ms",
-			MaxCoalesceWindow: "5s",
-		},
-		Availability: func(context.Context) (bool, error) {
-			return available, nil
-		},
-		ChannelExists: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("participation.NewResolver() error = %v", err)
-	}
-	return resolver
 }
 
 func receivePromptEvent(t *testing.T, events <-chan acp.AgentEvent) acp.AgentEvent {
@@ -141,7 +57,6 @@ type harness struct {
 	driver        *fakeDriver
 	notifier      *fakeNotifier
 	resolver      *fakeWorkspaceResolver
-	sandbox       *sandbox.Registry
 	cfg           compozyconfig.Config
 	homePaths     compozyconfig.HomePaths
 	workspace     string
@@ -179,7 +94,6 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 	h := &harness{
 		driver:        newFakeDriver(),
 		notifier:      newFakeNotifier(),
-		sandbox:       newFakeSandboxRegistry(t),
 		cfg:           compozyconfig.DefaultWithHome(homePaths),
 		homePaths:     homePaths,
 		workspace:     workspace,
@@ -210,17 +124,11 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 		provider.Command = "test-acp-driver"
 		h.cfg.Providers[name] = provider
 	}
-	resolvedSandbox, err := h.cfg.ResolveSandbox(h.cfg.Defaults.Sandbox)
-	if err != nil {
-		t.Fatalf("ResolveSandbox() error = %v", err)
-	}
 	h.resolver = newFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{
 			{
 				Name:     compozyconfig.DefaultAgentName,
@@ -233,7 +141,6 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 				Prompt:   "You are a coding assistant.",
 			},
 		},
-		Sandbox: resolvedSandbox,
 	})
 	h.manager = newManagerWithHarness(t, h, extraOpts...)
 	return h
@@ -266,19 +173,8 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithNotifier(h.notifier),
 		WithPromptAssembler(
 			startupPromptAssemblerFunc(
-				func(_ context.Context, startup StartupPromptContext, agent compozyconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
-					prompt := strings.TrimSpace(agent.Prompt)
-					if startup.NetworkParticipation.Mode != participation.ModeLive {
-						return prompt, nil
-					}
-					networkSkill, err := skillbundled.LoadResource(
-						testBundledCompozySkillName,
-						testBundledNetworkReference,
-					)
-					if err != nil {
-						return "", err
-					}
-					return prompt + "\n\n" + strings.TrimSpace(networkSkill), nil
+				func(_ context.Context, _ StartupPromptContext, agent compozyconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
+					return strings.TrimSpace(agent.Prompt), nil
 				},
 			),
 		),
@@ -295,8 +191,6 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(h.turnIDs),
-		WithSandboxRegistry(h.sandbox),
-		WithSandboxIDGenerator(sequentialIDGenerator("env")),
 		WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        runtimeProviderClaude,
 			ModelID:           claudeProvider.Models.Default,
@@ -336,21 +230,6 @@ func createSession(t *testing.T, h *harness) *Session {
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
-	}
-	return session
-}
-
-func createLiveNetworkSession(t *testing.T, h *harness) *Session {
-	t.Helper()
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "network-session",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create(live network session) error = %v", err)
 	}
 	return session
 }
@@ -457,30 +336,6 @@ func (fn promptAssemblerFunc) Assemble(
 ) (string, error) {
 	return fn(ctx, agent, workspace)
 }
-
-type resumeContextPromptAssembler struct {
-	checkpoint string
-}
-
-func (a *resumeContextPromptAssembler) Assemble(
-	_ context.Context,
-	agent compozyconfig.AgentDef,
-	_ *workspacepkg.ResolvedWorkspace,
-) (string, error) {
-	return agent.Prompt, nil
-}
-
-func (a *resumeContextPromptAssembler) ResumeContextSection(
-	_ context.Context,
-	_ StartupPromptContext,
-) (string, error) {
-	return a.checkpoint, nil
-}
-
-const (
-	testBundledCompozySkillName = "compozy"
-	testBundledNetworkReference = "references/network.md"
-)
 
 type startupPromptAssemblerFunc func(
 	context.Context,
@@ -640,69 +495,6 @@ func (n *fakeNotifier) notificationOrder() []string {
 	return append([]string(nil), n.order...)
 }
 
-type fakeNetworkPeerLifecycle struct {
-	mu    sync.Mutex
-	joins []fakeNetworkJoinCall
-	left  []string
-}
-
-type fakeNetworkJoinCall struct {
-	sessionID    string
-	peerID       string
-	channel      string
-	capabilities []NetworkPeerCapability
-}
-
-func newFakeNetworkPeerLifecycle() *fakeNetworkPeerLifecycle {
-	return &fakeNetworkPeerLifecycle{}
-}
-
-func (f *fakeNetworkPeerLifecycle) JoinChannel(
-	_ context.Context,
-	join NetworkPeerJoin,
-) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.joins = append(f.joins, fakeNetworkJoinCall{
-		sessionID:    join.SessionID,
-		peerID:       join.PeerID,
-		channel:      join.Channel,
-		capabilities: cloneNetworkPeerCapabilities(join.Capabilities),
-	})
-	return nil
-}
-
-func (f *fakeNetworkPeerLifecycle) LeaveChannel(_ context.Context, sessionID string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.left = append(f.left, sessionID)
-	return nil
-}
-
-func (f *fakeNetworkPeerLifecycle) joinCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return len(f.joins)
-}
-
-func (f *fakeNetworkPeerLifecycle) joinCall(index int) fakeNetworkJoinCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.joins[index]
-}
-
-func (f *fakeNetworkPeerLifecycle) leaveCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return len(f.left)
-}
-
-func (f *fakeNetworkPeerLifecycle) leaveCall(index int) string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.left[index]
-}
-
 type fakeEventRecorder struct {
 	closeCalls int
 }
@@ -820,6 +612,8 @@ type fakeDriver struct {
 	cancelHook            func(proc *fakeProcess) error
 	cancelWithContextHook func(context.Context, *fakeProcess) error
 	approveHook           func(proc *fakeProcess, req acp.ApproveRequest) error
+	notifyCalls           []agentExtensionNotifyCall
+	notifyHook            func(proc *AgentProcess, method string, params any) error
 	stopHook              func(proc *fakeProcess) error
 	verifyExitHook        func(*AgentProcess) (bool, error)
 	killHook              func(*fakeProcess) error
@@ -828,6 +622,10 @@ type fakeDriver struct {
 	interruptScopes       []toolruntime.InterruptScope
 	interruptErr          error
 	fallbackOnResume      bool
+	// advertiseFork makes default fake processes advertise ACP session/fork.
+	advertiseFork bool
+	forkCalls     []string
+	forkHook      func(proc *AgentProcess, cwd string) (acp.ForkSessionResult, error)
 }
 
 type fakeWorkspaceResolver struct {
@@ -913,70 +711,6 @@ func newFakeSkillRegistry() *fakeSkillRegistry {
 	}
 }
 
-func newFakeSandboxRegistry(t *testing.T) *sandbox.Registry {
-	t.Helper()
-
-	registry, err := sandbox.NewRegistry(fakeSandboxProvider{})
-	if err != nil {
-		t.Fatalf("NewRegistry(fake sandbox) error = %v", err)
-	}
-	return registry
-}
-
-type fakeSandboxProvider struct{}
-
-func (fakeSandboxProvider) Backend() sandbox.Backend {
-	return sandbox.BackendLocal
-}
-
-func (fakeSandboxProvider) Prepare(
-	_ context.Context,
-	req sandbox.PrepareRequest,
-) (sandbox.Prepared, error) {
-	state := sandbox.SessionState{
-		SandboxID:             req.SandboxID,
-		Backend:               sandbox.BackendLocal,
-		Profile:               req.Sandbox.Profile,
-		InstanceID:            strings.TrimSpace(req.InstanceID),
-		State:                 "prepared",
-		RuntimeRootDir:        req.LocalRootDir,
-		RuntimeAdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
-		ProviderState:         append(json.RawMessage(nil), req.ProviderState...),
-		PreparedAt:            time.Now().UTC(),
-	}
-	return sandbox.Prepared{
-		State:                 state,
-		RuntimeRootDir:        req.LocalRootDir,
-		RuntimeAdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
-		Launch: sandbox.LaunchSpec{
-			Command:        req.AgentCommand,
-			Cwd:            req.LocalRootDir,
-			AdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
-			Env:            append([]string(nil), req.AgentEnv...),
-		},
-	}, nil
-}
-
-func (fakeSandboxProvider) SyncToRuntime(
-	context.Context,
-	sandbox.SessionState,
-	sandbox.SyncOptions,
-) (sandbox.SyncResult, error) {
-	return sandbox.SyncResult{}, nil
-}
-
-func (fakeSandboxProvider) SyncFromRuntime(
-	context.Context,
-	sandbox.SessionState,
-	sandbox.SyncOptions,
-) (sandbox.SyncResult, error) {
-	return sandbox.SyncResult{}, nil
-}
-
-func (fakeSandboxProvider) Destroy(context.Context, sandbox.SessionState) error {
-	return nil
-}
-
 func (r *fakeSkillRegistry) ForWorkspace(
 	_ context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -1023,6 +757,18 @@ func (r *fakeSkillRegistry) call(index int) workspacepkg.ResolvedWorkspace {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return cloneResolvedWorkspaceForTests(&r.calls[index])
+}
+
+func (r *fakeWorkspaceResolver) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	if err := ctx.Err(); err != nil {
+		return workspacepkg.Workspace{}, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if resolved, ok := r.byRef[strings.TrimSpace(ref)]; ok {
+		return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
+	}
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
 func (r *fakeWorkspaceResolver) Resolve(ctx context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
@@ -1090,13 +836,11 @@ func (r *fakeWorkspaceResolver) ResolveOrRegister(
 
 	r.nextID++
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      fmt.Sprintf("ws-auto-%d", r.nextID),
-			RootDir: target,
-			Name:    filepath.Base(target),
-		},
-		Config: r.autoRegisterConfig,
-		Agents: append([]compozyconfig.AgentDef(nil), r.autoRegisterAgents...),
+		ID:      fmt.Sprintf("ws-auto-%d", r.nextID),
+		RootDir: target,
+		Name:    filepath.Base(target),
+		Config:  r.autoRegisterConfig,
+		Agents:  append([]compozyconfig.AgentDef(nil), r.autoRegisterAgents...),
 	}
 	r.upsert(&resolved)
 	return cloneResolvedWorkspaceForTests(&resolved), nil
@@ -1260,10 +1004,13 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 			}
 		}
 		proc = newFakeProcess(copied.AgentName, copied.Command, copied.Cwd, sessionID)
+		proc.handle.caps.SupportsForkSession = d.advertiseFork
 	}
-	if err != nil {
+	if err != nil && proc == nil {
 		return nil, err
 	}
+	// A hook may return a process together with a refusal: the process is registered
+	// so the caller can stop it, and the refusal is returned alongside its handle.
 
 	proc.handle.toolHost = copied.ToolHost
 	proc.handle.approvePermissionFn = func(ctx context.Context, req acp.ApproveRequest) error {
@@ -1282,8 +1029,30 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 	}
 
 	d.processes[proc.handle] = proc
+	if err != nil {
+		return proc.handle, err
+	}
 	d.lastProc = proc
 	return proc.handle, nil
+}
+
+// ForkSession records the session/fork call and answers through forkHook, or with a
+// deterministic clone id.
+func (d *fakeDriver) ForkSession(_ context.Context, proc *AgentProcess, cwd string) (acp.ForkSessionResult, error) {
+	d.mu.Lock()
+	d.forkCalls = append(d.forkCalls, proc.SessionID)
+	hook := d.forkHook
+	d.mu.Unlock()
+	if hook != nil {
+		return hook(proc, cwd)
+	}
+	return acp.ForkSessionResult{SessionID: acpsdk.SessionId(proc.SessionID + "-fork")}, nil
+}
+
+func (d *fakeDriver) forkCallCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.forkCalls)
 }
 
 func (d *fakeDriver) Prompt(
@@ -1370,6 +1139,31 @@ func (d *fakeDriver) Interrupt(
 	return toolruntime.InterruptReport{Matched: 1, Signaled: 1}, nil
 }
 
+type agentExtensionNotifyCall struct {
+	proc   *AgentProcess
+	method string
+	params any
+}
+
+func (d *fakeDriver) NotifyExtension(
+	ctx context.Context,
+	proc *AgentProcess,
+	method string,
+	params any,
+) error {
+	d.mu.Lock()
+	d.notifyCalls = append(d.notifyCalls, agentExtensionNotifyCall{proc: proc, method: method, params: params})
+	hook := d.notifyHook
+	d.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if hook != nil {
+		return hook(proc, method, params)
+	}
+	return nil
+}
+
 func (d *fakeDriver) Stop(_ context.Context, proc *AgentProcess) error {
 	d.mu.Lock()
 	fakeProc := d.processes[proc]
@@ -1401,16 +1195,6 @@ func (d *fakeDriver) lastProcess() *fakeProcess {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.lastProc
-}
-
-func lookupEnvValue(env []string, key string) (string, bool) {
-	for _, entry := range env {
-		existingKey, value, ok := strings.Cut(entry, "=")
-		if ok && existingKey == key {
-			return value, true
-		}
-	}
-	return "", false
 }
 
 type fakeProcess struct {

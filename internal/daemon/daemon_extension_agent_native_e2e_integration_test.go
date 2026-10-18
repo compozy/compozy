@@ -35,18 +35,16 @@ func TestDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.
 }
 
 func testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 
 	deps, extensionRegistry, _, _ := newNativeExtensionToolDeps(t)
 	workspaceRoot := t.TempDir()
 	workspaceID := "workspace-agent-native-e2e"
 	resolver := &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      workspaceID,
-			Name:    "agent-native-e2e-workspace",
-			RootDir: workspaceRoot,
-		},
+		ID:          workspaceID,
+		Name:        "agent-native-e2e-workspace",
+		RootDir:     workspaceRoot,
 		WorkspaceID: workspaceID,
 	}}
 	installNativeGlobalResourceExtension(t, extensionRegistry, agentNativeExtensionE2EName)

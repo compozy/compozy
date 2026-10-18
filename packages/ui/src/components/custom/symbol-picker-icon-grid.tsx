@@ -123,7 +123,7 @@ export function SymbolPickerIconGrid({
                 style={isSelected ? { backgroundColor: plate, color: selectedInk } : { color: ink }}
                 className={cn(
                   "grid aspect-square cursor-pointer place-items-center rounded-xs transition-colors",
-                  "hover:bg-row-hover data-[active=true]:bg-row-selected"
+                  "hover:bg-surface-2 data-[active=true]:bg-selected"
                 )}
               >
                 <SpriteIcon spriteUrl={spriteUrl} name={icon.name} className="text-current" />

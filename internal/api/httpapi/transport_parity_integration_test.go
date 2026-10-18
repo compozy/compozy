@@ -25,7 +25,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -59,7 +58,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -146,7 +145,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%q) not found", transportAutomationAgent)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	t.Run("Should return an unbound runtime through create and read", func(t *testing.T) {
@@ -293,7 +292,7 @@ func TestHTTPTransportWebhookIngressUsesSharedRuntimeHarness(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	trigger, endpoint := seedTransportWebhookTrigger(t, ctx, runtimeHarness)
@@ -337,7 +336,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -416,7 +415,7 @@ func TestHTTPTransportTaskLoopCatalogParity(t *testing.T) {
 	t.Parallel()
 
 	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	seedTransportTaskLoopCatalog(t, ctx, runtimeHarness)
 
@@ -455,7 +454,6 @@ func TestHTTPTransportTaskLoopCatalogParity(t *testing.T) {
 	}
 
 	for _, query := range queries {
-		query := query
 		t.Run(query.name, func(t *testing.T) {
 			var httpPayload compozycontract.TasksResponse
 			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, query.path, nil, &httpPayload); err != nil {
@@ -574,7 +572,7 @@ func testHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	portablePath, err := filepath.Abs(filepath.Join("..", "..", "extension", "testdata", "agent-plugin-conformant"))
@@ -898,7 +896,7 @@ func TestHTTPInstallPortableManifestContract(t *testing.T) {
 			cfg.Extensions.Trust.AllowUnverified = true
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	database, err := globaldb.OpenGlobalDB(ctx, runtimeHarness.HomePaths.DatabaseFile)
@@ -1488,7 +1486,7 @@ func seedTransportTaskLoopCatalog(
 			ID: id, ProfileID: storepkg.DefaultProfileID, TaskID: taskID,
 			WorkspaceID: workspaceID, Attempt: attempt,
 			RunKind: kind, Status: taskpkg.TaskRunStatusCompleted, LoopRunID: loopRunID,
-			Origin: loopOrigin, RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+			Origin: loopOrigin,
 			Metadata: json.RawMessage(fmt.Sprintf(
 				`{"loop_run_id":%q,"loop_name":"transport-parity","generation":2,"node_id":"review","item_index":0}`,
 				loopRunID,

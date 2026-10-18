@@ -1,282 +1,277 @@
 /* ============================================================
    COMPOZYOS DESIGN SYSTEM — ds-shell.css
-   OS shell chrome: menu bar, dock, window frame, deck (tabs),
-   overlays, mobile mode. Depends on ds-core.css.
+   OS shell chrome (shell v2): full-width flat topbar, left rail
+   (the dock), gutterless tiling with hairline seams, browser-tab
+   deck, quiet window controls, overlays, compact mode.
+   Depends on ds-core.css; reads right in both themes.
 
    Source of truth: web/src/systems/os/** + packages/ui tokens
-   (shell section). The former window-tabs-variations.html deck
-   contract is folded in here — production shipped it.
+   (shell geometry: --height-menubar, --width-rail, --height-deck,
+   --height-window-head, --size-seam-hit …). The design reference
+   for this layer is ../shell-rail/shell-rail-v2.html.
 
-   The OS radius waiver applies ONLY to this layer: shell chrome
-   may use 12–22px radii and glass/blur/cast shadows; window
-   CONTENT stays flat on the ds-core.css scale (3–18px, no glass,
-   no cast shadows).
+   There is no glass and no radius waiver any more. Chrome sits flat
+   on --rail; tiled panes are flat on --canvas (no radius, border or
+   shadow); floating windows add a 1px --line hairline and
+   --shadow-elevated; menus and popovers are --canvas + --shadow-pop.
 
-   Z ladder (fixed tiers — never bare 999/9999):
-     dock zone 600 · menubar 500 · shell popover 900 ·
-     overlay 1000 · toasts 1200. Window-body tiers are
-     --z-menu 40 / --z-scrim 60 / --z-sheet 61 (ds-core).
+   Z ladder (fixed tiers — never bare 999/9999): tiled windows 1 ·
+   seams 3 · floating 2+n · rail 600 · topbar 500 · shell popover
+   900 · overlay 1000 · toasts 1200. Window-body tiers are
+   --z-menu 40 / --z-scrim 60 / --z-sheet 61 (ds-core).
    ============================================================ */
 
-/* ---- shell-only tokens (OS radius waiver layer) ---- */
+/* ---- shell geometry (px mirror of tokens.css shell section) ---- */
 :root{
-  --shell-glass:rgba(12,11,11,.72);
-  --shell-glass-pop:rgba(19,18,17,.94);
-  --teal:#225555; /* registered brand tone — wallpaper depth only */
-  --r-pop:12px; --r-win:12px; --r-widget:14px; --r-dock:22px; --r-dock-item:13px;
-  --blur-shell:28px; --saturate-shell:1.25;
+  --h-bar:52px;            /* --height-menubar */
+  --w-lights:84px;         /* --width-traffic-lights: macOS controls reserve */
+  --w-dock-rail:60px;      /* --width-rail */
+  --rail-item:40px;        /* --size-rail-item */
+  --h-deck:40px; --h-deck-tab:32px; --r-deck-tab:9px;
+  --w-deck-tab-max:208px; --w-deck-tab-min:136px;
+  --h-win-head:48px;       /* --height-window-head */
+  --h-win-toolbar:44px;    /* --height-window-toolbar */
+  --seam-hit:9px;          /* --size-seam-hit */
+  --teal:#225555;          /* wallpaper depth only */
   --dur-shell-fast:120ms; --dur-shell:240ms; --dur-shell-slow:320ms;
   --ease-spring:cubic-bezier(.32,.72,.28,1);
-  --shadow-win:0 40px 90px -30px rgba(0,0,0,.7), 0 10px 30px -12px rgba(0,0,0,.55);
-  --shadow-win-unfocused:0 18px 50px -22px rgba(0,0,0,.55);
-  --shadow-dock:0 18px 50px -18px rgba(0,0,0,.6);
-  /* work-area reservation: item 46 + 2×7 pad + 2 border + 10 offset + 10 clearance */
-  --dock-band:82px;
-  --h-deck:37px; --h-deck-tab:30px; --w-deck-tab-min:96px; --w-deck-tab-max:180px;
+  /* doc/demo frame radius + floating finish (kept for boards that link them) */
+  --r-win:var(--radius-lg);
+  --shadow-win:var(--shadow-elevated);
 }
 
-.os{position:fixed;inset:0;display:flex;flex-direction:column}
-
-/* ============ DESKTOP + WALLPAPERS ============ */
-.desktop{
-  position:relative;flex:1;overflow:hidden;
-  background:
-    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
-    var(--wp, var(--rail));
+/* ============ SHELL GRID ============
+   topbar spans the full width; the rail sits below it on the left;
+   the desk (window layer) fills the rest. */
+.os{
+  position:fixed;inset:0;display:grid;
+  grid-template-columns:var(--w-dock-rail) minmax(0,1fr);
+  grid-template-rows:var(--h-bar) minmax(0,1fr);
+  background:var(--rail);
 }
-body[data-wallpaper="ember"] .desktop{
+.os > .menubar{grid-column:1 / -1}
+
+/* ============ DESK + WALLPAPERS ============
+   flat is the default desk: the --desk role, no grain. */
+.desktop{position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--desk)}
+.desktop[data-wallpaper="ember"],.desktop[data-wallpaper="mesh"],.desktop[data-wallpaper="carbon"]{
+  background:radial-gradient(1.5px 1.5px at 50% 50%, var(--grain) 40%, transparent 41%) 0 0 / 26px 26px, var(--wp);
+}
+.desktop{--grain:rgba(255,255,255,.035)}
+[data-theme="light"] .desktop{--grain:rgba(10,13,18,.06)}
+.desktop[data-wallpaper="ember"]{
   --wp:
     radial-gradient(1100px 700px at 12% 110%, var(--accent-tint-strong), transparent 62%),
-    radial-gradient(1000px 640px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    radial-gradient(1000px 640px at 92% -12%, color-mix(in oklab, var(--teal) var(--teal-wash, 38%), transparent), transparent 60%),
     linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
 }
-body[data-wallpaper="mesh"] .desktop{
+.desktop[data-wallpaper="mesh"]{
   --wp:
     radial-gradient(900px 600px at 85% 108%, var(--success-tint), transparent 60%),
-    radial-gradient(1200px 700px at 8% -8%, color-mix(in oklab, var(--teal) 40%, transparent), transparent 64%),
+    radial-gradient(1200px 700px at 8% -8%, color-mix(in oklab, var(--teal) var(--teal-wash, 40%), transparent), transparent 64%),
     linear-gradient(180deg, var(--canvas), var(--rail) 60%);
 }
-body[data-wallpaper="carbon"] .desktop{
+.desktop[data-wallpaper="carbon"]{
   --wp:
-    radial-gradient(1000px 620px at 50% -14%, rgba(255,255,255,.04), transparent 58%),
+    radial-gradient(1000px 620px at 50% -14%, var(--row-hover), transparent 58%),
     linear-gradient(180deg, var(--canvas), var(--rail) 50%);
 }
+/* light: the teal depth wash drops to a tint (tokens-light.css) */
+[data-theme="light"] .desktop{--teal-wash:13%}
+.win-layer{position:absolute;inset:0}
 
-/* the dock band is reserved: no window rect resolves under the dock */
-.win-layer{position:absolute;inset:0;bottom:calc(var(--dock-band) + env(safe-area-inset-bottom,0px))}
-.desk-hint{
+/* empty desktop: centred card, never a modal and never a blocking wall */
+.desk-empty{
   position:absolute;left:50%;top:50%;translate:-50% -50%;
-  display:flex;align-items:center;gap:8px;
-  font-size:var(--text-small-body);color:var(--subtle);
-  pointer-events:none;user-select:none;
-  animation:fade-in .4s ease;
+  display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+  width:min(380px,calc(100% - 32px));padding:16px;
+  border-radius:var(--radius-lg);background:var(--canvas);box-shadow:var(--shadow-card);
 }
-.desk-hint .dh-desktop{display:inline-flex;align-items:center;gap:8px}
-.desk-hint .dh-mobile{display:none}
+.desk-empty h2{font-size:var(--text-heading);font-weight:var(--w-medium);letter-spacing:-.015em;color:var(--fg);margin-top:4px}
+.desk-empty p{color:var(--muted);text-wrap:pretty;margin-bottom:4px}
 
-/* ============ MENU BAR (44px) ============ */
+/* ============ TOPBAR (the menubar — 52px, flat) ============ */
 .menubar{
-  height:44px;flex:none;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 10px;
-  background:var(--shell-glass);
-  backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell));
-  border-bottom:1px solid var(--line);
-  position:relative;z-index:500;
+  height:var(--h-bar);flex:none;
+  display:flex;align-items:center;gap:16px;
+  padding:0 14px 0 0;
+  background:var(--rail);border-bottom:1px solid var(--line);
+  position:relative;z-index:500;min-width:0;
 }
-.mb-side{display:flex;align-items:center;gap:4px}
-.mb-right{gap:8px}
+/* the first 84px belong to the frameless window's traffic lights */
+.mb-lights{width:var(--w-lights);height:100%;flex:none}
+.mb-lights--dots{display:flex;align-items:center;gap:8px;padding-left:18px}
+.mb-lights--dots i{width:12px;height:12px;border-radius:50%;background:var(--line-strong)}
+.mb-side{display:flex;align-items:center;gap:2px;min-width:0}
+.mb-right{gap:4px;margin-left:auto}
+.mb-logo{width:34px;height:34px;border-radius:var(--radius-pill);display:grid;place-items:center;color:var(--fg);flex:none}
+.mb-logo:hover,.mb-logo[aria-expanded="true"]{background:var(--surface-2)}
+.mb-logo svg{width:20px;height:20px}
 
-.mb-logo{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--accent)}
-.mb-logo svg{width:17px;height:17px}
-.mb-logo-dot{fill:var(--accent-ink)}
-.mb-logo:hover{background:var(--btn-fill)}
-
-.ws-trigger{display:flex;align-items:center;gap:7px;height:28px;padding:0 8px;border-radius:var(--radius-md)}
-.ws-trigger:hover,.ws-trigger[aria-expanded="true"]{background:var(--btn-fill)}
+/* workspace chip (menu "Project"): 22px avatar · name 15/500 · / worktree */
+.ws-trigger{display:flex;align-items:center;gap:9px;height:34px;padding:0 12px 0 6px;border-radius:var(--radius-pill);min-width:0}
+.ws-trigger:hover,.ws-trigger[aria-expanded="true"]{background:var(--surface-2)}
 .ws-avatar{
-  width:18px;height:18px;border-radius:var(--radius-sm);
+  width:22px;height:22px;border-radius:var(--radius-pill);flex:none;
   display:grid;place-items:center;
-  font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.04em;
-  background:var(--elevated);border:1px solid var(--line-strong);color:var(--fg);
+  font-size:9.5px;font-weight:var(--w-semibold);line-height:1;
+  background:var(--selected);color:var(--fg);
 }
-.ws-name{font-weight:600;font-size:var(--text-small-body);color:var(--fg-strong);white-space:nowrap}
-.ws-worktree{font-size:var(--text-small-body);color:var(--fg);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chevrons{width:12px;height:12px;color:var(--subtle)}
+.ws-name{font-weight:var(--w-medium);font-size:var(--text-card-title);color:var(--fg);white-space:nowrap}
+.ws-worktree{color:var(--muted);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chevrons{width:15px;height:15px;color:var(--muted)}
 
-.mb-menus{display:flex;margin-left:6px}
-.mb-menu{height:28px;padding:0 9px;border-radius:7px;font-size:var(--text-small-body);color:var(--muted)}
-.mb-menu:hover,.mb-menu.is-open{background:var(--btn-fill);color:var(--fg-strong)}
+.mb-vsep{width:1px;height:18px;background:var(--line);margin:0 6px;flex:none}
+.mb-menus{display:flex;gap:2px}
+.mb-menu{height:32px;padding:0 11px;border-radius:var(--radius-pill);color:var(--fg-2);font-weight:var(--w-medium)}
+.mb-menu:hover,.mb-menu.is-open,.mb-menu[aria-expanded="true"]{background:var(--surface-2);color:var(--fg)}
+.mb-fill{flex:1;min-width:12px;align-self:stretch}
 
-/* tray: bell · ⌘K · cog — 28px squares, 16px glyphs */
-.mb-icon{position:relative;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--muted)}
-.mb-icon:hover{background:var(--btn-fill);color:var(--fg-strong)}
-.mb-icon svg{width:16px;height:16px}
+/* tray: pager dots · All desktops · bell · ⌘K — 34px pill icon buttons */
+.mb-icon{position:relative;width:34px;height:34px;border-radius:var(--radius-pill);display:grid;place-items:center;color:var(--muted);flex:none}
+.mb-icon:hover,.mb-icon[aria-expanded="true"]{background:var(--surface-2);color:var(--fg)}
+.mb-icon svg{width:18px;height:18px}
+/* count badge (PillCount / --text-count): attn fill, ring cut from the chrome */
 .badge{
-  position:absolute;top:1px;right:0;
-  min-width:14px;height:14px;padding:0 4px;border-radius:7px;
-  background:var(--accent);color:var(--accent-ink);
-  font-size:9px;font-weight:700;line-height:14px;text-align:center;
-  font-family:var(--font-mono);
+  position:absolute;top:3px;right:2px;
+  min-width:15px;height:15px;padding:0 4px;border-radius:var(--radius-pill);
+  background:var(--attn);color:var(--accent-ink);
+  font-size:var(--text-count);font-weight:var(--w-semibold);line-height:15px;text-align:center;
+  box-shadow:0 0 0 2px var(--rail);
 }
 .badge[data-zero]{display:none}
 
-/* ============ POPOVERS (shell glass) ============ */
+/* desktop pager — 24×30 buttons, 6px dots; active = 18px fg pill; off-screen needs-you = attn */
+.pager{display:flex;align-items:center;margin-right:4px}
+.pager-dot{width:24px;height:30px;display:grid;place-items:center;border-radius:6px}
+.pager-dot:hover{background:var(--surface-2)}
+.pager-dot i{display:block;width:6px;height:6px;border-radius:var(--radius-pill);background:var(--line-strong);transition:width var(--dur-shell) var(--ease),background var(--dur-fast)}
+.pager-dot:hover i{background:var(--muted)}
+.pager-dot.is-on i{width:18px;background:var(--fg)}
+.pager-dot.has-attn:not(.is-on) i{background:var(--attn)}
+
+/* ============ POPOVERS (surface + shadow-pop, no glass) ============ */
 .popover{
   position:fixed;z-index:900;
-  min-width:224px;padding:6px;
-  background:var(--shell-glass-pop);
-  backdrop-filter:blur(30px) saturate(var(--saturate-shell));
-  border:1px solid var(--line-strong);border-radius:var(--r-pop);
-  box-shadow:var(--shadow-overlay);
+  min-width:232px;padding:6px;
+  background:var(--canvas);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-pop);
   animation:pop-in .16s var(--ease-spring);
 }
 @keyframes pop-in{from{opacity:0;transform:translateY(-4px) scale(.98)}}
-.pop-eyebrow{font-size:11.5px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--subtle);padding:6px 10px 4px}
-.pop-sep{height:1px;background:var(--line);margin:5px 4px}
+.pop-eyebrow{font-size:var(--text-eyebrow);font-weight:var(--w-medium);letter-spacing:var(--track-eyebrow);color:var(--subtle);padding:6px 10px 4px}
+.pop-sep{height:1px;background:var(--line-soft);margin:5px 2px}
 .pop-item{
   display:flex;align-items:center;gap:9px;width:100%;
-  height:30px;padding:0 10px;border-radius:7px;
+  height:32px;padding:0 10px;border-radius:var(--radius);
   font-size:var(--text-small-body);color:var(--fg);text-align:left;
 }
-.pop-item:hover{background:var(--row-hover)}
-.pop-item svg{width:13px;height:13px;color:var(--muted);flex:none}
+.pop-item:hover{background:var(--surface-2)}
+.pop-item svg{width:15px;height:15px;color:var(--muted);flex:none}
 .pop-item kbd{margin-left:auto}
 .pop-item .pi-check{margin-left:auto;color:var(--success)}
 .pop-item .pi-check svg{color:var(--success)}
 .pop-empty{padding:8px 10px 10px;font-size:var(--text-eyebrow);color:var(--muted)}
-.pop-foot{margin-top:5px;padding:8px 10px 4px;border-top:1px solid var(--line);font-size:var(--text-badge);line-height:1.5;color:var(--subtle)}
+.pop-foot{margin-top:5px;padding:8px 10px 4px;border-top:1px solid var(--line-soft);font-size:var(--text-badge);line-height:1.5;color:var(--subtle)}
 .ws-list .pop-item{height:34px}
 .ws-home-badge{
-  font-size:var(--text-badge);font-weight:510;
+  font-size:var(--text-badge);font-weight:var(--w-medium);
   color:var(--subtle);border:1px solid var(--line);border-radius:var(--radius-sm);padding:1px 5px;
 }
 .bell-pop{width:324px}
 .bell-pop .att{padding:0 4px 4px}
+/* rail / tray tooltip: inverted pill */
+.shell-tip{
+  display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--radius-pill);
+  background:var(--primary);color:var(--primary-ink);font-size:var(--text-eyebrow);font-weight:var(--w-medium);white-space:nowrap;
+}
 
-/* ============ DOCK ============ */
-.dock-zone{
-  position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:600;
-  display:flex;align-items:flex-end;gap:10px;
-  padding:0 16px;
-  pointer-events:none;
+/* ============ RAIL (the dock) ============
+   60px column on --rail under the topbar. Launchers in dock order, no
+   dividers; the foot holds profile · theme · Settings. */
+.rail{
+  width:var(--w-dock-rail);display:flex;flex-direction:column;align-items:center;
+  background:var(--rail);border-right:1px solid var(--line);position:relative;z-index:600;min-height:0;
 }
-.dock-flex{flex:1 1 0}
-.dock-seg{
-  pointer-events:auto;
-  display:flex;align-items:flex-end;gap:4px;
-  padding:7px;
-  background:var(--shell-glass);
-  backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell));
-  border:1px solid var(--line);border-radius:var(--r-dock);
-  box-shadow:var(--shadow-dock);
+.rail-nav{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.rail-foot{flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 14px}
+.rail-item{
+  position:relative;width:var(--rail-item);height:var(--rail-item);flex:none;
+  border-radius:var(--radius-lg);display:grid;place-items:center;color:var(--muted);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
 }
-.dock-item{
-  position:relative;width:46px;height:46px;border-radius:var(--r-dock-item);
-  display:grid;place-items:center;color:var(--muted);
-  transform-origin:bottom center;
-  transition:transform var(--dur-shell-fast) var(--ease-spring),background var(--dur),color var(--dur);
-}
-.dock-item:hover{color:var(--fg-strong);background:var(--btn-fill)}
-.dock-item svg{width:21px;height:21px}
-.dock-item .run-dot{
-  position:absolute;bottom:-5px;left:50%;translate:-50% 0;
-  width:4px;height:4px;border-radius:50%;
-  background:var(--muted);opacity:0;transition:opacity .2s;
-}
-.dock-item.is-open .run-dot{opacity:1}
-/* minimized: window lives folded inside its icon — hollow dot, dimmed glyph */
-.dock-item.is-min svg{opacity:.55}
-.dock-item.is-min .run-dot{
-  background:transparent;
-  box-shadow:inset 0 0 0 1.2px var(--muted);
-  width:5px;height:5px;bottom:-6px;
-}
-.dock-item .dk-badge{
-  position:absolute;top:2px;right:2px;
-  min-width:15px;height:15px;padding:0 4px;border-radius:8px;
-  background:var(--accent);color:var(--accent-ink);
-  font-family:var(--font-mono);font-size:9px;font-weight:700;line-height:15px;text-align:center;
-}
-.dock-item .tip,.dock-new .tip{
-  position:absolute;bottom:calc(100% + 12px);left:50%;translate:-50% 4px;
-  padding:4px 9px;border-radius:7px;white-space:nowrap;
-  background:var(--shell-glass-pop);border:1px solid var(--line-strong);
-  font-size:var(--text-badge);font-weight:510;color:var(--fg-strong);
-  opacity:0;pointer-events:none;transition:opacity .14s,translate .14s var(--ease-spring);
-}
-.dock-item:hover .tip,.dock-new:hover .tip{opacity:1;translate:-50% 0}
-
-.dock-sep{width:1px;height:32px;margin:0 4px 7px;background:var(--line-strong);flex:none;align-self:flex-end}
-
-.dock-actions{padding:7px}
-.dock-new{
-  position:relative;width:46px;height:46px;border-radius:var(--r-dock-item);
-  display:grid;place-items:center;
-  background:var(--accent);color:var(--accent-ink);
-  box-shadow:var(--highlight);
-  transition:transform var(--dur-shell-fast) var(--ease-spring),background var(--dur);
-}
-.dock-new:hover{background:var(--accent-hover);transform:translateY(-2px)}
-.dock-new svg{width:18px;height:18px}
+.rail-item svg{width:20px;height:20px}
+.rail-item:hover{background:var(--surface-2);color:var(--fg)}
+.rail-item.is-active{background:var(--selected);color:var(--fg);box-shadow:var(--shadow-card)}
+/* indicator on the left edge: running dot (muted; fg when active) · minimized hollow ring + dimmed glyph */
+.rail-item .run-dot{position:absolute;left:-6px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--muted);opacity:0}
+.rail-item.is-open .run-dot{opacity:1}
+.rail-item.is-active .run-dot{opacity:1;background:var(--fg)}
+.rail-item.is-min svg{opacity:.5}
+.rail-item.is-min .run-dot{opacity:1;background:transparent;box-shadow:inset 0 0 0 1px var(--subtle);width:5px;height:5px;margin-top:-2.5px}
+.rail-item .badge{top:3px;right:3px}
+.rail-avatar{width:26px;height:26px;border-radius:var(--radius-sm);display:grid;place-items:center;font-size:12px;font-weight:var(--w-semibold)}
 
 /* ============ WINDOW FRAME ============ */
 .win{
   position:absolute;
-  min-width:280px;min-height:180px;
+  min-width:220px;min-height:220px;
   display:flex;flex-direction:column;
   background:var(--canvas);
-  border:1px solid var(--line-strong);border-radius:var(--r-win);
-  box-shadow:var(--shadow-win),var(--highlight);
-  overflow:hidden;resize:both;
-  animation:win-in var(--dur-shell) var(--ease-spring);
+  overflow:hidden;
 }
-@keyframes win-in{from{opacity:0;transform:scale(.96) translateY(8px)}}
-.win.is-focused{border-color:var(--line-focus)}
-.win:not(.is-focused){box-shadow:var(--shadow-win-unfocused)}
-.win:not(.is-focused) .win-head{color:var(--subtle)}
-.win:not(.is-focused) .w2-id,.win:not(.is-focused) .win-trail{opacity:.6}
-/* tiled panes sit in gutters: keep radius + border, drop the cast */
-.win--tiled,.win.is-tiled{box-shadow:none;resize:none}
+/* floating finish: 1px hairline + shadow-elevated; tiled panes are flat */
+.win.is-floating,.win--floating{border:1px solid var(--line);box-shadow:var(--shadow-elevated);resize:both}
+.win--tiled,.win.is-tiled{border:0;border-radius:0;box-shadow:none;resize:none}
 .win.is-max{resize:none}
-/* inline/document demo host: a .win embedded in flowing content (doc pages,
-   labs). Kills the floating-layout floors so the frame hugs its content. */
+/* blurred windows dim identity and trail to .55 (no border change) */
+.win:not(.is-focused) .w2-id,.win:not(.is-focused) .win-trail{opacity:.55}
+/* inline/document demo host: a .win embedded in flowing content (doc pages, labs) */
 .win--inline{position:relative;min-width:0;min-height:0;resize:none;animation:none}
 .win.is-minimizing{transition:transform var(--dur-shell-slow) var(--ease-spring),opacity .28s ease;pointer-events:none}
 
-/* ---- unified 44px window head (identity renders ONCE) ---- */
+/* ---- unified 48px window head (identity renders ONCE) ---- */
 .win-head{
-  flex:none;min-height:44px;
+  flex:none;min-height:var(--h-win-head);
   display:flex;align-items:center;gap:10px;
-  padding:0 12px;
+  padding:0 8px 0 16px;
   background:var(--canvas);
   border-bottom:1px solid var(--line);
-  cursor:grab;user-select:none;position:relative;z-index:3;
-  transition:box-shadow var(--dur) var(--ease),border-color var(--dur) var(--ease);
+  user-select:none;position:relative;z-index:3;
+  transition:border-color var(--dur) var(--ease);
 }
-.win-head:active{cursor:grabbing}
-.win-head.is-scrolled{border-bottom-color:var(--line-strong);box-shadow:0 10px 18px -14px rgba(0,0,0,.55)}
-.win-controls{display:flex;gap:7px;margin-right:2px;flex:none}
+.win-head.is-scrolled{border-bottom-color:var(--line-strong)}
+/* quiet window controls sit at the END of the head (after a hairline), or
+   in the deck row when the window has tabs: Minimize · Zoom · Close */
+.win-head > .win-controls{order:99}
+.win-head > .win-controls::before{content:"";width:1px;height:18px;background:var(--line);margin:0 6px 0 2px;align-self:center}
+.win-controls{display:flex;align-items:center;gap:1px;flex:none}
 .wc{
-  width:12px;height:12px;border-radius:var(--radius-xxs);
-  border:1px solid var(--line-strong);background:var(--btn-fill);
-  transition:background var(--dur-fast),border-color var(--dur-fast);
+  position:relative;width:28px;height:28px;border-radius:6px;flex:none;
+  display:grid;place-items:center;color:var(--subtle);
+  transition:background var(--dur-fast),color var(--dur-fast);
 }
-/* tones on control hover / focus-visible only (production: per-button, not per-window) */
-.wc-close:hover,.wc-close:focus-visible{background:var(--accent);border-color:var(--accent)}
-.wc-min:hover,.wc-min:focus-visible{background:var(--muted);border-color:var(--muted)}
-.wc-zoom:hover,.wc-zoom:focus-visible{background:var(--success);border-color:var(--success)}
+.wc:hover,.wc:focus-visible{background:var(--surface-2);color:var(--fg)}
+/* production order is Minimize · Zoom · Close, whatever the markup order */
+.wc-min{order:1} .wc-zoom{order:2} .wc-close{order:3}
+.wc svg{width:15px;height:15px}
+/* glyphs drawn by mask so markup needs no icon: minus · maximize-2 · x */
+.wc:empty::before{content:"";width:15px;height:15px;background:currentColor;-webkit-mask:var(--wc-glyph) center / 15px 15px no-repeat;mask:var(--wc-glyph) center / 15px 15px no-repeat}
+.wc-min{--wc-glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E")}
+.wc-zoom{--wc-glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7'/%3E%3C/svg%3E")}
+.wc-close{--wc-glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E")}
 
-.w2-id{display:flex;align-items:center;gap:8px;min-width:0;flex:none;max-width:55%}
+.w2-id{display:flex;align-items:center;gap:9px;min-width:0;flex:none;max-width:62%}
+/* root identity well: 26px, radius 7, mint over surface */
 .w2-glyph{
-  width:22px;height:22px;flex:none;border-radius:var(--radius);
+  width:26px;height:26px;flex:none;border-radius:var(--radius-well);
   display:grid;place-items:center;
-  background:var(--badge-fill);border:1px solid var(--line);color:var(--muted);
+  background:var(--well);color:var(--success);
 }
-.w2-glyph svg{width:14px;height:14px}
+.w2-glyph svg{width:16px;height:16px}
 .win[data-doc="true"] .w2-glyph{display:none}
 .w2-title{
-  font-size:13px;line-height:18px;font-weight:600;letter-spacing:var(--track-tight);color:var(--fg-strong);
+  font-size:var(--text-card-title);line-height:20px;font-weight:var(--w-medium);color:var(--fg);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
 }
 .w2-count{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint);flex:none;font-variant-numeric:tabular-nums}
@@ -284,127 +279,127 @@ body[data-wallpaper="carbon"] .desktop{
 /* drill-in breadcrumb: depth grows a trail, never a new window.
    >2 parents collapse to a "…" dropdown (first + last kept). */
 .w2-back{
-  width:24px;height:24px;flex:none;display:grid;place-items:center;
-  border-radius:var(--radius);color:var(--muted);cursor:pointer;
+  width:26px;height:26px;flex:none;display:grid;place-items:center;
+  border-radius:6px;color:var(--muted);cursor:pointer;
 }
-.w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
-.w2-back svg{width:14px;height:14px}
+.w2-back:hover{background:var(--surface-2);color:var(--fg)}
+.w2-back svg{width:15px;height:15px}
 .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
 .w2-crumb{
-  font-size:13px;font-weight:510;color:var(--subtle);white-space:nowrap;
+  font-size:var(--text-small-body);font-weight:var(--w-medium);color:var(--subtle);white-space:nowrap;
   max-width:150px;overflow:hidden;text-overflow:ellipsis;
   border-radius:var(--radius-sm);padding:1px 5px;cursor:pointer;
 }
-.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2-crumb:hover{color:var(--fg);background:var(--surface-2)}
 .w2-crumb--more{max-width:none;padding:1px 3px;color:var(--faint)}
 .w2-sep{font-size:var(--text-small-body);color:var(--faint);flex:none}
 
-/* DEPRECATED — route/peer views in the head. Rule S3: views live on the
-   38px strip as its leading pill-group. Kept only so older boards render;
-   new work puts a .pill-group in .win-toolbar instead. */
+/* DEPRECATED — route/peer views in the head. Views live on the toolbar
+   as its leading pill-group. Kept only so older boards render. */
 .w2-tabs{
   display:inline-flex;gap:1px;margin-left:2px;padding:2px;flex:none;
-  border-radius:var(--radius-md);background:var(--canvas-tint);
+  border-radius:var(--radius-pill);background:var(--sunken);
   max-width:min(420px,46vw);overflow-x:auto;scrollbar-width:none;
 }
 .w2-tabs::-webkit-scrollbar{display:none}
 .w2-tab{
-  min-height:24px;padding:0 9px;border-radius:var(--radius-xs);
-  font-size:var(--text-eyebrow);font-weight:510;color:var(--subtle);white-space:nowrap;
+  min-height:26px;padding:0 10px;border-radius:var(--radius-pill);
+  font-size:var(--text-eyebrow);font-weight:var(--w-medium);color:var(--muted);white-space:nowrap;
   display:inline-flex;align-items:center;gap:5px;
 }
 .w2-tab .mono{font-size:10px;color:var(--faint)}
 .w2-tab:hover{color:var(--fg)}
-.w2-tab.is-on{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
-.win-head:has(.w2-tabs){cursor:default}
-.win-head:has(.w2-tabs) .w2-flex{cursor:grab}
+.w2-tab.is-on{background:var(--surface-2);color:var(--fg)}
 
 /* drag region — the flexible gutter is the drag handle */
 .w2-flex{flex:1;align-self:stretch;min-width:12px}
 
-/* trail: status chip (color = state) + at most 2 actions */
+/* trail: status (color = state) + at most 2 actions */
 .w2-status{
   display:inline-flex;align-items:center;gap:6px;flex:none;
-  font-size:var(--text-badge);font-weight:510;color:var(--muted);
+  font-size:var(--text-meta);font-weight:var(--w-medium);color:var(--muted);
 }
-.w2-status svg{width:12px;height:12px}
+.w2-status svg{width:14px;height:14px}
 .w2-status[data-tone="ok"]{color:var(--success)}
-.w2-status[data-tone="run"]{color:var(--accent-strong)}
-.w2-status[data-tone="needs"]{color:var(--warning)}
-.w2-meta{font-size:var(--text-badge);color:var(--subtle);flex:none}
+.w2-status[data-tone="run"]{color:var(--success)}
+.w2-status[data-tone="needs"]{color:var(--attn)}
+.w2-meta{font-size:var(--text-meta);color:var(--subtle);flex:none;font-variant-numeric:tabular-nums}
 .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
 .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
-.win-trail{display:flex;align-items:center;gap:8px;flex:none;min-width:0;justify-content:flex-end}
+.win-trail{display:flex;align-items:center;gap:10px;flex:none;min-width:0;justify-content:flex-end}
 
-/* ---- deck (window tabs) — mounts only at ≥2 tabs, never in compact ---- */
+/* ---- deck (browser tabs) — ≥2 tabs, never in compact ----
+   recessed --sunken strip; the active tab is a surface plate with rounded
+   top corners and concave feet, fused with the head below it. */
 .deck{
-  flex:none;height:var(--h-deck);
-  display:flex;align-items:flex-end;gap:2px;
-  padding:0 10px;
-  background:var(--rail);
+  position:relative;flex:none;height:var(--h-deck);
+  display:flex;align-items:flex-end;min-width:0;
+  padding:0 4px 0 0;
+  background:var(--sunken);
   box-shadow:inset 0 -1px 0 var(--line);
-  cursor:grab;
 }
-.deck:active{cursor:grabbing}
-.deck .win-controls{align-self:center;margin-right:6px}
-.deck-scroll{display:flex;align-items:flex-end;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.deck .win-controls{align-self:center}
+.deck-scroll{flex:0 1 auto;display:flex;align-items:flex-end;min-width:0;height:100%;padding:0 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 .deck-scroll::-webkit-scrollbar{display:none}
 .deck-tab{
-  position:relative;display:inline-flex;align-items:center;gap:7px;
-  height:var(--h-deck-tab);min-width:var(--w-deck-tab-min);max-width:var(--w-deck-tab-max);flex:1 1 0;
-  padding:0 10px;border-radius:8px 8px 0 0;
-  border:1px solid transparent;border-bottom:0;
-  font-size:var(--text-small-body);font-weight:510;color:var(--subtle);
+  position:relative;display:flex;align-items:center;gap:8px;
+  height:var(--h-deck-tab);width:var(--w-deck-tab-max);flex:0 1 auto;min-width:var(--w-deck-tab-min);
+  padding:0 7px 0 12px;border-radius:var(--r-deck-tab) var(--r-deck-tab) 0 0;
+  color:var(--muted);font-size:var(--text-small-body);font-weight:var(--w-medium);
   transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
 }
-.deck-tab:hover{background:var(--canvas-soft);color:var(--fg)}
+/* hairline between inactive tabs; hides next to hover and next to the active tab */
+.deck-tab::after{content:"";position:absolute;right:0;top:9px;bottom:9px;width:1px;background:var(--line)}
+.deck-tab:last-child::after,.deck-tab.is-on::after,.deck-tab:hover::after,
+.deck-tab:has(+ .deck-tab.is-on)::after,.deck-tab:has(+ .deck-tab:hover)::after{opacity:0}
+.deck-tab:hover{background:var(--surface-2);color:var(--fg)}
 .deck-tab:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
-/* active tab fuses with the head: canvas fill + 1px canvas shadow closes the seam */
 .deck-tab.is-on{
-  background:var(--canvas);border-color:var(--line);
-  font-weight:600;color:var(--fg-strong);
-  box-shadow:0 1px 0 var(--canvas);
+  z-index:1;background:var(--canvas);color:var(--fg);
+  box-shadow:inset 1px 0 0 var(--line),inset -1px 0 0 var(--line),inset 0 1px 0 var(--line);
 }
-.deck-tab--pinned{min-width:0;max-width:none;flex:none;padding:0 9px}
-.deck-tab__glyph{width:13px;height:13px;flex:none;color:var(--muted)}
-.deck-tab.is-on .deck-tab__glyph{color:var(--fg-strong)}
-.deck-tab__dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--neutral)}
-.deck-tab__dot[data-s="running"]{background:var(--success);animation:pulse 1.8s var(--ease) infinite;color:var(--success)}
-.deck-tab__dot[data-s="attention"]{background:var(--accent)}
-.deck-tab__label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* concave feet: 10px boxes, 1px overlap, surface shadow — no seam against the strip hairline */
+.deck-tab__foot{position:absolute;bottom:0;width:10px;height:10px;display:none;pointer-events:none;border:0 solid var(--line);border-bottom-width:1px}
+.deck-tab.is-on .deck-tab__foot{display:block}
+.deck-tab__foot--l{left:-9px;border-right-width:1px;border-bottom-right-radius:10px;box-shadow:5px 5px 0 5px var(--canvas)}
+.deck-tab__foot--r{right:-9px;border-left-width:1px;border-bottom-left-radius:10px;box-shadow:-5px 5px 0 5px var(--canvas)}
+.deck-tab--pinned{width:auto;min-width:0;flex:none;padding:0 9px}
+.deck-tab__glyph{width:15px;height:15px;flex:none;color:var(--muted)}
+.deck-tab.is-on .deck-tab__glyph{color:var(--fg)}
+.deck-tab__label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .deck-tab__badge{
-  min-width:14px;height:14px;padding:0 4px;border-radius:var(--radius-pill);flex:none;
-  background:var(--accent);color:var(--accent-ink);
-  font-family:var(--font-mono);font-size:9px;font-weight:700;line-height:14px;text-align:center;
+  min-width:15px;height:15px;padding:0 4px;border-radius:var(--radius-pill);flex:none;
+  background:var(--attn);color:var(--accent-ink);
+  font-size:var(--text-count);font-weight:var(--w-semibold);line-height:15px;text-align:center;
 }
 .deck-tab__x{
-  width:16px;height:16px;flex:none;margin-right:-4px;border-radius:var(--radius-xxs);
-  display:grid;place-items:center;color:var(--faint);opacity:0;
+  width:20px;height:20px;flex:none;border-radius:var(--radius-pill);
+  display:grid;place-items:center;color:var(--subtle);opacity:0;
   transition:opacity var(--dur-fast),background var(--dur-fast),color var(--dur-fast);
 }
 .deck-tab:hover .deck-tab__x,.deck-tab.is-on .deck-tab__x,.deck-tab__x:focus-visible{opacity:1}
-.deck-tab__x:hover{background:var(--row-hover);color:var(--fg)}
-.deck-tab__x svg{width:9px;height:9px}
+.deck-tab__x:hover{background:var(--selected);color:var(--fg)}
+.deck-tab__x svg{width:12px;height:12px}
 .deck-add{
-  width:24px;height:24px;flex:none;margin-bottom:3px;border-radius:7px;
+  width:28px;height:28px;flex:none;margin:0 0 2px -4px;border-radius:var(--radius-pill);
   display:grid;place-items:center;color:var(--muted);
 }
-.deck-add:hover{background:var(--btn-fill);color:var(--fg-strong)}
-.deck-add svg{width:12px;height:12px}
+.deck-add:hover{background:var(--surface-2);color:var(--fg)}
+.deck-add svg{width:15px;height:15px}
 .deck-caret{width:2px;height:var(--h-deck-tab);border-radius:var(--radius-pill);background:var(--accent);align-self:flex-end;flex:none}
-.deck-gutter{flex:1;min-width:16px;align-self:stretch}
-/* drop-to-merge affordance */
+.deck-gutter{flex:1;min-width:12px;align-self:stretch}
+/* drop-to-merge affordance ("Group as tabs") */
 .merge-target{
-  position:absolute;inset:0 0 auto 0;z-index:50;height:44px;
+  position:absolute;inset:0 0 auto 0;z-index:50;height:var(--h-win-head);
   display:grid;place-items:center;
   border:1px solid var(--accent);background:var(--accent-tint);
-  font-size:var(--text-eyebrow);font-weight:510;color:var(--accent-strong);
+  font-size:var(--text-eyebrow);font-weight:var(--w-medium);color:var(--accent-strong);
 }
 
-/* ---- optional 38px context strip — views · filters · spacer · Rows|Cards ---- */
+/* ---- optional 44px window toolbar — views · filters · spacer · display ---- */
 .win-toolbar{
-  flex:none;min-height:38px;
-  display:flex;align-items:center;gap:10px;padding:2px 12px;
+  flex:none;min-height:var(--h-win-toolbar);
+  display:flex;align-items:center;gap:4px;padding:0 12px;
   background:var(--canvas);border-bottom:1px solid var(--line);
   position:relative;z-index:2;
 }
@@ -416,38 +411,40 @@ body[data-wallpaper="carbon"] .desktop{
 
 .win-body{flex:1;overflow:auto;background:var(--canvas);position:relative}
 
-/* snap preview + seams (ephemeral affordances) */
+/* ---- tiling: gutterless; the seam hairline is the only divider ----
+   9px hit area, 1px --line; hover / focus / drag turns a 2px accent line. */
 .snap-preview{
-  position:absolute;z-index:50;border-radius:var(--radius-md);
+  position:absolute;z-index:50;
   border:1px solid var(--accent);background:var(--accent-tint);
   pointer-events:none;
 }
-.snap-seam{position:absolute;z-index:2}
-.snap-seam::before{content:"";position:absolute;inset:0;margin:auto;background:var(--line-strong)}
-.snap-seam--v{width:12px;cursor:col-resize}
-.snap-seam--v::before{width:1px}
-.snap-seam--h{height:12px;cursor:row-resize}
-.snap-seam--h::before{height:1px}
-.snap-seam:hover::before,.snap-seam:focus-visible::before,.snap-seam[data-drag]::before{background:var(--accent)}
+.snap-seam{position:absolute;z-index:3;touch-action:none}
+.snap-seam::after{content:"";position:absolute;background:var(--line);transition:background var(--dur-fast)}
+.snap-seam--v{width:var(--seam-hit);margin-left:calc(var(--seam-hit) / -2);cursor:col-resize}
+.snap-seam--v::after{left:50%;top:0;bottom:0;width:1px;translate:-.5px 0}
+.snap-seam--h{height:var(--seam-hit);margin-top:calc(var(--seam-hit) / -2);cursor:row-resize}
+.snap-seam--h::after{top:50%;left:0;right:0;height:1px;translate:0 -.5px}
+.snap-seam:hover::after,.snap-seam:focus-visible::after,.snap-seam[data-drag]::after{background:var(--accent)}
+.snap-seam--v:hover::after,.snap-seam--v:focus-visible::after,.snap-seam--v[data-drag]::after{width:2px;translate:-1px 0}
+.snap-seam--h:hover::after,.snap-seam--h:focus-visible::after,.snap-seam--h[data-drag]::after{height:2px;translate:0 -1px}
+.snap-seam:focus-visible{outline:none}
 
 /* ============ OVERLAYS ============ */
 .overlay{
   position:fixed;inset:0;z-index:1000;
   background:var(--scrim);
-  backdrop-filter:blur(8px);
+  backdrop-filter:blur(var(--overlay-blur));
   animation:fade-in .18s ease;
 }
 @keyframes fade-in{from{opacity:0}}
 
-/* command palette shell — opaque panel, NO glass. The palette ground sits one
-   step below the window ramp so the overlay reads darker than the OS behind it.
-   Full grammar (rows, views, forms, action panel): command-palette.html chapter. */
+/* command palette shell — opaque panel. Full grammar: command-palette.html. */
 .palette-overlay{display:grid;justify-items:center;align-items:start;padding-top:16vh;backdrop-filter:blur(3px)}
 .palette{
   width:min(560px,92vw);
-  background:color-mix(in oklab, var(--canvas) 55%, var(--canvas-soft));
-  border-radius:var(--radius-md);
-  box-shadow:var(--shadow-overlay);
+  background:var(--canvas);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-pop);
   overflow:hidden;
   animation:pal-in .2s var(--ease-spring);
 }
@@ -455,75 +452,66 @@ body[data-wallpaper="carbon"] .desktop{
 .palette-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 0;padding:12px 8px 10px;border-bottom:1px solid var(--line-soft)}
 .pal-input-box{
   flex:1 0 100%;display:flex;align-items:center;gap:10px;
-  height:32px;padding:0 12px 0 11px;
-  border:1px solid var(--line);border-radius:var(--radius);background:var(--canvas-tint);
+  height:34px;padding:0 12px 0 11px;
+  border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--sunken);
 }
 .pal-input-box:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
 .pal-input-box svg{width:16px;height:16px;color:var(--subtle);flex:none}
-.pal-input-box input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:13px;letter-spacing:var(--track-body);color:var(--fg)}
+.pal-input-box input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:var(--text-small-body);letter-spacing:var(--track-body);color:var(--fg)}
 .pal-input-box input::placeholder{color:var(--subtle)}
 .palette-results{max-height:46vh;overflow:auto;padding:12px 8px}
-.pal-group{font-size:11.5px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--faint);padding:8px 12px 4px}
-.pal-group--rule{border-top:1px solid var(--line);margin:8px -8px 0;padding:8px 20px 4px}
+.pal-group{font-size:var(--text-eyebrow);font-weight:var(--w-medium);letter-spacing:var(--track-eyebrow);color:var(--subtle);padding:8px 12px 4px}
+.pal-group--rule{border-top:1px solid var(--line-soft);margin:8px -8px 0;padding:8px 20px 4px}
 .pal-group:first-child{border-top:0;margin-top:0;padding-top:6px}
 .pal-item{
   display:flex;align-items:center;gap:8px;width:100%;
   min-height:32px;padding:6px 12px;border-radius:var(--radius);
-  font-size:13px;line-height:1;color:var(--fg);text-align:left;
+  font-size:var(--text-small-body);line-height:1;color:var(--fg);text-align:left;
 }
 .pal-item + .pal-item{margin-top:2px}
 .pal-item svg{width:16px;height:16px;color:var(--muted);flex:none}
-.pal-item .pal-meta{margin-left:auto;font-family:var(--font-mono);font-size:var(--text-kbd);letter-spacing:var(--track-caps);color:var(--faint)}
-/* selection = elevated plate + fg-strong. No rim, no accent marker. */
-.pal-item:hover{background:var(--row-hover);color:var(--fg-strong)}
-.pal-item.is-active{background:var(--elevated);color:var(--fg-strong)}
-.pal-item.is-active svg{color:var(--fg-strong)}
+.pal-item .pal-meta{margin-left:auto;font-family:var(--font-keys);font-size:var(--text-kbd);color:var(--subtle)}
+/* selection = selected plate + fg. No rim, no accent marker. */
+.pal-item:hover{background:var(--surface-2);color:var(--fg)}
+.pal-item.is-active{background:var(--selected);color:var(--fg)}
+.pal-item.is-active svg{color:var(--fg)}
 .pal-none{padding:16px 12px 18px;font-size:var(--text-form);color:var(--muted);text-align:center}
 .pal-foot{
   display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:8px 20px;
   border-top:1px solid var(--line-soft);font-size:var(--text-badge);color:var(--subtle);
 }
 .pal-foot span{display:inline-flex;align-items:center;gap:8px}
-.pal-foot .key{border:0;background:var(--canvas-soft);color:var(--muted)}
+.pal-foot .key{border:0;background:var(--surface-2);color:var(--muted)}
 .pal-foot .pal-esc{margin-left:auto}
 
-/* spaces overview */
-.spaces-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
-.spaces-title{font-size:17px;font-weight:600;color:var(--fg-strong)}
-.spaces-sub{font-size:var(--text-eyebrow);color:var(--muted);margin-bottom:22px}
-.spaces-row{display:flex;gap:18px}
-.space-card{
-  width:264px;border-radius:14px;overflow:hidden;text-align:left;
-  border:1px solid var(--line-strong);background:var(--canvas-soft);
-  transition:transform .18s var(--ease-spring),border-color .18s;
-}
-.space-card:hover{transform:translateY(-4px)}
-.space-card.is-active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.space-thumb{position:relative;height:148px;border-bottom:1px solid var(--line)}
-.space-thumb .mini-win{
-  position:absolute;border-radius:4px;
-  background:rgba(255,255,255,.1);border:1px solid var(--line-strong);
-}
-.space-foot{display:flex;align-items:center;gap:8px;padding:10px 12px}
-.space-foot .ws-avatar{width:20px;height:20px;font-size:9px}
-.space-name{font-size:var(--text-form);font-weight:600;flex:1;color:var(--fg-strong)}
-.space-meta{font-size:var(--text-kbd);color:var(--subtle);font-family:var(--font-mono)}
-.space-thumb[data-wp="ember"]{background:radial-gradient(200px 120px at 12% 110%, var(--accent-tint), transparent 62%), radial-gradient(190px 110px at 92% -12%, color-mix(in oklab, var(--teal) 34%, transparent), transparent 60%), var(--canvas)}
-.space-thumb[data-wp="mesh"]{background:radial-gradient(180px 110px at 85% 108%, var(--success-tint), transparent 60%), radial-gradient(220px 130px at 8% -8%, color-mix(in oklab, var(--teal) 42%, transparent), transparent 64%), var(--canvas)}
-.space-thumb[data-wp="carbon"]{background:radial-gradient(200px 110px at 50% -14%, rgba(255,255,255,.05), transparent 58%), var(--canvas)}
+/* desktops overview ("Desktops" dialog, opened from All desktops) */
+.ov{display:flex;flex-direction:column;gap:18px;padding:28px 32px;background:var(--desk)}
+.ov-head{display:flex;align-items:center;gap:12px}
+.ov-head h2{font-size:var(--text-heading);font-weight:var(--w-medium);letter-spacing:-.015em;color:var(--fg)}
+.ov-head p{color:var(--muted);font-size:var(--text-meta)}
+.ov-head .btn{margin-left:auto}
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px}
+.space-card{display:flex;flex-direction:column;gap:10px;text-align:left;border-radius:var(--radius-lg);padding:8px 8px 12px;transition:background var(--dur-fast)}
+.space-card:hover{background:var(--surface-2)}
+.space-thumb{position:relative;height:148px;border-radius:var(--radius-lg);background:var(--sunken);box-shadow:var(--shadow-card);overflow:hidden}
+.space-card.is-active .space-thumb{box-shadow:0 0 0 2px var(--fg)}
+.space-thumb .mini-win{position:absolute;background:var(--canvas);box-shadow:0 0 0 .5px var(--line)}
+.space-thumb .mini-win::before{content:"";position:absolute;left:0;right:0;top:0;height:9px;background:var(--surface-2);border-bottom:1px solid var(--line-soft)}
+.space-foot{display:flex;align-items:center;gap:8px;padding:0 4px}
+.space-name{font-weight:var(--w-medium);flex:1;color:var(--fg)}
+.space-meta{font-size:var(--text-meta);color:var(--muted)}
+.space-card--new .space-thumb{display:grid;place-items:center;background:transparent;box-shadow:inset 0 0 0 1.5px var(--line-strong);color:var(--muted)}
 
 /* ============ TOASTS ============ */
 .toasts{
-  position:fixed;top:54px;right:16px;z-index:1200;
+  position:fixed;top:calc(var(--h-bar) + 10px);right:16px;z-index:1200;
   display:flex;flex-direction:column;gap:10px;
   width:324px;pointer-events:none;
 }
 .toast{
   pointer-events:auto;
-  background:var(--shell-glass-pop);
-  backdrop-filter:blur(30px) saturate(var(--saturate-shell));
-  border:1px solid var(--line-strong);border-radius:13px;
-  box-shadow:var(--shadow-overlay);
+  background:var(--canvas);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-pop);
   padding:11px 13px;
   display:flex;flex-direction:column;gap:8px;
   animation:toast-in .28s var(--ease-spring);
@@ -532,7 +520,7 @@ body[data-wallpaper="carbon"] .desktop{
 @keyframes toast-in{from{opacity:0;transform:translateX(24px)}}
 .toast-head{display:flex;align-items:center;gap:8px;font-size:var(--text-badge);color:var(--muted)}
 .toast-head svg{width:16px;height:16px}
-.toast-head strong{color:var(--fg-strong);font-weight:600}
+.toast-head strong{color:var(--fg);font-weight:var(--w-semibold)}
 .toast-head[data-tone="success"] svg{color:var(--success)}
 .toast-head[data-tone="danger"] svg{color:var(--danger)}
 .toast-head[data-tone="warning"] svg{color:var(--warning)}
@@ -541,81 +529,36 @@ body[data-wallpaper="carbon"] .desktop{
 .toast-body code{font-family:var(--font-mono);font-size:var(--text-eyebrow)}
 .toast-actions{display:flex;gap:7px}
 
-/* ============ MOBILE / COMPACT MODE (<960px) ============
-   Reflow, don't block: windows become stacked fullscreen surfaces
-   (z-order decides visibility), the deck is unavailable, the dock
-   becomes a bottom tab bar with full route parity, and drag/resize/
-   zoom/magnification are disabled so desktop rects survive. */
+/* ============ COMPACT MODE (<960px) ============
+   Reflow, don't block: the rail hides and a 56px bottom tab bar keeps
+   full route parity (its trailing hairline group holds profile · theme ·
+   Settings); app menus drop; windows go full-bleed; no deck. */
+.tabbar{display:none}
 @media (max-width:959px){
-  :root{--tabbar-h:56px}
-  .os{padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px))}
-  .win-layer{bottom:0}
-
-  .mb-menus{display:none}
+  .os{grid-template-columns:minmax(0,1fr);grid-template-rows:var(--h-bar) minmax(0,1fr) auto}
+  .os > .rail{display:none}
+  .mb-menus,.mb-menus + .mb-vsep{display:none}
+  .tabbar{
+    display:flex;align-items:center;gap:2px;grid-column:1 / -1;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));
+    background:var(--rail);border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none;
+  }
+  .tabbar .rail-item{width:44px;height:44px}
+  .tabbar .tabbar-foot{display:flex;gap:2px;margin-left:auto;padding-left:6px;border-left:1px solid var(--line)}
 
   .win{
     left:0!important;top:0!important;width:100%!important;height:100%!important;
-    min-width:0;min-height:0;
-    border:0;border-radius:0;
-    box-shadow:none;resize:none;
+    min-width:0;min-height:0;border:0;border-radius:0;box-shadow:none;resize:none;
   }
-  .win-head{cursor:default}
-  .win-head:active{cursor:default}
   .deck{display:none}
-  .win-controls{gap:12px}
-  .wc{width:15px;height:15px;position:relative}
-  .wc::after{content:"";position:absolute;inset:-15px}
+  .wc{width:44px;height:44px}
   .wc-zoom{display:none}
   .w2-id{max-width:48%}
   .win-trail{min-width:0}
   .win-toolbar{flex-wrap:wrap;min-height:0;padding:6px 12px;gap:8px}
-
-  .dock-zone{
-    left:0;right:0;bottom:0;gap:0;padding:0;
-    align-items:stretch;
-    background:var(--shell-glass);
-    backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell));
-    border-top:1px solid var(--line);
-  }
-  .dock-flex{display:none}
-  .dock-seg{
-    background:none;backdrop-filter:none;
-    border:0;border-radius:0;box-shadow:none;
-    align-items:center;
-  }
-  .dock{
-    flex:1;min-width:0;gap:2px;
-    padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));
-    overflow-x:auto;overscroll-behavior-x:contain;
-    scrollbar-width:none;
-  }
-  .dock::-webkit-scrollbar{display:none}
-  .dock-sep{display:none}
-  .dock-item{
-    width:44px;height:44px;flex:none;border-radius:var(--radius-lg);
-    transform:none!important;
-    transition:background var(--dur),color var(--dur);
-  }
-  .dock-item .tip,.dock-new .tip{display:none}
-  .dock-item .run-dot{bottom:3px}
-  .dock-item.is-min .run-dot{bottom:2px}
-  .dock-actions{
-    flex:none;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px)) 6px;
-    border-left:1px solid var(--line);
-  }
-  .dock-new{width:44px;height:44px;border-radius:var(--radius-lg)}
-  .dock-new:hover{transform:none}
-
-  .desk-hint{padding:0 24px;text-align:center}
-  .desk-hint .dh-desktop{display:none}
-  .desk-hint .dh-mobile{display:inline}
   .palette-overlay{padding-top:9vh}
   .bell-pop{width:min(324px,calc(100vw - 16px))}
   .toasts{right:12px;width:min(324px,calc(100vw - 24px))}
-  .spaces-row{
-    flex-direction:column;align-items:center;gap:12px;
-    max-height:64vh;overflow-y:auto;padding:4px 16px;
-  }
 }
 
 @media (prefers-reduced-motion:reduce){

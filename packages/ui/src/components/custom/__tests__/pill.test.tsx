@@ -52,6 +52,20 @@ describe("Pill", () => {
     expect(pill).toHaveAttribute("data-tone", "neutral");
   });
 
+  it("Should render form=plain as a plateless status indicator with the tone on its dot", () => {
+    render(
+      <Pill form="plain" tone="success">
+        <Pill.Dot />
+        Running
+      </Pill>
+    );
+    const pill = screen.getByText("Running");
+    expect(pill).toHaveAttribute("data-form", "plain");
+    expect(pill).toHaveClass("bg-transparent", "text-muted", "px-0");
+    expect(pill.className).not.toMatch(/\bbg-success-tint\b|\btext-success\b/);
+    expect(pill.querySelector('[data-slot="pill-dot"]')).toHaveAttribute("data-tone", "success");
+  });
+
   it("Should expose data-solid when solid is true", () => {
     render(
       <Pill tone="accent" solid>
@@ -233,5 +247,31 @@ describe("Pill.Dot", () => {
     );
     const dot = container.querySelector<HTMLElement>('[data-slot="pill-dot"]');
     expect(dot?.getAttribute("data-size")).toBe("sm");
+  });
+});
+
+describe("Pill.Count", () => {
+  it("Should render a solid accent count badge", () => {
+    render(<Pill.Count count={3} data-testid="count" />);
+    const badge = screen.getByTestId("count");
+    expect(badge).toHaveTextContent("3");
+    expect(badge).toHaveAttribute("data-size", "count");
+    expect(badge).toHaveAttribute("data-solid", "true");
+    expect(badge).toHaveAttribute("data-tone", "accent");
+  });
+
+  it("Should cap counts above max", () => {
+    render(<Pill.Count count={12} data-testid="count" />);
+    expect(screen.getByTestId("count")).toHaveTextContent("9+");
+  });
+
+  it("Should honor a custom max", () => {
+    render(<Pill.Count count={120} max={99} data-testid="count" />);
+    expect(screen.getByTestId("count")).toHaveTextContent("99+");
+  });
+
+  it("Should render nothing at zero", () => {
+    const { container } = render(<Pill.Count count={0} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

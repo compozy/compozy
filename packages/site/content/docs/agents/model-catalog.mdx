@@ -43,13 +43,20 @@ Higher-priority non-empty fields win; lower-priority sources fill missing fields
 fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
 metadata but never prove account-level availability.
 
-Providers with a safe live adapter register `provider_live:<id>` sources. Claude, Codex, and Hermes
+Providers with a safe live adapter register `provider_live:<id>` sources. Claude and Codex
 inspect a short-lived ACP session and preserve the exact model and configuration options it advertises.
 Cursor instead runs `cursor-agent models`, groups its transport aliases into logical model IDs, and
 stores the valid Reasoning, Fast, and Thinking combinations without exposing those aliases. The first
 catalog read with no recorded status bootstraps these sources before returning; later reads use persisted
 rows and refresh them in the background. A failed attempt is recorded as source status and never replaces
 the last successful rows with an empty catalog.
+
+Failed source status includes `failure_reason`: `auth_required` means sign in to the
+provider, `timeout` means discovery exceeded its deadline, and `refresh_failed`
+means another discovery failure. CLI structured output, HTTP/UDS, native tools,
+and Settings share this classification. `last_error` retains redacted diagnostic
+detail. A provider failure does not remove cached or curated model choices; the
+session selector shows guidance attributed to that provider.
 
 ## Provider overlays
 
@@ -91,8 +98,7 @@ configured discovery source, or an extension `model.source`. The built-in catalo
 fallback; it includes Claude Opus 5 so that model remains visible before the first successful live refresh.
 
 An explicit `models.curated` set still controls the default curated view. A newly discovered model may
-first appear only under `view=all` until it is featured or added to that set. OpenClaw is provider-managed:
-its Gateway owns model selection, so CompozyOS does not fabricate catalog controls for it.
+first appear only under `view=all` until it is featured or added to that set.
 
 Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
 source of the winning field. A cost estimate is available only when every nonzero usage bucket has
@@ -444,7 +450,7 @@ a recorded source status (with redacted error) instead of corrupting the project
 - Refreshes for different providers can run concurrently.
 - The daemon joins outstanding refresh workers during shutdown.
 
-Codex uses the installed native CLI app server’s `model/list` endpoint to discover each model’s supported reasoning levels, default, and visibility across all result pages. This includes new models without adding their names to the built-in catalog. Explicit discovery commands retain their configured behavior. Claude and Hermes use short-lived ACP inspection so catalog values match the runtime transport.
+Codex uses the installed native CLI app server’s `model/list` endpoint to discover each model’s supported reasoning levels, default, and visibility across all result pages. This includes new models without adding their names to the built-in catalog. Explicit discovery commands retain their configured behavior. Claude uses short-lived ACP inspection so catalog values match the runtime transport.
 
 ACP discovery selects each advertised model in a disposable session and retains the returned
 model-specific options, including the standard `thought_level` category. It never submits a prompt.

@@ -56,7 +56,7 @@ export function ProfileOwnerBanner({
         <Button
           data-testid="profile-owner-banner-switch"
           size="sm"
-          variant="outline"
+          variant="secondary"
           disabled={switchPending}
           onClick={onSwitch}
         >

@@ -1,6 +1,9 @@
 package windowmanager
 
-import "sort"
+import (
+	"cmp"
+	"slices"
+)
 
 // TolerantEffectiveKeymap drops dead stored ids while preserving live overrides.
 func TolerantEffectiveKeymap(
@@ -31,8 +34,8 @@ func tolerantEffectiveKeymap(
 		}
 		known[commandID] = binding
 	}
-	sort.Slice(diagnostics, func(left, right int) bool {
-		return diagnostics[left].CommandID < diagnostics[right].CommandID
+	slices.SortFunc(diagnostics, func(a, b ShortcutDiagnostic) int {
+		return cmp.Compare(a.CommandID, b.CommandID)
 	})
 	effective, err := effectiveKeymap(known, touchedFamilies)
 	return effective, canonical, diagnostics, err

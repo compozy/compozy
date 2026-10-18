@@ -1,8 +1,10 @@
 package windowmanager
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -173,6 +175,28 @@ func (m *Manager) AttachClientCommands(
 	}
 	context.AfterFunc(ctx, func() { endpoint.closeWithError(ctx.Err()) })
 	return endpoint, nil
+}
+
+// CommandClients lists registered views with an active command channel in this workspace.
+func (m *Manager) CommandClients(ctx context.Context, workspaceID WorkspaceID) ([]ClientView, error) {
+	if err := m.resolveWorkspace(ctx, workspaceID); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	views := make([]ClientView, 0, len(m.commandEndpoints[workspaceID]))
+	for clientID, endpoint := range m.commandEndpoints[workspaceID] {
+		select {
+		case <-endpoint.Done():
+			continue
+		default:
+			views = append(views, cloneClientView(m.clients[workspaceID][clientID]))
+		}
+	}
+	m.mu.Unlock()
+	slices.SortFunc(views, func(left, right ClientView) int {
+		return cmp.Compare(left.ClientID, right.ClientID)
+	})
+	return views, nil
 }
 
 // DispatchClientCommand sends one correlated command and waits for its terminal response.

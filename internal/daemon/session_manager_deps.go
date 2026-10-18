@@ -6,14 +6,11 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/sandbox"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
@@ -28,20 +25,17 @@ type SessionManagerDeps struct {
 	PromptInputAugmenter    session.PromptInputAugmenter
 	CommandService          session.CommandService
 	WorkAdmission           admission.Checker
-	MemoryStore             *memory.Store
-	LedgerMaterializer      session.LedgerMaterializer
 	AgentResolver           session.AgentResolver
 	SkillRegistry           session.SkillRegistry
 	MCPResolver             session.MCPResolver
-	WorkspaceResolver       workspacepkg.RuntimeResolver
+	WorkspaceResolver       session.WorkspaceResolver
 	WorktreeResolver        session.WorktreeResolver
-	ParticipationResolver   participation.Resolver
 	WindowReconciler        session.WindowReconciler
-	SandboxRegistry         *sandbox.Registry
 	SessionSupervision      compozyconfig.SessionSupervisionConfig
 	SessionStop             compozyconfig.SessionStopConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
-	SessionCompaction       compozyconfig.SessionCompactionConfig
+	SessionMessaging        compozyconfig.SessionMessagingConfig
+	SessionDerive           compozyconfig.SessionDeriveConfig
 	SessionInputQueue       store.SessionInputQueueStore
 	SessionPromptAdmission  store.SessionPromptAdmissionStore
 	SessionAttachments      session.AttachmentOpener
@@ -49,6 +43,7 @@ type SessionManagerDeps struct {
 	AttentionConfig         compozyconfig.AttentionConfig
 	AttentionWorkspaceMutes session.AttentionWorkspaceMuteReader
 	SessionCatalog          store.SessionCatalog
+	EventLedger             store.EventSummaryStore
 	ProcessRegistry         *toolruntime.Registry
 	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
@@ -58,6 +53,7 @@ type SessionManagerDeps struct {
 	SoulStore               session.SoulSnapshotStore
 	SoulRunChecker          session.SoulRunActivityChecker
 	SessionHealthStore      session.HealthStore
+	AgentNiceness           int
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
@@ -71,7 +67,6 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		Hooks: session.HookSet{
 			Session:         state.notifier,
 			RuntimeRecovery: state.notifier,
-			Sandbox:         state.notifier,
 			Prompt:          state.notifier,
 			Events:          state.notifier,
 			Agent:           state.notifier,
@@ -87,8 +82,6 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		PromptInputAugmenter: state.promptAugmenter,
 		CommandService:       state.commandService,
 		WorkAdmission:        &d.admission,
-		MemoryStore:          state.memoryStore,
-		LedgerMaterializer:   state.ledgerMaterializer,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -97,13 +90,12 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		MCPResolver:             mcpResolverDependency(state.mcpResolver),
 		WorkspaceResolver:       state.workspaceResolver,
 		WorktreeResolver:        daemonSessionWorktreeResolver{state: state},
-		ParticipationResolver:   state.participationResolver,
 		WindowReconciler:        reconciler,
-		SandboxRegistry:         state.sandboxRegistry,
 		SessionSupervision:      state.cfg.Session.Supervision,
 		SessionStop:             state.cfg.Session.Stop,
 		SessionBusyInput:        state.cfg.Session.BusyInput,
-		SessionCompaction:       state.cfg.Session.Compaction,
+		SessionMessaging:        state.cfg.Session.Messaging,
+		SessionDerive:           state.cfg.Session.Derive,
 		SessionInputQueue:       sessionInputQueueStoreDependency(state.registry),
 		SessionPromptAdmission:  sessionPromptAdmissionStoreDependency(state.registry),
 		SessionAttachments:      state.sessionAttachments,
@@ -111,6 +103,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		AttentionConfig:         state.cfg.Attention,
 		AttentionWorkspaceMutes: state.registry,
 		SessionCatalog:          state.registry,
+		EventLedger:             sessionEventLedgerDependency(state.registry),
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
 		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
@@ -120,5 +113,16 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SoulStore:               soulSnapshotStoreDependency(state.registry),
 		SoulRunChecker:          soulRunActivityCheckerDependency(state.registry),
 		SessionHealthStore:      sessionHealthStoreDependency(state.registry),
+		AgentNiceness:           state.cfg.Daemon.Load.AgentNiceness,
 	}
+}
+
+// sessionEventLedgerDependency exposes the daemon ledger that records
+// session.fallback.used before each session-owned fallback attempt.
+func sessionEventLedgerDependency(value any) store.EventSummaryStore {
+	ledger, ok := value.(store.EventSummaryStore)
+	if !ok {
+		return nil
+	}
+	return ledger
 }

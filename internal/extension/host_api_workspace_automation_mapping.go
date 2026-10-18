@@ -81,10 +81,7 @@ func (h *HostAPIHandler) jobFromCreateParams(
 	ctx context.Context,
 	req hostAPIAutomationJobCreateParams,
 ) (automationpkg.Job, error) {
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return automationpkg.Job{}, err
-	}
+	profileID := hostAPIProfileID(ctx)
 	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, req.WorkspaceID)
 	if err != nil {
 		return automationpkg.Job{}, err
@@ -105,7 +102,6 @@ func (h *HostAPIHandler) jobFromCreateParams(
 		fireLimit = *req.FireLimit
 	}
 
-	schedule := req.Schedule
 	return automationpkg.Job{
 		ProfileID:   profileID,
 		Scope:       req.Scope,
@@ -114,7 +110,7 @@ func (h *HostAPIHandler) jobFromCreateParams(
 		AgentName:   strings.TrimSpace(req.AgentName),
 		WorkspaceID: workspaceID,
 		Prompt:      strings.TrimSpace(req.Prompt),
-		Schedule:    &schedule,
+		Schedule:    new(req.Schedule),
 		Task:        cloneAutomationTaskConfig(req.Task),
 		LoopTarget:  cloneHostAPIAutomationLoopTarget(req.LoopTarget),
 		Enabled:     enabled,
@@ -137,8 +133,7 @@ func (h *HostAPIHandler) applyJobUpdateParams(
 		next.Prompt = strings.TrimSpace(*req.Prompt)
 	}
 	if req.Schedule != nil {
-		schedule := *req.Schedule
-		next.Schedule = &schedule
+		next.Schedule = new(*req.Schedule)
 	}
 	if req.Task != nil {
 		next.Task = cloneAutomationTaskConfig(req.Task)
@@ -176,10 +171,7 @@ func (h *HostAPIHandler) triggerFromCreateParams(
 	ctx context.Context,
 	req hostAPIAutomationTriggerCreateParams,
 ) (automationpkg.Trigger, automationpkg.WebhookSecretWrite, error) {
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return automationpkg.Trigger{}, automationpkg.WebhookSecretWrite{}, err
-	}
+	profileID := hostAPIProfileID(ctx)
 	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, req.WorkspaceID)
 	if err != nil {
 		return automationpkg.Trigger{}, automationpkg.WebhookSecretWrite{}, err
@@ -220,8 +212,7 @@ func (h *HostAPIHandler) triggerFromCreateParams(
 	}
 	write := automationpkg.WebhookSecretWrite{}
 	if strings.TrimSpace(req.WebhookSecretValue) != "" {
-		value := strings.TrimSpace(req.WebhookSecretValue)
-		write.Value = &value
+		write.Value = new(strings.TrimSpace(req.WebhookSecretValue))
 	}
 	return trigger, write, nil
 }
@@ -287,8 +278,7 @@ func applyTriggerWebhookUpdateParams(
 		return nil
 	}
 	write := automationpkg.WebhookSecretWrite{}
-	value := strings.TrimSpace(*req.WebhookSecretValue)
-	write.Value = &value
+	write.Value = new(strings.TrimSpace(*req.WebhookSecretValue))
 	return &write
 }
 

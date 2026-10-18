@@ -11,7 +11,6 @@ import {
   useClearSessionConversation,
   useDeleteSession,
   useRenameSession,
-  useResumeSession,
   useStopSession,
   useSessionTranscriptThreadMessages,
   canPromptSession,
@@ -28,21 +27,19 @@ import {
   createSessionPageControlsLogic,
   isStopRequestActive,
   isStopRetryPending,
-  type ResumeProviderUnavailableDetail,
   type SessionPageControlsState,
-  type SessionResumeFailure,
 } from "./session-page-controls-store";
 import { useSessionBusyInputControls } from "./use-session-busy-input-controls";
 
 interface UseSessionPageControlsOptions {
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
+  /** Whether the hosting window owns live data; a background window reads its queue on return. */
+  liveDataEnabled?: boolean;
   onDeleteSuccess?: () => void;
   workspaceId?: string;
 }
 
-export type { ResumeProviderUnavailableDetail, SessionResumeFailure };
-
-/** Coordinates session-page actions, preserving the displayed session ownership for deletion. */
+/** Coordinates session-page actions, preserving the displayed session ownership for lifecycle mutations. */
 export function useSessionPageControls(
   sessionId: string,
   session: SessionPayload,
@@ -63,10 +60,9 @@ export function useSessionPageControls(
       onDeleteSuccess?.();
     },
   });
-  const stopMutation = useStopSession({ workspaceId });
-  const resumeMutation = useResumeSession({ workspaceId });
-  const unarchiveMutation = useUnarchiveSession({ workspaceId });
-  const renameMutation = useRenameSession({ workspaceId });
+  const stopMutation = useStopSession();
+  const unarchiveMutation = useUnarchiveSession();
+  const renameMutation = useRenameSession();
   const clearMutation = useClearSessionConversation({ workspaceId });
   const {
     activeTurnId,
@@ -94,6 +90,7 @@ export function useSessionPageControls(
   const busyInput = useSessionBusyInputControls({
     activeTurnId,
     getRuntimeSnapshot,
+    liveDataEnabled: options.liveDataEnabled ?? true,
     promptControlsAvailable,
     sessionState,
     sessionId,
@@ -123,7 +120,6 @@ export function useSessionPageControls(
     });
   };
 
-  const isResuming = controlsState.resume.phase === "pending";
   const isUnarchiving = unarchiveMutation.isPending;
   const isDeleting = deleteMutation.isPending;
   const isRenaming = renameMutation.isPending;
@@ -134,7 +130,7 @@ export function useSessionPageControls(
       controlsState,
       effectiveRunning,
       hasConversationContent: messages.length > 0 || transcriptMessages.length > 0,
-      pending: { busyInputPending, isClearing, isDeleting, isRenaming, isResuming, isUnarchiving },
+      pending: { busyInputPending, isClearing, isDeleting, isRenaming, isUnarchiving },
       session,
       userControllable,
     });
@@ -150,22 +146,17 @@ export function useSessionPageControls(
 
     const retry = stopAttention !== null;
     store.trigger.stopRequested({
-      execute: () => stopMutation.mutateAsync({ id: sessionId, wait: retry }),
+      execute: () =>
+        stopMutation.mutateAsync({
+          id: sessionId,
+          workspace_id: session.workspace_id,
+          profile_name: session.profile_name,
+          wait: retry,
+        }),
       failureMessage: null,
       retry,
       scope: "session",
       turnId: activeTurnId,
-    });
-  };
-
-  const handleResume = () => {
-    if (controlsBusy || !userControllable) {
-      return;
-    }
-
-    store.trigger.resumeRequested({
-      resumeSession: () => resumeMutation.mutateAsync(sessionId),
-      sessionId,
     });
   };
 
@@ -174,16 +165,12 @@ export function useSessionPageControls(
       return;
     }
 
-    unarchiveMutation.mutate(sessionId, {
+    unarchiveMutation.mutate(session, {
       onError: error => {
         console.error("Failed to unarchive session", error);
         toast.error("Couldn't unarchive this session.");
       },
     });
-  };
-
-  const handleDismissResumeFailure = () => {
-    store.trigger.resumeFailureDismissed({});
   };
 
   const handleDelete = () => {
@@ -208,7 +195,7 @@ export function useSessionPageControls(
       throw new Error("Session controls are busy.");
     }
     try {
-      await renameMutation.mutateAsync({ id: sessionId, name });
+      await renameMutation.mutateAsync({ ...session, name });
       toast.success("Session renamed.");
     } catch (error) {
       console.error("Failed to rename session", error);
@@ -239,7 +226,6 @@ export function useSessionPageControls(
     handleCancelPrompt,
     handleClear,
     handleClearQueue: busyInput.handleClearQueue,
-    handleDismissResumeFailure,
     handleDelete,
     handleDiscardUnconfirmedSend: busyInput.handleDiscardUnconfirmedSend,
     handleInterruptPrompt: busyInput.handleInterruptPrompt,
@@ -247,7 +233,6 @@ export function useSessionPageControls(
     handleRemoveQueuedPrompt: busyInput.handleRemoveQueuedPrompt,
     handleReplaceQueuedPrompt: busyInput.handleReplaceQueuedPrompt,
     handleRename,
-    handleResume,
     handleRetryUnconfirmedSend: busyInput.handleRetryUnconfirmedSend,
     handleSteerPrompt: busyInput.handleSteerPrompt,
     handleSteerQueuedPrompt: busyInput.handleSteerQueuedPrompt,
@@ -257,7 +242,6 @@ export function useSessionPageControls(
     isClearing,
     isDeleting,
     isRenaming,
-    isResuming,
     isSessionRunning: daemonRunning,
     isStopRetrying,
     isStopping,
@@ -265,7 +249,6 @@ export function useSessionPageControls(
     messages,
     queueCap: busyInput.queueCap,
     queuedPrompts: busyInput.queuedPrompts,
-    resumeFailure: controlsState.resume.failure,
     stopAttention,
     /** The daemon answered the last turn stop with `nothing-in-flight` (US-009.EC-2); cleared by the store after a few seconds. */
     stopCompletionNote: controlsState.stopCompletion !== null,
@@ -306,7 +289,6 @@ function sessionControlsAvailability(input: {
     isClearing: boolean;
     isDeleting: boolean;
     isRenaming: boolean;
-    isResuming: boolean;
     isUnarchiving: boolean;
   };
   session: SessionPayload;
@@ -316,7 +298,6 @@ function sessionControlsAvailability(input: {
   const { pending } = input;
   const controlsBusy =
     stopRequestActive ||
-    pending.isResuming ||
     pending.isUnarchiving ||
     pending.isDeleting ||
     pending.isRenaming ||

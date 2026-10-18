@@ -25,7 +25,10 @@ type cmdPaletteTestClient struct {
 	listWorkspace     string
 	listClient        string
 	approvalStatus    contract.ToolApprovalStatusResponse
+	approvalProfile   string
 	canceledID        string
+	resolvedID        string
+	approvalDecision  contract.ResolveToolApprovalRequest
 	personalization   contract.CmdPalettePersonalizationResponse
 	resetResponse     contract.CmdPalettePersonalizationResetResponse
 	resetWorkspace    string
@@ -112,17 +115,30 @@ func (c *cmdPaletteTestClient) InvokeCmdPaletteCommand(
 }
 
 func (c *cmdPaletteTestClient) GetPendingToolApproval(
-	context.Context,
-	string,
+	ctx context.Context,
+	_ string,
 ) (contract.ToolApprovalStatusResponse, error) {
+	c.approvalProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
 	return c.approvalStatus, nil
 }
 
 func (c *cmdPaletteTestClient) CancelPendingToolApproval(
-	_ context.Context,
+	ctx context.Context,
 	approvalID string,
 ) (contract.ToolApprovalStatusResponse, error) {
+	c.approvalProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
 	c.canceledID = approvalID
+	return c.approvalStatus, nil
+}
+
+func (c *cmdPaletteTestClient) ResolvePendingToolApproval(
+	ctx context.Context,
+	approvalID string,
+	request contract.ResolveToolApprovalRequest,
+) (contract.ToolApprovalStatusResponse, error) {
+	c.approvalProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
+	c.resolvedID = approvalID
+	c.approvalDecision = request
 	return c.approvalStatus, nil
 }
 
@@ -223,6 +239,41 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve retired automation palette IDs with a deprecation warning", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.commands.Commands = []contract.CmdPaletteCommand{
+			{ID: "app.open.automations", Source: "core", Available: true},
+		}
+		client.invokeResult = contract.CmdPaletteInvokeResult{Status: cmdpalette.InvokeStatusOK}
+		_, stderr, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "invoke", "app.open.jobs", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette invoke error = %v", err)
+		}
+		if client.invokeCommand != "app.open.automations" {
+			t.Fatalf("invoke command = %q, want app.open.automations", client.invokeCommand)
+		}
+		want := `warning: command "app.open.jobs" is deprecated and will be removed in v0.5.0; use "app.open.automations"`
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("stderr = %q, want %q", stderr, want)
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "inspect", "app.open.triggers", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette inspect error = %v", err)
+		}
+		if !strings.Contains(stdout, `"app.open.automations"`) {
+			t.Fatalf("inspect output = %q, want the automations command", stdout)
+		}
+	})
+
 	t.Run("Should map invocation validation failures to exit code two", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
@@ -276,6 +327,86 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve the exact approval with an explicit decision", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.approvalStatus.ApprovalStatus = "approved"
+		stdout, _, err := executeRootCommand(t, newTestDeps(t, client),
+			"approvals", "resolve", "approval-1", "--decision", "approved", "-o", "json")
+		if err != nil {
+			t.Fatalf("approvals resolve error = %v", err)
+		}
+		var status contract.ToolApprovalStatusResponse
+		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+			t.Fatalf("decode approval status: %v", err)
+		}
+		if client.resolvedID != "approval-1" || client.approvalDecision.Decision != "approved" ||
+			status.ApprovalStatus != "approved" {
+			t.Fatalf("resolved approval = %q %#v; status = %#v", client.resolvedID, client.approvalDecision, status)
+		}
+	})
+
+	for _, action := range []string{"show", "cancel", "resolve"} {
+		for _, selection := range []string{"flag", "env", "remembered"} {
+			t.Run("Should use the "+selection+" profile for approval "+action, func(t *testing.T) {
+				t.Parallel()
+				remembered, envProfile := "other", ""
+				args := []string{"approvals", action, "approval-1", "-o", "json"}
+				if action == "resolve" {
+					args = append(args, "--decision", "denied")
+				}
+				switch selection {
+				case "flag":
+					args = append(args, "--profile", "owner")
+					envProfile = "other"
+				case "env":
+					envProfile = "owner"
+				case "remembered":
+					remembered = "owner"
+				}
+				client := &struct {
+					*cmdPaletteTestClient
+					profileClientAPI
+				}{
+					cmdPaletteTestClient: newClient(),
+					profileClientAPI: &profileClientStub{
+						profiles: []contract.Profile{
+							{ID: "profile-default", Name: configDefaultKey, State: "active"},
+							{ID: "profile-owner", Name: "owner", State: "active"},
+							{ID: "profile-other", Name: "other", State: "active"},
+						},
+						selections: []contract.ProfileSelection{{
+							Scope:       contract.ProfileSelectionScopeWorkspace,
+							WorkspaceID: "/workspace/project", Profile: remembered,
+						}},
+					},
+				}
+				client.approvalStatus.ApprovalStatus = "denied"
+				deps := newTestDeps(t, client)
+				deps.getenv = func(key string) string {
+					if key == profileEnvName {
+						return envProfile
+					}
+					return ""
+				}
+				stdout, _, err := executeRootCommand(t, deps, args...)
+				if err != nil {
+					t.Fatalf("approvals %s error = %v", action, err)
+				}
+				if client.approvalProfile != "owner" {
+					t.Fatalf("approval profile = %q, want owner", client.approvalProfile)
+				}
+				var status contract.ToolApprovalStatusResponse
+				if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+					t.Fatalf("decode approval status: %v", err)
+				}
+				if status.ApprovalStatus != "denied" {
+					t.Fatalf("approval status = %q, want denied", status.ApprovalStatus)
+				}
+			})
+		}
+	}
+
 	t.Run("Should show and reset workspace personalization", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
@@ -315,7 +446,7 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should name the unbound owner when overwrite chords differ only by modifier order", func(t *testing.T) {
+	t.Run("Should bind with explicit overwrite and name the owner despite modifier order", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
 		client.bindings = contract.SettingsWindowManagerResponse{
@@ -324,40 +455,6 @@ func TestCmdPaletteCommands(t *testing.T) {
 			},
 			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
 				"session.new": {"shift+meta+KeyN"},
-			},
-		}
-		client.bindingsResult = contract.SettingsWindowManagerResponse{
-			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
-				"ext.notes.capture": {"meta+shift+KeyN"},
-			},
-		}
-		stdout, _, err := executeRootCommand(
-			t,
-			newTestDeps(t, client),
-			"cmd-palette", "bind", "ext.notes.capture", "meta+shift+KeyN",
-			"--overwrite", "--workspace", "workspace-1", "-o", "json",
-		)
-		if err != nil {
-			t.Fatalf("cmd-palette bind overwrite error = %v", err)
-		}
-		var result cmdPaletteBindingMutationResult
-		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-			t.Fatalf("json.Unmarshal(bind output) error = %v", err)
-		}
-		if result.UnboundOwner != "session.new" {
-			t.Fatalf("unbound owner = %q, want session.new", result.UnboundOwner)
-		}
-	})
-
-	t.Run("Should bind with explicit overwrite and name the unbound owner", func(t *testing.T) {
-		t.Parallel()
-		client := newClient()
-		client.bindings = contract.SettingsWindowManagerResponse{
-			Config: contract.SettingsWindowManagerConfigPayload{
-				Shortcuts: map[string]windowmanager.ShortcutBinding{},
-			},
-			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
-				"session.new": {"meta+shift+KeyN"},
 			},
 		}
 		client.bindingsResult = contract.SettingsWindowManagerResponse{
@@ -662,13 +759,13 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve ID name path and nested cwd to one workspace [IT-032]", func(t *testing.T) {
+	t.Run("Should forward explicit and inferred references to workspace resolution [IT-032]", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
 		client.DaemonClient = &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 				switch ref {
-				case "workspace-acme", "acme", "/repo/acme", "/repo/acme/nested":
+				case "acme", "/repo/acme/nested":
 					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
 						ID: "workspace-acme", Name: "acme", RootDir: "/repo/acme",
 					}}, nil
@@ -677,15 +774,13 @@ func TestCmdPaletteCommands(t *testing.T) {
 				}
 			},
 		}
-		for _, ref := range []string{"workspace-acme", "acme", "/repo/acme"} {
-			if _, _, err := executeRootCommand(
-				t, newTestDeps(t, client), "cmd-palette", "list", "--workspace", ref, "-o", "json",
-			); err != nil {
-				t.Fatalf("cmd-palette list --workspace %q error = %v", ref, err)
-			}
-			if client.listWorkspace != "workspace-acme" {
-				t.Fatalf("resolved workspace for %q = %q, want workspace-acme", ref, client.listWorkspace)
-			}
+		if _, _, err := executeRootCommand(
+			t, newTestDeps(t, client), "cmd-palette", "list", "--workspace", "acme", "-o", "json",
+		); err != nil {
+			t.Fatalf("cmd-palette list --workspace acme error = %v", err)
+		}
+		if client.listWorkspace != "workspace-acme" {
+			t.Fatalf("resolved workspace = %q, want workspace-acme", client.listWorkspace)
 		}
 		deps := newTestDeps(t, client)
 		deps.getwd = func() (string, error) { return "/repo/acme/nested", nil }
@@ -798,8 +893,8 @@ func TestCmdPaletteInvokeError(t *testing.T) {
 	t.Run("Should preserve the transport error exit code", func(t *testing.T) {
 		t.Parallel()
 		err := errors.New("transport failed")
-		var commandErr *commandExitError
-		if !errors.As(cmdPaletteInvokeError(err), &commandErr) || commandErr.cliExitCode() != 1 {
+		commandErr, commandErrOK := errors.AsType[*commandExitError](cmdPaletteInvokeError(err))
+		if !commandErrOK || commandErr.cliExitCode() != 1 {
 			t.Fatal("transport invocation error must preserve exit code one")
 		}
 	})

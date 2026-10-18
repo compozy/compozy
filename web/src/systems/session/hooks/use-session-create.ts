@@ -21,13 +21,19 @@ export function useSessionCreateStore(): SessionCreateStore {
 
 export function useSessionCreateActions() {
   const store = useSessionCreateStore();
-  const { runtimeWorkspaceId, scope } = useActiveWorkspace();
+  const {
+    registeredWorkspaces,
+    runtimeWorkspace,
+    runtimeWorkspaceId,
+    scope,
+    setActiveWorkspaceId,
+  } = useActiveWorkspace();
   const scopeId = useWorktreeScopeId();
   const scopedWorktree = useScopedWorktreeFilter(
     scope === "workspace" ? runtimeWorkspaceId : null,
     scopeId
   );
-  const openForAgent = (agentName: string) => {
+  const openForAgent = (agentName: string, options: { folderId?: string } = {}) => {
     if (runtimeWorkspaceId === null) {
       toast.error("Select an active workspace before starting a session.");
       return;
@@ -39,8 +45,9 @@ export function useSessionCreateActions() {
     if (isSessionCreateSubmitting(store)) return;
     clearPendingTerminalQuote();
     store.trigger.dialogOpened({
-      agentName,
+      agentName: agentName.trim() || runtimeWorkspace?.default_agent?.trim() || "",
       workspaceId: runtimeWorkspaceId,
+      ...(options.folderId ? { folderId: options.folderId } : {}),
       ...(scopedWorktree.worktreeId
         ? { environment: { kind: "worktree", worktreeId: scopedWorktree.worktreeId } }
         : {}),
@@ -57,7 +64,7 @@ export function useSessionCreateActions() {
       return;
     }
     store.trigger.dialogOpened({
-      agentName: "",
+      agentName: runtimeWorkspace?.default_agent?.trim() ?? "",
       workspaceId: runtimeWorkspaceId,
       ...(pendingPrompt !== undefined ? { pendingPrompt } : {}),
       ...(scopedWorktree.worktreeId
@@ -95,8 +102,14 @@ export function useSessionCreateActions() {
     }
     if (isSessionCreateSubmitting(store)) return;
     clearPendingTerminalQuote();
+    if (scope !== "workspace" || runtimeWorkspaceId !== workspaceId) {
+      setActiveWorkspaceId(workspaceId);
+    }
     store.trigger.dialogOpened({
-      agentName: "",
+      agentName:
+        registeredWorkspaces
+          .find(workspace => workspace.id === workspaceId)
+          ?.default_agent?.trim() ?? "",
       workspaceId,
       environment: { kind: "worktree", worktreeId },
     });

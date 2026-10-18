@@ -104,7 +104,7 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 			name: "Should let a Workspace and Profile Agent override every lower layer",
 			resolved: &workspacepkg.ResolvedWorkspace{
 				ProfileID: "profile-work", ProfileName: "work",
-				Workspace: workspacepkg.Workspace{ID: "workspace-test", RootDir: t.TempDir()},
+				ID: "workspace-test", RootDir: t.TempDir(),
 			},
 			catalog: projectedSkillAgentCatalog{
 				globalEntry:  globalAgent.entry,
@@ -170,7 +170,7 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 				name: "Workspace",
 				resolved: &workspacepkg.ResolvedWorkspace{
 					ProfileID: "profile-work",
-					Workspace: workspacepkg.Workspace{ID: "workspace-test", RootDir: t.TempDir()},
+					ID:        "workspace-test", RootDir: t.TempDir(),
 				},
 				catalog: projectedSkillAgentCatalog{workspaceErr: catalogErr},
 			},
@@ -203,8 +203,8 @@ func TestResolveScopedSkillsUsesWorkspaceResolverAgentBeforeCatalog(t *testing.T
 	profileAgent := projectedSkillAgent(t, "resolved Profile winner", "resolved Profile body")
 	resolved := &workspacepkg.ResolvedWorkspace{
 		ProfileID: "profile-work", ProfileName: "work",
-		Workspace: workspacepkg.Workspace{ID: "workspace-test", RootDir: t.TempDir()},
-		Agents:    []compozyconfig.AgentDef{profileAgent.entry.Def},
+		ID: "workspace-test", RootDir: t.TempDir(),
+		Agents: []compozyconfig.AgentDef{profileAgent.entry.Def},
 	}
 	handlers := &BaseHandlers{
 		SkillsRegistry: skills.NewRegistry(skills.RegistryConfig{}),

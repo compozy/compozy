@@ -36,57 +36,6 @@ func (s *service) deleteProvider(name string) (MutationResult, error) {
 	), nil
 }
 
-func (s *service) putSandbox(name string, profile compozyconfig.SandboxProfile) (MutationResult, error) {
-	values := sandboxProfileMap(profile)
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
-	if err != nil {
-		return MutationResult{}, err
-	}
-
-	if _, err := compozyconfig.EditConfigOverlay(
-		s.homePaths,
-		"",
-		target,
-		func(editor *compozyconfig.OverlayEditor) error {
-			return editor.SetTable([]string{"sandboxes", name}, values)
-		},
-	); err != nil {
-		return MutationResult{}, fmt.Errorf("settings: write sandbox %q: %w", name, err)
-	}
-
-	return mutationResultAtPath(
-		mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()),
-		target.Path(),
-	), nil
-}
-
-func (s *service) deleteSandbox(name string) (MutationResult, error) {
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
-	if err != nil {
-		return MutationResult{}, err
-	}
-
-	if _, err := compozyconfig.EditConfigOverlay(
-		s.homePaths,
-		"",
-		target,
-		func(editor *compozyconfig.OverlayEditor) error {
-			path := []string{"sandboxes", name}
-			if !editor.HasPath(path) {
-				return notFoundError(fmt.Errorf("settings: sandbox %q not found", name))
-			}
-			return editor.Delete(path)
-		},
-	); err != nil {
-		return MutationResult{}, fmt.Errorf("settings: delete sandbox %q: %w", name, err)
-	}
-
-	return mutationResultAtPath(
-		mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()),
-		target.Path(),
-	), nil
-}
-
 func (s *service) putHook(
 	ctx context.Context,
 	scope ScopeKind,

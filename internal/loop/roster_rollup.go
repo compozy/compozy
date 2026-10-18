@@ -1,7 +1,8 @@
 package loop
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
@@ -45,11 +46,8 @@ func buildFanoutRollups(items []RosterNode, graph dsl.Graph) []FanoutRollup {
 			rollups = append(rollups, *rollup)
 		}
 	}
-	sort.Slice(rollups, func(i, j int) bool {
-		if rollups[i].Generation != rollups[j].Generation {
-			return rollups[i].Generation < rollups[j].Generation
-		}
-		return rollups[i].NodeID < rollups[j].NodeID
+	slices.SortFunc(rollups, func(a, b FanoutRollup) int {
+		return cmp.Or(cmp.Compare(a.Generation, b.Generation), cmp.Compare(a.NodeID, b.NodeID))
 	})
 	return rollups
 }

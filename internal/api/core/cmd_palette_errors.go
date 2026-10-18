@@ -27,30 +27,32 @@ func (h *BaseHandlers) respondCmdPaletteError(
 }
 
 func cmdPaletteErrorPayload(err error) (int, contract.CmdPaletteError) {
-	var invalid *cmdpalette.InvalidArgumentsError
-	var unavailable *cmdpalette.UnavailableError
-	var multiple *cmdpalette.MultipleClientsError
-	switch {
-	case errors.Is(err, cmdpalette.ErrCommandNotFound):
+	if errors.Is(err, cmdpalette.ErrCommandNotFound) {
 		return http.StatusNotFound, contract.CmdPaletteError{
 			Error: "command_not_found", Message: trimCmdPaletteErrorPrefix(err.Error()),
 		}
-	case errors.As(err, &invalid):
+	}
+	if invalid, ok := errors.AsType[*cmdpalette.InvalidArgumentsError](err); ok {
 		return http.StatusUnprocessableEntity, contract.CmdPaletteError{
 			Error: "invalid_arguments", Fields: invalid.Fields,
 		}
-	case errors.As(err, &unavailable):
+	}
+	if unavailable, ok := errors.AsType[*cmdpalette.UnavailableError](err); ok {
 		return http.StatusPreconditionFailed, contract.CmdPaletteError{
 			Error: "command_unavailable", Reason: unavailable.Reason,
 		}
-	case errors.Is(err, cmdpalette.ErrNoAttachedShell):
+	}
+	if errors.Is(err, cmdpalette.ErrNoAttachedShell) {
 		return http.StatusPreconditionFailed, contract.CmdPaletteError{
 			Error: "no_attached_shell", Message: "command changes UI state and needs an open CompozyOS shell",
 		}
-	case errors.As(err, &multiple):
+	}
+	if multiple, ok := errors.AsType[*cmdpalette.MultipleClientsError](err); ok {
 		return http.StatusConflict, contract.CmdPaletteError{
 			Error: "multiple_clients", Message: "multiple attached clients; pass client", Clients: multiple.Clients,
 		}
+	}
+	switch {
 	case errors.Is(err, cmdpalette.ErrAlreadyRunning):
 		return http.StatusConflict, contract.CmdPaletteError{
 			Error: "already_running", Message: trimCmdPaletteErrorPrefix(err.Error()),

@@ -44,6 +44,10 @@ type StreamingGitRunner interface {
 	RunStreaming(context.Context, string, GitOutputHandler, ...string) ([]byte, []byte, error)
 }
 
+type GitIndexRunner interface {
+	RunWithIndex(context.Context, string, string, ...string) ([]byte, []byte, error)
+}
+
 type RealGitRunner struct {
 	executable string
 	timeout    time.Duration
@@ -167,6 +171,19 @@ func (r *RealGitRunner) run(
 	onOutput GitOutputHandler,
 	args ...string,
 ) ([]byte, []byte, error) {
+	return r.runWithIndex(ctx, dir, "", onOutput, args...)
+}
+
+func (r *RealGitRunner) RunWithIndex(ctx context.Context, dir, index string, args ...string) ([]byte, []byte, error) {
+	return r.runWithIndex(ctx, dir, index, nil, args...)
+}
+
+func (r *RealGitRunner) runWithIndex(
+	ctx context.Context,
+	dir, index string,
+	onOutput GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
 	if r == nil || strings.TrimSpace(r.executable) == "" {
 		return nil, nil, ErrGitUnavailable
 	}
@@ -175,6 +192,9 @@ func (r *RealGitRunner) run(
 	cmd.Dir = dir
 	cmd.Stdin = nil
 	cmd.Env = gitEnvironment(r.environ())
+	if index != "" {
+		cmd.Env = append(cmd.Env, "GIT_INDEX_FILE="+index)
+	}
 	procutil.ConfigureCommandProcessGroup(cmd)
 	var callbackMu sync.Mutex
 	var serializedOutput GitOutputHandler
@@ -273,3 +293,5 @@ func gitCommandError(args []string, stderr string, cause error) error {
 
 var _ GitRunner = (*RealGitRunner)(nil)
 var _ StreamingGitRunner = (*RealGitRunner)(nil)
+
+var _ GitIndexRunner = (*RealGitRunner)(nil)

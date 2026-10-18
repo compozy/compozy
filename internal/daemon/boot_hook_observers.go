@@ -12,9 +12,6 @@ func (d *Daemon) initializeHookObservers(
 	if state.harnessRecorder != nil {
 		state.lifecycleObservers.Add(state.harnessRecorder)
 	}
-	if state.checkpointRuntime != nil {
-		state.lifecycleObservers.Add(state.checkpointRuntime)
-	}
 	if state.clarify != nil {
 		state.lifecycleObservers.Add(state.clarify)
 	}
@@ -27,8 +24,6 @@ func (d *Daemon) initializeHookObservers(
 	}
 	return daemonNativeHooks(
 		state.lifecycleObservers,
-		state.dreamRuntime,
-		state.memoryExtractor,
 		state.runtimeWorkers.autoTitle,
 	)
 }

@@ -23,8 +23,6 @@ const (
 	watchEventsFieldLoopRunID   = "loop_run_id"
 	watchEventsFieldLoopName    = "loop_name"
 	watchEventsFieldSessionID   = "session_id"
-	watchEventsFieldChannel     = "channel"
-	watchEventsFieldWorkID      = "work_id"
 	watchEventsFieldPayload     = "payload"
 
 	watchEventsSchemaArrayType = "array"
@@ -213,8 +211,6 @@ func watchEventsOutputSchema() refs.Schema {
 			watchEventsFieldLoopRunID:   jsonSchemaStringType,
 			watchEventsFieldLoopName:    jsonSchemaStringType,
 			watchEventsFieldSessionID:   jsonSchemaStringType,
-			watchEventsFieldChannel:     jsonSchemaStringType,
-			watchEventsFieldWorkID:      jsonSchemaStringType,
 			watchEventsFieldPayload:     map[string]any{},
 		}},
 		watchEventsOutputCursorsKey: map[string]any{},

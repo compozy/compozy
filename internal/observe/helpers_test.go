@@ -19,7 +19,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -45,6 +45,8 @@ func TestValidObservedSessionID(t *testing.T) {
 }
 
 func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
+	t.Parallel()
+
 	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -72,38 +74,34 @@ func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 func TestWithTaskDashboardConfigOverridesDefaults(t *testing.T) {
 	t.Parallel()
 
-	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	observer, err := New(
-		observeTestContext(t),
-		WithHomePaths(home),
+	t.Run("Should override defaults and preserve prior partial overrides", func(t *testing.T) {
+		t.Parallel()
+		observer := &Observer{taskDashboardConfig: defaultTaskDashboardConfig()}
 		WithTaskDashboardConfig(TaskDashboardConfig{
 			ActiveRunLimit:   7,
 			BacklogWarnAfter: 45 * time.Second,
 			StaleAfter:       15 * time.Second,
-		}),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := observer.Close(observeTestContext(t)); closeErr != nil {
-			t.Fatalf("Close() error = %v", closeErr)
+		})(observer)
+		if got, want := observer.taskDashboardConfig.activeRunLimit, 7; got != want {
+			t.Fatalf("taskDashboardConfig.activeRunLimit = %d, want %d", got, want)
+		}
+		if got, want := observer.taskDashboardConfig.backlogWarnAfter, 45*time.Second; got != want {
+			t.Fatalf("taskDashboardConfig.backlogWarnAfter = %v, want %v", got, want)
+		}
+		if got, want := observer.taskDashboardConfig.staleAfter, 15*time.Second; got != want {
+			t.Fatalf("taskDashboardConfig.staleAfter = %v, want %v", got, want)
+		}
+		WithTaskDashboardConfig(TaskDashboardConfig{StaleAfter: 45 * time.Minute})(observer)
+		if got, want := observer.taskDashboardConfig.activeRunLimit, 7; got != want {
+			t.Fatalf("layered activeRunLimit = %d, want %d", got, want)
+		}
+		if got, want := observer.taskDashboardConfig.backlogWarnAfter, 45*time.Second; got != want {
+			t.Fatalf("layered backlogWarnAfter = %v, want %v", got, want)
+		}
+		if got, want := observer.taskDashboardConfig.staleAfter, 45*time.Minute; got != want {
+			t.Fatalf("layered staleAfter = %v, want %v", got, want)
 		}
 	})
-
-	if got, want := observer.taskDashboardConfig.activeRunLimit, 7; got != want {
-		t.Fatalf("taskDashboardConfig.activeRunLimit = %d, want %d", got, want)
-	}
-	if got, want := observer.taskDashboardConfig.backlogWarnAfter, 45*time.Second; got != want {
-		t.Fatalf("taskDashboardConfig.backlogWarnAfter = %v, want %v", got, want)
-	}
-	if got, want := observer.taskDashboardConfig.staleAfter, 15*time.Second; got != want {
-		t.Fatalf("taskDashboardConfig.staleAfter = %v, want %v", got, want)
-	}
 }
 
 func TestOnSessionCreatedResolverFailureStillTracksSession(t *testing.T) {
@@ -235,18 +233,17 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 	}
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-stopped")
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   "sess-stopped",
-		ProfileID:            store.DefaultProfileID,
-		Name:                 "Stopped",
-		AgentName:            "coder",
-		Provider:             "claude",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            h.now,
-		UpdatedAt:            h.now,
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
+		ID:            "sess-stopped",
+		ProfileID:     store.DefaultProfileID,
+		Name:          "Stopped",
+		AgentName:     "coder",
+		Provider:      "claude",
+		WorkspaceID:   h.workspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     h.now,
+		UpdatedAt:     h.now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
@@ -271,17 +268,16 @@ func TestLoadSessionMetadataLogsInvalidProviderSessionID(t *testing.T) {
 	h.observer.logger = slog.New(slog.NewTextHandler(&logs, nil))
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-without-provider")
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   "sess-without-provider",
-		ProfileID:            store.DefaultProfileID,
-		Name:                 "Missing Provider",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            h.now,
-		UpdatedAt:            h.now,
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
+		ID:            "sess-without-provider",
+		ProfileID:     store.DefaultProfileID,
+		Name:          "Missing Provider",
+		AgentName:     "coder",
+		WorkspaceID:   h.workspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     h.now,
+		UpdatedAt:     h.now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
@@ -338,22 +334,6 @@ func TestSummarizeEventPrefersPermissionSpecificFields(t *testing.T) {
 	})
 	if got != "permission.request" {
 		t.Fatalf("summarizeEvent(permission) = %q, want %q", got, "permission.request")
-	}
-}
-
-func TestObserverVersionSourceUsedByHealth(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	h.observer.startedAt = h.now
-	h.observer.now = func() time.Time { return h.now.Add(time.Second) }
-
-	health, err := h.observer.Health(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("Health() error = %v", err)
-	}
-	if health.Version != "1.2.3" {
-		t.Fatalf("Health().Version = %q, want 1.2.3", health.Version)
 	}
 }
 

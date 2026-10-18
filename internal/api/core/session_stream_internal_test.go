@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -124,7 +126,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		}}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		writer := &streamTestFlushWriter{}
 		cancelCalls := 0
 
@@ -201,7 +203,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		writer := &streamTestFlushWriter{}
 
 		handlers.pushAndStreamSessionTranscript(
@@ -230,15 +232,13 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		info := streamTestSessionInfo("sess-command")
 		info.State = session.StateStopped
 		manager := &commandStreamManagerStub{
-			sessionManagerStub: sessionManagerStub{
-				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
-				transcriptPage: func(
-					context.Context,
-					string,
-					transcript.PageQuery,
-				) (transcript.Page, error) {
-					return transcript.Page{Generation: 1}, nil
-				},
+			events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
+			transcriptPage: func(
+				context.Context,
+				string,
+				transcript.PageQuery,
+			) (transcript.Page, error) {
+				return transcript.Page{Generation: 1}, nil
 			},
 			commandErr: catalogErr,
 		}
@@ -248,7 +248,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		writer := &streamTestFlushWriter{}
 
 		handlers.streamTranscriptSessionEvents(
@@ -299,7 +299,7 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 			handlers.SetStreamDone(streamDone)
 			gin.SetMode(gin.TestMode)
 			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-			ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 			writer := &streamTestFlushWriter{}
 
 			events := make(chan store.SessionEvent, 1)
@@ -308,12 +308,9 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 			}
 			close(events)
 			canceled := make(chan struct{})
-			var cancelOnce sync.Once
 			subscription := sessionEventStreamSubscription{
 				events: events,
-				cancel: func() {
-					cancelOnce.Do(func() { close(canceled) })
-				},
+				cancel: sync.OnceFunc(func() { close(canceled) }),
 			}
 
 			done := make(chan struct{})
@@ -351,7 +348,7 @@ func TestSubscribeSessionEventStreamMode(t *testing.T) {
 		handlers := &BaseHandlers{Sessions: manager}
 
 		subscription, err := handlers.subscribeSessionEventStream(
-			context.Background(),
+			t.Context(),
 			"sess-a",
 			99,
 			contract.SessionStreamFrameTranscript,
@@ -378,7 +375,7 @@ func TestSubscribeSessionEventStreamMode(t *testing.T) {
 		handlers := &BaseHandlers{Sessions: manager}
 
 		subscription, err := handlers.subscribeSessionEventStream(
-			context.Background(),
+			t.Context(),
 			"sess-a",
 			99,
 			contract.SessionStreamFrameTranscript,
@@ -403,7 +400,7 @@ func TestSubscribeSessionEventStreamMode(t *testing.T) {
 		handlers := &BaseHandlers{Sessions: manager}
 
 		subscription, err := handlers.subscribeSessionEventStream(
-			context.Background(),
+			t.Context(),
 			"sess-a",
 			99,
 			contract.SessionStreamFrameRaw,
@@ -465,7 +462,7 @@ func TestTranscriptPushTreatsRawSequenceAsWakeOnly(t *testing.T) {
 		handlers.SetStreamDone(streamDone)
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		eventWake := make(chan store.SessionEvent, 1)
 		eventWake <- store.SessionEvent{Sequence: 1}
 		writer := &streamTestFlushWriter{}
@@ -556,7 +553,7 @@ func TestTranscriptPushDrainsPersistedEventsBeforeStopping(t *testing.T) {
 		}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		wakes := make(chan store.SessionEvent, 3)
 		wakes <- store.SessionEvent{Sequence: 7, Type: "agent_message"}
 		wakes <- store.SessionEvent{Sequence: 8, Type: "transcript_marker.created"}
@@ -665,7 +662,7 @@ func TestTranscriptReconnectFence(t *testing.T) {
 		{
 			name:               "Should reset an epoch mismatch",
 			cursor:             7,
-			expectedEpoch:      int64TestPointer(2),
+			expectedEpoch:      new(int64(2)),
 			expectedGeneration: &generation,
 			want:               contract.TranscriptSnapshotReasonEpochMismatch,
 		},
@@ -673,7 +670,7 @@ func TestTranscriptReconnectFence(t *testing.T) {
 			name:               "Should reset a generation mismatch",
 			cursor:             7,
 			expectedEpoch:      &epoch,
-			expectedGeneration: int64TestPointer(3),
+			expectedGeneration: new(int64(3)),
 			want:               contract.TranscriptSnapshotReasonGenerationMismatch,
 		},
 		{
@@ -828,7 +825,7 @@ func TestInitializeTranscriptStream(t *testing.T) {
 			wantGeneration := int64(4)
 
 			state, err := handlers.initializeTranscriptStream(
-				context.Background(),
+				t.Context(),
 				writer,
 				"sess-a",
 				streamTestSessionInfo("sess-a"),
@@ -896,7 +893,7 @@ func TestWriteGoalSnapshotChangedEvents(t *testing.T) {
 		writer := &streamTestFlushWriter{}
 
 		if err := handlers.writeGoalSnapshotChangedEvents(
-			context.Background(),
+			t.Context(),
 			writer,
 			"sess-a",
 			11,
@@ -1072,7 +1069,7 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 		writer := &streamTestFlushWriter{}
 
 		cursor, generation, err := handlers.writeTranscriptChangePages(
-			context.Background(),
+			t.Context(),
 			writer,
 			"sess-a",
 			streamTestSessionInfo("sess-a"),
@@ -1135,7 +1132,7 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 		}}
 
 		_, _, err := handlers.writeTranscriptChangePages(
-			context.Background(),
+			t.Context(),
 			&streamTestFlushWriter{},
 			"sess-a",
 			streamTestSessionInfo("sess-a"),
@@ -1147,10 +1144,6 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 			t.Fatalf("writeTranscriptChangePages() error = %v, want projection incompatibility", err)
 		}
 	})
-}
-
-func int64TestPointer(value int64) *int64 {
-	return new(value)
 }
 
 func waitForStreamTestSignal(t *testing.T, signal <-chan struct{}, label string) {
@@ -1177,8 +1170,21 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				{Sequence: 10, Type: acp.EventTypeUsage},
 				{Sequence: 11, Type: acp.EventTypeAgentMessage},
 				{Sequence: 12, TurnID: "A", Type: acp.EventTypeUsage},
-				{Sequence: 13, TurnID: "A", Type: acp.EventTypeDone},
-				{Sequence: 14, TurnID: "A", Type: acp.EventTypePromptDelivery},
+				{
+					Sequence: 13,
+					TurnID:   "A",
+					Type:     acp.EventTypeCompaction,
+					Content:  `{"compaction":{"compaction_id":"c1","status":"in_progress"}}`,
+				},
+				{
+					Sequence: 14,
+					TurnID:   "A",
+					Type:     acp.EventTypeCompaction,
+					Content:  `{"compaction":{"compaction_id":"c1","status":"completed"}}`,
+				},
+				{Sequence: 15, TurnID: "A", Type: eventspkg.SessionCompactionFired},
+				{Sequence: 16, TurnID: "A", Type: acp.EventTypeDone},
+				{Sequence: 17, TurnID: "A", Type: acp.EventTypePromptDelivery},
 			}
 			calls := 0
 			handlers := &BaseHandlers{
@@ -1203,11 +1209,13 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				supplied = nil
 			}
 			writer := &streamTestFlushWriter{}
-			if _, err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", 10, supplied); err != nil {
+			cursor, err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", 10, supplied)
+			if err != nil {
 				t.Fatal(err)
 			}
 			body := writer.String()
-			if strings.Count(body, "event: session_usage_changed") != 3 || strings.Contains(body, "id:") ||
+			if cursor != 17 || strings.Count(body, "event: session_usage_changed") != 6 ||
+				strings.Contains(body, "id:") ||
 				strings.Contains(body, `"sequence":10`) {
 				t.Fatalf("usage frames=%s", body)
 			}
@@ -1224,8 +1232,11 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			}
 			wants := []map[string]any{
 				want,
-				{"sequence": float64(13), "turn_id": "A", "kind": acp.EventTypeDone},
-				{"sequence": float64(14), "turn_id": "A", "kind": acp.EventTypePromptDelivery},
+				{"sequence": float64(13), "turn_id": "A", "kind": acp.EventTypeCompaction},
+				{"sequence": float64(14), "turn_id": "A", "kind": acp.EventTypeCompaction},
+				{"sequence": float64(15), "turn_id": "A", "kind": eventspkg.SessionCompactionFired},
+				{"sequence": float64(16), "turn_id": "A", "kind": acp.EventTypeDone},
+				{"sequence": float64(17), "turn_id": "A", "kind": acp.EventTypePromptDelivery},
 			}
 			var got []map[string]any
 			for line := range strings.SplitSeq(body, "\n") {
@@ -1239,6 +1250,12 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, wants) {
 				t.Fatalf("usage changes=%#v want=%#v", got, wants)
+			}
+			if _, err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", cursor, events); err != nil {
+				t.Fatal(err)
+			}
+			if writer.String() != body {
+				t.Fatal("repeated ledger events emitted duplicate usage changes")
 			}
 		})
 	}
@@ -1276,4 +1293,123 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			t.Fatalf("write error=%v", err)
 		}
 	})
+}
+
+// IT-019: the parent stream seeds subagents before forwarding committed updates.
+func TestSubagentStreamOrdering(t *testing.T) {
+	t.Parallel()
+	for _, push := range []bool{false, true} {
+		name := "Should seed and forward subagents through polling"
+		if push {
+			name = "Should seed and forward subagents through push"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			info := streamTestSessionInfo("parent")
+			service := &subagentStreamStub{t: t, updates: make(chan session.SubagentUpdate, 1)}
+			service.updates <- session.SubagentUpdate{ParentSessionID: "parent", Subagent: session.Subagent{SessionSubagent: store.SessionSubagent{ID: "sub-1", Status: "completed"}}}
+			close(service.updates)
+			manager := sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+					return []store.SessionEvent{}, nil
+				},
+				transcriptPage: func(context.Context, string, transcript.PageQuery) (transcript.Page, error) {
+					return transcript.Page{Generation: 1}, nil
+				},
+			}
+			handlers := &BaseHandlers{
+				Sessions:     manager,
+				Subagents:    service,
+				PollInterval: time.Hour,
+				Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+			}
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
+			writer := &streamTestFlushWriter{}
+			subscription := sessionEventStreamSubscription{}
+			if push {
+				subscription.events = make(chan store.SessionEvent)
+				subscription.cancel = func() {}
+			}
+			handlers.streamTranscriptSessionEvents(
+				ctx,
+				writer,
+				"parent",
+				info,
+				store.EventQuery{Limit: 200},
+				nil,
+				sessionStreamOptions{frameMode: contract.SessionStreamFrameTranscript},
+				subscription,
+			)
+			body := writer.String()
+			snapshot := strings.Index(body, "event: transcript_snapshot")
+			subagents := strings.Index(body, "event: subagents_snapshot")
+			updated := strings.Index(body, "event: subagent_updated")
+			if snapshot < 0 || subagents <= snapshot || updated <= subagents ||
+				!strings.Contains(body, `"status":"completed"`) ||
+				!service.canceled {
+				t.Fatalf("invalid ordering or subscription cleanup (canceled=%v): %s", service.canceled, body)
+			}
+		})
+	}
+}
+
+// Greptile 711: the snapshot replaces the client roster, so it must carry every page.
+func TestSubagentSnapshotCarriesEveryPage(t *testing.T) {
+	t.Parallel()
+	t.Run("Should follow the cursor past the first page", func(t *testing.T) {
+		t.Parallel()
+		service := &subagentStreamStub{t: t, subscribed: true, pages: map[string]store.SubagentPage{
+			"":       {Items: []store.SessionSubagent{{ID: "sub-new", Status: "running"}}, NextCursor: "page-2"},
+			"page-2": {Items: []store.SessionSubagent{{ID: "sub-old", Status: "completed"}}},
+		}}
+		handlers := &BaseHandlers{Subagents: service}
+		writer := &streamTestFlushWriter{}
+		if err := handlers.writeSubagentsSnapshot(
+			t.Context(),
+			writer,
+			"parent",
+			streamTestSessionInfo("parent"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		body := writer.String()
+		if !strings.Contains(body, `"sub-new"`) || !strings.Contains(body, `"sub-old"`) {
+			t.Fatalf("snapshot dropped a page: %s", body)
+		}
+	})
+}
+
+type subagentStreamStub struct {
+	session.SubagentService
+	t          *testing.T
+	updates    chan session.SubagentUpdate
+	subscribed bool
+	canceled   bool
+	pages      map[string]store.SubagentPage
+}
+
+var _ session.SubagentService = (*subagentStreamStub)(nil)
+var _ session.SubagentUpdateSubscriber = (*subagentStreamStub)(nil)
+
+func (s *subagentStreamStub) SubscribeSubagentUpdates(
+	_ context.Context,
+	id string,
+) (<-chan session.SubagentUpdate, func(), error) {
+	s.t.Helper()
+	if id != "parent" {
+		s.t.Fatalf("subscription id = %s", id)
+	}
+	s.subscribed = true
+	return s.updates, func() { s.canceled = true }, nil
+}
+func (s *subagentStreamStub) List(_ context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
+	s.t.Helper()
+	if !s.subscribed || q.ParentSessionID != "parent" || q.Limit != 200 || q.WorkspaceID != "ws-workspace" {
+		s.t.Fatalf("unfenced snapshot: %+v", q)
+	}
+	if s.pages != nil {
+		return s.pages[q.Cursor], nil
+	}
+	return store.SubagentPage{Items: []store.SessionSubagent{{ID: "sub-1", Status: "running"}}}, nil
 }

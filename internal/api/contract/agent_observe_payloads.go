@@ -39,8 +39,21 @@ type CreateAgentPayload struct {
 	DenyTools       []string                  `json:"deny_tools,omitempty"`
 	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
 	CategoryPath    []string                  `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig  `json:"skills,omitempty"`
-	Prompt          string                    `json:"prompt"`
+	Skills          *CreateAgentSkillsConfig  `json:"skills,omitzero"`
+	// FallbackChain declares ordered pre-acceptance routes; omitted keeps no chain on
+	// create and replaces the whole chain on update.
+	FallbackChain []AgentFallbackRoutePayload `json:"fallback_chain,omitempty"`
+	Prompt        string                      `json:"prompt"`
+}
+
+// AgentFallbackRoutePayload is one authored agent fallback route.
+type AgentFallbackRoutePayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model"`
+	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	Command         string                    `json:"command,omitempty"`
 }
 
 // CreateAgentSkillsConfig captures agent-local skill policy stored in AGENT.md.
@@ -64,11 +77,12 @@ type AgentMCPServerJSON struct {
 	Env       map[string]string                 `json:"env,omitempty"`
 	SecretEnv map[string]string                 `json:"secret_env,omitempty"`
 	URL       string                            `json:"url,omitempty"`
-	Auth      *SettingsMCPAuthConfigViewPayload `json:"auth,omitempty"`
+	Auth      *SettingsMCPAuthConfigViewPayload `json:"auth,omitzero"`
 }
 
 // AgentEventPayload is the shared raw agent-event streaming payload.
 type AgentEventPayload struct {
+	Origin            *PromptOriginMeta            `json:"origin,omitzero"`
 	Type              string                       `json:"type"`
 	SessionID         string                       `json:"session_id,omitempty"`
 	TurnID            string                       `json:"turn_id,omitempty"`
@@ -85,31 +99,40 @@ type AgentEventPayload struct {
 	Resource          string                       `json:"resource,omitempty"`
 	Decision          string                       `json:"decision,omitempty"`
 	Error             string                       `json:"error,omitempty"`
-	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
-	ProviderError     *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
-	Goal              *GoalPromptMeta              `json:"goal,omitempty"`
-	Delivery          *acp.DeliveryManifest        `json:"delivery,omitempty"`
-	Usage             *TokenUsagePayload           `json:"usage,omitempty"`
-	Runtime           *RuntimeActivityPayload      `json:"runtime,omitempty"`
-	PromptRuntime     *RuntimeSelectionPayload     `json:"prompt_runtime,omitempty"`
+	Failure           *SessionFailurePayload       `json:"failure,omitzero"`
+	ProviderError     *acp.ProviderErrorDiagnostic `json:"provider_error,omitzero"`
+	Goal              *GoalPromptMeta              `json:"goal,omitzero"`
+	Delivery          *acp.DeliveryManifest        `json:"delivery,omitzero"`
+	Usage             *TokenUsagePayload           `json:"usage,omitzero"`
+	Compaction        *CompactionSnapshotPayload   `json:"compaction,omitzero"`
+	Runtime           *RuntimeActivityPayload      `json:"runtime,omitzero"`
+	PromptRuntime     *RuntimeSelectionPayload     `json:"prompt_runtime,omitzero"`
 	Raw               json.RawMessage              `json:"raw,omitempty"`
+}
+
+// CompactionSnapshotPayload is the current redacted native compaction observation.
+type CompactionSnapshotPayload struct {
+	CompactionID string `json:"compaction_id"`
+	Status       string `json:"status"`
+	Summary      string `json:"summary,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 // TokenUsagePayload is the shared token-usage response payload.
 type TokenUsagePayload struct {
 	Meta             map[string]any `json:"meta,omitempty"`
-	Sequence         *int64         `json:"sequence,omitempty"`
+	Sequence         *int64         `json:"sequence,omitzero"`
 	TurnID           string         `json:"turn_id,omitempty"`
-	InputTokens      *int64         `json:"input_tokens,omitempty"`
-	OutputTokens     *int64         `json:"output_tokens,omitempty"`
-	TotalTokens      *int64         `json:"total_tokens,omitempty"`
-	ThoughtTokens    *int64         `json:"thought_tokens,omitempty"`
-	CacheReadTokens  *int64         `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int64         `json:"cache_write_tokens,omitempty"`
-	ContextUsed      *int64         `json:"context_used,omitempty"`
-	ContextSize      *int64         `json:"context_size,omitempty"`
-	CostAmount       *float64       `json:"cost_amount,omitempty"`
-	CostCurrency     *string        `json:"cost_currency,omitempty"`
+	InputTokens      *int64         `json:"input_tokens,omitzero"`
+	OutputTokens     *int64         `json:"output_tokens,omitzero"`
+	TotalTokens      *int64         `json:"total_tokens,omitzero"`
+	ThoughtTokens    *int64         `json:"thought_tokens,omitzero"`
+	CacheReadTokens  *int64         `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int64         `json:"cache_write_tokens,omitzero"`
+	ContextUsed      *int64         `json:"context_used,omitzero"`
+	ContextSize      *int64         `json:"context_size,omitzero"`
+	CostAmount       *float64       `json:"cost_amount,omitzero"`
+	CostCurrency     *string        `json:"cost_currency,omitzero"`
 	Timestamp        time.Time      `json:"timestamp"`
 }
 
@@ -150,7 +173,6 @@ type ObserveHealthPayload struct {
 	Retention          ObserveRetentionHealthPayload   `json:"retention"`
 	Failures           ObserveFailureHealthPayload     `json:"failures"`
 	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
-	Bridges            BridgeAggregateHealthPayload    `json:"bridges"`
 	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
 	Version            string                          `json:"version"`
 }
@@ -189,7 +211,7 @@ type AgentProbeHealthPayload struct {
 }
 
 // ObservePersistenceHealthPayload captures store health fields shared by
-// lifecycle, memory, and operator diagnostics.
+// lifecycle and operator diagnostics.
 type ObservePersistenceHealthPayload struct {
 	Status             string `json:"status"`
 	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`

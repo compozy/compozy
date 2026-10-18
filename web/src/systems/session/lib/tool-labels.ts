@@ -2,7 +2,6 @@ import {
   Activity,
   Blocks,
   Bot,
-  Brain,
   FileEdit,
   FileText,
   FolderSearch,
@@ -16,7 +15,6 @@ import {
   NotebookPen,
   PackageSearch,
   Plug,
-  Radio,
   Repeat,
   ScrollText,
   Search,
@@ -65,13 +63,12 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
 const COMPOZY_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
   terminal: Terminal,
   edit: FileEdit,
-  memory: Brain,
-  network: Radio,
   config: SlidersHorizontal,
   automation: Workflow,
   loop: Repeat,
   loops: Repeat,
   agent: Bot,
+  subagent: Bot,
   observe: Activity,
   logs: ScrollText,
   extensions: Blocks,
@@ -82,8 +79,8 @@ const COMPOZY_NATIVE_PREFIX = "compozy__";
 const MCP_PREFIX = "mcp__";
 
 /**
- * Extract the family segment of a CompozyOS native tool id (`compozy__memory_note` →
- * `memory`). Returns null for non-native ids or an empty family segment.
+ * Extract the family segment of a CompozyOS native tool id (`compozy__config_set` →
+ * `config`). Returns null for non-native ids or an empty family segment.
  */
 function compozyNativeFamily(toolName: string): string | null {
   if (!toolName.startsWith(COMPOZY_NATIVE_PREFIX)) return null;
@@ -126,87 +123,137 @@ interface ToolLabels {
   active: string;
   past: string;
   failure: string;
+  /**
+   * A settled call that failed, for families whose copy names the attempt
+   * (COPY.md "Subagent Terms": "Tried to check subagent capabilities"). Absent
+   * everywhere else: the verb keeps its tense and the × glyph carries the failure.
+   */
+  tried?: string;
 }
 
 const TOOL_LABELS: Record<string, ToolLabels> = {
-  Bash: { active: "Running...", past: "Ran command", failure: "run command" },
-  Read: { active: "Reading...", past: "Read file", failure: "read file" },
-  Write: { active: "Writing...", past: "Wrote file", failure: "write file" },
-  Edit: { active: "Editing...", past: "Edited file", failure: "edit file" },
-  Grep: { active: "Searching...", past: "Searched content", failure: "search content" },
-  Glob: { active: "Finding files...", past: "Found files", failure: "find files" },
-  WebSearch: { active: "Searching web...", past: "Searched web", failure: "search web" },
-  WebFetch: { active: "Fetching page...", past: "Fetched page", failure: "fetch page" },
-  Task: { active: "Running task...", past: "Ran task", failure: "run task" },
-  Agent: { active: "Running agent...", past: "Ran agent", failure: "run agent" },
-  Think: { active: "Thinking...", past: "Thought", failure: "think" },
-  TodoWrite: { active: "Updating tasks...", past: "Updated tasks", failure: "update tasks" },
+  Bash: { active: "Running…", past: "Ran command", failure: "run command" },
+  Read: { active: "Reading…", past: "Read file", failure: "read file" },
+  Write: { active: "Writing…", past: "Wrote file", failure: "write file" },
+  Edit: { active: "Editing…", past: "Edited file", failure: "edit file" },
+  Grep: { active: "Searching…", past: "Searched content", failure: "search content" },
+  Glob: { active: "Finding files…", past: "Found files", failure: "find files" },
+  WebSearch: { active: "Searching web…", past: "Searched web", failure: "search web" },
+  WebFetch: { active: "Fetching page…", past: "Fetched page", failure: "fetch page" },
+  Task: { active: "Running task…", past: "Ran task", failure: "run task" },
+  Agent: { active: "Running agent…", past: "Ran agent", failure: "run agent" },
+  Think: { active: "Thinking…", past: "Thought", failure: "think" },
+  TodoWrite: { active: "Updating tasks…", past: "Updated tasks", failure: "update tasks" },
   NotebookEdit: {
-    active: "Editing notebook...",
+    active: "Editing notebook…",
     past: "Edited notebook",
     failure: "edit notebook",
   },
   EnterPlanMode: {
-    active: "Entering plan mode...",
+    active: "Entering plan mode…",
     past: "Entered plan mode",
     failure: "enter plan mode",
   },
   ExitPlanMode: {
-    active: "Preparing plan...",
+    active: "Preparing plan…",
     past: "Presented plan",
     failure: "prepare plan",
   },
-  AskUserQuestion: { active: "Asking...", past: "Asked question", failure: "ask question" },
-  ToolSearch: { active: "Loading tools...", past: "Loaded tools", failure: "load tools" },
-  Skill: { active: "Loading skill...", past: "Loaded skill", failure: "load skill" },
+  AskUserQuestion: { active: "Asking…", past: "Asked question", failure: "ask question" },
+  ToolSearch: { active: "Loading tools…", past: "Loaded tools", failure: "load tools" },
+  Skill: { active: "Loading skill…", past: "Loaded skill", failure: "load skill" },
   compozy__terminal_exec: {
-    active: "Running in terminal...",
+    active: "Running in terminal…",
     past: "Used terminal",
     failure: "use terminal",
   },
   compozy__terminal_open: {
-    active: "Opening terminal...",
+    active: "Opening terminal…",
     past: "Opened terminal",
     failure: "open terminal",
   },
   compozy__terminal_write: {
-    active: "Typing in terminal...",
+    active: "Typing in terminal…",
     past: "Typed in terminal",
     failure: "type in terminal",
   },
   compozy__terminal_read: {
-    active: "Reading terminal...",
+    active: "Reading terminal…",
     past: "Read terminal",
     failure: "read terminal",
   },
   compozy__terminal_wait: {
-    active: "Waiting on terminal...",
+    active: "Waiting on terminal…",
     past: "Waited on terminal",
     failure: "wait on terminal",
   },
   compozy__terminal_list: {
-    active: "Listing terminals...",
+    active: "Listing terminals…",
     past: "Listed terminals",
     failure: "list terminals",
   },
   compozy__terminal_signal: {
-    active: "Signaling terminal...",
+    active: "Signaling terminal…",
     past: "Signaled terminal",
     failure: "signal terminal",
   },
   compozy__terminal_close: {
-    active: "Closing terminal...",
+    active: "Closing terminal…",
     past: "Closed terminal",
     failure: "close terminal",
   },
+  // The subagent family (S6): verbs instead of tool ids.
+  compozy__subagent_capabilities: {
+    active: "Checking subagent capabilities",
+    past: "Checked subagent capabilities",
+    failure: "check subagent capabilities",
+    tried: "Tried to check subagent capabilities",
+  },
+  compozy__subagent_delegate: {
+    active: "Delegating a subagent",
+    past: "Delegated a subagent",
+    failure: "delegate a subagent",
+    tried: "Tried to delegate a subagent",
+  },
+  compozy__subagent_status: {
+    active: "Reading subagent status",
+    past: "Read subagent status",
+    failure: "read subagent status",
+    tried: "Tried to read subagent status",
+  },
+  compozy__subagent_cancel: {
+    active: "Canceling a subagent",
+    past: "Canceled a subagent",
+    failure: "cancel a subagent",
+    tried: "Tried to cancel a subagent",
+  },
+  // A message to another session (S3); the call itself renders as the "Sent to" card.
+  compozy__session_prompt: {
+    active: "Sending a message",
+    past: "Sent a message",
+    failure: "send a message",
+  },
   compozy__terminal_request_input: {
-    active: "Requesting input...",
+    active: "Requesting input…",
     past: "Requested input",
     failure: "request input",
   },
 };
 
 const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
+
+/** A tool id with a catalogued verb phrase in `TOOL_LABELS`. */
+export function isRegisteredToolName(toolName: string): boolean {
+  return REGISTERED_TOOL_NAMES.has(toolName);
+}
+
+const SUBAGENT_TOOL_PREFIX = "compozy__subagent_";
+
+/** A `compozy__subagent_*` tool with a catalogued verb (S6). */
+export function isSubagentToolName(toolName: string): boolean {
+  const resolved = resolveRegisteredToolName(toolName);
+  return resolved.startsWith(SUBAGENT_TOOL_PREFIX) && REGISTERED_TOOL_NAMES.has(resolved);
+}
 
 /**
  * Resolve a canonical registry tool id from a streamed or persisted tool name.
@@ -235,21 +282,78 @@ export function toolHeadingName(toolName: string): string {
     : "tool";
 }
 
+function capitalize(word: string): string {
+  return word.length > 0 ? word[0]!.toUpperCase() + word.slice(1) : word;
+}
+
+/**
+ * Friendly name for a tool id with no catalogued label: drops the `compozy__`
+ * and `mcp__<server>__` prefixes, turns separators into spaces, and names the
+ * MCP server in parentheses. `mcp__github__create_issue` → "create issue
+ * (Github)"; `compozy__config_set` → "config set". The raw id stays one
+ * step deeper (tooltips, copied payloads), never on the row itself.
+ */
+export function humanizeToolId(toolId: string): string {
+  const trimmed = canonicalCompozyToolName(toolId.trim());
+  let name = trimmed;
+  let server: string | null = null;
+  if (name.startsWith(MCP_PREFIX)) {
+    const [serverSegment = "", ...rest] = name.slice(MCP_PREFIX.length).split("__");
+    if (rest.length > 0) {
+      server = serverSegment;
+      name = rest.join(" ");
+    } else {
+      name = serverSegment;
+    }
+  } else if (name.startsWith(COMPOZY_NATIVE_PREFIX)) {
+    name = name.slice(COMPOZY_NATIVE_PREFIX.length);
+  }
+  const words = name.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  const readable = words.length > 0 ? words : trimmed;
+  const serverLabel = server?.replace(/[_-]+/g, " ").trim();
+  return serverLabel ? `${readable} (${capitalize(serverLabel)})` : readable;
+}
+
 /** Resolves tense-specific labels and keeps unknown prose under a generic tool identity. */
 export function getToolLabel(toolName: string, tense: ToolLabelTense): string {
   const labels = TOOL_LABELS[toolName];
   if (labels) return labels[tense];
 
-  toolName = toolHeadingName(toolName);
-  // Fallback for unknown tools
+  const heading = toolHeadingName(toolName);
+  // Fallback for unknown tools: a readable name, never the raw id.
+  const name = heading === "tool" ? heading : humanizeToolId(heading);
   switch (tense) {
     case "active":
-      return `Running ${toolName}...`;
+      return `Running ${name}…`;
     case "past":
-      return `Used ${toolName}`;
+      return `Used ${name}`;
     case "failure":
-      return `use ${toolName}`;
+      return `use ${name}`;
   }
+}
+
+/**
+ * The settled label of a call: its past tense, or its family's "Tried to …"
+ * when the call failed and the family names the attempt.
+ */
+export function getToolSettledLabel(toolName: string, failed: boolean): string {
+  const tried = failed ? TOOL_LABELS[toolName]?.tried : undefined;
+  return tried ?? getToolLabel(toolName, "past");
+}
+
+const RAW_TOOL_ID = /^[\w.:-]+$/u;
+
+/**
+ * The verb phrase for an approval ask ("Allow the agent to {phrase}?"), or null
+ * when the runtime already sent a readable title that should lead as is.
+ */
+export function toolAskPhrase(toolName: string): string | null {
+  const resolved = resolveRegisteredToolName(toolName);
+  const labels = TOOL_LABELS[resolved];
+  if (labels) return labels.failure;
+  const trimmed = toolName.trim();
+  if (trimmed === "" || !RAW_TOOL_ID.test(trimmed) || !/[_]/.test(trimmed)) return null;
+  return `use ${humanizeToolId(trimmed)}`;
 }
 
 // --- Compact Summary Extractors ---

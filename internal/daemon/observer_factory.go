@@ -30,15 +30,11 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithWorkspaceResolver(deps.WorkspaceResolver),
 			observe.WithLogger(deps.Logger),
 			observe.WithStartTime(deps.StartedAt),
-			observe.WithBridgeSource(bridgeObserveSource(deps.Bridges)),
 			observe.WithObservabilityConfig(deps.Config.Observability),
 			observe.WithAgentProbeSource(
 				agentProbeTargetSource(configState, deps.AgentCatalog, deps.Logger),
 				activeConfig.Observability.AgentProbeTimeoutOrDefault(),
 			),
-		}
-		if deps.MemoryStore != nil {
-			opts = append(opts, observe.WithMemoryEventSource(deps.MemoryStore))
 		}
 		return observe.New(ctx, opts...)
 	}

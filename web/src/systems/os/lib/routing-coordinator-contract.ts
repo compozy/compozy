@@ -31,7 +31,7 @@ export type RoutingManager = {
     instanceKey: string,
     route: OsWindowRoute
   ): WindowManagerCommandOutcome;
-  popWindowRoute(windowId: string): WindowManagerCommandOutcome;
+  popWindowRoute(windowId: string, expectedRoute?: OsWindowRoute): WindowManagerCommandOutcome;
 };
 
 export interface RouteReconciliation {

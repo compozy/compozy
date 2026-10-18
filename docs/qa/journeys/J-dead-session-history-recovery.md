@@ -13,7 +13,7 @@ flowchart TD
     H --> P{Is the runtime terminal process_exit?}
     P -->|yes| RO[Show read-only history and disable prompt]
     RO --> R[Refresh and read the same transcript again]
-    R --> F[Fork into a new session]
+    R --> F[Restart in a new session]
     F --> C[Open child session with parent provenance]
     RO -.->|leave now| L[Original history remains available]
     C --> T[True end: original remains intact; child is ready for new work]
@@ -38,7 +38,7 @@ journey:
       verb: "Refresh and re-read the stopped session"
       expected_observable: "The same transcript remains available and no session/load retry or generic server error appears."
     - step: 3
-      verb: "Fork into a new session"
+      verb: "Restart in a new session"
       expected_observable: "A child opens in the same workspace with parent_session_id pointing to the original; the original remains unchanged and readable."
   goal:
     observable: "The user can safely inspect the original failure and start separate follow-up work without rewriting history."

@@ -11,7 +11,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -91,8 +90,8 @@ type StartOpts struct {
 	RuntimeStrategy      RuntimeApplicationStrategy
 	LaunchModelID        string
 	ResumeSessionID      string
-	Launcher             sandbox.Launcher
-	ToolHost             sandbox.ToolHost
+	Launcher             Launcher
+	ToolHost             ToolHost
 	ToolGateway          ToolExecutionGateway
 	ProviderName         string
 	ProviderConfig       *compozyconfig.ProviderConfig
@@ -123,6 +122,21 @@ func (o StartOpts) Validate() error {
 	}
 	if err := validateSessionConfigOptionSelections(o.ACPOptions); err != nil {
 		return fmt.Errorf("acp: validate start ACP options: %w", err)
+	}
+	return ValidateACPModePermissions(o.ACPOptions, o.Permissions)
+}
+
+// ValidateACPModePermissions keeps unrestricted provider modes behind the effective
+// session permission policy at both start and live runtime changes.
+func ValidateACPModePermissions(
+	options []SessionConfigOptionSelection,
+	permissions compozyconfig.PermissionMode,
+) error {
+	for _, option := range options {
+		if option.ID == sessionConfigModeKey && compozyconfig.IsUnrestrictedACPMode(option.ValueID) &&
+			permissions != compozyconfig.PermissionModeApproveAll {
+			return fmt.Errorf("acp: unrestricted ACP mode %q requires approve-all permissions", option.ValueID)
+		}
 	}
 	return nil
 }
@@ -178,6 +192,7 @@ type PromptRequest struct {
 	RunID                     string
 	Generation                int64
 	Message                   string
+	Maintenance               bool
 	Sections                  []PromptSection
 	Attachments               []PromptAttachment
 	Meta                      PromptMeta
@@ -242,6 +257,8 @@ type Caps struct {
 	SteerCapability       compozyconfig.SteerCapability
 	SupportsLoadSession   bool
 	SupportsCloseSession  bool
+	SupportsForkSession   bool
+	SupportsResumeSession bool
 	PromptImage           bool
 	PromptAudio           bool
 	PromptEmbeddedContext bool
@@ -256,6 +273,8 @@ func CloneCaps(caps Caps) Caps {
 		SteerCapability:       caps.SteerCapability,
 		SupportsLoadSession:   caps.SupportsLoadSession,
 		SupportsCloseSession:  caps.SupportsCloseSession,
+		SupportsForkSession:   caps.SupportsForkSession,
+		SupportsResumeSession: caps.SupportsResumeSession,
 		PromptImage:           caps.PromptImage,
 		PromptAudio:           caps.PromptAudio,
 		PromptEmbeddedContext: caps.PromptEmbeddedContext,
@@ -296,11 +315,11 @@ type RuntimeActivity struct {
 	CurrentTool        string     `json:"current_tool,omitempty"`
 	ToolCallID         string     `json:"tool_call_id,omitempty"`
 	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
-	ElapsedMS          int64      `json:"elapsed_ms,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitzero"`
+	IterationMax       int        `json:"iteration_max,omitzero"`
+	IdleSeconds        int64      `json:"idle_seconds,omitzero"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds,omitzero"`
+	ElapsedMS          int64      `json:"elapsed_ms,omitzero"`
 }
 
 // Merge overlays non-nil usage fields from other into the receiver.

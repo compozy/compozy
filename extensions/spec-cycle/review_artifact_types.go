@@ -31,7 +31,7 @@ type ReviewIssue struct {
 	Body     string `json:"body"`
 	Severity string `json:"severity"`
 	File     string `json:"file,omitempty"`
-	Line     int    `json:"line,omitempty"`
+	Line     int    `json:"line,omitzero"`
 	Author   string `json:"author,omitempty"`
 }
 

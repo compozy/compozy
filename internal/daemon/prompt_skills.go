@@ -157,7 +157,7 @@ func (a *skillsCatalogAugmenter) skillsForSessionAgent(
 	agent compozyconfig.AgentDef,
 	sessionID string,
 ) ([]*skillspkg.Skill, error) {
-	return resolveSessionAgentProjection(sessionAgentProjection[[]*skillspkg.Skill]{
+	return (sessionAgentProjection[[]*skillspkg.Skill]{
 		agent:                 agent,
 		hasConcreteDefinition: true,
 		workspace:             workspace,
@@ -168,7 +168,7 @@ func (a *skillsCatalogAugmenter) skillsForSessionAgent(
 		byDefinition: func(resolvedAgent compozyconfig.AgentDef) ([]*skillspkg.Skill, error) {
 			return a.registry.ForAgentDefSession(ctx, workspace, resolvedAgent, sessionID)
 		},
-	})
+	}).resolve()
 }
 
 func resolvePromptSkillsWorkspace(
@@ -219,10 +219,8 @@ func resolvePromptSkillsWorkspace(
 		return nil, nil
 	}
 	return &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      strings.TrimSpace(workspaceID),
-			RootDir: strings.TrimSpace(workspaceRoot),
-		},
+		ID:        strings.TrimSpace(workspaceID),
+		RootDir:   strings.TrimSpace(workspaceRoot),
 		ProfileID: strings.TrimSpace(profileID),
 	}, nil
 }

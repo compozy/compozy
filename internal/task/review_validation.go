@@ -14,8 +14,6 @@ func validateRunReviewSelectors(review *RunReview) error {
 		map[string]string{
 			"reviewer_session_id": review.ReviewerSessionID,
 			"reviewer_agent_name": review.ReviewerAgentName,
-			"reviewer_peer_id":    review.ReviewerPeerID,
-			"reviewer_channel_id": review.ReviewerChannelID,
 			"parent_review_id":    review.ParentReviewID,
 			"delivery_id":         review.DeliveryID,
 		},

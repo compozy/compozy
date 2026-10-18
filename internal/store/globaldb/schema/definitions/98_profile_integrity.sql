@@ -69,44 +69,9 @@ CREATE TRIGGER automation_suggestions_profile_owner_active BEFORE INSERT ON auto
 	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
 END;
 
-CREATE TRIGGER bridge_instances_profile_owner_immutable BEFORE UPDATE OF profile_id ON bridge_instances
-WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
-CREATE TRIGGER bridge_instances_profile_owner_active BEFORE INSERT ON bridge_instances BEGIN
-	SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
-	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
-END;
-
 CREATE TRIGGER worktrees_profile_owner_immutable BEFORE UPDATE OF profile_id ON worktrees
 WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
 CREATE TRIGGER worktrees_profile_owner_active BEFORE INSERT ON worktrees BEGIN
-	SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
-	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
-END;
-
-CREATE TRIGGER network_channels_profile_owner_immutable BEFORE UPDATE OF profile_id ON network_channels
-WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
-CREATE TRIGGER network_channels_profile_owner_active BEFORE INSERT ON network_channels BEGIN
-	SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
-	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
-END;
-
-CREATE TRIGGER network_direct_rooms_profile_owner_immutable BEFORE UPDATE OF profile_id ON network_direct_rooms
-WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
-CREATE TRIGGER network_direct_rooms_profile_owner_active BEFORE INSERT ON network_direct_rooms BEGIN
-	SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
-	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
-END;
-
-CREATE TRIGGER network_threads_profile_owner_immutable BEFORE UPDATE OF profile_id ON network_threads
-WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
-CREATE TRIGGER network_threads_profile_owner_active BEFORE INSERT ON network_threads BEGIN
-	SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
-	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
-END;
-
-CREATE TRIGGER network_work_profile_owner_immutable BEFORE UPDATE OF profile_id ON network_work
-WHEN NEW.profile_id <> OLD.profile_id BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
-CREATE TRIGGER network_work_profile_owner_active BEFORE INSERT ON network_work BEGIN
 	SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
 	SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
 END;

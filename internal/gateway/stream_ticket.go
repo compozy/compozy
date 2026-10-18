@@ -3,6 +3,7 @@ package gateway
 import (
 	"errors"
 	"io"
+	"maps"
 	"sync"
 	"time"
 )
@@ -89,9 +90,7 @@ func (s *streamTicketStore) consume(ticket string) (streamTicketEntry, error) {
 }
 
 func (s *streamTicketStore) sweepExpired(now time.Time) {
-	for digest, entry := range s.entries {
-		if !now.Before(entry.expires) {
-			delete(s.entries, digest)
-		}
-	}
+	maps.DeleteFunc(s.entries, func(_ string, entry streamTicketEntry) bool {
+		return !now.Before(entry.expires)
+	})
 }

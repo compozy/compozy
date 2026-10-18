@@ -246,8 +246,7 @@ func buildAutomationJobUpdateRequest(
 					"cli: automation job has no schedule to update reliability",
 				)
 			}
-			schedule := *currentSchedule
-			request.Schedule = &schedule
+			request.Schedule = new(*currentSchedule)
 		}
 		if err := applyAutomationScheduleReliability(
 			cmd,

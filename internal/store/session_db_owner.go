@@ -25,3 +25,13 @@ func (o SessionDBOwner) Normalize() (SessionDBOwner, error) {
 	}
 	return owner, nil
 }
+
+// DatabaseOwner preserves the immutable events.db identity after catalog scope
+// migrates to Global. The catalog must still authorize this metadata witness.
+func (m *SessionMeta) DatabaseOwner() (SessionDBOwner, error) {
+	workspaceID := m.WorkspaceID
+	if strings.TrimSpace(workspaceID) == "" && m.CreationProfile != nil {
+		workspaceID = m.CreationProfile.WorkspaceID
+	}
+	return (SessionDBOwner{SessionID: m.ID, WorkspaceID: workspaceID}).Normalize()
+}

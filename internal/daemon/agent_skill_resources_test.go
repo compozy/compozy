@@ -55,11 +55,10 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			"Workspace profile compozy source",
 		)
 
-		profile := profilepkg.WithCounts{Profile: profilepkg.Profile{
-			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
-		}}
+		profile := profilepkg.WithCounts{
+			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}
 		resolved := workspacepkg.ResolvedWorkspace{
-			Workspace:   workspacepkg.Workspace{ID: "workspace-marketing", RootDir: workspaceRoot},
+			ID: "workspace-marketing", RootDir: workspaceRoot,
 			WorkspaceID: "workspace-marketing", ProfileID: profile.ID, ProfileName: profile.Name,
 			ProfileRoot: profileRoot, Config: compozyconfig.DefaultWithHome(homePaths),
 		}
@@ -72,7 +71,7 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			skillProfileCatalogStub{profiles: []profilepkg.WithCounts{profile}},
 			&skillProfileWorkspaceResolver{resolved: resolved},
 			[]workspacepkg.ResolvedWorkspace{{
-				Workspace:   workspacepkg.Workspace{ID: resolved.ID, RootDir: workspaceRoot},
+				ID: resolved.ID, RootDir: workspaceRoot,
 				WorkspaceID: resolved.WorkspaceID,
 			}},
 			registry,
@@ -194,7 +193,7 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		})
 
 		dependency := agentCatalogDependency(catalog)
-		listed, err := dependency.ListAgents(context.Background())
+		listed, err := dependency.ListAgents(t.Context())
 		if err != nil {
 			t.Fatalf("ListAgents() error = %v", err)
 		}
@@ -209,30 +208,30 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 			t.Fatalf("ListAgents()[0] origin = %#v", listed[0])
 		}
 
-		got, err := dependency.GetAgent(context.Background(), "alpha")
+		got, err := dependency.GetAgent(t.Context(), "alpha")
 		if err != nil {
 			t.Fatalf("GetAgent(alpha) error = %v", err)
 		}
 		if got.Def.Prompt != "global alpha" {
 			t.Fatalf("GetAgent(alpha).Def.Prompt = %q, want global alpha", got.Def.Prompt)
 		}
-		if _, err := dependency.GetAgent(context.Background(), "missing"); !errors.Is(err, os.ErrNotExist) {
+		if _, err := dependency.GetAgent(t.Context(), "missing"); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("GetAgent(missing) error = %v, want os.ErrNotExist", err)
 		}
-		onboardingEntry, err := dependency.GetAgent(context.Background(), "onboarding")
+		onboardingEntry, err := dependency.GetAgent(t.Context(), "onboarding")
 		if err != nil || onboardingEntry.Def.Prompt != "global onboarding" {
 			t.Fatalf("GetAgent(onboarding) = %#v, %v", onboardingEntry, err)
 		}
-		reviewerEntry, err := dependency.GetAgent(context.Background(), "reviewer")
+		reviewerEntry, err := dependency.GetAgent(t.Context(), "reviewer")
 		if err != nil || reviewerEntry.Def.Prompt != "default-profile reviewer" {
 			t.Fatalf("GetAgent(reviewer) = %#v, %v", reviewerEntry, err)
 		}
 
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-1"},
+			ID:        "ws-1",
 			ProfileID: store.DefaultProfileID, ProfileName: "default",
 		}
-		workspaceEntries, err := dependency.ListAgentsForWorkspace(context.Background(), resolved)
+		workspaceEntries, err := dependency.ListAgentsForWorkspace(t.Context(), resolved)
 		if err != nil {
 			t.Fatalf("ListAgentsForWorkspace() error = %v", err)
 		}
@@ -287,14 +286,14 @@ func TestAgentSkillSourceSyncerSerializesConvergence(t *testing.T) {
 		})
 		firstDone := make(chan error, 1)
 		go func() {
-			firstDone <- syncer.Sync(context.Background())
+			firstDone <- syncer.Sync(t.Context())
 		}()
 		if call := <-entered; call != 1 {
 			t.Fatalf("first provider call = %d, want 1", call)
 		}
 		secondDone := make(chan error, 1)
 		go func() {
-			secondDone <- syncer.Sync(context.Background())
+			secondDone <- syncer.Sync(t.Context())
 		}()
 		select {
 		case call := <-entered:
@@ -341,7 +340,7 @@ func TestManagedResourceSyncerOrdersMutations(t *testing.T) {
 		}
 
 		changed, err := syncManagedResources(
-			context.Background(),
+			t.Context(),
 			actor,
 			store,
 			codec,
@@ -459,7 +458,7 @@ func TestResourceAgentCatalogResolveAgentFallsBackWhenCatalogMissesWorkspaceAgen
 	}})
 
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-fallback"},
+		ID: "ws-fallback",
 		Agents: []compozyconfig.AgentDef{{
 			Name:   "fallback",
 			Prompt: "resolved workspace agent",
@@ -646,7 +645,7 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 					heartbeat: heartbeatCatalog,
 				})
 				resolved := &workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()},
+					ID: "ws-1", RootDir: t.TempDir(),
 					ProfileID: "profile-marketing", ProfileName: "marketing",
 				}
 				artifacts, err := dependency.ResolveAgentArtifacts("marketer", resolved)
@@ -666,7 +665,7 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 					t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
 				}
 
-				policy, ok, err := dependency.ResolveHeartbeatPolicy(context.Background(), heartbeat.AuthoringTarget{
+				policy, ok, err := dependency.ResolveHeartbeatPolicy(t.Context(), heartbeat.AuthoringTarget{
 					AgentName:     "marketer",
 					WorkspaceID:   "ws-1",
 					WorkspaceRoot: resolved.RootDir,
@@ -751,7 +750,7 @@ func TestResourceAgentCatalogMatchesExtensionSidecarsByOwnerScopeAndAgentID(t *t
 		dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
 			soul: soulCatalog, heartbeat: heartbeatCatalog,
 		})
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: "ws-1"}
 		artifacts, err := dependency.ResolveAgentArtifacts("coder", resolved)
 		if err != nil {
 			t.Fatalf("ResolveAgentArtifacts(coder) error = %v", err)
@@ -777,7 +776,7 @@ func TestAgentSkillSmallHelpers(t *testing.T) {
 	t.Parallel()
 
 	var nilPublisher agentSkillPublisherFunc
-	if err := nilPublisher.Sync(context.Background()); err != nil {
+	if err := nilPublisher.Sync(t.Context()); err != nil {
 		t.Fatalf("nil publisher Sync() error = %v", err)
 	}
 	called := false
@@ -785,7 +784,7 @@ func TestAgentSkillSmallHelpers(t *testing.T) {
 		called = true
 		return nil
 	})
-	if err := publisher.Sync(context.Background()); err != nil {
+	if err := publisher.Sync(t.Context()); err != nil {
 		t.Fatalf("publisher Sync() error = %v", err)
 	}
 	if !called {
@@ -880,12 +879,12 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		}},
 	})
 
-	if err := syncer.Sync(context.Background()); err != nil {
+	if err := syncer.Sync(t.Context()); err != nil {
 		t.Fatalf("Sync() error = %v", err)
 	}
 	t.Run("Should retain authored agent provenance in the projected catalog", func(t *testing.T) {
 		// not parallel: the parent mutates this catalog after the assertion.
-		projected, err := agentCatalogDependency(agentCatalog).GetAgent(context.Background(), "coder")
+		projected, err := agentCatalogDependency(agentCatalog).GetAgent(t.Context(), "coder")
 		if err != nil {
 			t.Fatalf("GetAgent(coder) error = %v", err)
 		}
@@ -900,7 +899,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		t.Fatalf("triggered = %#v, want one trigger per migrated kind", triggered)
 	}
 
-	if err := syncer.Sync(context.Background()); err != nil {
+	if err := syncer.Sync(t.Context()); err != nil {
 		t.Fatalf("second Sync() error = %v", err)
 	}
 	if triggered[compozyconfig.AgentResourceKind] != 1 ||
@@ -912,7 +911,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	desired.agents = nil
 	desired.mcpServers = nil
 	desired.skills[0].spec.Description = "Updated review skill"
-	if err := syncer.Sync(context.Background()); err != nil {
+	if err := syncer.Sync(t.Context()); err != nil {
 		t.Fatalf("third Sync() error = %v", err)
 	}
 	assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 1, 0)
@@ -949,10 +948,10 @@ func TestAgentSkillSourceSyncerRetriesAgentProjection(t *testing.T) {
 			}},
 		})
 
-		if err := syncer.Sync(context.Background()); !errors.Is(err, projectionErr) {
+		if err := syncer.Sync(t.Context()); !errors.Is(err, projectionErr) {
 			t.Fatalf("first Sync() error = %v, want projection failure", err)
 		}
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("second Sync() error = %v", err)
 		}
 		if projector.buildCalls != 2 || projector.applyCalls != 1 {
@@ -1044,7 +1043,7 @@ func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testin
 		if _, ok := registry.Get("review"); ok {
 			t.Fatal("registry.Get(review) ok = true before SyncSkills, want false")
 		}
-		if err := syncer.SyncSkills(context.Background()); err != nil {
+		if err := syncer.SyncSkills(t.Context()); err != nil {
 			t.Fatalf("SyncSkills() error = %v", err)
 		}
 		skill, ok := registry.Get("review")
@@ -1067,7 +1066,7 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 		skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
 	legacyScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-legacy"}
 	if _, err := rawStore.PutRaw(
-		context.Background(),
+		t.Context(),
 		agentSkillSyncActor(),
 		resources.RawDraft{
 			Kind:  compozyconfig.AgentResourceKind,
@@ -1104,14 +1103,14 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 		}},
 	})
 
-	if err := syncer.Sync(context.Background()); err != nil {
+	if err := syncer.Sync(t.Context()); err != nil {
 		t.Fatalf("Sync() error = %v", err)
 	}
 
 	assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 1, 0, 0)
 
 	source := agentSkillSyncActor().Source
-	rawAgents, err := rawStore.ListRaw(context.Background(), agentSkillSyncActor(), resources.ResourceFilter{
+	rawAgents, err := rawStore.ListRaw(t.Context(), agentSkillSyncActor(), resources.ResourceFilter{
 		Kind:   compozyconfig.AgentResourceKind,
 		Source: &source,
 	})
@@ -1126,7 +1125,7 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 	}
 
 	agents, err := agentStore.List(
-		context.Background(),
+		t.Context(),
 		agentSkillSyncActor(),
 		resources.ResourceFilter{Source: &source},
 	)
@@ -1334,7 +1333,7 @@ func assertAgentSkillStoreCounts(
 
 	source := agentSkillSyncActor().Source
 	agents, err := agentStore.List(
-		context.Background(),
+		t.Context(),
 		agentSkillSyncActor(),
 		resources.ResourceFilter{Source: &source},
 	)
@@ -1342,7 +1341,7 @@ func assertAgentSkillStoreCounts(
 		t.Fatalf("agentStore.List() error = %v", err)
 	}
 	skills, err := skillStore.List(
-		context.Background(),
+		t.Context(),
 		agentSkillSyncActor(),
 		resources.ResourceFilter{Source: &source},
 	)
@@ -1350,7 +1349,7 @@ func assertAgentSkillStoreCounts(
 		t.Fatalf("skillStore.List() error = %v", err)
 	}
 	servers, err := mcpStore.List(
-		context.Background(),
+		t.Context(),
 		agentSkillSyncActor(),
 		resources.ResourceFilter{Source: &source},
 	)

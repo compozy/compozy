@@ -9,11 +9,9 @@ import {
   deriveSkillRecentCalls,
   deriveSkillTags,
   filterSkillsByQuery,
-  MARKETPLACE_CATEGORIES,
   matchesMarketplaceCategory,
   skillOriginLabel,
   skillSourceLabel,
-  skillSourceTone,
   skillStatusTone,
 } from "../skill-formatters";
 
@@ -37,15 +35,6 @@ describe("skill-formatters", () => {
       compareSkillSource
     );
     expect(sorted).toEqual(["bundled", "workspace", "marketplace", "user", "additional"]);
-  });
-
-  it("Should map sources to MonoBadge tones", () => {
-    expect(skillSourceTone("bundled")).toBe("success");
-    expect(skillSourceTone("workspace")).toBe("info");
-    expect(skillSourceTone("marketplace")).toBe("accent");
-    expect(skillSourceTone("user")).toBe("warning");
-    expect(skillSourceTone("additional")).toBe("neutral");
-    expect(skillSourceTone("unknown")).toBe("neutral");
   });
 
   it("Should return sentence-case source labels", () => {
@@ -100,21 +89,6 @@ describe("skill-formatters", () => {
     expect(
       deriveSkillTags(makeSkill({ metadata: { tags: ["a", 1, null, "b"] as unknown as string[] } }))
     ).toEqual(["a", "b"]);
-  });
-
-  it("Should expose sentence-case marketplace category vocabulary", () => {
-    expect(MARKETPLACE_CATEGORIES).toEqual([
-      "all",
-      "testing",
-      "database",
-      "deploy",
-      "ai",
-      "devops",
-      "security",
-    ]);
-    for (const category of MARKETPLACE_CATEGORIES) {
-      expect(category).toBe(category.toLowerCase());
-    }
   });
 
   it("Should match marketplace category against tags (case-insensitive)", () => {

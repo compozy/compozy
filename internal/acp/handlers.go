@@ -25,7 +25,7 @@ type wireSessionUpdateEnvelope struct {
 
 type wirePromptResponse struct {
 	StopReason acpsdk.StopReason `json:"stopReason"`
-	Usage      *wireUsage        `json:"usage,omitempty"`
+	Usage      *wireUsage        `json:"usage,omitzero"`
 }
 
 // wireNewSessionRequest keeps the workspace extension on the top-level
@@ -49,28 +49,28 @@ type wireLoadSessionRequest struct {
 }
 
 type wireUsage struct {
-	InputTokens       *int64 `json:"inputTokens,omitempty"`
-	OutputTokens      *int64 `json:"outputTokens,omitempty"`
-	TotalTokens       *int64 `json:"totalTokens,omitempty"`
-	ThoughtTokens     *int64 `json:"thoughtTokens,omitempty"`
-	CachedReadTokens  *int64 `json:"cachedReadTokens,omitempty"`
-	CachedWriteTokens *int64 `json:"cachedWriteTokens,omitempty"`
+	InputTokens       *int64 `json:"inputTokens,omitzero"`
+	OutputTokens      *int64 `json:"outputTokens,omitzero"`
+	TotalTokens       *int64 `json:"totalTokens,omitzero"`
+	ThoughtTokens     *int64 `json:"thoughtTokens,omitzero"`
+	CachedReadTokens  *int64 `json:"cachedReadTokens,omitzero"`
+	CachedWriteTokens *int64 `json:"cachedWriteTokens,omitzero"`
 	// compat(v0.4.0→v0.5.0, remove in v0.6.0)
-	LegacyCacheReadTokens  *int64 `json:"cacheReadTokens,omitempty"`
-	LegacyCacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
+	LegacyCacheReadTokens  *int64 `json:"cacheReadTokens,omitzero"`
+	LegacyCacheWriteTokens *int64 `json:"cacheWriteTokens,omitzero"`
 }
 
 type wireUsageUpdate struct {
 	Meta          json.RawMessage `json:"_meta,omitempty"`
 	SessionUpdate string          `json:"sessionUpdate"`
-	Used          *int64          `json:"used,omitempty"`
-	Size          *int64          `json:"size,omitempty"`
-	Cost          *wireCost       `json:"cost,omitempty"`
+	Used          *int64          `json:"used,omitzero"`
+	Size          *int64          `json:"size,omitzero"`
+	Cost          *wireCost       `json:"cost,omitzero"`
 }
 
 type wireCost struct {
-	Amount   *float64 `json:"amount,omitempty"`
-	Currency *string  `json:"currency,omitempty"`
+	Amount   *float64 `json:"amount,omitzero"`
+	Currency *string  `json:"currency,omitzero"`
 }
 
 func (p *AgentProcess) handleInbound(
@@ -83,6 +83,9 @@ func (p *AgentProcess) handleInbound(
 			return nil, requestError(err)
 		}
 		return nil, nil
+	}
+	if reqErr := p.rejectNonBoundSessionCallback(method, params); reqErr != nil {
+		return nil, reqErr
 	}
 
 	switch method {
@@ -126,8 +129,8 @@ func handleInboundRequest[Req any, Resp any](
 
 type readTextFileToolInput struct {
 	Path  string `json:"path"`
-	Line  *int   `json:"line,omitempty"`
-	Limit *int   `json:"limit,omitempty"`
+	Line  *int   `json:"line,omitzero"`
+	Limit *int   `json:"limit,omitzero"`
 }
 
 type writeTextFileToolInput struct {
@@ -138,9 +141,9 @@ type writeTextFileToolInput struct {
 type createTerminalToolInput struct {
 	Command         string               `json:"command"`
 	Args            []string             `json:"args,omitempty"`
-	Cwd             *string              `json:"cwd,omitempty"`
+	Cwd             *string              `json:"cwd,omitzero"`
 	Env             []acpsdk.EnvVariable `json:"env,omitempty"`
-	OutputByteLimit *int                 `json:"outputByteLimit,omitempty"`
+	OutputByteLimit *int                 `json:"outputByteLimit,omitzero"`
 }
 
 func (p *AgentProcess) handleReadTextFile(
@@ -171,9 +174,6 @@ func (p *AgentProcess) handleWriteTextFile(
 	if err != nil {
 		return acpsdk.WriteTextFileResponse{}, err
 	}
-	if p.isNetworkTurn() {
-		return acpsdk.WriteTextFileResponse{}, ErrToolBlockedForNetworkTurn
-	}
 	host, err := p.toolHostOrDefault()
 	if err != nil {
 		return acpsdk.WriteTextFileResponse{}, err
@@ -184,7 +184,22 @@ func (p *AgentProcess) handleWriteTextFile(
 	return acpsdk.WriteTextFileResponse{}, nil
 }
 
+// handleRequestPermission serves the agent's inbound session/request_permission
+// callback. Only the bound ACP session may ask the operator; a fork clone or
+// foreign id is canceled before it reaches the active turn (ADR-003).
 func (p *AgentProcess) handleRequestPermission(
+	ctx context.Context,
+	request acpsdk.RequestPermissionRequest,
+) (acpsdk.RequestPermissionResponse, error) {
+	if !p.permissionRequestIsBound(request.SessionId) {
+		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+	}
+	return p.resolvePermissionRequest(ctx, request)
+}
+
+// resolvePermissionRequest decides one permission request through the provider
+// interceptor, the tool-host policy, or the operator prompt.
+func (p *AgentProcess) resolvePermissionRequest(
 	ctx context.Context,
 	request acpsdk.RequestPermissionRequest,
 ) (acpsdk.RequestPermissionResponse, error) {
@@ -254,14 +269,13 @@ func (p *AgentProcess) handleRequestPermission(
 		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	case <-p.permissionConnectionDone():
-		return acpsdk.RequestPermissionResponse{
-			Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
-		}, nil
 	case <-ctx.Done():
-		return acpsdk.RequestPermissionResponse{
-			Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
-		}, nil
 	}
+	raw = buildPermissionEventRaw(requestID, decisionCanceled, request)
+	p.emitPermissionEvent(
+		sessionID, turnID, requestID, title, toolCallID, resource, decisionCanceled, "system", raw,
+	)
+	return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 }
 
 func permissionRequestDisplay(request acpsdk.RequestPermissionRequest) (string, string) {

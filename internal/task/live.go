@@ -3,7 +3,8 @@ package task
 import (
 	"context"
 
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -152,8 +153,7 @@ func (m *Service) Tree(ctx context.Context, taskID string, actor ActorContext) (
 	if err != nil {
 		return nil, err
 	}
-	view := splitTreeView(trimmedTaskID, nodes)
-	return &view, nil
+	return new(splitTreeView(trimmedTaskID, nodes)), nil
 }
 
 func (m *Service) buildTreeNodes(
@@ -177,14 +177,12 @@ func (m *Service) buildTreeNodes(
 		nodes = append(nodes, node)
 	}
 
-	sort.SliceStable(nodes, func(i, j int) bool {
-		if nodes[i].Depth != nodes[j].Depth {
-			return nodes[i].Depth < nodes[j].Depth
-		}
-		if !nodes[i].LastActivityAt.Equal(nodes[j].LastActivityAt) {
-			return nodes[i].LastActivityAt.After(nodes[j].LastActivityAt)
-		}
-		return nodes[i].Task.ID < nodes[j].Task.ID
+	slices.SortStableFunc(nodes, func(a, b TreeNode) int {
+		return cmp.Or(
+			cmp.Compare(a.Depth, b.Depth),
+			b.LastActivityAt.Compare(a.LastActivityAt),
+			cmp.Compare(a.Task.ID, b.Task.ID),
+		)
 	})
 	return nodes, nil
 }

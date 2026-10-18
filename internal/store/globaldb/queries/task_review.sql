@@ -2,7 +2,7 @@
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE reviewer_session_id = sqlc.arg(reviewer_session_id)
@@ -14,7 +14,7 @@ LIMIT 1;
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE (CAST(sqlc.arg(task_id) AS TEXT) = '' OR task_id = CAST(sqlc.arg(task_id) AS TEXT))
@@ -30,15 +30,15 @@ INSERT INTO task_run_reviews (
   review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
   status, outcome, confidence, reason, delivery_id, missing_work_json,
   next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-  reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+  reviewed_by_kind, reviewed_by_ref,
   requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 ) VALUES (
   sqlc.arg(review_id), sqlc.arg(task_id), sqlc.arg(run_id), sqlc.narg(parent_review_id),
   sqlc.arg(policy), sqlc.arg(review_round), sqlc.arg(attempt), sqlc.arg(status),
   sqlc.narg(outcome), sqlc.narg(confidence), sqlc.arg(reason), sqlc.narg(delivery_id),
   sqlc.arg(missing_work_json), sqlc.arg(next_round_guidance), sqlc.arg(review_text),
-  sqlc.narg(reviewer_session_id), sqlc.arg(reviewer_agent_name), sqlc.arg(reviewer_peer_id),
-  sqlc.arg(reviewer_channel_id), sqlc.arg(reviewed_by_kind), sqlc.arg(reviewed_by_ref),
+  sqlc.narg(reviewer_session_id), sqlc.arg(reviewer_agent_name),
+  sqlc.arg(reviewed_by_kind), sqlc.arg(reviewed_by_ref),
   sqlc.arg(requested_at), sqlc.narg(routed_at), sqlc.narg(started_at), sqlc.narg(reviewed_at),
   sqlc.narg(deadline_at), sqlc.arg(created_at), sqlc.arg(updated_at)
 )
@@ -48,7 +48,7 @@ ON CONFLICT(run_id, review_round, attempt) DO NOTHING;
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE review_id = sqlc.arg(review_id);
@@ -57,7 +57,7 @@ WHERE review_id = sqlc.arg(review_id);
 SELECT review_id, task_id, run_id, parent_review_id, policy, review_round, attempt,
        status, outcome, confidence, reason, delivery_id, missing_work_json,
        next_round_guidance, review_text, reviewer_session_id, reviewer_agent_name,
-       reviewer_peer_id, reviewer_channel_id, reviewed_by_kind, reviewed_by_ref,
+       reviewed_by_kind, reviewed_by_ref,
        requested_at, routed_at, started_at, reviewed_at, deadline_at, created_at, updated_at
 FROM task_run_reviews
 WHERE run_id = sqlc.arg(run_id)
@@ -101,8 +101,6 @@ UPDATE task_run_reviews
 SET status = sqlc.arg(status),
     reviewer_session_id = sqlc.narg(reviewer_session_id),
     reviewer_agent_name = sqlc.arg(reviewer_agent_name),
-    reviewer_peer_id = sqlc.arg(reviewer_peer_id),
-    reviewer_channel_id = sqlc.arg(reviewer_channel_id),
     started_at = COALESCE(started_at, sqlc.narg(started_at)),
     updated_at = sqlc.arg(updated_at)
 WHERE review_id = sqlc.arg(review_id);

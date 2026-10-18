@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"context"
 	"maps"
 	"os"
 	"path/filepath"
@@ -13,163 +12,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/sandbox"
 )
-
-func TestResolveWorkspaceSandboxCascade(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	homePaths := newTestHomePaths(t)
-	baseConfig := validConfig(homePaths)
-	baseConfig.Defaults.Sandbox = "default-env"
-	baseConfig.Sandboxes["default-env"] = compozyconfig.SandboxProfile{
-		Backend:     "daytona",
-		Persistence: "reuse",
-		Daytona: compozyconfig.DaytonaProfile{
-			Snapshot: "snap-default",
-		},
-	}
-	baseConfig.Sandboxes["explicit-env"] = compozyconfig.SandboxProfile{
-		Backend:  "daytona",
-		SyncMode: "none",
-		Daytona: compozyconfig.DaytonaProfile{
-			Snapshot: "snap-explicit",
-		},
-	}
-
-	tests := []struct {
-		name        string
-		workspace   Workspace
-		cfg         compozyconfig.Config
-		wantProfile string
-		wantBackend sandbox.Backend
-		wantSync    sandbox.SyncMode
-	}{
-		{
-			name: "workspace ref wins over default",
-			workspace: Workspace{
-				ID:         "ws_explicit",
-				RootDir:    mustCanonicalRoot(t, t.TempDir()),
-				Name:       "explicit",
-				SandboxRef: "explicit-env",
-			},
-			cfg:         baseConfig,
-			wantProfile: "explicit-env",
-			wantBackend: sandbox.BackendDaytona,
-			wantSync:    sandbox.SyncModeNone,
-		},
-		{
-			name: "defaults sandbox applies when workspace omits ref",
-			workspace: Workspace{
-				ID:      "ws_default",
-				RootDir: mustCanonicalRoot(t, t.TempDir()),
-				Name:    "default",
-			},
-			cfg:         baseConfig,
-			wantProfile: "default-env",
-			wantBackend: sandbox.BackendDaytona,
-			wantSync:    sandbox.SyncModeSessionBidirectional,
-		},
-		{
-			name: "implicit local applies with no workspace or default ref",
-			workspace: Workspace{
-				ID:      "ws_local",
-				RootDir: mustCanonicalRoot(t, t.TempDir()),
-				Name:    "local",
-			},
-			cfg: func() compozyconfig.Config {
-				cfg := validConfig(homePaths)
-				cfg.Defaults.Sandbox = ""
-				return cfg
-			}(),
-			wantProfile: "local",
-			wantBackend: sandbox.BackendLocal,
-			wantSync:    sandbox.SyncModeNone,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			store := newMockWorkspaceStore(tt.workspace)
-			loader := &countingConfigLoader{cfg: tt.cfg}
-			resolver := newTestResolver(t, store,
-				WithHomePaths(homePaths),
-				WithConfigLoader(loader.Load),
-			)
-
-			resolved, err := resolver.Resolve(ctx, tt.workspace.ID)
-			if err != nil {
-				t.Fatalf("Resolve() error = %v", err)
-			}
-			if resolved.Sandbox.Profile != tt.wantProfile ||
-				resolved.Sandbox.Backend != tt.wantBackend ||
-				resolved.Sandbox.SyncMode != tt.wantSync {
-				t.Fatalf("resolved sandbox = %#v, want profile=%q backend=%q sync=%q",
-					resolved.Sandbox,
-					tt.wantProfile,
-					tt.wantBackend,
-					tt.wantSync,
-				)
-			}
-		})
-	}
-}
-
-func TestRegisterUpdateAndLoadWorkspaceSandboxRef(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	homePaths := newTestHomePaths(t)
-	cfg := validConfig(homePaths)
-	cfg.Sandboxes["daytona-dev"] = compozyconfig.SandboxProfile{
-		Backend: "daytona",
-		Daytona: compozyconfig.DaytonaProfile{Snapshot: "snap-dev"},
-	}
-	cfg.Sandboxes["local-dev"] = compozyconfig.SandboxProfile{Backend: "local"}
-
-	store := newMockWorkspaceStore()
-	resolver := newTestResolver(t, store,
-		WithHomePaths(homePaths),
-		WithConfigLoader((&countingConfigLoader{cfg: cfg}).Load),
-		WithIDGenerator(func(string) (string, error) { return "ws_env", nil }),
-	)
-
-	root := t.TempDir()
-	registered, err := resolver.Register(ctx, RegisterOptions{
-		RootDir:    root,
-		Name:       "env-workspace",
-		SandboxRef: "daytona-dev",
-	})
-	if err != nil {
-		t.Fatalf("Register() error = %v", err)
-	}
-	if got, want := registered.SandboxRef, "daytona-dev"; got != want {
-		t.Fatalf("registered SandboxRef = %q, want %q", got, want)
-	}
-
-	loaded, err := resolver.Get(ctx, registered.ID)
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-	if got, want := loaded.SandboxRef, "daytona-dev"; got != want {
-		t.Fatalf("loaded SandboxRef = %q, want %q", got, want)
-	}
-
-	nextSandbox := "local-dev"
-	if err := resolver.Update(ctx, registered.ID, UpdateOptions{SandboxRef: &nextSandbox}); err != nil {
-		t.Fatalf("Update() error = %v", err)
-	}
-	updated, err := resolver.Get(ctx, registered.ID)
-	if err != nil {
-		t.Fatalf("Get(updated) error = %v", err)
-	}
-	if got, want := updated.SandboxRef, "local-dev"; got != want {
-		t.Fatalf("updated SandboxRef = %q, want %q", got, want)
-	}
-}
 
 func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *testing.T) {
 	t.Parallel()
@@ -237,7 +80,7 @@ func testResolveGlobalHomeWorkspaceProfileResources(t *testing.T) {
 }
 
 func testResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	firstRoot := t.TempDir()
 	secondRoot := t.TempDir()
@@ -525,7 +368,7 @@ func declarationNames(values []ProfileDeclaration) []string {
 func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 
@@ -613,10 +456,10 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 			t,
 			filepath.Join(
 				homePaths.AgentsDir,
-				compozyconfig.BuiltinDreamingCuratorAgentName,
+				"dreaming-curator",
 				agentDefinitionFile,
 			),
-			compozyconfig.BuiltinDreamingCuratorAgentName,
+			"dreaming-curator",
 			"shadowed-curator",
 		)
 		writeAgentDef(
@@ -629,17 +472,17 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		store := newMockWorkspaceStore(Workspace{ID: "ws_reserved_agents", RootDir: root, Name: "repo"})
 		loader := &countingConfigLoader{cfg: validConfig(homePaths)}
 		resolver := newTestResolver(t, store, WithHomePaths(homePaths), WithConfigLoader(loader.Load))
-		resolved, err := resolver.Resolve(context.Background(), "ws_reserved_agents")
+		resolved, err := resolver.Resolve(t.Context(), "ws_reserved_agents")
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
 		if got := agentModel(resolved.Agents, compozyconfig.BuiltinCoordinatorAgentName); got != "" {
 			t.Fatalf("reserved coordinator model = %q, want excluded", got)
 		}
-		if got := agentModel(resolved.Agents, compozyconfig.BuiltinDreamingCuratorAgentName); got != "" {
-			t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
+		if got := agentModel(resolved.Agents, "dreaming-curator"); got != "shadowed-curator" {
+			t.Fatalf("authored dreaming-curator model = %q, want shadowed-curator", got)
 		}
-		if got, want := len(resolved.AgentDiagnostics), 3; got != want {
+		if got, want := len(resolved.AgentDiagnostics), 2; got != want {
 			t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
 		}
 		names := make([]string, 0, len(resolved.AgentDiagnostics))
@@ -653,7 +496,6 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		wantNames := []string{
 			compozyconfig.BuiltinCoordinatorAgentName,
 			compozyconfig.BuiltinCoordinatorAgentName,
-			compozyconfig.BuiltinDreamingCuratorAgentName,
 		}
 		if !slices.Equal(names, wantNames) {
 			t.Fatalf("diagnostic names = %#v, want %#v", names, wantNames)
@@ -662,7 +504,7 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 }
 
 func TestResolveConfigFromRootOnly(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	additional := t.TempDir()

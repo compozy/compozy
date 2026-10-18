@@ -146,8 +146,7 @@ func (m *Service) Get(ctx context.Context, workspaceID, profileID string, id ID)
 	if err != nil {
 		return nil, err
 	}
-	info := handle.Info()
-	return &info, nil
+	return new(handle.Info()), nil
 }
 
 func (m *Service) List(ctx context.Context, workspaceID string, scope store.ReadScope) ([]Info, error) {

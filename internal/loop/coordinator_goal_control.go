@@ -2,10 +2,11 @@ package loop
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -21,14 +22,10 @@ func selectGoalControlTerminal(candidates []goalControlCandidate) *task.Coordina
 	if len(candidates) == 0 {
 		return nil
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].key.nodeID == candidates[j].key.nodeID {
-			return candidates[i].key.itemIndex < candidates[j].key.itemIndex
-		}
-		return candidates[i].key.nodeID < candidates[j].key.nodeID
+	slices.SortFunc(candidates, func(a, b goalControlCandidate) int {
+		return cmp.Or(cmp.Compare(a.key.nodeID, b.key.nodeID), cmp.Compare(a.key.itemIndex, b.key.itemIndex))
 	})
-	selected := candidates[0].terminal
-	return &selected
+	return new(candidates[0].terminal)
 }
 
 func resolveGoalActionControl(

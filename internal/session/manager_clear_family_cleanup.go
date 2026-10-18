@@ -48,9 +48,6 @@ func (m *Manager) finalizeCommittedSessionDBClear(
 	if !committed {
 		return fmt.Errorf("%w: clear commit does not match manifest", sessiondb.ErrSessionDBFamilyChanged)
 	}
-	if err := m.discardOwnedMaterializedSessionLedger(ctx, owner, dbPath); err != nil {
-		return err
-	}
 	if err := discardSessionDBManifestBackups(ctx, lease, owner, dbPath, currentManifest, true); err != nil {
 		return err
 	}
@@ -66,8 +63,11 @@ func (m *Manager) restoreClearedConversationFailure(
 	manifest sessionDBClearManifest,
 	dbPath string,
 	metaPath string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) error {
+	if meta == nil {
+		return errors.New("session: cleared conversation metadata is required")
+	}
 	lease, err := acquireVerifiedSessionDBFamilyLease(
 		ctx,
 		owner,
@@ -87,19 +87,11 @@ func (m *Manager) restoreClearedConversationFailure(
 	if err := discardSessionDBClearCommit(dbPath); err != nil {
 		errs = append(errs, err)
 	}
-	metaRestored := true
 	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
-		metaRestored = false
 		errs = append(errs, fmt.Errorf("session: restore cleared metadata for %q: %w", meta.ID, err))
 	}
 	if err := discardSessionDBClearManifest(dbPath); err != nil {
 		errs = append(errs, err)
-	}
-	if metaRestored {
-		lease.Release()
-		if err := m.rematerializeStoppedSessionLedger(ctx, meta.ID); err != nil {
-			errs = append(errs, err)
-		}
 	}
 	return errors.Join(errs...)
 }

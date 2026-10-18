@@ -82,7 +82,7 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
   extension_defaults: [],
   diagnostics: [],
   config: {
-    new_window_policy: "floating",
+    new_window_policy: "beside_focus",
     small_viewport_policy: "stack",
     focus_policy: "click_directional",
     focus_wrap: true,
@@ -95,14 +95,14 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     nav_stack_limit: 50,
     closed_entry_limit: 20,
     desktop_transition: "slide",
-    gaps: { inner: 8, top: 8, right: 10, bottom: 8, left: 10 },
+    gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
     snap: {
       edge_band: 32,
       corner_reach: 150,
       exit_slack: 16,
       repeat_ratios: [0.5, 0.666667, 0.333333],
     },
-    bindings: { top_center: "zoom", bottom_center: "reserved" },
+    bindings: { top_center: "zoom", bottom_center: "zoom" },
     shortcuts: { "window.tab.new": ["meta+Digit3"] },
     global_shortcuts: { "palette.summon.global": "meta+shift+Space" },
   },
@@ -132,7 +132,7 @@ export const settingsWindowManagerDesktopIds = {
  * review capture.
  */
 export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
-  version: 4,
+  version: 5,
   workspace_id: storyDefaultWorkspaceId,
   revision: 41,
   desktops: [
@@ -172,7 +172,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         {
           id: "group-side",
           frame: { x: 0.63, y: 0, width: 0.37, height: 1 },
-          root: { id: "leaf-network", kind: "leaf", window_id: "app:network" },
+          root: { id: "leaf-skills", kind: "leaf", window_id: "app:skills" },
         },
       ],
       floating: ["app:vault"],
@@ -200,7 +200,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         {
           id: "group-bottom",
           frame: { x: 0, y: 0.56, width: 1, height: 0.44 },
-          root: { id: "leaf-jobs", kind: "leaf", window_id: "app:jobs" },
+          root: { id: "leaf-automations", kind: "leaf", window_id: "app:automations" },
         },
       ],
       floating: ["app:agents"],
@@ -214,7 +214,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         {
           id: "group-focus",
           frame: { x: 0, y: 0, width: 1, height: 1 },
-          root: { id: "leaf-knowledge", kind: "leaf", window_id: "app:knowledge" },
+          root: { id: "leaf-terminal", kind: "leaf", window_id: "app:terminal" },
         },
       ],
       floating: [],
@@ -249,12 +249,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       "/",
       settingsWindowManagerDesktopIds.build
     ),
-    "app:network": tiled(
-      "app:network",
-      "network",
-      "/network",
-      settingsWindowManagerDesktopIds.build
-    ),
+    "app:skills": tiled("app:skills", "skills", "/skills", settingsWindowManagerDesktopIds.build),
     "app:vault": {
       ...tiled("app:vault", "vault", "/vault", settingsWindowManagerDesktopIds.build),
       placement: "floating",
@@ -267,17 +262,22 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       "/marketplace",
       settingsWindowManagerDesktopIds.review
     ),
-    "app:jobs": tiled("app:jobs", "jobs", "/jobs", settingsWindowManagerDesktopIds.review),
+    "app:automations": tiled(
+      "app:automations",
+      "automations",
+      "/automations",
+      settingsWindowManagerDesktopIds.review
+    ),
     "app:agents": {
       ...tiled("app:agents", "agents", "/agents", settingsWindowManagerDesktopIds.review),
       placement: "floating",
       minimized: true,
       floating_rect: { x: 0.58, y: 0.62, width: 0.28, height: 0.3 },
     },
-    "app:knowledge": tiled(
-      "app:knowledge",
-      "knowledge",
-      "/knowledge",
+    "app:terminal": tiled(
+      "app:terminal",
+      "terminal",
+      "/terminal",
       settingsWindowManagerDesktopIds.focus
     ),
   },
@@ -307,7 +307,7 @@ function tiled(
 }
 
 export const windowManagerLayoutDocumentFixture: WindowManagerLayoutDocumentWire = {
-  version: 4,
+  version: 5,
   workspace_id: storyDefaultWorkspaceId,
   desktops: settingsWindowManagerSnapshotFixture.desktops,
   windows: settingsWindowManagerSnapshotFixture.windows,

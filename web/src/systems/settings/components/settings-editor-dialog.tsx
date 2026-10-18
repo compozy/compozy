@@ -21,8 +21,8 @@ interface SettingsEditorDialogProps {
   mode: EditorMode;
   /** Entity glyph for the header icon well. */
   icon: LucideIcon;
-  /** Domain path above the title, e.g. `System · Vault`. */
-  eyebrow: string;
+  /** Optional domain path above the title; omit when the title names the entity. */
+  eyebrow?: string;
   /** Modal host size from the shared size map. */
   size: DialogShellSize;
   title: string;
@@ -48,7 +48,7 @@ interface SettingsEditorDialogProps {
 }
 
 /**
- * Shared create/edit shell for settings-owned entities (vault secrets, sandbox
+ * Shared create/edit shell for settings-owned entities (vault secrets, provider
  * profiles). Owns the shared header, size-aware dialog host, and footer so
  * each page supplies only its body and copy — no per-page shell forks.
  */

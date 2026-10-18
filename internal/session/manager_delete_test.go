@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -229,7 +230,7 @@ func TestManagerDelete(t *testing.T) {
 	t.Run("Should retain recovered session history until process exit is verified", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		active := seedRecoveredRemoteStop(t, h)
+		active := seedRecoveredUnverifiedStop(t, h)
 		before := readStoredEvents(t, active)
 		if err := h.manager.Delete(testutil.Context(t), active.ID); !errors.Is(err, ErrStopVerificationFailed) {
 			t.Fatalf("delete bypassed unverified recovered process: %v", err)
@@ -913,7 +914,7 @@ func TestManagerDelete(t *testing.T) {
 						if err != nil {
 							t.Fatalf("stageSessionDelete() error = %v", err)
 						}
-						if err := staged.capabilities.Release(); err != nil {
+						if err := errors.Join(staged.capabilities.Release(), staged.attachments.Release()); err != nil {
 							t.Fatalf("release(staged crash simulation) error = %v", err)
 						}
 						if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
@@ -925,6 +926,10 @@ func TestManagerDelete(t *testing.T) {
 							}
 						}
 
+						managerOptions = append(
+							managerOptions,
+							WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))),
+						)
 						recoveryManager := newManagerWithHarness(t, h, managerOptions...)
 						shutdownQueryStoreRuntimeForTest(t, recoveryManager)
 						_, statErr := os.Stat(session.SessionDir())

@@ -12,6 +12,64 @@ function event(data: Record<string, unknown>) {
 }
 
 describe("turn outcomes", () => {
+  // Invariant: returned mutable values cannot corrupt cached facts or later
+  // verified precedence. Owner: pure projection; canonical suite: this file.
+  it("Should isolate cached outcomes from mutations of a previous result", () => {
+    const message = {
+      role: "assistant",
+      content: [
+        event({
+          type: "session.turn_quiesced",
+          turn_id: "turn-a",
+          timestamp: "2026-10-17T12:00:00Z",
+          raw: { scope: "turn", verified: true },
+        }),
+      ],
+    };
+    const first = deriveTurnOutcomes([message]).get("turn-a");
+    if (!first) throw new Error("Expected the verified turn outcome");
+    first.kind = "stopped";
+    first.verified = false;
+    first.endedAtMs = 0;
+
+    const laterMarker = {
+      role: "assistant",
+      content: [event({ type: "session_stopped", turn_id: "turn-a" })],
+    };
+    expect(deriveTurnOutcomes([message, laterMarker]).get("turn-a")).toEqual({
+      turnId: "turn-a",
+      kind: "interrupted",
+      verified: true,
+      endedAtMs: Date.parse("2026-10-17T12:00:00Z"),
+    });
+  });
+
+  // Invariant: immutable content replacements and history removal recompute
+  // the current thread; cached facts never keep a removed or superseded end.
+  // Owning layer: pure turn projection; canonical suite: this file.
+  it("Should follow replaced content and release outcomes removed from the thread", () => {
+    const content = [event({ type: "session_stopped", turn_id: "turn-a" })];
+    const original = { role: "assistant", content };
+    expect(deriveTurnOutcomes([original]).get("turn-a")?.kind).toBe("stopped");
+
+    const replacement = {
+      ...original,
+      content: [
+        event({
+          type: "session.turn_quiesced",
+          turn_id: "turn-b",
+          timestamp: "2026-10-17T12:00:00Z",
+          raw: { scope: "turn", verified: true },
+        }),
+      ],
+    };
+    const outcomes = deriveTurnOutcomes([replacement, original]);
+    expect([...outcomes.keys()]).toEqual(["turn-b", "turn-a"]);
+    expect(deriveTurnOutcomes([replacement]).has("turn-a")).toBe(false);
+    expect(deriveTurnOutcomes([{ role: "user", content }]).size).toBe(0);
+    expect(deriveTurnOutcomes([]).size).toBe(0);
+  });
+
   it("Should read a turn's end from a later projected message and prefer the verified receipt", () => {
     const outcomes = deriveTurnOutcomes([
       {

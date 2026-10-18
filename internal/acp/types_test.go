@@ -9,8 +9,54 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
+
+func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		mode string
+	}{
+		{name: "Should require approval for Codex full access", mode: "agent-full-access"},
+		{name: "Should require approval for Claude bypass permissions", mode: "bypassPermissions"},
+		{name: "Should require approval for YOLO mode", mode: "yolo"},
+		{name: "Should require approval for auto mode", mode: "auto"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			base := StartOpts{
+				AgentName: "codex",
+				Command:   "codex-acp",
+				Cwd:       t.TempDir(),
+				ACPOptions: []SessionConfigOptionSelection{{
+					ID: "mode", ValueID: tc.mode,
+				}},
+			}
+			if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
+				t.Fatalf("Validate() with default permissions = %v, want full-access refusal", err)
+			}
+			if _, err := normalizeStartOpts(
+				base,
+			); err == nil ||
+				!strings.Contains(err.Error(), "requires approve-all") {
+				t.Fatalf("normalizeStartOpts() with default permissions = %v, want full-access refusal", err)
+			}
+			base.Permissions = compozyconfig.PermissionModeApproveReads
+			if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
+				t.Fatalf("Validate() with approve-reads = %v, want full-access refusal", err)
+			}
+			base.Permissions = compozyconfig.PermissionModeApproveAll
+			if err := base.Validate(); err != nil {
+				t.Fatalf("Validate() with approve-all = %v, want success", err)
+			}
+			if _, err := normalizeStartOpts(base); err != nil {
+				t.Fatalf("normalizeStartOpts() with approve-all = %v, want success", err)
+			}
+		})
+	}
+}
 
 func TestAgentEventToolPayloadPreservesValueSemantics(t *testing.T) {
 	t.Parallel()
@@ -514,7 +560,7 @@ func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer proc.endPrompt(active)
-		for i := 0; i <= maxPendingToolResults; i++ {
+		for i := range maxPendingToolResults + 1 {
 			proc.emitPromptEvent(
 				AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-" + strconv.Itoa(i)},
 			)
@@ -611,7 +657,7 @@ func TestPromptMetaValidateSyntheticRequiresWakeupReason(t *testing.T) {
 	}
 }
 
-func TestPromptMetaValidateRejectsSyntheticFieldsOnUserAndNetworkTurns(t *testing.T) {
+func TestPromptMetaValidateRejectsSyntheticFieldsOnUserTurns(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -620,17 +666,9 @@ func TestPromptMetaValidateRejectsSyntheticFieldsOnUserAndNetworkTurns(t *testin
 		want string
 	}{
 		{
-			name: "user",
+			name: "Should reject synthetic fields on user turns",
 			meta: PromptMeta{
 				TurnSource: PromptTurnSourceUser,
-				Synthetic:  &PromptSyntheticMeta{Reason: "wake"},
-			},
-			want: "cannot include network or synthetic fields",
-		},
-		{
-			name: "network",
-			meta: PromptMeta{
-				TurnSource: PromptTurnSourceNetwork,
 				Synthetic:  &PromptSyntheticMeta{Reason: "wake"},
 			},
 			want: "cannot include synthetic fields",

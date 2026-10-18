@@ -4,7 +4,7 @@
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Nia
-- **Journey Step:** J-network-local-default, choose Loop participation on a compact device
+- **Journey Step:** J-01, configure a Loop run on a compact device
 - **Scenarios:** NB-execution-participation-defaults; NB-participation-controls-serialize
 - **Found:** 2026-07-15 · **Report:** docs/qa/reports/2026-07-14-network-changes.md
 
@@ -14,7 +14,7 @@ Below the desktop breakpoint, the Loop run grid allocated only 40 px to a 590 px
 
 ## Reproduction
 
-- **Charter:** CH-network-local-default · **Tour:** Feature Tour
+- **Charter:** retired historical charter · **Tour:** Feature Tour
 - **Environment:** 375 px / isolated daemon-served Web / en-US
 
 1. Open a Loop run page at 375 px.

@@ -19,6 +19,7 @@ import {
   shortcutBindingProblem,
   shortcutKeyGlyphs,
   shortcutMatches,
+  shortcutAriaKeys,
   shortcutLabel,
   SHORTCUT_RANGE_FAMILIES,
   type ShortcutActionDefinition,
@@ -93,6 +94,28 @@ describe("chord grammar [UT-062]", () => {
     expect(shortcutLabel("control+alt+ArrowLeft")).toBe("⌃⌥←");
   });
 
+  it("Should label every named key code with the key it types, never its code name", () => {
+    const cases: Array<[string, string]> = [
+      ["meta+Slash", "⌘/"],
+      ["shift+Backslash", "⇧\\"],
+      ["meta+Comma", "⌘,"],
+      ["meta+Period", "⌘."],
+      ["meta+BracketLeft", "⌘["],
+      ["meta+BracketRight", "⌘]"],
+      ["meta+Quote", "⌘'"],
+      ["meta+Semicolon", "⌘;"],
+      ["meta+Minus", "⌘-"],
+      ["meta+Equal", "⌘="],
+      ["meta+Backquote", "⌘`"],
+      ["meta+Home", "⌘↖"],
+      ["meta+End", "⌘↘"],
+      ["meta+PageUp", "⌘⇞"],
+      ["meta+PageDown", "⌘⇟"],
+    ];
+    for (const [chord, label] of cases) expect(shortcutLabel(chord)).toBe(label);
+    expect(shortcutAriaKeys("meta+Slash")).toBe("Meta+/");
+  });
+
   it("Should reject bare, modifier-only, and unsupported keys", () => {
     expect(chordFromKeyboardEvent(press({ code: "KeyB" }))).toBe(null);
     expect(chordFromKeyboardEvent(press({ code: "ShiftLeft", key: "Shift", shiftKey: true }))).toBe(
@@ -117,6 +140,16 @@ describe("chord grammar [UT-062]", () => {
   it("Should render portable primary chords and compact range glyphs", () => {
     expect(shortcutLabel("meta+shift+KeyP", "control")).toBe("⌃⇧P");
     expect(shortcutLabel("control+Digit1..9")).toBe("⌃1–9");
+  });
+
+  it("Should project chords into aria-keyshortcuts syntax with the portable primary", () => {
+    expect(shortcutAriaKeys("meta+KeyK")).toBe("Meta+K");
+    expect(shortcutAriaKeys("meta+KeyK", "control")).toBe("Control+K");
+    expect(shortcutAriaKeys("meta+control+shift+BracketLeft", "control")).toBe(
+      "Meta+Control+Shift+["
+    );
+    expect(shortcutAriaKeys("alt+Digit3")).toBe("Alt+3");
+    expect(shortcutAriaKeys("KeyK")).toBe("");
   });
 
   it("Should expand range alternates and replace the whole touched family", () => {

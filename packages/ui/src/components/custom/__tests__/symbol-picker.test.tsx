@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { identityColorsFor } from "../../../lib/identity-palette";
 import {
@@ -85,6 +85,15 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.unstubAllGlobals();
+});
+
+beforeEach(() => {
+  // jsdom has no canvas renderer; exercise frimousse's supported no-context path.
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 interface HarnessProps {
@@ -228,6 +237,31 @@ describe("SymbolPicker", () => {
     await user.click(screen.getByRole("button", { name: "Emojis" }));
     expect(await screen.findByLabelText("Search emojis")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Change skin tone" })).toBeInTheDocument();
+  });
+
+  it("Should lay the emoji grid out in as many columns as the pane fits", async () => {
+    // jsdom has no layout: give the shared picker cell and the pane a real size.
+    const offsetWidth = vi
+      .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("size-symbol-picker-cell") ? 28 : 0;
+      });
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.hasAttribute("frimousse-viewport") ? 480 : 0;
+      });
+    try {
+      render(<Harness symbol={{ kind: "emoji", value: "🌱" }} />);
+      await screen.findByLabelText("Search emojis");
+      await waitFor(() => {
+        const list = document.querySelector<HTMLElement>("[frimousse-list]");
+        expect(list?.style.getPropertyValue("--frimousse-list-columns")).toBe("17");
+      });
+    } finally {
+      offsetWidth.mockRestore();
+      clientWidth.mockRestore();
+    }
   });
 
   it("Should surface the emoji empty state with the shared no-results copy", async () => {

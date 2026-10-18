@@ -41,7 +41,6 @@ export function LoopRequestDecisionBar({
           const isSelected = selected === decision;
           return (
             <RadioCard
-              className={isSelected ? undefined : "bg-canvas-tint"}
               data-testid={`loop-request-decision-${decision}`}
               disabled={disabled}
               icon={DECISION_ICON[decision]}

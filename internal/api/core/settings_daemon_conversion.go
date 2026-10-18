@@ -14,7 +14,6 @@ func settingsDaemonPayload(value compozyconfig.DaemonConfig) contract.SettingsDa
 		ReloadTimeouts: contract.SettingsDaemonReloadTimeoutsPayload{
 			Providers: value.ReloadTimeouts.Providers.String(),
 			MCP:       value.ReloadTimeouts.MCP.String(),
-			Bridges:   value.ReloadTimeouts.Bridges.String(),
 		},
 	}
 }

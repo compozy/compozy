@@ -24,9 +24,9 @@ type AppStatusReport struct {
 	AppVersion    string          `json:"app_version,omitempty"`
 	Channel       string          `json:"channel,omitempty"`
 	Running       bool            `json:"running"`
-	PID           int             `json:"pid,omitempty"`
+	PID           int             `json:"pid,omitzero"`
 	State         string          `json:"state,omitempty"`
-	Error         *AppErrorReport `json:"error,omitempty"`
+	Error         *AppErrorReport `json:"error,omitzero"`
 	Runtime       AppRuntimeState `json:"runtime"`
 	Update        AppUpdateState  `json:"update"`
 }
@@ -52,10 +52,10 @@ type AppUpdateState struct {
 	RuntimeState     string          `json:"runtime_state"`
 	RuntimeAvailable string          `json:"runtime_available,omitempty"`
 	LastCheckedAt    string          `json:"last_checked_at,omitempty"`
-	LastError        *AppErrorReport `json:"last_error,omitempty"`
+	LastError        *AppErrorReport `json:"last_error,omitzero"`
 	OperationID      string          `json:"operation_id,omitempty"`
 	Phase            string          `json:"phase,omitempty"`
-	Percent          *int            `json:"percent,omitempty"`
+	Percent          *int            `json:"percent,omitzero"`
 }
 
 type appStateRecord struct {
@@ -65,25 +65,32 @@ type appStateRecord struct {
 	AppVersion       string          `json:"app_version,omitempty"`
 	Channel          string          `json:"channel,omitempty"`
 	State            string          `json:"state"`
-	Owned            bool            `json:"owned,omitempty"`
+	Owned            bool            `json:"owned,omitzero"`
 	Runtime          json.RawMessage `json:"runtime,omitempty"`
-	Error            *AppErrorReport `json:"error,omitempty"`
-	Update           *AppUpdateState `json:"update,omitempty"`
+	Error            *AppErrorReport `json:"error,omitzero"`
+	Update           *AppUpdateState `json:"update,omitzero"`
 	DiagnosticReport json.RawMessage `json:"diagnostic_report"`
 }
 
 const appVersionKey = "app_version"
 
 type appInstallation struct {
-	Installed bool
-	Version   string
+	Installed  bool
+	Version    string
+	Executable string
 }
 
-var (
-	compiledAppStateSchema     *jsonschema.Schema
-	compiledAppStateSchemaErr  error
-	compiledAppStateSchemaOnce sync.Once
-)
+var compiledAppStateSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	var definition any
+	if err := json.Unmarshal(appschema.Definition, &definition); err != nil {
+		return nil, fmt.Errorf("decode canonical schema: %w", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("app-state.schema.json", definition); err != nil {
+		return nil, fmt.Errorf("register canonical schema: %w", err)
+	}
+	return compiler.Compile("app-state.schema.json")
+})
 
 func resolveAppStatus(
 	ctx context.Context,
@@ -138,9 +145,16 @@ func resolveAppStatus(
 			report.Update.RuntimeState = appIdleState
 		}
 	}
-	report.Running, err = appControlRunning(ctx, homePaths, deps)
+	var liveVersion string
+	report.Running, liveVersion, err = appControlPresence(ctx, homePaths, deps)
 	if err != nil {
 		return AppStatusReport{}, err
+	}
+	if report.Running {
+		report.Installed = true
+		if liveVersion != "" {
+			report.AppVersion = liveVersion
+		}
 	}
 	if !report.Running {
 		report.PID = 0
@@ -179,8 +193,7 @@ func overlayAppUpdateOperation(
 		operation,
 	)
 	report.Update.OperationID = projected.Operation.ID
-	percent := projected.Operation.Percent
-	report.Update.Percent = &percent
+	report.Update.Percent = new(projected.Operation.Percent)
 	if phase, ok := compozyupdate.PhaseForUI(
 		projected.Operation.ActiveTarget,
 		projected.Operation.Phase,
@@ -250,21 +263,9 @@ func validateAppStateJSON(raw []byte) error {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("decode JSON: %w", err)
 	}
-	compiledAppStateSchemaOnce.Do(func() {
-		var definition any
-		if err := json.Unmarshal(appschema.Definition, &definition); err != nil {
-			compiledAppStateSchemaErr = fmt.Errorf("decode canonical schema: %w", err)
-			return
-		}
-		compiler := jsonschema.NewCompiler()
-		if err := compiler.AddResource("app-state.schema.json", definition); err != nil {
-			compiledAppStateSchemaErr = fmt.Errorf("register canonical schema: %w", err)
-			return
-		}
-		compiledAppStateSchema, compiledAppStateSchemaErr = compiler.Compile("app-state.schema.json")
-	})
-	if compiledAppStateSchemaErr != nil {
-		return compiledAppStateSchemaErr
+	schema, err := compiledAppStateSchema()
+	if err != nil {
+		return err
 	}
-	return compiledAppStateSchema.Validate(value)
+	return schema.Validate(value)
 }

@@ -27,6 +27,10 @@ An archived profile cannot be selected. If a remembered choice is archived, reso
 `default` and reports `archived_remembered_fallback`. The `daemon`, `doctor`, and `update` command groups
 ignore profile selection because they manage the machine rather than profile-owned work.
 
+HTTP and UDS selection reads (`GET /api/profiles/selection`) keep `profile` set to the effective
+`default` and include `note: "archived_remembered_fallback"` in this case. Unarchiving restores the
+remembered choice; reading the fallback does not overwrite it.
+
 ## Session binding
 
 A session stores the resolved profile when it is created. Changing the remembered choice affects later

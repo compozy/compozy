@@ -124,7 +124,7 @@ func TestServiceStoresEncryptedSecretsAndResolvesRefs(t *testing.T) {
 	t.Run("Should store encrypted vault value and resolve vault and env refs", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := newMemoryVaultStore()
 		now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 		service, err := NewService(
@@ -281,7 +281,7 @@ func TestServiceRejectsUnsupportedAndMissingSecretRefs(t *testing.T) {
 		{
 			name: "Should reject storing env refs",
 			run: func(service *Service) error {
-				_, err := service.PutSecret(context.Background(), "env:OPENROUTER_API_KEY", "api_key", "secret")
+				_, err := service.PutSecret(t.Context(), "env:OPENROUTER_API_KEY", "api_key", "secret")
 				return err
 			},
 			want: ErrUnsupportedSecretRef,
@@ -289,7 +289,7 @@ func TestServiceRejectsUnsupportedAndMissingSecretRefs(t *testing.T) {
 		{
 			name: "Should reject unsupported refs",
 			run: func(service *Service) error {
-				_, err := service.ResolveRef(context.Background(), "file:/tmp/secret")
+				_, err := service.ResolveRef(t.Context(), "file:/tmp/secret")
 				return err
 			},
 			want: ErrUnsupportedSecretRef,
@@ -297,7 +297,7 @@ func TestServiceRejectsUnsupportedAndMissingSecretRefs(t *testing.T) {
 		{
 			name: "Should report missing env refs",
 			run: func(service *Service) error {
-				_, err := service.ResolveRef(context.Background(), "env:MISSING_API_KEY")
+				_, err := service.ResolveRef(t.Context(), "env:MISSING_API_KEY")
 				return err
 			},
 			want: ErrMissingSecret,
@@ -388,11 +388,18 @@ func TestSecretRefValidationSupportsSessionNamespace(t *testing.T) {
 	t.Run("Should reject unsupported vault namespaces", func(t *testing.T) {
 		t.Parallel()
 
-		if err := ValidateSecretRef("vault:unknown/sess-1/github-token"); !errors.Is(err, ErrUnsupportedSecretRef) {
-			t.Fatalf("ValidateSecretRef() error = %v, want ErrUnsupportedSecretRef", err)
-		}
-		if err := ValidateSecretRefPrefix("vault:unknown/sess-1/"); !errors.Is(err, ErrUnsupportedSecretRef) {
-			t.Fatalf("ValidateSecretRefPrefix() error = %v, want ErrUnsupportedSecretRef", err)
+		for _, namespace := range []string{"unknown", "bridges", "sandbox"} {
+			if err := ValidateNamespace(namespace); !errors.Is(err, ErrUnsupportedSecretRef) {
+				t.Fatalf("ValidateNamespace(%q) error = %v, want ErrUnsupportedSecretRef", namespace, err)
+			}
+			ref := "vault:" + namespace + "/owner/token"
+			if err := ValidateSecretRef(ref); !errors.Is(err, ErrUnsupportedSecretRef) {
+				t.Fatalf("ValidateSecretRef(%q) error = %v, want ErrUnsupportedSecretRef", ref, err)
+			}
+			prefix := "vault:" + namespace + "/owner/"
+			if err := ValidateSecretRefPrefix(prefix); !errors.Is(err, ErrUnsupportedSecretRef) {
+				t.Fatalf("ValidateSecretRefPrefix(%q) error = %v, want ErrUnsupportedSecretRef", prefix, err)
+			}
 		}
 	})
 }

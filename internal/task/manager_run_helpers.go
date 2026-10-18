@@ -10,9 +10,7 @@ import (
 func nextRunAttempt(runs []Run) int {
 	maxAttempt := 0
 	for _, run := range runs {
-		if int(run.Attempt) > maxAttempt {
-			maxAttempt = int(run.Attempt)
-		}
+		maxAttempt = max(maxAttempt, int(run.Attempt))
 	}
 	return maxAttempt + 1
 }

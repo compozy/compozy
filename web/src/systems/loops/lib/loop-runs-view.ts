@@ -1,11 +1,11 @@
-import type { PillTone } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import type { LoopRun, LoopRunStatus } from "../types";
 import {
   isLiveLoopRun,
   isLoopRunStatus,
   loopStatusLabel,
-  loopStatusSignal,
+  loopStatusGlyph,
 } from "./loop-formatters";
 
 /** The runs roster's client-side outcome filter: `all` or one daemon run status. */
@@ -30,8 +30,9 @@ export type LoopRunGroupId = "needs-you" | "active" | "recent";
 export interface LoopRunRow {
   run: LoopRun;
   statusLabel: string;
-  statusTone: PillTone;
-  statusPulse: boolean;
+  statusGlyph: StateGlyphState;
+  /** Imported history never animates, even when its recorded status was live. */
+  statusStill: boolean;
   needsYou: boolean;
   /** A sentence that adds something the status pill has not already said. */
   summaryLine: string | null;
@@ -130,14 +131,13 @@ function progressLabel(run: LoopRun): string {
 
 function buildRow(run: LoopRun): LoopRunRow {
   const needsYou = !run.historical && Boolean(run.attention);
-  const signal = loopStatusSignal(run.status);
   return {
     run,
     // A run that needs a person leads with that fact, not with the mechanism
     // that produced it.
     statusLabel: needsYou ? "Needs you" : loopStatusLabel(run.status),
-    statusTone: needsYou ? "warning" : signal.tone,
-    statusPulse: run.historical || needsYou ? false : signal.pulse,
+    statusGlyph: needsYou ? "attention" : loopStatusGlyph(run.status),
+    statusStill: run.historical,
     needsYou,
     summaryLine: summaryLine(run),
     progressLabel: progressLabel(run),
@@ -146,7 +146,8 @@ function buildRow(run: LoopRun): LoopRunRow {
 
 export function buildRunsRoster(
   runs: readonly LoopRun[],
-  outcome: LoopOutcomeValue = "all"
+  outcome: LoopOutcomeValue = "all",
+  hasActiveFilters = outcome !== "all"
 ): LoopRunsRosterModel {
   const filtered = outcome === "all" ? runs : runs.filter(run => run.status === outcome);
   const buckets = new Map<LoopRunGroupId, LoopRunRow[]>();
@@ -169,12 +170,11 @@ export function buildRunsRoster(
     emptyState:
       filtered.length === 0
         ? {
-            title: outcome === "all" ? "No runs yet" : "No runs match this filter",
-            body:
-              outcome === "all"
-                ? "Start a loop from the catalog and its runs will collect here."
-                : "Clear the filter to see the rest of this workspace's runs.",
-            actionLabel: outcome === "all" ? "Browse loops" : "Clear filter",
+            title: hasActiveFilters ? "No runs match this filter" : "No runs yet",
+            body: hasActiveFilters
+              ? "Clear the filter to see the rest of this workspace's runs."
+              : "Start a loop from the catalog and its runs will collect here.",
+            actionLabel: hasActiveFilters ? "Clear filter" : "Browse loops",
           }
         : null,
   };
@@ -195,9 +195,37 @@ export function formatTokenCount(tokens: number): string {
   return String(Math.round(tokens));
 }
 
+const ORIGIN_KIND_LABELS: Record<string, string> = {
+  manual: "Started by you",
+  user: "Started by you",
+  operator: "Started by you",
+  cli: "Command line",
+  http: "API",
+  uds: "Local call",
+  native_tool: "An agent",
+  agent: "An agent",
+  schedule: "Scheduled",
+  webhook: "Triggered",
+  trigger: "Triggered",
+  event: "Triggered",
+  session: "From a session",
+};
+
+/** Machine ids (`sess_01J…`, `looprun-8f3a…`) are not names; they stay off the line. */
+const MACHINE_REF = /^[a-z]+[_-][A-Za-z0-9_-]{6,}$/;
+
+function originPart(kind: string, ref: string): string {
+  const label = ORIGIN_KIND_LABELS[kind] ?? kind;
+  const showRef = ref !== "" && kind !== "session" && !MACHINE_REF.test(ref);
+  if (!label) return showRef ? ref : "";
+  return showRef ? `${label} · ${ref}` : label;
+}
+
 /**
- * Where a run came from (`schedule · nightly`, `cli · pedro`), read from the origin
- * the daemon recorded. Falls back to the em dash rather than guessing a starter.
+ * Where a run came from (`Scheduled · nightly`, `Started by you · pedro`), read
+ * from the origin the daemon recorded and put in plain words. Machine ids stay
+ * off the line; the raw pair lives on the run page. Falls back to the em dash
+ * rather than guessing a starter.
  */
 export function loopRunOriginLine(
   run: Pick<
@@ -207,11 +235,13 @@ export function loopRunOriginLine(
 ): string {
   const originKind = run.started_origin_kind || "";
   const originRef = run.started_origin_ref || "";
-  if (originKind && originRef) return `${originKind} · ${originRef}`;
+  if (originKind && originRef) return originPart(originKind, originRef);
   const actorKind = run.started_by_kind || "";
   const actorRef = run.started_by_ref || "";
-  if (actorKind && actorRef) return `${actorKind} · ${actorRef}`;
-  return originKind || originRef || actorKind || actorRef || "—";
+  if (actorKind && actorRef) return originPart(actorKind, actorRef);
+  if (originKind) return originPart(originKind, "");
+  if (actorKind) return originPart(actorKind, "");
+  return originRef || actorRef || "—";
 }
 
 /** `generation / cap` label for a run row (`2 / 50`, `5 / ∞`). */

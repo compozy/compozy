@@ -13,7 +13,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 func advanceRestartOperation(
@@ -173,7 +173,7 @@ func (d *Daemon) restartRequestRuntime() (restartRequestRuntime, error) {
 
 func (r restartRequestRuntime) newOperation() RestartOperation {
 	return RestartOperation{
-		OperationID:        uuid.NewString(),
+		OperationID:        uuid.NewV4().String(),
 		Status:             RestartStatusPending,
 		OldPID:             r.pid,
 		OldStartedAt:       r.startedAt,

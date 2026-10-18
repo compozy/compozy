@@ -2,7 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -56,11 +57,7 @@ func formatLoopLifecycleSources(sources map[string]string) string {
 }
 
 func formatLoopConfigSources(sources map[string]string) string {
-	keys := make([]string, 0, len(sources))
-	for key := range sources {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(sources))
 	items := make([]string, 0, len(keys))
 	for _, key := range keys {
 		items = append(items, key+"="+sources[key])

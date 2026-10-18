@@ -20,24 +20,25 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
+		cwd     string
 		request WorkspaceCreateRequest
 	}{
 		{
-			name: "minimal",
+			name: "Should build a minimal absolute request",
 			args: []string{"workspace", "add", "/workspace/project", "-o", "json"},
 			request: WorkspaceCreateRequest{
 				RootDir: "/workspace/project",
 			},
 		},
 		{
-			name: "with optional flags",
+			name: "Should preserve optional flags",
 			args: []string{
 				"workspace", "add", "/workspace/project",
 				"--name", "alpha",
 				"--add-dir", "/workspace/shared-a",
 				"--add-dir", "/workspace/shared-b",
 				"--default-agent", "coder",
-				"--sandbox", "daytona-dev",
+
 				"-o", "json",
 			},
 			request: WorkspaceCreateRequest{
@@ -45,7 +46,22 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 				Name:         "alpha",
 				AddDirs:      []string{"/workspace/shared-a", "/workspace/shared-b"},
 				DefaultAgent: "coder",
-				SandboxRef:   "daytona-dev",
+			},
+		},
+		{
+			name: "Should resolve the current directory before registration",
+			args: []string{"workspace", "add", ".", "-o", "json"},
+			cwd:  "/workspace/project",
+			request: WorkspaceCreateRequest{
+				RootDir: "/workspace/project",
+			},
+		},
+		{
+			name: "Should resolve a relative folder against the invoking directory",
+			args: []string{"workspace", "add", "../project", "-o", "json"},
+			cwd:  "/workspace/sibling",
+			request: WorkspaceCreateRequest{
+				RootDir: "/workspace/project",
 			},
 		},
 	}
@@ -57,8 +73,7 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 			deps := newTestDeps(t, &stubClient{
 				createWorkspaceFn: func(_ context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error) {
 					if request.RootDir != tt.request.RootDir || request.Name != tt.request.Name ||
-						request.DefaultAgent != tt.request.DefaultAgent ||
-						request.SandboxRef != tt.request.SandboxRef {
+						request.DefaultAgent != tt.request.DefaultAgent {
 						t.Fatalf("CreateWorkspace() request = %#v, want %#v", request, tt.request)
 					}
 					if strings.Join(request.AddDirs, ",") != strings.Join(tt.request.AddDirs, ",") {
@@ -70,12 +85,15 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 						AddDirs:      request.AddDirs,
 						Name:         firstNonEmpty(request.Name, "alpha"),
 						DefaultAgent: request.DefaultAgent,
-						SandboxRef:   request.SandboxRef,
-						CreatedAt:    fixedTestNow,
-						UpdatedAt:    fixedTestNow,
+
+						CreatedAt: fixedTestNow,
+						UpdatedAt: fixedTestNow,
 					}, nil
 				},
 			})
+			if tt.cwd != "" {
+				deps.getwd = func() (string, error) { return tt.cwd, nil }
+			}
 
 			stdout, _, err := executeRootCommand(t, deps, tt.args...)
 			if err != nil {
@@ -91,6 +109,28 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should refuse registration when the invoking directory cannot be resolved", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{
+			createWorkspaceFn: func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error) {
+				called = true
+				return WorkspaceRecord{}, nil
+			},
+		})
+		wantErr := errors.New("working directory unavailable")
+		deps.getwd = func() (string, error) { return "", wantErr }
+
+		_, _, err := executeRootCommand(t, deps, "workspace", "add", ".", "--json")
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("workspace add error = %v, want %v", err, wantErr)
+		}
+		if called {
+			t.Fatal("CreateWorkspace called without a resolved invoking directory")
+		}
+	})
 }
 
 func TestWorkspaceEditBuildsRequest(t *testing.T) {
@@ -124,9 +164,9 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 					AddDirs:      derefStringSlice(request.AddDirs),
 					Name:         derefString(request.Name),
 					DefaultAgent: derefString(request.DefaultAgent),
-					SandboxRef:   derefString(request.SandboxRef),
-					CreatedAt:    fixedTestNow,
-					UpdatedAt:    fixedTestNow,
+
+					CreatedAt: fixedTestNow,
+					UpdatedAt: fixedTestNow,
 				}, nil
 			},
 		})
@@ -137,7 +177,7 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 			"--add-dir", "/workspace/shared-c",
 			"--remove-dir", "/workspace/shared-a",
 			"--default-agent", "reviewer",
-			"--sandbox", "local-dev",
+
 			"-o", "json",
 		)
 		if err != nil {
@@ -155,9 +195,6 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 		}
 		if seenRequest.DefaultAgent == nil || *seenRequest.DefaultAgent != "reviewer" {
 			t.Fatalf("UpdateWorkspace() DefaultAgent = %#v, want reviewer", seenRequest.DefaultAgent)
-		}
-		if seenRequest.SandboxRef == nil || *seenRequest.SandboxRef != "local-dev" {
-			t.Fatalf("UpdateWorkspace() SandboxRef = %#v, want local-dev", seenRequest.SandboxRef)
 		}
 
 		var decoded WorkspaceRecord
@@ -653,7 +690,7 @@ func TestWorkspaceOutputFormats(t *testing.T) {
 		}
 		if !strings.Contains(
 			listToon,
-			"workspaces[1]{id,name,root_dir,add_dir_count,default_agent,sandbox_ref,updated_at}:",
+			"workspaces[1]{id,name,root_dir,add_dir_count,default_agent,updated_at}:",
 		) {
 			t.Fatalf("list toon output = %q, want TOON header", listToon)
 		}
@@ -725,9 +762,6 @@ func assertWorkspaceFlags(t *testing.T, cmd *cobra.Command, flags *pflag.FlagSet
 		case "workspace-id", "scope-id":
 			t.Errorf("%s exposes removed --%s alias", cmd.CommandPath(), flag.Name)
 		case "workspace":
-			if !strings.HasPrefix(flag.Usage, "Override ") {
-				t.Errorf("%s --workspace help = %q, want Override prefix", cmd.CommandPath(), flag.Usage)
-			}
 			if _, required := flag.Annotations[cobra.BashCompOneRequiredFlag]; required {
 				t.Errorf("%s marks --workspace required; workspace context must use inference", cmd.CommandPath())
 			}

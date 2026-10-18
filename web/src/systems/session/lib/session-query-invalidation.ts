@@ -50,3 +50,21 @@ export async function invalidateSessionLiveQueries(
     invalidateWorkspaceSessionCatalog(queryClient, workspaceId),
   ]);
 }
+
+/** The context rail's reads: the usage reading and its per-turn compaction markers. */
+export async function invalidateSessionUsageQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  sessionId: string
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: sessionKeys.usage(workspaceId, sessionId),
+      exact: true,
+    }),
+    queryClient.invalidateQueries({
+      queryKey: sessionKeys.usageTurns(workspaceId, sessionId),
+      exact: true,
+    }),
+  ]);
+}

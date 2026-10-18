@@ -76,6 +76,11 @@ type LaunchConfig struct {
 	// HealthFailureThreshold overrides the consecutive probe failures needed to mark the process unhealthy.
 	HealthFailureThreshold int
 
+	// Niceness lowers the CPU scheduling priority of the launched process group
+	// on Unix so descendants inherit it; zero leaves the priority unchanged.
+	// Failure to apply it is logged and never fails the launch.
+	Niceness int
+
 	// ProcessRegistry checkpoints ownership for long-running subprocesses.
 	ProcessRegistry *toolruntime.Registry
 	ProcessRecord   toolruntime.RegisterConfig
@@ -165,6 +170,7 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 		shutdownReason:  cfg.defaultShutdownReason(),
 		healthThreshold: runtime.healthThreshold,
 	}
+	applyLaunchNiceness(runtime.logger, process.PID(), cfg.Niceness)
 	if cfg.ProcessRegistry != nil {
 		recordCfg := cfg.ProcessRecord
 		if recordCfg.Source == "" {

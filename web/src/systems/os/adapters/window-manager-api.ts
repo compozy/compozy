@@ -1,4 +1,5 @@
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
+import { z } from "zod";
 
 import {
   parseWindowManagerCommandResult,
@@ -26,6 +27,15 @@ export class WindowManagerApiError extends Error {
     this.name = "WindowManagerApiError";
   }
 }
+
+// Profile scope can refuse the request before the window-manager handler runs.
+const profileErrorSchema = z.object({
+  error: z.object({
+    code: z.string().startsWith("profile_"),
+    message: z.string(),
+    action: z.string(),
+  }),
+});
 
 function managerPath(workspaceId: string): string {
   const normalized = workspaceId.trim();
@@ -66,9 +76,22 @@ async function responseJson(response: Response): Promise<unknown> {
   }
 }
 
-async function requireSuccess(response: Response): Promise<unknown> {
+async function requireSuccess(response: Response, workspaceId: string): Promise<unknown> {
   const body = await responseJson(response);
   if (response.ok) return body;
+
+  const profileError = profileErrorSchema.safeParse(body);
+  if (profileError.success) {
+    const { message, code, action } = profileError.data.error;
+    throw new WindowManagerApiError(message, response.status, {
+      error: message,
+      code,
+      workspaceId,
+      currentRevision: null,
+      conflicts: [],
+      diagnostics: [{ code, path: null, message: `${message} ${action}` }],
+    });
+  }
 
   const parsed = parseWindowManagerError(body);
   throw new WindowManagerApiError(parsed.error, response.status, parsed);
@@ -90,7 +113,7 @@ export async function fetchWindowManagerSnapshot(
   const response = await runtimeFetch(`${apiBaseUrl}${managerUrl(workspaceId, profile)}`, {
     signal,
   });
-  return parseWindowManagerSnapshot(await requireSuccess(response));
+  return parseWindowManagerSnapshot(await requireSuccess(response, workspaceId));
 }
 
 export async function registerWindowManagerClient(
@@ -117,7 +140,7 @@ export async function registerWindowManagerClient(
       method: "POST",
     }
   );
-  return parseWindowManagerRegisteredClientView(await requireSuccess(response));
+  return parseWindowManagerRegisteredClientView(await requireSuccess(response, workspaceId));
 }
 
 export async function unregisterWindowManagerClient(
@@ -131,7 +154,7 @@ export async function unregisterWindowManagerClient(
     { method: "DELETE", signal }
   );
   if (response.status === 204) return;
-  await requireSuccess(response);
+  await requireSuccess(response, workspaceId);
 }
 
 function commandBody(
@@ -179,7 +202,7 @@ export async function executeWindowManagerCommand(
       method: "POST",
     }
   );
-  return parseWindowManagerCommandResult(await requireSuccess(response));
+  return parseWindowManagerCommandResult(await requireSuccess(response, workspaceId));
 }
 
 export function buildWindowManagerStreamUrl(

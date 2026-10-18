@@ -241,8 +241,8 @@ func (s *session) StopRecording(ctx context.Context, actor Actor) (RecordingRef,
 }
 
 func isRecordingNotActive(err error) bool {
-	var terminalErr *Error
-	return errors.As(err, &terminalErr) && terminalErr.Code == "recording_not_active"
+	terminalErr, ok := errors.AsType[*Error](err)
+	return ok && terminalErr.Code == "recording_not_active"
 }
 
 func (s *session) runningGate() error {

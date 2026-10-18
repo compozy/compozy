@@ -59,13 +59,13 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 			},
 			{
 				name:      "Should emit the network-confirmed projection",
-				eventType: eventspkg.ExtensionNetworkConfirmed,
+				eventType: eventspkg.ExtensionGatewayConfirmed,
 				emit: func(service *daemonExtensionService, actor taskpkg.ActorContext) error {
-					return service.recordExtensionNetworkConfirmedEvent(
+					return service.recordExtensionGatewayConfirmedEvent(
 						t.Context(),
 						actor,
 						extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "ws-1"},
-						extensionpkg.NetworkConfirmation{Digest: "digest-1", ConfirmedBy: "operator"},
+						extensionpkg.GatewayConfirmation{Digest: "digest-1", ConfirmedBy: "operator"},
 					)
 				},
 				want: map[string]any{
@@ -169,7 +169,7 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		confirmation := &extensionpkg.NetworkConfirmation{Digest: "digest-1", ConfirmedBy: "operator"}
+		confirmation := &extensionpkg.GatewayConfirmation{Digest: "digest-1", ConfirmedBy: "operator"}
 		result := contract.ExtensionEnableResult{
 			Extension: contract.ExtensionPayload{Name: "kit"}, AutomationStarted: []string{"kit/job"},
 		}
@@ -182,9 +182,9 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 			t.Fatalf("event writes = batch:%d single:%d, want one atomic batch", writer.batchCalls, writer.writeCalls)
 		}
 		got := writer.snapshot()
-		if len(got) != 2 || got[0].Type != eventspkg.ExtensionNetworkConfirmed ||
+		if len(got) != 2 || got[0].Type != eventspkg.ExtensionGatewayConfirmed ||
 			got[1].Type != eventspkg.ExtensionEnabled {
-			t.Fatalf("event batch = %#v, want network confirmation then enable completion", got)
+			t.Fatalf("event batch = %#v, want gateway confirmation then enable completion", got)
 		}
 	})
 

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/e2elane"
@@ -31,7 +30,6 @@ func Test() error {
 	)
 	testArgs = append(testArgs,
 		"-p", goUnitTestPackageLimit(),
-		"-parallel="+strconv.Itoa(goUnitTestParallelism),
 		"-timeout", goUnitTestTimeout,
 	)
 	for index, invocation := range invocations {

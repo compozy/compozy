@@ -22,7 +22,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -33,6 +32,8 @@ import (
 )
 
 func TestNewHonorsOptionsAndDefaults(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := gin.New()
 	startedAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
@@ -40,10 +41,8 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	customLoader := func(name string, _ compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
 		return compozyconfig.AgentDef{Name: name, Provider: "fake", Prompt: "hello"}, nil
 	}
-	store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
-	dream := &stubDreamTrigger{}
 	extensionService := &stubExtensionService{}
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -60,8 +59,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
-		WithMemoryStore(store),
-		WithDreamTrigger(dream),
 		WithAgentLoader(customLoader),
 		WithExtensionService(extensionService),
 		WithEngine(engine),
@@ -86,12 +83,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	}
 	if server.handlers.AgentLoader == nil {
 		t.Fatal("expected custom agent loader to be installed")
-	}
-	if server.handlers.MemoryStore != store {
-		t.Fatal("expected memory store option to be installed")
-	}
-	if server.handlers.DreamTrigger != dream {
-		t.Fatal("expected dream trigger option to be installed")
 	}
 	if server.handlers.Extensions != extensionService {
 		t.Fatal("expected extension service option to be installed")
@@ -131,6 +122,8 @@ func TestNewWithHomePathsRealignsDefaultConfig(t *testing.T) {
 }
 
 func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 
 	if _, err := New(WithHomePaths(homePaths), WithObserver(stubObserver{})); err == nil {
@@ -269,8 +262,10 @@ func TestNewRejectsResourceAuthWithoutResourceService(t *testing.T) {
 }
 
 func TestServerStartAndShutdownServeRequests(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -293,12 +288,12 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		mustURL(cfg.HTTP.Host, server.Port(), "/api/status"),
 		http.NoBody,
@@ -321,14 +316,14 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
 	req, err = http.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		mustURL(cfg.HTTP.Host, server.Port(), "/api/status"),
 		http.NoBody,
@@ -348,8 +343,10 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 }
 
 func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -367,13 +364,13 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
 		shutdownServerForTest(t, server)
 	}()
-	if err := server.Start(context.Background()); err == nil {
+	if err := server.Start(t.Context()); err == nil {
 		t.Fatal("Start(second) error = nil, want non-nil")
 	}
 }
@@ -485,7 +482,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		firstShutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelShutdown()
 			firstShutdownDone <- server.Shutdown(shutdownCtx)
 		}()
@@ -493,7 +490,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		secondShutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelShutdown()
 			secondShutdownDone <- server.Shutdown(shutdownCtx)
 		}()
@@ -518,12 +515,9 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		entered := make(chan struct{}, 1)
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		releaseRequest := func() {
-			releaseOnce.Do(func() {
-				close(release)
-			})
-		}
+		releaseRequest := sync.OnceFunc(func() {
+			close(release)
+		})
 		server := newLifecycleServer(t, entered, release)
 		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
@@ -543,7 +537,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 		shutdownStarted := registerServerShutdownSignal(t, server)
 		shutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelShutdown()
 			shutdownDone <- server.Shutdown(shutdownCtx)
 		}()
@@ -582,12 +576,9 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		entered := make(chan struct{}, 1)
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		releaseRequest := func() {
-			releaseOnce.Do(func() {
-				close(release)
-			})
-		}
+		releaseRequest := sync.OnceFunc(func() {
+			close(release)
+		})
 		server := newLifecycleServer(t, entered, release)
 		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
@@ -616,7 +607,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		secondShutdownDone := make(chan error, 1)
 		go func() {
-			secondCtx, cancelSecond := context.WithTimeout(context.Background(), 2*time.Second)
+			secondCtx, cancelSecond := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelSecond()
 			secondShutdownDone <- server.Shutdown(secondCtx)
 		}()
@@ -644,7 +635,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -690,7 +681,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -843,7 +834,7 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -863,7 +854,7 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -935,7 +926,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -958,7 +949,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -988,7 +979,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "0.0.0.0"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -1037,7 +1028,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -1154,6 +1145,12 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			body:   []byte(`{}`),
 		},
 		{
+			name:   "Should block pending approval decisions",
+			method: http.MethodPost,
+			path:   "/api/tools/approvals/approval-1/resolve",
+			body:   []byte(`{"decision":"approved"}`),
+		},
+		{
 			name:   "Should block tool invocation",
 			method: http.MethodPost,
 			path:   "/api/tools/compozy__skill_view/invoke",
@@ -1194,11 +1191,11 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 func TestWaitForServeDone(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
-	if err := waitForServeDone(context.Background(), done); err != nil {
+	if err := waitForServeDone(t.Context(), done); err != nil {
 		t.Fatalf("waitForServeDone(done) error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 	if err := waitForServeDone(ctx, make(chan struct{})); err == nil {
 		t.Fatal("waitForServeDone(timeout) error = nil, want non-nil")
@@ -1212,7 +1209,7 @@ func doServerRequest(t *testing.T, client *http.Client, method, url string, body
 	if len(body) > 0 {
 		reader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(context.Background(), method, url, reader)
+	req, err := http.NewRequestWithContext(t.Context(), method, url, reader)
 	if err != nil {
 		t.Fatalf("http.NewRequestWithContext() error = %v", err)
 	}
@@ -1237,9 +1234,11 @@ func decodeServerJSON(t *testing.T, resp *http.Response, dest any) {
 }
 
 func TestServerStartReportsListenFailure(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	port := freeTCPPort(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = port
 
@@ -1257,7 +1256,7 @@ func TestServerStartReportsListenFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first New() error = %v", err)
 	}
-	if err := first.Start(context.Background()); err != nil {
+	if err := first.Start(t.Context()); err != nil {
 		t.Fatalf("first Start() error = %v", err)
 	}
 	defer func() {
@@ -1278,14 +1277,14 @@ func TestServerStartReportsListenFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second New() error = %v", err)
 	}
-	if err := second.Start(context.Background()); err == nil {
+	if err := second.Start(t.Context()); err == nil {
 		t.Fatal("second Start() error = nil, want non-nil")
 	}
 }
 
 func TestShutdownNilServerIsSafe(t *testing.T) {
 	var server *Server
-	if err := server.Shutdown(context.Background()); err != nil {
+	if err := server.Shutdown(t.Context()); err != nil {
 		t.Fatalf("Shutdown(nil) error = %v", err)
 	}
 }
@@ -1397,7 +1396,7 @@ func newWindowManagerLifecycleServer(t *testing.T) *Server {
 	})
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	server, err := New(
 		WithHomePaths(homePaths),
@@ -1467,7 +1466,7 @@ func newLifecycleServer(t *testing.T, entered chan<- struct{}, release <-chan st
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	engine := gin.New()
@@ -1563,12 +1562,7 @@ func registerServerShutdownSignal(t *testing.T, server *Server) <-chan struct{} 
 		t.Fatal("HTTP server was not initialized")
 	}
 	started := make(chan struct{})
-	var once sync.Once
-	generation.httpServer.RegisterOnShutdown(func() {
-		once.Do(func() {
-			close(started)
-		})
-	})
+	generation.httpServer.RegisterOnShutdown(sync.OnceFunc(func() { close(started) }))
 	return started
 }
 

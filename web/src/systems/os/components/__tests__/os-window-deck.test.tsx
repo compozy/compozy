@@ -129,7 +129,7 @@ let deck: OsWindowDeckModel;
 beforeEach(() => {
   windows = {
     "window:tasks": windowFixture("window:tasks"),
-    "window:catalog": windowFixture("window:catalog", { app: "jobs" }),
+    "window:catalog": windowFixture("window:catalog", { app: "automations" }),
   };
   deck = deckModel();
   vi.mocked(useDesktop).mockImplementation(selector =>
@@ -238,7 +238,10 @@ describe("OsWindowDeck", () => {
   });
 
   it("Should keep bulk-close controls disabled when every eligible peer is pinned (UT-088)", async () => {
-    windows["window:catalog"] = windowFixture("window:catalog", { app: "jobs", pinned: true });
+    windows["window:catalog"] = windowFixture("window:catalog", {
+      app: "automations",
+      pinned: true,
+    });
     renderDeck();
 
     fireEvent.contextMenu(screen.getByTestId("os-window-tab-menu-window:tasks"));
@@ -284,11 +287,13 @@ describe("OsWindowDeck", () => {
     const view = renderDeck(frame);
 
     const sessionTab = screen.getByTestId("os-window-tab-window:session");
+    // needs-input shares the attention glyph; its accessible name keeps the distinction.
     expect(within(sessionTab).getByRole("img", { name: "Session needs input" })).toHaveAttribute(
       "data-state",
-      "needs-input"
+      "attention"
     );
-    expect(within(sessionTab).getByText("1")).toHaveAttribute("data-slot", "os-window-tab-badge");
+    // The state dot alone carries needs-input; no second hard-coded count badge.
+    expect(within(sessionTab).queryByText("1")).toBeNull();
     expect(screen.getByTestId("os-window-tab-window:tasks")).not.toHaveClass("text-accent");
 
     deck = deckModel({
@@ -316,10 +321,53 @@ describe("OsWindowDeck", () => {
     expect(within(screen.getByTestId("os-window-tab-window:session")).queryByText("1")).toBeNull();
   });
 
+  it("Should count a session's pending decisions on its tab and omit the count at zero", () => {
+    const pending = (id: string, status: string) => ({
+      interaction_id: id,
+      kind: "permission",
+      provider_request_id: `req-${id}`,
+      status,
+      created_at: "2026-07-20T12:00:00Z",
+      title: "Run bun test",
+    });
+    windows = {
+      "window:session": windowFixture("window:session", {
+        app: "session",
+        instanceKey: "session:review",
+      }),
+      "window:tasks": windowFixture("window:tasks"),
+    };
+    deck = deckModel({
+      sessionById: new Map([
+        [
+          "session:review",
+          sessionFixture({
+            pending_interactions: [
+              pending("a", "pending"),
+              pending("b", "pending"),
+              pending("c", "resolved"),
+            ],
+          }),
+        ],
+      ]),
+    });
+    renderDeck(
+      frameFixture({ members: ["window:session", "window:tasks"], activeWindowId: "window:tasks" })
+    );
+
+    const sessionTab = screen.getByTestId("os-window-tab-window:session");
+    expect(sessionTab.querySelector('[data-slot="os-window-tab-count"]')).toHaveTextContent("2");
+    expect(
+      screen
+        .getByTestId("os-window-tab-window:tasks")
+        .querySelector('[data-slot="os-window-tab-count"]')
+    ).toBeNull();
+  });
+
   it("Should render independently addressable deck rows for separate tiled panes (UT-102)", () => {
     const secondaryMembers = ["window:catalog", "window:jobs"];
     windows["window:jobs"] = windowFixture("window:jobs", {
-      app: "jobs",
+      app: "automations",
       stackId: "stack:secondary",
     });
     render(

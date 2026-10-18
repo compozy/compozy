@@ -13,19 +13,14 @@ import (
 )
 
 const (
-	hostAPIAutomationJobsPath              = "automation/jobs"
-	hostAPIAutomationJobsCreatePath        = "automation/jobs/create"
-	hostAPIBridgesInstancesListPath        = "bridges/instances/list"
-	hostAPIBridgesInstancesReportStatePath = "bridges/instances/report_state"
-	hostAPIMemoryForgetPath                = "memory/forget"
-	hostAPIMemoryRecallPath                = "memory/recall"
-	hostAPIListLogsPath                    = "logs/list"
-	hostAPIResourcesListPath               = "resources/list"
-	hostAPIResourcesSnapshotPath           = "resources/snapshot"
-	hostAPISandboxExecPath                 = "sandbox/exec"
-	hostAPISessionsCreatePath              = "sessions/create"
-	hostAPISessionsEventsPath              = "sessions/events"
-	hostAPISkillsListPath                  = "skills/list"
+	hostAPIAutomationJobsPath       = "automation/jobs"
+	hostAPIAutomationJobsCreatePath = "automation/jobs/create"
+	hostAPIListLogsPath             = "logs/list"
+	hostAPIResourcesListPath        = "resources/list"
+	hostAPIResourcesSnapshotPath    = "resources/snapshot"
+	hostAPISessionsCreatePath       = "sessions/create"
+	hostAPISessionsEventsPath       = "sessions/events"
+	hostAPISkillsListPath           = "skills/list"
 )
 
 const (
@@ -44,30 +39,18 @@ const (
 	capabilityAutomationTriggersGetPath    = "automation/triggers/get"
 	capabilityAutomationTriggersRunsPath   = "automation/triggers/runs"
 	capabilityAutomationTriggersUpdatePath = "automation/triggers/update"
-	capabilityBridgeReadPath               = "bridge.read"
-	capabilityBridgeWritePath              = "bridge.write"
-	capabilityBridgesInstancesGetPath      = "bridges/instances/get"
-	capabilityBridgesMessagesIngestPath    = "bridges/messages/ingest"
 	capabilityBundledKey                   = "bundled"
 	capabilityHeartbeatReadPath            = "heartbeat.read"
 	capabilityHeartbeatWritePath           = "heartbeat.write"
 	capabilityLogsReadPath                 = "logs.read"
-	capabilityMemoryReadPath               = "memory.read"
-	capabilityMemoryWritePath              = "memory.write"
-	capabilityMemoryStorePath              = "memory/store"
 	capabilityModelReadPath                = "model.read"
 	capabilityModelWritePath               = "model.write"
 	capabilityModelsStatusPath             = "models/status"
-	capabilityNetworkReadPath              = "network.read"
-	capabilityNetworkWritePath             = "network.write"
 	capabilityObserveReadPath              = "observe.read"
 	capabilityObserveHealthPath            = "observe/health"
 	capabilityResourceReadPath             = "resources.read"
 	capabilityResourceWritePath            = "resources.write"
 	capabilityResourcesGetPath             = "resources/get"
-	capabilitySandboxExecPath              = "sandbox.exec"
-	capabilitySandboxInfoPath              = "sandbox/info"
-	capabilitySandboxListPath              = "sandbox/list"
 	capabilitySessionReadPath              = "session.read"
 	capabilitySessionWritePath             = "session.write"
 	capabilitySessionsListPath             = "sessions/list"
@@ -107,7 +90,6 @@ const (
 
 var (
 	marketplaceConsentCeiling = []string{
-		capabilityMemoryReadPath,
 		capabilityLogsReadPath,
 		capabilityObserveReadPath,
 		capabilitySessionReadPath,

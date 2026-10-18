@@ -1,5 +1,3 @@
-import { Archive, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
-
 import {
   Button,
   DropdownMenu,
@@ -12,12 +10,8 @@ import {
 
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
-import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
-
-function isStopEligible(session: SessionPayload): boolean {
-  return session.state === "active" || session.state === "starting";
-}
+import { useSessionRowMenuItems } from "../hooks/use-session-row-menu-items";
 
 export interface SessionRowActionsProps {
   session: SessionPayload;
@@ -27,9 +21,9 @@ export interface SessionRowActionsProps {
 /** State-gated lifecycle menu shared by every session list row. */
 export function SessionRowActions({ session, actions }: SessionRowActionsProps) {
   const pending = actions.pendingSessionId === session.id ? actions.pendingAction : null;
-  const isArchived = session.archived_at !== null;
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
+  const items = useSessionRowMenuItems(session, actions);
 
   return (
     <DropdownMenu>
@@ -40,55 +34,19 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
       >
         {pending ? <Spinner className="size-3" /> : <TopbarOverflowIcon aria-hidden="true" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {isUserControllableSession(session) ? (
+      <DropdownMenuContent align="end" className="min-w-56">
+        {items.map(item => (
           <DropdownMenuItem
-            data-testid={`session-row-rename-${session.id}`}
+            key={item.id}
+            data-testid={`session-row-${item.id}-${session.id}`}
             disabled={disabled}
-            onClick={() => actions.onRename(session)}
+            onClick={item.onSelect}
+            variant={item.destructive ? "destructive" : undefined}
           >
-            <Pencil aria-hidden="true" className="size-3" />
-            Rename session
+            <item.icon aria-hidden="true" className="size-3" />
+            {item.label}
           </DropdownMenuItem>
-        ) : null}
-        {!isArchived && isStopEligible(session) ? (
-          <DropdownMenuItem
-            data-testid={`session-row-stop-${session.id}`}
-            disabled={disabled}
-            onClick={() => actions.onStop(session)}
-          >
-            <Square aria-hidden="true" className="size-3" />
-            Stop session
-          </DropdownMenuItem>
-        ) : null}
-        {isArchived ? (
-          <DropdownMenuItem
-            data-testid={`session-row-unarchive-${session.id}`}
-            disabled={disabled}
-            onClick={() => actions.onUnarchive(session)}
-          >
-            <RotateCcw aria-hidden="true" className="size-3" />
-            Unarchive session
-          </DropdownMenuItem>
-        ) : session.state === "stopped" ? (
-          <DropdownMenuItem
-            data-testid={`session-row-archive-${session.id}`}
-            disabled={disabled}
-            onClick={() => actions.onArchive(session)}
-          >
-            <Archive aria-hidden="true" className="size-3" />
-            Archive session
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem
-          data-testid={`session-row-delete-${session.id}`}
-          disabled={disabled}
-          onClick={() => actions.onDelete(session)}
-          variant="destructive"
-        >
-          <Trash2 aria-hidden="true" className="size-3" />
-          Delete session
-        </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -3,12 +3,19 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { statusFixture } from "@/systems/status/mocks";
+
+vi.mock("@/systems/status/adapters/daemon-api", () => ({
+  fetchStatus: vi.fn(async () => statusFixture),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
 }));
 
 vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsRestartStatus: vi.fn(),
+  listSettingsApplyRecords: vi.fn().mockResolvedValue({ entries: [] }),
   getSettingsAutomation: vi.fn(),
   updateSettingsAutomation: vi.fn(),
   triggerSettingsRestart: vi.fn(),
@@ -44,10 +51,7 @@ const automationEnvelope: SettingsAutomationSection = {
     trigger_enabled: 1,
     trigger_total: 2,
   },
-  links: [
-    { label: "jobs", path: "/jobs" },
-    { label: "triggers", path: "/triggers" },
-  ],
+  links: [{ label: "automation", path: "/automation" }],
 };
 
 function createWrapper() {
@@ -72,7 +76,7 @@ afterEach(() => {
 });
 
 describe("useSettingsAutomationPage", () => {
-  it("loads the envelope and seeds the draft", async () => {
+  it("marks the page dirty when the draft diverges and resets on discard", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsAutomationPage(), { wrapper });
 
@@ -80,13 +84,6 @@ describe("useSettingsAutomationPage", () => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(automationEnvelope.config);
     });
-  });
-
-  it("marks the page dirty when the draft diverges and resets on discard", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsAutomationPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({ ...automationEnvelope.config, max_concurrent_jobs: 16 });

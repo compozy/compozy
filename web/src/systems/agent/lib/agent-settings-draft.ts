@@ -1,15 +1,28 @@
 import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import {
-  AGENT_CREATE_PERMISSION_OPTIONS,
   parseAgentCreateCategoryPath,
   type AgentCreatePermission,
   type AgentCreatePermissionChoice,
 } from "./agent-create-draft";
+import { AGENT_CREATE_PERMISSION_OPTIONS } from "./agent-permissions";
 import { joinAgentCategorySegments } from "./agent-category";
-import { normalizeRuntimeSpeed, runtimeACPSelections } from "./agent-effective-runtime";
+import {
+  normalizeRuntimeSpeed,
+  resolveAgentRuntimeValue,
+  runtimeACPSelections,
+} from "./agent-effective-runtime";
 import type { AgentPayload, UpdateAgentParams } from "../types";
-import { runtimeACPSelectionsEqual, type RuntimeACPOptionSelection } from "@/systems/runtime";
+import {
+  runtimeACPSelectionsEqual,
+  type RuntimeACPOptionSelection,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
+
+/** Authored fallback route in its replacement (write) shape. */
+export type AgentSettingsFallbackRoute = NonNullable<
+  UpdateAgentParams["agent"]["fallback_chain"]
+>[number];
 
 const KNOWN_PERMISSIONS = new Set<AgentCreatePermission>(
   AGENT_CREATE_PERMISSION_OPTIONS.map(option => option.value).filter(
@@ -36,6 +49,11 @@ export interface AgentSettingsDraft {
   toolsets: string[];
   denyTools: string[];
   disabledSkills: string[];
+  /**
+   * Authored fallback routes carried verbatim: the update is a full replacement,
+   * so omitting them would erase routes the Web offers no controls for.
+   */
+  fallbackChain: AgentSettingsFallbackRoute[];
   definitionDigest: string;
   origin: AgentPayload["origin"];
 }
@@ -76,6 +94,7 @@ export function buildSettingsDraftFromAgent(agent: AgentPayload): AgentSettingsD
     toolsets: [...(agent.toolsets ?? [])],
     denyTools: [...(agent.deny_tools ?? [])],
     disabledSkills: [...(agent.skills?.disabled ?? [])],
+    fallbackChain: (agent.fallback_chain ?? []).map(toFallbackRouteInput),
     definitionDigest: agent.definition_digest,
     origin: agent.origin,
   };
@@ -167,11 +186,75 @@ export function buildUpdateAgentParams(
       ...(draft.disabledSkills.length > 0
         ? { skills: { disabled: [...draft.disabledSkills] } }
         : { skills: null }),
+      ...(draft.fallbackChain.length > 0
+        ? { fallback_chain: draft.fallbackChain.map(route => ({ ...route })) }
+        : {}),
     },
+  };
+}
+
+/** Drops read-only projection fields (command_fingerprint) and empty optionals. */
+function toFallbackRouteInput(
+  route: NonNullable<AgentPayload["fallback_chain"]>[number]
+): AgentSettingsFallbackRoute {
+  const reasoningEffort = route.reasoning_effort?.trim() ?? "";
+  const command = route.command?.trim() ?? "";
+  return {
+    provider: route.provider,
+    model: route.model,
+    ...(reasoningEffort.length > 0 ? { reasoning_effort: reasoningEffort } : {}),
+    ...(route.speed ? { speed: route.speed } : {}),
+    ...(route.acp_options && route.acp_options.length > 0
+      ? { acp_options: route.acp_options.map(option => ({ ...option })) }
+      : {}),
+    ...(command.length > 0 ? { command } : {}),
   };
 }
 
 function sameList(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((value, index) => value === right[index]);
+}
+
+type AgentEffectiveRuntime = AgentPayload["effective_runtime"];
+
+/** Effective reasoning applies only while the draft still points at the effective model. */
+function inheritedReasoningEffort(
+  effective: AgentEffectiveRuntime,
+  selectedModel: string,
+  providerMatchesEffective: boolean
+): string {
+  if (!providerMatchesEffective || selectedModel !== effective?.model?.trim()) return "";
+  return effective?.reasoning_effort ?? "";
+}
+
+/**
+ * Runtime selector value for the settings draft: draft overrides win, and the
+ * agent's effective runtime fills whatever the draft leaves blank.
+ */
+export function agentSettingsRuntimeValue(
+  agent: AgentPayload,
+  draft: AgentSettingsDraft
+): RuntimeSelectorValue {
+  const effective = agent.effective_runtime;
+  const effectiveProvider = effective?.provider?.trim() ?? "";
+  const provider = draft.provider.trim() || effectiveProvider;
+  const providerMatchesEffective = provider === effectiveProvider;
+  const inheritedModel = providerMatchesEffective ? (effective?.model?.trim() ?? "") : "";
+  const model = draft.model.trim() || inheritedModel;
+  const acpOptions = draft.acpOptions ?? resolveAgentRuntimeValue(agent).acp_options;
+  return {
+    provider,
+    model,
+    reasoning_effort:
+      draft.reasoningEffort || inheritedReasoningEffort(effective, model, providerMatchesEffective),
+    ...(acpOptions ? { acp_options: acpOptions } : {}),
+  };
+}
+
+export function agentSettingsRuntimeSpeed(
+  agent: AgentPayload,
+  draft: AgentSettingsDraft
+): RuntimeSpeed {
+  return draft.speed || agent.effective_runtime?.speed || "normal";
 }

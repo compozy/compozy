@@ -2,8 +2,12 @@ package transcript
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -463,7 +467,49 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 	})
 }
 
+// UT-039: existing legacy fixture projections retain their ordered parts unchanged.
 func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
+	t.Run("Should retain legacy compaction calls as ordinary tool rows", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+		event := acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			SessionID:  "sess-legacy-compaction",
+			TurnID:     "turn-legacy-compaction",
+			Timestamp:  timestamp,
+			Title:      "Compact conversation",
+			ToolCallID: "legacy-compact-1",
+			Raw: json.RawMessage(
+				`{"sessionUpdate":"tool_call","toolCallId":"legacy-compact-1","title":"Compact conversation","kind":"think","rawInput":{}}`,
+			),
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-legacy-compaction", 1, timestamp, event),
+		})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if len(messages) != 1 || messages[0].Role != UIRoleAssistant {
+			t.Fatalf("messages = %#v, want one assistant message", messages)
+		}
+		if got, want := uiVisiblePartSignatures(
+			messages[0].Parts,
+		), []string{
+			"tool-Compact conversation:legacy-compact-1:input-streaming",
+		}; !reflect.DeepEqual(
+			got,
+			want,
+		) {
+			t.Fatalf("visible part signatures = %#v, want %#v", got, want)
+		}
+		part := messages[0].Parts[0]
+		if part.Type != "tool-Compact conversation" || part.ToolCallID != event.ToolCallID ||
+			part.Title != event.Title || part.State != uiToolStateStreaming {
+			t.Fatalf("part = %#v, want streaming legacy compaction tool row", part)
+		}
+	})
+
 	t.Run("ShouldPreserveFatalPromptErrorAsDataPart", func(t *testing.T) {
 		t.Parallel()
 
@@ -658,4 +704,705 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 			t.Fatalf("visible part signatures = %#v, want %#v; parts=%#v", got, want, messages[0].Parts)
 		}
 	})
+}
+
+// Invariant: snapshots with one compaction ID form one corrected item in the canonical UI projection.
+func TestCompactionProjection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should fold duplicate and corrective snapshots [UT-030]", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+		observations := []acp.CompactionObservation{
+			{CompactionID: "c1", Status: "in_progress"},
+			{CompactionID: "c1", Status: "completed", Summary: strings.Repeat("a", 20*1024), Terminal: true},
+			{CompactionID: "c1", Status: "completed", Summary: strings.Repeat("a", 20*1024)},
+			{CompactionID: "c1", Status: "failed", Summary: strings.Repeat("a", 20*1024), Error: "corrected"},
+		}
+		events := make([]store.SessionEvent, 0, len(observations))
+		for i, observation := range observations {
+			events = append(
+				events,
+				mustUIAgentSessionEvent(
+					t,
+					fmt.Sprintf("c-%d", i),
+					int64(i+1),
+					at.Add(time.Duration(i)*time.Second),
+					acp.AgentEvent{
+						Type:       acp.EventTypeCompaction,
+						SessionID:  "s1",
+						TurnID:     "t1",
+						Timestamp:  at.Add(time.Duration(i) * time.Second),
+						Compaction: &observation,
+					},
+				),
+			)
+		}
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(messages) != 1 || len(messages[0].Parts) != 1 {
+			t.Fatalf("messages = %#v", messages)
+		}
+		var item CompactionItem
+		if err := json.Unmarshal(messages[0].Parts[0].Data, &item); err != nil {
+			t.Fatal(err)
+		}
+		if item.Kind != "compaction" || item.CompactionID != "c1" || item.Status != "failed" ||
+			item.Error != "corrected" ||
+			len(item.Summary) != 16*1024 ||
+			!strings.HasSuffix(item.Summary, " [summary truncated]") ||
+			item.EndedAt == nil ||
+			!item.EndedAt.Equal(at.Add(time.Second)) {
+			t.Fatalf("item = %#v", item)
+		}
+	})
+}
+
+func TestSubagentUIProjection(t *testing.T) {
+	t.Run("Should project hosted delegate names from both metadata surfaces", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"compozy__subagent_delegate", "mcp__compozy-hosted-tools__compozy__subagent_delegate", "mcp.compozy-hosted-tools.compozy__subagent_delegate", "compozy-hosted-tools.compozy__subagent_delegate"} {
+			for _, providerMetadata := range []bool{false, true} {
+				event := acp.AgentEvent{
+					Type:       acp.EventTypeToolResult,
+					SessionID:  "parent",
+					TurnID:     "turn",
+					ToolCallID: "call",
+					Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`),
+				}
+				if providerMetadata {
+					event = event.WithProviderToolMetadata("", name, "completed")
+				} else {
+					event = event.WithTool(name, nil, false)
+				}
+				content, err := MarshalAgentEvent(event)
+				if err != nil {
+					t.Fatal(err)
+				}
+				messages, err := ToUIMessages(
+					[]store.SessionEvent{
+						{
+							ID:        "event",
+							SessionID: "parent",
+							TurnID:    "turn",
+							Sequence:  1,
+							Type:      event.Type,
+							Content:   content,
+						},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cards := 0
+				for _, message := range messages {
+					for _, part := range message.Parts {
+						if part.Type == "data-compozy-subagent" {
+							cards++
+						}
+					}
+				}
+				if cards != 1 {
+					t.Fatalf("%s (provider=%v): cards=%d", name, providerMetadata, cards)
+				}
+			}
+		}
+	})
+	t.Run(
+		"Should replace a generic native title with the streamed description without guessing its provider",
+		func(t *testing.T) {
+			t.Parallel()
+			var rows []store.SessionEvent
+			for i, input := range []string{`{}`, `{"description":"Survey BRIEF.md risks"}`} {
+				event := acp.AgentEvent{
+					Type:       acp.EventTypeToolCall,
+					SessionID:  "parent",
+					TurnID:     "turn",
+					ToolCallID: "native",
+					Title:      "Task",
+				}.
+					WithTool("Agent", json.RawMessage(input), false).
+					WithProviderToolMetadata("", "Agent", "in_progress")
+				content, err := MarshalAgentEvent(event)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows = append(
+					rows,
+					store.SessionEvent{
+						ID:        fmt.Sprintf("event-%d", i),
+						SessionID: "parent",
+						TurnID:    "turn",
+						Sequence:  int64(i + 1),
+						Type:      event.Type,
+						Content:   content,
+					},
+				)
+			}
+			messages, err := ToUIMessages(rows)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cards := 0
+			for _, message := range messages {
+				for _, part := range message.Parts {
+					if part.Type != "data-compozy-subagent" {
+						continue
+					}
+					cards++
+					var payload UISubagentPayload
+					if err := json.Unmarshal(part.Data, &payload); err != nil {
+						t.Fatal(err)
+					}
+					if payload.Title != "Survey BRIEF.md risks" || payload.RuntimeProvider != "" {
+						t.Fatalf("payload=%#v", payload)
+					}
+				}
+			}
+			if cards != 1 {
+				t.Fatalf("cards=%d", cards)
+			}
+		},
+	)
+	// UT-038: tool/text attribution does not merge child chunks into parent chunks.
+	t.Run("Should project native and delegated cards at their transcript positions", func(t *testing.T) {
+		t.Parallel()
+		events := []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, Text: "Before"},
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "native",
+				Title:      "Review",
+			}.WithProviderToolMetadata(
+				"",
+				"Agent",
+				"pending",
+			),
+			acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Inner"}.WithProviderToolMetadata("native", "", ""),
+			{Type: acp.EventTypeAgentMessage, Text: "After"},
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "inner-read",
+				Title:      "Read",
+			}.WithProviderToolMetadata(
+				"native",
+				"Read",
+				"pending",
+			),
+			{
+				Type:       acp.EventTypeToolResult,
+				ToolCallID: "delegate",
+				Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`),
+			},
+			{
+				Type:       acp.EventTypeToolResult,
+				ToolCallID: "failed",
+				Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-failed"}}`),
+			},
+		}
+		events[5] = events[5].WithTool("compozy__subagent_delegate", nil, false)
+		events[6] = events[6].WithTool("compozy__subagent_delegate", nil, true)
+		var stored []store.SessionEvent
+		for i, event := range events {
+			event.SessionID, event.TurnID = "parent", "turn"
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored = append(
+				stored,
+				store.SessionEvent{
+					ID:        fmt.Sprintf("event-%d", i),
+					SessionID: "parent",
+					TurnID:    "turn",
+					Sequence:  int64(i + 1),
+					Content:   content,
+					Type:      event.Type,
+				},
+			)
+		}
+		messages, err := ToUIMessages(stored)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var texts, parents, cards, positions []string
+		foundInnerTool, foundFailure := false, false
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type == "text" {
+					texts = append(texts, part.Text)
+					positions = append(positions, part.Text)
+					parents = append(parents, part.ParentToolCallID)
+				}
+				if part.ToolCallID == "inner-read" {
+					foundInnerTool = part.ParentToolCallID == "native"
+				}
+				if part.ToolCallID == "failed" {
+					foundFailure = part.State == "output-error"
+				}
+				if part.Type == "data-compozy-subagent" {
+					var payload UISubagentPayload
+					if err := json.Unmarshal(part.Data, &payload); err != nil {
+						t.Fatal(err)
+					}
+					if payload.SubagentID != part.ID || payload.ToolCallID == "" || payload.TurnID != "turn" {
+						t.Fatalf("invalid card: %#v", part)
+					}
+					if payload.Origin == "provider_native" && payload.SubagentID != "sub-b5de770448cb8f99" {
+						t.Fatalf("native id = %s", payload.SubagentID)
+					}
+					cards = append(cards, payload.Origin)
+					positions = append(positions, payload.Origin)
+				}
+			}
+		}
+		if !slices.Equal(texts, []string{"Before", "Inner", "After"}) ||
+			!slices.Equal(parents, []string{"", "native", ""}) {
+			t.Fatalf("texts/parents = %v / %v", texts, parents)
+		}
+		if !slices.Equal(cards, []string{"provider_native", "delegated"}) || !foundInnerTool || !foundFailure {
+			t.Fatalf("cards=%v inner=%v failed=%v", cards, foundInnerTool, foundFailure)
+		}
+		if !slices.Equal(positions, []string{"Before", "provider_native", "Inner", "After", "delegated"}) {
+			t.Fatalf("part positions = %v", positions)
+		}
+	})
+	// UT-038: card data carries the originating parent turn independently of message IDs.
+	for _, tc := range []struct {
+		name  string
+		event acp.AgentEvent
+	}{
+		{name: "Agent call", event: acp.AgentEvent{Type: acp.EventTypeToolCall}.WithProviderToolMetadata("", "Agent", "pending")},
+		{name: "Task call", event: acp.AgentEvent{Type: acp.EventTypeToolCall}.WithProviderToolMetadata("", "Task", "pending")},
+		{name: "delegated result", event: acp.AgentEvent{Type: acp.EventTypeToolResult,
+			Raw: json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated","turn_id":"untrusted-output-turn"}}`),
+		}.WithTool("compozy__subagent_delegate", nil, false)},
+	} {
+		t.Run("Should preserve the parent turn for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.event.SessionID, tc.event.TurnID, tc.event.ToolCallID = "parent", "parent-turn", "call"
+			content, err := MarshalAgentEvent(tc.event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			messages, err := ToUIMessages([]store.SessionEvent{{
+				ID: "unrelated-event-id", SessionID: "parent", TurnID: "parent-turn",
+				Sequence: 1, Content: content, Type: tc.event.Type,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cards := 0
+			for _, message := range messages {
+				for _, part := range message.Parts {
+					if part.Type != "data-compozy-subagent" {
+						continue
+					}
+					cards++
+					var data map[string]any
+					if err := json.Unmarshal(part.Data, &data); err != nil {
+						t.Fatal(err)
+					}
+					if data["turn_id"] != "parent-turn" {
+						t.Fatalf("card data = %s", part.Data)
+					}
+				}
+			}
+			if cards != 1 {
+				t.Fatalf("cards = %d, want 1", cards)
+			}
+		})
+	}
+}
+
+// Invariant: one authored send projects one updatable card with typed reply metadata; owner: transcript.
+func TestSessionMessageUIProjection(t *testing.T) {
+	t.Run("Should keep a send made inside a provider-native subagent attributed to it", func(t *testing.T) {
+		t.Parallel()
+		call := acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "child-send", TurnID: "turn"}.WithTool(
+			"compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		).WithProviderToolMetadata("native-task", "compozy__session_prompt", "")
+		content, err := MarshalAgentEvent(call)
+		if err != nil {
+			t.Fatal(err)
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{{
+			ID: "event-0", SessionID: "sender", TurnID: "turn", Sequence: 1, Type: call.Type, Content: content,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type != "data-compozy-session-message" {
+					continue
+				}
+				found = true
+				if part.ParentToolCallID != "native-task" {
+					t.Fatalf("session message part = %+v, want parent attribution", part)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("no session message part")
+		}
+	})
+
+	t.Run("Should replace the running card with its correlated result UT-014", func(t *testing.T) {
+		t.Parallel()
+		call := acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			ToolCallID: "send",
+			TurnID:     "turn",
+		}.WithTool(
+			"compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message","mode":"steer","in_reply_to":"msg-plan"}`),
+			false,
+		)
+		result := acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			ToolCallID: "send",
+			TurnID:     "turn",
+			Raw: json.RawMessage(
+				`{"rawOutput":{"prompt":{"message_id":"message","mode":"steer","delivery":"interrupt_then_prompt","steer_delivery":"interrupt_fallback","reply_watch":{"id":"rw-123","state":"armed"},"target_workspace_id":"ws-target"}}}`,
+			),
+		}.WithTool(
+			"compozy__session_prompt",
+			nil,
+			false,
+		)
+		var rows []store.SessionEvent
+		for i, event := range []acp.AgentEvent{call, result} {
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows = append(
+				rows,
+				store.SessionEvent{
+					ID:        fmt.Sprintf("event-%d", i),
+					SessionID: "sender",
+					TurnID:    "turn",
+					Sequence:  int64(i + 1),
+					Type:      event.Type,
+					Content:   content,
+				},
+			)
+		}
+		messages, err := ToUIMessages(rows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cards := 0
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type != "data-compozy-session-message" {
+					continue
+				}
+				cards++
+				var p UISessionMessagePayload
+				if err := json.Unmarshal(part.Data, &p); err != nil {
+					t.Fatal(err)
+				}
+				if p.TargetSessionID != "target" || p.MessageID != "message" || p.Mode != "steer" ||
+					p.Delivery != "interrupt_then_prompt" || p.SteerDelivery != "interrupt_fallback" ||
+					p.ReplyWatchID != "rw-123" ||
+					p.InReplyTo != "msg-plan" ||
+					p.TargetWorkspaceID != "ws-target" ||
+					p.State != "done" ||
+					part.ID != "send" {
+					t.Fatalf("card = %+v", p)
+				}
+			}
+		}
+		if cards != 1 {
+			t.Fatalf("cards = %d", cards)
+		}
+	})
+	t.Run("Should expose failure state without inventing a reply watch UT-014", func(t *testing.T) {
+		t.Parallel()
+		call := acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "send", TurnID: "turn"}.WithTool(
+			"mcp__compozy-hosted-tools__compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		)
+		failure := acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			ToolCallID: "send",
+			TurnID:     "turn",
+		}.WithTool(
+			"mcp__compozy-hosted-tools__compozy__session_prompt",
+			nil,
+			true,
+		)
+		var cards SessionMessageCards
+		var p UISessionMessagePayload
+		var ok bool
+		for i, event := range []acp.AgentEvent{call, failure} {
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, ok = cards.Card(
+				store.SessionEvent{Type: event.Type, TurnID: "turn", Sequence: int64(i + 1), Content: content},
+			)
+		}
+		if !ok || p.State != "error" || p.ReplyWatchID != "" || p.TargetSessionID != "target" {
+			t.Fatalf("failure card = %+v, %v", p, ok)
+		}
+	})
+	t.Run("Should preserve typed synthetic reply metadata UT-013", func(t *testing.T) {
+		t.Parallel()
+		event := acp.AgentEvent{
+			Type:   acp.EventTypeSyntheticReentry,
+			TurnID: "reply-turn",
+			Text:   "reply",
+			Synthetic: &acp.PromptSyntheticMeta{
+				Kind:             acp.PromptSyntheticKindSessionReply,
+				WakeEventID:      "rw-123",
+				ChildSessionID:   "target",
+				ChildWorkspaceID: "workspace",
+				ChildAgentName:   "coder",
+				Reason:           "completed",
+				Hop:              2,
+				ReplyTruncated:   true,
+			},
+		}
+		content, err := MarshalAgentEvent(event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		messages, err := ToUIMessages(
+			[]store.SessionEvent{
+				{
+					ID:        "reply",
+					SessionID: "sender",
+					TurnID:    "reply-turn",
+					Sequence:  1,
+					Type:      event.Type,
+					Content:   content,
+				},
+			},
+		)
+		if err != nil || len(messages) != 1 {
+			t.Fatalf("messages = %+v, %v", messages, err)
+		}
+		var meta struct {
+			Synthetic *acp.PromptSyntheticMeta `json:"synthetic"`
+		}
+		if err := json.Unmarshal(messages[0].Metadata, &meta); err != nil {
+			t.Fatal(err)
+		}
+		if messages[0].Role != UIRoleSystem || meta.Synthetic == nil || meta.Synthetic.Hop != 2 ||
+			meta.Synthetic.WakeEventID != "rw-123" ||
+			meta.Synthetic.ChildWorkspaceID != "workspace" ||
+			!meta.Synthetic.ReplyTruncated {
+			t.Fatalf("metadata = %+v", meta.Synthetic)
+		}
+	})
+
+	// Recorded provider shapes (#742), captured from real Claude and Codex sessions and sanitized:
+	// the card must not depend on one provider's wire form.
+	t.Run("Should name a Claude send once its streamed arguments do and read its string result", func(t *testing.T) {
+		t.Parallel()
+		rows := recordedSessionPromptRows(t, "claude.jsonl")
+		if cards := sessionMessageCardsOf(t, rows[:1]); len(cards) != 0 {
+			t.Fatalf("argument-less call projected cards %+v; want the tool row alone", cards)
+		}
+		assertSessionMessageCards(t, rows, UISessionMessagePayload{
+			ToolCallID: "toolu_01L3DE1yXY8CcKF8hkd3k8Z5", TargetSessionID: "sess-844b851f052bd406",
+			TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "issue742-goal-unavailable-v1", Mode: "queue",
+			Delivery: "direct", ReplyWatchID: "rw-f9a45066bce98c57", State: "done",
+		})
+	})
+
+	t.Run("Should project Codex sends reported as an MCP call envelope with a nameless result", func(t *testing.T) {
+		t.Parallel()
+		assertSessionMessageCards(t, recordedSessionPromptRows(t, "codex.jsonl"),
+			UISessionMessagePayload{
+				ToolCallID: "exec-2536d1eb-7fab-4bd7-b971-e62f6b970e22", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-review-remediation-1", Mode: "queue",
+				Delivery: "after_turn", State: "done",
+			},
+			UISessionMessagePayload{
+				ToolCallID: "exec-5f2789fa-43ce-4158-a1b6-190745d05f03", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-fixture-remediation-1518", Mode: "steer",
+				Delivery: "interrupt_then_prompt", SteerDelivery: "injected", State: "done",
+			},
+		)
+	})
+}
+
+// recordedSessionPromptRows loads a recorded provider stream from
+// testdata/session-prompt/<name>: one {"type", "content"} event per line, in sequence order.
+func recordedSessionPromptRows(t *testing.T, name string) []store.SessionEvent {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "session-prompt", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []store.SessionEvent
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		var recorded struct {
+			Type    string          `json:"type"`
+			Content json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal([]byte(line), &recorded); err != nil {
+			t.Fatal(err)
+		}
+		var turn struct {
+			TurnID string `json:"turn_id"`
+		}
+		if err := json.Unmarshal(recorded.Content, &turn); err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, store.SessionEvent{
+			ID:        fmt.Sprintf("event-%d", len(rows)),
+			SessionID: "sender",
+			TurnID:    turn.TurnID,
+			Sequence:  int64(len(rows) + 1),
+			Type:      recorded.Type,
+			Content:   string(recorded.Content),
+		})
+	}
+	return rows
+}
+
+func sessionMessageCardsOf(t *testing.T, rows []store.SessionEvent) []UISessionMessagePayload {
+	t.Helper()
+	messages, err := ToUIMessages(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cards []UISessionMessagePayload
+	for _, message := range messages {
+		for _, part := range message.Parts {
+			if part.Type != "data-compozy-session-message" {
+				continue
+			}
+			var card UISessionMessagePayload
+			if err := json.Unmarshal(part.Data, &card); err != nil {
+				t.Fatal(err)
+			}
+			cards = append(cards, card)
+		}
+	}
+	return cards
+}
+
+// assertSessionMessageCards checks the transcript's cards and the live stream's (the prompt
+// delivery folds the same events through SessionMessageCards) against want, in call order.
+func assertSessionMessageCards(t *testing.T, rows []store.SessionEvent, want ...UISessionMessagePayload) {
+	t.Helper()
+	if cards := sessionMessageCardsOf(t, rows); !slices.Equal(cards, want) {
+		t.Fatalf("transcript cards = %+v, want %+v", cards, want)
+	}
+	var live SessionMessageCards
+	latest := make(map[string]UISessionMessagePayload)
+	var order []string
+	for _, row := range rows {
+		card, ok := live.Card(row)
+		if !ok {
+			continue
+		}
+		if _, seen := latest[card.ToolCallID]; !seen {
+			order = append(order, card.ToolCallID)
+		}
+		latest[card.ToolCallID] = card
+	}
+	got := make([]UISessionMessagePayload, 0, len(order))
+	for _, id := range order {
+		got = append(got, latest[id])
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("live cards = %+v, want %+v", got, want)
+	}
+}
+
+// UT-013: operator inputs remain unattributed while session origins reach the UI.
+func TestPromptOriginUIProjection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project daemon origin while leaving operator metadata unattributed", func(t *testing.T) {
+		t.Parallel()
+		origin := &acp.PromptOriginMeta{Kind: "session", SessionID: "sess-a", WorkspaceID: "ws-a", Hop: 2}
+		event := (acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "turn-a", Text: "question"}).WithPromptOrigin(
+			origin,
+		)
+		var got struct {
+			Origin *acp.PromptOriginMeta `json:"origin"`
+		}
+		if err := json.Unmarshal(inputUIMessageMetadata(event), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.Origin == nil || *got.Origin != *origin {
+			t.Fatal(got)
+		}
+		if strings.Contains(string(inputUIMessageMetadata(event.WithPromptOrigin(nil))), `"origin"`) {
+			t.Fatal("operator acquired origin")
+		}
+	})
+}
+
+// UT-013: the transcript exposes only typed UI metadata; reply bodies remain available.
+func TestSyntheticUIMetadataBoundary(t *testing.T) {
+	for _, kind := range []string{"session_reply", "task_wake", "subagent_wake"} {
+		t.Run("Should project only UI fields for "+kind, func(t *testing.T) {
+			t.Parallel()
+			event := acp.AgentEvent{Synthetic: &acp.PromptSyntheticMeta{
+				Kind:                 kind,
+				WakeEventID:          "wake",
+				ChildSessionID:       "child",
+				ChildWorkspaceID:     "ws",
+				ChildAgentName:       "coder",
+				Reason:               "completed",
+				ReplyTruncated:       true,
+				Hop:                  2,
+				Summary:              "answer",
+				TaskID:               "task",
+				TaskRunID:            "run",
+				ClaimTokenHash:       "private-hash",
+				SubagentIDs:          []string{"subagent"},
+				WorkflowID:           "workflow",
+				Badge:                "badge",
+				CoordinatorSessionID: "coordinator",
+				PolicySnapshotID:     "policy",
+				PolicyDigest:         "digest",
+				ConfigDigest:         "config",
+			}}
+			var meta struct {
+				Synthetic map[string]json.RawMessage `json:"synthetic"`
+			}
+			if err := json.Unmarshal(inputUIMessageMetadata(event), &meta); err != nil {
+				t.Fatal(err)
+			}
+			expected := []string{
+				"kind",
+				"wake_event_id",
+				"child_session_id",
+				"child_workspace_id",
+				"child_agent_name",
+				"reason",
+				"reply_truncated",
+				"hop",
+			}
+			if kind == "session_reply" {
+				expected = append(expected, "summary")
+			}
+			if len(meta.Synthetic) != len(expected) {
+				t.Fatalf("metadata = %s", inputUIMessageMetadata(event))
+			}
+			for _, key := range expected {
+				if _, ok := meta.Synthetic[key]; !ok {
+					t.Errorf("missing %s", key)
+				}
+			}
+			if kind == "session_reply" && string(meta.Synthetic["summary"]) != `"answer"` {
+				t.Fatal("reply body missing")
+			}
+		})
+	}
 }

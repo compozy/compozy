@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/session"
@@ -102,14 +103,14 @@ func (k DispatchKind) Validate(path string) error {
 // override after pre-fire hooks patch the outbound prompt.
 type DispatchRequest struct {
 	Kind          DispatchKind           `json:"kind"`
-	Job           *Job                   `json:"job,omitempty"`
-	Trigger       *Trigger               `json:"trigger,omitempty"`
-	Envelope      *ActivationEnvelope    `json:"envelope,omitempty"`
+	Job           *Job                   `json:"job,omitzero"`
+	Trigger       *Trigger               `json:"trigger,omitzero"`
+	Envelope      *ActivationEnvelope    `json:"envelope,omitzero"`
 	Payload       map[string]any         `json:"payload,omitempty"`
 	Prompt        string                 `json:"prompt,omitempty"`
 	ReservedRun   *Run                   `json:"-"`
 	ScheduledAt   *time.Time             `json:"scheduled_at,omitempty"`
-	CatchUp       bool                   `json:"catch_up,omitempty"`
+	CatchUp       bool                   `json:"catch_up,omitzero"`
 	CatchUpPolicy SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
 }
 
@@ -380,6 +381,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 	}
 	if err := req.Validate("dispatch"); err != nil {
 		return nil, err
+	}
+	if req.Kind != DispatchKindManual {
+		// Scheduled, trigger, and extension runs yield to host CPU pressure at admission.
+		ctx = admission.WithBackgroundWork(ctx)
 	}
 
 	attempt := 1

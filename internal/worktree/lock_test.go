@@ -14,7 +14,7 @@ func TestRepositoryLocks(t *testing.T) {
 		t.Parallel()
 		commonDir := t.TempDir()
 		locks := NewRepositoryLocks(1)
-		releaseFirst, err := locks.Acquire(context.Background(), commonDir)
+		releaseFirst, err := locks.Acquire(t.Context(), commonDir)
 		if err != nil {
 			t.Fatalf("Acquire(first) error = %v", err)
 		}
@@ -24,7 +24,7 @@ func TestRepositoryLocks(t *testing.T) {
 		}
 		acquired := make(chan acquireResult, 1)
 		go func() {
-			release, acquireErr := locks.Acquire(context.Background(), commonDir)
+			release, acquireErr := locks.Acquire(t.Context(), commonDir)
 			acquired <- acquireResult{release: release, err: acquireErr}
 		}()
 		select {
@@ -47,12 +47,12 @@ func TestRepositoryLocks(t *testing.T) {
 		t.Parallel()
 		commonDir := t.TempDir()
 		locks := NewRepositoryLocks(0)
-		release, err := locks.Acquire(context.Background(), commonDir)
+		release, err := locks.Acquire(t.Context(), commonDir)
 		if err != nil {
 			t.Fatalf("Acquire(first) error = %v", err)
 		}
 		defer release()
-		_, err = locks.Acquire(context.Background(), commonDir)
+		_, err = locks.Acquire(t.Context(), commonDir)
 		if !errors.Is(err, ErrOperationInProgress) {
 			t.Fatalf("Acquire(second) error = %v, want worktree_operation_in_progress", err)
 		}
@@ -62,11 +62,11 @@ func TestRepositoryLocks(t *testing.T) {
 		t.Parallel()
 		commonDir := t.TempDir()
 		locks := NewRepositoryLocks(1)
-		releaseFirst, err := locks.Acquire(context.Background(), commonDir)
+		releaseFirst, err := locks.Acquire(t.Context(), commonDir)
 		if err != nil {
 			t.Fatalf("Acquire(first) error = %v", err)
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		canceled := make(chan error, 1)
 		go func() {
 			_, acquireErr := locks.Acquire(ctx, commonDir)
@@ -77,7 +77,7 @@ func TestRepositoryLocks(t *testing.T) {
 			t.Fatalf("Acquire(canceled waiter) error = %v, want context.Canceled", err)
 		}
 		releaseFirst()
-		releaseNext, err := locks.Acquire(context.Background(), commonDir)
+		releaseNext, err := locks.Acquire(t.Context(), commonDir)
 		if err != nil {
 			t.Fatalf("Acquire(after cancel) error = %v", err)
 		}

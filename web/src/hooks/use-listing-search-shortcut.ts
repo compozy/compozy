@@ -13,6 +13,7 @@ function useListingSearchShortcut(enabled = true) {
     if (!enabled) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
       if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return;

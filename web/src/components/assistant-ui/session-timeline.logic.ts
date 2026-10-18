@@ -1,7 +1,6 @@
 import {
   isInterruptedState,
   type SessionTimelinePart,
-  type SessionTimelineTextPart,
   type SessionTimelineReasoningPart,
   type SessionTimelineToolPart,
   type SessionTimelineDataPart,
@@ -30,8 +29,19 @@ import {
 import { foldSettledTurns } from "./session-timeline-fold";
 import type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 import { markerClusterKey } from "./session-timeline-markers";
-import { type SessionToolGroupSummary } from "./session-timeline-summary";
 import { workRowsFromCluster } from "./session-timeline-work";
+import {
+  isSubagentPart,
+  partitionSubagentParts,
+  subagentRowFromParts,
+} from "./session-timeline-subagents";
+import {
+  isSessionMessageDataPart,
+  isSessionMessagePart,
+  attributeSessionMessageParts,
+  partitionSessionMessageParts,
+  sentMessageRow,
+} from "./session-timeline-session-messages";
 
 export { markerClusterKey } from "./session-timeline-markers";
 
@@ -47,124 +57,30 @@ export {
   type SessionToolGroupSummaryPart,
   type SessionToolSummaryCategory,
 } from "./session-timeline-summary";
-export { isAgentToolPart, liveToolRowId } from "./session-timeline-work";
+export { liveToolRowId } from "./session-timeline-work";
 
-/** Why a turn ended the way it did; the fold layer derives it from stop markers and failures. */
-export type SessionTurnFoldCause = "settled" | "stopped" | "steer_fallback" | "failed";
-
-export type SessionRow =
-  | SessionTextRow
-  | SessionReasoningRow
-  | SessionDataRow
-  | SessionWorkingRow
-  | SessionWorkRow
-  | SessionLiveToolRow
-  | SessionTurnFoldRow
-  | SessionChangedFilesRow;
-
-interface SessionBaseRow {
-  id: string;
-  turnId?: string;
-  timestamp?: string;
-}
-
-export interface SessionTextRow extends SessionBaseRow {
-  kind: "text";
-  part: SessionTimelineTextPart;
-  parts: SessionTimelineTextPart[];
-}
-
-export interface SessionReasoningRow extends SessionBaseRow {
-  kind: "reasoning";
-  /** The consecutive reasoning parts folded into this row, in order. */
-  parts: SessionTimelineReasoningPart[];
-  /** Grouped reasoning text (parts joined by a blank line), rendered as markdown. */
-  text: string;
-  /** How many reasoning updates this row groups (>= 1). */
-  updateCount: number;
-  /** True while any grouped part is still streaming; drives the live shimmer. */
-  streaming: boolean;
-}
-
-export interface SessionDataRow extends SessionBaseRow {
-  kind: "data";
-  /** First clustered part — the render anchor for every data payload. */
-  part: SessionTimelineDataPart;
-  /** Consecutive same-kind marker parts folded into this row, in order (>= 1). */
-  parts: SessionTimelineDataPart[];
-  /** How many same-kind events this row clusters; drives the "×N" marker count. */
-  count: number;
-}
-
-export interface SessionWorkingRow extends SessionBaseRow {
-  kind: "working";
-  startedAt?: number;
-}
-
-export type SessionWorkEntry = SessionTimelineToolPart | SessionTimelineReasoningPart;
-
-/** Ordered activity with an optional compact disclosure; terminal calls stay inline. */
-export interface SessionWorkRow extends SessionBaseRow {
-  kind: "work";
-  groupId: string;
-  /** Original reasoning and tool parts in chronological order. */
-  entries: SessionWorkEntry[];
-  /** Non-null when the run rests as a collapsed semantic summary line. */
-  summary: SessionToolGroupSummary | null;
-  expanded: boolean;
-  /** True for the completed-tools group of the live turn (ADR-006 rule 1). */
-  active: boolean;
-}
-
-/**
- * The one live tool row of the active turn (ADR-006): the calls still running
- * right now. One call reads "Running {tool} — {preview}"; several read
- * "Running N tools…" and expand to the in-flight list. A running child agent is
- * its own live row (`agent`), never counted into the parallel row.
- */
-export interface SessionLiveToolRow extends SessionBaseRow {
-  kind: "live-tool";
-  /** Running calls, in order; length is the honest parallel count. */
-  entries: SessionTimelineToolPart[];
-  /** True when this row is a single running child agent (bot glyph, never grouped). */
-  agent: boolean;
-  /** Parallel rows expand to list the in-flight calls. */
-  expanded: boolean;
-}
-
-export interface SessionTurnFoldRow extends SessionBaseRow {
-  kind: "turn-fold";
-  label: string;
-  durationMs: number;
-  /** Why the turn ended the way it did; drives the label, the tone, and whether it can collapse. */
-  cause: SessionTurnFoldCause;
-  /** Summary sentence of the tool work behind the fold; `null` when the fold hides no tools. */
-  counts: string | null;
-  /** True when the fold never collapses: the operator keeps their place (stopped/failed). */
-  open: boolean;
-  rows: SessionRow[];
-}
-
-/** One file modified by a settled turn, with derived line-diff stats. */
-export interface ChangedFileEntry {
-  path: string;
-  additions: number;
-  deletions: number;
-}
-
-// Per-turn audit summary of the files an assistant turn modified (Edit/Write).
-// Rendered once at the tail of a settled editing turn as a collapsed
-// "Edited N files +a −d" line that expands to the per-file list — display-only
-// (CompozyOS exposes no checkpoint/Undo semantics).
-export interface SessionChangedFilesRow extends SessionBaseRow {
-  kind: "changed-files";
-  /** Distinct modified files in first-touch order; same path edited twice is one entry. */
-  files: ChangedFileEntry[];
-  additions: number;
-  deletions: number;
-  expanded: boolean;
-}
-
+export type {
+  SessionTurnFoldCause,
+  SessionRow,
+  SessionTextRow,
+  SessionReasoningRow,
+  SessionDataRow,
+  SessionWorkingRow,
+  SessionWorkEntry,
+  SessionWorkRow,
+  SessionLiveToolRow,
+  SessionSubagentRow,
+  SessionTurnFoldRow,
+  ChangedFileEntry,
+  SessionChangedFilesRow,
+  SessionSentMessageRow,
+} from "./session-timeline-rows";
+import type {
+  SessionRow,
+  SessionReasoningRow,
+  SessionDataRow,
+  SessionWorkEntry,
+} from "./session-timeline-rows";
 export interface DeriveSessionRowsOptions {
   activeTurnId?: string;
   /** Turns the operator stopped (Stop / Interrupt / cancel): open, "You stopped after". */
@@ -184,6 +100,8 @@ export interface DeriveSessionRowsOptions {
    * reaches to it instead of stopping at the last call this message holds.
    */
   turnEndedAtMs?: ReadonlyMap<string, number>;
+  /** Roster ids reported settled: only their cards fold; unconfirmed ones read as running (UT-W04). */
+  settledSubagentIds?: ReadonlySet<string>;
 }
 export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 
@@ -199,7 +117,21 @@ export function deriveSessionRows(
   parts: readonly SessionTimelinePart[],
   options: DeriveSessionRowsOptions = {}
 ): SessionRow[] {
-  const rows = deriveBaseRows(markInterruptedCalls(parts, options), options);
+  // Child-owned work leaves first, so a send made inside a provider-native subagent stays in its card;
+  // the card's own rows derive the "Sent to" row from the nested parts.
+  const owned = partitionSubagentParts(
+    attributeSessionMessageParts(markInterruptedCalls(parts, options))
+  );
+  const sent = partitionSessionMessageParts(owned.flow);
+  const separated =
+    sent.boundaries.size === 0
+      ? owned.boundaries
+      : new Set([...owned.boundaries, ...sent.boundaries]);
+  const rows = deriveBaseRows(
+    sent.flow,
+    { nested: owned.nested, boundaries: separated, sentTools: sent.tools },
+    options
+  );
   return options.foldSettledTurns
     ? foldSettledTurns(rows, options, turnRecordedTimes(parts, options.turnEndedAtMs))
     : rows;
@@ -258,8 +190,15 @@ function markInterruptedCalls(
 }
 
 /** Group same-turn work until a visible narrative or interaction boundary. */
+interface PartitionedParts {
+  nested: ReadonlyMap<string, readonly SessionTimelinePart[]>;
+  boundaries: ReadonlySet<SessionTimelinePart>;
+  sentTools: ReadonlyMap<string, SessionTimelineToolPart>;
+}
+
 function deriveBaseRows(
   parts: readonly SessionTimelinePart[],
+  { nested, boundaries, sentTools }: PartitionedParts,
   options: DeriveSessionRowsOptions
 ): SessionRow[] {
   const rows: SessionRow[] = [];
@@ -283,13 +222,17 @@ function deriveBaseRows(
   };
 
   let hiddenProgress = false;
+  // A part that left the flow (card-owned call, native inner work) separates prose like its row would.
+  let separated = false;
   for (const part of parts) {
+    if (boundaries.has(part)) separated = true;
     if (part.kind === "data" && isProgressTick(part)) {
       hiddenProgress = true;
       continue;
     }
-    const joinsProse = hiddenProgress;
+    const joinsProse = hiddenProgress && !separated;
     hiddenProgress = false;
+    separated = false;
     if (part.kind === "tool" || part.kind === "reasoning") {
       flushMarkerCluster();
       const previous = workCluster.at(-1);
@@ -297,6 +240,29 @@ function deriveBaseRows(
         flushWorkCluster();
       }
       workCluster.push(part);
+      continue;
+    }
+
+    if (part.kind === "data" && isSubagentPart(part)) {
+      flushWorkCluster();
+      flushMarkerCluster();
+      const previous = rows.at(-1);
+      const adjacent = previous?.kind === "subagents" && previous.turnId === part.turnId;
+      const members = adjacent ? [...previous.parts, part] : [part];
+      const row = subagentRowFromParts(members, nested, options);
+      if (adjacent) rows[rows.length - 1] = row;
+      else rows.push(row);
+      continue;
+    }
+
+    if (part.kind === "data" && isSessionMessageDataPart(part)) {
+      // A part the card cannot name draws nothing: its call keeps the tool row, never a raw
+      // data row (#742).
+      if (isSessionMessagePart(part)) {
+        flushWorkCluster();
+        flushMarkerCluster();
+        rows.push(sentMessageRow(part, sentTools));
+      }
       continue;
     }
 

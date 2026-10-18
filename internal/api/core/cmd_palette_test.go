@@ -25,6 +25,67 @@ import (
 func TestBaseHandlersCmdPalette(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: retired palette inputs resolve to one canonical command with one warning; shared HTTP/UDS handler suite owns decoding.
+	t.Run("Should alias retired palette invoke pin and view IDs [IT-013]", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{
+			invokeResult: cmdpalette.InvokeResult{Status: cmdpalette.InvokeStatusOK},
+			viewSnapshot: cmdpalette.ViewSnapshot{Descriptor: cmdpalette.ViewDescriptor{ID: "automations"}},
+		}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.POST("/api/cmd-palette/commands/:id/invoke", handlers.InvokeCmdPaletteCommand)
+		engine.PUT("/api/cmd-palette/pins/:id", handlers.PinCmdPaletteCommand)
+		engine.DELETE("/api/cmd-palette/pins/:id", handlers.UnpinCmdPaletteCommand)
+		engine.GET("/api/cmd-palette/views/:id", handlers.GetCmdPaletteView)
+		for range 2 {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					"/api/cmd-palette/commands/app.open.jobs/invoke",
+					strings.NewReader(`{"workspace":"alpha"}`),
+				),
+			)
+			if response.Code != http.StatusOK || registry.invokeRequest.CommandID != "app.open.automations" ||
+				!strings.Contains(response.Body.String(), `"status":"ok"`) {
+				t.Fatalf("invoke = %d %s, request %+v", response.Code, response.Body.String(), registry.invokeRequest)
+			}
+		}
+		for _, method := range []string{http.MethodPut, http.MethodDelete} {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					method,
+					"/api/cmd-palette/pins/palette.view.triggers?workspace=alpha",
+					http.NoBody,
+				),
+			)
+			if response.Code != http.StatusOK || registry.pinCommand != "palette.view.automations" ||
+				registry.pinned != (method == http.MethodPut) ||
+				!strings.Contains(response.Body.String(), `"pinned":`) {
+				t.Fatalf("pin = %d %s", response.Code, response.Body.String())
+			}
+		}
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/cmd-palette/views/jobs?workspace=alpha",
+				http.NoBody,
+			),
+		)
+		if response.Code != http.StatusOK || registry.viewID != "automations" || response.Body.Len() == 0 {
+			t.Fatalf("view = %d %s, id %q", response.Code, response.Body.String(), registry.viewID)
+		}
+	})
+
 	t.Run("Should preserve the reserved Global desktop partition without resolving a project", func(t *testing.T) {
 		t.Parallel()
 		registry := &cmdPaletteRegistryStub{}
@@ -87,12 +148,10 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		t.Parallel()
 		registry := &cmdPaletteRegistryStub{catalog: cmdpalette.Catalog{
 			Commands: []cmdpalette.ResolvedCommand{{
-				Descriptor: cmdpalette.Descriptor{
-					ID: "window.close", Title: "Close window", Section: "Window", Icon: "x-square",
-					Source:    cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-					Action:    cmdpalette.Action{Kind: cmdpalette.ActionKindClientOp, Op: "window.close"},
-					Arguments: []cmdpalette.Argument{},
-				},
+				ID: "window.close", Title: "Close window", Section: "Window", Icon: "x-square",
+				Source:    cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				Action:    cmdpalette.Action{Kind: cmdpalette.ActionKindClientOp, Op: "window.close"},
+				Arguments: []cmdpalette.Argument{},
 				Available: true, Bindings: []string{"meta+KeyW"},
 			}},
 			Sources:  []cmdpalette.SourceStatus{{Source: "core", Status: cmdpalette.SourceHealthy}},
@@ -518,6 +577,66 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		}
 	})
 
+	for _, decision := range []toolspkg.ApprovalOutcome{toolspkg.ApprovalApproved, toolspkg.ApprovalDenied} {
+		t.Run("Should resolve a pending approval as "+string(decision), func(t *testing.T) {
+			t.Parallel()
+			coordinator := &approvalCoordinatorStub{status: toolspkg.ApprovalStatus{
+				ApprovalID: "apr_test", ApprovalStatus: toolspkg.ApprovalPending,
+			}}
+			handlers := newCmdPaletteHandlers(nil, coordinator)
+			engine := gin.New()
+			engine.POST("/api/tools/approvals/:id/resolve", handlers.ResolvePendingToolApproval)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				"/api/tools/approvals/apr_test/resolve?profile=default",
+				strings.NewReader(`{"decision":"`+string(decision)+`"}`)))
+			var status contract.ToolApprovalStatusResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+				t.Fatalf("decode approval resolution: %v", err)
+			}
+			if response.Code != http.StatusOK || status.ApprovalStatus != decision ||
+				coordinator.resolvedID != "apr_test" || coordinator.resolveProfile != store.DefaultProfileID {
+				t.Fatalf("resolve = status %d body %s coordinator %#v", response.Code, response.Body, coordinator)
+			}
+		})
+	}
+	for _, testCase := range []struct {
+		name string
+		body string
+	}{
+		{name: "Should reject a missing approval decision", body: `{}`},
+		{name: "Should reject a runtime timeout as an operator decision", body: `{"decision":"timeout"}`},
+		{name: "Should reject cancellation through the decision endpoint", body: `{"decision":"canceled"}`},
+		{name: "Should reject a wrong-type approval decision", body: `{"decision":true}`},
+		{name: "Should reject extra fields in an approval decision", body: `{"decision":"approved","args":{}}`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			coordinator := &approvalCoordinatorStub{status: toolspkg.ApprovalStatus{
+				ApprovalID: "apr_test", ApprovalStatus: toolspkg.ApprovalPending,
+			}}
+			handlers := newCmdPaletteHandlers(nil, coordinator)
+			engine := gin.New()
+			engine.POST("/api/tools/approvals/:id/resolve", handlers.ResolvePendingToolApproval)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				"/api/tools/approvals/apr_test/resolve", strings.NewReader(testCase.body)))
+			var failure contract.CmdPaletteError
+			if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+				t.Fatalf("decode approval refusal: %v", err)
+			}
+			if response.Code != http.StatusBadRequest || failure.Error != "invalid_request" ||
+				coordinator.resolvedID != "" || coordinator.status.ApprovalStatus != toolspkg.ApprovalPending {
+				t.Fatalf(
+					"invalid decision = status %d body %s coordinator %#v",
+					response.Code,
+					response.Body,
+					coordinator,
+				)
+			}
+		})
+	}
+
 	t.Run("Should reconcile the catalog revision when an SSE stream opens", func(t *testing.T) {
 		t.Parallel()
 		updates := make(chan cmdpalette.Event)
@@ -794,7 +913,7 @@ func newCmdPaletteHandlers(
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "workspace-canonical", Name: "alpha"},
+					ID: "workspace-canonical", Name: "alpha",
 					WorkspaceID: "workspace-canonical",
 				}, nil
 			},
@@ -1051,10 +1170,12 @@ func (s *cmdPaletteRegistryStub) InvalidateInstance(
 }
 
 type approvalCoordinatorStub struct {
-	status        toolspkg.ApprovalStatus
-	canceled      string
-	statusProfile string
-	cancelProfile string
+	status         toolspkg.ApprovalStatus
+	canceled       string
+	statusProfile  string
+	cancelProfile  string
+	resolveProfile string
+	resolvedID     string
 }
 
 func (s *approvalCoordinatorStub) Begin(
@@ -1064,8 +1185,18 @@ func (s *approvalCoordinatorStub) Begin(
 	return toolspkg.ApprovalTicket{}, errors.New("unexpected Begin call")
 }
 
-func (s *approvalCoordinatorStub) Resolve(context.Context, string, toolspkg.ApprovalOutcome) error {
-	return errors.New("unexpected Resolve call")
+func (s *approvalCoordinatorStub) Resolve(ctx context.Context, id string, outcome toolspkg.ApprovalOutcome) error {
+	profileID, err := toolspkg.ApprovalProfile(ctx)
+	if err != nil {
+		return err
+	}
+	s.resolveProfile = profileID
+	if id != s.status.ApprovalID {
+		return toolspkg.ErrApprovalNotFound
+	}
+	s.resolvedID = id
+	s.status.ApprovalStatus = outcome
+	return nil
 }
 
 func (s *approvalCoordinatorStub) Status(ctx context.Context, id string) (toolspkg.ApprovalStatus, error) {

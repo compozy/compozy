@@ -156,7 +156,7 @@ export const Error: Story = {
 };
 
 /**
- * Selected state — `--surface-glaze` + 1 px inset `--line-strong` ring No accent.
+ * Selected state — `--selected` + 1 px inset `--line-strong` ring. No accent.
  */
 export const Selected: Story = {
   args: {},

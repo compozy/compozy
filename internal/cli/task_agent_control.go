@@ -2,11 +2,9 @@ package cli
 
 import (
 	"errors"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +13,6 @@ func newTaskRunRecoverCommand(deps commandDeps) *cobra.Command {
 		reason      string
 		metadataRaw string
 	)
-
 	cmd := &cobra.Command{
 		Use:   "recover <run-id>",
 		Short: "Recover one needs_attention task run",
@@ -48,13 +45,13 @@ func newTaskRunRecoverCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&reason, "reason", "", "Optional recovery reason recorded in the audit event")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional recovery metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
 func newTaskPauseCommand(deps commandDeps) *cobra.Command {
 	var reason string
 	var metadataRaw string
-
 	cmd := &cobra.Command{
 		Use:   "pause <task-id>",
 		Short: "Pause new runs for one task",
@@ -90,12 +87,12 @@ func newTaskPauseCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&reason, "reason", "", "Task-pause reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional task-pause metadata JSON")
 	mustMarkFlagRequired(cmd, "reason")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
 func newTaskResumeCommand(deps commandDeps) *cobra.Command {
 	var metadataRaw string
-
 	cmd := &cobra.Command{
 		Use:   "resume <task-id>",
 		Short: "Resume new runs for one paused task",
@@ -126,64 +123,7 @@ func newTaskResumeCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional task-resume metadata JSON")
-	return cmd
-}
-
-func newTaskPromoteCommand(deps commandDeps) *cobra.Command {
-	var input taskPromoteInput
-	cmd := &cobra.Command{
-		Use:   networkPromoteCommandUse,
-		Short: "Promote one network thread message into a task",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			metadata, err := parseOptionalNetworkMetadata(cmd, input.MetadataRaw)
-			if err != nil {
-				return err
-			}
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			workspace, err := resolveCLIWorkspaceRouteRef(
-				cmd,
-				deps,
-				client,
-				strings.TrimSpace(input.WorkspaceRef),
-			)
-			if err != nil {
-				return err
-			}
-			promoted, err := client.PromoteNetworkThreadTask(
-				cmd.Context(),
-				workspace,
-				strings.TrimSpace(input.Channel),
-				strings.TrimSpace(input.ThreadID),
-				PromoteNetworkThreadTaskRequest{
-					OriginMessageID: strings.TrimSpace(input.OriginMessageID),
-					Title:           strings.TrimSpace(input.Title),
-					Description:     strings.TrimSpace(input.Description),
-					Priority:        strings.TrimSpace(input.Priority),
-					Metadata:        metadata,
-				},
-			)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, networkThreadPromotionBundle(&promoted))
-		},
-	}
-	cmd.Flags().
-		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
-	cmd.Flags().StringVar(&input.Channel, networkChannelKey, "", "Source network channel")
-	cmd.Flags().StringVar(&input.ThreadID, networkSurfaceThread, "", "Source public thread id")
-	cmd.Flags().StringVar(&input.OriginMessageID, "origin-message", "", "Origin message id to promote")
-	cmd.Flags().StringVar(&input.Title, taskTitleKey, "", "Optional task title")
-	cmd.Flags().StringVar(&input.Description, taskDescriptionKey, "", "Optional task description")
-	cmd.Flags().StringVar(&input.Priority, "priority", "", "Optional task priority")
-	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional JSON metadata for the promoted task")
-	mustMarkFlagRequired(cmd, networkChannelKey)
-	mustMarkFlagRequired(cmd, networkSurfaceThread)
-	mustMarkFlagRequired(cmd, "origin-message")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -210,15 +150,10 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			participationRequest, err := input.NetworkFlags.request()
-			if err != nil {
-				return err
-			}
 			record, err := client.FanOutTaskRuns(cmd.Context(), args[0], FanOutTaskRunsRequest{
-				NetworkParticipation: participationRequest,
-				Designations:         designations,
-				IdempotencyKey:       strings.TrimSpace(input.IdempotencyKey),
-				WorktreePerRun:       input.WorktreePerRun,
+				Designations:   designations,
+				IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
+				WorktreePerRun: input.WorktreePerRun,
 			})
 			if err != nil {
 				return err
@@ -226,13 +161,13 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskFanOutRunsBundle(record))
 		},
 	}
-	bindNetworkParticipationFlags(cmd, &input.NetworkFlags)
 	cmd.Flags().
 		StringArrayVar(&input.Designations, "designation", nil, "Designation brief for one sibling run; repeatable")
 	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Fan-out idempotency key")
 	cmd.Flags().BoolVar(&input.WorktreePerRun, "worktree-per-run", false, "Create a dedicated worktree for each run")
 	mustMarkFlagRequired(cmd, "designation")
 	mustMarkFlagRequired(cmd, "idempotency-key")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

@@ -2,10 +2,12 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"reflect"
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -38,14 +40,24 @@ func (s *service) buildCatalogWindowManagerSection(
 	clientID string,
 	section WindowManagerSection,
 ) (WindowManagerSection, error) {
-	catalog, err := s.cmdPalette.Catalog(
-		ctx,
-		cmdpalette.CatalogRequest{
-			ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
-			WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
-			ClientID:    cmdpalette.ClientID(clientID),
-		},
-	)
+	request := cmdpalette.CatalogRequest{
+		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
+		ClientID:    cmdpalette.ClientID(clientID),
+	}
+	catalog, err := s.cmdPalette.Catalog(ctx, request)
+	if err != nil && clientID != "" && errors.Is(err, cmdpalette.ErrNoAttachedShell) {
+		// A read can name a client that is not attached to this workspace yet
+		// (registration racing a workspace switch, or a daemon restart). The
+		// section is still answerable without that client's context; only its
+		// global-shortcut statuses are missing until the next read.
+		slog.Default().DebugContext(
+			ctx, "settings: window-manager read names an unattached client; reading without it",
+			"workspace_id", workspaceID, "client_id", clientID,
+		)
+		request.ClientID = ""
+		catalog, err = s.cmdPalette.Catalog(ctx, request)
+	}
 	if err != nil {
 		return WindowManagerSection{}, fmt.Errorf("settings: load command catalog for shortcuts: %w", err)
 	}
@@ -108,23 +120,18 @@ func buildDefaultWindowManagerSection(
 	for commandID := range effective {
 		ids = append(ids, commandID)
 	}
-	for commandID := range section.Aliases {
-		if _, exists := bindableIDs[commandID]; !exists {
-			delete(section.Aliases, commandID)
-		}
-	}
-	sort.Strings(ids)
+	maps.DeleteFunc(section.Aliases, func(commandID, _ string) bool {
+		_, exists := bindableIDs[commandID]
+		return !exists
+	})
+	slices.Sort(ids)
 	section.Commands = make([]WindowManagerShortcutCommand, 0, len(ids))
 	for _, commandID := range ids {
 		section.Commands = append(section.Commands, WindowManagerShortcutCommand{
 			ID: commandID, Title: commandID, Source: string(cmdpalette.SourceKindCore),
 		})
 	}
-	globalIDs := make([]string, 0, len(cfg.WindowManager.GlobalShortcuts))
-	for commandID := range cfg.WindowManager.GlobalShortcuts {
-		globalIDs = append(globalIDs, commandID)
-	}
-	sort.Strings(globalIDs)
+	globalIDs := slices.Sorted(maps.Keys(cfg.WindowManager.GlobalShortcuts))
 	for _, commandID := range globalIDs {
 		section.GlobalShortcuts = append(section.GlobalShortcuts, WindowManagerGlobalShortcut{
 			CommandID: commandID, IntendedChord: cfg.WindowManager.GlobalShortcuts[commandID],

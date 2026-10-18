@@ -44,7 +44,7 @@ func (n *daemonNativeTools) notifyOperator(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID)
 	if err != nil {

@@ -54,7 +54,8 @@ export const Default: Story = {
     await expect(canvas.findByTestId("agent-overview-tab")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-page-status")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-page-toolbar")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("agent-overview-glance")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-overview-live-sessions")).resolves.toBeDefined();
+    expect(canvas.queryByTestId("agent-overview-glance")).toBeNull();
     expect(canvas.queryByTestId("agent-info-inspector")).toBeNull();
   },
 };
@@ -70,8 +71,7 @@ export const InstructionsAgent: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.findByTestId("agent-file-agent")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("agent-file-meta")).resolves.toBeDefined();
-    expect(canvas.getByTestId("agent-file-meta")).toHaveTextContent("Read-only here");
+    await expect(canvas.findByTestId("agent-file-prompt")).resolves.toBeDefined();
   },
 };
 

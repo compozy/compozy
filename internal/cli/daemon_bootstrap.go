@@ -45,12 +45,12 @@ type bootstrapEvent struct {
 	Phase          bootstrapPhase          `json:"phase"`
 	Status         string                  `json:"status"`
 	Resolution     bootstrapResolution     `json:"resolution,omitempty"`
-	Attempt        int                     `json:"attempt,omitempty"`
-	BackoffMS      int64                   `json:"backoff_ms,omitempty"`
+	Attempt        int                     `json:"attempt,omitzero"`
+	BackoffMS      int64                   `json:"backoff_ms,omitzero"`
 	Classification bootstrapProbeClass     `json:"classification,omitempty"`
 	Message        string                  `json:"message"`
-	Daemon         *bootstrapDaemon        `json:"daemon,omitempty"`
-	Compatibility  *bootstrapCompatibility `json:"compatibility,omitempty"`
+	Daemon         *bootstrapDaemon        `json:"daemon,omitzero"`
+	Compatibility  *bootstrapCompatibility `json:"compatibility,omitzero"`
 }
 
 type bootstrapCompatibility struct {
@@ -423,9 +423,7 @@ func validateBootstrapCompatibility(status DaemonStatus, minimumRuntime string, 
 			minimumRuntime,
 		)
 		return &bootstrapCompatibilityFailure{
-			bootstrapCompatibility: bootstrapCompatibility{
-				Reason: "runtime_below_minimum", Runtime: status.Version, Needed: minimumRuntime,
-			},
+			Reason: "runtime_below_minimum", Runtime: status.Version, Needed: minimumRuntime,
 			cause: cause,
 		}
 	}
@@ -437,9 +435,7 @@ func validateBootstrapCompatibility(status DaemonStatus, minimumRuntime string, 
 	}, compozyupdate.InstalledApp{Present: true, Version: appVersion}); err != nil {
 		cause := fmt.Errorf("cli: %w; update or repair the desktop app before attaching", err)
 		return &bootstrapCompatibilityFailure{
-			bootstrapCompatibility: bootstrapCompatibility{
-				Reason: "app_below_minimum", Runtime: status.Version, Needed: status.MinAppVersion,
-			},
+			Reason: "app_below_minimum", Runtime: status.Version, Needed: status.MinAppVersion,
 			cause: cause,
 		}
 	}

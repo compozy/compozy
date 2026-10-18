@@ -75,12 +75,10 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 		Type:        eventType,
 		AgentName:   strings.TrimSpace(record.Actor.AgentName),
 		Outcome:     string(eventspkg.OutcomeFor(eventType)),
-		EventCorrelation: store.EventCorrelation{
-			ActorKind: string(record.Actor.Kind),
-			ActorID:   strings.TrimSpace(record.Actor.SessionID),
-		},
-		Summary:   summary,
-		Timestamp: e.now().UTC(),
+		ActorKind:   string(record.Actor.Kind),
+		ActorID:     strings.TrimSpace(record.Actor.SessionID),
+		Summary:     summary,
+		Timestamp:   e.now().UTC(),
 	}, content)); err != nil {
 		return fmt.Errorf("daemon: write workspace access audit event: %w", err)
 	}

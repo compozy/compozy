@@ -11,68 +11,10 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func TestSessionPolicyGateAppliesSandboxPolicy(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		policy  SessionPolicy
-		wantRef string
-		wantOff bool
-	}{
-		{
-			name:    "Should disable sandbox for none mode",
-			policy:  SessionPolicy{Sandbox: SessionSandboxPolicy{Mode: SessionSandboxModeNone, SandboxRef: "ignored"}},
-			wantOff: true,
-		},
-		{
-			name: "Should propagate sandbox ref for ref mode",
-			policy: SessionPolicy{Sandbox: SessionSandboxPolicy{
-				Mode:       SessionSandboxModeRef,
-				SandboxRef: " evidence-lab ",
-			}},
-			wantRef: "evidence-lab",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			opts := session.CreateOpts{SandboxRef: "preexisting"}
-			applySessionSandboxPolicy(&opts, tt.policy)
-
-			if got := opts.DisableSandbox; got != tt.wantOff {
-				t.Fatalf("DisableSandbox = %v, want %v", got, tt.wantOff)
-			}
-			if got := opts.SandboxRef; got != tt.wantRef {
-				t.Fatalf("SandboxRef = %q, want %q", got, tt.wantRef)
-			}
-		})
-	}
-}
-
 func TestSessionPolicyGateAppliesEvidencePermissionPolicy(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should auto approve evidence mode only with sandbox ref", func(t *testing.T) {
-		t.Parallel()
-
-		opts := session.CreateOpts{Permissions: compozyconfig.PermissionModeDenyAll}
-		applySessionPermissionPolicy(&opts, SessionPolicy{
-			Sandbox: SessionSandboxPolicy{Mode: SessionSandboxModeRef, SandboxRef: "evidence-lab"},
-			Runtime: SessionRuntimePolicy{Mode: SessionRuntimeModeEvidence},
-		})
-
-		if got, want := opts.Permissions, compozyconfig.PermissionModeApproveAll; got != want {
-			t.Fatalf("Permissions = %q, want %q", got, want)
-		}
-		if !strings.Contains(opts.PromptOverlay, "Runtime evidence mode is enabled") {
-			t.Fatalf("PromptOverlay = %q, want evidence guidance", opts.PromptOverlay)
-		}
-	})
-
-	t.Run("Should preserve configured permission mode without sandbox ref", func(t *testing.T) {
+	t.Run("Should preserve configured permission mode while appending evidence guidance", func(t *testing.T) {
 		t.Parallel()
 
 		opts := session.CreateOpts{Permissions: compozyconfig.PermissionModeDenyAll}
@@ -83,8 +25,8 @@ func TestSessionPolicyGateAppliesEvidencePermissionPolicy(t *testing.T) {
 		if got, want := opts.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("Permissions = %q, want configured %q", got, want)
 		}
-		if !strings.Contains(opts.PromptOverlay, "did not select a sandbox") {
-			t.Fatalf("PromptOverlay = %q, want sandbox warning", opts.PromptOverlay)
+		if !strings.Contains(opts.PromptOverlay, "Runtime evidence mode is enabled") {
+			t.Fatalf("PromptOverlay = %q, want evidence guidance", opts.PromptOverlay)
 		}
 	})
 }
@@ -127,17 +69,16 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 		t.Parallel()
 
 		activation := taskRoleActivation{
-			TaskID:               "task-parity",
-			RunID:                "run-parity",
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          "ws-parity",
-			AgentName:            "frontend-engineer",
-			Provider:             "claude",
-			Model:                "sonnet",
-			NetworkParticipation: daemonTestLiveParticipationPtr("ws-parity", "design-review"),
-			Title:                "Parity task",
-			Capabilities:         []string{"frontend"},
-			Worktree:             taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeNone},
+			TaskID:       "task-parity",
+			RunID:        "run-parity",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-parity",
+			AgentName:    "frontend-engineer",
+			Provider:     "claude",
+			Model:        "sonnet",
+			Title:        "Parity task",
+			Capabilities: []string{"frontend"},
+			Worktree:     taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeNone},
 			Profile: &taskpkg.ExecutionProfile{
 				TaskID: "task-parity",
 				Worker: taskpkg.WorkerProfile{
@@ -145,10 +86,6 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 					AgentName: "frontend-engineer",
 					Provider:  "claude",
 					Model:     "sonnet",
-				},
-				Sandbox: taskpkg.SandboxPolicy{
-					Mode:       taskpkg.SandboxModeRef,
-					SandboxRef: "evidence-lab",
 				},
 				Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 			},
@@ -160,20 +97,13 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			t.Fatalf("taskRoleCreateOpts() error = %v", err)
 		}
 		want := session.CreateOpts{
-			AgentName:       "frontend-engineer",
-			Provider:        "claude",
-			Model:           "sonnet",
-			SandboxRef:      "evidence-lab",
-			DisableSandbox:  false,
-			Permissions:     compozyconfig.PermissionModeApproveAll,
-			Name:            "task-role:frontend-engineer:run-parity:0307ba9fbba159c9",
-			Workspace:       "ws-parity",
-			WorkspacePath:   "",
-			NetworkOwnerKey: "task_run:run-parity",
-			ResolvedNetworkParticipation: participationSnapshotPointer(
-				daemonTestLiveParticipation("ws-parity", "design-review"),
-			),
-			PromptOverlay: "A queued Compozy task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nCall the hosted native tool `compozy__task_run_claim_next` with `run_id` set to \"run-parity\" and `required_capabilities` set to [\"frontend\"] before doing any work. Do not use the CLI for session-bound lease operations. Maintain and settle the lease from this same session with `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, or `compozy__task_run_release`.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+			AgentName:     "frontend-engineer",
+			Provider:      "claude",
+			Model:         "sonnet",
+			Name:          "task-role:frontend-engineer:run-parity:1a4f6338942e8365",
+			Workspace:     "ws-parity",
+			WorkspacePath: "",
+			PromptOverlay: "A queued Compozy task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\n\nCall the hosted native tool `compozy__task_run_claim_next` with `run_id` set to \"run-parity\" and `required_capabilities` set to [\"frontend\"] before doing any work. Do not use the CLI for session-bound lease operations. Maintain and settle the lease from this same session with `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, or `compozy__task_run_release`.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
 			Type:          session.SessionTypeSystem,
 		}
 		if !reflect.DeepEqual(got, want) {

@@ -42,6 +42,9 @@ func (e *RunLoopActionExecutor) Execute(
 	if err := dsl.NodeParams(params).Decode(&spec); err != nil {
 		return ActionRawResult{}, fmt.Errorf("decode run-loop params: %w", err)
 	}
+	if _, err := dsl.DecodeReviewedWorktree(spec.Inputs); err != nil {
+		return ActionRawResult{}, fmt.Errorf("decode run-loop reviewed candidate: %w", err)
+	}
 	if spec.Mode == "" {
 		spec.Mode = dsl.RunLoopAwait
 	}
@@ -54,7 +57,7 @@ func (e *RunLoopActionExecutor) Execute(
 		Values:               spec.Inputs,
 		ParentLoopRunID:      in.LoopRunID,
 		ConfigOverrides:      configOverrides,
-		InheritedEnvironment: cloneEnvironmentSpec(in.EnvironmentValue()),
+		InheritedEnvironment: new(in.EnvironmentValue()),
 	}, in.ActorOrZero())
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("start child loop %q: %w", spec.Loop, err)
@@ -126,19 +129,19 @@ func decodeRunLoopConfigOverrides(raw map[string]any) (LoopConfig, error) {
 
 // runLoopPublicConfigOverrides excludes operator-owned lifecycle and request-expiry policy.
 type runLoopPublicConfigOverrides struct {
-	HumanGateEnabled  *bool                `json:"human_gate_enabled,omitempty"`
-	ReattemptStrategy *ReattemptStrategy   `json:"reattempt_strategy,omitempty"`
+	HumanGateEnabled  *bool                `json:"human_gate_enabled,omitzero"`
+	ReattemptStrategy *ReattemptStrategy   `json:"reattempt_strategy,omitzero"`
 	EnabledChecks     json.RawMessage      `json:"enabled_checks_json,omitempty"`
-	IterationCap      *int                 `json:"iteration_cap,omitempty"`
-	BudgetTokens      *int                 `json:"budget_tokens,omitempty"`
-	BudgetWallSec     *int                 `json:"budget_wall_sec,omitempty"`
-	BudgetOnExceeded  *dsl.BudgetExceeded  `json:"budget_on_exceeded,omitempty"`
-	NoProgressWindow  *int                 `json:"no_progress_window,omitempty"`
-	FanOutWidth       *int                 `json:"fan_out_width,omitempty"`
-	GateMaxRevisions  *int                 `json:"gate_max_revisions,omitempty"`
-	RuntimeDefaults   *RuntimeDefaults     `json:"runtime_defaults,omitempty"`
+	IterationCap      *int                 `json:"iteration_cap,omitzero"`
+	BudgetTokens      *int                 `json:"budget_tokens,omitzero"`
+	BudgetWallSec     *int                 `json:"budget_wall_sec,omitzero"`
+	BudgetOnExceeded  *dsl.BudgetExceeded  `json:"budget_on_exceeded,omitzero"`
+	NoProgressWindow  *int                 `json:"no_progress_window,omitzero"`
+	FanOutWidth       *int                 `json:"fan_out_width,omitzero"`
+	GateMaxRevisions  *int                 `json:"gate_max_revisions,omitzero"`
+	RuntimeDefaults   *RuntimeDefaults     `json:"runtime_defaults,omitzero"`
 	RuntimeRules      []RuntimeRule        `json:"runtime_rules,omitempty"`
-	Environment       *dsl.EnvironmentSpec `json:"environment,omitempty"`
+	Environment       *dsl.EnvironmentSpec `json:"environment,omitzero"`
 }
 
 func (c runLoopPublicConfigOverrides) loopConfig() LoopConfig {

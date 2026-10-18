@@ -1,12 +1,11 @@
 // Suite: OS session-window content
 // Invariant: recovery preserves durable lineage, composer cancellation never
 // stops the session, and the window's notice slot surfaces the daemon's
-// runtime, stop, and supervision truth with the one action that exists for
-// each — actionable failures outrank the quiet warning, and the warning
-// exists only while the daemon reports it.
-// Owning layer: the session-window recovery, stop-attention, and quiet-warning actions.
+// runtime and stop truth with the one action that exists for each — a quiet
+// supervision episode is never a window notice.
+// Owning layer: the session-window recovery and stop-attention actions.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { Suspense } from "react";
+import { createContext, type ReactNode, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
@@ -19,12 +18,10 @@ const mocks = vi.hoisted(() => ({
     handleCancelPrompt: vi.fn(),
     handleStop: vi.fn(),
     isBusyInputPending: false,
-    isResuming: false,
     isSessionRunning: false,
     isStopping: false,
     isStopRetrying: false,
     queuedPrompts: [],
-    resumeFailure: null,
     stopAttention: null as string | null,
     stopCompletionNote: false,
   },
@@ -74,16 +71,25 @@ vi.mock("../use-session-window-controller", () => ({
   }),
 }));
 
+vi.mock("../use-session-window-derive", () => ({
+  useSessionWindowDerive: () => ({
+    deriveHost: {},
+    openInNewWindow: vi.fn(),
+    origin: null,
+    originContext: null,
+    onOpenOriginSource: vi.fn(),
+    onContinue: vi.fn(),
+  }),
+}));
+
 vi.mock("@/systems/session", async () => ({
-  // The stop-attention and quiet-warning notices are under test here: the real
-  // composites and the quiet-warning read model, not stand-ins.
+  // The stop-attention notice is under test here: the real composite, not a stand-in.
   ...(await import("@/systems/session/components/session-stop-attention-notice")),
-  ...(await import("@/systems/session/components/session-quiet-warning-notice")),
-  ...(await import("@/systems/session/lib/session-quiet-warning")),
   hasUnrecoverableRuntime: (session: SessionPayload) =>
     session.failure?.kind === "process_exit" && session.health?.health === "dead",
   SessionEnvironmentControl: () => null,
   SessionContextControl: () => null,
+  SessionComposerSubagents: () => null,
   SessionPromptRuntimeSelector: () => null,
   SessionResumeFailure: ({ onRetry, retryLabel }: { onRetry: () => void; retryLabel?: string }) => (
     <button type="button" onClick={onRetry}>
@@ -98,16 +104,19 @@ vi.mock("@/systems/session", async () => ({
     maxAttempts?: number;
   }) => (
     <div role="status">
-      Recovering runtime · Attempt {attempt} of {maxAttempts}
+      Reconnecting to the agent… · Attempt {attempt} of {maxAttempts}
     </div>
   ),
   SessionSidebar: () => null,
+  SessionDeriveHost: ({ children }: { children: ReactNode }) => children,
+  SessionOriginContext: createContext(null),
   useCreateSession: () => mocks.forkMutation,
 }));
 
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
 import { SessionWindowContent } from "../session-window-content";
+import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-inspector-focus";
 
 const deadSession: SessionPayload = {
   profile_id: "00000000000000000000000000",
@@ -220,6 +229,38 @@ describe("SessionWindowContent", () => {
     mocks.toastError.mockReset();
   });
 
+  it("Should land the waiting banner's show-all on the inspector's Subagents section (m19)", async () => {
+    const session = {
+      ...deadSession,
+      failure: undefined,
+      health: undefined,
+      runtime: { effective: { provider: "codex" }, selection_revision: 0, status: "ready" },
+      state: "active",
+    } satisfies SessionPayload;
+    render(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          onDeleteSuccess={vi.fn()}
+          session={session}
+          sessionId={session.id}
+          windowId={`session:${session.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+    const props = mocks.sessionThreadProps.mock.lastCall?.[0] as {
+      subagentNavigation: { showSubagents: () => void };
+    };
+    act(() => props.subagentNavigation.showSubagents());
+    expect(sessionInspectorFocusStore.getSnapshot().context.request).toEqual({
+      sessionId: session.id,
+      section: "subagents",
+    });
+  });
+
   it("Should bind Stop generation to prompt cancellation instead of session stopping", async () => {
     const session = {
       ...deadSession,
@@ -276,10 +317,9 @@ describe("SessionWindowContent", () => {
     expect(screen.getByTestId("session-stop-attention-title")).toHaveTextContent(
       "Couldn’t confirm the agent stopped."
     );
-    expect(screen.getByTestId("session-stop-attention-meta")).toHaveTextContent(
-      "stop_verification_failed"
-    );
-    expect(screen.queryByRole("button", { name: "Fork into a new session" })).toBeNull();
+    // The attention code rides on data-attention; it never reads on screen.
+    expect(notice).not.toHaveTextContent("stop_verification_failed");
+    expect(screen.queryByRole("button", { name: "Restart in a new session" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry stop" }));
 
@@ -326,112 +366,26 @@ describe("SessionWindowContent", () => {
     expect(screen.queryByRole("button", { name: "Retry stop" })).toBeNull();
   });
 
-  // Invariant (US-014.AC-1, US-014.EC-2): the daemon's single quiet warning is
-  // visible on the open session itself — notice slot plus quiet status row —
-  // and its one action is the public session stop, never the prompt cancel.
-  it("Should surface the daemon quiet warning on the session and stop it through the session stop action", async () => {
+  // Invariant: a quiet supervision episode is never a session-level notice. The
+  // window's notice slot stays empty and the episode reaches the thread only
+  // through the session resource its status row reads ("quiet for {d}").
+  it("Should raise no window notice for a quiet episode and hand it to the thread status", async () => {
     render(renderContent(quietSession));
 
-    const notice = await screen.findByTestId("session-quiet-warning");
-    expect(notice).toHaveAttribute("role", "status");
-    expect(notice).toHaveAttribute("data-quiet-stop", "scheduled");
-    expect(screen.getByTestId("session-quiet-warning-title")).toHaveTextContent(
-      "Quiet for 30 minutes."
-    );
-    expect(screen.getByTestId("session-quiet-warning-message")).toHaveTextContent(
-      "This session stops in 10 minutes unless the agent gets back to work."
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Stop now" }));
-
-    expect(mocks.controls.handleStop).toHaveBeenCalledOnce();
-    expect(mocks.cancelPrompt).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(mocks.sessionThreadProps).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          quietWarning: {
-            quietSinceMs: Date.parse("2026-09-06T10:00:00Z"),
-            stopAtMs: Date.parse("2026-09-06T10:40:00Z"),
-            warnedAtMs: Date.parse("2026-09-06T10:30:00Z"),
-          },
+          statusSession: expect.objectContaining({ supervision: quietSupervision }),
         })
       )
     );
-  });
-
-  // Invariant (US-014.AC-3): the warning exists only while the daemon reports
-  // it; a payload without `quiet_warning` clears both the notice and the row.
-  it("Should clear the quiet warning when the daemon clears it", async () => {
-    const { rerender } = render(renderContent(quietSession));
-    await screen.findByTestId("session-quiet-warning");
-
-    rerender(
-      renderContent({
-        ...quietSession,
-        supervision: { ...quietSupervision, quiet_warning: null },
-      })
-    );
-
-    expect(screen.queryByTestId("session-quiet-warning")).toBeNull();
-    await waitFor(() =>
-      expect(mocks.sessionThreadProps).toHaveBeenLastCalledWith(
-        expect.objectContaining({ quietWarning: null })
-      )
-    );
-  });
-
-  it("Should state that automatic stop is off instead of promising a countdown", async () => {
-    render(
-      renderContent({
-        ...quietSession,
-        supervision: {
-          ...quietSupervision,
-          quiet_warning: { ...quietSupervision.quiet_warning, stop_at: null },
-        },
-      })
-    );
-
-    const notice = await screen.findByTestId("session-quiet-warning");
-    expect(notice).toHaveAttribute("data-quiet-stop", "off");
-    expect(screen.getByTestId("session-quiet-warning-message")).toHaveTextContent(
-      "Automatic stop is off, so this session keeps waiting until the agent gets back to work or you stop it."
-    );
-    expect(screen.getByTestId("session-quiet-warning-message")).not.toHaveTextContent("stops in");
-  });
-
-  it("Should hold Stop now while a stop lands, omit it for a managed session, and yield the slot to an unverified stop", async () => {
-    mocks.controls.isStopping = true;
-
-    const { rerender } = render(renderContent(quietSession));
-
-    const stop = await screen.findByRole("button", { name: "Stop now" });
-    expect(stop).toBeDisabled();
-    expect(stop).toHaveAttribute("aria-busy", "true");
-    fireEvent.click(stop);
-    expect(mocks.controls.handleStop).not.toHaveBeenCalled();
-
-    mocks.controls.isStopping = false;
-    mocks.controls.canRetryStop = false;
-    rerender(renderContent({ ...quietSession, type: "system" }));
-    expect(screen.getByTestId("session-quiet-warning")).toBeInTheDocument();
+    expect(screen.getByTestId("session-window-notice-rail")).toBeEmptyDOMElement();
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("button", { name: "Stop now" })).toBeNull();
-
-    // Precedence: the actionable stop failure outranks the quiet warning in the one slot.
-    mocks.controls.canRetryStop = true;
-    mocks.controls.stopAttention = "stop_verification_failed";
-    rerender(
-      renderContent({
-        ...quietSession,
-        attention: "stop_verification_failed",
-        badge: "needs-attention",
-        state: "stopping",
-      })
-    );
-    expect(screen.getByTestId("session-stop-attention")).toBeInTheDocument();
-    expect(screen.queryByTestId("session-quiet-warning")).toBeNull();
+    expect(mocks.controls.handleStop).not.toHaveBeenCalled();
   });
 
-  it("Should fork a dead session into its workspace and select the child", async () => {
+  it("Should restart a dead session as a recovery child in its workspace and select it", async () => {
     render(
       <Suspense fallback={null}>
         <SessionWindowContent
@@ -446,12 +400,13 @@ describe("SessionWindowContent", () => {
       </Suspense>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Fork into a new session" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Restart in a new session" }));
 
     expect(mocks.forkMutation.mutate).toHaveBeenCalledWith(
       {
         agent_name: "codex-agent",
         parent_session_id: "sess-dead",
+        lineage_kind: "recovery",
         workspace: "ws-alpha",
       },
       expect.objectContaining({ onError: expect.any(Function), onSuccess: expect.any(Function) })
@@ -498,10 +453,10 @@ describe("SessionWindowContent", () => {
     );
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Recovering runtime · Attempt 2 of 3"
+      "Reconnecting to the agent… · Attempt 2 of 3"
     );
     expect(
-      screen.queryByRole("button", { name: "Fork into a new session" })
+      screen.queryByRole("button", { name: "Restart in a new session" })
     ).not.toBeInTheDocument();
   });
 
@@ -553,7 +508,9 @@ describe("SessionWindowContent", () => {
           prompt_audio: false,
           prompt_embedded_context: false,
           prompt_image: false,
+          supports_fork_session: false,
           supports_load_session: false,
+          supports_resume_session: false,
         },
         effective: { model: "previous-model", provider: "codex" },
         selected: { model: "next-model", provider: "codex" },

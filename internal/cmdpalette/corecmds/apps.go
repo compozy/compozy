@@ -7,8 +7,6 @@ var appOnlyDefinitions = []domainDefinition{
 	{id: "session", title: "Session", icon: coreIconTerminal, keywords: []string{"agent"}},
 	{id: "terminal", title: "Terminal", icon: coreIconTerminal, keywords: []string{"terminal", "journal", "pty"}},
 	{id: "new-tab", title: "New tab", icon: coreIconPlus},
-	{id: coreNetworkKey, title: "Network", icon: coreIconGlobe},
-	{id: "sandbox", title: "Sandbox", icon: "boxes"},
 	{id: coreSettingsKey, title: "Settings", icon: coreSettingsKey},
 }
 
@@ -28,4 +26,31 @@ func appCommands() []cmdpalette.Descriptor {
 		commands = append(commands, command)
 	}
 	return commands
+}
+
+// RegisteredApp reports membership in the daemon-owned OS app inventory.
+func RegisteredApp(id string) bool {
+	for _, app := range appOnlyDefinitions {
+		if app.id == id {
+			return true
+		}
+	}
+	for _, app := range sharedAppViewDomains {
+		if app.id == id {
+			return true
+		}
+	}
+	return false
+}
+
+// RetiredCommandID accepts public aliases until removal in v0.5.0.
+func RetiredCommandID(id cmdpalette.CommandID) (cmdpalette.CommandID, bool) {
+	switch id {
+	case "app.open.jobs", "app.open.triggers":
+		return "app.open.automations", true
+	case "palette.view.jobs", "palette.view.triggers":
+		return "palette.view.automations", true
+	default:
+		return id, false
+	}
 }

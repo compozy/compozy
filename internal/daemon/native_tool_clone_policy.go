@@ -8,8 +8,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/compozy/internal/network"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -18,61 +16,42 @@ func cloneStringPtr(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := strings.TrimSpace(*value)
-	return &cloned
-}
-
-func cloneTrimmedStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			cloned = append(cloned, trimmed)
-		}
-	}
-	return cloned
+	return new(strings.TrimSpace(*value))
 }
 
 func cloneIntPtr(value *int) *int {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneBoolPtr(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneRawMessagePtr(value *json.RawMessage) *json.RawMessage {
 	if value == nil {
 		return nil
 	}
-	cloned := cloneJSON(*value)
-	return &cloned
+	return new(cloneJSON(*value))
 }
 
 func taskPriorityPtr(value *string) *taskpkg.Priority {
 	if value == nil {
 		return nil
 	}
-	priority := taskpkg.Priority(strings.TrimSpace(*value))
-	return &priority
+	return new(taskpkg.Priority(strings.TrimSpace(*value)))
 }
 
 func taskApprovalPolicyPtr(value *string) *taskpkg.ApprovalPolicy {
 	if value == nil {
 		return nil
 	}
-	policy := taskpkg.ApprovalPolicy(strings.TrimSpace(*value))
-	return &policy
+	return new(taskpkg.ApprovalPolicy(strings.TrimSpace(*value)))
 }
 
 func cloneTaskOwner(owner *taskpkg.Ownership) *taskpkg.Ownership {
@@ -90,17 +69,6 @@ func cloneJSON(raw json.RawMessage) json.RawMessage {
 		return nil
 	}
 	return append(json.RawMessage(nil), raw...)
-}
-
-func cloneExtensionMap(src network.ExtensionMap) network.ExtensionMap {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(network.ExtensionMap, len(src))
-	for key, value := range src {
-		dst[key] = cloneJSON(value)
-	}
-	return dst
 }
 
 func nativeToolPolicyInputs(cfg *compozyconfig.Config) (toolspkg.PolicyInputs, error) {

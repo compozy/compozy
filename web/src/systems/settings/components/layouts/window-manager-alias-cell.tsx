@@ -35,7 +35,7 @@ export function WindowManagerAliasCell({
         aria-invalid={invalid || undefined}
         aria-label={`Alias for ${commandTitle}`}
         autoComplete="off"
-        className="h-7 max-w-36 px-2 text-form-input"
+        className="h-control-compact max-w-36 px-2 text-form-input"
         data-testid={`shortcut-alias-${commandId}`}
         disabled={state.saving}
         maxLength={32}

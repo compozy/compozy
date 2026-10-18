@@ -12,7 +12,7 @@ type SettingsProviderSettingsPayload struct {
 	SteerCapability config.SteerCapability                  `json:"steer_capability,omitempty"`
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`
-	Models          *SettingsProviderModelsPayload          `json:"models,omitempty"`
+	Models          *SettingsProviderModelsPayload          `json:"models,omitzero"`
 	Harness         string                                  `json:"harness,omitempty"`
 	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
 	Transport       string                                  `json:"transport,omitempty"`
@@ -29,7 +29,7 @@ type SettingsProviderWritePayload struct {
 	SteerCapability config.SteerCapability                  `json:"steer_capability,omitempty"`
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`
-	Models          *SettingsProviderModelsPayload          `json:"models,omitempty"`
+	Models          *SettingsProviderModelsPayload          `json:"models,omitzero"`
 	Harness         string                                  `json:"harness,omitempty"`
 	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
 	Transport       string                                  `json:"transport,omitempty"`
@@ -38,7 +38,7 @@ type SettingsProviderWritePayload struct {
 	EnvPolicy       string                                  `json:"env_policy,omitempty"`
 	HomePolicy      string                                  `json:"home_policy,omitempty"`
 	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
-	AuthLoginCmd    *string                                 `json:"auth_login_command,omitempty"`
+	AuthLoginCmd    *string                                 `json:"auth_login_command,omitzero"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
 }
 
@@ -90,9 +90,9 @@ type SettingsProviderItemPayload struct {
 	Default          bool                                      `json:"default"`
 	CommandAvailable bool                                      `json:"command_available"`
 	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
-	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitempty"`
+	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitzero"`
 	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
-	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitempty"`
+	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitzero"`
 }
 
 type SettingsMCPServerPayload struct {
@@ -104,7 +104,7 @@ type SettingsMCPServerPayload struct {
 	Env       map[string]string             `json:"env,omitempty"`
 	SecretEnv map[string]string             `json:"secret_env,omitempty"`
 	URL       string                        `json:"url,omitempty"`
-	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
+	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitzero"`
 }
 
 type SettingsMCPAuthConfigPayload struct {
@@ -117,13 +117,13 @@ type SettingsMCPAuthConfigPayload struct {
 
 type SettingsMCPSecretValuesPayload struct {
 	SecretEnv         map[string]string `json:"secret_env,omitempty"`
-	OAuthClientSecret *string           `json:"oauth_client_secret,omitempty"`
+	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
 }
 
 // SettingsMCPSecretPreservationPayload identifies existing bindings to retain without exposing their refs.
 type SettingsMCPSecretPreservationPayload struct {
 	SecretEnv         []string `json:"secret_env,omitempty"`
-	OAuthClientSecret bool     `json:"oauth_client_secret,omitempty"`
+	OAuthClientSecret bool     `json:"oauth_client_secret,omitzero"`
 }
 
 // SettingsMCPAuthConfigViewPayload is the public, binding-free OAuth configuration projection.
@@ -175,7 +175,7 @@ type SettingsMCPExtensionOverridePayload struct {
 type SettingsMCPServerItemPayload struct {
 	Owner          string                                 `json:"owner,omitempty"`
 	RuntimeName    string                                 `json:"runtime_name,omitempty"`
-	Override       *SettingsMCPExtensionOverridePayload   `json:"override,omitempty"`
+	Override       *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
 	Name           string                                 `json:"name"`
 	Transport      string                                 `json:"transport"`
 	Command        string                                 `json:"command,omitempty"`
@@ -183,9 +183,9 @@ type SettingsMCPServerItemPayload struct {
 	EnvKeys        []string                               `json:"env_keys,omitempty"`
 	SecretEnvKeys  []string                               `json:"secret_env_keys,omitempty"`
 	URL            string                                 `json:"url,omitempty"`
-	Auth           *SettingsMCPAuthConfigViewPayload      `json:"auth,omitempty"`
-	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitempty"`
-	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitempty"`
+	Auth           *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
 	Scope          SettingsScopeKind                      `json:"scope"`
 	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
 	Profile        string                                 `json:"profile,omitempty"`
@@ -194,49 +194,13 @@ type SettingsMCPServerItemPayload struct {
 	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
-type SettingsSandboxProfilePayload struct {
-	Backend     string                         `json:"backend"`
-	SyncMode    string                         `json:"sync_mode,omitempty"`
-	Persistence string                         `json:"persistence,omitempty"`
-	RuntimeRoot string                         `json:"runtime_root,omitempty"`
-	Env         map[string]string              `json:"env,omitempty"`
-	SecretEnv   map[string]string              `json:"secret_env,omitempty"`
-	Network     *SettingsSandboxNetworkPayload `json:"network,omitempty"`
-	Daytona     *SettingsSandboxDaytonaPayload `json:"daytona,omitempty"`
-}
-
-type SettingsSandboxNetworkPayload struct {
-	AllowPublicIngress bool     `json:"allow_public_ingress,omitempty"`
-	AllowOutbound      bool     `json:"allow_outbound,omitempty"`
-	AllowList          []string `json:"allow_list,omitempty"`
-	DenyList           []string `json:"deny_list,omitempty"`
-	Required           bool     `json:"required,omitempty"`
-}
-
-type SettingsSandboxDaytonaPayload struct {
-	APIURL      string `json:"api_url,omitempty"`
-	Target      string `json:"target,omitempty"`
-	Image       string `json:"image,omitempty"`
-	Snapshot    string `json:"snapshot,omitempty"`
-	Class       string `json:"class,omitempty"`
-	AutoStop    string `json:"auto_stop,omitempty"`
-	AutoArchive string `json:"auto_archive,omitempty"`
-}
-
-type SettingsSandboxItemPayload struct {
-	Name                string                        `json:"name"`
-	Profile             SettingsSandboxProfilePayload `json:"profile"`
-	WorkspaceUsageCount int                           `json:"workspace_usage_count"`
-	SourceMetadata      SettingsSourceMetadataPayload `json:"source_metadata"`
-}
-
 type SettingsHookDeclarationPayload struct {
 	Name         string                    `json:"name"`
 	Event        hookspkg.HookEvent        `json:"event"`
 	Mode         hookspkg.HookMode         `json:"mode,omitempty"`
-	Required     bool                      `json:"required,omitempty"`
-	Enabled      *bool                     `json:"enabled,omitempty"`
-	Priority     int                       `json:"priority,omitempty"`
+	Required     bool                      `json:"required,omitzero"`
+	Enabled      *bool                     `json:"enabled,omitzero"`
+	Priority     int                       `json:"priority,omitzero"`
 	Timeout      string                    `json:"timeout,omitempty"`
 	Matcher      hookspkg.HookMatcher      `json:"matcher"`
 	ExecutorKind hookspkg.HookExecutorKind `json:"executor_kind,omitempty"`

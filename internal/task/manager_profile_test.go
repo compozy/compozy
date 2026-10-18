@@ -20,7 +20,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		store.tasks["task-1"] = validProfileTask("task-1")
 		manager := newTaskManagerForTest(t, store)
 
-		profile, err := manager.GetExecutionProfile(context.Background(), "task-1", validActorContext())
+		profile, err := manager.GetExecutionProfile(t.Context(), "task-1", validActorContext())
 		if err != nil {
 			t.Fatalf("GetExecutionProfile() error = %v", err)
 		}
@@ -31,9 +31,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		if got, want := profile.Worker.Mode, WorkerModeInherit; got != want {
 			t.Fatalf("Worker.Mode = %q, want %q", got, want)
 		}
-		if got, want := profile.Sandbox.Mode, SandboxModeInherit; got != want {
-			t.Fatalf("Sandbox.Mode = %q, want %q", got, want)
-		}
+
 		if got, want := profile.Worktree.Mode, WorktreeModeInherit; got != want {
 			t.Fatalf("Worktree.Mode = %q, want %q", got, want)
 		}
@@ -51,16 +49,16 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 				Mode: WorkerModeSelect, AgentName: "coder", AllowedAgentNames: []string{"coder"},
 			},
 			Review:       ReviewProfile{AgentName: "reviewer", AllowedAgentNames: []string{"reviewer"}},
-			Participants: ParticipantPolicy{AllowedPeerIDs: []string{"peer-1"}},
-			Sandbox:      SandboxPolicy{Mode: SandboxModeRef, SandboxRef: "workspace"},
-			Worktree:     WorktreePolicy{Mode: WorktreeModeNone},
-			Runtime:      RuntimePolicy{Mode: RuntimeModeEvidence},
+			Participants: ParticipantPolicy{},
+
+			Worktree: WorktreePolicy{Mode: WorktreeModeNone},
+			Runtime:  RuntimePolicy{Mode: RuntimeModeEvidence},
 		}
 		store.profiles["task-1"] = before
 		manager := newTaskManagerForTest(t, store)
 
 		after, err := manager.SetWorktreePolicy(
-			context.Background(),
+			t.Context(),
 			"task-1",
 			WorktreePolicy{Mode: WorktreeModePerRun},
 			validActorContext(),
@@ -75,7 +73,6 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 			!reflect.DeepEqual(after.Worker, before.Worker) ||
 			!reflect.DeepEqual(after.Review, before.Review) ||
 			!reflect.DeepEqual(after.Participants, before.Participants) ||
-			!reflect.DeepEqual(after.Sandbox, before.Sandbox) ||
 			!reflect.DeepEqual(after.Runtime, before.Runtime) {
 			t.Fatalf("SetWorktreePolicy() changed unrelated profile blocks: before=%#v after=%#v", before, after)
 		}
@@ -94,7 +91,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 
 		for _, ref := range []string{"missing", "foreign-workspace-ref"} {
 			_, err := manager.SetWorktreePolicy(
-				context.Background(),
+				t.Context(),
 				taskRecord.ID,
 				WorktreePolicy{Mode: WorktreeModeRef, WorktreeRef: " " + ref + " "},
 				validActorContext(),
@@ -121,7 +118,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		store.tasks["task-1"] = validProfileTask("task-1")
 		manager := newTaskManagerForTest(t, store)
 
-		profile, err := manager.SetExecutionProfile(context.Background(), "task-1", &ExecutionProfile{
+		profile, err := manager.SetExecutionProfile(t.Context(), "task-1", &ExecutionProfile{
 			Coordinator: CoordinatorProfile{Mode: CoordinatorModeGuided, Guidance: "Keep the worker focused."},
 			Worker: WorkerProfile{
 				Mode:            WorkerModeSelect,
@@ -149,7 +146,6 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 				}},
 				AllowedAgentNames: []string{"reviewer"},
 			},
-			Sandbox: SandboxPolicy{Mode: SandboxModeRef, SandboxRef: "workspace"},
 		}, validActorContext())
 		if err != nil {
 			t.Fatalf("SetExecutionProfile() error = %v", err)
@@ -182,7 +178,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		_, err := manager.SetWorktreePolicy(
-			context.Background(),
+			t.Context(),
 			"task-1",
 			WorktreePolicy{Mode: WorktreeModePerRun},
 			validActorContext(),
@@ -204,7 +200,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		run, err := manager.EnqueueRun(
-			context.Background(),
+			t.Context(),
 			EnqueueRun{TaskID: "task-1"},
 			validActorContext(),
 		)
@@ -215,7 +211,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 			TaskID:   "task-1",
 			Worktree: WorktreePolicy{Mode: WorktreeModeNone},
 		}
-		stored, err := store.GetTaskRun(context.Background(), run.ID)
+		stored, err := store.GetTaskRun(t.Context(), run.ID)
 		if err != nil {
 			t.Fatalf("GetTaskRun() error = %v", err)
 		}
@@ -236,7 +232,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		run, err := manager.EnqueueRun(
-			context.Background(),
+			t.Context(),
 			EnqueueRun{TaskID: "task-1", WorktreePerRun: true},
 			validActorContext(),
 		)
@@ -265,7 +261,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		)
 
 		run, err := manager.EnqueueRun(
-			context.Background(),
+			t.Context(),
 			EnqueueRun{TaskID: "task-1"},
 			validActorContext(),
 		)
@@ -287,7 +283,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		_, err := manager.SetExecutionProfile(
-			context.Background(),
+			t.Context(),
 			"task-1",
 			&ExecutionProfile{},
 			validActorContext(),
@@ -306,11 +302,10 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 			TaskID:      "task-1",
 			Coordinator: CoordinatorProfile{Mode: CoordinatorModeGuided},
 			Worker:      WorkerProfile{Mode: WorkerModeInherit},
-			Sandbox:     SandboxPolicy{Mode: SandboxModeInherit},
 		}
 		manager := newTaskManagerForTest(t, store)
 
-		if err := manager.DeleteExecutionProfile(context.Background(), "task-1", validActorContext()); err != nil {
+		if err := manager.DeleteExecutionProfile(t.Context(), "task-1", validActorContext()); err != nil {
 			t.Fatalf("DeleteExecutionProfile() error = %v", err)
 		}
 		if _, ok := store.profiles["task-1"]; ok {
@@ -319,7 +314,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		if !containsEventType(store.events, taskEventProfileDeleted) {
 			t.Fatalf("events = %#v, want %q", sortedEventTypes(store.events), taskEventProfileDeleted)
 		}
-		profile, err := manager.GetExecutionProfile(context.Background(), "task-1", validActorContext())
+		profile, err := manager.GetExecutionProfile(t.Context(), "task-1", validActorContext())
 		if err != nil {
 			t.Fatalf("GetExecutionProfile(after delete) error = %v", err)
 		}

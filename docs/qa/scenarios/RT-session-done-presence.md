@@ -24,3 +24,10 @@ QA impact 2026-08-16: Task 01 added daemon-owned `done`, revision-based seen sta
 presence leases. Flag only; task_08 owns execution.
 
 QA 2026-08-16 Herdr parity: The isolated browser journey, focused attention Playwright lane, and full Web E2E exercised cross-workspace landing, permission resolution, counts, channel suppression, task canary, catalog scope/order, finished presence clearing, and honest quiet/stale states. The lab browser exposed its real notification capability; deterministic granted and denied branches ran in the canonical browser suite.
+
+Issue #659 acceptance: alternate rapidly between a live Loop child session, its parent Goal, and Details, including a non-default owner profile. Verify that the session detail request explicitly selects all profiles within the active workspace, the profile-aware by-ID read still enforces the active lens, and genuine missing sessions remain not found. Leaving a session aborts its presence request and closes its stream; a canceled presence request is classified as client cancellation rather than a server failure. Verify that execution continues and no transient error screen appears.
+
+2026-09-29 targeted retest: a real Goal spawned a working child. Native browser actions moved from
+the child through the visible parent, Goal strip, Open run, and Details without an intentional delay
+or transient error pane. Details and an independent status read showed complete; the child's actual
+outline contained its checklist response. [Reported issues QA evidence](../reports/2026-09-29-reported-issues.md).

@@ -46,7 +46,7 @@ type providerAuthStatusRecord struct {
 	StatusCommand string                                `json:"status_command,omitempty"`
 	Login         authproviders.ProviderLoginDescriptor `json:"login"`
 	Credentials   []providerCredentialStatusItem        `json:"credentials,omitempty"`
-	Probe         *providerAuthCommandResult            `json:"probe,omitempty"`
+	Probe         *providerAuthCommandResult            `json:"probe,omitzero"`
 }
 
 type providerNativeCLIStatusRecord = providerauth.NativeCLIStatus

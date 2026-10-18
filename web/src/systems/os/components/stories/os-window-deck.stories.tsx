@@ -30,6 +30,15 @@ const needsInputSession = {
   badge: "waiting-for-auth" as const,
   id: "sess_docs_preview",
   name: "Deploy docs preview",
+  // Two decisions waiting: the tab shows the count beside its label.
+  pending_interactions: ["a", "b"].map(key => ({
+    interaction_id: `int-docs-${key}`,
+    kind: "permission",
+    provider_request_id: `req-docs-${key}`,
+    status: "pending",
+    created_at: "2026-09-29T12:00:00Z",
+    title: "Run bun run docs:build",
+  })),
 };
 
 const polishCheckoutSession = {
@@ -237,7 +246,7 @@ const densityTabs: Record<string, OsWindow> = {
   "w-session": storyWindow("w-session", "session", { instanceKey: polishCheckoutSession.id }),
   "w-run": storyWindow("w-run", "session", { instanceKey: refactorBillingSession.id }),
   "w-attention": storyWindow("w-attention", "session", { instanceKey: needsInputSession.id }),
-  "w-jobs": storyWindow("w-jobs", "jobs"),
+  "w-jobs": storyWindow("w-jobs", "automations"),
   "w-agents": storyWindow("w-agents", "agents"),
   "w-marketplace": storyWindow("w-marketplace", "marketplace"),
 };

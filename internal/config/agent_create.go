@@ -38,6 +38,7 @@ type AgentDefinitionDraft struct {
 	CategoryPath    []string
 	MCPServers      []MCPServer
 	Hooks           []hookspkg.HookDecl
+	FallbackChain   []RoleFallback
 	Prompt          string
 }
 
@@ -90,6 +91,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		CategoryPath:    trimAgentDefinitionAtoms(draft.CategoryPath),
 		MCPServers:      cloneMCPServers(draft.MCPServers),
 		Hooks:           cloneHookDecls(draft.Hooks),
+		FallbackChain:   normalizeRoleFallbacks(draft.FallbackChain),
 		Prompt:          strings.TrimSpace(draft.Prompt),
 	}
 	agent.SetSpeed(draft.Speed)
@@ -145,6 +147,7 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		CategoryPath:    cloneStrings(canonical.CategoryPath),
 		MCPServers:      cloneMCPServers(canonical.MCPServers),
 		Hooks:           cloneHookDecls(canonical.Hooks),
+		FallbackChain:   normalizeRoleFallbacks(canonical.FallbackChain),
 		Prompt:          canonical.Prompt,
 	}
 }

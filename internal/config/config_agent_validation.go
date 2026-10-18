@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"math"
-
 	"strings"
 	"time"
 )
@@ -160,13 +158,16 @@ func (c SessionConfig) Validate() error {
 	if err := c.BusyInput.Validate(); err != nil {
 		return err
 	}
-	if err := c.Compaction.Validate(); err != nil {
+	if err := c.Messaging.Validate(); err != nil {
+		return err
+	}
+	if err := c.Derive.Validate(); err != nil {
 		return err
 	}
 	return c.Attachments.Validate()
 }
 
-// Validate ensures session timeout settings are internally consistent.
+// Validate keeps the deprecated session.limits.timeout value well formed.
 func (c SessionLimitsConfig) Validate() error {
 	if c.Timeout < 0 {
 		return fmt.Errorf("session.limits.timeout must be zero or positive: %s", c.Timeout)
@@ -182,6 +183,7 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 		PromptDeadline:            0,
 		QuietAfter:                30 * time.Minute,
 		StopGrace:                 10 * time.Minute,
+		IdleReleaseAfter:          30 * time.Minute,
 		TimeoutCancelGrace:        30 * time.Second,
 	}
 }
@@ -192,30 +194,6 @@ func DefaultSessionBusyInputConfig() SessionBusyInputConfig {
 		DefaultMode:  "steer",
 		QueueCap:     10,
 		MaxTextBytes: 64 << 10,
-	}
-}
-
-// Validate ensures compaction pressure and retry guards are internally consistent.
-func (c SessionCompactionConfig) Validate() error {
-	switch {
-	case math.IsNaN(c.PressureThreshold) || math.IsInf(c.PressureThreshold, 0) ||
-		c.PressureThreshold < 0 || c.PressureThreshold > 1:
-		return fmt.Errorf(
-			"session.compaction.pressure_threshold must be between 0 and 1: %v",
-			c.PressureThreshold,
-		)
-	case c.MaxAttemptsPerTurn <= 0:
-		return fmt.Errorf(
-			"session.compaction.max_attempts_per_turn must be positive: %d",
-			c.MaxAttemptsPerTurn,
-		)
-	case c.FailureCooldown < 0:
-		return fmt.Errorf(
-			"session.compaction.failure_cooldown must be zero or positive: %s",
-			c.FailureCooldown,
-		)
-	default:
-		return nil
 	}
 }
 
@@ -299,6 +277,11 @@ func (c SessionSupervisionConfig) Validate() error {
 		)
 	case c.StopGrace < 0:
 		return fmt.Errorf("session.supervision.stop_grace must be zero or positive: %s", c.StopGrace)
+	case c.IdleReleaseAfter < 0:
+		return fmt.Errorf(
+			"session.supervision.idle_release_after must be zero or positive: %s",
+			c.IdleReleaseAfter,
+		)
 	case c.TimeoutCancelGrace <= 0:
 		return fmt.Errorf("session.supervision.timeout_cancel_grace must be positive: %s", c.TimeoutCancelGrace)
 	default:

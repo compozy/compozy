@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -396,15 +396,14 @@ func loopPlanPayload(plan *looppkg.PlanPreview) (*contract.LoopPlanPayload, erro
 		return nil, err
 	}
 	return &contract.LoopPlanPayload{
-		LoopName:                     plan.LoopName,
-		ResolvedInputs:               resolvedInputs,
-		InputOrigins:                 loopInputOriginsPayload(plan.InputOrigins),
-		Generation:                   plan.Generation,
-		Nodes:                        loopPlanNodesPayload(plan.Nodes),
-		Contract:                     loopContract,
-		MaterializedContract:         materializedContract,
-		EffectiveConfig:              effective,
-		ResolvedNetworkParticipation: participation.CloneSpec(plan.ResolvedNetworkParticipation),
+		LoopName:             plan.LoopName,
+		ResolvedInputs:       resolvedInputs,
+		InputOrigins:         loopInputOriginsPayload(plan.InputOrigins),
+		Generation:           plan.Generation,
+		Nodes:                loopPlanNodesPayload(plan.Nodes),
+		Contract:             loopContract,
+		MaterializedContract: materializedContract,
+		EffectiveConfig:      effective,
 	}, nil
 }
 

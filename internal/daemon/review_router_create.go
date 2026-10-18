@@ -3,8 +3,8 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 
-	"sort"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -22,12 +22,6 @@ func (r *reviewRouter) createRoute(
 	requester originalWorkerIdentity,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (*session.CreateOpts, string, error) {
-	if len(review.AllowedPeerIDs) > 0 {
-		return nil, "review profile allows only explicit peers and no active eligible peer is available", nil
-	}
-	if len(review.AllowedChannelIDs) > 0 {
-		return nil, "review profile allows only explicit channels and no active eligible reviewer is available", nil
-	}
 	agentName, diagnostic, err := r.selectCreateAgent(ctx, review, original, requester, resolved)
 	if err != nil || diagnostic != "" {
 		return nil, diagnostic, err
@@ -135,8 +129,8 @@ func sortedResolvedAgents(resolved *workspacepkg.ResolvedWorkspace) []compozycon
 		return nil
 	}
 	agents := append([]compozyconfig.AgentDef(nil), resolved.Agents...)
-	sort.SliceStable(agents, func(i int, j int) bool {
-		return strings.TrimSpace(agents[i].Name) < strings.TrimSpace(agents[j].Name)
+	slices.SortStableFunc(agents, func(a, b compozyconfig.AgentDef) int {
+		return strings.Compare(strings.TrimSpace(a.Name), strings.TrimSpace(b.Name))
 	})
 	return agents
 }

@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -219,6 +219,6 @@ func canonicalizeCapabilityRequirements(requirements []string) []string {
 	}
 
 	canonical := append([]string(nil), requirements...)
-	sort.Strings(canonical)
+	slices.Sort(canonical)
 	return canonical
 }

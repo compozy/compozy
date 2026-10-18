@@ -7,9 +7,8 @@ func (h *Hooks) DispatchInputPreSubmit(
 	ctx context.Context,
 	payload InputPreSubmitPayload,
 ) (InputPreSubmitPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookInputPreSubmit,
 		payload,
 		dispatchConfig[InputPreSubmitPayload, InputPreSubmitPatch]{
@@ -25,9 +24,8 @@ func (h *Hooks) DispatchInputPreSubmit(
 
 // DispatchPromptPostAssemble runs the prompt.post_assemble hook pipeline.
 func (h *Hooks) DispatchPromptPostAssemble(ctx context.Context, payload PromptPayload) (PromptPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookPromptPostAssemble,
 		payload,
 		dispatchConfig[PromptPayload, PromptPatch]{
@@ -46,9 +44,8 @@ func (h *Hooks) DispatchEventPreRecord(
 	ctx context.Context,
 	payload EventPreRecordPayload,
 ) (EventPreRecordPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookEventPreRecord,
 		payload,
 		dispatchConfig[EventPreRecordPayload, EventPreRecordPatch]{
@@ -63,9 +60,8 @@ func (h *Hooks) DispatchEventPostRecord(
 	ctx context.Context,
 	payload EventPostRecordPayload,
 ) (EventPostRecordPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookEventPostRecord,
 		payload,
 		dispatchConfig[EventPostRecordPayload, EventPostRecordPatch]{

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -27,24 +28,22 @@ var (
 var EnvNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 var vaultRefPattern = regexp.MustCompile(
-	`^vault:(providers|profiles|bridges|automation|mcp|hooks|extensions|sandbox|sessions)/` +
+	`^vault:(providers|profiles|automation|mcp|hooks|extensions|sessions)/` +
 		`[a-z0-9][a-z0-9_.-]*(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)*$`,
 )
 
 var vaultRefPrefixPattern = regexp.MustCompile(
-	`^vault:(providers|profiles|bridges|automation|mcp|hooks|extensions|sandbox|sessions)/` +
+	`^vault:(providers|profiles|automation|mcp|hooks|extensions|sessions)/` +
 		`(?:[A-Za-z0-9][A-Za-z0-9_.-]*(?:/|$))*$`,
 )
 
 var supportedNamespaces = map[string]struct{}{
 	"automation":     {},
-	"bridges":        {},
 	"extensions":     {},
 	"hooks":          {},
 	"mcp":            {},
 	"providers":      {},
 	"profiles":       {},
-	"sandbox":        {},
 	typesSessionsKey: {},
 }
 
@@ -121,7 +120,12 @@ func EnvNameFromRef(ref string) (string, error) {
 func ValidateSecretRef(ref string) error {
 	normalized := NormalizeRef(ref)
 	if !vaultRefPattern.MatchString(normalized) {
-		return fmt.Errorf("%w: %s", ErrUnsupportedSecretRef, normalized)
+		return fmt.Errorf(
+			"%w: use vault:<namespace>/<path> with providers, profiles, automation, mcp, hooks, extensions, or sessions. "+
+				"Path segments must start with a letter or digit and contain only letters, digits, dots, underscores, or hyphens; "+
+				"keep the first path segment lowercase",
+			ErrUnsupportedSecretRef,
+		)
 	}
 	if strings.HasPrefix(normalized, ProfileSecretRefPrefix) {
 		if _, err := ParseProfileSecretRef(normalized); err != nil {
@@ -263,12 +267,9 @@ func SecretLikeEnvName(name string) bool {
 	if nonCredentialEnvName(normalized) {
 		return false
 	}
-	for _, needle := range secretLikeEnvNeedles {
-		if strings.Contains(normalized, needle) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(secretLikeEnvNeedles, func(needle string) bool {
+		return strings.Contains(normalized, needle)
+	})
 }
 
 func nonCredentialEnvName(name string) bool {

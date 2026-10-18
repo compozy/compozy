@@ -160,7 +160,7 @@ describe("compozy-ui-reuse lint plugin", () => {
     it("Should ban the real @compozy/ui surface contract component names", () => {
       const reports = runRule("/repo/web/src/systems/settings/components/panel.tsx", visitor => {
         for (const name of [
-          "KindChip",
+          "Pill",
           "Timeline",
           "ToolCallRow",
           "ActionResultBanner",
@@ -185,7 +185,7 @@ describe("compozy-ui-reuse lint plugin", () => {
         visitor.FunctionDeclaration(functionDeclaration("ActionResultBanner"));
         visitor.ClassDeclaration({
           type: "ClassDeclaration",
-          id: { type: "Identifier", name: "KindChip" },
+          id: { type: "Identifier", name: "Pill" },
         });
         visitor.VariableDeclarator(variableDeclarator("ToolCallRow", "CallExpression"));
         visitor.VariableDeclarator(variableDeclarator("Timeline", "ArrowFunctionExpression"));
@@ -207,7 +207,7 @@ describe("compozy-ui-reuse lint plugin", () => {
     it("Should exempt tests, stories, storybook, the ui package, and non-consumer paths", () => {
       const exemptPaths = [
         "/repo/web/src/systems/session/components/__tests__/tool-call-card.test.tsx",
-        "/repo/web/src/systems/network/components/stories/timeline.stories.tsx",
+        "/repo/web/src/systems/session/components/stories/timeline.stories.tsx",
         "/repo/web/src/foo.stories.ts",
         "/repo/web/.storybook/preview.tsx",
         "/repo/packages/ui/src/components/custom/section.tsx",
@@ -238,32 +238,10 @@ describe("compozy-ui-reuse lint plugin", () => {
       const result = await runOxlint({
         filename: "packages/site/components/blog/chip.tsx",
         source:
-          'import { memo } from "react";\nexport const KindChip = memo(function Chip() {\n  return null;\n});\n',
+          'import { memo } from "react";\nexport const Pill = memo(function Chip() {\n  return null;\n});\n',
       });
       expect(result.exitCode).not.toBe(0);
-      expect(result.messages.join("\n")).toContain('"KindChip" is an @compozy/ui primitive');
-    });
-
-    it("Should allow stories, domain-prefixed names, and non-consumer paths", async () => {
-      const allowed = [
-        {
-          filename: "web/src/systems/settings/routes/sandbox.stories.tsx",
-          source: "export const Empty = () => null;\n",
-        },
-        {
-          filename: "web/src/systems/session/components/session-tool-call-row.tsx",
-          source: "export function SessionToolCallRow() {\n  return null;\n}\n",
-        },
-        {
-          filename: "sdk/typescript/src/section.tsx",
-          source: "export function Section() {\n  return null;\n}\n",
-        },
-      ];
-      for (const input of allowed) {
-        const result = await runOxlint(input);
-        expect(result.exitCode, input.filename).toBe(0);
-        expect(result.messages, input.filename).toEqual([]);
-      }
+      expect(result.messages.join("\n")).toContain('"Pill" is an @compozy/ui primitive');
     });
   });
 });

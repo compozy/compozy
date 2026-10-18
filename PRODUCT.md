@@ -10,19 +10,19 @@ product
 
 ## Users
 
-**Primary — Developers and technical operators.** Engineers, technical founders, and operators who delegate real work to AI agents and need that work durable, visible, and steerable rather than trapped in throwaway terminal tabs. They run ACP-compatible agent CLIs (Claude Code, OpenClaw, Hermes) through CompozyOS without needing to know the protocol underneath. Their context: a personal machine running a background daemon, often several agent sessions at once, where the job is to start work, see what agents are doing, step in when something needs them, and trust what finished. Design so the UI never requires terminal literacy to read state. That obligation is met now, and it is staged: **register is present tense** — every end-user surface reads plainly today — while **audience is future-framed**, because install, setup, and configuration still run through a terminal and `config.toml`. The full no-terminal workflow is served when that path ships, not before.
+**Primary — Developers and technical operators.** Engineers, technical founders, and operators who delegate real work to AI agents and need that work durable, visible, and steerable rather than trapped in throwaway terminal tabs. They run ACP-compatible agent CLIs (Claude Code, Codex, Cursor) through CompozyOS without needing to know the protocol underneath. Their context: a personal machine running a background daemon, often several agent sessions at once, where the job is to start work, see what agents are doing, step in when something needs them, and trust what finished. Design so the UI never requires terminal literacy to read state. That obligation is met now, and it is staged: **register is present tense** — every end-user surface reads plainly today — while **audience is future-framed**, because install, setup, and configuration still run through a terminal and `config.toml`. The full no-terminal workflow is served when that path ships, not before.
 
 **Emerging — People who don't write code.** Their job is to understand and steer work an agent is doing for them: see what is running, step in when something needs them, and trust what finished. Their context has no terminal and no config file. Today they are served by register, not by workflow — every end-user surface is written in plain words now, while the path that would get them to those surfaces without a terminal is planned, not shipped. Design for their default read; do not describe or render a no-terminal experience as current behavior.
 
-**Secondary — Agent/runtime developers.** Engineers extending CompozyOS against daemon contracts: extensions, hooks, skills, capabilities, bridges, and SDKs. They need the UI to expose the same structured surfaces the daemon exposes, not a UI-only shortcut.
+**Secondary — Agent/runtime developers.** Engineers extending CompozyOS against daemon contracts: extensions, hooks, skills, capabilities and SDKs. They need the UI to expose the same structured surfaces the daemon exposes, not a UI-only shortcut.
 
 **Also first-class — Agents themselves.** Agents operate CompozyOS through structured surfaces (CLI `-o json`, HTTP/SSE, UDS, tool registry). The UI is one view over state that agents can equally drive; it is never the only path to a capability.
 
 ## Product Purpose
 
-CompozyOS is one complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks. Loops, triggers, memory, permissions, automation, and supervision come built in rather than assembled. Why it holds: one runtime, one state model; loops, approvals, and memory are core objects, not plugins. Web, CLI, HTTP/SSE, UDS, and native tools let people and agents operate that same system. Compozy Network adds peer discovery, capability exchange, delegation, and receipts as one subsystem of the OS.
+CompozyOS is one complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks. Loops, triggers, permissions, automation, and supervision come built in rather than assembled. Why it holds: one runtime, one state model; loops and approvals are core objects, not plugins. Web, CLI, HTTP/SSE, UDS, and native tools let people and agents operate that same system.
 
-The runtime UI's job is to make agent work legible and controllable at a glance: what is running, what needs you, what finished, and what it produced. Depth — events, tools, memory, network traffic — stays one step away for whoever wants it, and no one is asked to decode runtime internals to understand their own work. Success looks like: a person supervises several concurrent agents, understands the state of each in seconds, and acts on it (resume, approve, inspect, route) without ever being shown a control or metric the runtime does not actually support.
+The runtime UI's job is to make agent work legible and controllable at a glance: what is running, what needs you, what finished, and what it produced. Depth — events, tools, runtime diagnostics — stays one step away for whoever wants it, and no one is asked to decode runtime internals to understand their own work. Success looks like: a person supervises several concurrent agents, understands the state of each in seconds, and acts on it (resume, approve, inspect, route) without ever being shown a control or metric the runtime does not actually support.
 
 ## Brand Personality
 
@@ -68,7 +68,7 @@ How deep the vocabulary may go, by surface. Depth is a ceiling, not a target —
 | Inspector, events, settings advanced                          | Full runtime vocabulary. This is where precision earns its cost.                                   |
 | CLI, API, config, reference docs                              | Canonical vocabulary only. No aliases, no glosses standing in for the real name.                   |
 
-Surface aliases (the UI label that differs from the canonical noun) are governed by `COPY.md` §6 and reserved in `docs/_memory/glossary.md`. An alias is a label, never a rename. `Sandbox` and `Bridges` keep those names on every end-user surface — they must not be aliased to Permissions or Connections.
+Surface aliases (the UI label that differs from the canonical noun) are governed by `COPY.md` §6 and reserved in `docs/_memory/glossary.md`. An alias is a label, never a rename.
 
 ## Accessibility & Inclusion
 

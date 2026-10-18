@@ -65,7 +65,7 @@ func marketplaceExtensionDetail(
 		Contents: contract.ExtensionContentsPayload{
 			Skills: details.Extension.Contents.Skills, MCPServers: details.Extension.Contents.MCPServers,
 			Hooks: details.Extension.Contents.Hooks, Loops: details.Extension.Contents.Loops,
-			Agents: details.Extension.Contents.Agents, Bridges: details.Extension.Contents.Bridges,
+			Agents: details.Extension.Contents.Agents,
 		},
 	}
 	for _, input := range details.Extension.Inputs {

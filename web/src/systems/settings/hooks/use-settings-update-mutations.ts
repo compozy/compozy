@@ -13,12 +13,14 @@ import type { SettingsUpdateApplyRequest } from "../types";
  * means the operation record was durably acquired, `blocked` names the holder that
  * owns it. Terminal truth — staged phases, rollback, failure — arrives only through
  * `GET /api/settings/update`, which is why every mutation invalidates that read
- * instead of writing an optimistic snapshot.
+ * instead of writing an optimistic snapshot. The apply key is shared so every
+ * surface (menubar and Settings) sees one in-flight request, whoever started it.
  */
 export function useApplySettingsUpdate() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: settingsKeys.updateApply(),
     mutationFn: (body: SettingsUpdateApplyRequest) => applySettingsUpdate(body),
     onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.updateStatus() }),
   });

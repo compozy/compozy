@@ -186,8 +186,8 @@ function sessionModel(session: OsPaletteSessionResult): PaletteRowActionModel {
   return {
     key: `session:${session.sessionId}`,
     title: session.title,
-    available: true,
-    reason: "",
+    available: !session.busy,
+    reason: session.busy ? "Loading sessions…" : "",
     sections: [
       {
         title: "Session",

@@ -4,7 +4,6 @@ import { toast } from "sonner";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import { useUpdateTask } from "./use-task-actions";
-import { useTaskExecutionProfile } from "./use-task-profile";
 import { useTask } from "./use-tasks";
 import {
   buildUpdateTaskRequest,
@@ -34,20 +33,13 @@ export function useTaskEditState(
   const queryEnabled = Boolean(id) && liveDataEnabled;
   const refetchIntervalMs = liveDataEnabled ? undefined : false;
   const detailQuery = useTask(id ?? "", { enabled: queryEnabled, refetchIntervalMs });
-  const profileQuery = useTaskExecutionProfile(id ?? "", {
-    enabled: queryEnabled,
-    refetchIntervalMs,
-  });
   const updateMutation = useUpdateTask();
   const submissionStore = useStore(taskEditorSubmissionLogic);
   const detail = detailQuery.data ?? null;
   const task = detail?.task ?? null;
-  const profile = profileQuery.data ?? null;
 
-  const taskKey =
-    task && profile ? `${task.id}:${task.updated_at}:${profile.updated_at}` : "pending";
-  const sourceDraft =
-    task && profile ? taskEditorDraftFromTask(task, profile) : EMPTY_TASK_EDITOR_DRAFT;
+  const taskKey = task ? `${task.id}:${task.updated_at}` : "pending";
+  const sourceDraft = task ? taskEditorDraftFromTask(task) : EMPTY_TASK_EDITOR_DRAFT;
   const { store } = useStoreBinding(taskKey, () =>
     taskEditorDraftLogic.createStore({
       draft: sourceDraft,
@@ -64,7 +56,7 @@ export function useTaskEditState(
     requestTaskEditorSubmission(
       submissionStore,
       async () => {
-        if (!id || !task || !profile) return null;
+        if (!id || !task) return null;
         try {
           await updateMutation.mutateAsync({ id, data: buildUpdateTaskRequest(nextDraft) });
           toast.success("Task updated.");
@@ -85,8 +77,8 @@ export function useTaskEditState(
   return {
     draft,
     handleSubmit,
-    isInitialized: task !== null && profile !== null,
-    isLoading: (detailQuery.isLoading && !task) || (profileQuery.isLoading && !profile),
+    isInitialized: task !== null,
+    isLoading: detailQuery.isLoading && !task,
     isSubmitting: submissionPhase === "submitting" || updateMutation.isPending,
     setDraft,
     task,

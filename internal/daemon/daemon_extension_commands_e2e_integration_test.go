@@ -44,7 +44,7 @@ func TestDaemonE2EExtensionCommandPaletteFixture(t *testing.T) {
 	t.Run("Should project and remove the Go fixture atomically [IT-016,IT-019]", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 		defer cancel()
 		repoRoot := extensionAuthoringE2ERepoRoot(t)
 		binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
@@ -190,7 +190,7 @@ func getPaletteFixtureView(
 func testDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 	acpmock.RequireDriver(t)
 	repoRoot := extensionAuthoringE2ERepoRoot(t)

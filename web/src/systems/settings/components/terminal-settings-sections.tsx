@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
+import { SettingsAdvancedFold } from "./settings-advanced-fold";
 import { TerminalLimitsSettingsSection } from "./terminal-limits-settings-section";
 import { TerminalRecordingSettingsSection } from "./terminal-recording-settings-section";
 import { TerminalRetentionSettingsSection } from "./terminal-retention-settings-section";
@@ -40,7 +41,13 @@ export function TerminalSettingsSections({
       <TerminalShellSettingsSection {...sectionProps} />
       <TerminalRetentionSettingsSection {...sectionProps} />
       <TerminalRecordingSettingsSection {...sectionProps} />
-      <TerminalLimitsSettingsSection {...sectionProps} />
+      <SettingsAdvancedFold
+        data-testid="settings-page-terminal-advanced"
+        label="Advanced — limits"
+        padded
+      >
+        <TerminalLimitsSettingsSection {...sectionProps} />
+      </SettingsAdvancedFold>
     </>
   );
 }

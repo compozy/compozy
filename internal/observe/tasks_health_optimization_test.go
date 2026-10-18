@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -18,7 +17,6 @@ type countingTaskRegistry struct {
 	listTasksCalls int
 	listRunsCalls  int
 	listEventCalls int
-	listAuditCalls int
 }
 
 func (r *countingTaskRegistry) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error) {
@@ -46,16 +44,6 @@ func (r *countingTaskRegistry) ListTaskEvents(
 	r.listEventCalls++
 	r.mu.Unlock()
 	return r.Registry.ListTaskEvents(ctx, query)
-}
-
-func (r *countingTaskRegistry) ListNetworkAudit(
-	ctx context.Context,
-	query store.NetworkAuditQuery,
-) ([]store.NetworkAuditEntry, error) {
-	r.mu.Lock()
-	r.listAuditCalls++
-	r.mu.Unlock()
-	return r.Registry.ListNetworkAudit(ctx, query)
 }
 
 func TestHealthLoadsTaskDataOncePerSnapshot(t *testing.T) {
@@ -98,8 +86,5 @@ func TestHealthLoadsTaskDataOncePerSnapshot(t *testing.T) {
 	}
 	if got, want := wrapped.listEventCalls, 1; got != want {
 		t.Fatalf("ListTaskEvents calls = %d, want %d", got, want)
-	}
-	if got, want := wrapped.listAuditCalls, 1; got != want {
-		t.Fatalf("ListNetworkAudit calls = %d, want %d", got, want)
 	}
 }

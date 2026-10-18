@@ -63,7 +63,7 @@ func TestUDSTransportSessionOwnerProjectionMatchesHTTP(t *testing.T) {
 			}},
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		sessionPayload, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -139,7 +139,7 @@ func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
 			}},
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -400,7 +400,7 @@ func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		var httpDraining compozycontract.DrainStatusResponse
@@ -454,7 +454,7 @@ func TestUDSTransportRuntimeMemoryDoctorMatchesHTTPAndCLI(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		var httpPayload compozycontract.DoctorPayload
@@ -504,7 +504,7 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("TransportClients() error = %v", err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 			defer cancel()
 
 			basePath := "/api/workspaces/" + url.PathEscape(runtimeHarness.WorkspaceID) + "/window-manager"
@@ -588,6 +588,34 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 					udsMutation,
 					httpMutation.Snapshot.Revision+1,
 				)
+			}
+
+			// The window.stack.group journey below groups two floating windows. The
+			// shipped new_window_policy is tab (tiled tabs), so the floating
+			// premise is set explicitly through the public settings route.
+			var windowManagerSettings map[string]json.RawMessage
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				"/api/settings/window-manager",
+				nil,
+				&windowManagerSettings,
+			); err != nil {
+				t.Fatalf("HTTP window manager settings error = %v", err)
+			}
+			var windowManagerConfig map[string]json.RawMessage
+			if err := json.Unmarshal(windowManagerSettings["config"], &windowManagerConfig); err != nil {
+				t.Fatalf("decode window manager settings config error = %v", err)
+			}
+			windowManagerConfig["new_window_policy"] = json.RawMessage(`"floating"`)
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPatch,
+				"/api/settings/window-manager",
+				map[string]any{"config": windowManagerConfig},
+				nil,
+			); err != nil {
+				t.Fatalf("HTTP window manager floating policy error = %v", err)
 			}
 
 			openRequest := func(
@@ -1206,7 +1234,7 @@ func assertWindowManagerSessionReopenAcrossClients(
 		windowManagerTransportPayload(t, compozycontract.WindowManagerOpenWindowPayload{
 			Window: compozycontract.WindowManagerWindowSpecPayload{
 				ID:          "window-session",
-				App:         "sessions",
+				App:         "session",
 				InstanceKey: &instanceKey,
 				Route: windowmanager.RouteIntent{
 					Pathname: "/sessions/" + sessionPayload.ID,
@@ -1398,7 +1426,7 @@ func TestUDSTransportAutomaticSessionTitlePersistsAndMatchesHTTP(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	sessionPayload, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -1459,7 +1487,7 @@ func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -1548,7 +1576,7 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	var created compozycontract.SessionResponse
@@ -1605,10 +1633,11 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 		)
 	}
 
-	// Invariant IT-039: both transports expose the wired supervision registry,
-	// future steer delivery and durable queue capacity on the session resource.
+	// Invariant IT-039: both transports expose the wired supervision registry (one inspected source per
+	// work-signal kind), future steer delivery and durable queue capacity on the session resource.
 	// Owner: public transport parity; canonical real-daemon suite.
-	for httpDetail.Session.Supervision == nil || len(httpDetail.Session.Supervision.Sources) != 6 {
+	wantSources := len(session.WorkSignalKindValues())
+	for httpDetail.Session.Supervision == nil || len(httpDetail.Session.Supervision.Sources) != wantSources {
 		select {
 		case <-ctx.Done():
 			t.Fatal("supervision was not rebuilt", ctx.Err())
@@ -1628,7 +1657,8 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 			detail.Queue == nil || detail.Queue.Entries != 0 || detail.Queue.Cap != 10 {
 			t.Fatalf("incomplete admission projection: busy=%+v queue=%+v", detail.BusyInput, detail.Queue)
 		}
-		if detail.Supervision == nil || detail.Supervision.WorkSignals == nil || len(detail.Supervision.Sources) != 6 {
+		if detail.Supervision == nil || detail.Supervision.WorkSignals == nil ||
+			len(detail.Supervision.Sources) != wantSources {
 			t.Fatalf("incomplete supervision projection: %+v", detail.Supervision)
 		}
 		for _, source := range detail.Supervision.Sources {
@@ -1652,6 +1682,7 @@ func assertTransportSessionProvenanceParity(
 	var explicitChild compozycontract.SessionResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 		AgentName:       parent.AgentName,
+		Name:            "ΟΣ İ",
 		WorkspacePath:   runtimeHarness.WorkspaceRoot,
 		ParentSessionID: parent.ID,
 	}, &explicitChild); err != nil {
@@ -1744,9 +1775,10 @@ func assertTransportSessionProvenanceParity(
 			childIDs,
 		)
 	}
-	if udsChildren.Page.Total != 2 || httpChildren.Page.Total != 2 {
+	if udsChildren.Page.Total == nil || *udsChildren.Page.Total != 2 || httpChildren.Page.Total == nil ||
+		*httpChildren.Page.Total != 2 {
 		t.Fatalf(
-			"parent filter totals uds=%d http=%d, want 2 on both transports",
+			"parent filter totals uds=%v http=%v, want 2 on both transports",
 			udsChildren.Page.Total,
 			httpChildren.Page.Total,
 		)
@@ -1772,12 +1804,74 @@ func assertTransportSessionProvenanceParity(
 			wantTree,
 		)
 	}
-	if udsTree.Page.Total != 3 || httpTree.Page.Total != 3 {
+	if udsTree.Page.Total == nil || *udsTree.Page.Total != 3 || httpTree.Page.Total == nil ||
+		*httpTree.Page.Total != 3 {
 		t.Fatalf(
-			"root filter totals uds=%d http=%d, want 3 on both transports",
+			"root filter totals uds=%v http=%v, want 3 on both transports",
 			udsTree.Page.Total,
 			httpTree.Page.Total,
 		)
+	}
+	latest := httpTree.Sessions[0]
+	for _, item := range httpTree.Sessions[1:] {
+		if item.CreatedAt.After(latest.CreatedAt) || item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID {
+			latest = item
+		}
+	}
+	// Invariant: metadata counts include each live tree member exactly once on both transports.
+	facetQuery := "/api/sessions/facets?all_workspaces=true&root=" + url.QueryEscape(parent.ID)
+	for _, read := range []struct {
+		name    string
+		request func(context.Context, string, string, any, any) error
+	}{
+		{name: "UDS", request: runtimeHarness.UDSJSON},
+		{name: "HTTP", request: runtimeHarness.HTTPJSON},
+	} {
+		for _, text := range []string{"ος", "i̇"} {
+			var visibleMatches compozycontract.SessionCatalogResponse
+			path := rootQuery + "&skip_total=true&search_fields=title_agent&q=" + url.QueryEscape(text)
+			if err := read.request(ctx, http.MethodGet, path, nil, &visibleMatches); err != nil {
+				t.Fatalf("%s Unicode search error=%v", read.name, err)
+			}
+			if len(visibleMatches.Sessions) != 1 || visibleMatches.Sessions[0].ID != explicitChild.Session.ID {
+				t.Fatalf("%s Unicode query%q matches=%#v", read.name, text, visibleMatches)
+			}
+		}
+		var createdPage compozycontract.SessionCatalogResponse
+		if err := read.request(
+			ctx,
+			http.MethodGet,
+			rootQuery+"&sort=created&skip_total=true&limit=1",
+			nil,
+			&createdPage,
+		); err != nil {
+			t.Fatalf("%s created read error=%v", read.name, err)
+		}
+		if len(createdPage.Sessions) != 1 || createdPage.Sessions[0].ID != latest.ID || createdPage.Page.Total != nil ||
+			!createdPage.Page.HasMore {
+			t.Fatalf("%s latest-created page=%#v", read.name, createdPage)
+		}
+		var navigatorPage compozycontract.SessionCatalogResponse
+		if err := read.request(
+			ctx,
+			http.MethodGet,
+			rootQuery+"&sort=navigator&skip_total=true&limit=1",
+			nil,
+			&navigatorPage,
+		); err != nil {
+			t.Fatalf("%s navigator read error=%v", read.name, err)
+		}
+		if len(navigatorPage.Sessions) != 1 || navigatorPage.Page.Total != nil || !navigatorPage.Page.HasMore ||
+			navigatorPage.Page.NextCursor == "" {
+			t.Fatalf("%s bounded navigator page=%#v", read.name, navigatorPage)
+		}
+		var facets compozycontract.SessionCatalogFacetsResponse
+		if err := read.request(ctx, http.MethodGet, facetQuery, nil, &facets); err != nil {
+			t.Fatalf("%s facets error=%v", read.name, err)
+		}
+		if facets.Facets.All != 3 || len(facets.ByWorkspace) != 1 || facets.ByWorkspace[0].Facets.All != 3 {
+			t.Fatalf("%s tree facets=%#v, want three scoped live sessions", read.name, facets)
+		}
 	}
 }
 
@@ -1802,7 +1896,7 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	var created compozycontract.SessionResponse
@@ -1924,7 +2018,7 @@ func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	trigger, endpoint := seedTransportWebhookTrigger(t, ctx, runtimeHarness)
@@ -1990,7 +2084,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	t.Run("Should return the same catalog payload over HTTP, UDS, and CLI", func(t *testing.T) {
@@ -2208,7 +2302,7 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -2263,7 +2357,7 @@ func TestUDSTransportTerminalProcessFailureRejectsAttachAndPromptBeforeACPResume
 			}},
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -2334,7 +2428,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -2413,7 +2507,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if !strings.Contains(httpHarnessEvents[2].Summary, "surface=turn") {
 		t.Fatalf("turn summary = %q, want turn surface", httpHarnessEvents[2].Summary)
 	}
-	for _, augmenter := range []string{"workspace_knowledge", "skills", "situation", "durable_memory"} {
+	for _, augmenter := range []string{"skills", "situation"} {
 		if !slices.ContainsFunc(httpHarnessEvents[3:], func(event compozycontract.LogEventPayload) bool {
 			return strings.Contains(event.Summary, "augmenter="+augmenter+" ")
 		}) {
@@ -2462,7 +2556,7 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 
 	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	workspaceID := runtimeHarness.WorkspaceID
@@ -2601,7 +2695,7 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 			t.Fatalf("TransportClients() error = %v", err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		sampleStarted := time.Now()
@@ -2707,7 +2801,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	workspaceID := runtimeHarness.WorkspaceID
@@ -3235,8 +3329,6 @@ func wantTransportObserveHarnessTypes() []string {
 		"harness.context_resolved",
 		"harness.section_selected",
 		"harness.context_resolved",
-		"harness.augmenter_applied",
-		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 	}

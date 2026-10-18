@@ -43,3 +43,25 @@ export function minimumForNode(
     height: children.reduce((sum, child) => sum + child.height, gapTotal),
   };
 }
+
+/**
+ * The smallest extent at which a node still renders. A split that cannot fit
+ * its children projects as an adaptive stack, so the floor is the largest
+ * single-window minimum among its descendants — the stack's minimum.
+ */
+export function adaptiveFloorForNode(node: LayoutNode, minimums: WindowMinimums): PixelSize {
+  return descendantWindowIds(node).reduce<PixelSize>((maximum, windowId) => {
+    const minimum = minimumForWindow(windowId, minimums);
+    return {
+      width: Math.max(maximum.width, minimum.width),
+      height: Math.max(maximum.height, minimum.height),
+    };
+  }, EMPTY_MINIMUM);
+}
+
+/** Every window under a node, in tree order. */
+export function descendantWindowIds(node: LayoutNode): WindowId[] {
+  if (node.kind === "leaf") return [node.windowId];
+  if (node.kind === "stack") return [...node.windowIds];
+  return node.children.flatMap(descendantWindowIds);
+}

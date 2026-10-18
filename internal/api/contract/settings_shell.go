@@ -4,8 +4,11 @@ package contract
 type SettingsShellSessionSort string
 
 const (
+	SettingsShellSessionSortCreated      SettingsShellSessionSort = "created"
+	SettingsShellSessionSortName         SettingsShellSessionSort = "name"
 	SettingsShellSessionSortLastActivity SettingsShellSessionSort = "last_activity"
 	SettingsShellSessionSortAttention    SettingsShellSessionSort = "attention"
+	SettingsShellSessionSortManual       SettingsShellSessionSort = "manual"
 )
 
 // SettingsShellSessionScope identifies the operator's preferred session list breadth.

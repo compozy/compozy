@@ -375,22 +375,6 @@ func marshalGatewayAuditPayload(t *testing.T, report gateway.AuditReport) []byte
 func TestGatewayErrorMappings(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should map documented sentinels to stable status and code pairs [UT-106]", func(t *testing.T) {
-		t.Parallel()
-
-		for _, mapping := range gatewayErrorMappings {
-			t.Run("Should map "+mapping.code, func(t *testing.T) {
-				t.Parallel()
-				if got := StatusForGatewayError(mapping.target); got != mapping.status {
-					t.Fatalf("StatusForGatewayError() = %d, want %d", got, mapping.status)
-				}
-				if got := GatewayErrorCode(mapping.target); got != mapping.code {
-					t.Fatalf("GatewayErrorCode() = %q, want %q", got, mapping.code)
-				}
-			})
-		}
-	})
-
 	t.Run("Should mask unknown HTTP failures and preserve raw UDS failures [UT-107]", func(t *testing.T) {
 		t.Parallel()
 

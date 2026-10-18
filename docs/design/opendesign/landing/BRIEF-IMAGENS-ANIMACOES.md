@@ -51,18 +51,17 @@ Seção `use-cases`, cards `.uc`. Cinco ilustrações da mesma família visual: 
 
 Os dois wide (Release e Gate) precisam de composição horizontal de verdade, não o quadrado esticado — foi o erro dos anteriores. O chão da ilustração é a cor do card (`--canvas-soft`, #1F1E1C), plano, sem vinheta: a imagem não tem moldura e precisa sumir no card; deixar o motivo principal na metade de cima.
 
-## 3. Features — seis capturas do produto
+## 3. Features — cinco capturas do produto
 
 Seção `features`, janelas `.win` 16:10 com o chrome (título + rota) desenhado em HTML; a captura preenche só o corpo da janela. Capturar em um lab semeado com dados reais (workspace `~/Dev/compozy` ou equivalente), escala 2×, tema escuro, sem cursor, sem dados sensíveis. Recortar o chrome nativo; a landing coloca o seu.
 
 | # | Slot | Rota | Arquivo | O que a captura precisa conter |
 | --- | --- | --- | --- | --- |
 | 3.1 | Sessions | `/agents/$name/sessions/$id` | `feature-sessions.webp` | uma sessão com timeline real: arquivo editado, testes rodando, commit, sessão pausada; o diff ao lado |
-| 3.2 | Knowledge (Memory) | `/knowledge` | `feature-memory.webp` | a base de conhecimento com arquivos Markdown reais e as superfícies que os leem |
-| 3.3 | Tasks | `/tasks?mode=kanban` | `capture-tasks-window.webp` | o quadro kanban com grupos blocked / queued / done, donos e prioridades (hoje só existe a captura em lista) |
-| 3.4 | Jobs (Automation) | `/jobs` | `feature-automation.webp` | um job com histórico de runs: o trace de uma run ao lado do gráfico de eventos por dia |
-| 3.5 | Desktops (shell) | desktop inteiro | `hero-poster.webp` (reuso) | menubar, duas janelas em tile e o dock — a mesma cena que serve de poster do hero |
-| 3.6 | Loop run | `/loop-runs/$runId` | `capture-loops-window.webp` | uma run real em `needs-approval`; a faixa "Needs you" é HTML e fica por cima, então deixar o terço inferior calmo |
+| 3.2 | Tasks | `/tasks?mode=kanban` | `capture-tasks-window.webp` | o quadro kanban com grupos blocked / queued / done, donos e prioridades (hoje só existe a captura em lista) |
+| 3.3 | Jobs (Automation) | `/jobs` | `feature-automation.webp` | um job com histórico de runs: o trace de uma run ao lado do gráfico de eventos por dia |
+| 3.4 | Desktops (shell) | desktop inteiro | `hero-poster.webp` (reuso) | menubar, duas janelas em tile e o dock — a mesma cena que serve de poster do hero |
+| 3.5 | Loop run | `/loop-runs/$runId` | `capture-loops-window.webp` | uma run real em `needs-approval`; a faixa "Needs you" é HTML e fica por cima, então deixar o terço inferior calmo |
 
 Profiles, Gateway e Workspaces continuam como diagramas SVG inline (verdade de estado, três switches off) — não são imagens a gerar. Os fundos deles estão no item 5.
 
@@ -73,7 +72,6 @@ Mesma família visual dos spots (item 2), mas em composição de painel, sem o d
 | # | Slot | Geometria | Arquivo | O que mostrar |
 | --- | --- | --- | --- | --- |
 | 4.1 | Extensions (`.ext__art`) | backdrop da seção, não painel: sangra pela borda direita da viewport sob as 5 últimas colunas (texto nas 7 primeiras), altura da seção, some por máscara antes da coluna de texto e nas bordas de cima e de baixo; gerar ~1200 × 1600 com o chão na cor da página (`--canvas`, #171615), plano, sem vinheta | `ext-cartridges.webp` | um pacote único encaixando nos registries do daemon: skills, hooks, tools, automation e extensions como módulos que se conectam a um mesmo bloco |
-| 4.2 | Bridges (`.bridges__canvas`) | painel horizontal, ≥ 400 px de altura, ancorado à direita; gerar ~2000 × 900 | `bridges-inflow.webp` | mensagens fluindo de fora (Slack, Discord, Telegram, Google Chat) para o daemon; os logos são HTML por cima, a imagem só faz o fluxo; lado esquerdo e o terço inferior ficam livres para o conteúdo |
 | 4.3 | Closer (`.cta__art`) | metade direita da seção final, full-bleed, ~66 % de largura × 112 % de altura; gerar ~2400 × 1400 | `closer-shell.webp` | o shell do CompozyOS em repouso — o desktop de longe, luz baixa; motivo à direita, esquerda escurecendo para o título |
 
 ## 5. Atmosferas — quatro texturas de fundo
@@ -103,11 +101,11 @@ Descritos no item 1. São vídeos gravados, não animação autoral: `.webm` (VP
 
 O que a animação precisa contar, nessa ordem:
 
-1. **A pilha.** Nove peças que hoje o builder monta sozinho: agent CLI, loops, triggers, cron e webhooks, memory, permissions, approvals, observability, glue scripts. Cada uma é um objeto pequeno e distinto (ícone + rótulo curto), espalhadas, levemente tortas — dá para sentir que foram encaixadas à mão.
-2. **O colapso.** As nove convergem para o centro e viram um único bloco CompozyOS (o símbolo + o nome). Não é explosão nem partícula: é encaixe, com peso. 900 ms de espera após entrar no viewport, ~1,2 s de movimento, easing expo-out.
+1. **A pilha.** Oito peças que hoje o builder monta sozinho: agent CLI, loops, triggers, cron e webhooks, permissions, approvals, observability, glue scripts. Cada uma é um objeto pequeno e distinto (ícone + rótulo curto), espalhadas, levemente tortas — dá para sentir que foram encaixadas à mão.
+2. **O colapso.** As oito convergem para o centro e viram um único bloco CompozyOS (o símbolo + o nome). Não é explosão nem partícula: é encaixe, com peso. 900 ms de espera após entrar no viewport, ~1,2 s de movimento, easing expo-out.
 3. **O repouso.** O bloco fica, com um brilho baixo atrás; a frase "replaces the pile" aparece pequena embaixo. Um botão Replay discreto no canto reexecuta.
 
-Restrições: paleta do produto, um acento; sem loop infinito (roda uma vez, replay manual); sob `prefers-reduced-motion` mostra o quadro final estático com as nove peças listadas acima do bloco e uma seta entre eles; funciona sem JS como o quadro estático. Pode ser CSS/JS autoral (como era) ou um vídeo/Lottie — se for vídeo, entregar também o quadro final como imagem para o fallback.
+Restrições: paleta do produto, um acento; sem loop infinito (roda uma vez, replay manual); sob `prefers-reduced-motion` mostra o quadro final estático com as oito peças listadas acima do bloco e uma seta entre eles; funciona sem JS como o quadro estático. Pode ser CSS/JS autoral (como era) ou um vídeo/Lottie — se for vídeo, entregar também o quadro final como imagem para o fallback.
 
 ### 6.3 O que não é asset
 
@@ -120,7 +118,7 @@ Reveal-on-scroll, as abas do hero, a barra de progresso das abas e o collapse do
 - [ ] 1 poster do hero + 6 clipes (`hero-poster.webp`, `demo-1..6.webm` + posters)
 - [x] 5 spots (16:9 ×3, 21:9 ×2) — gerados 2026-09-10 com `gpt-image-2.5-sunburst` (skill `imagegen`, endpoint `edit`, duas referências de estilo: Dribbble 27555299 e 27087150); variantes escolhidas: implement v2, review v3, briefing v3, release v2, gate v1; depois um passe de edição (`--input-fidelity high`) trocou só o fundo para a cor do card, #1F1E1C, e as finais são bg-pass implement v1, review v1, briefing v3, release v3, gate v1
 - [ ] 6 capturas 16:10 (uma reaproveita o poster do hero)
-- [x] 3 painéis conceituais — ext-cartridges v3 (depois re-editada com o chão em #171615, bg-pass v1, e aplicada como backdrop da seção), bridges-inflow v2, closer-shell v1
+- [x] 2 painéis conceituais — ext-cartridges v3 (depois re-editada com o chão em #171615, bg-pass v1, e aplicada como backdrop da seção), closer-shell v1
 - [x] 4 atmosferas — hero-wave v1, backdrop-traces v3, backdrop-orbit v1, backdrop-radar v1
 - [ ] animação do pain (+ quadro final estático)
 - [ ] apagar o capítulo "image placeholders" no fim de `landing.css` quando as capturas e o poster do hero entrarem (os 12 `.webp` gerados já substituíram os antigos de mesmo nome; `.ph__tag` já saiu)

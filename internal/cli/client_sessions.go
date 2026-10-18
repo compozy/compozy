@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 
@@ -44,7 +45,7 @@ func (c *daemonClient) GetSessionHealth(ctx context.Context, id string) (Session
 
 func (c *daemonClient) GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error) {
 	var response SessionStatusRecord
-	path, err := c.sessionScopedPath(ctx, id, "/status")
+	path, err := c.sessionReadPath(ctx, id, "/status")
 	if err != nil {
 		return SessionStatusRecord{}, err
 	}
@@ -267,7 +268,7 @@ func (c *daemonClient) GetSessionTranscript(
 	id string,
 ) (SessionTranscriptRecord, error) {
 	var response SessionTranscriptRecord
-	path, err := c.sessionScopedPath(ctx, id, "/transcript")
+	path, err := c.sessionReadPath(ctx, id, "/transcript")
 	if err != nil {
 		return SessionTranscriptRecord{}, err
 	}
@@ -328,6 +329,23 @@ func (c *daemonClient) SendSessionPrompt(
 		return SessionPromptRecord{}, err
 	}
 	return c.doSessionPrompt(ctx, http.MethodPost, path, query, request)
+}
+
+// SendSessionPromptAs sends a prompt on behalf of a validated agent session identity, which stamps the
+// calling session as the message origin.
+func (c *daemonClient) SendSessionPromptAs(
+	ctx context.Context,
+	id string,
+	request SessionPromptRequest,
+	credentials agentidentity.Credentials,
+) (SessionPromptRecord, error) {
+	query := url.Values{}
+	query.Set(cliFormatKey, "raw")
+	path, err := c.sessionScopedPath(ctx, id, "/prompt")
+	if err != nil {
+		return SessionPromptRecord{}, err
+	}
+	return c.doSessionPromptAs(ctx, http.MethodPost, path, query, request, credentials)
 }
 
 func (c *daemonClient) SteerSessionPrompt(

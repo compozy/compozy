@@ -13,7 +13,7 @@ type SettingsSkillSourcePayload struct {
 	Kind          string                           `json:"kind"`
 	Enabled       bool                             `json:"enabled"`
 	AlwaysOn      bool                             `json:"always_on"`
-	Default       bool                             `json:"default,omitempty"`
+	Default       bool                             `json:"default,omitzero"`
 	WorkspacePath string                           `json:"workspace_path,omitempty"`
 	GlobalPath    string                           `json:"global_path,omitempty"`
 	Path          string                           `json:"path,omitempty"`
@@ -26,8 +26,8 @@ type SettingsSkillSourceRootPayload struct {
 	Path          string                                  `json:"path"`
 	Exists        bool                                    `json:"exists"`
 	Readable      bool                                    `json:"readable"`
-	ScannedCount  *int                                    `json:"scanned_count,omitempty"`
-	SkillCount    *int                                    `json:"skill_count,omitempty"`
+	ScannedCount  *int                                    `json:"scanned_count,omitzero"`
+	SkillCount    *int                                    `json:"skill_count,omitzero"`
 	Truncated     bool                                    `json:"truncated"`
 	SkippedLinks  []SettingsSkillSourceSkippedLinkPayload `json:"skipped_links"`
 	Collisions    []SettingsSkillSourceCollisionPayload   `json:"collisions"`

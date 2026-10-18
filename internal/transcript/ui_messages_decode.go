@@ -76,7 +76,8 @@ func decodeStoredEvent(storedEvent store.SessionEvent) *decodedStoredEvent {
 	if decoded.agent.Usage != nil {
 		decoded.agent.Usage.Sequence = storedEvent.Sequence
 	}
-	decoded.parsed = redactTranscriptEvent(decoded.parsed)
+	// parseEvent already redacted parsed on every path; redacting it again
+	// doubled the dominant cost of every transcript projection.
 	decoded.agent = RedactAgentEvent(decoded.agent)
 	return decoded
 }

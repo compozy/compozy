@@ -32,7 +32,6 @@ func ObserveHealthPayloadFromHealth(health *observepkg.Health) contract.ObserveH
 		Retention:          ObserveRetentionHealthPayloadFromHealth(health.Retention),
 		Failures:           ObserveFailureHealthPayloadFromHealth(health.Failures),
 		AgentProbes:        AgentProbeHealthPayloadsFromACP(health.AgentProbes),
-		Bridges:            BridgeAggregateHealthPayloadFromObserve(health.Bridges),
 		Activities:         SessionActivityHealthPayloadsFromObserve(health.Activities),
 		Version:            health.Version,
 	}
@@ -41,19 +40,17 @@ func ObserveHealthPayloadFromHealth(health *observepkg.Health) contract.ObserveH
 // TaskHealthPayloadFromObserve converts observer task health into the shared status payload.
 func TaskHealthPayloadFromObserve(health observepkg.TaskHealth) contract.TaskHealthPayload {
 	return contract.TaskHealthPayload{
-		Status:                     strings.TrimSpace(health.Status),
-		QueueDepthTotal:            health.QueueDepthTotal,
-		OldestQueuedAt:             optionalTime(health.OldestQueuedAt),
-		OldestQueueAgeMilli:        health.OldestQueueAgeMilli,
-		QueueDepth:                 TaskQueueDepthPayloadsFromObserve(health.QueueDepth),
-		StuckRuns:                  StuckTaskRunPayloadsFromObserve(health.StuckRuns),
-		ActiveOrphanRuns:           health.ActiveOrphanRuns,
-		TaskTotals:                 TaskStatusTotalPayloadsFromObserve(health.TaskTotals),
-		RunTotals:                  TaskRunTotalPayloadsFromObserve(health.RunTotals),
-		OwnerTotals:                TaskOwnerTotalPayloadsFromObserve(health.OwnerTotals),
-		ForcedStopsSinceStart:      health.ForcedStopsSinceStart,
-		DuplicateIngressSinceStart: health.DuplicateIngressSinceStart,
-		ChannelMismatchSinceStart:  health.ChannelMismatchSinceStart,
+		Status:                strings.TrimSpace(health.Status),
+		QueueDepthTotal:       health.QueueDepthTotal,
+		OldestQueuedAt:        optionalTime(health.OldestQueuedAt),
+		OldestQueueAgeMilli:   health.OldestQueueAgeMilli,
+		QueueDepth:            TaskQueueDepthPayloadsFromObserve(health.QueueDepth),
+		StuckRuns:             StuckTaskRunPayloadsFromObserve(health.StuckRuns),
+		ActiveOrphanRuns:      health.ActiveOrphanRuns,
+		TaskTotals:            TaskStatusTotalPayloadsFromObserve(health.TaskTotals),
+		RunTotals:             TaskRunTotalPayloadsFromObserve(health.RunTotals),
+		OwnerTotals:           TaskOwnerTotalPayloadsFromObserve(health.OwnerTotals),
+		ForcedStopsSinceStart: health.ForcedStopsSinceStart,
 		RecoverySinceStart: contract.TaskRecoveryTotalsPayload{
 			Requeued:      health.RecoverySinceStart.Requeued,
 			MarkedRunning: health.RecoverySinceStart.MarkedRunning,
@@ -70,7 +67,6 @@ func TaskQueueDepthPayloadsFromObserve(rows []observepkg.TaskQueueDepth) []contr
 	payloads := make([]contract.TaskQueueDepthPayload, 0, len(rows))
 	for _, row := range rows {
 		payloads = append(payloads, contract.TaskQueueDepthPayload{
-			ChannelID:           strings.TrimSpace(row.ChannelID),
 			Count:               row.Count,
 			OldestQueuedAt:      optionalTime(row.OldestQueuedAt),
 			OldestQueueAgeMilli: row.OldestQueueAgeMilli,
@@ -91,7 +87,6 @@ func StuckTaskRunPayloadsFromObserve(rows []observepkg.StuckTaskRun) []contract.
 			RunID:      strings.TrimSpace(row.RunID),
 			Status:     strings.TrimSpace(row.Status.String()),
 			OriginKind: strings.TrimSpace(string(row.OriginKind)),
-			ChannelID:  strings.TrimSpace(row.ChannelID),
 			SessionID:  strings.TrimSpace(row.SessionID),
 			AgeMillis:  row.AgeMillis,
 		})
@@ -107,10 +102,9 @@ func TaskStatusTotalPayloadsFromObserve(rows []observepkg.TaskStatusTotal) []con
 	payloads := make([]contract.TaskStatusTotalPayload, 0, len(rows))
 	for _, row := range rows {
 		payloads = append(payloads, contract.TaskStatusTotalPayload{
-			Scope:     strings.TrimSpace(string(row.Scope)),
-			Status:    strings.TrimSpace(string(row.Status)),
-			ChannelID: strings.TrimSpace(row.ChannelID),
-			Count:     row.Count,
+			Scope:  strings.TrimSpace(string(row.Scope)),
+			Status: strings.TrimSpace(string(row.Status)),
+			Count:  row.Count,
 		})
 	}
 	return payloads
@@ -126,7 +120,6 @@ func TaskRunTotalPayloadsFromObserve(rows []observepkg.TaskRunTotal) []contract.
 		payloads = append(payloads, contract.TaskRunTotalPayload{
 			Status:     strings.TrimSpace(row.Status.String()),
 			OriginKind: strings.TrimSpace(string(row.OriginKind)),
-			ChannelID:  strings.TrimSpace(row.ChannelID),
 			Count:      row.Count,
 		})
 	}

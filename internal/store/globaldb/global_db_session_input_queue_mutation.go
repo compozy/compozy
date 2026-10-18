@@ -3,8 +3,10 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -122,7 +124,7 @@ func (g *SessionRepo) replacePendingSessionInput(
 	sessionID string,
 	entryID string,
 	replacement store.SessionInputQueueInsert,
-	cancelPriorSteers bool,
+	promote bool,
 ) (entry store.SessionInputQueueEntry, created bool, err error) {
 	if err := g.checkReady(ctx, action); err != nil {
 		return store.SessionInputQueueEntry{}, false, err
@@ -142,32 +144,32 @@ func (g *SessionRepo) replacePendingSessionInput(
 	}
 
 	err = g.withImmediateTransaction(ctx, action, func(exec globalSQLExecutor) error {
+		existing, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
 		replayed, replayErr := getSessionInputQueueEntry(ctx, exec, target, replacement.ID)
-		if replayErr == nil {
+		if replayErr == nil && (len(existing.Origin) == 0 || promote) {
 			if !sameSessionInputMutation(&replayed, replacement) {
 				return fmt.Errorf("%w: %s", store.ErrSessionInputMutationConflict, replacement.ID)
 			}
 			entry = replayed
 			return nil
 		}
-		if !errors.Is(replayErr, store.ErrSessionInputQueueEntryNotFound) {
+		if replayErr != nil && !errors.Is(replayErr, store.ErrSessionInputQueueEntryNotFound) {
 			return replayErr
 		}
-		existing, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
 		if getErr != nil {
 			return getErr
 		}
-		if existing.OwnerKind != "" {
-			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
+		if err := validateSessionInputMutation(ctx, &existing, replacement.Text, promote); err != nil {
+			return err
 		}
-		if existing.Status != store.SessionInputQueueStatusQueued {
-			return &store.SessionInputNotQueuedError{EntryID: entryID, Status: existing.Status, Text: replacement.Text}
-		}
-		replacement.SessionGeneration = existing.SessionGeneration
+
+		replacement = inheritReplacedSessionInput(&existing, replacement)
 		var superseded []string
-		if cancelPriorSteers {
+		if promote {
 			var cancelErr error
-			superseded, cancelErr = cancelPriorPendingSessionSteers(ctx, exec, target, replacement.Now)
+			superseded, cancelErr = cancelPriorPendingSessionSteers(
+				ctx, exec, target, replacement.OriginSessionID, replacement.Now,
+			)
 			if cancelErr != nil {
 				return cancelErr
 			}
@@ -198,12 +200,32 @@ func (g *SessionRepo) replacePendingSessionInput(
 	return entry, created, nil
 }
 
+// inheritReplacedSessionInput carries the replaced row's generation and sender
+// attribution. A promoted agent row keeps its origin, message id, and input event
+// id, so the sender's reply watch follows the steer into the turn that consumes
+// it. The operator initiated the steer, so it ranks and supersedes as human input.
+func inheritReplacedSessionInput(
+	existing *store.SessionInputQueueEntry,
+	replacement store.SessionInputQueueInsert,
+) store.SessionInputQueueInsert {
+	replacement.SessionGeneration = existing.SessionGeneration
+	if len(existing.Origin) == 0 {
+		return replacement
+	}
+	replacement.Origin = append(json.RawMessage(nil), existing.Origin...)
+	replacement.OriginClass = store.SessionInputOriginClassHuman
+	replacement.MessageID = existing.MessageID
+	replacement.EventID = existing.EventID
+	return replacement.Normalize()
+}
+
 func sameSessionInputMutation(
 	entry *store.SessionInputQueueEntry,
 	replacement store.SessionInputQueueInsert,
 ) bool {
+	// A promoted agent row answers with the sender's message id, not the operator's.
 	return entry.SessionID == replacement.SessionID &&
-		entry.MessageID == replacement.MessageID &&
+		(entry.MessageID == replacement.MessageID || len(entry.Origin) > 0) &&
 		entry.IdempotencyKey == replacement.IdempotencyKey &&
 		entry.TargetTurnID == replacement.TargetTurnID &&
 		entry.Mode == replacement.Mode &&
@@ -217,19 +239,42 @@ func cancelPriorPendingSessionSteers(
 	ctx context.Context,
 	exec globalSQLExecutor,
 	sessionID string,
+	originSessionID string,
 	now time.Time,
 ) ([]string, error) {
 	nowRaw := store.FormatTimestamp(now)
 	ids, err := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
-		CanceledStatus: store.SessionInputQueueStatusCanceled,
-		CanceledAt:     nullableSessionTime(now),
-		UpdatedAt:      nowRaw,
-		SessionID:      sessionID,
-		SteerMode:      store.SessionInputQueueModeSteer,
-		QueuedStatus:   store.SessionInputQueueStatusQueued,
+		CanceledStatus:  store.SessionInputQueueStatusCanceled,
+		CanceledAt:      nullableSessionTime(now),
+		UpdatedAt:       nowRaw,
+		SessionID:       sessionID,
+		SteerMode:       store.SessionInputQueueModeSteer,
+		QueuedStatus:    store.SessionInputQueueStatusQueued,
+		OriginSessionID: originSessionID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("store: cancel prior session steer input: %w", err)
 	}
 	return ids, nil
+}
+
+// validateSessionInputMutation refuses edits of agent-authored rows. Promotion
+// changes only priority, so it may target an agent row when the text is unchanged.
+func validateSessionInputMutation(
+	ctx context.Context,
+	existing *store.SessionInputQueueEntry,
+	text string,
+	promote bool,
+) error {
+	if len(existing.Origin) > 0 && (!promote || strings.TrimSpace(text) != existing.Text) {
+		slog.WarnContext(ctx, "session.input.mutation_refused", "entry_id", existing.ID, "reason", "agent_authored")
+		return store.ErrSessionInputAgentAuthored
+	}
+	if existing.OwnerKind != "" {
+		return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, existing.ID)
+	}
+	if existing.Status != store.SessionInputQueueStatusQueued {
+		return &store.SessionInputNotQueuedError{EntryID: existing.ID, Status: existing.Status, Text: text}
+	}
+	return nil
 }

@@ -8,7 +8,7 @@ import { LoopCatalog } from "../catalog/loop-catalog";
 import { LoopCatalogFilters } from "../catalog/loop-catalog-filters";
 import { LoopCatalogLede } from "../catalog/loop-catalog-lede";
 import type { LoopCatalogFilter, LoopStatusFilter } from "../../lib/loop-catalog";
-import { matchesLoopFilter } from "../../lib/loop-catalog";
+import { hasActiveLoopFilters, loopCategory, matchesLoopFilter } from "../../lib/loop-catalog";
 import { loopCatalogFixtures } from "../../mocks/fixtures";
 import { LoopsStoryShell } from "./loops-story-shell";
 
@@ -30,13 +30,16 @@ function CatalogHarness({
   initialStatus?: LoopStatusFilter | null;
   initialView?: ListingViewMode;
 }) {
-  const [status, setStatus] = useState<LoopStatusFilter | null>(initialStatus);
+  const [filter, setFilter] = useState<LoopCatalogFilter>({
+    ...DEFAULT_FILTER,
+    status: initialStatus,
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<ListingViewMode>(initialView);
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const entries = loopCatalogFixtures.filter(
     entry =>
-      matchesLoopFilter(entry, { ...DEFAULT_FILTER, status }) &&
+      matchesLoopFilter(entry, filter) &&
       (normalizedQuery === "" ||
         `${entry.name} ${entry.contract.goal}`.toLowerCase().includes(normalizedQuery))
   );
@@ -51,7 +54,13 @@ function CatalogHarness({
           value={searchQuery}
         />
         <ListingToolbar.Filters>
-          <LoopCatalogFilters onStatusFilterChange={setStatus} statusFilter={status} />
+          <LoopCatalogFilters
+            categoryOptions={[
+              ...new Set(loopCatalogFixtures.flatMap(entry => loopCategory(entry) ?? [])),
+            ].sort()}
+            filter={filter}
+            onFiltersChange={setFilter}
+          />
         </ListingToolbar.Filters>
       </ListingToolbar.Leading>
       <ListingToolbar.Trailing>
@@ -71,9 +80,9 @@ function CatalogHarness({
             kinds: { read_only: entries.length },
             statuses: {},
           }}
-          hasActiveFilters={searchQuery.trim() !== "" || status !== null}
+          hasActiveFilters={hasActiveLoopFilters(searchQuery, filter)}
           onClearFilters={() => {
-            setStatus(null);
+            setFilter(DEFAULT_FILTER);
             setSearchQuery("");
           }}
           onRun={() => {}}

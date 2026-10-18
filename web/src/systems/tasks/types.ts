@@ -32,14 +32,6 @@ export type TaskTriageState = OperationResponse<"markTaskRead", 200>["triage"];
 export type TaskStreamPayload = OperationResponse<"streamTask", 200>;
 export type TaskStreamTimelineEvent = TaskStreamPayload["timeline"];
 export type AgentTaskClaim = OperationResponse<"claimNextAgentTask", 200>["claim"];
-export type AgentCoordinationChannel = OperationResponse<
-  "listAgentChannels",
-  200
->["channels"][number];
-export type AgentChannelMessage = OperationResponse<
-  "receiveAgentChannelMessages",
-  200
->["messages"][number];
 
 export type TaskListFilter = OperationQuery<"listTasks">;
 export type TaskListStableFilter = Omit<TaskListFilter, "cursor">;
@@ -56,12 +48,10 @@ export type TaskExecutionProfileSetRequest = OperationRequestBody<"setTaskExecut
 export type TaskExecutionProfileWorker = TaskExecutionProfile["worker"];
 export type TaskExecutionProfileCoordinator = TaskExecutionProfile["coordinator"];
 export type TaskExecutionProfileReviewSelectors = TaskExecutionProfile["review"];
-export type TaskExecutionProfileSandbox = TaskExecutionProfile["sandbox"];
 export type TaskExecutionProfileWorktree = TaskExecutionProfile["worktree"];
 export type TaskExecutionProfileParticipants = TaskExecutionProfile["participants"];
 export type TaskExecutionProfileWorkerMode = TaskExecutionProfileWorker["mode"];
 export type TaskExecutionProfileCoordinatorMode = TaskExecutionProfileCoordinator["mode"];
-export type TaskExecutionProfileSandboxMode = TaskExecutionProfileSandbox["mode"];
 export type TaskExecutionProfileWorktreeMode = TaskExecutionProfileWorktree["mode"];
 /** Body of the dedicated worktree-policy patch — never a full-profile replace. */
 export type TaskWorktreePolicySetRequest = OperationRequestBody<"setTaskWorktreePolicy">;
@@ -81,20 +71,6 @@ export type TaskRunReviewPolicy = TaskRunReview["policy"];
 export type TaskRunReviewContinuationRun = NonNullable<
   TaskRunReviewVerdictResult["continuation_run"]
 >;
-
-// Bridge notification diagnostics (cursor primitive + bridge subscriptions)
-export type TaskBridgeNotificationSubscription = OperationResponse<
-  "listTaskBridgeNotificationSubscriptions",
-  200
->["subscriptions"][number];
-export type TaskBridgeNotificationCursor = TaskBridgeNotificationSubscription["cursor"];
-export type TaskBridgeNotificationSubscriptionsFilter =
-  OperationQuery<"listTaskBridgeNotificationSubscriptions">;
-export type TaskBridgeNotificationSubscriptionCreateRequest =
-  OperationRequestBody<"createTaskBridgeNotificationSubscription">;
-export type TaskBridgeNotificationDeliveryMode =
-  TaskBridgeNotificationSubscription["delivery_mode"];
-export type TaskBridgeNotificationSubscriptionScope = TaskBridgeNotificationSubscription["scope"];
 
 // Agent task context bundle (current_run + execution profile + replay seed)
 export type AgentContextView = OperationResponse<"getAgentContext", 200>["context"];

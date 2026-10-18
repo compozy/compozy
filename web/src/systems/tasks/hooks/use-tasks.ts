@@ -42,7 +42,11 @@ export function useTaskRuns(
   filters: TaskRunsFilter = {},
   options: TaskQueryHookOptions = {}
 ) {
+  const { params } = useProfileReadScope();
   return useQuery(
-    withTaskQueryHookOptions(taskRunsOptions(id, filters, options.enabled ?? true), options)
+    withTaskQueryHookOptions(
+      taskRunsOptions(id, withTaskProfileScope(filters, params), options.enabled ?? true),
+      options
+    )
   );
 }

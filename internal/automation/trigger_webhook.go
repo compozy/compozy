@@ -26,11 +26,6 @@ func (e *TriggerEngine) HookTelemetrySink() hookspkg.TelemetrySink {
 	return &triggerHookTelemetrySink{engine: e}
 }
 
-// MemoryObserver exposes the observer-facing dream-consolidation completion adapter.
-func (e *TriggerEngine) MemoryObserver() MemoryConsolidationObserver {
-	return &triggerMemoryObserver{engine: e}
-}
-
 // ParseWebhookEndpoint resolves the human slug and stable webhook id from an endpoint path segment.
 func ParseWebhookEndpoint(endpoint string) (ParsedWebhookEndpoint, error) {
 	trimmed := strings.TrimSpace(endpoint)
@@ -38,14 +33,14 @@ func ParseWebhookEndpoint(endpoint string) (ParsedWebhookEndpoint, error) {
 		return ParsedWebhookEndpoint{}, ErrWebhookEndpointInvalid
 	}
 
-	separator := strings.LastIndex(trimmed, "--")
-	if separator <= 0 || separator+2 >= len(trimmed) {
+	slug, webhookID, found := strings.CutLast(trimmed, "--")
+	if !found || slug == "" || webhookID == "" {
 		return ParsedWebhookEndpoint{}, fmt.Errorf("%w: expected <slug>--<webhook_id>", ErrWebhookEndpointInvalid)
 	}
 
 	parsed := ParsedWebhookEndpoint{
-		EndpointSlug: strings.TrimSpace(trimmed[:separator]),
-		WebhookID:    strings.TrimSpace(trimmed[separator+2:]),
+		EndpointSlug: strings.TrimSpace(slug),
+		WebhookID:    strings.TrimSpace(webhookID),
 	}
 	if parsed.EndpointSlug == "" || parsed.WebhookID == "" {
 		return ParsedWebhookEndpoint{}, fmt.Errorf(

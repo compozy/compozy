@@ -61,7 +61,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 		opener := &promptAttachmentOpenerStub{data: map[string][]byte{"att-document": data}}
 		manager := &Manager{attachmentOpener: opener}
 		resolved, err := manager.resolvePromptAttachments(
-			context.Background(),
+			t.Context(),
 			"ws-test",
 			"sess-test",
 			[]AttachmentMeta{promptAttachmentMeta(t, "att-document", "notes.txt", "text/plain", data)},
@@ -91,7 +91,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 		manager := &Manager{attachmentOpener: opener}
 		meta := promptAttachmentMeta(t, "att-secret", "secret.txt", "text/plain", []byte("different"))
 		_, err := manager.resolvePromptAttachments(
-			context.Background(), "ws-test", "sess-test", []AttachmentMeta{meta}, acp.Caps{},
+			t.Context(), "ws-test", "sess-test", []AttachmentMeta{meta}, acp.Caps{},
 		)
 		if !errors.Is(err, ErrPromptAttachmentDigestMismatch) {
 			t.Fatalf("resolvePromptAttachments() error = %v, want %v", err, ErrPromptAttachmentDigestMismatch)
@@ -113,7 +113,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 		}
 		manager := &Manager{attachmentOpener: opener}
 		_, err := manager.resolvePromptAttachments(
-			context.Background(),
+			t.Context(),
 			"ws-test",
 			"sess-test",
 			[]AttachmentMeta{promptAttachmentMeta(t, "att-image", "photo.png", "image/png", data)},
@@ -139,7 +139,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 		}
 		manager := &Manager{attachmentOpener: opener}
 		_, err := manager.resolvePromptAttachments(
-			context.Background(),
+			t.Context(),
 			"ws-test",
 			"sess-test",
 			[]AttachmentMeta{promptAttachmentMeta(t, "att-pdf", "report.pdf", "application/pdf", data)},

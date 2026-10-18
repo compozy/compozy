@@ -24,5 +24,5 @@ export function backgroundStreamsWithinConnectionBudget(
 export function continuityStreamsWithinConnectionBudget(
   state: Pick<BackgroundStreamBudgetState, "connectionStatus">
 ): boolean {
-  return state.connectionStatus === "connected" || state.connectionStatus === "disconnected";
+  return state.connectionStatus !== "connecting" && state.connectionStatus !== "reconnecting";
 }

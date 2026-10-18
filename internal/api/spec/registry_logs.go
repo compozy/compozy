@@ -26,6 +26,7 @@ func registryLogOperations() []OperationSpec {
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters:  withProfileScope(logStreamQueryParams()...),
 			Responses: []ResponseSpec{
+				{Status: 101, Description: specEventStreamUpgrade},
 				{
 					Status:      200,
 					Description: "Log event stream",

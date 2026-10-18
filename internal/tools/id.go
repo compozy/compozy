@@ -174,6 +174,10 @@ func CanonicalToolID(namespace string, segments ...string) (ToolID, error) {
 
 // ValidateJSONObject validates a JSON Schema object payload.
 func ValidateJSONObject(field string, raw json.RawMessage, required bool) error {
+	return (schemaValidator{}).validateJSONObject(field, raw, required)
+}
+
+func (v schemaValidator) validateJSONObject(field string, raw json.RawMessage, required bool) error {
 	if len(raw) == 0 {
 		if required {
 			return NewValidationError(field, ReasonSchemaInvalid, "schema object is required")
@@ -191,7 +195,7 @@ func ValidateJSONObject(field string, raw json.RawMessage, required bool) error 
 		}
 		return nil
 	}
-	if err := validateJSONSchemaDocument("$", decoded); err != nil {
+	if err := v.validateJSONSchemaDocument("$", decoded); err != nil {
 		return NewValidationError(field, ReasonSchemaInvalid, err.Error())
 	}
 	return nil

@@ -27,25 +27,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestBaseHandlersModelCatalogDependency(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should carry model catalog service from config", func(t *testing.T) {
-		t.Parallel()
-
-		service := coreModelCatalogServiceStub{}
-		handlers := NewBaseHandlers(&BaseHandlerConfig{ModelCatalog: service})
-		if handlers.ModelCatalog == nil {
-			t.Fatal("NewBaseHandlers() ModelCatalog = nil, want injected service")
-		}
-		if handlers.ModelCatalog != service {
-			t.Fatalf("NewBaseHandlers() ModelCatalog = %#v, want %#v", handlers.ModelCatalog, service)
-		}
-	})
-}
-
 func TestProviderModelPayloadConversion(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should classify provider authentication failures and retain structured diagnostics", func(t *testing.T) {
+		t.Parallel()
+		statuses := SourceStatusPayloadsFromStatuses([]modelcatalog.SourceStatus{
+			{
+				SourceID:     "provider_live:cursor",
+				SourceKind:   modelcatalog.SourceKindProviderLive,
+				ProviderID:   "cursor",
+				RefreshState: modelcatalog.RefreshStateFailed,
+				LastError:    "model catalog: discovery command failed: exit status 1: Error: Authentication required. Run 'agent login'.",
+			},
+		})
+		if len(statuses) != 1 || statuses[0].FailureReason != "auth_required" ||
+			statuses[0].ProviderID != "cursor" || !strings.Contains(statuses[0].LastError, "agent login") {
+			t.Fatalf("statuses = %#v, want attributed authentication reason with diagnostics", statuses)
+		}
+	})
 
 	t.Run("Should preserve nullable availability and source stale fields", func(t *testing.T) {
 		t.Parallel()
@@ -255,7 +255,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 				if ref != "alpha" {
 					t.Fatalf("Resolve() ref = %q, want alpha", ref)
 				}
-				return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-canonical"}}, nil
+				return workspacepkg.ResolvedWorkspace{ID: "ws-canonical"}, nil
 			}},
 		})
 		recorder := performModelCatalogRequest(
@@ -333,7 +333,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 				_ context.Context,
 				_ string,
 			) (workspacepkg.ResolvedWorkspace, error) {
-				return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-foreign"}}, nil
+				return workspacepkg.ResolvedWorkspace{ID: "ws-foreign"}, nil
 			}},
 			WorkspaceAccess: modelCatalogWorkspaceAccessStub{authorize: func(
 				_ context.Context,
@@ -647,29 +647,6 @@ func TestOpenAIModelCatalogHandler(t *testing.T) {
 	})
 }
 
-type coreModelCatalogServiceStub struct{}
-
-func (coreModelCatalogServiceStub) ListModels(
-	context.Context,
-	modelcatalog.ListOptions,
-) ([]modelcatalog.Model, error) {
-	return nil, nil
-}
-
-func (coreModelCatalogServiceStub) Refresh(
-	context.Context,
-	modelcatalog.RefreshOptions,
-) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
-}
-
-func (coreModelCatalogServiceStub) ListSourceStatus(
-	context.Context,
-	modelcatalog.StatusOptions,
-) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
-}
-
 type modelCatalogServiceSpy struct {
 	listModelsFn       func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	refreshFn          func(context.Context, modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
@@ -815,7 +792,7 @@ func performModelCatalogRequest(
 	t.Helper()
 
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(), method, path, strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(string(body)))
 	engine.ServeHTTP(recorder, req)
 	return recorder
 }
@@ -829,7 +806,7 @@ func performModelCatalogRequestWithHeaders(
 ) *httptest.ResponseRecorder {
 	t.Helper()
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(), method, path, nil)
+	req := httptest.NewRequestWithContext(t.Context(), method, path, nil)
 	for name, value := range headers {
 		req.Header.Set(name, value)
 	}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -56,8 +56,8 @@ func normalizeShortcutMutation(
 		if canonicalErr == nil {
 			return resolved, nil
 		}
-		var conflict *windowmanager.ShortcutConflictError
-		if !errors.As(canonicalErr, &conflict) {
+		conflict, conflictOK := errors.AsType[*windowmanager.ShortcutConflictError](canonicalErr)
+		if !conflictOK {
 			return nil, unprocessableError(canonicalErr)
 		}
 		loser, hasExistingOwner := shortcutOverwriteLoser(currentEffective, conflict)
@@ -91,8 +91,8 @@ func normalizeGlobalShortcutMutation(
 		if canonicalErr == nil {
 			return canonical, nil
 		}
-		var conflict *windowmanager.ShortcutConflictError
-		if !errors.As(canonicalErr, &conflict) {
+		conflict, conflictOK := errors.AsType[*windowmanager.ShortcutConflictError](canonicalErr)
+		if !conflictOK {
 			return nil, unprocessableError(canonicalErr)
 		}
 		loser, exists := globalShortcutOverwriteLoser(currentCanonical, conflict)
@@ -181,11 +181,7 @@ func normalizeAliasMutation(
 	overwrite bool,
 ) (map[string]string, error) {
 	aliases := cloneAliases(desired)
-	commandIDs := make([]string, 0, len(aliases))
-	for commandID := range aliases {
-		commandIDs = append(commandIDs, commandID)
-	}
-	sort.Strings(commandIDs)
+	commandIDs := slices.Sorted(maps.Keys(aliases))
 	owners := make(map[string]string, len(aliases))
 	for _, commandID := range commandIDs {
 		alias := aliases[commandID]

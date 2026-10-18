@@ -10,6 +10,7 @@ export function schedulerStatusOptions(enabled = true) {
     queryKey: schedulerKeys.status(),
     queryFn: ({ signal }) => getScheduler(signal),
     staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -19,5 +20,6 @@ export function schedulerBacklogOptions(query: SchedulerBacklogQuery = {}, enabl
     queryKey: schedulerKeys.backlog(query),
     queryFn: ({ signal }) => getSchedulerBacklog(query, signal),
     staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }

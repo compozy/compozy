@@ -40,7 +40,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
 
   const ruledHeader = dialog.locator('[data-slot="dialog-header"]');
   await expect(ruledHeader).toHaveAttribute("data-variant", "ruled");
-  await expect(ruledHeader).toContainText("Add workspace");
+  await expect(ruledHeader).toContainText("Add project");
 
   await expect(dialog.getByTestId("workspace-setup-global-card")).toHaveCount(0);
 

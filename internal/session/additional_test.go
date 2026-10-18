@@ -132,12 +132,10 @@ func TestCreateErrorBranches(t *testing.T) {
 		h := newHarness(t)
 		h.cfg.Defaults.Agent = ""
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: h.workspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
@@ -177,31 +175,6 @@ func TestCreateErrorBranches(t *testing.T) {
 		}
 		if sessions := h.manager.List(); len(sessions) != 0 {
 			t.Fatalf("List() after entropy failure = %#v, want no session", sessions)
-		}
-	})
-
-	t.Run("Should propagate sandbox ID entropy failure before session creation", func(t *testing.T) {
-		t.Parallel()
-
-		entropyErr := errors.New("entropy unavailable")
-		h := newHarness(t, WithSandboxIDGenerator(func() (string, error) {
-			return "", entropyErr
-		}))
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-		}); !errors.Is(err, entropyErr) {
-			t.Fatalf("Create() error = %v, want entropy failure", err)
-		}
-		if sessions := h.manager.List(); len(sessions) != 0 {
-			t.Fatalf("List() after entropy failure = %#v, want no session", sessions)
-		}
-		entries, err := os.ReadDir(h.homePaths.SessionsDir)
-		if err != nil {
-			t.Fatalf("ReadDir(sessions) error = %v", err)
-		}
-		if len(entries) != 0 {
-			t.Fatalf("session metadata after sandbox ID entropy failure = %#v, want no persistence", entries)
 		}
 	})
 
@@ -293,13 +266,11 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 	}
 
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:             h.workspaceID,
-			RootDir:        h.workspace,
-			AdditionalDirs: []string{additionalOne, additionalTwo},
-			Name:           h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:             h.workspaceID,
+		RootDir:        h.workspace,
+		AdditionalDirs: []string{additionalOne, additionalTwo},
+		Name:           h.workspaceName,
+		Config:         h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
@@ -342,13 +313,11 @@ func TestResumePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 	}
 
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:             h.workspaceID,
-			RootDir:        h.workspace,
-			AdditionalDirs: []string{additionalOne, additionalTwo},
-			Name:           h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:             h.workspaceID,
+		RootDir:        h.workspace,
+		AdditionalDirs: []string{additionalOne, additionalTwo},
+		Name:           h.workspaceName,
+		Config:         h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
@@ -595,7 +564,7 @@ func testConcurrentResumeSharesOneStart(t *testing.T) {
 	}
 	results := make(chan result, 2)
 	resume := func() {
-		resumed, err := h.manager.Resume(context.Background(), session.ID)
+		resumed, err := h.manager.Resume(t.Context(), session.ID)
 		results <- result{session: resumed, err: err}
 	}
 	go resume()
@@ -716,12 +685,10 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 	now := time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC)
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	resolver := newFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "ws-options",
-			RootDir: "/tmp/workspace",
-			Name:    "workspace",
-		},
-		Config: cfg,
+		ID:      "ws-options",
+		RootDir: "/tmp/workspace",
+		Name:    "workspace",
+		Config:  cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     compozyconfig.DefaultAgentName,
 			Provider: "claude",
@@ -944,15 +911,14 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 	}
 
 	sessionDir := filepath.Join(homePaths.SessionsDir, "sess-stored")
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   "sess-stored",
-		AgentName:            "coder",
-		WorkspaceID:          "ws-stored",
-		NetworkParticipation: testLocalParticipationPtr(),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
-		CreatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
+		ID:            "sess-stored",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-stored",
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
+		CreatedAt:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
@@ -1062,10 +1028,10 @@ func TestAgentProcessHelpersAndAdapterUtilities(t *testing.T) {
 		t.Fatal("nativeProcess(unsupported process) error = nil, want non-nil")
 	}
 
-	if _, err := adapter.Start(context.Background(), acp.StartOpts{}); err == nil {
+	if _, err := adapter.Start(t.Context(), acp.StartOpts{}); err == nil {
 		t.Fatal("Start(invalid opts) error = nil, want non-nil")
 	}
-	if err := adapter.Cancel(context.Background(), wrapACPProcess(&acp.AgentProcess{})); err == nil {
+	if err := adapter.Cancel(t.Context(), wrapACPProcess(&acp.AgentProcess{})); err == nil {
 		t.Fatal("Cancel(empty session id) error = nil, want non-nil")
 	}
 }
@@ -1137,4 +1103,134 @@ func (s *stubRecorder) History(context.Context, store.EventQuery) ([]store.TurnH
 func (s *stubRecorder) Close(context.Context) error {
 	s.closeCalls++
 	return nil
+}
+
+func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
+	t.Run("Should reject a nil resolved workspace", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := resolveWorkspaceSessionAgentForType("coder", "", "", nil, nil)
+		if err == nil {
+			t.Fatal("resolveWorkspaceSessionAgent(nil workspace) error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "resolved workspace is required") {
+			t.Fatalf("resolveWorkspaceSessionAgent(nil workspace) error = %v", err)
+		}
+	})
+
+	t.Run("Should allow a nil agent resolver when a workspace is provided", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		resolvedWorkspace := &workspacepkg.ResolvedWorkspace{
+			Config: compozyconfig.DefaultWithHome(homePaths),
+			Agents: []compozyconfig.AgentDef{{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			}},
+		}
+
+		resolved, err := resolveWorkspaceSessionAgentForType("coder", "", "", resolvedWorkspace, nil)
+		if err != nil {
+			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) error = %v", err)
+		}
+		if got, want := resolved.Provider, "claude"; got != want {
+			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) provider = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestNativeSubagentEventFromStored(t *testing.T) {
+	// UT-036: the persisted event supplies native identity, model, settlement, and result.
+	t.Run("Should convert native calls and results without creating lifecycle side effects", func(t *testing.T) {
+		t.Parallel()
+		for _, tool := range []string{"Agent", "Task"} {
+			event := acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "toolu_agent",
+				Title:      "Review the diff (high effort)",
+			}.WithProviderToolMetadata("", tool, "pending").
+				WithTool(tool, json.RawMessage(`{"model":"sonnet-5.5","description":"Survey risks"}`), false)
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+			row := store.SessionEvent{SessionID: "parent", TurnID: "turn", Timestamp: at, Content: payload}
+			got, ok, err := NativeSubagentEventFromStored("workspace", row)
+			if err != nil || !ok {
+				t.Fatalf("convert = %#v, %v, %v", got, ok, err)
+			}
+			if got.WorkspaceID != "workspace" || got.ParentTurnID != "turn" || got.ToolName != tool ||
+				got.ProviderToolCallID != "toolu_agent" ||
+				got.Title != "Survey risks" ||
+				got.Model != "sonnet-5.5" ||
+				got.Status != "pending" ||
+				!got.At.Equal(at) {
+				t.Fatalf("call = %#v", got)
+			}
+			event.Type = acp.EventTypeToolResult
+			event = event.WithProviderToolMetadata("", tool, "completed")
+			event.Raw = json.RawMessage(`{"status":"completed","rawOutput":"Review complete"}`)
+			row.Content, err = transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err = NativeSubagentEventFromStored("workspace", row)
+			if err != nil || !ok || got.Status != "completed" || got.Result != "Review complete" {
+				t.Fatalf("result = %#v, %v, %v", got, ok, err)
+			}
+		}
+	})
+	// Issue #766: either the background input flag or the persisted async receipt marks a launch.
+	t.Run("Should mark background launches from the input flag or the persisted receipt", func(t *testing.T) {
+		t.Parallel()
+		call := acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "toolu_agent"}.
+			WithProviderToolMetadata("", "Agent", "pending").
+			WithTool("Agent", json.RawMessage(`{"description":"S1","run_in_background":true}`), false)
+		receipt := acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "toolu_agent"}.
+			WithProviderToolMetadata("", "Agent", "completed").
+			WithProviderToolAsync()
+		receipt.Raw = json.RawMessage(`{"status":"completed","rawOutput":"Async agent launched successfully."}`)
+		foreground := acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "toolu_agent"}.
+			WithProviderToolMetadata("", "Agent", "completed")
+		for _, tc := range []struct {
+			event      acp.AgentEvent
+			background bool
+		}{{call, true}, {receipt, true}, {foreground, false}} {
+			content, err := transcript.MarshalAgentEvent(tc.event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err := NativeSubagentEventFromStored("workspace", store.SessionEvent{Content: content})
+			if err != nil || !ok || got.Background != tc.background {
+				t.Fatalf("convert %s = %#v, %v, %v", tc.event.Type, got, ok, err)
+			}
+		}
+	})
+	// UT-037: inner events with an unknown parent cannot be mistaken for Agent calls.
+	t.Run("Should ignore inner and legacy tool calls without native tool metadata", func(t *testing.T) {
+		t.Parallel()
+		for _, event := range []acp.AgentEvent{
+			acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "inner"}.WithProviderToolMetadata("missing", "Read", "pending"),
+			{Type: acp.EventTypeToolCall, ToolCallID: "legacy", Title: "Agent"},
+		} {
+			content, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, ok, err := NativeSubagentEventFromStored(
+				"workspace",
+				store.SessionEvent{Content: content},
+			); err != nil ||
+				ok {
+				t.Fatalf("unexpected native event = %#v, %v, %v", got, ok, err)
+			}
+		}
+	})
 }

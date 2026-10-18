@@ -88,16 +88,18 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	}
 
 	accepted.persistFailure = accepted.async || !spec.discardStartFailure
-	startOpts, err := m.prepareSessionLaunch(ctx, spec, session, &runtime, accepted.run)
+	startOpts, err := m.launchAcceptedSessionAttempts(accepted, &runtime)
 	if err != nil {
-		return fmt.Errorf("session: prepare %s launch for %q: %w", spec.startAction, spec.sessionID, err)
+		return err
 	}
-	accepted.proc, err = m.startAgentProcess(ctx, spec, session, startOpts)
-	if err != nil {
-		return fmt.Errorf("session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err)
+	accepted.runtime = runtime
+	acceptedID := accepted.proc.SessionID
+	if spec.resumeReplay || spec.resumeReplayBlock != "" {
+		session.setPendingResumeReplay(spec.resumeReplayBlock)
 	}
+	session.commitAcceptedRoute(acceptedRouteRecord(spec.fallbackAttempt, runtime.agent, ""), spec.command)
 	if err := m.persistResumeReplayMarker(ctx, spec, session); err != nil {
-		return startupFailure("session resume marker persistence failed", err)
+		return acp.WrapAcceptedStart(acceptedID, startupFailure("session resume marker persistence failed", err))
 	}
 
 	if !accepted.async {
@@ -110,17 +112,15 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 		strings.TrimSpace(startOpts.PreferredModel) == "" &&
 			startOpts.RuntimeStrategy == acp.RuntimeApplicationSessionConfig,
 		runtime.agent,
-		runtime.networkCapabilities,
 		spec.postEvent,
 		spec.preserveStopReason,
 	); err != nil {
-		return startupFailure(
+		return acp.WrapAcceptedStart(acceptedID, startupFailure(
 			"session activation failed",
 			fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err),
-		)
+		))
 	}
-	m.observeCommittedParticipation(ctx, spec.participationObservation)
-	if spec.resumeReplay {
+	if spec.resumeReplayBlock != "" {
 		m.stageResumeReplay(spec.sessionID, spec.resumeReplayBlock)
 	}
 	return nil
@@ -143,14 +143,13 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 
 	accepted.spec.cleanupSessionDir = false
 	persistErr := m.persistFailedStart(cleanupCtx, session, startErr, true)
-	sandboxErr := m.finalizeSandbox(cleanupCtx, session, sandboxSyncReasonForStop(session))
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	m.removeActive(session.ID)
 	if m.hostedMCP != nil {
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, persistErr, sandboxErr, cleanupErr)
+	return errors.Join(startErr, persistErr, cleanupErr)
 }
 
 func (m *Manager) discardAcceptedSessionStart(
@@ -158,8 +157,15 @@ func (m *Manager) discardAcceptedSessionStart(
 	accepted *acceptedSessionStart,
 	startErr error,
 ) error {
+	if accepted.spec.deriveReceipt != nil {
+		if !accepted.session.isDeriveCommitted() {
+			return m.discardUncommittedSessionStart(accepted, startErr)
+		}
+		// A committed derived child is named by its receipt: keep its files and catalog
+		// row so a retry with the same key, or a restart, recovers it.
+		return errors.Join(startErr, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr))
+	}
 	session := accepted.session
-	sandboxErr := m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session))
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
 		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.ID, session.Info())
@@ -169,7 +175,7 @@ func (m *Manager) discardAcceptedSessionStart(
 				accepted,
 				errors.Join(startErr, stageErr),
 			)
-			return errors.Join(startErr, sandboxErr, stageErr, retainErr)
+			return errors.Join(startErr, stageErr, retainErr)
 		}
 		staged = &entry
 	}
@@ -184,7 +190,7 @@ func (m *Manager) discardAcceptedSessionStart(
 				accepted,
 				errors.Join(startErr, catalogErr, rollbackErr),
 			)
-			return errors.Join(startErr, sandboxErr, catalogErr, rollbackErr, retainErr)
+			return errors.Join(startErr, catalogErr, rollbackErr, retainErr)
 		}
 	}
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
@@ -198,7 +204,21 @@ func (m *Manager) discardAcceptedSessionStart(
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, sandboxErr, cleanupErr, directoryErr)
+	return errors.Join(startErr, cleanupErr, directoryErr)
+}
+
+// discardUncommittedSessionStart sweeps a start whose catalog registration never
+// committed (a derived child whose registration transaction failed or lost a race):
+// only its reserved directory exists, so it is removed like a failed accept.
+func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart, startErr error) error {
+	session := accepted.session
+	cleanupErr := m.cleanupFailedStart(accepted.storage.sessionDir, accepted.storage.recorder, accepted.proc)
+	m.remove(session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(session.ID)
+	}
+	session.clearProviderSecretRedactions()
+	return errors.Join(startErr, cleanupErr)
 }
 
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(

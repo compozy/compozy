@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -18,8 +17,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/sandbox"
-	localsandbox "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -27,10 +24,91 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
-	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
+	// Invariant: an exact bound caller can hand off delivery while competing
+	// starts/resumes remain fenced. Owner: session lifecycle; canonical suite.
+	t.Run("Should fence only the bound managed delivery checkout", func(t *testing.T) {
+		h := newHarness(t)
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithWorktreeResolver(
+				&fakeSessionWorktreeResolver{
+					resolve: func(_ context.Context, _ string, ref string) (string, string, error) { return ref, h.workspace, nil },
+				},
+			),
+		)
+		caller, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, caller.ID) })
+		competitor, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, competitor.ID) })
+		if release, err := h.manager.AcquireWorktreeDeliveryFence(
+			testutil.Context(t),
+			h.workspaceID,
+			"wt-delivery",
+			caller.ID,
+		); err == nil {
+			release()
+			t.Fatal("delivery admitted another active bound session")
+		}
+		if err := h.manager.Stop(testutil.Context(t), competitor.ID); err != nil {
+			t.Fatal(err)
+		}
+		release, err := h.manager.AcquireWorktreeDeliveryFence(
+			testutil.Context(t),
+			h.workspaceID,
+			"wt-delivery",
+			caller.ID,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer release()
+		if _, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+		); !errors.Is(
+			err,
+			ErrValidation,
+		) {
+			t.Fatalf("competing start error=%v", err)
+		}
+		unrelated, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-other"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, unrelated.ID) })
+		if err := h.manager.Stop(testutil.Context(t), caller.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Resume(testutil.Context(t), caller.ID); !errors.Is(err, ErrValidation) {
+			t.Fatalf("resume under delivery fence=%v", err)
+		}
+		release()
+		resumed, err := h.manager.Resume(testutil.Context(t), caller.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, resumed.ID) })
+	})
+
 	t.Run("Should bind lifecycle operations to the selected worktree", func(t *testing.T) {
 		h := newHarness(t)
 		initializeSessionIntegrationGitRepository(t, h.workspace)
@@ -107,7 +185,6 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 			t.Fatalf("Create(root session) error = %v", err)
 		}
 		for _, item := range []*Session{parent, sameWorktree, otherWorktree, rootSession} {
-			item := item
 			t.Cleanup(func() { stopActiveIntegrationSession(t, h, item.ID) })
 		}
 
@@ -197,53 +274,6 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 	})
 }
 
-func TestManagerIntegrationLocalSandboxContainsBoundWorktree(t *testing.T) {
-	t.Run("Should contain bound worktree access inside the local sandbox", func(t *testing.T) {
-		worktreeRoot := filepath.Join(t.TempDir(), "worktree")
-		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
-			t.Fatalf("MkdirAll(worktree root) error = %v", err)
-		}
-		h := newHarness(
-			t,
-			WithWorktreeResolver(&fakeSessionWorktreeResolver{id: "wt-sandbox", root: worktreeRoot}),
-			WithSandboxRegistry(newRegistryForProvider(t, localsandbox.NewProvider(
-				localsandbox.WithPermissionMode(compozyconfig.PermissionModeApproveAll),
-			))),
-		)
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-sandbox",
-		})
-		if err != nil {
-			t.Fatalf("Create(bound local sandbox) error = %v", err)
-		}
-		t.Cleanup(func() { stopActiveIntegrationSession(t, h, created.ID) })
-
-		canonicalRoot := resolveIntegrationWorkspaceRoot(t, worktreeRoot)
-		if created.Info().Sandbox == nil {
-			t.Fatal("sandbox metadata = nil, want local sandbox")
-		}
-		runtimeRoot := resolveIntegrationWorkspaceRoot(t, created.Info().Sandbox.RuntimeRootDir)
-		if runtimeRoot != canonicalRoot {
-			t.Fatalf("sandbox metadata = %#v, want runtime root %q", created.Info().Sandbox, canonicalRoot)
-		}
-		process := created.processHandle()
-		if process == nil || process.ToolHost() == nil {
-			t.Fatal("bound session tool host is unavailable")
-		}
-		inside := filepath.Join(worktreeRoot, "nested", "inside.txt")
-		if err := process.ToolHost().WriteTextFile(testutil.Context(t), inside, "inside"); err != nil {
-			t.Fatalf("WriteTextFile(inside worktree) error = %v", err)
-		}
-		outside := filepath.Join(t.TempDir(), "outside.txt")
-		if err := process.ToolHost().WriteTextFile(testutil.Context(t), outside, "outside"); !errors.Is(
-			err,
-			acp.ErrPathOutsideWorkspace,
-		) {
-			t.Fatalf("WriteTextFile(outside worktree) error = %v, want %v", err, acp.ErrPathOutsideWorkspace)
-		}
-	})
-}
-
 func TestManagerIntegrationWorktreeRemovalBindingRace(t *testing.T) {
 	t.Run("Should let an active session binding win before removal", func(t *testing.T) {
 		fixture := newSessionWorktreeRaceFixture(t, nil)
@@ -286,7 +316,7 @@ func TestManagerIntegrationWorktreeRemovalBindingRace(t *testing.T) {
 		removeDone := make(chan error, 1)
 		go func() {
 			_, err := fixture.service.Remove(
-				context.Background(), fixture.h.workspaceID, fixture.item.ID, false,
+				t.Context(), fixture.h.workspaceID, fixture.item.ID, false,
 			)
 			removeDone <- err
 		}()
@@ -539,6 +569,14 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if got := h.driver.startCalls[0].Cwd; got != canonicalSessionCWD {
 		t.Fatalf("Create() CWD = %q, want %q", got, canonicalSessionCWD)
 	}
+	recorder, ok := session.recorderHandle().(*sessiondb.SessionDB)
+	if !ok {
+		t.Fatalf("recorder = %T, want *sessiondb.SessionDB", session.recorderHandle())
+	}
+	if got, want := recorder.Path(), session.DBPath(); got != want {
+		t.Fatalf("SessionDB.Path() = %q, want %q", got, want)
+	}
+
 	firstPrompt, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
 	if err != nil {
 		t.Fatalf("Prompt(first) error = %v", err)
@@ -622,341 +660,16 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	}
 }
 
-func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAndStop(t *testing.T) {
-	h := newHarness(t)
-	lifecycle := newFakeNetworkPeerLifecycle()
-	h.manager.SetNetworkPeerLifecycle(lifecycle)
-
-	resolvedSandbox, err := h.cfg.ResolveSandbox(h.cfg.Defaults.Sandbox)
-	if err != nil {
-		t.Fatalf("ResolveSandbox() error = %v", err)
-	}
-	capabilityAgent := compozyconfig.AgentDef{
-		Name:     "coder",
-		Provider: "claude",
-		Prompt:   "You are a coding assistant.",
-		Capabilities: &compozyconfig.CapabilityCatalog{
-			Capabilities: []compozyconfig.CapabilityDef{{
-				ID:      "review-pr",
-				Summary: "Review pull requests",
-				Outcome: "Deliver actionable pull request feedback",
-				Version: "1.0.0",
-				ContextNeeded: []string{
-					"Pull request diff",
-					"Acceptance criteria",
-				},
-				ArtifactsExpected: []string{
-					"Review summary",
-				},
-				Requirements: []string{
-					"workspace-write",
-					"review-guidelines",
-				},
-			}},
-		},
-	}
-	if err := capabilityAgent.Validate(); err != nil {
-		t.Fatalf("capabilityAgent.Validate() error = %v", err)
-	}
-	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
-		Agents: []compozyconfig.AgentDef{
-			{
-				Name:     compozyconfig.DefaultAgentName,
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			},
-			capabilityAgent,
-		},
-		Sandbox: resolvedSandbox,
-	})
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-
-	if got := lifecycle.joinCount(); got != 1 {
-		t.Fatalf("join count after Create() = %d, want 1", got)
-	}
-	firstJoin := lifecycle.joinCall(0)
-	if got, want := firstJoin.sessionID, session.ID; got != want {
-		t.Fatalf("first join session_id = %q, want %q", got, want)
-	}
-	if got, want := firstJoin.peerID, "coder."+session.ID; got != want {
-		t.Fatalf("first join peer_id = %q, want %q", got, want)
-	}
-	wantDigest, err := compozyconfig.CanonicalCapabilityDigest(compozyconfig.CapabilityDef{
-		ID:      "review-pr",
-		Summary: "Review pull requests",
-		Outcome: "Deliver actionable pull request feedback",
-		Version: "1.0.0",
-		ContextNeeded: []string{
-			"Pull request diff",
-			"Acceptance criteria",
-		},
-		ArtifactsExpected: []string{
-			"Review summary",
-		},
-		Requirements: []string{
-			"workspace-write",
-			"review-guidelines",
-		},
-	})
-	if err != nil {
-		t.Fatalf("CanonicalCapabilityDigest() error = %v", err)
-	}
-	wantCapabilities := []NetworkPeerCapability{{
-		ID:                "review-pr",
-		Summary:           "Review pull requests",
-		Outcome:           "Deliver actionable pull request feedback",
-		Version:           "1.0.0",
-		Digest:            wantDigest,
-		ContextNeeded:     []string{"Pull request diff", "Acceptance criteria"},
-		ArtifactsExpected: []string{"Review summary"},
-		Requirements:      []string{"review-guidelines", "workspace-write"},
-	}}
-	if !reflect.DeepEqual(firstJoin.capabilities, wantCapabilities) {
-		t.Fatalf("first join capabilities = %#v, want %#v", firstJoin.capabilities, wantCapabilities)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if got := lifecycle.leaveCount(); got != 1 {
-		t.Fatalf("leave count after Stop() = %d, want 1", got)
-	}
-	if got, want := lifecycle.leaveCall(0), session.ID; got != want {
-		t.Fatalf("leave session_id = %q, want %q", got, want)
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	if got := lifecycle.joinCount(); got != 2 {
-		t.Fatalf("join count after Resume() = %d, want 2", got)
-	}
-	secondJoin := lifecycle.joinCall(1)
-	if got, want := secondJoin.sessionID, resumed.ID; got != want {
-		t.Fatalf("second join session_id = %q, want %q", got, want)
-	}
-	if got, want := secondJoin.peerID, "coder."+resumed.ID; got != want {
-		t.Fatalf("second join peer_id = %q, want %q", got, want)
-	}
-	if !reflect.DeepEqual(secondJoin.capabilities, wantCapabilities) {
-		t.Fatalf("second join capabilities = %#v, want %#v", secondJoin.capabilities, wantCapabilities)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
-		t.Fatalf("final Stop() error = %v", err)
-	}
-	if got := lifecycle.leaveCount(); got != 2 {
-		t.Fatalf("leave count after resumed Stop() = %d, want 2", got)
-	}
-}
-
-func TestManagerIntegrationCapabilityAwareJoinKeepsMissingCatalogProjectionEmpty(t *testing.T) {
-	h := newHarness(t)
-	lifecycle := newFakeNetworkPeerLifecycle()
-	h.manager.SetNetworkPeerLifecycle(lifecycle)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if got := lifecycle.joinCount(); got != 1 {
-		t.Fatalf("join count after Create() = %d, want 1", got)
-	}
-	join := lifecycle.joinCall(0)
-	if join.capabilities == nil {
-		t.Fatal("join capabilities = nil, want deterministic empty projection")
-	}
-	if got := len(join.capabilities); got != 0 {
-		t.Fatalf("join capabilities len = %d, want 0", got)
-	}
-}
-
-func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *testing.T) {
-	h := newHarness(t)
-
-	resolvedSandbox, err := h.cfg.ResolveSandbox(h.cfg.Defaults.Sandbox)
-	if err != nil {
-		t.Fatalf("ResolveSandbox() error = %v", err)
-	}
-	capabilityAgent := compozyconfig.AgentDef{
-		Name:     "coder",
-		Provider: "claude",
-		Prompt:   "You are a coding assistant.",
-		Capabilities: &compozyconfig.CapabilityCatalog{
-			Capabilities: []compozyconfig.CapabilityDef{{
-				ID:               "review-pr",
-				Summary:          "Review pull requests",
-				Outcome:          "Deliver actionable pull request feedback",
-				Version:          "1.0.0",
-				ContextNeeded:    []string{"Pull request diff", "Acceptance criteria"},
-				ExecutionOutline: []string{"inspect", "comment"},
-				Requirements:     []string{"workspace-write", "review-guidelines"},
-			}},
-		},
-	}
-	if err := capabilityAgent.Validate(); err != nil {
-		t.Fatalf("capabilityAgent.Validate() error = %v", err)
-	}
-	sourceBefore := capabilityAgent.Capabilities.Clone()
-
-	h.manager.SetNetworkPeerLifecycle(&mutatingNetworkPeerLifecycle{})
-	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
-		Agents: []compozyconfig.AgentDef{
-			{
-				Name:     compozyconfig.DefaultAgentName,
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			},
-			capabilityAgent,
-		},
-		Sandbox: resolvedSandbox,
-	})
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if !reflect.DeepEqual(capabilityAgent.Capabilities, sourceBefore) {
-		t.Fatalf(
-			"source capability catalog mutated through join projection:\nbefore=%#v\nafter=%#v",
-			sourceBefore,
-			capabilityAgent.Capabilities,
-		)
-	}
-}
-
-type mutatingNetworkPeerLifecycle struct{}
-
-func (m *mutatingNetworkPeerLifecycle) JoinChannel(_ context.Context, join NetworkPeerJoin) error {
-	if len(join.Capabilities) == 0 {
-		return nil
-	}
-
-	join.Capabilities[0].Summary = "mutated summary"
-	join.Capabilities[0].Digest = "sha256:mutated"
-	if len(join.Capabilities[0].ContextNeeded) > 0 {
-		join.Capabilities[0].ContextNeeded[0] = "mutated context"
-	}
-	if len(join.Capabilities[0].ExecutionOutline) > 0 {
-		join.Capabilities[0].ExecutionOutline[0] = "mutated execution outline"
-	}
-	if len(join.Capabilities[0].Requirements) > 0 {
-		join.Capabilities[0].Requirements[0] = "mutated requirement"
-	}
-
-	return nil
-}
-
-func (m *mutatingNetworkPeerLifecycle) LeaveChannel(context.Context, string) error {
-	return nil
-}
-
-func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
-	h := newHarness(t)
-
-	session := createSession(t, h)
-	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "persist")
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-	_ = collectEvents(t, eventsCh)
-
-	recorder, ok := session.recorderHandle().(*sessiondb.SessionDB)
-	if !ok {
-		t.Fatalf("recorder = %T, want *sessiondb.SessionDB", session.recorderHandle())
-	}
-	if got, want := recorder.Path(), session.DBPath(); got != want {
-		t.Fatalf("SessionDB.Path() = %q, want %q", got, want)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	reopened, err := sessiondb.OpenSessionDB(
-		testutil.Context(t),
-		testSessionDBOwner(session.ID, session.WorkspaceID),
-		session.DBPath(),
-	)
-	if err != nil {
-		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
-	}
-	defer func() {
-		if err := reopened.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("reopened.Close() error = %v", err)
-		}
-	}()
-
-	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
-	if err != nil {
-		t.Fatalf("Query(reopen) error = %v", err)
-	}
-	if len(events) == 0 {
-		t.Fatal("Query(reopen) returned 0 events, want persisted rows")
-	}
-}
-
 func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistory(t *testing.T) {
 	h := newHarness(t)
 
-	session := createLiveNetworkSession(t, h)
+	session := createSession(t, h)
 	enableSyntheticQueue(t, h, session)
 	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
 	if err != nil {
 		t.Fatalf("Prompt(user) error = %v", err)
 	}
 	_ = collectEvents(t, userEvents)
-
-	networkEvents, err := h.manager.PromptNetwork(
-		testutil.Context(t),
-		session.ID,
-		"network prompt",
-		acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "direct"},
-	)
-	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
-	}
-	_ = collectEvents(t, networkEvents)
 
 	syntheticEvents, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
 		Message: "synthetic wake-up",
@@ -993,113 +706,14 @@ func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistor
 	if err != nil {
 		t.Fatalf("Query(reopen) error = %v", err)
 	}
-	if got := countEventType(events, acp.EventTypeUserMessage); got != 2 {
-		t.Fatalf("countEventType(user_message) = %d, want 2 for user+network input", got)
+	if got := countEventType(events, acp.EventTypeUserMessage); got != 1 {
+		t.Fatalf("countEventType(user_message) = %d, want 1 user input", got)
 	}
 	if got := countEventType(events, acp.EventTypeSyntheticReentry); got != 1 {
 		t.Fatalf("countEventType(synthetic_reentry) = %d, want 1", got)
 	}
 	if !containsEventType(events, acp.EventTypeAgentMessage) || !containsEventType(events, acp.EventTypeDone) {
 		t.Fatalf("mixed history missing runtime events: %#v", events)
-	}
-}
-
-func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *testing.T) {
-	h := newHarness(t)
-
-	session := createSession(t, h)
-	enableSyntheticQueue(t, h, session)
-
-	firstPromptEntered := make(chan struct{})
-	releaseFirstPrompt := make(chan struct{})
-	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		if req.TurnID == "turn-1" {
-			close(firstPromptEntered)
-			events := make(chan acp.AgentEvent)
-			go func() {
-				<-releaseFirstPrompt
-				events <- acp.AgentEvent{
-					Type:      acp.EventTypeDone,
-					TurnID:    req.TurnID,
-					Timestamp: time.Now().UTC(),
-				}
-				close(events)
-			}()
-			return events, nil
-		}
-
-		return completedSyntheticPromptEvents(req.TurnID), nil
-	}
-
-	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
-	if err != nil {
-		t.Fatalf("Prompt(user) error = %v", err)
-	}
-	<-firstPromptEntered
-
-	syntheticEvents, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
-		Message: "synthetic wake-up",
-		Metadata: acp.PromptSyntheticMeta{
-			TaskRunID: "run-2",
-			Reason:    "task_run_completed",
-			Summary:   "queued after user turn",
-		},
-	})
-	if err != nil {
-		t.Fatalf("PromptSynthetic() error = %v", err)
-	}
-
-	close(releaseFirstPrompt)
-	_ = collectEvents(t, userEvents)
-	_ = collectEvents(t, syntheticEvents)
-
-	events, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
-	if err != nil {
-		t.Fatalf("Query() error = %v", err)
-	}
-	if len(events) < 3 {
-		t.Fatalf("stored events = %d, want at least user, done, and synthetic events", len(events))
-	}
-
-	userIndex := -1
-	doneIndex := -1
-	syntheticIndex := -1
-	for i, event := range events {
-		switch event.Type {
-		case acp.EventTypeUserMessage:
-			if userIndex < 0 {
-				userIndex = i
-			}
-		case acp.EventTypeDone:
-			if doneIndex < 0 {
-				doneIndex = i
-			}
-		case acp.EventTypeSyntheticReentry:
-			if syntheticIndex < 0 {
-				syntheticIndex = i
-			}
-		}
-	}
-	if userIndex < 0 {
-		t.Fatalf("stored events missing %q: %#v", acp.EventTypeUserMessage, events)
-	}
-	if doneIndex < 0 {
-		t.Fatalf("stored events missing %q: %#v", acp.EventTypeDone, events)
-	}
-	if syntheticIndex < 0 {
-		t.Fatalf("stored events missing %q: %#v", acp.EventTypeSyntheticReentry, events)
-	}
-	if !(userIndex < doneIndex && doneIndex < syntheticIndex) {
-		t.Fatalf(
-			"event order user=%d done=%d synthetic=%d, want user < done < synthetic",
-			userIndex,
-			doneIndex,
-			syntheticIndex,
-		)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("cleanup Stop() error = %v", err)
 	}
 }
 
@@ -1190,7 +804,7 @@ func TestManagerIntegrationSyntheticQueueSurvivesRestart(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := reopened.Close(ctx); err != nil {
+				if err := reopened.Close(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
 			})
@@ -1253,87 +867,6 @@ func TestManagerIntegrationSyntheticQueueSurvivesRestart(t *testing.T) {
 			}
 		},
 	)
-}
-
-func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
-	t.Run("Should reject a nil resolved workspace", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := resolveWorkspaceSessionAgentForType("coder", "", "", nil, nil)
-		if err == nil {
-			t.Fatal("resolveWorkspaceSessionAgent(nil workspace) error = nil, want non-nil")
-		}
-		if !strings.Contains(err.Error(), "resolved workspace is required") {
-			t.Fatalf("resolveWorkspaceSessionAgent(nil workspace) error = %v", err)
-		}
-	})
-
-	t.Run("Should allow a nil agent resolver when a workspace is provided", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		resolvedWorkspace := &workspacepkg.ResolvedWorkspace{
-			Config: compozyconfig.DefaultWithHome(homePaths),
-			Agents: []compozyconfig.AgentDef{{
-				Name:     "coder",
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			}},
-		}
-
-		resolved, err := resolveWorkspaceSessionAgentForType("coder", "", "", resolvedWorkspace, nil)
-		if err != nil {
-			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) error = %v", err)
-		}
-		if got, want := resolved.Provider, "claude"; got != want {
-			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) provider = %q, want %q", got, want)
-		}
-	})
-}
-
-func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
-	h := newHarness(t)
-	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	if got := strings.Count(h.driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("create prompt network skill occurrences = %d, want 1", got)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, resumed.ID)
-	})
-
-	if got := h.driver.startCalls[1].SystemPrompt; !strings.Contains(got, networkSkill) {
-		t.Fatalf("resume system prompt = %q, want bundled network skill content", got)
-	}
-	if got := strings.Count(h.driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
-	}
 }
 
 func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
@@ -1460,244 +993,6 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 	mu.Unlock()
 	if !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("hook order = %#v, want %#v", got, want)
-	}
-}
-
-func TestManagerIntegrationSandboxNativeHooksLifecycleOrder(t *testing.T) {
-	var (
-		mu        sync.Mutex
-		order     []string
-		afterTo   = make(chan struct{})
-		ready     = make(chan struct{})
-		afterFrom = make(chan struct{})
-	)
-	record := func(event string) {
-		mu.Lock()
-		defer mu.Unlock()
-		order = append(order, event)
-	}
-	waitFor := func(ctx context.Context, ch <-chan struct{}, label string) error {
-		select {
-		case <-ch:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
-			return errors.New("timed out waiting for " + label)
-		}
-	}
-
-	hooks := newNativeHookDispatcher(t,
-		[]hookspkg.HookDecl{
-			{
-				Name:         "env-prepare",
-				Event:        hookspkg.HookSandboxPrepare,
-				Mode:         hookspkg.HookModeSync,
-				ExecutorKind: hookspkg.HookExecutorNative,
-			},
-			{
-				Name:         "env-sync-before",
-				Event:        hookspkg.HookSandboxSyncBefore,
-				Mode:         hookspkg.HookModeSync,
-				ExecutorKind: hookspkg.HookExecutorNative,
-			},
-			{
-				Name:         "env-sync-after",
-				Event:        hookspkg.HookSandboxSyncAfter,
-				Mode:         hookspkg.HookModeAsync,
-				ExecutorKind: hookspkg.HookExecutorNative,
-			},
-			{
-				Name:         "env-ready",
-				Event:        hookspkg.HookSandboxReady,
-				Mode:         hookspkg.HookModeAsync,
-				ExecutorKind: hookspkg.HookExecutorNative,
-			},
-			{
-				Name:         "env-stop",
-				Event:        hookspkg.HookSandboxStop,
-				Mode:         hookspkg.HookModeSync,
-				ExecutorKind: hookspkg.HookExecutorNative,
-			},
-		},
-		map[string]hookspkg.Executor{
-			"env-prepare": hookspkg.NewTypedNativeExecutor(
-				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxPreparePayload) (hookspkg.SandboxPreparePatch, error) {
-					if payload.SandboxID == "" || payload.WorkspaceID == "" {
-						return hookspkg.SandboxPreparePatch{}, errors.New("sandbox.prepare missing identity fields")
-					}
-					record("sandbox.prepare")
-					return hookspkg.SandboxPreparePatch{}, nil
-				},
-			),
-			"env-sync-before": hookspkg.NewTypedNativeExecutor(
-				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncBeforePayload) (hookspkg.SandboxSyncBeforePatch, error) {
-					if payload.SandboxID == "" || payload.Direction == "" || payload.Reason == "" {
-						return hookspkg.SandboxSyncBeforePatch{}, errors.New(
-							"sandbox.sync.before missing lifecycle fields",
-						)
-					}
-					record("sandbox.sync.before:" + payload.Direction)
-					return hookspkg.SandboxSyncBeforePatch{}, nil
-				},
-			),
-			"env-sync-after": hookspkg.NewTypedNativeExecutor(
-				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncAfterPayload) (hookspkg.SandboxSyncAfterPatch, error) {
-					if payload.SandboxID == "" || payload.Direction == "" || payload.DurationMS < 0 {
-						return hookspkg.SandboxSyncAfterPatch{}, errors.New(
-							"sandbox.sync.after missing lifecycle fields",
-						)
-					}
-					record("sandbox.sync.after:" + payload.Direction)
-					switch payload.Direction {
-					case string(sandbox.SyncDirectionToRuntime):
-						close(afterTo)
-					case string(sandbox.SyncDirectionFromRuntime):
-						close(afterFrom)
-					default:
-						return hookspkg.SandboxSyncAfterPatch{}, errors.New(
-							"unexpected sync direction " + payload.Direction,
-						)
-					}
-					return hookspkg.SandboxSyncAfterPatch{}, nil
-				},
-			),
-			"env-ready": hookspkg.NewTypedNativeExecutor(
-				func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxReadyPayload) (hookspkg.SandboxReadyPatch, error) {
-					if err := waitFor(ctx, afterTo, "sandbox.sync.after:to_runtime"); err != nil {
-						return hookspkg.SandboxReadyPatch{}, err
-					}
-					if payload.SandboxID == "" || payload.RuntimeRootDir == "" {
-						return hookspkg.SandboxReadyPatch{}, errors.New("sandbox.ready missing runtime fields")
-					}
-					record("sandbox.ready")
-					close(ready)
-					return hookspkg.SandboxReadyPatch{}, nil
-				},
-			),
-			"env-stop": hookspkg.NewTypedNativeExecutor(
-				func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxStopPayload) (hookspkg.SandboxStopPatch, error) {
-					if err := waitFor(ctx, afterFrom, "sandbox.sync.after:from_runtime"); err != nil {
-						return hookspkg.SandboxStopPatch{}, err
-					}
-					if payload.SandboxID == "" || payload.StopReason == "" {
-						return hookspkg.SandboxStopPatch{}, errors.New("sandbox.stop missing stop fields")
-					}
-					record("sandbox.stop")
-					return hookspkg.SandboxStopPatch{}, nil
-				},
-			),
-		},
-	)
-
-	h := newHarness(t, WithHookSet(HookSet{Sandbox: hooks}))
-	session := createSession(t, h)
-	if err := waitFor(testutil.Context(t), ready, "sandbox.ready"); err != nil {
-		t.Fatalf("waiting for sandbox.ready: %v", err)
-	}
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	want := []string{
-		"sandbox.prepare",
-		"sandbox.sync.before:to_runtime",
-		"sandbox.sync.after:to_runtime",
-		"sandbox.ready",
-		"sandbox.sync.before:from_runtime",
-		"sandbox.sync.after:from_runtime",
-		"sandbox.stop",
-	}
-	mu.Lock()
-	got := append([]string(nil), order...)
-	mu.Unlock()
-	if !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("sandbox hook order = %#v, want %#v", got, want)
-	}
-}
-
-func TestManagerIntegrationContextCompactionUsesPatchedParams(t *testing.T) {
-	reason := "patched-reason"
-	strategy := "patched-strategy"
-	postSeen := make(chan hookspkg.ContextPostCompactPayload, 1)
-
-	hooks := newNativeHookDispatcher(t,
-		[]hookspkg.HookDecl{
-			{
-				Name:         "context-pre",
-				Event:        hookspkg.HookContextPreCompact,
-				Mode:         hookspkg.HookModeSync,
-				ExecutorKind: hookspkg.HookExecutorNative,
-			},
-			{
-				Name:         "context-post",
-				Event:        hookspkg.HookContextPostCompact,
-				Mode:         hookspkg.HookModeAsync,
-				ExecutorKind: hookspkg.HookExecutorNative,
-			},
-		},
-		map[string]hookspkg.Executor{
-			"context-pre": hookspkg.NewTypedNativeExecutor(
-				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPatch, error) {
-					return hookspkg.ContextPreCompactPatch{
-						Reason:   &reason,
-						Strategy: &strategy,
-					}, nil
-				},
-			),
-			"context-post": hookspkg.NewTypedNativeExecutor(
-				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPatch, error) {
-					postSeen <- payload
-					return hookspkg.ContextPostCompactPatch{}, nil
-				},
-			),
-		},
-	)
-
-	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	var seen hookspkg.ContextPreCompactPayload
-	result, err := h.manager.runContextCompaction(
-		testutil.Context(t),
-		session,
-		"turn-context",
-		"manual",
-		"noop",
-		"",
-		nil,
-		func(_ context.Context, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
-			seen = payload
-			return hookspkg.ContextPostCompactPayload{
-				Summary: "after",
-			}, nil
-		},
-	)
-	if err != nil {
-		t.Fatalf("runContextCompaction() error = %v", err)
-	}
-	if seen.Reason != reason || seen.Strategy != strategy {
-		t.Fatalf("compactor saw reason/strategy = %q/%q, want %q/%q", seen.Reason, seen.Strategy, reason, strategy)
-	}
-	if result.Reason != reason || result.Strategy != strategy {
-		t.Fatalf("result reason/strategy = %q/%q, want %q/%q", result.Reason, result.Strategy, reason, strategy)
-	}
-	select {
-	case payload := <-postSeen:
-		if payload.Reason != reason || payload.Strategy != strategy {
-			t.Fatalf(
-				"post hook saw reason/strategy = %q/%q, want %q/%q",
-				payload.Reason,
-				payload.Strategy,
-				reason,
-				strategy,
-			)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for context.post_compact hook")
 	}
 }
 

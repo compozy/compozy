@@ -10,7 +10,6 @@ import (
 	"os"
 	exec "os/exec"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -186,7 +185,7 @@ func (e *SubprocessExecutor) subprocessProcessEnv(ctx context.Context) ([]string
 	for key := range e.secretEnv {
 		keys = append(keys, strings.TrimSpace(key))
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		ref := vault.NormalizeRef(e.secretEnv[key])
 		value, err := e.resolveSecretRef(ctx, ref)

@@ -1,29 +1,13 @@
 package store
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
-
-// SessionSandboxMeta is the persisted runtime sandbox state for a session.
-type SessionSandboxMeta struct {
-	SandboxID             string          `json:"sandbox_id,omitempty"`
-	Backend               string          `json:"backend"`
-	Profile               string          `json:"profile,omitempty"`
-	State                 string          `json:"state,omitempty"`
-	InstanceID            string          `json:"instance_id,omitempty"`
-	RuntimeRootDir        string          `json:"runtime_root_dir,omitempty"`
-	RuntimeAdditionalDirs []string        `json:"runtime_additional_dirs,omitempty"`
-	ProviderState         json.RawMessage `json:"provider_state,omitempty"`
-	SSHAccessExpiresAt    *time.Time      `json:"ssh_access_expires_at,omitempty"`
-	LastSyncAt            *time.Time      `json:"last_sync_at,omitempty"`
-	LastSyncError         string          `json:"last_sync_error,omitempty"`
-}
 
 // SessionExecutionLocationState keeps the optional execution location compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
@@ -41,8 +25,9 @@ type SessionAdvertisedCommandState struct {
 // SessionRuntimeBindingState keeps optional runtime failure and selection state compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
 type SessionRuntimeBindingState struct {
-	RuntimeFailure   *string                       `json:"runtime_failure,omitempty"`
-	RuntimeSelection *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
+	RuntimeFailure      *string                       `json:"runtime_failure,omitzero"`
+	RuntimeSelection    *SessionRuntimeSelectionState `json:"runtime_selection,omitzero"`
+	PendingResumeReplay string                        `json:"pending_resume_replay,omitempty"`
 }
 
 // SessionProviderExecutionState keeps resolved provider execution settings compact inside SessionMeta.
@@ -62,33 +47,40 @@ type SessionMeta struct {
 	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
 	Speed           speedpkg.Speed `json:"speed,omitempty"`
 	*SessionRuntimeDetails
-	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitempty"`
+	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitzero"`
 	RuntimeStatus     SessionRuntimeStatus     `json:"runtime_status"`
 	RuntimeTransition SessionRuntimeTransition `json:"runtime_transition,omitempty"`
-	RuntimeGeneration int64                    `json:"runtime_generation,omitempty"`
+	RuntimeGeneration int64                    `json:"runtime_generation,omitzero"`
 	*SessionRuntimeBindingState
 	*SessionProviderExecutionState
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
-	NetworkParticipation   *participation.Spec     `json:"network_participation"`
-	SessionType            string                  `json:"session_type,omitempty"`
-	Lineage                *SessionLineage         `json:"lineage,omitempty"`
-	State                  string                  `json:"state"`
-	StopReason             *StopReason             `json:"stop_reason,omitempty"`
-	StopEscalated          bool                    `json:"stop_escalated,omitempty"`
-	StopVerificationFailed bool                    `json:"stop_verification_failed,omitempty"`
-	StopDetail             string                  `json:"stop_detail,omitempty"`
-	Failure                *SessionFailure         `json:"failure,omitempty"`
-	ACPSessionID           *string                 `json:"acp_session_id,omitempty"`
-	Liveness               *SessionLivenessMeta    `json:"liveness,omitempty"`
-	Sandbox                *SessionSandboxMeta     `json:"sandbox,omitempty"`
-	CreationProfile        *SessionCreationProfile `json:"creation_profile,omitempty"`
-	CreationOptions        *SessionCreationOptions `json:"creation_options,omitempty"`
-	CreationProfileRef     string                  `json:"creation_profile_ref,omitempty"`
-	PolicySpecDigest       string                  `json:"policy_spec_digest,omitempty"`
-	CreationDigest         string                  `json:"creation_digest,omitempty"`
+
+	SessionType            string          `json:"session_type,omitempty"`
+	Lineage                *SessionLineage `json:"lineage,omitzero"`
+	State                  string          `json:"state"`
+	StopReason             *StopReason     `json:"stop_reason,omitzero"`
+	StopEscalated          bool            `json:"stop_escalated,omitzero"`
+	StopVerificationFailed bool            `json:"stop_verification_failed,omitzero"`
+	StopDetail             string          `json:"stop_detail,omitempty"`
+	Failure                *SessionFailure `json:"failure,omitempty"`
+	ACPSessionID           *string         `json:"acp_session_id,omitzero"`
+	// AcceptedRoute is the binding ACP accepted; it is written with ACPSessionID and
+	// cleared with it, and drives resume affinity.
+	AcceptedRoute *SessionAcceptedRoute `json:"accepted_route,omitzero"`
+	Liveness      *SessionLivenessMeta  `json:"liveness,omitzero"`
+	// Derivation and ImportedContext are present only on continued or forked children.
+	Derivation      *SessionDerivation      `json:"derivation,omitzero"`
+	ImportedContext *SessionImportedContext `json:"imported_context,omitzero"`
+
+	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitzero"`
+	CreationOptions    *SessionCreationOptions `json:"creation_options,omitzero"`
+	CreationProfileRef string                  `json:"creation_profile_ref,omitempty"`
+	PolicySpecDigest   string                  `json:"policy_spec_digest,omitempty"`
+	CreationDigest     string                  `json:"creation_digest,omitempty"`
 	*SessionAdvertisedCommandState
+
 	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
 	SoulDigest       string    `json:"soul_digest,omitempty"`
 	ParentSoulDigest string    `json:"parent_soul_digest,omitempty"`
@@ -97,8 +89,8 @@ type SessionMeta struct {
 }
 
 // WorktreeIDValue returns the optional worktree binding without exposing nil embedding details.
-func (m SessionMeta) WorktreeIDValue() string {
-	if m.SessionExecutionLocationState == nil {
+func (m *SessionMeta) WorktreeIDValue() string {
+	if m == nil || m.SessionExecutionLocationState == nil {
 		return ""
 	}
 	return m.WorktreeID
@@ -117,8 +109,8 @@ func (m *SessionMeta) SetWorktreeID(worktreeID string) {
 }
 
 // CWDValue returns the optional execution directory without exposing nil embedding details.
-func (m SessionMeta) CWDValue() string {
-	if m.SessionExecutionLocationState == nil {
+func (m *SessionMeta) CWDValue() string {
+	if m == nil || m.SessionExecutionLocationState == nil {
 		return ""
 	}
 	return m.CWD
@@ -162,8 +154,8 @@ func (m *SessionMeta) SetAdvertisedCommands(commands []SessionAdvertisedCommand)
 }
 
 // EffectiveProviderAuthModeValue returns the persisted provider authentication owner.
-func (m SessionMeta) EffectiveProviderAuthModeValue() string {
-	if m.SessionProviderExecutionState == nil {
+func (m *SessionMeta) EffectiveProviderAuthModeValue() string {
+	if m == nil || m.SessionProviderExecutionState == nil {
 		return ""
 	}
 	return m.EffectiveProviderAuthMode
@@ -182,8 +174,8 @@ func (m *SessionMeta) SetEffectiveProviderAuthMode(mode string) {
 }
 
 // EffectivePermissionsValue returns the persisted permission mode.
-func (m SessionMeta) EffectivePermissionsValue() string {
-	if m.SessionProviderExecutionState == nil {
+func (m *SessionMeta) EffectivePermissionsValue() string {
+	if m == nil || m.SessionProviderExecutionState == nil {
 		return ""
 	}
 	return m.EffectivePermissions
@@ -208,8 +200,8 @@ func (m *SessionMeta) clearEmptyProviderExecutionState() {
 }
 
 // RuntimeFailureValue returns the normalized persisted runtime diagnostic.
-func (m SessionMeta) RuntimeFailureValue() string {
-	if m.SessionRuntimeBindingState == nil {
+func (m *SessionMeta) RuntimeFailureValue() string {
+	if m == nil || m.SessionRuntimeBindingState == nil {
 		return ""
 	}
 	return SessionRuntimeFailureValue(m.RuntimeFailure)
@@ -229,8 +221,8 @@ func (m *SessionMeta) SetRuntimeFailure(failure string) {
 }
 
 // RuntimeSelectionValue returns the persisted runtime selection state without exposing nil embedding details.
-func (m SessionMeta) RuntimeSelectionValue() *SessionRuntimeSelectionState {
-	if m.SessionRuntimeBindingState == nil {
+func (m *SessionMeta) RuntimeSelectionValue() *SessionRuntimeSelectionState {
+	if m == nil || m.SessionRuntimeBindingState == nil {
 		return nil
 	}
 	return m.RuntimeSelection
@@ -248,28 +240,46 @@ func (m *SessionMeta) SetRuntimeSelection(selection *SessionRuntimeSelectionStat
 	m.clearEmptyRuntimeBindingState()
 }
 
+func (m *SessionMeta) PendingResumeReplayValue() string {
+	if m == nil || m.SessionRuntimeBindingState == nil {
+		return ""
+	}
+	return m.PendingResumeReplay
+}
+
+func (m *SessionMeta) SetPendingResumeReplay(block string) {
+	if m.SessionRuntimeBindingState == nil {
+		if block == "" {
+			return
+		}
+		m.SessionRuntimeBindingState = &SessionRuntimeBindingState{}
+	}
+	m.PendingResumeReplay = block
+	m.clearEmptyRuntimeBindingState()
+}
+
 func (m *SessionMeta) clearEmptyRuntimeBindingState() {
-	if m.RuntimeFailure == nil && m.RuntimeSelection == nil {
+	if m.RuntimeFailure == nil && m.RuntimeSelection == nil && m.PendingResumeReplay == "" {
 		m.SessionRuntimeBindingState = nil
 	}
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.
-func (m SessionMeta) Validate() error {
+func (m *SessionMeta) Validate() error {
+	if m == nil {
+		return errors.New("store: session meta is required")
+	}
 	if err := requireField(m.ID, "session id"); err != nil {
 		return err
 	}
 	if err := requireField(m.AgentName, "session agent name"); err != nil {
 		return err
 	}
-	if err := requireField(m.WorkspaceID, "session workspace id"); err != nil {
+	if _, err := m.DatabaseOwner(); err != nil {
 		return err
 	}
 	if err := requireField(m.State, "session state"); err != nil {
 		return err
-	}
-	if err := participation.ValidateSpec(m.NetworkSpecSnapshot()); err != nil {
-		return fmt.Errorf("store: validate session network participation: %w", err)
 	}
 	if m.StopReason != nil {
 		if err := validateSessionStopReason(*m.StopReason); err != nil {
@@ -277,6 +287,9 @@ func (m SessionMeta) Validate() error {
 		}
 	}
 	if err := ValidateSessionLineage(m.ID, m.Lineage); err != nil {
+		return err
+	}
+	if err := ValidateSessionLineageForType(m.SessionType, m.Lineage); err != nil {
 		return err
 	}
 	if m.Failure != nil {
@@ -303,9 +316,19 @@ func (m SessionMeta) Validate() error {
 	if err := ValidateSessionRuntimeSelectionState(m.RuntimeSelectionValue()); err != nil {
 		return err
 	}
-	advertisedCommands := m.AdvertisedCommandsValue()
-	seenCommands := make(map[string]struct{}, len(advertisedCommands))
-	for _, command := range advertisedCommands {
+	if err := validateSessionAdvertisedCommands(m.AdvertisedCommandsValue()); err != nil {
+		return err
+	}
+	if err := validateSessionSoulProvenance(m.SoulSnapshotID, m.SoulDigest); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateSessionAdvertisedCommands rejects invalid or duplicate advertised commands.
+func validateSessionAdvertisedCommands(commands []SessionAdvertisedCommand) error {
+	seenCommands := make(map[string]struct{}, len(commands))
+	for _, command := range commands {
 		if err := command.Validate(); err != nil {
 			return err
 		}
@@ -314,9 +337,6 @@ func (m SessionMeta) Validate() error {
 			return fmt.Errorf("store: duplicate advertised command %q", name)
 		}
 		seenCommands[name] = struct{}{}
-	}
-	if err := validateSessionSoulProvenance(m.SoulSnapshotID, m.SoulDigest); err != nil {
-		return err
 	}
 	return nil
 }
@@ -346,23 +366,7 @@ func validateSessionSpeedMetadata(speed speedpkg.Speed, resolution *speedpkg.Res
 	return nil
 }
 
-// NetworkSpecSnapshot returns the immutable participation snapshot stored in metadata.
-func (m SessionMeta) NetworkSpecSnapshot() participation.Spec {
-	if m.NetworkParticipation == nil {
-		return participation.Spec{}
-	}
-	return *m.NetworkParticipation
-}
-
-// NetworkOwnerKeySnapshot returns the immutable budget owner stored in creation metadata.
-func (m SessionMeta) NetworkOwnerKeySnapshot() string {
-	if m.CreationOptions != nil && strings.TrimSpace(m.CreationOptions.NetworkOwnerKey) != "" {
-		return strings.TrimSpace(m.CreationOptions.NetworkOwnerKey)
-	}
-	return participation.OwnerKey(participation.OwnerRef{Kind: participation.OwnerKindSession, ID: m.ID})
-}
-
-func validateSessionCreationMetadata(meta SessionMeta) error {
+func validateSessionCreationMetadata(meta *SessionMeta) error {
 	if err := ValidateSessionACPOptionSelections(meta.ACPOptionsValue()); err != nil {
 		return fmt.Errorf("store: validate session ACP options: %w", err)
 	}
@@ -377,9 +381,6 @@ func validateSessionCreationMetadata(meta SessionMeta) error {
 	}
 	if meta.CreationProfile == nil || meta.CreationOptions == nil {
 		return fmt.Errorf("store: session creation profile and options are required with identity")
-	}
-	if meta.NetworkSpecSnapshot() != meta.CreationOptions.NetworkParticipation {
-		return fmt.Errorf("store: session network participation does not match creation options")
 	}
 	if err := identity.Validate(); err != nil {
 		return err

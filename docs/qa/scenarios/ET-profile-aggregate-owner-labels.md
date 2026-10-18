@@ -6,13 +6,13 @@ persona: Ada
 journey: J-scope-work-by-profile
 expected: Explicit aggregate reads return work across profiles with profile_name on every row; workspace-scoped JSONL begins with workspace_resolution containing the workspace and source, global JSONL begins with profile_resolution for profile=all, and --profile conflicts with --all-profiles.
 entry_points: compozy --workspace <root> --all-profiles; compozy --all-profiles; -o json|jsonl; HTTP/UDS all_profiles=true
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-scoped-work-reads; ET-profile-deep-link-owner
 ---
 
@@ -30,3 +30,7 @@ Walk:
 
 Expected evidence: CLI JSON and JSONL captures, HTTP and UDS payloads, owner comparisons, and the option
 conflict response.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

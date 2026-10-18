@@ -16,16 +16,84 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 	providerpkg "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+var profileTestStoreSeed *globalseed.Seed
+
+func TestMain(m *testing.M) {
+	os.Exit(runProfileTests(m))
+}
+
+func runProfileTests(m *testing.M) (code int) {
+	seed, err := globalseed.New(context.Background())
+	if err != nil {
+		reportProfileTestMainError("create store seed: %v", err)
+		return 1
+	}
+	defer func() {
+		if err := seed.Close(); err != nil {
+			reportProfileTestMainError("close store seed: %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+
+	profileTestStoreSeed = seed
+	return m.Run()
+}
+
+func reportProfileTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, "profile tests: "+format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
+
 func TestManagerProfileLifecycle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve renamed Lucide icons when reading and editing stored profiles", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, _ := newTestManager(t)
+		ctx := testutil.Context(t)
+		for oldIcon, newIcon := range map[string]string{
+			"album":             "square-bookmark",
+			"book-marked":       "book-bookmark",
+			"building-2":        "building-complex",
+			"flip-horizontal-2": "triangles-centerline-dashed-horizontal",
+			"flip-vertical-2":   "triangles-centerline-dashed-vertical",
+			"trash-2":           "trash",
+		} {
+			created, err := manager.Create(ctx, CreateInput{Name: oldIcon, Icon: oldIcon})
+			if err != nil {
+				t.Fatalf("Create(%s): %v", oldIcon, err)
+			}
+			if created.Icon != newIcon {
+				t.Fatalf("Create(%s).Icon = %q, want %q", oldIcon, created.Icon, newIcon)
+			}
+			if _, err := database.DB().
+				ExecContext(ctx, "UPDATE profiles SET icon = ? WHERE id = ?", oldIcon, created.ID); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := manager.GetByName(ctx, created.Name)
+			if err != nil || loaded.Icon != newIcon || loaded.ID != created.ID {
+				t.Fatalf("GetByName(%s) = %#v, %v", oldIcon, loaded, err)
+			}
+			color := "#123abc"
+			updated, err := manager.UpdateIdentity(ctx, created.Name, IdentityPatch{Color: &color})
+			if err != nil || updated.Icon != newIcon || updated.Color != color || updated.ID != created.ID {
+				t.Fatalf("UpdateIdentity(%s) = %#v, %v", oldIcon, updated, err)
+			}
+		}
+	})
 
 	t.Run("Should read one profile with its ownership and credential summary", func(t *testing.T) {
 		t.Parallel()
@@ -136,6 +204,10 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CreateDeclared(first) error = %v", err)
 			}
+			confirmed, err := manager.HasDeclaredCreation(ctx, "growth-kit", created.Name, created.ID)
+			if err != nil || !confirmed {
+				t.Fatalf("HasDeclaredCreation(created) = %v, %v, want true", confirmed, err)
+			}
 			plan, err := manager.PrepareDelete(ctx, created.Name)
 			if err != nil {
 				t.Fatalf("PrepareDelete() error = %v", err)
@@ -219,6 +291,10 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			if bound.ID != existing.ID || bound.Color != existing.Color || bound.Icon != existing.Icon {
 				t.Fatalf("CreateDeclared(%s bind) = %#v, want untouched %#v", extensionName, bound, existing)
 			}
+			confirmed, err := manager.HasDeclaredCreation(ctx, extensionName, bound.Name, bound.ID)
+			if err != nil || confirmed {
+				t.Fatalf("HasDeclaredCreation(%s bind) = %v, %v, want false", extensionName, confirmed, err)
+			}
 		}
 		var markerCount int
 		if err := database.DB().QueryRowContext(
@@ -229,6 +305,42 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if markerCount != 2 {
 			t.Fatalf("shared marker count = %d, want 2", markerCount)
+		}
+	})
+
+	t.Run("Should keep declared creation provenance attached to the original profile identity", func(t *testing.T) {
+		t.Parallel()
+		manager, database, _ := newTestManager(t)
+		ctx := t.Context()
+		if _, err := database.DB().ExecContext(ctx, `
+			INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum)
+			VALUES ('kit', '1.0.0', 'user', '/kit/extension.toml', '2026-10-04T10:00:00Z', 'checksum')`); err != nil {
+			t.Fatal(err)
+		}
+		created, err := manager.CreateDeclared(ctx, DeclaredInput{Extension: "kit", Name: "shared"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := manager.PrepareDelete(ctx, created.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Delete(ctx, created.Name, plan.Revision); err != nil {
+			t.Fatal(err)
+		}
+		replacement, err := manager.Create(ctx, CreateInput{Name: created.Name, Color: "#112233", Icon: "briefcase"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		bound, err := manager.CreateDeclared(ctx, DeclaredInput{Extension: "kit", Name: created.Name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bound.ID != replacement.ID || bound.ID == created.ID || bound.Color != replacement.Color {
+			t.Fatalf("CreateDeclared(replacement) = %#v, want unchanged replacement %#v", bound, replacement)
+		}
+		if confirmed, err := manager.HasDeclaredCreation(ctx, "kit", bound.Name, bound.ID); err != nil || confirmed {
+			t.Fatalf("HasDeclaredCreation(replacement) = %v, %v, want false", confirmed, err)
 		}
 	})
 
@@ -335,23 +447,7 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("insert extension profile secret binding error = %v", err)
 		}
-		bridgeRef := "vault:profiles/dev/bridges/telegram/token"
-		if _, err := database.DB().ExecContext(ctx, `INSERT INTO bridge_instances (
-			id, profile_id, scope, workspace_id, platform, extension_name, display_name,
-			status, routing_policy, created_at, updated_at
-		) VALUES (
-			'bridge-profile-rename', ?, 'global', NULL, 'telegram', 'telegram.bridge',
-			'Profile rename bridge', 'active', '{}', ?, ?
-		)`, created.ID, now, now); err != nil {
-			t.Fatalf("insert profile rename bridge error = %v", err)
-		}
-		if _, err := database.DB().ExecContext(ctx, `INSERT INTO bridge_secret_bindings (
-			bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
-		) VALUES ('bridge-profile-rename', 'token', ?, 'bridge_secret', ?, ?)`,
-			bridgeRef, now, now,
-		); err != nil {
-			t.Fatalf("insert bridge profile secret binding error = %v", err)
-		}
+
 		automationRef := "vault:profiles/dev/automations/nightly/webhook"
 		if _, err := database.DB().ExecContext(ctx, `INSERT INTO automation_triggers (
 			id, profile_id, scope, name, agent_name, workspace_id, prompt, event, enabled,
@@ -414,7 +510,6 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		for _, location := range []string{
 			"vault_secrets.ref",
 			"extension_env_bindings.secret_ref",
-			"bridge_secret_bindings.secret_ref",
 			"automation_triggers.webhook_secret_ref",
 			"mcp_auth_tokens.access_token_ref",
 			"mcp_auth_tokens.refresh_token_ref",
@@ -1026,7 +1121,7 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		desktops.byProfile[created.ID] = 2
 		seedMCPAuthProfileLifecycleRows(ctx, t, database, "growth")
 		// Notification history belongs to the deleted profile, not to source work.
-		receiptScope := notifications.AttentionScope{
+		receiptScope := attention.Scope{
 			ProfileID:  created.ID,
 			ActorKind:  "human",
 			ActorID:    "operator",
@@ -1442,40 +1537,6 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 			t.Fatalf("GetByName(dev after stale plan) error = %v", err)
 		}
 	})
-
-	t.Run("Should refuse archive while a notification delivery permit is held", func(t *testing.T) {
-		t.Parallel()
-
-		manager, database, _ := newTestManager(t)
-		ctx := testutil.Context(t)
-		created, err := manager.Create(ctx, CreateInput{Name: "alerts"})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		plan, err := manager.PrepareArchive(ctx, created.Name)
-		if err != nil {
-			t.Fatalf("PrepareArchive() error = %v", err)
-		}
-		now := formatTimestamp(time.Now())
-		if _, err := database.DB().ExecContext(ctx, `
-			INSERT INTO notification_delivery_permits
-			(scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id, delivery_id, acquired_at)
-			VALUES ('global', ?, '', 'terminal', 'task-events', 'task-1', 'delivery-held', ?)`,
-			created.ID, now,
-		); err != nil {
-			t.Fatalf("insert delivery permit error = %v", err)
-		}
-		if _, err := manager.Archive(ctx, created.Name, plan.Revision); !errors.Is(err, ErrDeliveriesInFlight) {
-			t.Fatalf("Archive(with permit) error = %v, want ErrDeliveriesInFlight", err)
-		}
-		stored, err := manager.GetByName(ctx, created.Name)
-		if err != nil {
-			t.Fatalf("GetByName() error = %v", err)
-		}
-		if stored.State != StateActive {
-			t.Fatalf("profile state after refused archive = %q, want active", stored.State)
-		}
-	})
 }
 
 func seedMCPAuthProfileLifecycleRows(
@@ -1665,6 +1726,17 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 		) {
 			t.Fatalf("PutSelection(unavailable) error = %v, want ErrUnavailable", err)
 		}
+		patch := IdentityPatch{Color: new("#527b67")}
+		if _, err := manager.UpdateIdentity(ctx, dev.Name, patch); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("UpdateIdentity(unavailable) error = %v, want ErrUnavailable", err)
+		}
+		unchanged, err := getProfileByName(ctx, database.DB(), dev.Name)
+		if err != nil {
+			t.Fatalf("read reserved profile: %v", err)
+		}
+		if unchanged.Color != dev.Color {
+			t.Fatalf("reserved profile color = %q, want unchanged %q", unchanged.Color, dev.Color)
+		}
 		resolver, err := workspacepkg.NewResolver(
 			database,
 			workspacepkg.WithHomePaths(manager.home),
@@ -1693,6 +1765,13 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 			ResolveInput{Flag: "dev", Lens: Lens{Kind: SelectionLensGlobal}},
 		); err != nil {
 			t.Fatalf("Resolve(done operation) error = %v", err)
+		}
+		updated, err := manager.UpdateIdentity(ctx, dev.Name, patch)
+		if err != nil {
+			t.Fatalf("UpdateIdentity(done operation) error = %v", err)
+		}
+		if updated.Color != *patch.Color {
+			t.Fatalf("recovered profile color = %q, want %q", updated.Color, *patch.Color)
 		}
 	})
 }
@@ -1955,6 +2034,9 @@ func newTestManagerWithOptions(
 	home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := profileTestStoreSeed.Clone(home.DatabaseFile); err != nil {
+		t.Fatalf("Clone(store seed) error = %v", err)
 	}
 	database, err := globaldb.OpenGlobalDB(testutil.Context(t), home.DatabaseFile)
 	if err != nil {

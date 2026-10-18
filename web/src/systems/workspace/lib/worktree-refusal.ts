@@ -116,7 +116,7 @@ function refusalMessage(code: string, fallback: string): string {
     case WORKTREE_ERROR_CODES.branchHeld:
       return "This branch is already checked out in another worktree.";
     case WORKTREE_ERROR_CODES.branchAtRoot:
-      return "This branch is checked out in the workspace root.";
+      return "This branch is checked out in the project folder.";
     case WORKTREE_ERROR_CODES.baseRefNotFound:
       return "The base ref could not be found.";
     case WORKTREE_ERROR_CODES.repoHasNoCommits:

@@ -28,10 +28,6 @@ SET task_id = :task_id,
     origin_kind = :origin_kind,
     origin_ref = :origin_ref,
     idempotency_key = :idempotency_key,
-    network_spec_json = :network_spec_json,
-    network_mode = :network_mode,
-    network_channel = :network_channel,
-    network_source = :network_source,
     designation_group_id = :designation_group_id,
     claim_token = CASE
         WHEN :status IN ('claimed', 'starting', 'running')
@@ -60,10 +56,7 @@ SET task_id = :task_id,
     review_round = :review_round,
     continuation_reason = :continuation_reason,
     missing_work_json = :missing_work_json,
-    next_round_guidance = :next_round_guidance,
-    network_wake_id = :network_wake_id,
-    network_target_session_id = :network_target_session_id,
-    network_owner_key = :network_owner_key
+    next_round_guidance = :next_round_guidance
 WHERE id = :id
   AND status IN ('queued', 'claimed', 'starting', 'running')`
 
@@ -81,15 +74,13 @@ func (g *TaskRepo) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "create task run fixture", func(exec taskSQLExecutor) error {
-		if normalized.IsTaskAnchored() {
-			taskRecord, loadErr := g.getTaskWithExecutor(ctx, exec, normalized.TaskID)
-			if loadErr != nil {
-				return loadErr
-			}
-			normalized, loadErr = bindTaskRunWorkspace(normalized, taskRecord)
-			if loadErr != nil {
-				return loadErr
-			}
+		taskRecord, loadErr := g.getTaskWithExecutor(ctx, exec, normalized.TaskID)
+		if loadErr != nil {
+			return loadErr
+		}
+		normalized, loadErr = bindTaskRunWorkspace(normalized, taskRecord)
+		if loadErr != nil {
+			return loadErr
 		}
 		if err := insertTaskRunWithExecutor(ctx, exec, normalized); err != nil {
 			return err
@@ -152,10 +143,7 @@ func (g *TaskRepo) updateNonTerminalTaskRunFixtureWithExecutor(
 	if normalized.QueuedAt.IsZero() {
 		normalized.QueuedAt = current.QueuedAt
 	}
-	params, err := taskRunParams(normalized)
-	if err != nil {
-		return err
-	}
+	params := taskRunParams(normalized)
 	result, err := exec.ExecContext(ctx, updateNonTerminalTaskRunFixtureSQL, taskRunFixtureUpdateArgs(&params)...)
 	if err != nil {
 		return fmt.Errorf("store: update task run fixture %q: %w", normalized.ID, err)
@@ -167,10 +155,8 @@ func (g *TaskRepo) updateNonTerminalTaskRunFixtureWithExecutor(
 	if affected == 0 {
 		return fmt.Errorf("%w: task run %q", taskpkg.ErrTaskRunNotFound, normalized.ID)
 	}
-	if normalized.IsTaskAnchored() {
-		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
-			return err
-		}
+	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
+		return err
 	}
 	return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 }
@@ -209,10 +195,6 @@ func taskRunFixtureUpdateArgs(params *sqlcgen.InsertTaskRunParams) []any {
 		sql.Named("origin_kind", params.OriginKind),
 		sql.Named("origin_ref", params.OriginRef),
 		sql.Named("idempotency_key", params.IdempotencyKey),
-		sql.Named("network_spec_json", params.NetworkSpecJson),
-		sql.Named("network_mode", params.NetworkMode),
-		sql.Named("network_channel", params.NetworkChannel),
-		sql.Named("network_source", params.NetworkSource),
 		sql.Named("designation_group_id", params.DesignationGroupID),
 		sql.Named("claim_token_hash", params.ClaimTokenHash),
 		sql.Named("lease_until", params.LeaseUntil),
@@ -235,9 +217,6 @@ func taskRunFixtureUpdateArgs(params *sqlcgen.InsertTaskRunParams) []any {
 		sql.Named("continuation_reason", params.ContinuationReason),
 		sql.Named("missing_work_json", params.MissingWorkJson),
 		sql.Named("next_round_guidance", params.NextRoundGuidance),
-		sql.Named("network_wake_id", params.NetworkWakeID),
-		sql.Named("network_target_session_id", params.NetworkTargetSessionID),
-		sql.Named("network_owner_key", params.NetworkOwnerKey),
 		sql.Named("id", params.ID),
 	}
 }

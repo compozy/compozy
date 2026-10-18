@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -18,6 +17,7 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, dbPath)
 
 	first, err := OpenGlobalDB(ctx, dbPath)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -138,6 +138,7 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, dbPath)
 
 	first, err := OpenGlobalDB(ctx, dbPath)
 	if err != nil {
@@ -179,7 +180,6 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	storedQueued.ClaimTokenHash = "sha256:" + strings.Repeat("b", 64)
 	storedQueued.LeaseUntil = storedQueued.ClaimedAt.Add(20 * time.Minute)
 	storedQueued.HeartbeatAt = storedQueued.ClaimedAt.Add(30 * time.Second)
-	storedQueued.NetworkSpec = participation.LocalSpec()
 	storedQueued.RequiredCapabilities = []string{"golang", "sqlite"}
 	storedQueued.PreferredCapabilities = []string{"claude", "codex"}
 	if err := second.UpdateNonTerminalTaskRun(ctx, storedQueued); err != nil {
@@ -195,7 +195,7 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(third) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := third.Close(ctx); err != nil {
+		if err := third.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(third) error = %v", err)
 		}
 	})
@@ -222,6 +222,7 @@ func TestGlobalDBTaskSearchFiltersAndOrderingSurviveReopen(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, dbPath)
 
 	first, err := OpenGlobalDB(ctx, dbPath)
 	if err != nil {
@@ -298,7 +299,7 @@ func TestGlobalDBTaskSearchFiltersAndOrderingSurviveReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})

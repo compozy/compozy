@@ -3,25 +3,24 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionPayload } from "../../types";
+import { useSessionCatalog } from "../use-session-catalog";
+import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
+import { sessionCatalogOptions } from "../../lib/session-catalog-options";
 import { sessionKeys } from "../../lib/query-keys";
-import { useSession, useSessionById, useSessionLedger, useSessions } from "../use-sessions";
-import {
-  fetchSessionLedger,
-  SessionLedgerUnavailableError,
-  fetchSessions,
-} from "../../adapters/session-api";
+import { useSession, useSessionById, useSessions } from "../use-sessions";
+import { fetchSessions } from "../../adapters/session-api";
 import { fetchSessionById } from "../../adapters/session-owner-api";
 import { useSessionContext, useSessionUsageTurns } from "../use-session-context";
 import { fetchSessionUsage, fetchSessionUsageTurns } from "../../adapters/session-api";
 import { sessionUsageOptions, sessionUsageTurnsOptions } from "../../lib/query-options";
 import {
+  sessionContextFixture,
   sessionContextUsageFixture,
   sessionContextTurnsFixture,
 } from "../../mocks/context-fixtures";
 import type { SessionUsagePayload } from "../../types";
 
-vi.mock("../../adapters/session-api", async importOriginal => ({
-  fetchSessionLedger: vi.fn(),
+vi.mock("../../adapters/session-api", () => ({
   fetchSessionRecap: vi.fn(),
   fetchSessionUsage: vi.fn(),
   fetchSessionUsageTurns: vi.fn(),
@@ -40,15 +39,17 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
       this.name = "SessionApiError";
     }
   },
-  SessionLedgerUnavailableError: (
-    await importOriginal<typeof import("../../adapters/session-api")>()
-  ).SessionLedgerUnavailableError,
   SessionNotFoundError: class SessionNotFoundError extends Error {
     constructor(public readonly sessionId: string) {
       super(`Session not found: ${sessionId}`);
       this.name = "SessionNotFoundError";
     }
   },
+}));
+
+vi.mock("../../adapters/session-catalog-api", () => ({
+  fetchSessionCatalogPage: vi.fn(),
+  fetchSessionFacets: vi.fn(),
 }));
 
 vi.mock("../../adapters/session-owner-api", () => ({
@@ -196,33 +197,6 @@ describe("useSessions", () => {
         workspace_id: "ws_alpha",
       })
     );
-  });
-
-  it("loads every cursor page when the consumer requests the complete catalog", async () => {
-    vi.mocked(fetchSessions)
-      .mockResolvedValueOnce({
-        sessions: [makeSession({ id: "sess-002" })],
-        page: { has_more: true, limit: 1, next_cursor: "cursor-1", total: 2 },
-      })
-      .mockResolvedValueOnce({
-        sessions: [makeSession({ id: "sess-001" })],
-        page: { has_more: false, limit: 1, total: 2 },
-      });
-
-    const { result } = renderHook(
-      () =>
-        useSessions("ws_alpha", {
-          loadAll: true,
-          filters: { limit: 1, sort: "attention" },
-        }),
-      { wrapper: createWrapper() }
-    );
-
-    await waitFor(() =>
-      expect(result.current.data?.map(session => session.id)).toEqual(["sess-002", "sess-001"])
-    );
-    expect(fetchSessions).toHaveBeenCalledTimes(2);
-    expect(result.current.hasNextPage).toBe(false);
   });
 
   it("does not periodically refetch every loaded catalog page", async () => {
@@ -408,40 +382,14 @@ describe("useSessionById", () => {
   });
 });
 
-describe("session ledger availability projection", () => {
-  it.each(["not-materialized", "unsupported"] as const)(
-    "Should expose %s independently of the adapter error",
-    async reason => {
-      vi.mocked(fetchSessionLedger).mockRejectedValue(
-        new SessionLedgerUnavailableError("sess-001", reason)
-      );
-      const { result } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
-        wrapper: createWrapper(),
-      });
-      await waitFor(() => expect(result.current.availability).toBe(reason));
-      expect(result.current.isLoading).toBe(false);
-    }
-  );
-
-  it("Should retain unexpected ledger read failures as errors", async () => {
-    const error = new Error("ledger materializer crashed");
-    vi.mocked(fetchSessionLedger).mockRejectedValue(error);
-    const { result } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
-      wrapper: createWrapper(),
-    });
-    await waitFor(() => expect(result.current.error).toBe(error), { timeout: 3000 });
-    expect(result.current.availability).toBeUndefined();
-  });
-});
-
-// Invariant: the usage read alone owns context; ledger sequence fences observations while equal-sequence policy and attribution remain live.
+// Invariant: the usage read alone owns context; ledger sequence fences observations while equal-sequence attribution remains live.
 // Owner and canonical suite: session query hooks; HTTP responses are supplied at the adapter I/O boundary.
 
 describe("Session context query projection", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
-  it("Should retain sequenced observations, refresh attribution and policy, and survive unavailable reads", async () => {
+  it("Should retain sequenced observations, refresh attribution, and survive unavailable reads", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const key = sessionKeys.usage("ws", "session");
     const wrapper = ({ children }: { children: ReactNode }) =>
@@ -460,7 +408,7 @@ describe("Session context query projection", () => {
       ...sessionContextUsageFixture,
       context: { ...sessionContextUsageFixture.context, used: 225_280, ratio: 0.88, sequence: 500 },
     });
-    await waitFor(() => expect(result.current.context.warning).toBe(true));
+    await waitFor(() => expect(result.current.context.ratio).toBe(0.88));
     await update({
       ...sessionContextUsageFixture,
       cache_read_tokens: 900,
@@ -468,18 +416,16 @@ describe("Session context query projection", () => {
         ...sessionContextUsageFixture.context,
         sequence: 499,
         injected: { estimate: "bytes_div_4", rows: [], tokens: 999, stale: false },
-        pressure_threshold: 0.9,
       },
     });
     await waitFor(() => expect(result.current.context.injected?.tokens).toBe(999));
     expect(result.current.context.ratio).toBe(0.88);
-    expect(result.current.context.warning).toBe(false);
     expect(result.current.usage?.cache_read_tokens).toBe(900);
     await update({
       ...sessionContextUsageFixture,
-      context: { ...sessionContextUsageFixture.context, sequence: 500, pressure_threshold: 0.8 },
+      context: { ...sessionContextUsageFixture.context, sequence: 500 },
     });
-    await waitFor(() => expect(result.current.context.warning).toBe(true));
+    await waitFor(() => expect(result.current.context.injected?.tokens).toBe(12_400));
     expect(result.current.context.used).toBe(225_280);
     await update({
       ...sessionContextUsageFixture,
@@ -497,6 +443,117 @@ describe("Session context query projection", () => {
     });
     expect(result.current.context.used).toBe(225_280);
     expect(result.current.context.state).toBe("unavailable");
+    unmount();
+    client.clear();
+  });
+
+  it("Should clear the reading at a terminal compaction until the agent's next report", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = sessionKeys.usage("ws", "session");
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    vi.mocked(fetchSessionUsage).mockResolvedValue(sessionContextUsageFixture);
+    const { result, unmount } = renderHook(() => useSessionContext("session", "ws", "stopped"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.context.used).toBe(89_700));
+    const update = async (usage: SessionUsagePayload) => {
+      await act(async () => {
+        client.setQueryData(key, usage);
+      });
+    };
+    // The daemon's answer after the compaction boundary: occupancy unknown, attribution kept.
+    await update({
+      ...sessionContextUsageFixture,
+      context: {
+        state: "unknown",
+        used: null,
+        size: null,
+        ratio: null,
+        injected: { ...sessionContextFixture.injected!, tokens: 999 },
+      },
+    });
+    await waitFor(() => expect(result.current.context.state).toBe("unknown"));
+    expect(result.current.context.used).toBeNull();
+    expect(result.current.context.sequence).toBeUndefined();
+    expect(result.current.context.injected?.tokens).toBe(999);
+    // A later failed read keeps the cleared reading rather than restoring the old one.
+    await update({ ...sessionContextUsageFixture, context: { state: "unavailable" } });
+    await waitFor(() => expect(result.current.context.state).toBe("unavailable"));
+    expect(result.current.context.used).toBeNull();
+    // A late response from before the boundary is stale: it refreshes attribution, not the ratio.
+    await update({
+      ...sessionContextUsageFixture,
+      cache_read_tokens: 4321,
+      context: { ...sessionContextUsageFixture.context, sequence: 412 },
+    });
+    await waitFor(() => expect(result.current.usage?.cache_read_tokens).toBe(4321));
+    expect(result.current.context.state).toBe("unknown");
+    expect(result.current.context.used).toBeNull();
+    // The next usage report after the boundary is the first reading shown again.
+    await update({
+      ...sessionContextUsageFixture,
+      context: { ...sessionContextUsageFixture.context, used: 31_000, ratio: 0.12, sequence: 520 },
+    });
+    await waitFor(() => expect(result.current.context.used).toBe(31_000));
+    expect(result.current.context.state).toBe("reported");
+    // After a fresh report the usual sequence rule governs again: an older read cannot regress it.
+    await update({
+      ...sessionContextUsageFixture,
+      context: { ...sessionContextUsageFixture.context, sequence: 519 },
+    });
+    await waitFor(() => expect(result.current.context.used).toBe(31_000));
+    unmount();
+    client.clear();
+  });
+
+  it("Should refuse a report from before the boundary the daemon names, even on a fresh load", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = sessionKeys.usage("ws", "session");
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    // First load of a window opened after the compaction: no reading was ever retained.
+    vi.mocked(fetchSessionUsage).mockResolvedValue({
+      ...sessionContextUsageFixture,
+      context: {
+        state: "unknown",
+        used: null,
+        size: null,
+        ratio: null,
+        cleared_by: { compaction_id: "compaction-1", sequence: 600 },
+      },
+    });
+    const { result, unmount } = renderHook(() => useSessionContext("session", "ws", "stopped"), {
+      wrapper,
+    });
+    await waitFor(() =>
+      expect(result.current.context.cleared_by).toEqual({
+        compaction_id: "compaction-1",
+        sequence: 600,
+      })
+    );
+    expect(result.current.context.state).toBe("unknown");
+    const update = async (usage: SessionUsagePayload) => {
+      await act(async () => {
+        client.setQueryData(key, usage);
+      });
+    };
+    // A late response taken before the named boundary refreshes attribution only.
+    await update({
+      ...sessionContextUsageFixture,
+      cache_read_tokens: 777,
+      context: { ...sessionContextUsageFixture.context, sequence: 600 },
+    });
+    await waitFor(() => expect(result.current.usage?.cache_read_tokens).toBe(777));
+    expect(result.current.context.state).toBe("unknown");
+    expect(result.current.context.used).toBeNull();
+    // The first report after the boundary restores the reading and drops the cause.
+    await update({
+      ...sessionContextUsageFixture,
+      context: { ...sessionContextUsageFixture.context, used: 31_000, ratio: 0.12, sequence: 601 },
+    });
+    await waitFor(() => expect(result.current.context.used).toBe(31_000));
+    expect(result.current.context.cleared_by).toBeUndefined();
     unmount();
     client.clear();
   });
@@ -530,6 +587,155 @@ describe("Session context query projection", () => {
     expect(result.current.context.context.used).toBeUndefined();
     expect(sessionUsageOptions("ws", "session", "stopped").refetchInterval).toBe(false);
     expect(sessionUsageTurnsOptions("ws", "session", "stopped").refetchInterval).toBe(false);
+    unmount();
+    client.clear();
+  });
+});
+
+describe("bounded session catalog", () => {
+  beforeEach(() => {
+    vi.mocked(fetchSessionCatalogPage).mockReset();
+    vi.mocked(fetchSessionFacets).mockReset();
+  });
+  it("Should share exact population facets across differently filtered visible pages", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { terminal_approvals: 0, all: 201, needs_you: 1, working: 0, finished: 0, idle: 200 },
+      by_workspace: [],
+    });
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
+      sessions: [],
+      page: { has_more: false, limit: 100 },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result } = renderHook(
+      () => ({
+        search: useSessionCatalog(
+          "ws_alpha",
+          {
+            q: "older",
+            search_fields: "title_agent",
+            sort: "last_activity",
+            limit: 100,
+            parent: " parent-session ",
+            root: "root-session",
+          },
+          true,
+          { facets: true }
+        ),
+        attention: useSessionCatalog(
+          "ws_alpha",
+          {
+            attention: true,
+            sort: "attention",
+            include_health: true,
+            limit: 50,
+            parent: "parent-session",
+            root: "root-session",
+          },
+          true,
+          { facets: true }
+        ),
+        picker: useSessionCatalog("ws_alpha", { q: "picker", limit: 100 }, true, { facets: false }),
+      }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.search.total).toBe(201));
+    expect(result.current.attention.total).toBe(201);
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      {
+        workspace_id: "ws_alpha",
+        profile: "default",
+        parent: "parent-session",
+        root: "root-session",
+      },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("Should keep one visible page on invalidation and navigate older history explicitly", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { terminal_approvals: 0, all: 201, needs_you: 0, working: 0, finished: 0, idle: 201 },
+      by_workspace: [],
+    });
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
+      sessions: [makeSession({ id: query?.cursor ? "sess-old" : "sess-new" })],
+      page: {
+        has_more: !query?.cursor,
+        next_cursor: query?.cursor ? undefined : "older",
+        limit: 100,
+      },
+    }));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result } = renderHook(
+      () => useSessionCatalog("ws_alpha", { limit: 100 }, true, { facets: true }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-new"));
+    expect(result.current.total).toBe(201);
+    expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(1);
+    act(() => result.current.nextPage());
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-old"));
+    vi.mocked(fetchSessionCatalogPage).mockClear();
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: sessionKeys.workspaceLists("ws_alpha") });
+    });
+    expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(1);
+    expect(fetchSessionCatalogPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: "older", skip_total: true }),
+      expect.any(AbortSignal)
+    );
+    expect(
+      client.getQueryData<{ pages: unknown[] }>(
+        sessionCatalogOptions({ workspace_id: "ws_alpha", limit: 100, profile: "default" }).queryKey
+      )?.pages
+    ).toHaveLength(1);
+    act(() => result.current.previousPage());
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-new"));
+  });
+  it("Should retain search rows without reusing another workspace or fetching unused facets", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValueOnce({
+      sessions: [makeSession({ id: "sess-original" })],
+      page: { has_more: true, next_cursor: "old-cursor", limit: 100 },
+    });
+    // Invariant: a superseded catalog read is cancellation, never failed UI state.
+    // Owner: TanStack catalog hook; canonical suite: this existing search/scope test.
+    const cancelled = vi.fn();
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(
+      (_filters, signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            cancelled();
+            reject(new DOMException("Superseded", "AbortError"));
+          });
+        })
+    );
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result, rerender, unmount } = renderHook(
+      ({ workspace, search }) => useSessionCatalog(workspace, { q: search, limit: 100 }),
+      { wrapper, initialProps: { workspace: "ws_alpha", search: "original" } }
+    );
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-original"));
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
+    rerender({ workspace: "ws_alpha", search: "changed" });
+    expect(result.current.sessions[0]?.id).toBe("sess-original");
+    expect(result.current.paging).toBe(true);
+    expect(result.current.next).toBe(false);
+    expect(result.current.previous).toBe(false);
+    act(() => result.current.nextPage());
+    expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(2);
+    rerender({ workspace: "ws_beta", search: "changed" });
+    expect(result.current.sessions).toEqual([]);
+    expect(result.current.loading).toBe(true);
+    expect(result.current.failed).toBe(false);
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });

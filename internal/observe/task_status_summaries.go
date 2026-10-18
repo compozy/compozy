@@ -7,20 +7,18 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func summarizeTasks(tasks []taskpkg.Summary, taskChannels map[string]string) []TaskStatusTotal {
+func summarizeTasks(tasks []taskpkg.Summary) []TaskStatusTotal {
 	counts := make(map[string]TaskStatusTotal)
 	for idx := range tasks {
 		item := &tasks[idx]
-		channel := taskParticipationChannel(taskChannels, item.ID)
 		key := string(
 			item.Scope.Normalize(),
 		) + "\x00" + string(
 			item.Status.Normalize(),
-		) + "\x00" + channel
+		)
 		current := counts[key]
 		current.Scope = item.Scope.Normalize()
 		current.Status = item.Status.Normalize()
-		current.ChannelID = channel
 		current.Count++
 		counts[key] = current
 	}
@@ -35,20 +33,18 @@ func summarizeTasks(tasks []taskpkg.Summary, taskChannels map[string]string) []T
 		if cmp := strings.Compare(string(left.Status), string(right.Status)); cmp != 0 {
 			return cmp
 		}
-		return strings.Compare(left.ChannelID, right.ChannelID)
+		return 0
 	})
 	return rows
 }
 
-func summarizeTaskOrigins(tasks []taskpkg.Summary, taskChannels map[string]string) []TaskOriginTotal {
+func summarizeTaskOrigins(tasks []taskpkg.Summary) []TaskOriginTotal {
 	counts := make(map[string]TaskOriginTotal)
 	for idx := range tasks {
 		item := &tasks[idx]
-		channel := taskParticipationChannel(taskChannels, item.ID)
-		key := string(item.Origin.Kind.Normalize()) + "\x00" + channel
+		key := string(item.Origin.Kind.Normalize())
 		current := counts[key]
 		current.OriginKind = item.Origin.Kind.Normalize()
-		current.ChannelID = channel
 		current.Count++
 		counts[key] = current
 	}
@@ -60,7 +56,7 @@ func summarizeTaskOrigins(tasks []taskpkg.Summary, taskChannels map[string]strin
 		if cmp := strings.Compare(string(left.OriginKind), string(right.OriginKind)); cmp != 0 {
 			return cmp
 		}
-		return strings.Compare(left.ChannelID, right.ChannelID)
+		return 0
 	})
 	return rows
 }

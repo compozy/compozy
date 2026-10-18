@@ -34,46 +34,64 @@ export function useActiveProfileView(lens: ProfileLens, enabled = true): Profile
   const remembered = useRememberedProfile(lens, enabled);
   const viewByLens = useSelector(profileViewStore, state => state.context.viewByLens);
   const rememberedProfile = remembered.data?.profile;
+  const remembering = remembered.isFetching;
   const workspaceId = lens.scope === "workspace" ? lens.workspaceId : null;
   const lensKey = profileLensKey(lens);
   const [activeLens, setActiveLens] = useState(lens);
-  const [pendingCarry, setPendingCarry] = useState<ProfileViewCarry | null>(null);
+  const [pendingTransition, setPendingTransition] = useState<ProfileViewTransition | null>(null);
   const activeLensKey = profileLensKey(activeLens);
   const destinationLocal = viewByLens[lensKey];
 
   if (activeLensKey !== lensKey) {
     const sourceView = viewByLens[activeLensKey];
     setActiveLens(lens);
-    setPendingCarry(sourceView ? { from: activeLens, to: lens, view: sourceView } : null);
+    setPendingTransition({
+      from: activeLens,
+      to: lens,
+      view: activeLens.scope !== lens.scope ? sourceView : undefined,
+    });
   }
 
-  const carryForCurrentLens =
-    pendingCarry && profileLensKey(pendingCarry.to) === lensKey ? pendingCarry : null;
-  if (carryForCurrentLens && sameProfileView(destinationLocal, carryForCurrentLens.view)) {
-    setPendingCarry(null);
+  const transitionForCurrentLens =
+    pendingTransition && profileLensKey(pendingTransition.to) === lensKey
+      ? pendingTransition
+      : null;
+  if (
+    transitionForCurrentLens &&
+    (transitionForCurrentLens.view
+      ? sameProfileView(destinationLocal, transitionForCurrentLens.view)
+      : viewByLens[profileLensKey(transitionForCurrentLens.from)] === undefined)
+  ) {
+    setPendingTransition(null);
   }
-  const local = carryForCurrentLens?.view ?? destinationLocal;
+  const local = transitionForCurrentLens?.view ?? destinationLocal;
 
   useEffect(() => {
-    if (!pendingCarry) return;
-    carryProfileView(pendingCarry.from, pendingCarry.to);
-  }, [pendingCarry]);
+    if (!pendingTransition) return;
+    if (pendingTransition.view) {
+      carryProfileView(pendingTransition.from, pendingTransition.to);
+    } else {
+      // Re-entering a project must resolve its remembered choice, including after All profiles.
+      restoreProfileView(pendingTransition.from, null);
+    }
+  }, [pendingTransition]);
 
   useEffect(() => {
-    if (!enabled || rememberedProfile === undefined) return;
+    // A cached, invalidated choice is not the settled default for this entry.
+    if (!enabled || remembering || rememberedProfile === undefined) return;
     const enteredLens: ProfileLens =
       workspaceId === null ? { scope: "global" } : { scope: "workspace", workspaceId };
     enterProfileView(enteredLens, { kind: "profile", profile: rememberedProfile });
-  }, [enabled, lens.scope, rememberedProfile, workspaceId]);
+  }, [enabled, lens.scope, rememberedProfile, remembering, workspaceId]);
 
   if (local) return local;
   return { kind: "profile", profile: rememberedProfile ?? PERMANENT_PROFILE };
 }
 
-interface ProfileViewCarry {
+interface ProfileViewTransition {
   from: ProfileLens;
   to: ProfileLens;
-  view: ProfileView;
+  view: ProfileView | undefined;
 }
 
 function sameProfileView(left: ProfileView | undefined, right: ProfileView): boolean {
@@ -93,16 +111,22 @@ function sameProfileView(left: ProfileView | undefined, right: ProfileView): boo
  */
 export function useSwitchProfile(lens: ProfileLens) {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (view: ProfileView) => {
-      if (view.kind === "aggregate") return view;
-      await putProfileSelection({
-        scope: lens.scope,
-        profile: view.profile,
-        ...(lens.scope === "workspace" ? { workspace_id: lens.workspaceId } : {}),
-      });
-      return view;
-    },
+  const remember = async (view: ProfileView) => {
+    if (view.kind === "aggregate") return view;
+    await putProfileSelection({
+      scope: lens.scope,
+      profile: view.profile,
+      ...(lens.scope === "workspace" ? { workspace_id: lens.workspaceId } : {}),
+    });
+    return view;
+  };
+  const invalidateSelection = (view: ProfileView) => {
+    if (view.kind === "profile") {
+      void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
+    }
+  };
+  const mutation = useMutation({
+    mutationFn: remember,
     onMutate: (view: ProfileView) => {
       const previous = localProfileView(lens);
       setProfileView(lens, view);
@@ -116,11 +140,21 @@ export function useSwitchProfile(lens: ProfileLens) {
       });
     },
     onSettled: (_data, _error, view) => {
-      if (view.kind === "profile") {
-        void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
-      }
+      invalidateSelection(view);
     },
   });
+  return {
+    ...mutation,
+    // A delegated command must return its persisted result before activation
+    // replaces the connection carrying that command.
+    prepare: async (view: ProfileView) => {
+      await remember(view);
+      return () => {
+        setProfileView(lens, view);
+        invalidateSelection(view);
+      };
+    },
+  };
 }
 
 export { PROFILE_AGGREGATE };

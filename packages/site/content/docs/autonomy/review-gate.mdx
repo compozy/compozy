@@ -7,7 +7,7 @@ The review gate is a post-terminal quality check on a task run. After a worker t
 `task.Service` may create a review request, the daemon `ReviewRouter` selects a reviewer, the
 reviewer submits a typed verdict, and either the terminal outcome is accepted or a new continuation
 run is enqueued with bounded `missing_work` and `next_round_guidance`. The gate never rewrites the
-reviewed run's history, and channels, bridge messages, skills, notification cursors, and the web UI
+reviewed run's history, and skills, notification cursors, and the web UI
 are never verdict authority.
 
 <OperatorNote>
@@ -30,7 +30,7 @@ Read this section first. Everything else on the page operates inside it.
 - A reviewer session must be bound to a persisted review request through
   `task.Service.BindRunReviewSession` before the native `submit_run_review` tool is even visible
   to the session. Review id alone is not authorization.
-- Channels, bridge deliveries, notification cursors, prompt overlays, skills, and web cards never
+- Notification cursors, prompt overlays, skills, and web cards never
   approve, reject, block, or retry a review. They surface, route, or coordinate.
 - `TaskExecutionProfile.Review` is reviewer-selection input. It chooses who reviews; it never
   decides the verdict.
@@ -112,27 +112,24 @@ review request into a bound reviewer session. It is wake-driven, not event-tail 
 Selector inputs come from the persisted `TaskExecutionProfile.Review` block. See
 [Task Execution Profiles](/docs/autonomy/execution-profiles) for the full overlay model.
 The router reads the normalized review agent/provider/model, allowed/preferred agent names,
-allowed/preferred peer ids, allowed/preferred channel ids, and required/preferred capabilities.
+and required/preferred capabilities.
 
 Selection order, after resolving the effective selector:
 
-1. Existing active sessions in the task workspace are scored first. Exact/preferred agent names,
-   preferred peer ids, preferred channel ids, and preferred capabilities increase the score.
+1. Existing active sessions in the task workspace are scored first. Exact/preferred agent names
+   and preferred capabilities increase the score.
 2. If no active session matches, the router creates a local reviewer session for the exact,
    preferred, or allowed agent that satisfies required capabilities.
-3. If peer selectors require an explicit peer and no active eligible peer exists, the router fails
-   closed rather than creating an unrelated local reviewer.
-4. If nothing matches, the router records a deterministic no-route diagnostic as a typed `blocked`
+3. If nothing matches, the router records a deterministic no-route diagnostic as a typed `blocked`
    outcome through `task.Service.RecordRunReview` with a `review-router:no-route:` delivery id, so
-   the no-route reason becomes part of review history instead of hidden channel state.
+   the no-route reason becomes part of review history as an explicit routing outcome.
 
 Eligibility rules:
 
-- Default is `allow_original_worker = false`. The session, agent, peer, and actor identity that
+- Default is `allow_original_worker = false`. The session, agent, and actor identity that
   terminalized the run cannot be selected unless the policy explicitly allows it. When the
   original-worker identity cannot be determined, routing fails closed.
-- Channel membership and peer authorization remain enforced by the network/bridge subsystems.
-  `ReviewProfile` selectors narrow routing; they do not grant access.
+- `ReviewProfile` selectors narrow routing; they do not grant access.
 
 Session binding (`task.Service.BindRunReviewSession`) is authorization state, not prompt context.
 It runs in a task-service transaction, verifies the review is still `routed` or `requested`, sets
@@ -157,7 +154,7 @@ Continuation profile precedence — see
 [Task Execution Profiles](/docs/autonomy/execution-profiles):
 
 1. The task's current `TaskExecutionProfile` at enqueue time controls worker, reviewer, participant,
-   coordinator-guidance, and sandbox selection for the continuation.
+   coordinator guidance, and worktree selection for the continuation.
 2. The reviewed run's native coordination/capability fields are copied forward only when the
    profile leaves the equivalent worker/participant selectors empty.
 3. The continuation run's review columns provide context and lineage. They do not override worker
@@ -291,7 +288,7 @@ and never carry raw claim tokens or full reviewer transcripts.
 | `task.run_review_requested`      | Attempt-1 review row is durable and `task_runs.review_request_id` is set.   |
 | `task.run_review_bound`          | `BindRunReviewSession` binds the review to a reviewer session.              |
 | `task.run_review_recorded`       | Verdict is persisted (any outcome).                                         |
-| `task.run_review_approved`       | Recorded verdict outcome is `approved`. Bridge terminal notifier delivers.  |
+| `task.run_review_approved`       | Recorded verdict outcome is `approved`.                                     |
 | `task.run_review_rejected`       | Recorded verdict outcome is `rejected`.                                     |
 | `task.run_review_blocked`        | Recorded verdict outcome is `blocked`.                                      |
 | `task.run_review_error`          | Recorded verdict outcome is `error`.                                        |
@@ -299,9 +296,7 @@ and never carry raw claim tokens or full reviewer transcripts.
 | `task.run_review_invalid_output` | Recorded verdict outcome is `invalid_output`.                               |
 | `task.run_review_retry_enqueued` | Rejected verdict created a continuation run inside the verdict transaction. |
 
-`task.run_review_approved` is also the accepted-final terminal event for the bridge terminal
-notifier on review-gated work. See
-[Notification Cursors](/docs/autonomy/notification-cursors).
+`task.run_review_approved` records the accepted result for review-gated work.
 
 ## CompozyOS skill expectations
 
@@ -319,7 +314,7 @@ the skill authority boundary.
 
 Defaults and bounds for the gate live under `[task.orchestration.review]`. Read
 [config.toml](/docs/configuration/config-toml) for the complete field reference and the
-`[task.orchestration.profile]` overlay that gates per-task provider/sandbox overrides used by
+`[task.orchestration.profile]` overlay that gates per-task provider overrides used by
 reviewer routing.
 
 Behavior to keep in mind:
@@ -338,8 +333,7 @@ Behavior to keep in mind:
   transitions that the review gate sits on top of.
 - [Task Execution Profiles](/docs/autonomy/execution-profiles) explains how
   `TaskExecutionProfile.Review` shapes reviewer selection.
-- [Notification Cursors](/docs/autonomy/notification-cursors) explains why bridge
-  terminal notifications wait for the accepted-final event on review-gated runs.
+- [Notification Cursors](/docs/autonomy/notification-cursors) explains task-status projection progress and event stream resume.
 - [Bundled Skill](/docs/skills/bundled) documents the `compozy` skill and its contextual
   reference-loading model.
 - [config.toml](/docs/configuration/config-toml) lists every `[task.orchestration]` key.

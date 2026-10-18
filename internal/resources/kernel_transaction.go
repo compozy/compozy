@@ -13,7 +13,7 @@ func (k *Kernel) withImmediateTransaction(
 	action string,
 	run func(exec sqlExecutor) error,
 ) error {
-	if err := store.ExecuteWrite(ctx, k.db, func(_ context.Context, tx *store.WriteTx) error {
+	if err := store.ExecuteWriteOperation(ctx, k.db, action, func(_ context.Context, tx *store.WriteTx) error {
 		return run(tx)
 	}); err != nil {
 		return fmt.Errorf("resources: %s transaction: %w", action, err)

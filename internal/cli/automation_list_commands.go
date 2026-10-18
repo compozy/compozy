@@ -10,6 +10,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 		scopeRaw     string
 		workspaceRef string
 		sourceRaw    string
+		targetRaw    string
 		loopName     string
 		search       string
 		cursor       string
@@ -34,6 +35,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 				scopeRaw,
 				workspaceRef,
 				sourceRaw,
+				targetRaw,
 				optionalAutomationEnabled(cmd, enabled),
 				loopName,
 				search,
@@ -48,7 +50,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, automationJobListBundle(page))
+			return writeCommandOutput(cmd, automationJobListBundle(page, deps.now))
 		},
 	}
 	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
@@ -62,6 +64,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 		false,
 		"Filter by enabled state; use --enabled=false for disabled jobs",
 	)
+	cmd.Flags().StringVar(&targetRaw, "target", "", "Filter by target: agent, loop, or task")
 	cmd.Flags().StringVar(&loopName, "loop", "", "Filter by loop target name")
 	cmd.Flags().StringVar(&search, "query", "", "Search jobs by name, agent, prompt, scope, source, or schedule")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after this automation job cursor")
@@ -83,6 +86,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 		workspaceRef string
 		eventRaw     string
 		sourceRaw    string
+		targetRaw    string
 		loopName     string
 		search       string
 		cursor       string
@@ -108,6 +112,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 				workspaceRef,
 				eventRaw,
 				sourceRaw,
+				targetRaw,
 				optionalAutomationEnabled(cmd, enabled),
 				loopName,
 				search,
@@ -122,7 +127,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, automationTriggerListBundle(page))
+			return writeCommandOutput(cmd, automationTriggerListBundle(page, deps.now))
 		},
 	}
 	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
@@ -137,6 +142,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 		false,
 		"Filter by enabled state; use --enabled=false for disabled triggers",
 	)
+	cmd.Flags().StringVar(&targetRaw, "target", "", "Filter by target: agent, loop, or task")
 	cmd.Flags().StringVar(&loopName, "loop", "", "Filter by loop target name")
 	cmd.Flags().StringVar(&search, "query", "", "Search triggers by definition or filter fields")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after this automation trigger cursor")

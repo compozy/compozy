@@ -2,6 +2,7 @@ export type {
   ACPCaps,
   AgentEventPayload,
   CompozyPermissionData,
+  SessionCompactionItemData,
   AnswerClarificationBody,
   AnswerClarificationResult,
   ApproveSessionParams,
@@ -23,9 +24,6 @@ export type {
   SessionHistoryResponse,
   SessionInputPayload,
   SessionInputsResponse,
-  SessionLedgerEvent,
-  SessionLedgerMeta,
-  SessionLedgerResponse,
   SessionMessage,
   SessionByIDResponse,
   SessionOwnerResponse,
@@ -107,6 +105,7 @@ export {
   clearSessionInputs,
   clearSessionRuntime,
   ClarificationNotAnswerableError,
+  compactSession,
   createSession,
   fetchSessionClarifications,
   fetchSessionInteractions,
@@ -118,7 +117,6 @@ export {
   fetchSessionInputs,
   fetchSessionGoal,
   mutateSessionGoal,
-  fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
   fetchSessionUsageTurns,
@@ -129,11 +127,9 @@ export {
   renameSession,
   replaceSessionInput,
   rewindSession,
-  resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
   SessionApiError,
-  SessionLedgerUnavailableError,
   SessionNotFoundError,
   stopSession,
   unarchiveSession,
@@ -146,7 +142,7 @@ export type { SessionPromptCapability } from "./lib/session-prompt-capability";
 export * from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { derivePendingClarifyRequestIds, isClarifyEventData } from "./lib/clarify-event";
-export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
+export { isAgentEventPayload, isCompactionItemData, resolveToolResult } from "./lib/message-parts";
 export { isProviderErrorEvent } from "./lib/provider-error";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 // Attention surface — badge dictionary, pending-interaction reads, list
@@ -185,7 +181,6 @@ export {
   type SessionAttentionClass,
   type SessionBadgeGlyphProps,
   type SessionBadgeMarkProps,
-  type SessionBadgeShape,
   type SessionBadgeSignal,
   type SessionBadgeToken,
   type SessionListPreferences,
@@ -271,14 +266,12 @@ export {
   sessionEventsOptions,
   sessionHistoryOptions,
   sessionGoalOptions,
-  sessionLedgerOptions,
   sessionRecapOptions,
   sessionUsageOptions,
   sessionTranscriptOptions,
   sessionAcrossProfilesOptions,
   sessionScopedDetailOptions,
   sessionsListOptions,
-  sessionsCompleteListOptions,
 } from "./lib/query-options";
 export {
   canPromptSession,
@@ -314,6 +307,7 @@ export {
 } from "./components/session-create-dialog";
 export { SessionCreateDialogHost } from "./components/session-create-dialog-host";
 export { SessionLoadOlderButton } from "./components/session-load-older-button";
+export { SessionForkMessageAction } from "./components/session-fork-message-action";
 export { SessionRewindMessageAction } from "./components/session-rewind-message-action";
 export {
   SessionResumeFailure,
@@ -332,14 +326,7 @@ export {
   sessionStopAttention,
   type SessionStopAttention,
 } from "./lib/session-stop-attention";
-export {
-  SessionQuietWarningNotice,
-  type SessionQuietWarningNoticeProps,
-} from "./components/session-quiet-warning-notice";
-export {
-  SessionQuietStatusRow,
-  type SessionQuietStatusRowProps,
-} from "./components/session-quiet-status-row";
+export { SessionPanelToggle } from "./components/session-panel-toggle";
 export {
   SessionThinkingRow,
   type SessionThinkingRowProps,
@@ -371,7 +358,7 @@ export {
   type SessionToolVisualState,
   type SessionToolVisualStatus,
 } from "./lib/session-tool-visual-state";
-export { getToolIcon, resolveRegisteredToolName } from "./lib/tool-labels";
+export { getToolIcon, humanizeToolId, resolveRegisteredToolName } from "./lib/tool-labels";
 export {
   formatPayloadSize,
   PAYLOAD_PREVIEW_MAX_LINES,
@@ -400,16 +387,7 @@ export {
   type SessionTurnOutcomes,
 } from "./lib/session-turn-outcomes";
 export { SessionTurnOutcomesProvider } from "./lib/session-turn-outcomes-context";
-export {
-  formatQuietDuration,
-  formatQuietDurationWords,
-  sessionQuietWarning,
-  sessionQuietWarningClock,
-  sessionQuietWarningFacts,
-  type SessionQuietWarning,
-  type SessionQuietWarningClock,
-  type SessionQuietWarningFacts,
-} from "./lib/session-quiet-warning";
+export { formatQuietDuration, formatQuietDurationWords } from "./lib/session-quiet-warning";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
 export {
   SessionDeleteDialog,
@@ -424,11 +402,10 @@ export { SessionList, type SessionListProps } from "./components/session-list/se
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export {
   buildSessionTree,
-  childSessionSignalTone,
+  childSessionSignalState,
   collectThreadSessions,
-  visibleSessionOrder,
-  type VisibleSessionOrderOptions,
 } from "./lib/session-hierarchy";
+export { visibleSessionOrder, type VisibleSessionOrderOptions } from "./lib/session-folders";
 export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,
@@ -468,6 +445,10 @@ export {
 } from "./components/clarification-data-part";
 export { RuntimeActivityNotice } from "./components/runtime-activity-notice";
 export {
+  SessionCompactionItem,
+  type SessionCompactionItemProps,
+} from "./components/session-compaction-item";
+export {
   SessionInspector,
   type InspectorUsage,
   type SessionInspectorProps,
@@ -475,6 +456,8 @@ export {
 
 // Environment surface — worktree binding, fork, target selection (./environment).
 export * from "./environment";
+// Derive surface — continue (and fork) plus origin display (./derive).
+export * from "./derive";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export * from "./quote";
 export type { SessionSendAction } from "./lib/session-busy-input";
@@ -482,6 +465,7 @@ export * from "./hooks";
 
 export { useSessionContext, useSessionUsageTurns } from "./hooks/use-session-context";
 export { SessionContextControl } from "./components/session-context-control";
+export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export type { SessionContextView } from "./lib/session-context";
 export type { SessionActivityView } from "./components/session-activity-section";
 
@@ -489,3 +473,9 @@ export {
   useSessionContextActivity,
   type SessionContextActivitySource,
 } from "./hooks/use-session-context-activity";
+
+export { useSessionCatalog } from "./hooks/use-session-catalog";
+export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
+export { fetchSessionFacets } from "./adapters/session-catalog-api";
+
+export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";

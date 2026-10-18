@@ -10,9 +10,13 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 
 	cmd.AddCommand(newSessionCreateCommand(deps))
 	cmd.AddCommand(newSessionListCommand(deps))
+	cmd.AddCommand(newSessionSubagentsCommand(deps))
 	cmd.AddCommand(newSessionInteractionsCommand(deps))
 	cmd.AddCommand(newSessionStopCommand(deps))
 	cmd.AddCommand(newSessionRenameCommand(deps))
+	cmd.AddCommand(newSessionFolderCommand(deps))
+	cmd.AddCommand(newSessionMoveCommand(deps))
+	cmd.AddCommand(newSessionReorderCommand(deps))
 	cmd.AddCommand(newSessionArchiveCommand(deps))
 	cmd.AddCommand(newSessionUnarchiveCommand(deps))
 	cmd.AddCommand(newSessionRemoveCommand(deps))
@@ -20,6 +24,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionHealthCommand(deps))
 	cmd.AddCommand(newSessionStatusCommand(deps))
 	cmd.AddCommand(newSessionCommandsCommand(deps))
+	cmd.AddCommand(newSessionCompactCommand(deps))
 	cmd.AddCommand(newSessionUsageCommand(deps))
 	cmd.AddCommand(newSessionInspectCommand(deps))
 	cmd.AddCommand(newSessionResumeCommand(deps))
@@ -40,6 +45,12 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionRuntimeCommand(deps))
 	cmd.AddCommand(newSessionGoalCommand(deps))
 	configureSessionProfileCommands(cmd, deps)
+	// Continue and fork are not profile-scoped reads (the new session inherits the
+	// source's profile), and the profile read step resolves the cwd workspace through
+	// a detail read that lists, and so repairs, its sessions: the source must stay
+	// unchanged, so they resolve their source themselves.
+	cmd.AddCommand(newSessionContinueCommand(deps))
+	cmd.AddCommand(newSessionForkCommand(deps))
 
 	return cmd
 }

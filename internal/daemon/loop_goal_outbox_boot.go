@@ -10,6 +10,12 @@ type loopSessionCleanupReconciler interface {
 	ReconcileLoopSessionCleanup(context.Context) error
 }
 
+// goalSessionOutboxCommitSignaler lets the store wake the relay after a Goal
+// projection or Loop session cleanup enqueue commits.
+type goalSessionOutboxCommitSignaler interface {
+	SetGoalSessionOutboxCommitSignal(func())
+}
+
 func (d *Daemon) bootGoalSessionOutboxRelay(
 	ctx context.Context,
 	state *bootState,
@@ -49,6 +55,10 @@ func (d *Daemon) bootGoalSessionOutboxRelay(
 		batchSize:    state.cfg.Goals.OutboxBatchSize,
 		pollInterval: state.cfg.Goals.OutboxPollInterval,
 	}
+	signaler, hasSignaler := state.registry.(goalSessionOutboxCommitSignaler)
+	if hasSignaler {
+		signaler.SetGoalSessionOutboxCommitSignal(relay.Nudge)
+	}
 	go func() {
 		defer close(done)
 		relay.Run(relayCtx)
@@ -56,6 +66,9 @@ func (d *Daemon) bootGoalSessionOutboxRelay(
 	state.goalOutboxCancel = cancel
 	state.goalOutboxDone = done
 	cleanup.add(func(cleanupCtx context.Context) error {
+		if hasSignaler {
+			signaler.SetGoalSessionOutboxCommitSignal(nil)
+		}
 		return stopGoalSessionOutboxRelay(cleanupCtx, cancel, done)
 	})
 	return nil

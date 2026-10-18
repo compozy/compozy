@@ -3,7 +3,8 @@ package task
 import (
 	"context"
 
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
@@ -57,14 +58,12 @@ func (m *Service) listTaskTreeEventRecords(
 		records = append(records, taskRecords...)
 	}
 
-	sort.SliceStable(records, func(i, j int) bool {
-		if !records[i].Event.Timestamp.Equal(records[j].Event.Timestamp) {
-			return records[i].Event.Timestamp.Before(records[j].Event.Timestamp)
-		}
-		if records[i].Sequence != records[j].Sequence {
-			return records[i].Sequence < records[j].Sequence
-		}
-		return records[i].Event.ID < records[j].Event.ID
+	slices.SortStableFunc(records, func(a, b EventRecord) int {
+		return cmp.Or(
+			a.Event.Timestamp.Compare(b.Event.Timestamp),
+			cmp.Compare(a.Sequence, b.Sequence),
+			cmp.Compare(a.Event.ID, b.Event.ID),
+		)
 	})
 	return m.filterAuthorizedEventRecords(ctx, actor, records)
 }

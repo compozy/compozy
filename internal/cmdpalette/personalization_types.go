@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 )
 
 // ProfileLensID partitions personalization by one real profile or the explicit aggregate lens.
@@ -105,7 +105,7 @@ var WeightsV1 = Weights{
 	GroupOrder: []string{
 		"Pinned", "Recents", "Curated", "Views", "Shell", "Window", "Tabs", "Tiling", "Layout",
 		"Sessions", "Desktops", "Workspaces", "Agents", "Tasks", "Loops", "Jobs", "Triggers",
-		"Bridges", "Knowledge", "Vault", "Network channels", "Marketplace", "Extensions", "Apps",
+		"Vault", "Marketplace", "Extensions", "Apps",
 		"Settings", "Commands",
 	},
 }

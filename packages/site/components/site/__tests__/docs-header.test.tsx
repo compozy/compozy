@@ -129,7 +129,7 @@ describe("DocsHeader", () => {
       isNavTransparent: true,
       navItems: [
         { text: "Runtime", type: "main", url: "/docs/" },
-        { text: "Compozy Network", type: "main", url: "/docs/network/protocol/" },
+        { text: "Loops", type: "main", url: "/docs/loops/reference/" },
         { label: "GitHub", type: "icon", url: "https://github.com/compozy", icon: "GH" },
         { type: "menu", text: "Ignored menu" },
       ],
@@ -167,8 +167,8 @@ describe("DocsHeader", () => {
         .getAllByRole("link", { name: "Runtime" })
         .some(link => link.getAttribute("href") === "/docs/")
     ).toBe(true);
-    expect(screen.getByRole("link", { name: "Compozy Network" }).getAttribute("href")).toBe(
-      "/docs/network/protocol/"
+    expect(screen.getByRole("link", { name: "Loops" }).getAttribute("href")).toBe(
+      "/docs/loops/reference/"
     );
     expect(screen.queryByText("Ignored menu")).toBeNull();
     expect(screen.getByRole("link", { name: "GitHub" }).getAttribute("href")).toBe(

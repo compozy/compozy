@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -62,6 +63,8 @@ func (m *Manager) runDurablePromptDelivery(
 
 	afterSequence := int64(0)
 	persistenceComplete := false
+	// One turn's events resolve their session-message cards in order, like its transcript entry.
+	cards := &transcript.SessionMessageCards{}
 	for live != nil {
 		select {
 		case <-ctx.Done():
@@ -75,7 +78,9 @@ func (m *Manager) runDurablePromptDelivery(
 				live = nil
 				continue
 			}
-			terminal, delivered := m.deliverPersistedPromptEvent(ctx, session, turnID, persisted, persistenceDone, out)
+			terminal, delivered := m.deliverPersistedPromptEvent(
+				ctx, session, turnID, persisted, cards, persistenceDone, out,
+			)
 			if persisted.Sequence > afterSequence {
 				afterSequence = persisted.Sequence
 			}
@@ -90,6 +95,7 @@ func (m *Manager) runDurablePromptDelivery(
 		session,
 		turnID,
 		afterSequence,
+		cards,
 		persistenceDone,
 		persistenceComplete,
 		out,
@@ -101,6 +107,7 @@ func (m *Manager) catchUpDurablePromptDelivery(
 	session *Session,
 	turnID string,
 	afterSequence int64,
+	cards *transcript.SessionMessageCards,
 	persistenceDone <-chan struct{},
 	persistenceComplete bool,
 	out chan<- acp.AgentEvent,
@@ -124,7 +131,9 @@ func (m *Manager) catchUpDurablePromptDelivery(
 			m.sessionLogger(session).WarnContext(ctx, "session: query prompt delivery catch-up failed", "error", err)
 		} else {
 			for _, event := range persisted {
-				terminal, delivered := m.deliverPersistedPromptEvent(ctx, session, turnID, event, persistenceDone, out)
+				terminal, delivered := m.deliverPersistedPromptEvent(
+					ctx, session, turnID, event, cards, persistenceDone, out,
+				)
 				if event.Sequence > afterSequence {
 					afterSequence = event.Sequence
 				}
@@ -169,6 +178,7 @@ func (m *Manager) deliverPersistedPromptEvent(
 	session *Session,
 	turnID string,
 	persisted store.SessionEvent,
+	cards *transcript.SessionMessageCards,
 	persistenceDone <-chan struct{},
 	out chan<- acp.AgentEvent,
 ) (terminal bool, delivered bool) {
@@ -186,6 +196,20 @@ func (m *Manager) deliverPersistedPromptEvent(
 		m.deliverPromptProjectionFailure(ctx, turnID, out)
 		return true, true
 	}
+	// The decoded event drops the persisted tool result; carry the card the
+	// projection derives from the persisted form so the live prompt stream can
+	// show it before the transcript reconciles (D-04, composer path).
+	if card, ok := transcript.SubagentPartForStoredEvent(persisted); ok {
+		if data, err := json.Marshal(card); err == nil {
+			event = event.WithSubagentCard(data)
+		}
+	}
+	if card, ok := cards.Card(persisted); ok {
+		if data, err := json.Marshal(card); err == nil {
+			event = event.WithSessionMessageCard(data)
+		}
+	}
+	m.publishSubagentActivity(ctx, session, event)
 	if event.Usage != nil {
 		event.Usage.Sequence = persisted.Sequence
 	}
@@ -217,6 +241,7 @@ func isPromptOutputEventType(eventType string) bool {
 		acp.EventTypePermission,
 		acp.EventTypeClarify,
 		acp.EventTypeUsage,
+		acp.EventTypeCompaction,
 		acp.EventTypePromptDelivery,
 		acp.EventTypeSystem,
 		acp.EventTypeRuntimeProgress,

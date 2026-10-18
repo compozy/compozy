@@ -16,7 +16,7 @@ func (g *TaskRunRepo) admitRunDirectExecutionWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunDirectExecutionAdmissionMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireFencedTaskRun(ctx, exec, mutation.Fence(), true)
+	previous, err := g.requireFencedTaskRun(ctx, exec, mutation.Fence())
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
@@ -62,7 +62,7 @@ func (g *TaskRunRepo) transitionRunStartingWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunStartingMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation, true)
+	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation)
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
@@ -92,7 +92,7 @@ func (g *TaskRunRepo) bindRunSessionWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunSessionBindingMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation, true)
+	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation)
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
@@ -134,7 +134,7 @@ func (g *TaskRunRepo) transitionRunRunningWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunRunningMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation, true)
+	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation)
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
@@ -170,7 +170,7 @@ func (g *TaskRunRepo) recoverTaskRunOnBootWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunBootRecoveryMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireFencedTaskRun(ctx, exec, mutation.Fence(), true)
+	previous, err := g.requireFencedTaskRun(ctx, exec, mutation.Fence())
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
@@ -214,7 +214,6 @@ func (g *TaskRunRepo) requireLeaseAuthorizedTaskRun(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	mutation leaseAuthorizedRunMutation,
-	taskAnchored bool,
 ) (taskpkg.Run, error) {
 	runID, err := requireTaskValue(mutation.Fence().RunID(), "task run id")
 	if err != nil {
@@ -227,13 +226,6 @@ func (g *TaskRunRepo) requireLeaseAuthorizedTaskRun(
 	if !mutation.MatchesSource(current) {
 		return taskpkg.Run{}, fmt.Errorf(
 			"%w: task run %q ownership changed before lease-authorized mutation",
-			taskpkg.ErrInvalidStatusTransition,
-			runID,
-		)
-	}
-	if current.IsTaskAnchored() != taskAnchored {
-		return taskpkg.Run{}, fmt.Errorf(
-			"%w: task run %q has the wrong ownership kind",
 			taskpkg.ErrInvalidStatusTransition,
 			runID,
 		)
@@ -252,7 +244,6 @@ func (g *TaskRunRepo) requireFencedTaskRun(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	fence taskpkg.RunMutationFence,
-	taskAnchored bool,
 ) (taskpkg.Run, error) {
 	runID, err := requireTaskValue(fence.RunID(), "task run id")
 	if err != nil {
@@ -265,13 +256,6 @@ func (g *TaskRunRepo) requireFencedTaskRun(
 	if !fence.Matches(current) {
 		return taskpkg.Run{}, fmt.Errorf(
 			"%w: task run %q ownership changed before nominal mutation",
-			taskpkg.ErrInvalidStatusTransition,
-			runID,
-		)
-	}
-	if current.IsTaskAnchored() != taskAnchored {
-		return taskpkg.Run{}, fmt.Errorf(
-			"%w: task run %q has the wrong ownership kind",
 			taskpkg.ErrInvalidStatusTransition,
 			runID,
 		)
@@ -292,10 +276,8 @@ func (g *TaskRunRepo) finishNominalTaskRunMutation(
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
-	if updated.IsTaskAnchored() {
-		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, previous, updated); err != nil {
-			return taskpkg.NominalRunMutationResult{}, err
-		}
+	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, previous, updated); err != nil {
+		return taskpkg.NominalRunMutationResult{}, err
 	}
 	return taskpkg.NominalRunMutationResult{Previous: previous, Run: updated}, nil
 }

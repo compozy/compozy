@@ -55,3 +55,5 @@ QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, a
 A binding receipt that reports saved settings without confirmed application (`applied: false`,
 `next_action: none`) must show its warnings with the retry error, including when no partial-failure
 diagnostic is supplied.
+
+QA impact 2026-09-28 (normie pass): gaps, snap zones, repeat widths and layout history now sit in the Layouts Advanced fold; "Import/Export JSON" read "Import/Export layout file"; the frame states which parts apply from Apply layout, Save, or immediately. Flag only.

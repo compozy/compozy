@@ -27,10 +27,6 @@ type taskRunTerminalObserver interface {
 	OnTaskRunTerminal(context.Context, hookspkg.TaskRunLeasePayload) error
 }
 
-type dreamCheckEnqueuer interface {
-	EnqueueCheck(reason string, workspaceRef string)
-}
-
 type sessionMessagePersistedObserver interface {
 	HandleSessionMessagePersisted(context.Context, hookspkg.SessionMessagePersistedPayload) error
 }

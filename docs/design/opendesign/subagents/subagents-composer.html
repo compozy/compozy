@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Waiting &amp; status · Subagents · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="subagents.css">
+<!--
+  subagents-composer · S5 parent waiting banner · S7 "N agents running" status line.
+  Contract: DESIGN-NOTES.md. Spec: .compozy/tasks/subagents/_uiux.md.
+  Provenance:
+    production — composer frame, SessionQueueStrip docking (strip joins the composer's top edge),
+                 SessionStatusLine "Working for {elapsed} · N agents running", StateGlyph delegated,
+                 Button ghost sm.
+    reference  — t3 ChatView.tsx:7543-7601 (waiting banner above the composer).
+    delta      — two-line banner (title / names) instead of t3's single line, so three titles fit
+                 at 720px without clipping the first one.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cp-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Subagents</a><span class="w2-sep">/</span><h1 class="w2-title">02 · Waiting &amp; status</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="subagents-transcript.html">← Transcript</a><a class="btn btn--sm" href="subagents-navigation.html">Next: Sidebar &amp; inspector →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="sa-contract" data-od-id="cp-contract" aria-label="What this board is">
+      <div class="sa-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="sa-contract__what"><b>The parent's turn ended, but its subagents are still working.</b> Today the composer goes quiet, so the session looks finished. A strip on top of the composer now says who the parent is waiting on, lets you jump to any of them, and stops them all with one button.</p>
+        <p class="sa-contract__what">While the turn is still running, the status line under the transcript counts every live subagent, including the provider's own agents.</p>
+        <p class="sa-contract__file">subagents-composer.html · S5 · S7 · roster live set · supervision.work_signals[active_child]</p>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="sa-mods">
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SubagentWaitingBanner</b><i>web/src/systems/session/components/subagents/</i>StateGlyph delegated + inline name buttons + Button "Stop"</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SessionComposer</b><i>web/src/components/assistant-ui/session-composer.tsx</i>mounts the banner in the strip slot when the turn is idle and ≥ 1 delegated subagent is live</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>session-working-status.ts</b><i>web/src/systems/session/lib/</i>count = roster live (both origins) ∪ active_child, de-duplicated by child id</span></li>
+          <li><span class="sa-mod sa-mod--reuse">reuse</span><span><b>StateGlyph · Button · SessionStatusLine · useSubagentRoster</b><i>@compozy/ui · session system — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="sa-states">
+          <li><a href="#cp-live">Turn ended, three waiting — interactive</a><code>composer VC-01</code></li>
+          <li><a href="#cp-states">Banner — one · many · stopping · stop failed</a><code>composer VC-02</code></li>
+          <li><a href="#cp-status">Status line count</a><code>composer VC-03</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · LIVE ===== -->
+    <section class="lab-sec" id="cp-live" data-od-id="cp-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Turn ended — the parent waits on its subagents</h2><span class="lab-sec__gist">composer VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Try it.</b> Click a name: it switches this window to that subagent. "and 2 more" opens the inspector's Subagents section (board 03). Stop cancels every live delegated subagent of this session. It shows "Stopping…" while pending, and the banner leaves when the roster reports them settled. The composer stays usable the whole time, so you can keep talking to the parent.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cp-live-stage">
+            <section class="win win--inline is-focused sa-win" style="--sa-win-w:900px" data-od-id="cp-live-window">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Ship checkout v2</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="sa-thread">
+                  <div class="sa-thread__scroll"><div class="sa-thread__col">
+                    <div class="subagent-group">
+                      <button class="subagent-group__trigger" type="button" data-sa-disclosure aria-expanded="false" aria-controls="cp-live-panel"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="avatar-group__count">+2</span></span><span style="min-width:0"><span class="subagent-group__label">5 subagents</span><span class="subagent-group__summary" data-tone="live">5 working</span></span><span class="subagent-elapsed" data-elapsed="208" data-live="true">3m 28s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button>
+                      <div class="subagent-group__panel" id="cp-live-panel" hidden></div>
+                    </div>
+                    <p class="sa-msg">Five reviews are running. I'll pick this up when they report back. You can keep talking to me in the meantime.</p>
+                  </div></div>
+                  <div class="sa-composer-wrap"><div class="sa-composer-col" style="position:relative">
+                    <div class="subagent-waiting-banner" id="cp-live-banner" role="status" data-od-id="cp-live-banner">
+                      <span data-sg="delegated" data-pulse></span><i class="sa-n sa-n--pin" style="left:-7px;right:auto">1</i>
+                      <div class="subagent-waiting-banner__text">
+                        <span class="subagent-waiting-banner__title">Waiting on 5 subagents</span>
+                        <span class="subagent-waiting-banner__desc"><button class="subagent-waiting-banner__name" type="button" aria-label="Open subagent Audit payment webhooks for retry safety" data-sa-open="Audit payment webhooks for retry safety">Audit payment webhooks for retry safety</button>, <button class="subagent-waiting-banner__name" type="button" aria-label="Open subagent Review PR #812 for N+1 queries" data-sa-open="Review PR #812 for N+1 queries">Review PR #812 for N+1 queries</button>, <button class="subagent-waiting-banner__name" type="button" aria-label="Open subagent Run the checkout e2e suite" data-sa-open="Run the checkout e2e suite">Run the checkout e2e suite</button> and <a class="subagent-waiting-banner__name" href="subagents-navigation.html#nv-live">2 more</a></span>
+                      </div><i class="sa-n" style="position:absolute;left:46%;top:-8px">2</i>
+                      <button class="btn btn--ghost btn--sm" type="button" data-sa-stop="banner" style="position:relative"><svg data-lucide="square"></svg><span>Stop</span><i class="sa-n sa-n--pin">3</i></button>
+                    </div>
+                    <div data-sa-restore="cp-live-banner" hidden style="padding:0 12px 6px;font-size:11.5px;color:var(--subtle)">Banner gone: all five are canceled. <button class="subagent-waiting-banner__name" type="button" data-sa-reset="cp-live-banner">Replay</button></div>
+                    <div class="sa-composer"><div class="sa-composer__input">Message dev-loop…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/claude.svg" alt="">Opus 5.5</span><span class="w2-flex"></span><span class="sa-send" aria-label="Send"><svg data-lucide="arrow-up"></svg></span></div></div>
+                  </div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>StateGlyph delegated</b> <em><code>info</code> ring holding a dot: the parent has handed off work and is parked. It breathes only while a wake is pending, meaning a settled subagent will resume the parent. Otherwise it holds still.</em></span></li>
+            <li><i class="sa-n">2</i><span><b>Title + names</b> <em>"Waiting on 5 subagents" (one: "Waiting on subagent &lt;title&gt;"). Line 2 shows up to 3 titles as inline buttons, each with <code>aria-label="Open subagent &lt;title&gt;"</code>, then "and N more", which opens S10. It is one line and truncates.</em></span></li>
+            <li><i class="sa-n">3</i><span><b>Stop</b> <em>Button ghost sm, the only action. It cancels all live delegated subagents of this session. "Stopping…" disabled while pending. On failure, the toast "Could not stop subagents." and the button returns. Provider-native subagents are not stopped from here.</em></span></li>
+          </ul>
+          <div class="sa-tags"><span class="sa-tag"><b>state</b>no running turn · 5 live delegated · wake pending</span><span class="sa-tag"><b>component</b>SubagentWaitingBanner in the composer strip slot</span><span class="sa-tag"><b>VC</b>composer/VC-01</span><span class="sa-tag"><b>accent</b>0 · primary = send only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · BANNER STATES ===== -->
+    <section class="lab-sec" id="cp-states" data-od-id="cp-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Banner — one, many, stopping, stop failed</h2><span class="lab-sec__gist">composer VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Drawn at the 720px thread width, docked on the composer.</b> With one subagent, its title moves into the banner title and line 2 drops away. The failed-stop specimen is live: press Stop to see "Stopping…" and then the toast.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><span class="lab-cell__t">one <code>title carries the name</code></span>
+              <div class="plain plain--canvas"><div class="sa-composer-col">
+                <div class="subagent-waiting-banner"><span data-sg="delegated"></span><div class="subagent-waiting-banner__text"><span class="subagent-waiting-banner__title">Waiting on subagent <button class="subagent-waiting-banner__name" type="button" aria-label="Open subagent Draft release notes for v2" data-sa-open="Draft release notes for v2">Draft release notes for v2</button></span></div><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="square"></svg><span>Stop</span></button></div>
+                <div class="sa-composer"><div class="sa-composer__input">Message dev-loop…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/claude.svg" alt="">Opus 5.5</span><span class="w2-flex"></span><span class="sa-send"><svg data-lucide="arrow-up"></svg></span></div></div>
+              </div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">many <code>≤ 3 names · no "and N more" at 3</code></span>
+              <div class="plain plain--canvas"><div class="sa-composer-col">
+                <div class="subagent-waiting-banner"><span data-sg="delegated" data-pulse></span><div class="subagent-waiting-banner__text"><span class="subagent-waiting-banner__title">Waiting on 3 subagents</span><span class="subagent-waiting-banner__desc"><button class="subagent-waiting-banner__name" type="button" data-sa-open="Audit payment webhooks for retry safety">Audit payment webhooks for retry safety</button>, <button class="subagent-waiting-banner__name" type="button" data-sa-open="Review PR #812 for N+1 queries">Review PR #812 for N+1 queries</button>, <button class="subagent-waiting-banner__name" type="button" data-sa-open="Draft release notes for v2">Draft release notes for v2</button></span></div><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="square"></svg><span>Stop</span></button></div>
+                <div class="sa-composer"><div class="sa-composer__input">Message dev-loop…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/claude.svg" alt="">Opus 5.5</span><span class="w2-flex"></span><span class="sa-send"><svg data-lucide="arrow-up"></svg></span></div></div>
+              </div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">stopping <code>disabled · names stay</code></span>
+              <div class="plain plain--canvas"><div class="sa-composer-col">
+                <div class="subagent-waiting-banner"><span data-sg="delegated"></span><div class="subagent-waiting-banner__text"><span class="subagent-waiting-banner__title">Waiting on 3 subagents</span><span class="subagent-waiting-banner__desc"><button class="subagent-waiting-banner__name" type="button">Audit payment webhooks for retry safety</button>, <button class="subagent-waiting-banner__name" type="button">Review PR #812 for N+1 queries</button>, <button class="subagent-waiting-banner__name" type="button">Draft release notes for v2</button></span></div><button class="btn btn--ghost btn--sm" type="button" disabled><span data-sg="running" data-size="sm"></span><span>Stopping…</span></button></div>
+                <div class="sa-composer"><div class="sa-composer__input">Message dev-loop…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/claude.svg" alt="">Opus 5.5</span><span class="w2-flex"></span><span class="sa-send"><svg data-lucide="arrow-up"></svg></span></div></div>
+              </div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">stop failed <code>press Stop · toast "Could not stop subagents."</code></span>
+              <div class="plain plain--canvas"><div class="sa-composer-col">
+                <div class="subagent-waiting-banner" id="cp-fail-banner"><span data-sg="delegated"></span><div class="subagent-waiting-banner__text"><span class="subagent-waiting-banner__title">Waiting on 3 subagents</span><span class="subagent-waiting-banner__desc"><button class="subagent-waiting-banner__name" type="button" data-sa-open="Audit payment webhooks for retry safety">Audit payment webhooks for retry safety</button>, <button class="subagent-waiting-banner__name" type="button" data-sa-open="Review PR #812 for N+1 queries">Review PR #812 for N+1 queries</button>, <button class="subagent-waiting-banner__name" type="button" data-sa-open="Draft release notes for v2">Draft release notes for v2</button></span></div><button class="btn btn--ghost btn--sm" type="button" data-sa-stop="banner-fail"><svg data-lucide="square"></svg><span>Stop</span></button></div>
+                <div class="sa-composer"><div class="sa-composer__input">Message dev-loop…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/claude.svg" alt="">Opus 5.5</span><span class="w2-flex"></span><span class="sa-send"><svg data-lucide="arrow-up"></svg></span></div></div>
+              </div></div></div>
+          </div>
+          <table class="lab-table" style="margin-top:12px">
+            <thead><tr><th>Condition</th><th>Banner</th></tr></thead>
+            <tbody>
+              <tr><td>Turn running</td><td>Hidden. The status line (03) carries the count.</td></tr>
+              <tr><td>Turn idle, ≥ 1 live delegated subagent</td><td>Shown. Glyph breathes only while a wake is pending.</td></tr>
+              <tr><td>Turn idle, only provider-native subagents live</td><td>Hidden. They end with the provider's turn and have no Compozy stop.</td></tr>
+              <tr><td>Last live subagent settles</td><td>Removed. The parent raises its own unseen-done attention once (ADR-005 Lifecycle).</td></tr>
+            </tbody>
+          </table>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SubagentWaitingBanner</span><span class="sa-tag"><b>copy</b>Waiting on subagent &lt;title&gt; · Waiting on N subagents · and N more · Stop · Stopping… · Could not stop subagents.</span><span class="sa-tag"><b>VC</b>composer/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · STATUS LINE ===== -->
+    <section class="lab-sec" id="cp-status" data-od-id="cp-status">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Status line — every live subagent counts</h2><span class="lab-sec__gist">composer VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Only the count changes.</b> Today the line counts <code>active_child</code> work signals only, so Claude's own Task agents are missing from it. The new count is the live subagents in the parent roster (both origins) together with any other <code>active_child</code> signal, counted once per child id. A child that is both a roster subagent and an active_child signal counts once.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="cp-status-demo">
+            <table class="lab-table">
+              <thead><tr><th>Live set</th><th>Today</th><th>New</th></tr></thead>
+              <tbody>
+                <tr><td>2 delegated + 1 provider-native</td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b>2m 54s</b><span class="sep">·</span>2 agents running</div></td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b data-elapsed="174" data-live="true">2m 54s</b><span class="sep">·</span>3 agents running</div></td></tr>
+                <tr><td>1 provider-native only</td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b>41s</b></div></td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b data-elapsed="41" data-live="true">41s</b><span class="sep">·</span>1 agent running</div></td></tr>
+                <tr><td>2 delegated, also reported as active_child</td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b>1m 10s</b><span class="sep">·</span>2 agents running</div></td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b data-elapsed="70" data-live="true">1m 10s</b><span class="sep">·</span>2 agents running</div></td></tr>
+                <tr><td>1 delegated + 1 plain session_spawn child</td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b>5m 02s</b><span class="sep">·</span>2 agents running</div></td><td><div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b data-elapsed="302" data-live="true">5m 02s</b><span class="sep">·</span>2 agents running</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionStatusLine (unchanged) · session-working-status.ts</span><span class="sa-tag"><b>copy</b>"1 agent running" · "N agents running" (unchanged)</span><span class="sa-tag"><b>VC</b>composer/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: _uiux.md S5 · S7 · ADR-005 (waiting banner, lifecycle). Production read: session-composer.tsx · session-queue-strip.tsx (docking) · session-status-line.tsx · session-working-status.ts:101-139. Reference: .resources/t3code ChatView.tsx:7543-7601. Titles and times are fixtures.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="subagents.js"></script>
+</body>
+</html>

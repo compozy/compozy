@@ -126,8 +126,10 @@ const countTranscriptEntriesCrossingCut = `-- name: CountTranscriptEntriesCrossi
 WITH bounds AS (SELECT CAST(?1 AS INTEGER) AS cut_from,
                       CAST(?2 AS INTEGER) AS cut_to)
 SELECT COUNT(*) FROM transcript_entries AS e, bounds
-WHERE EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
-              AND sequence BETWEEN bounds.cut_from AND bounds.cut_to)
+WHERE e.entry_key IN (
+    SELECT DISTINCT transcript_entry_key FROM events
+    WHERE archived = 0 AND sequence BETWEEN bounds.cut_from AND bounds.cut_to
+  )
   AND EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
               AND (sequence < bounds.cut_from OR sequence > bounds.cut_to))
 `
@@ -204,7 +206,7 @@ func (q *Queries) GetConversationRewindReceipt(ctx context.Context, idempotencyK
 }
 
 const getConversationRewindState = `-- name: GetConversationRewindState :one
-SELECT target_message_id, covered_through_sequence, messages_json, updated_at
+SELECT target_message_id, covered_through_sequence, messages_json, updated_at, baseline_stale
 FROM conversation_rewind_state
 WHERE singleton = 1
 `
@@ -214,6 +216,7 @@ type GetConversationRewindStateRow struct {
 	CoveredThroughSequence int64  `json:"covered_through_sequence"`
 	MessagesJson           string `json:"messages_json"`
 	UpdatedAt              string `json:"updated_at"`
+	BaselineStale          int64  `json:"baseline_stale"`
 }
 
 func (q *Queries) GetConversationRewindState(ctx context.Context) (GetConversationRewindStateRow, error) {
@@ -224,6 +227,7 @@ func (q *Queries) GetConversationRewindState(ctx context.Context) (GetConversati
 		&i.CoveredThroughSequence,
 		&i.MessagesJson,
 		&i.UpdatedAt,
+		&i.BaselineStale,
 	)
 	return i, err
 }
@@ -289,6 +293,38 @@ func (q *Queries) GetEventByID(ctx context.Context, id string) (GetEventByIDRow,
 		&i.Content,
 		&i.Archived,
 		&i.Timestamp,
+	)
+	return i, err
+}
+
+const getTranscriptUserAnchor = `-- name: GetTranscriptUserAnchor :one
+SELECT kind, message_id, turn_id, start_sequence, complete
+FROM transcript_entries
+WHERE message_id = ?1
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.sequence = transcript_entries.start_sequence
+      AND events.archived = 0
+  )
+`
+
+type GetTranscriptUserAnchorRow struct {
+	Kind          string         `json:"kind"`
+	MessageID     sql.NullString `json:"message_id"`
+	TurnID        string         `json:"turn_id"`
+	StartSequence int64          `json:"start_sequence"`
+	Complete      int64          `json:"complete"`
+}
+
+func (q *Queries) GetTranscriptUserAnchor(ctx context.Context, messageID sql.NullString) (GetTranscriptUserAnchorRow, error) {
+	row := q.db.QueryRowContext(ctx, getTranscriptUserAnchor, messageID)
+	var i GetTranscriptUserAnchorRow
+	err := row.Scan(
+		&i.Kind,
+		&i.MessageID,
+		&i.TurnID,
+		&i.StartSequence,
+		&i.Complete,
 	)
 	return i, err
 }
@@ -507,6 +543,26 @@ func (q *Queries) MinActiveEventSequence(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const refreshConversationRewindBaseline = `-- name: RefreshConversationRewindBaseline :execrows
+UPDATE conversation_rewind_state
+SET messages_json = ?1, baseline_stale = 0, updated_at = ?2
+WHERE singleton = 1 AND covered_through_sequence = ?3
+`
+
+type RefreshConversationRewindBaselineParams struct {
+	MessagesJson           string `json:"messages_json"`
+	UpdatedAt              string `json:"updated_at"`
+	CoveredThroughSequence int64  `json:"covered_through_sequence"`
+}
+
+func (q *Queries) RefreshConversationRewindBaseline(ctx context.Context, arg RefreshConversationRewindBaselineParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, refreshConversationRewindBaseline, arg.MessagesJson, arg.UpdatedAt, arg.CoveredThroughSequence)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertConversationRewindState = `-- name: UpsertConversationRewindState :exec
 INSERT INTO conversation_rewind_state (
     singleton, target_message_id, covered_through_sequence, messages_json, updated_at
@@ -518,6 +574,7 @@ ON CONFLICT(singleton) DO UPDATE SET
     target_message_id = excluded.target_message_id,
     covered_through_sequence = excluded.covered_through_sequence,
     messages_json = excluded.messages_json,
+    baseline_stale = 0,
     updated_at = excluded.updated_at
 `
 

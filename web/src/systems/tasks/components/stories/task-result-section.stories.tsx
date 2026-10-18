@@ -61,6 +61,7 @@ function ExternalResultStory() {
   return (
     <PanelSurface className="w-[min(46rem,calc(100vw-2rem))] p-6">
       <TaskResultSection
+        className="w-full"
         emptyMessage="No result recorded."
         external={controller}
         result={null}
@@ -92,7 +93,20 @@ export const InlineResult: Story = {
   },
   render: args => (
     <PanelSurface className="w-[min(46rem,calc(100vw-2rem))] p-6">
-      <TaskResultSection {...args} />
+      <TaskResultSection className="w-full" {...args} />
+    </PanelSurface>
+  ),
+};
+
+/** A completed run that recorded no result reads as a quiet compact empty card. */
+export const EmptyResult: Story = {
+  args: {
+    emptyMessage: "No result was recorded for the completed run.",
+    result: null,
+  },
+  render: args => (
+    <PanelSurface className="w-[min(46rem,calc(100vw-2rem))] p-6">
+      <TaskResultSection className="w-full" {...args} />
     </PanelSurface>
   ),
 };

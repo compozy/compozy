@@ -219,14 +219,14 @@ export function RuntimeAdvancedOptions({
         type="button"
         aria-controls={panelId}
         aria-expanded={expanded}
-        className="flex h-8 w-full items-center gap-2 px-3 text-left text-badge text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg focus-visible:bg-row-hover focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent"
+        className="flex h-8 w-full items-center gap-2 px-3 text-left text-badge text-subtle outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2 focus-visible:text-fg focus-visible:shadow-focus-inset"
         data-testid="runtime-selector-advanced-toggle"
         onClick={() => onExpandedChange(!expanded)}
       >
         <SlidersHorizontal aria-hidden="true" className="size-3.5 shrink-0" />
         <Eyebrow className="min-w-0 flex-1 text-left text-subtle">Advanced options</Eyebrow>
         {providerManaged ? (
-          <span className="shrink-0 text-badge text-warning">Provider managed</span>
+          <span className="shrink-0 text-badge text-subtle">Provider managed</span>
         ) : null}
         <ChevronDown
           aria-hidden="true"
@@ -239,7 +239,7 @@ export function RuntimeAdvancedOptions({
       {expanded ? (
         <div
           aria-disabled={controlsDisabled || undefined}
-          className={cn("bg-canvas-soft", controlsDisabled && "opacity-60")}
+          className={cn("bg-sunken", controlsDisabled && "opacity-60")}
           data-testid="runtime-selector-advanced-panel"
           id={panelId}
         >
@@ -254,7 +254,7 @@ export function RuntimeAdvancedOptions({
             />
           ))}
           {providerManaged ? (
-            <p className="border-t border-line-soft px-3 py-1.5 text-form-hint text-warning">
+            <p className="border-t border-line-soft px-3 py-1.5 text-form-hint text-muted">
               This provider controls these settings.
             </p>
           ) : null}

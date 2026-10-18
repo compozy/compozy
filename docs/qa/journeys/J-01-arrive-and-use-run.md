@@ -93,7 +93,7 @@ design_reference:
     - "Running pulse only while live; gated by reduced-motion."
     - "Applied runtime is read-only persisted truth from the daemon binding; the Web never offers an unsupported runtime edit control."
     - "The CLI deep link uses the effective daemon port and opens this exact persisted run; dry-run never prints one."
-    - "loops-refac (2026-07-08): software-delivery's load_tasks resolves via the ext__spec_cycle__import_tasks action node (not source/file-import), and its run-agent sessions are now policy-gated (sandbox/permission/subset-only allowed_tools) — the run reaches the same verified done, but LP-003/LP-046 verify the new session posture (CH-026)."
+    - "loops-refac (2026-07-08): software-delivery's load_tasks resolves via the ext__spec_cycle__import_tasks action node (not source/file-import), and its run-agent sessions are now policy-gated (permission/subset-only allowed_tools) — the run reaches the same verified done, but LP-003/LP-046 verify the new session posture (CH-026)."
 
 e2e_backbone:
   runtime:

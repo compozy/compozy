@@ -35,10 +35,6 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.originKind,
 		&run.Origin.Ref,
 		&fields.idempotencyKey,
-		&fields.networkSpecJSON,
-		&fields.networkMode,
-		&fields.networkChannel,
-		&fields.networkSource,
 		&fields.designationGroupID,
 		&fields.resolvedWorktreeMode,
 		&fields.resolvedWorktreeRef,
@@ -64,9 +60,6 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.continuationReason,
 		&fields.missingWorkJSON,
 		&fields.nextRoundGuidance,
-		&fields.networkWakeID,
-		&fields.networkTargetSessionID,
-		&fields.networkOwnerKey,
 	); err != nil {
 		return taskpkg.Run{}, fmt.Errorf("store: scan task run: %w", err)
 	}
@@ -77,48 +70,42 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 }
 
 type taskRunScanFields struct {
-	status                 string
-	runKind                string
-	loopRunID              sql.NullString
-	previousRunID          sql.NullString
-	failureKind            string
-	claimedByKind          sql.NullString
-	claimedByRef           sql.NullString
-	sessionID              sql.NullString
-	originKind             string
-	idempotencyKey         sql.NullString
-	networkSpecJSON        string
-	networkMode            string
-	networkChannel         sql.NullString
-	networkSource          string
-	designationGroupID     string
-	resolvedWorktreeMode   string
-	resolvedWorktreeRef    string
-	claimToken             sql.NullString
-	claimTokenHash         sql.NullString
-	leaseUntilRaw          sql.NullString
-	heartbeatAtRaw         sql.NullString
-	queuedAtRaw            string
-	claimedAtRaw           sql.NullString
-	startedAtRaw           sql.NullString
-	endedAtRaw             sql.NullString
-	tokensUsed             int64
-	runErr                 sql.NullString
-	metadataJSON           sql.NullString
-	resultJSON             sql.NullString
-	reviewRequired         bool
-	reviewRequestRound     int
-	reviewPolicySnapshot   string
-	reviewRequestID        sql.NullString
-	parentRunID            sql.NullString
-	reviewID               sql.NullString
-	reviewRound            int
-	continuationReason     string
-	missingWorkJSON        string
-	nextRoundGuidance      string
-	networkWakeID          sql.NullString
-	networkTargetSessionID sql.NullString
-	networkOwnerKey        sql.NullString
+	status         string
+	runKind        string
+	loopRunID      sql.NullString
+	previousRunID  sql.NullString
+	failureKind    string
+	claimedByKind  sql.NullString
+	claimedByRef   sql.NullString
+	sessionID      sql.NullString
+	originKind     string
+	idempotencyKey sql.NullString
+
+	designationGroupID   string
+	resolvedWorktreeMode string
+	resolvedWorktreeRef  string
+	claimToken           sql.NullString
+	claimTokenHash       sql.NullString
+	leaseUntilRaw        sql.NullString
+	heartbeatAtRaw       sql.NullString
+	queuedAtRaw          string
+	claimedAtRaw         sql.NullString
+	startedAtRaw         sql.NullString
+	endedAtRaw           sql.NullString
+	tokensUsed           int64
+	runErr               sql.NullString
+	metadataJSON         sql.NullString
+	resultJSON           sql.NullString
+	reviewRequired       bool
+	reviewRequestRound   int
+	reviewPolicySnapshot string
+	reviewRequestID      sql.NullString
+	parentRunID          sql.NullString
+	reviewID             sql.NullString
+	reviewRound          int
+	continuationReason   string
+	missingWorkJSON      string
+	nextRoundGuidance    string
 }
 
 func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
@@ -143,22 +130,6 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		run.WorktreeIDValue(),
 		taskpkg.WorktreeMode(strings.TrimSpace(fields.resolvedWorktreeMode)),
 		fields.resolvedWorktreeRef,
-	)
-	networkSpec, err := decodeParticipationSnapshot(
-		run.WorkspaceID,
-		fields.networkSpecJSON,
-		fields.networkMode,
-		fields.networkChannel,
-		fields.networkSource,
-	)
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	run.SetNetworkState(
-		networkSpec,
-		taskNullStringValue(fields.networkWakeID),
-		taskNullStringValue(fields.networkTargetSessionID),
-		taskNullStringValue(fields.networkOwnerKey),
 	)
 	if err := assignTaskRunTimestamps(
 		&run,

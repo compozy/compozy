@@ -27,10 +27,10 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
-	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/session/contextusage"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -105,48 +105,15 @@ func (sessionProfileServiceStub) Resolve(
 
 func (sessionProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts, error) {
 	return []profilepkg.WithCounts{
-		{Profile: profilepkg.Profile{
-			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
-		}},
-		{Profile: profilepkg.Profile{
+		{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		{
 			ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Icon: "megaphone", Emoji: "📣",
-			State: profilepkg.StateArchived,
-		}},
+			State: profilepkg.StateArchived},
 	}, nil
 }
 
-func TestBaseHandlersStreamDoneBridge(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should replace the silent construction channel with the transport shutdown bridge", func(t *testing.T) {
-		t.Parallel()
-
-		var logs bytes.Buffer
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			Logger: slog.New(slog.NewTextHandler(&logs, nil)),
-		})
-		if strings.Contains(logs.String(), "stream shutdown bridge not provided") {
-			t.Fatalf("NewBaseHandlers() logged a construction-state stream bridge warning: %s", logs.String())
-		}
-
-		transportDone := make(chan struct{})
-		handlers.SetStreamDone(transportDone)
-		select {
-		case <-handlers.StreamDoneChannel():
-			t.Fatal("StreamDoneChannel() closed before the transport shutdown bridge closed")
-		default:
-		}
-
-		close(transportDone)
-		select {
-		case <-handlers.StreamDoneChannel():
-		default:
-			t.Fatal("StreamDoneChannel() did not observe the transport shutdown bridge")
-		}
-	})
-}
-
-func (s sessionCommandCatalogManagerStub) CommandCatalog(
+func (s *sessionCommandCatalogManagerStub) CommandCatalog(
 	ctx context.Context,
 	id string,
 ) (commandpkg.Catalog, error) {
@@ -185,11 +152,9 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 			"Wait for the current turn to finish.",
 		)
 		var calls atomic.Int32
-		manager := sessionCommandCatalogManagerStub{
-			StubSessionManager: testutil.StubSessionManager{
-				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-					return &session.Info{ID: id, WorkspaceID: "ws-command", AgentName: "coder"}, nil
-				},
+		manager := &sessionCommandCatalogManagerStub{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, WorkspaceID: "ws-command", AgentName: "coder"}, nil
 			},
 			catalog: catalog,
 			calls:   &calls,
@@ -197,7 +162,7 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: ref, Name: ref},
+					ID: ref, Name: ref,
 					WorkspaceID: ref,
 				}, nil
 			},
@@ -248,6 +213,113 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		workspaceID string
+		profileID   string
+		wantStatus  int
+	}{
+		{"Should read retained Global history", "", store.DefaultProfileID, http.StatusOK},
+		{"Should refuse project history on the Global route", "ws-project", store.DefaultProfileID, http.StatusNotFound},
+		{"Should refuse another profile on the Global route", "", "profile-other", http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, endpoint := range []struct {
+				path string
+				body string
+			}{
+				{"transcript?limit=2", `"max_sequence":12`},
+				{"status", `"session_id":"sess-global"`},
+				{"events?limit=2", `"id":"ev-global"`},
+				{"history?limit=2", `"id":"ev-global"`},
+				{"stream?frames=raw&limit=2", `"id":"ev-global"`},
+			} {
+				t.Run("Should authorize "+endpoint.path, func(t *testing.T) {
+					t.Parallel()
+					var reads atomic.Int32
+					event := store.SessionEvent{
+						ID: "ev-global", SessionID: "sess-global", Sequence: 12,
+						Type: session.EventTypeSessionStopped,
+					}
+					manager := testutil.StubSessionManager{
+						StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+							info := testutil.NewSessionInfo(id)
+							info.WorkspaceID, info.ProfileID, info.State = tc.workspaceID, tc.profileID, session.StateStopped
+							return info, nil
+						},
+						TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
+							reads.Add(1)
+							if id != "sess-global" || query.Limit != 2 {
+								t.Fatalf("transcript request = %s %+v", id, query)
+							}
+							return transcript.Page{Generation: 7, MaxSequence: 12}, nil
+						},
+						EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+							reads.Add(1)
+							return []store.SessionEvent{event}, nil
+						},
+						HistoryFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
+							reads.Add(1)
+							return []store.TurnHistory{
+								{TurnID: "turn-global", Events: []store.SessionEvent{event}},
+							}, nil
+						},
+					}
+					fixture := newHandlerFixture(
+						t,
+						manager,
+						testutil.StubObserver{},
+						testutil.StubWorkspaceService{},
+					)
+					fixture.Handlers.SessionHealth = sessionHealthReaderFunc(
+						func(context.Context, string) (heartbeat.SessionHealth, error) {
+							reads.Add(1)
+							return heartbeat.SessionHealth{
+								SessionID: "sess-global", WorkspaceID: tc.workspaceID,
+								State: heartbeat.SessionHealthStateStopped, Health: heartbeat.SessionHealthDead,
+							}, nil
+						},
+					)
+					statusSpy := &heartbeatStatusSpy{
+						err: errors.New("project Heartbeat must not run for Global history"),
+					}
+					fixture.Handlers.HeartbeatStatus = statusSpy
+					response := performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/sessions/sess-global/"+endpoint.path,
+						nil,
+					)
+					if response.Code != tc.wantStatus {
+						t.Fatalf(
+							"Global %s = %d %s, want %d",
+							endpoint.path,
+							response.Code,
+							response.Body,
+							tc.wantStatus,
+						)
+					}
+					if statusSpy.calls != 0 || strings.Contains(response.Body.String(), "wake_state") {
+						t.Fatalf(
+							"Global read attempted project wake enrichment: calls=%d body=%s",
+							statusSpy.calls,
+							response.Body,
+						)
+					}
+					if tc.wantStatus == http.StatusOK {
+						if reads.Load() == 0 || !strings.Contains(response.Body.String(), endpoint.body) {
+							t.Fatalf("Global read = %d reader calls, body=%s", reads.Load(), response.Body)
+						}
+					} else if reads.Load() != 0 || !strings.Contains(response.Body.String(), "not found") {
+						t.Fatalf("unauthorized read = %d reader calls, body=%s", reads.Load(), response.Body)
+					}
+				})
+			}
+		})
+	}
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	var createCalled atomic.Bool
@@ -413,7 +485,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			}
 			return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
 		},
-	}, nil, nil)
+	})
 	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 
 	t.Run("Should list sessions", func(t *testing.T) {
@@ -749,8 +821,6 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 					base,
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				fixture.Handlers.Sessions = sessionStopManagerStub{StubSessionManager: base,
 					request: func(_ context.Context, id string, cause session.StopCause) error {
@@ -1170,6 +1240,63 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 }
 
+func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return Global ownership without resolving a removed project", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				t.Fatal("owner lookup must not repair the session")
+				return nil, nil
+			},
+			SessionOwnerFn: func(_ context.Context, id string) (store.SessionOwner, error) {
+				return store.SessionOwner{SessionID: id, ProfileID: store.DefaultProfileID}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{}, errors.New("Global has no workspace to resolve")
+			},
+		})
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-global/owner", nil)
+		var owner contract.SessionOwner
+		if err := json.Unmarshal(response.Body.Bytes(), &owner); err != nil || response.Code != http.StatusOK {
+			t.Fatalf("Global owner status = %d body = %s (%v), want 200", response.Code, response.Body.String(), err)
+		}
+		if owner.SessionID != "sess-global" || owner.WorkspaceID != "" || owner.WorkspaceName != "Global" {
+			t.Fatalf("Global owner = %+v", owner)
+		}
+	})
+
+	t.Run("Should resolve the owner through the non-repairing owner read", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				t.Fatal("Status() called: an owner lookup must not repair the session")
+				return nil, nil
+			},
+			SessionOwnerFn: func(_ context.Context, id string) (store.SessionOwner, error) {
+				return store.SessionOwner{SessionID: id, WorkspaceID: "ws-workspace"}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
+			},
+		})
+		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-stale/owner", nil)
+		var owner contract.SessionOwner
+		if err := json.Unmarshal(ownerResp.Body.Bytes(), &owner); err != nil || ownerResp.Code != http.StatusOK {
+			t.Fatalf("owner status = %d body = %s (%v), want 200", ownerResp.Code, ownerResp.Body.String(), err)
+		}
+		if owner.SessionID != "sess-stale" || owner.WorkspaceID != "ws-workspace" {
+			t.Fatalf("owner = %#v, want sess-stale in ws-workspace", owner)
+		}
+	})
+}
+
 func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -1210,8 +1337,6 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 		manager,
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	t.Run("Should set a durable runtime selection", func(t *testing.T) {
@@ -1279,6 +1404,78 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 	})
 }
 
+// Lifecycle mutations must select the session owner before reaching the manager.
+// TestSessionLifecycleProfileScope verifies owner access and wrong-profile mutation refusal.
+func TestSessionLifecycleProfileScope(t *testing.T) {
+	t.Parallel()
+	for _, action := range []string{"archive", "unarchive", "rename"} {
+		for _, selector := range []string{"", "?profile=default", "?profile=marketing", "?all_profiles=true"} {
+			t.Run("Should scope "+action+" with "+selector, func(t *testing.T) {
+				t.Parallel()
+				info := testutil.NewSessionInfo("sess-profile")
+				info.ProfileID = "profile-marketing"
+				info.WorkspaceID = "ws-workspace"
+				info.State = session.StateStopped
+				calls := 0
+				mutate := func(_ context.Context, workspaceID, id string) (*session.Info, error) {
+					calls++
+					if workspaceID != info.WorkspaceID || id != info.ID {
+						t.Fatalf("mutation target = %s/%s", workspaceID, id)
+					}
+					updated := *info
+					updated.Name = "Renamed"
+					if action == "archive" {
+						updated.ArchivedAt = new(time.Date(2026, 10, 17, 0, 0, 0, 0, time.UTC))
+					}
+					return &updated, nil
+				}
+				manager := testutil.StubSessionManager{
+					StatusFn:  func(context.Context, string) (*session.Info, error) { return info, nil },
+					ArchiveFn: mutate, UnarchiveFn: mutate,
+					RenameFn: func(ctx context.Context, workspaceID, id, _ string) (*session.Info, error) {
+						return mutate(ctx, workspaceID, id)
+					},
+				}
+				fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+				fixture.Handlers.Profiles = sessionProfileServiceStub{}
+				path := "/workspaces/ws-workspace/sessions/sess-profile/" + action
+				method := http.MethodPost
+				var body []byte
+				if action == "rename" {
+					path, method, body = "/workspaces/ws-workspace/sessions/sess-profile", http.MethodPatch, []byte(
+						`{"name":"Renamed"}`,
+					)
+				}
+				response := performRequest(t, fixture.Engine, method, path+selector, body)
+				if selector != "?profile=marketing" {
+					status := http.StatusNotFound
+					if selector == "?all_profiles=true" {
+						status = http.StatusBadRequest
+					}
+					if response.Code != status || !strings.Contains(response.Body.String(), "error") || calls != 0 {
+						t.Fatalf("refusal = %d %s, mutation calls=%d", response.Code, response.Body, calls)
+					}
+					return
+				}
+				var payload contract.SessionResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if response.Code != http.StatusOK || calls != 1 || payload.Session.ProfileName != "marketing" ||
+					payload.Session.ID != info.ID {
+					t.Fatalf("result = %d %s, calls=%d", response.Code, response.Body, calls)
+				}
+				if (payload.Session.ArchivedAt != nil) != (action == "archive") {
+					t.Fatalf("archive marker = %v", payload.Session.ArchivedAt)
+				}
+				if action == "rename" && payload.Session.Name != "Renamed" {
+					t.Fatalf("renamed session = %q", payload.Session.Name)
+				}
+			})
+		}
+	}
+}
+
 func TestRenameSessionHandler(t *testing.T) {
 	t.Parallel()
 
@@ -1311,8 +1508,6 @@ func TestRenameSessionHandler(t *testing.T) {
 		manager,
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	t.Run("Should rename the workspace-scoped session", func(t *testing.T) {
@@ -1495,7 +1690,7 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1556,6 +1751,119 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 func TestSessionUsageEndpoint(t *testing.T) {
 	t.Parallel()
 	t.Run(
+		"Should expose freshness cause only until a same-turn occupancy report and optional marker after",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, fresh := range []bool{false, true} {
+				t.Run(fmt.Sprintf("Should preserve optional fields when fresh=%t", fresh), func(t *testing.T) {
+					t.Parallel()
+					manager := usageBoundarySessionManager{
+						StatusFn: func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
+						UsageEventsFn: func(context.Context, string) ([]session.UsageEventEnvelope, error) {
+							rows := []session.UsageEventEnvelope{
+								{Sequence: 10, TurnID: "A", Usage: acp.TokenUsage{ContextUsed: new(int64(80))}},
+								{Sequence: 13, TurnID: "A", Usage: acp.TokenUsage{TotalTokens: new(int64(10))}},
+							}
+							if fresh {
+								rows = append(
+									rows,
+									session.UsageEventEnvelope{
+										Sequence: 14,
+										TurnID:   "A",
+										Usage:    acp.TokenUsage{ContextUsed: new(int64(0))},
+									},
+								)
+							}
+							return rows, nil
+						},
+						CompactionsFn: func(context.Context, string) ([]session.CompactionEnvelope, error) {
+							marker := session.CompactionEnvelope{
+								Sequence: 20,
+								TurnID:   "A",
+								Status:   "failed",
+								Payload:  session.CompactionFiredPayload{CompactionID: "c1"},
+							}
+							if fresh {
+								marker.ContextAfter = &contextusage.ContextAfter{Used: 0, Sequence: 14}
+							}
+							return []session.CompactionEnvelope{marker}, nil
+						},
+					}
+					fixture := newHandlerFixture(
+						t,
+						manager.StubSessionManager,
+						testutil.StubObserver{},
+						testutil.StubWorkspaceService{},
+					)
+					fixture.Handlers.Sessions = manager
+					response := performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/workspaces/ws-workspace/sessions/sess-a/usage",
+						nil,
+					)
+					if response.Code != http.StatusOK {
+						t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+					}
+					var payload contract.SessionUsageResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+						t.Fatal(err)
+					}
+					c := payload.Usage.Context
+					if fresh {
+						if c.State != contract.SessionContextStateReported || c.ClearedBy != nil || c.Used == nil ||
+							*c.Used != 0 ||
+							strings.Contains(response.Body.String(), "cleared_by") {
+							t.Fatalf("fresh context=%#v body=%s", c, response.Body.String())
+						}
+					} else if c.State != contract.SessionContextStateUnknown || c.ClearedBy == nil || c.ClearedBy.CompactionID != "c1" || c.ClearedBy.Sequence != 12 {
+						t.Fatalf("cleared context=%#v", c)
+					}
+					response = performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/workspaces/ws-workspace/sessions/sess-a/usage/turns",
+						nil,
+					)
+					if response.Code != http.StatusOK {
+						t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+					}
+					var turns contract.SessionUsageTurnsResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &turns); err != nil {
+						t.Fatal(err)
+					}
+					if len(turns.Compactions) != 1 {
+						t.Fatalf("markers=%#v", turns.Compactions)
+					}
+					after := turns.Compactions[0].ContextAfter
+					if fresh {
+						if after == nil || after.Used != 0 || after.Sequence != 14 || after.Size != nil {
+							t.Fatalf("after=%#v", after)
+						}
+						var body struct {
+							Compactions []map[string]json.RawMessage `json:"compactions"`
+						}
+						if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+							t.Fatal(err)
+						}
+						var fields map[string]json.RawMessage
+						if err := json.Unmarshal(body.Compactions[0]["context_after"], &fields); err != nil {
+							t.Fatal(err)
+						}
+						if _, exists := fields["size"]; exists {
+							t.Fatalf("unknown after size serialized: %s", response.Body.String())
+						}
+					} else if after != nil || strings.Contains(response.Body.String(), "context_after") {
+						t.Fatalf("absent after fabricated: %s", response.Body.String())
+					}
+				})
+			}
+		},
+	)
+
+	t.Run(
 		"Should distinguish reported unknown and unavailable context while retaining aggregate cache counts",
 		func(t *testing.T) {
 			t.Parallel()
@@ -1589,9 +1897,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 							}, nil
 						},
 					}
-					fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-					fixture.Handlers.Config.Session.Compaction.Enabled = true
-					fixture.Handlers.Config.Session.Compaction.PressureThreshold = 0.85
+					fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 					response := performRequest(
 						t,
 						fixture.Engine,
@@ -1632,7 +1938,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 				{Sequence: 10, TurnID: "A", Usage: acp.TokenUsage{ContextUsed: new(int64(80))}},
 			}, nil
 		}}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.ContextWindowResolver = sessionContextWindowFunc(
 			func(_ context.Context, provider, model string) (*int64, error) {
 				if provider != "claude" || model != "model-a" {
@@ -1641,8 +1947,6 @@ func TestSessionUsageEndpoint(t *testing.T) {
 				return new(int64(100)), nil
 			},
 		)
-		fixture.Handlers.Config.Session.Compaction.Enabled = true
-		fixture.Handlers.Config.Session.Compaction.PressureThreshold = 0.85
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1659,12 +1963,11 @@ func TestSessionUsageEndpoint(t *testing.T) {
 		}
 		c := payload.Usage.Context
 		if c.State != contract.SessionContextStateEstimatedSize || c.Size == nil || *c.Size != 100 ||
-			c.SizeSource != "catalog" ||
-			c.PressureThreshold != nil {
+			c.SizeSource != "catalog" {
 			t.Fatalf("catalog context=%#v", c)
 		}
 	})
-	t.Run("Should expose usage and delivery turn union with truthful compaction archive facts", func(t *testing.T) {
+	t.Run("Should expose usage and delivery turn union with native compaction lifecycle facts", func(t *testing.T) {
 		t.Parallel()
 		at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
 		manager := testutil.StubSessionManager{
@@ -1728,23 +2031,19 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			CompactionsFn: func(context.Context, string) ([]session.CompactionEnvelope, error) {
 				return []session.CompactionEnvelope{
 					{
-						Sequence:     40,
-						At:           at,
-						SpanArchived: true,
+						Sequence: 40,
+						At:       at,
+						TurnID:   "B",
+						Status:   "completed",
 						Payload: session.CompactionFiredPayload{
-							TurnID:       "B",
-							FromSequence: 1,
-							ToSequence:   8,
-							ContextUsed:  85,
-							ContextSize:  100,
-							Pressure:     0.85,
-							Strategy:     "summary_archive",
+							CompactionID: "compact-B", Trigger: "agent",
+							ContextUsed: new(int64(85)), ContextSize: new(int64(100)),
 						},
 					},
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1816,7 +2115,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1902,7 +2201,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1960,7 +2259,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1996,7 +2295,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -2037,7 +2336,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -2065,8 +2364,6 @@ func TestLogsEndpointsRequireObserver(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Observer = nil
 
@@ -2165,7 +2462,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := performRequest(
@@ -2226,7 +2523,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				}}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		var logs bytes.Buffer
 		fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
@@ -2314,7 +2611,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				emitted = append(emitted, event)
 			},
 		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := performRequest(
@@ -2416,7 +2713,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := testutil.PerformRequestWithHeaders(
@@ -2473,7 +2770,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				return transcript.ChangePage{}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 
 		streamResp := performRequest(
 			t,
@@ -2515,7 +2812,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				return transcript.ChangePage{}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 
 		streamResp := testutil.PerformRequestWithHeaders(
 			t,
@@ -2546,8 +2843,6 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, query := range []string{"replay=snapshot", "replay="} {
 			streamResp := performRequest(
@@ -2574,8 +2869,6 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, name := range []string{"epoch", "generation"} {
 			streamResp := performRequest(
@@ -2623,7 +2916,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				}
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := performRequest(
@@ -2653,7 +2946,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should serve profile-scoped agent reads and report missing definitions", func(t *testing.T) {
+	t.Run("Should serve agent reads through the selected profile", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(
@@ -2661,11 +2954,8 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
-		testutil.WriteAgentDef(t, fixture.HomePaths, "onboarding")
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		marketingCoderPath := filepath.Join(
 			fixture.HomePaths.ProfilesDir,
@@ -2685,21 +2975,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			t.Fatalf("get agent status = %d, want %d", getResp.Code, http.StatusOK)
 		}
 
-		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-		if listResp.Code != http.StatusOK {
-			t.Fatalf("list agents status = %d, want %d", listResp.Code, http.StatusOK)
-		}
-		var listed contract.AgentsResponse
-		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
-			t.Fatalf("json.Unmarshal(list agents) error = %v", err)
-		}
-		if len(listed.Agents) != 2 || listed.Agents[0].Name != "coder" || listed.Agents[1].Name != "onboarding" {
-			t.Fatalf("listed agents = %#v, want coder and onboarding", listed.Agents)
-		}
-		onboardingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/onboarding", nil)
-		if onboardingResp.Code != http.StatusOK {
-			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusOK)
-		}
 		marketingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder?profile=marketing", nil)
 		if marketingResp.Code != http.StatusOK {
 			t.Fatalf(
@@ -2717,11 +2992,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 				marketingPayload.Agent,
 			)
 		}
-
-		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
-		if missingResp.Code != http.StatusNotFound {
-			t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
-		}
 	})
 
 	t.Run("Should serve resource-backed agents through the selected profile lens", func(t *testing.T) {
@@ -2732,8 +3002,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
@@ -2779,8 +3047,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		syncer := &recordingAgentDefinitionSync{}
 		fixture.Handlers.AgentDefinitionSync = syncer
@@ -2870,11 +3136,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 						t.Fatalf("ResolveForProfile() profile = %q, want marketing", profileName)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-alpha",
-							Name:    "alpha",
-							RootDir: workspaceRoot,
-						},
+						ID:          "ws-alpha",
+						Name:        "alpha",
+						RootDir:     workspaceRoot,
 						WorkspaceID: "01DURABLEWORKSPACEIDENTITY",
 						ProfileName: profileName,
 						Config: compozyconfig.Config{
@@ -2883,8 +3147,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope:     contract.AgentCreateScopeWorkspace,
@@ -2939,8 +3201,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		resp := performRequest(
 			t,
@@ -2976,8 +3236,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
 		resp := performRequest(
@@ -3013,8 +3271,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Config = compozyconfig.Config{}
 		body := mustJSON(t, contract.CreateAgentRequest{
@@ -3042,8 +3298,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Config = compozyconfig.Config{}
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
@@ -3079,8 +3333,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Config = compozyconfig.Config{}
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
@@ -3109,8 +3361,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		syncErr := errors.New("sync unavailable")
 		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, nil}}
@@ -3154,8 +3404,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
@@ -3249,8 +3497,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 					testutil.StubSessionManager{},
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", mustJSON(t, tc.req))
 				if resp.Code != http.StatusBadRequest {
@@ -3273,8 +3519,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
@@ -3306,8 +3550,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				},
 			},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope:     contract.AgentCreateScopeWorkspace,
@@ -3354,11 +3596,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 						t.Fatalf("workspace resolution = %q, %q", ref, profile)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						ID: "ws-1", RootDir: workspaceRoot,
 						ProfileID: "profile-marketing", ProfileName: "marketing",
 					}, nil
 				},
-			}, nil, nil)
+			})
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
 			listForWorkspace: func(resolved *workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
@@ -3457,8 +3699,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3520,8 +3760,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(
 			t.TempDir(),
@@ -3593,8 +3831,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if _, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3655,8 +3891,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3727,8 +3961,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3749,7 +3981,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			"/agents/coder",
 			mustJSON(t, contract.UpdateAgentRequest{
 				Agent: contract.CreateAgentPayload{
-					Name: "dreaming-curator", Provider: "codex", Prompt: "Replacement.",
+					Name: "coordinator", Provider: "codex", Prompt: "Replacement.",
 				},
 				ExpectedDigest: digest,
 			}),
@@ -3825,14 +4057,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
+						ID: "ws-registry", RootDir: workspaceRoot,
 						WorkspaceID: "ws-identity",
 						Agents:      []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if _, err := compozyconfig.CreateAgentDefFile(globalPath, compozyconfig.AgentDefinitionDraft{
@@ -3903,13 +4133,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
-						Agents:    []compozyconfig.AgentDef{workspaceAgent},
+						ID: "ws-alpha", RootDir: workspaceRoot,
+						Agents: []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		purgeErr := errors.New("history unavailable")
 		fixture.Handlers.SoulHistoryPurger = &recordingSoulHistoryPurger{err: purgeErr}
@@ -3954,14 +4182,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
+						ID: "ws-registry", RootDir: workspaceRoot,
 						WorkspaceID: "ws-identity",
 						Agents:      []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		fixture.Handlers.SoulHistoryPurger = &recordingSoulHistoryPurger{}
 		fixture.Handlers.HeartbeatHistoryPurger = &recordingHeartbeatHistoryPurger{}
@@ -4002,13 +4228,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
-						Agents:    []compozyconfig.AgentDef{workspaceAgent},
+						ID: "ws-registry", RootDir: workspaceRoot,
+						Agents: []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if err := os.MkdirAll(filepath.Dir(globalPath), 0o700); err != nil {
@@ -4043,8 +4267,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
-				nil,
-				nil,
 			)
 			sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 			if _, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
@@ -4184,14 +4406,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						ID: "ws-1", RootDir: workspaceRoot,
 						WorkspaceID: "ws-identity",
 						Agents:      []compozyconfig.AgentDef{source},
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		resp := performRequest(
 			t,
@@ -4265,8 +4485,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if _, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
@@ -4307,8 +4525,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		tests := []struct {
 			name   string
@@ -4413,8 +4629,6 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, draft := range []compozyconfig.AgentDefinitionDraft{
 			{Name: "zeta", Provider: "codex", Prompt: "Zeta prompt"},
@@ -4445,6 +4659,23 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		if listed.Agents[0].Origin != contract.AgentOriginGlobal || listed.Agents[0].DefinitionDigest == "" ||
 			listed.Agents[0].Skills == nil || len(listed.Agents[0].Skills.Disabled) != 1 {
 			t.Fatalf("listed alpha read shape = %#v", listed.Agents[0])
+		}
+		firstResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/catalog?limit=1", nil)
+		var first contract.AgentCatalogResponse
+		decodeJSON(t, firstResp.Body.Bytes(), &first)
+		if firstResp.Code != http.StatusOK || first.Page.Total != 3 || !first.Page.HasMore ||
+			len(first.Agents) != 1 || first.Agents[0].Agent.Name != "alpha" ||
+			first.Agents[0].Agent.Origin != contract.AgentOriginGlobal ||
+			first.Agents[0].Agent.DefinitionDigest != listed.Agents[0].DefinitionDigest {
+			t.Fatalf("Global fleet = status %d payload %#v", firstResp.Code, first)
+		}
+		secondResp := performRequest(t, fixture.Engine, http.MethodGet,
+			"/agents/catalog?limit=1&cursor="+first.Page.NextCursor, nil)
+		var second contract.AgentCatalogResponse
+		decodeJSON(t, secondResp.Body.Bytes(), &second)
+		if secondResp.Code != http.StatusOK || len(second.Agents) != 1 ||
+			second.Agents[0].Agent.Name != "onboarding" || second.Page.Total != 3 {
+			t.Fatalf("Global fleet continuation = status %d payload %#v", secondResp.Code, second)
 		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/alpha", nil)
@@ -4487,9 +4718,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID: "registry-ws-1", Name: workspaceRef, RootDir: "/workspace",
-						},
+						ID: "registry-ws-1", Name: workspaceRef, RootDir: "/workspace",
 						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
@@ -4505,8 +4734,6 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
 			agents: []compozyconfig.AgentDef{
@@ -4678,7 +4905,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						ID: "ws-1", Name: workspaceRef,
 						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "alpha", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
@@ -4688,8 +4915,6 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 
 		firstResp := performRequest(
@@ -4799,8 +5024,8 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 		t.Parallel()
 
 		profiles := &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{
-			{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
-			{Profile: profilepkg.Profile{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}},
+			{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+			{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
 		}}
 		fixture := newHandlerFixture(
 			t,
@@ -4809,7 +5034,7 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-team", Name: "team", RootDir: "/workspace/team"},
+						ID: "ws-team", Name: "team", RootDir: "/workspace/team",
 						ProfileDeclarations: []workspacepkg.ProfileDeclaration{
 							{Name: "dev", Path: "/workspace/team/.compozy/profiles/dev"},
 							{Name: "marketing", Path: "/workspace/team/.compozy/profiles/marketing"},
@@ -4818,8 +5043,6 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Profiles = profiles
 
@@ -4836,9 +5059,8 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 			t.Fatalf("workspace profile hints = %#v, want dev create hint only", detail.ProfileHints)
 		}
 
-		profiles.profiles = append(profiles.profiles, profilepkg.WithCounts{Profile: profilepkg.Profile{
-			ID: "profile-dev", Name: "dev", State: profilepkg.StateActive,
-		}})
+		profiles.profiles = append(profiles.profiles, profilepkg.WithCounts{
+			ID: "profile-dev", Name: "dev", State: profilepkg.StateActive})
 		response = performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-team", nil)
 		if response.Code != http.StatusOK {
 			t.Fatalf("workspace hints after adoption status = %d, want 200", response.Code)
@@ -4901,143 +5123,6 @@ func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (core.AgentCa
 	}, nil
 }
 
-func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should include network diagnostics in daemon status without leaking credentials", func(t *testing.T) {
-		t.Parallel()
-
-		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{{ID: "sess-1"}}, nil
-			},
-		}
-		observer := testutil.StubObserver{
-			HealthFn: func(context.Context) (observe.Health, error) {
-				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-			},
-		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-		fixture.Handlers.Config.Network.Enabled = true
-		fixture.Handlers.Network = testutil.StubNetworkService{
-			StatusFn: func(context.Context) (*network.Status, error) {
-				return &network.Status{
-					Enabled:    true,
-					Status:     network.StatusActive,
-					LocalPeers: 1,
-					Channels:   3,
-				}, nil
-			},
-		}
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("daemon status = %d, want %d", resp.Code, http.StatusOK)
-		}
-
-		var payload struct {
-			Daemon contract.DaemonStatusPayload `json:"daemon"`
-		}
-		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Daemon.Network == nil {
-			t.Fatal("daemon network payload = nil, want diagnostics")
-		}
-		if got, want := payload.Daemon.Network.LocalPeers, 1; got != want {
-			t.Fatalf("daemon network Live participants = %d, want %d", got, want)
-		}
-		if got, want := payload.Daemon.Network.Channels, 3; got != want {
-			t.Fatalf("daemon network channels = %d, want %d", got, want)
-		}
-		bodyLower := strings.ToLower(resp.Body.String())
-		for _, forbidden := range []string{
-			"token=",
-			"claim_token",
-			"compozy_claim_",
-			"authorization: bearer",
-			"pkce_verifier",
-			"oauth_code",
-			"access_token",
-			"refresh_token",
-			"secret_binding",
-		} {
-			if strings.Contains(bodyLower, forbidden) {
-				t.Fatalf("daemon status leaked credentials (%s): %s", forbidden, resp.Body.String())
-			}
-		}
-	})
-
-	t.Run("Should report enabled network as unavailable when status cannot be collected", func(t *testing.T) {
-		t.Parallel()
-
-		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{{ID: "sess-1"}}, nil
-			},
-		}
-		observer := testutil.StubObserver{
-			HealthFn: func(context.Context) (observe.Health, error) {
-				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-			},
-		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-		fixture.Handlers.Config.Network.Enabled = true
-		fixture.Handlers.Network = nil
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("doctor status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-		}
-		var payload contract.DoctorPayload
-		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(doctor) error = %v", err)
-		}
-		for _, item := range payload.Items {
-			if item.ID != "doctor.network.status" {
-				continue
-			}
-			if item.Code != contract.CodeNetworkUnavailable || item.Severity != contract.SeverityWarn {
-				t.Fatalf("network diagnostic = %#v, want unavailable warning", item)
-			}
-			return
-		}
-		t.Fatalf("doctor items = %#v, want network diagnostic", payload.Items)
-	})
-
-	t.Run("Should keep doctor status ok for informational diagnostics", func(t *testing.T) {
-		t.Parallel()
-
-		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{{ID: "sess-1"}}, nil
-			},
-		}
-		observer := testutil.StubObserver{
-			HealthFn: func(context.Context) (observe.Health, error) {
-				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-			},
-		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-		fixture.Handlers.Config.Network.Enabled = false
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("doctor status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-		}
-		var payload contract.DoctorPayload
-		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(doctor) error = %v", err)
-		}
-		for _, item := range payload.Items {
-			if item.ID == "doctor.network.status" &&
-				item.Code == contract.CodeNetworkDisabled &&
-				item.Severity == contract.SeverityInfo {
-				return
-			}
-		}
-		t.Fatalf("doctor items = %#v, want disabled network info diagnostic", payload.Items)
-	})
-}
-
 func TestDoctorProjectsProfileLayerDiagnostics(t *testing.T) {
 	t.Parallel()
 
@@ -5048,11 +5133,9 @@ func TestDoctorProjectsProfileLayerDiagnostics(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Profiles = &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{{
-			Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
 		}}}
 		orphanDir := filepath.Join(fixture.HomePaths.ProfilesDir, "ghost")
 		if err := os.MkdirAll(orphanDir, 0o755); err != nil {
@@ -5096,8 +5179,6 @@ func TestDoctorLogTailDiagnosticIncludesCapabilityEvidence(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Settings = &stubSettingsService{
 			GetSectionFn: func(
@@ -5148,13 +5229,11 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 		t.Parallel()
 
 		manager := subprocessHealthSessionManager{
-			StubSessionManager: testutil.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{
-						{ID: "sess-health-a", WorkspaceID: "ws-a", State: session.StateActive},
-						{ID: "sess-health-b", WorkspaceID: "ws-b", State: session.StateActive},
-					}, nil
-				},
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{
+					{ID: "sess-health-a", WorkspaceID: "ws-a", State: session.StateActive},
+					{ID: "sess-health-b", WorkspaceID: "ws-b", State: session.StateActive},
+				}, nil
 			},
 			snapshots: []session.SubprocessHealthSnapshot{
 				{
@@ -5189,14 +5268,17 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 			manager.StubSessionManager,
 			observer,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Sessions = manager
 
 		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status?workspace_id=ws-a", nil)
 		if statusResponse.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", statusResponse.Code, http.StatusOK, statusResponse.Body.String())
+		}
+		var statusShape map[string]json.RawMessage
+		decodeJSON(t, statusResponse.Body.Bytes(), &statusShape)
+		if string(statusShape["schema_version"]) != `"2026-10-07"` || statusShape["memory"] != nil {
+			t.Fatalf("IT-012 status contract = %s", statusResponse.Body.String())
 		}
 		var statusPayload contract.StatusPayload
 		decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
@@ -5262,10 +5344,8 @@ func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {
 					t.Fatalf("Resolve() ref = %q, want ws-a", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      "ws-a",
-						RootDir: "/workspaces/ws-a",
-					},
+					ID:          "ws-a",
+					RootDir:     "/workspaces/ws-a",
 					WorkspaceID: "ws-a",
 				}, nil
 			},
@@ -5275,8 +5355,6 @@ func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			workspaces,
-			nil,
-			nil,
 		)
 		fixture.Handlers.SkillsRegistry = registry
 
@@ -5332,7 +5410,7 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		controller := &testDrainController{}
 		controller.settled.Store(true)
 		fixture.Handlers.DrainController = controller
@@ -5470,8 +5548,6 @@ func TestLogsEndpointsRejectConflictingAliases(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, path := range []string{
 			"/logs?after_seq=1&after_sequence=2",
@@ -5498,8 +5574,6 @@ func TestDoctorSessionMetadataProbe(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Sessions = metadataDoctorSessions{}
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=runtime.session_metadata", nil)
@@ -5546,4 +5620,151 @@ func assertSessionContextGolden(t *testing.T, name string, actual []byte) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("wire contract %s mismatch\ngot: %s\nwant: %s", name, actual, expected)
 	}
+}
+
+func TestCreateSessionLineageKind(t *testing.T) {
+	t.Parallel()
+
+	newFixture := func(t *testing.T, captured *atomic.Pointer[session.CreateOpts]) handlerFixture {
+		t.Helper()
+		manager := testutil.StubSessionManager{
+			CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := acceptedOpts.Session
+				captured.Store(&opts)
+				created := testutil.NewSessionInfo("sess-created")
+				created.ProfileID = opts.ProfileID
+				created.State = session.StateActive
+				created.RuntimeStatus = session.RuntimeStatusUnbound
+				return created, nil
+			},
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				info := testutil.NewSessionInfo(id)
+				info.ProfileID = store.DefaultProfileID
+				return info, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		return fixture
+	}
+
+	t.Run("Should map an accepted lineage kind onto the create options", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			body string
+			want store.LineageKind
+		}{
+			{
+				name: "Should record recovery",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p","lineage_kind":"recovery"}`,
+				want: store.LineageKindRecovery,
+			},
+			{
+				name: "Should default a parented create to provenance",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p"}`,
+				want: store.LineageKindProvenance,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var captured atomic.Pointer[session.CreateOpts]
+				fixture := newFixture(t, &captured)
+				response := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(tt.body))
+				if response.Code != http.StatusCreated {
+					t.Fatalf(
+						"create status = %d, want %d; body=%s",
+						response.Code,
+						http.StatusCreated,
+						response.Body.String(),
+					)
+				}
+				opts := captured.Load()
+				if opts == nil || opts.Lineage == nil || opts.Lineage.ParentSessionID != "sess-p" ||
+					opts.Lineage.Kind != tt.want {
+					t.Fatalf("CreateAccepted opts = %#v, want parent sess-p with kind %q", opts, tt.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject lineage kinds a plain create cannot record", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			body string
+		}{
+			{
+				name: "Should reject recovery without a parent",
+				body: `{"agent_name":"coder","workspace":"alpha","lineage_kind":"recovery"}`,
+			},
+			{
+				name: "Should reject fork",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p","lineage_kind":"fork"}`,
+			},
+			{
+				name: "Should reject spawn",
+				body: `{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-p","lineage_kind":"spawn"}`,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var captured atomic.Pointer[session.CreateOpts]
+				fixture := newFixture(t, &captured)
+				response := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(tt.body))
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"create status = %d, want %d; body=%s",
+						response.Code,
+						http.StatusBadRequest,
+						response.Body.String(),
+					)
+				}
+				if captured.Load() != nil {
+					t.Fatal("CreateAccepted() called for a rejected lineage kind")
+				}
+			})
+		}
+	})
+}
+
+// The events transport rejects invalid component filters before querying storage.
+func TestEventsRejectInvalidComponentsIT014(t *testing.T) {
+	t.Parallel()
+	for _, component := range []string{"memory", "nope"} {
+		t.Run("Should reject component "+component, func(t *testing.T) {
+			t.Parallel()
+			observer := testutil.StubObserver{
+				QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+					t.Fatal("invalid component reached observer")
+					return nil, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Observer: observer})
+			engine := gin.New()
+			engine.GET("/api/events", handlers.ListLogs)
+			response := performRequest(t, engine, http.MethodGet, "/api/events?component="+component, nil)
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "invalid event summary component") {
+				t.Fatalf(
+					"events status = %d body=%s, want invalid component 400",
+					response.Code,
+					response.Body.String(),
+				)
+			}
+		})
+	}
+}
+
+// The richer reader preserves the first terminal boundary even when a marker is corrected.
+type usageBoundarySessionManager struct{ testutil.StubSessionManager }
+
+func (usageBoundarySessionManager) CompactionClearBoundary(context.Context, string) (*contextusage.ClearedBy, error) {
+	return &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}, nil
 }

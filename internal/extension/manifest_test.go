@@ -1,7 +1,6 @@
 package extensionpkg
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -236,7 +234,7 @@ func TestLoadManifestSynthesizesAgentPluginPackages(t *testing.T) {
 		}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("Skills = %#v, want %#v", got, want)
 		}
-		if err := validateStaticKitResources(context.Background(), root, first); err != nil {
+		if err := validateStaticKitResources(t.Context(), root, first); err != nil {
 			t.Fatalf("validateStaticKitResources() error = %v", err)
 		}
 		stdio := first.Resources.MCPServers["local"]
@@ -374,11 +372,67 @@ func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
 			t.Fatalf("unexpected JSON manifest\n got: %#v\nwant: %#v", *gotJSON, want)
 		}
 	})
-	t.Run("ShouldParseTOMLAndJSONEquivalently", func(t *testing.T) {
-		if !reflect.DeepEqual(*gotTOML, *gotJSON) {
-			t.Fatalf("TOML and JSON manifests differ\n toml: %#v\n json: %#v", *gotTOML, *gotJSON)
-		}
-	})
+}
+
+func TestLoadManifestResourcePathCompatibility(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		fileName string
+		content  string
+	}{
+		{
+			name:     "Should normalize TOML string paths while preserving explicit placements",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "passive-kit"
+version = "0.1.0"
+min_compozy_version = "0.3.0-beta.13"
+[resources]
+skills = [" skills/shared ", {path = "skills/studio", profile = "studio"}]
+agents = ["agents"]
+loops = ["loops"]
+automation = ["automation"]
+layouts = ["layouts"]
+`,
+		},
+		{
+			name:     "Should normalize JSON string paths while preserving explicit placements",
+			fileName: manifestJSONFileName,
+			content:  `{"extension":{"name":"passive-kit","version":"0.1.0","min_compozy_version":"0.3.0-beta.13"},"resources":{"skills":[" skills/shared ",{"path":"skills/studio","profile":"studio"}],"agents":["agents"],"loops":["loops"],"automation":["automation"],"layouts":["layouts"]}}`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, test.fileName), test.content)
+			manifest, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatalf("LoadManifest() error = %v", err)
+			}
+			want := ResourcesConfig{
+				Skills:     []ManifestResourcePath{{Path: "skills/shared"}, {Path: "skills/studio", Profile: "studio"}},
+				Agents:     []ManifestResourcePath{{Path: "agents"}},
+				Loops:      []ManifestResourcePath{{Path: "loops"}},
+				Automation: []ManifestResourcePath{{Path: "automation"}},
+				Layouts:    []ManifestResourcePath{{Path: "layouts"}},
+			}
+			if !reflect.DeepEqual(manifest.Resources, want) {
+				t.Fatalf("Resources = %#v, want %#v", manifest.Resources, want)
+			}
+			encoded, err := encodeManifestTOML(manifest)
+			if err != nil {
+				t.Fatalf("encodeManifestTOML() error = %v", err)
+			}
+			roundTrip, err := loadManifestTOMLContent(manifestTOMLFileName, encoded)
+			if err != nil {
+				t.Fatalf("loadManifestTOMLContent() error = %v", err)
+			}
+			if !reflect.DeepEqual(roundTrip.Resources, want) {
+				t.Fatalf("round-trip resources = %#v, want %#v", roundTrip.Resources, want)
+			}
+		})
+	}
 }
 
 func TestLoadManifestV2RejectsUnknownAndLegacyContracts(t *testing.T) {
@@ -391,6 +445,47 @@ func TestLoadManifestV2RejectsUnknownAndLegacyContracts(t *testing.T) {
 		wantField     string
 		wantFragments []string
 	}{
+		{
+			name:     "Should reject unknown fields in a TOML resource path",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "unknown-placement"
+version = "0.1.0"
+min_compozy_version = "0.3.0-beta.13"
+[[resources.agents]]
+path = "agents"
+profiel = "studio"
+`,
+			wantField:     "resources.agents.profiel",
+			wantFragments: []string{"unknown manifest field"},
+		},
+		{
+			name:          "Should reject unknown fields in a JSON resource path",
+			fileName:      manifestJSONFileName,
+			content:       `{"extension":{"name":"unknown-placement","version":"0.1.0","min_compozy_version":"0.3.0-beta.13"},"resources":{"agents":[{"path":"agents","profiel":"studio"}]}}`,
+			wantField:     "resources.profiel",
+			wantFragments: []string{"unknown manifest field"},
+		},
+		{
+			name:     "Should reject retired Network participation in TOML with Gateway guidance",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "retired-participation"
+version = "0.1.0"
+min_compozy_version = "0.6.0"
+[network_participation]
+permissions = ["network.gateway.private"]
+`,
+			wantField:     "network_participation",
+			wantFragments: []string{"[gateway]", "confirm"},
+		},
+		{
+			name:          "Should reject retired Network participation in JSON with Gateway guidance",
+			fileName:      manifestJSONFileName,
+			content:       `{"extension":{"name":"retired-participation","version":"0.1.0","min_compozy_version":"0.6.0"},"network_participation":{"permissions":["network.gateway.private"]}}`,
+			wantField:     "network_participation",
+			wantFragments: []string{"[gateway]", "confirm"},
+		},
 		{
 			name:     "Should reject an unknown provide and list the closed set",
 			fileName: manifestTOMLFileName,
@@ -405,9 +500,8 @@ provides = ["prompt.provider"]
 			wantField: "capabilities.provides[0]",
 			wantFragments: []string{
 				"prompt.provider",
-				"bridge.adapter",
 				"loop.watch_source",
-				"memory.backend",
+				"view.provider",
 				"model.source",
 				"tool.provider",
 			},
@@ -547,7 +641,7 @@ path = "agents/"
 path = "\t"
 
 [capabilities]
-provides = ["memory.backend", "   "]
+provides = ["view.provider", "   "]
 
 [permissions]
 requires = ["sessions/list", ""]
@@ -568,8 +662,8 @@ args = ["--config", " ", "\t", "config.toml"]
 	if !reflect.DeepEqual(manifestResourcePaths(manifest.Resources.Agents), []string{"agents/"}) {
 		t.Fatalf("Resources.Agents = %#v, want %#v", manifest.Resources.Agents, []string{"agents/"})
 	}
-	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"memory.backend"}) {
-		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"memory.backend"})
+	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"view.provider"}) {
+		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"view.provider"})
 	}
 	if !reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) {
 		t.Fatalf("Actions.Requires = %#v, want %#v", manifest.Permissions.Requires, []string{"sessions/list"})
@@ -608,7 +702,6 @@ icon = "chart-line"
 [profiles.defaults]
 agent = "growth-analyst"
 provider = "openai"
-sandbox = "workspace-write"
 
 [[profiles.credentials]]
 provider = "openai"
@@ -666,7 +759,7 @@ version = "1.0.0"
 min_compozy_version = "0.5.0"
 
 [capabilities]
-provides = ["memory.backend"]
+provides = ["view.provider"]
 
 [permissions]
 requires = ["sessions/list"]
@@ -737,8 +830,8 @@ min_compozy_version = "0.5.0"
 
 `+testCase.fragment+"\n")
 			_, err := LoadManifest(dir)
-			var validationErr *ManifestValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, ok := errors.AsType[*ManifestValidationError](err)
+			if !ok {
 				t.Fatalf("LoadManifest() error = %T %v, want ManifestValidationError", err, err)
 			}
 			if validationErr.Field != testCase.field {
@@ -746,60 +839,6 @@ min_compozy_version = "0.5.0"
 			}
 		})
 	}
-}
-
-func TestLoadManifestParsesNetworkHookMatcher(t *testing.T) {
-	t.Run("Should parse network hook matcher", func(t *testing.T) {
-		withDaemonVersion(t, "0.6.0")
-
-		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
-name = "network-observer"
-version = "0.1.0"
-description = "Network hook observer"
-min_compozy_version = "0.5.0"
-
-[[resources.hooks]]
-name = "observe-network"
-event = "network.message.persisted"
-mode = "async"
-executor.kind = "subprocess"
-executor.command = "node"
-
-[resources.hooks.matcher]
-channel = "builders"
-surface = "thread"
-kind = "trace"
-direction = "received"
-work_state = "completed"
-`)
-
-		manifest, err := LoadManifest(dir)
-		if err != nil {
-			t.Fatalf("LoadManifest() error = %v", err)
-		}
-		if got, want := len(manifest.Resources.Hooks), 1; got != want {
-			t.Fatalf("len(Resources.Hooks) = %d, want %d", got, want)
-		}
-		matcher := manifest.Resources.Hooks[0].Matcher
-		if matcher.Channel != "builders" ||
-			matcher.Surface != "thread" ||
-			matcher.Kind != "trace" ||
-			matcher.Direction != "received" ||
-			matcher.WorkState != "completed" {
-			t.Fatalf("Hook matcher = %#v, want parsed network fields", matcher)
-		}
-
-		hookMatcher := hookConfigMatcher(matcher)
-		if hookMatcher.NetworkMatcher == nil ||
-			hookMatcher.Channel != "builders" ||
-			hookMatcher.Surface != "thread" ||
-			hookMatcher.Kind != "trace" ||
-			hookMatcher.Direction != "received" ||
-			hookMatcher.WorkState != "completed" {
-			t.Fatalf("hookConfigMatcher() = %#v, want network matcher fields", hookMatcher)
-		}
-	})
 }
 
 func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
@@ -812,11 +851,9 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		decl := hookspkg.HookDecl{
 			Matcher: hookspkg.HookMatcher{
 				ToolReadOnly: &toolReadOnly,
-				NetworkMatcher: &hookspkg.NetworkMatcher{
-					Channel: "builders",
-				},
+
 				CompactionMatcher: &hookspkg.CompactionMatcher{
-					Reason: "size",
+					Trigger: "agent",
 				},
 				Autonomy: &hookspkg.AutonomyMatcher{
 					TaskID: "task-1",
@@ -825,16 +862,12 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		}
 
 		cloned := cloneHookDecl(decl)
-		cloned.Matcher.Channel = "ops"
-		cloned.Matcher.Reason = "time"
+		cloned.Matcher.Trigger = "requested"
 		cloned.Matcher.Autonomy.TaskID = "task-2"
 		*cloned.Matcher.ToolReadOnly = false
 
-		if got, want := decl.Matcher.Channel, "builders"; got != want {
-			t.Fatalf("source NetworkMatcher.Channel = %q, want %q", got, want)
-		}
-		if got, want := decl.Matcher.Reason, "size"; got != want {
-			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
+		if got, want := decl.Matcher.Trigger, "agent"; got != want {
+			t.Fatalf("source CompactionMatcher.Trigger = %q, want %q", got, want)
 		}
 		if got, want := decl.Matcher.Autonomy.TaskID, "task-1"; got != want {
 			t.Fatalf("source Autonomy.TaskID = %q, want %q", got, want)
@@ -1135,38 +1168,6 @@ func TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions(t *testi
 	}
 }
 
-func TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints(t *testing.T) {
-	t.Parallel()
-
-	cfg := normalizeBridgeConfig(BridgeConfig{
-		Platform:    " slack ",
-		DisplayName: " Slack ",
-		SecretSlots: []bridgepkg.BridgeSecretSlot{
-			{Name: " bot_token ", Description: " Bot token ", Required: true},
-		},
-		ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  " compozy.bridge.slack ",
-			Version: " v1 ",
-		},
-	})
-
-	if got, want := cfg.Platform, "slack"; got != want {
-		t.Fatalf("cfg.Platform = %q, want %q", got, want)
-	}
-	if got, want := cfg.DisplayName, "Slack"; got != want {
-		t.Fatalf("cfg.DisplayName = %q, want %q", got, want)
-	}
-	if got, want := cfg.SecretSlots[0].Name, "bot_token"; got != want {
-		t.Fatalf("cfg.SecretSlots[0].Name = %q, want %q", got, want)
-	}
-	if cfg.ConfigSchema == nil {
-		t.Fatal("cfg.ConfigSchema = nil, want value")
-	}
-	if got, want := cfg.ConfigSchema.Schema, "compozy.bridge.slack"; got != want {
-		t.Fatalf("cfg.ConfigSchema.Schema = %q, want %q", got, want)
-	}
-}
-
 func TestCloneBoolPointer(t *testing.T) {
 	t.Parallel()
 
@@ -1209,7 +1210,7 @@ min_compozy_version = "0.5.0"
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 min_compozy_version = "0.5.0"
 `,
 			wantErr:   ErrManifestInvalid,
@@ -1220,7 +1221,7 @@ min_compozy_version = "0.5.0"
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 version = "0.2.1"
 min_other_version = "0.5.0"
 `,
@@ -1233,7 +1234,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_other_version": "0.5.0"
   }
@@ -1248,7 +1249,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "latest",
     "min_compozy_version": "0.5.0"
   }
@@ -1263,7 +1264,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_compozy_version": "0.5.0"
   },
@@ -1281,7 +1282,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_compozy_version": "0.5.0"
   },
@@ -1332,27 +1333,31 @@ min_other_version = "0.5.0"
 	}
 }
 
-func TestManifestValidateRejectsDaemonOnlyResourcePublishFamily(t *testing.T) {
+func TestManifestValidateRejectsUnknownResourcePublishFamily(t *testing.T) {
 	t.Parallel()
 
-	manifest := expectedManifest()
-	manifest.Resources.Publish = ResourceGrantRequest{
-		Families: []string{"bridge_instances"},
-		MaxScope: resources.ResourceScopeKindUser,
-	}
+	t.Run("Should reject an unknown resource publication family", func(t *testing.T) {
+		t.Parallel()
 
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want non-nil")
-	}
+		manifest := expectedManifest()
+		manifest.Resources.Publish = ResourceGrantRequest{
+			Families: []string{"unknown_family"},
+			MaxScope: resources.ResourceScopeKindUser,
+		}
 
-	validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-	if !validationErrMatched {
-		t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
-	}
-	if got, want := validationErr.Field, "resources.publish"; got != want {
-		t.Fatalf("Validate() field = %q, want %q", got, want)
-	}
+		err := manifest.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want non-nil")
+		}
+
+		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+		if !validationErrMatched {
+			t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
+		}
+		if got, want := validationErr.Field, "resources.publish"; got != want {
+			t.Fatalf("Validate() field = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestManifestValidateRejectsInvalidResourcePublishScope(t *testing.T) {
@@ -1570,129 +1575,6 @@ func TestManifestValidate_RejectsInvalidPermissionName(t *testing.T) {
 	}
 }
 
-func TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	t.Run("Should reject bridge adapters without platform metadata", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-		if !errors.Is(err, ErrManifestInvalid) {
-			t.Fatalf("Validate() error = %v, want ErrManifestInvalid", err)
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if validationErr.Field != "bridge.platform" {
-			t.Fatalf("validation field = %q, want %q", validationErr.Field, "bridge.platform")
-		}
-	})
-
-	t.Run("Should reject bridge adapters without display name metadata", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "telegram"
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if validationErr.Field != "bridge.display_name" {
-			t.Fatalf("validation field = %q, want %q", validationErr.Field, "bridge.display_name")
-		}
-	})
-
-	t.Run("Should accept bridge adapters with complete bridge metadata", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "telegram"
-		manifest.Bridge.DisplayName = "Telegram"
-
-		if err := manifest.Validate(); err != nil {
-			t.Fatalf("Validate() with bridge metadata error = %v", err)
-		}
-	})
-}
-
-func TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	t.Run("Should reject bridge secret slots without names", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "slack"
-		manifest.Bridge.DisplayName = "Slack"
-		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{{Required: true}}
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if got, want := validationErr.Field, "bridge.secret_slots[0]"; got != want {
-			t.Fatalf("validation field = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should reject duplicate bridge secret slot names", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "slack"
-		manifest.Bridge.DisplayName = "Slack"
-		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{
-			{Name: "bot_token", Required: true},
-			{Name: " bot_token ", Required: true},
-		}
-
-		err := manifest.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
-		}
-
-		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
-		if !validationErrMatched {
-			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
-		}
-		if got, want := validationErr.Field, "bridge.secret_slots[1].name"; got != want {
-			t.Fatalf("validation field = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should accept bridge secret slots and config schema hints", func(t *testing.T) {
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-		manifest.Bridge.Platform = "slack"
-		manifest.Bridge.DisplayName = "Slack"
-		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{
-			{Name: "bot_token", Description: "Bot OAuth token", Required: true},
-			{Name: "signing_secret", Description: "Request signing secret", Required: true},
-		}
-		manifest.Bridge.ConfigSchema = &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  "compozy.bridge.slack",
-			Version: "v1",
-		}
-
-		if err := manifest.Validate(); err != nil {
-			t.Fatalf("Validate() error = %v", err)
-		}
-	})
-}
-
 func TestManifestHelpers_ErrorFormattingAndDurationMethods(t *testing.T) {
 	notFound := &ManifestNotFoundError{
 		Dir:   "/tmp/ext",
@@ -1892,9 +1774,9 @@ func duration(value time.Duration) Duration {
 func expectedManifest() Manifest {
 	return Manifest{
 		Format:            FormatCompozy,
-		Name:              "pgvector-memory",
+		Name:              "sample-view",
 		Version:           "0.2.1",
-		Description:       "PostgreSQL pgvector memory backend for Compozy",
+		Description:       "Sample view provider for Compozy",
 		MinCompozyVersion: "0.5.0",
 		Resources: ResourcesConfig{
 			Skills: []ManifestResourcePath{{Path: "skills/"}},
@@ -1941,7 +1823,7 @@ func expectedManifest() Manifest {
 			},
 		},
 		Capabilities: CapabilitiesConfig{
-			Provides: []string{"memory.backend"},
+			Provides: []string{"view.provider"},
 		},
 		Permissions: PermissionsConfig{
 			Requires: []string{"sessions/list", "sessions/events"},
@@ -1959,9 +1841,9 @@ func expectedManifest() Manifest {
 }
 
 const validManifestTOML = `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 version = "0.2.1"
-description = "PostgreSQL pgvector memory backend for Compozy"
+description = "Sample view provider for Compozy"
 min_compozy_version = "0.5.0"
 
 [[resources.skills]]
@@ -1999,7 +1881,7 @@ args = ["--context", "production"]
 env = { KUBECONFIG = "{{env:KUBECONFIG}}" }
 
 [capabilities]
-provides = ["memory.backend"]
+provides = ["view.provider"]
 
 [permissions]
 requires = ["sessions/list", "sessions/events"]
@@ -2019,9 +1901,9 @@ mode = "enabled"
 
 const validManifestJSON = `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
-    "description": "PostgreSQL pgvector memory backend for Compozy",
+    "description": "Sample view provider for Compozy",
     "min_compozy_version": "0.5.0"
   },
   "resources": {
@@ -2069,7 +1951,7 @@ const validManifestJSON = `{
     }
   },
   "capabilities": {
-    "provides": ["memory.backend"]
+    "provides": ["view.provider"]
   },
   "permissions": {
     "requires": ["sessions/list", "sessions/events"]
@@ -2145,8 +2027,8 @@ func TestManifestPackagedInputs(t *testing.T) {
 				if err == nil {
 					t.Fatal("invalid policy accepted")
 				}
-				var validationErr *ManifestValidationError
-				if !errors.As(err, &validationErr) ||
+				validationErr, ok := errors.AsType[*ManifestValidationError](err)
+				if !ok ||
 					!strings.HasPrefix(validationErr.Field, "resources.mcp_servers.example.") {
 					t.Fatalf("diagnostic = %v", err)
 				}
@@ -2618,4 +2500,124 @@ func TestClientPluginManifestPackages(t *testing.T) {
 			t.Fatalf("schema error = %v", err)
 		}
 	})
+}
+
+// Invariant: retired manifest entries cannot block a kept extension or relax unknown-entry validation.
+// Owner: extension manifest ingestion. Canonical suite: manifest_test.go.
+func TestManifestRetiredMemoryEntries(t *testing.T) {
+	t.Parallel()
+	t.Run("Should filter retired provides methods and consent [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{"memory.backend", "tool.provider"}
+		manifest.Permissions.Requires = []string{
+			"memory/recall",
+			"sessions/list",
+			"memory.read",
+			"memory/store",
+			"memory/forget",
+			"memory.write",
+		}
+		dropped := dropRetiredMemoryManifestEntries(&manifest)
+		if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"tool.provider"}) ||
+			!reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) ||
+			len(dropped) != 6 {
+			t.Fatalf("filtered manifest = %#v, dropped = %#v", manifest, dropped)
+		}
+		if !slices.Contains(dropped, "capabilities.provides=memory.backend") ||
+			!slices.Contains(dropped, "permissions.requires=memory/recall") ||
+			!slices.Contains(dropped, "permissions.requires=memory.read") {
+			t.Fatalf("dropped = %#v", dropped)
+		}
+		if err := manifest.Validate(); err != nil {
+			t.Fatalf("Validate() = %v", err)
+		}
+		if again := dropRetiredMemoryManifestEntries(&manifest); len(again) != 0 {
+			t.Fatalf("second filter = %#v", again)
+		}
+		manifest.Capabilities.Provides = append(manifest.Capabilities.Provides, "unknown.backend")
+		dropRetiredMemoryManifestEntries(&manifest)
+		if _, ok := errors.AsType[*ManifestValidationError](manifest.Validate()); !ok {
+			t.Fatal("Validate() should retain unknown capability error")
+		}
+	})
+	for _, format := range []string{"toml", "json"} {
+		t.Run("Should load retired entries through "+format+" install ingestion [UT-021]", func(t *testing.T) {
+			t.Parallel()
+			manifest := expectedManifest()
+			manifest.Resources.Tools = nil
+			manifest.Capabilities.Provides = []string{"memory.backend"}
+			manifest.Permissions.Requires = []string{"memory/store", "memory.write", "sessions/list"}
+			var content []byte
+			var err error
+			if format == "toml" {
+				content, err = encodeManifestTOML(&manifest)
+			} else {
+				content, err = json.Marshal(manifest)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatalf("LoadManifest() = %v", err)
+			}
+			if len(loaded.Capabilities.Provides) != 0 ||
+				!reflect.DeepEqual(loaded.Permissions.Requires, []string{"sessions/list"}) {
+				t.Fatalf("loaded manifest = %#v", loaded)
+			}
+		})
+	}
+}
+
+// Invariant: retired matcher keys preserve hook execution for all native compaction observations.
+func TestManifestCompactionMatcher(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"toml", "json"} {
+		t.Run("Should ignore retired matcher keys in "+format+" [UT-041]", func(t *testing.T) {
+			t.Parallel()
+			manifest := expectedManifest()
+			manifest.Resources.Tools = nil
+			manifest.Resources.Hooks = []HookConfig{
+				{
+					Name:    "compaction",
+					Event:   "context.pre_compact",
+					Mode:    "sync",
+					Command: "echo",
+					Matcher: HookMatcherConfig{CompactionReason: "token_limit", CompactionStrategy: "summary"},
+				},
+			}
+			var content []byte
+			var err error
+			if format == "toml" {
+				content, err = encodeManifestTOML(&manifest)
+			} else {
+				content, err = json.Marshal(manifest)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(loaded.Resources.Hooks) != 1 {
+				t.Fatalf("hooks = %#v", loaded.Resources.Hooks)
+			}
+			matcher := hookConfigMatcher(loaded.Resources.Hooks[0].Matcher)
+			for _, trigger := range []string{"requested", "agent"} {
+				if !matcher.MatchesContextCompact(hookspkg.ContextCompactionPayload{Trigger: trigger}) {
+					t.Fatalf("matcher rejected %s", trigger)
+				}
+			}
+		})
+	}
 }

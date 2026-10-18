@@ -63,4 +63,36 @@ describe("ProfileIdentityDialog", () => {
     expect(screen.getByTestId("profile-identity-confirm")).toBeDisabled();
     expect(onSave).not.toHaveBeenCalled();
   });
+
+  it("Should close from the header's quiet close button, and not while saving", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const { rerender } = renderWithClient(
+      <ProfileIdentityDialog
+        catalog={catalog}
+        open
+        onOpenChange={onOpenChange}
+        profile={marketingProfileFixture}
+        isPending={false}
+        onSave={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProfileIdentityDialog
+          catalog={catalog}
+          open
+          onOpenChange={onOpenChange}
+          profile={marketingProfileFixture}
+          isPending
+          onSave={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  });
 });

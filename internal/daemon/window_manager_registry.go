@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -199,11 +200,7 @@ func (r *windowManagerRegistry) liveRuntimes() []*windowManagerProfileRuntime {
 }
 
 func (r *windowManagerRegistry) liveRuntimesLocked() []*windowManagerProfileRuntime {
-	profileIDs := make([]string, 0, len(r.runtimes))
-	for profileID := range r.runtimes {
-		profileIDs = append(profileIDs, profileID)
-	}
-	sort.Strings(profileIDs)
+	profileIDs := slices.Sorted(maps.Keys(r.runtimes))
 	live := make([]*windowManagerProfileRuntime, 0, len(profileIDs))
 	for _, profileID := range profileIDs {
 		live = append(live, r.runtimes[profileID])

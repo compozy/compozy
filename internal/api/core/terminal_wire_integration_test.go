@@ -262,7 +262,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		}
 		shutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 			shutdownDone <- handlers.ShutdownTerminalStreams(shutdownCtx)
 		}()
@@ -296,7 +296,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 
 func terminalTestJSONRequest(t *testing.T, client *http.Client, method, target, body string) []byte {
 	t.Helper()
-	request, err := http.NewRequestWithContext(context.Background(), method, target, strings.NewReader(body))
+	request, err := http.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest(%s) error = %v", method, err)
 	}

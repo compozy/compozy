@@ -60,10 +60,7 @@ func (g *TaskRepo) normalizeTaskRunForUpdate(run taskpkg.Run) (taskpkg.Run, erro
 }
 
 func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {
-	params, err := taskRunParams(run)
-	if err != nil {
-		return err
-	}
+	params := taskRunParams(run)
 	if err := sqlcgen.New(exec).InsertTaskRun(ctx, params); err != nil {
 		return fmt.Errorf("store: create task run %q: %w", run.ID, err)
 	}

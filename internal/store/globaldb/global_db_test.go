@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -25,8 +24,6 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	memorypkg "github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
@@ -111,18 +108,6 @@ func runGlobalDBTests(m *testing.M) (code int) {
 		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)
 		return 1
 	}
-	memoryStore := memorypkg.NewStore(
-		filepath.Join(dir, "memory"),
-		memorypkg.WithCatalogDatabasePath(path),
-	)
-	if err := memoryStore.OpenCatalog(ctx); err != nil {
-		reportTestMainError("OpenCatalog(globaldb seed) error = %v", err)
-		return 1
-	}
-	if err := memoryStore.CloseCatalog(ctx); err != nil {
-		reportTestMainError("CloseCatalog(globaldb seed) error = %v", err)
-		return 1
-	}
 	if err := globalDB.Close(ctx); err != nil {
 		reportTestMainError("Close(globaldb seed) error = %v", err)
 		return 1
@@ -204,17 +189,6 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"extensions",
 			"extension_dev_links",
 			"config_apply_records",
-			"network_channel_stats",
-			"network_channel_participants",
-			"network_channel_kind_counts",
-			"workspace_network_coordination",
-			"network_coordination_invitations",
-			"network_availability",
-			"network_message_dispositions",
-			"network_live_wakes",
-			"network_wake_sources",
-			"network_participation_budgets",
-			"network_task_status_projections",
 			"scheduler_pause",
 			"task_run_terminal_commands",
 			"worktrees",
@@ -259,7 +233,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		)
 		assertTableHasColumns(t, globalDB.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
 		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
-			assertTableHasColumns(t, globalDB.db, table, []string{
+			assertTableExcludesColumns(t, globalDB.db, table, []string{
 				"network_spec_json",
 				"network_mode",
 				"network_channel",
@@ -267,16 +241,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			})
 		}
 		assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
-		assertTableExcludesColumns(t, globalDB.db, "tasks", []string{"network_channel"})
 		assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
-		assertTableHasColumns(t, globalDB.db, "network_channel_participants", []string{"session_id"})
-		assertTableHasColumns(t, globalDB.db, "network_direct_rooms", []string{"session_a", "session_b"})
-		assertTableHasColumns(t, globalDB.db, "network_subscriptions", []string{"session_id"})
-		assertTableHasColumns(t, globalDB.db, "network_thread_participants", []string{"session_id"})
-		assertTableExcludesColumns(t, globalDB.db, "network_channel_participants", []string{"peer_id"})
-		assertTableExcludesColumns(t, globalDB.db, "network_direct_rooms", []string{"peer_a", "peer_b"})
-		assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"peer_id"})
-		assertTableExcludesColumns(t, globalDB.db, "network_thread_participants", []string{"peer_id"})
 		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
 			"provider",
 			"outcome",
@@ -319,20 +284,6 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"idx_config_apply_records_generation",
 			"idx_config_apply_records_actor",
 			"idx_config_apply_records_status",
-		)
-		assertIndexesPresent(
-			t,
-			globalDB.db,
-			"network_channel_stats",
-			"idx_network_channel_stats_activity",
-		)
-		assertIndexesPresent(
-			t,
-			globalDB.db,
-			"network_threads",
-			"idx_network_threads_created",
-			"idx_network_threads_title",
-			"idx_network_threads_open_work",
 		)
 		assertTableColumns(t, globalDB.db, "task_run_terminal_commands", []string{
 			"command_id",
@@ -442,6 +393,837 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: closing preserves committed rows without waiting for an external reader's snapshot.
+	t.Run("Should close with a retained reader and preserve committed metadata across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		globalDB := openTestGlobalDB(t)
+		const key = "close.snapshot"
+		if err := globalDB.SetAppMetadata(ctx, key, "before"); err != nil {
+			t.Fatal(err)
+		}
+		externalDB, err := sql.Open(sqliteDriverName, sqliteDSN(globalDB.Path()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := externalDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		reader, err := externalDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var snapshot string
+		if err := reader.QueryRowContext(ctx, "SELECT value FROM app_metadata WHERE key = ?", key).
+			Scan(&snapshot); err != nil || snapshot != "before" {
+			t.Fatalf("initial reader snapshot = %q, error = %v, want before", snapshot, err)
+		}
+		if err := globalDB.SetAppMetadata(ctx, key, "after"); err != nil {
+			t.Fatal(err)
+		}
+		closeCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		if err := globalDB.Close(closeCtx); err != nil {
+			t.Fatalf("Close with retained reader error = %v", err)
+		}
+		if err := reader.QueryRowContext(ctx, "SELECT value FROM app_metadata WHERE key = ?", key).
+			Scan(&snapshot); err != nil || snapshot != "before" {
+			t.Fatalf("retained reader snapshot = %q, error = %v, want before", snapshot, err)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		reopened := openGlobalDBForTest(t, globalDB.Path())
+		value, found, err := reopened.GetAppMetadata(ctx, key)
+		if err != nil || !found || value != "after" {
+			t.Fatalf("metadata after reopen = %q, found = %t, error = %v, want after", value, found, err)
+		}
+	})
+
+	// Invariant: adding the Goal batch boundary preserves authored queue state across upgrade and reopen.
+	t.Run("Should preserve queued inputs while adding Goal batch boundaries", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00137_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('queue-ws', '/queue', 'queue', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at)
+			 VALUES ('queue-session', '00000000000000000000000000', 'coder', 'queue-ws', 'stopped', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, origin_json, runtime_provider, enqueued_at, updated_at)
+			 VALUES ('queue-input', 'queue-session', 'queued', 'queue', 'Retained message', '{"sender_session_id":"sender"}', 'codex', '2026-10-16', '2026-10-16')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retained = `SELECT json_array(text,status,mode,origin_json,runtime_provider,enqueued_at,updated_at)
+			FROM session_input_queue WHERE id='queue-input'`
+		var before string
+		if err := prior.QueryRowContext(ctx, retained).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var after string
+			var boundary sql.NullInt64
+			if err := upgraded.db.QueryRowContext(ctx, retained).Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx,
+				`SELECT goal_input_batch_max_rowid FROM session_input_queue WHERE id='queue-input'`,
+			).Scan(&boundary); err != nil {
+				t.Fatal(err)
+			}
+			if after != before || boundary.Valid {
+				t.Fatalf("queue changed across upgrade: before %s, after %s, boundary %#v", before, after, boundary)
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	// Invariant: classifying queue origins and widening reply-watch outcomes keeps every row across upgrade.
+	t.Run("Should keep rowids, Goal cutoffs and reply watches across 00138", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00138_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('origin-ws', '/origin', 'origin', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at)
+			 VALUES ('origin-session', '00000000000000000000000000', 'coder', 'origin-ws', 'stopped', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, enqueued_at, updated_at)
+			 VALUES ('human-input', 'origin-session', 'queued', 'queue', 'Human message', '2026-10-16', '2026-10-16')`,
+			// A deleted row leaves a rowid gap; Goal batch cutoffs refer to rowids, so the rebuild must keep them.
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, enqueued_at, updated_at)
+			 VALUES ('deleted-input', 'origin-session', 'queued', 'queue', 'Deleted', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, origin_json, enqueued_at, updated_at)
+			 VALUES ('agent-input', 'origin-session', 'queued', 'queue', 'Agent message',
+			         '{"kind":"session","session_id":"sess-sender","workspace_id":"origin-ws","hop":1}', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, owner_kind, priority, enqueued_at, updated_at)
+			 VALUES ('wake-input', 'origin-session', 'queued', 'queue', 'Wake', 'synthetic', 1, '2026-10-16', '2026-10-16')`,
+			`DELETE FROM session_input_queue WHERE id = 'deleted-input'`,
+			`UPDATE session_input_queue SET goal_input_batch_max_rowid = (
+			   SELECT rowid FROM session_input_queue WHERE id = 'agent-input') WHERE id = 'human-input'`,
+			`INSERT INTO session_prompt_reply_watches (id, workspace_id, sender_session_id, target_workspace_id,
+			   target_session_id, message_id, admission_id, hop, state, outcome, created_at)
+			 VALUES ('watch-1', 'origin-ws', 'sess-sender', 'origin-ws', 'origin-session', 'msg-1', 'adm-1', 1,
+			   'fired', 'unknown', '2026-10-16')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retainedQueue = `SELECT json_group_array(json_array(rowid, id, text, status, origin_json, owner_kind, priority,
+			goal_input_batch_max_rowid)) FROM (SELECT rowid, * FROM session_input_queue ORDER BY id)`
+		const retainedWatches = `SELECT json_group_array(json_array(id, state, outcome, sender_session_id, message_id))
+			FROM session_prompt_reply_watches`
+		var beforeQueue, beforeWatches string
+		if err := prior.QueryRowContext(ctx, retainedQueue).Scan(&beforeQueue); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.QueryRowContext(ctx, retainedWatches).Scan(&beforeWatches); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var afterQueue, afterWatches, classes string
+			if err := upgraded.db.QueryRowContext(ctx, retainedQueue).Scan(&afterQueue); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, retainedWatches).Scan(&afterWatches); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT json_group_array(json_array(id, origin_class, origin_session_id))
+				FROM (SELECT * FROM session_input_queue ORDER BY id)`).
+				Scan(&classes); err != nil {
+				t.Fatal(err)
+			}
+			if afterQueue != beforeQueue || afterWatches != beforeWatches {
+				t.Fatalf("rows changed across upgrade: queue %s -> %s, watches %s -> %s",
+					beforeQueue, afterQueue, beforeWatches, afterWatches)
+			}
+			const wantClasses = `[["agent-input","agent","sess-sender"],["human-input","human",""],["wake-input","synthetic",""]]`
+			if classes != wantClasses {
+				t.Fatalf("origin classes = %s, want %s", classes, wantClasses)
+			}
+			for _, outcome := range []string{"expired", "unknown"} {
+				if _, err := upgraded.db.ExecContext(ctx,
+					`UPDATE session_prompt_reply_watches SET outcome = ? WHERE id = 'watch-1'`, outcome,
+				); err != nil {
+					t.Fatalf("outcome %q rejected after upgrade: %v", outcome, err)
+				}
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	// Invariant: contention indexes preserve session, task, and observability history across upgrades.
+	t.Run("Should preserve history while adding contention indexes", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00132_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		const at = "2026-10-09T12:00:00Z"
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('retained-ws', '/retained', 'retained', '` + at + `', '` + at + `')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at)
+			 VALUES ('retained-session', '00000000000000000000000000', 'coder', 'retained-ws', 'stopped', '` + at + `', '` + at + `')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, enqueued_at, updated_at)
+			 VALUES ('retained-input', 'retained-session', 'canceled', 'queue', 'Keep authored text', '` + at + `', '` + at + `')`,
+			`INSERT INTO session_input_clear_traces (entry_id, session_id, turn_id, actor_kind, actor_id, queue_generation, created_at, projected_at)
+			 VALUES ('retained-input', 'retained-session', 'turn', 'user', 'operator', 7, '` + at + `', '` + at + `')`,
+			`INSERT INTO agent_heartbeat_wake_events (id, workspace_id, agent_name, session_id, source, result, reason, created_at, expires_at)
+			 VALUES ('retained-event', 'retained-ws', 'coder', 'retained-session', 'manual', 'sent', 'wake_sent', '` + at + `', '` + at + `')`,
+			`INSERT INTO agent_heartbeat_wake_state (workspace_id, agent_name, session_id, coalesced_count, last_result, updated_at)
+			 VALUES ('retained-ws', 'coder', 'retained-session', 3, 'coalesced', '` + at + `')`,
+			`INSERT INTO token_stats (id, session_id, agent_name, input_tokens, total_tokens, turn_count, updated_at)
+			 VALUES ('retained-stats', 'retained-session', 'coder', 42, 42, 2, '` + at + `')`,
+			`INSERT INTO permission_log (id, session_id, agent_name, action, resource, decision, policy_used, timestamp)
+			 VALUES ('retained-permission', 'retained-session', 'coder', 'read', '/retained', 'allow', 'read-only', '` + at + `')`,
+			`INSERT INTO tasks (id, profile_id, scope, title, status, created_by_kind, created_by_ref, origin_kind, origin_ref, created_at, updated_at)
+			 VALUES ('retained-task', '00000000000000000000000000', 'global', 'Keep task', 'completed', 'daemon', 'fixture', 'daemon', 'fixture', '` + at + `', '` + at + `')`,
+			`INSERT INTO task_blocks (id, task_id, kind, reason, created_by_kind, created_by_ref, created_at, cleared_at)
+			 VALUES ('retained-block', 'retained-task', 'needs_input', 'Keep reason', 'daemon', 'fixture', '` + at + `', '` + at + `')`,
+			`INSERT INTO task_designation_rollups (designation_group_id, task_id, summary_json, created_at)
+			 VALUES ('retained-group', 'retained-task', '{"completed":1}', '` + at + `')`,
+			`INSERT INTO session_subagent_wakes (wake_message_id, workspace_id, parent_session_id, state, route, created_at, updated_at)
+			 VALUES ('retained-wake', 'retained-ws', 'retained-session', 'settled', 'queue', '` + at + `', '` + at + `')`,
+			`INSERT INTO session_subagents (id, workspace_id, parent_session_id, parent_turn_id, origin, idempotency_key, request_fingerprint,
+			 title, task_chars, depth, status, work_state, result, wake_policy, delivery, wake_message_id, created_at, updated_at)
+			 VALUES ('retained-subagent', 'retained-ws', 'retained-session', 'turn', 'delegated', 'key', 'fingerprint',
+			 'Keep result', 10, 1, 'completed', 'result_available', 'Retained result', 'always', 'delivered', 'retained-wake', '` + at + `', '` + at + `')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const historyQuery = `SELECT json_array(
+			(SELECT json_array(text, status) FROM session_input_queue WHERE id='retained-input'),
+			(SELECT json_array(actor_id, queue_generation, projected_at) FROM session_input_clear_traces WHERE entry_id='retained-input'),
+			(SELECT json_array(session_id, result, reason) FROM agent_heartbeat_wake_events WHERE id='retained-event'),
+			(SELECT json_array(coalesced_count, last_result) FROM agent_heartbeat_wake_state WHERE session_id='retained-session'),
+			(SELECT json_array(input_tokens, total_tokens, turn_count) FROM token_stats WHERE id='retained-stats'),
+			(SELECT json_array(resource, decision, policy_used) FROM permission_log WHERE id='retained-permission'),
+			(SELECT json_array(reason, cleared_at) FROM task_blocks WHERE id='retained-block'),
+			(SELECT summary_json FROM task_designation_rollups WHERE designation_group_id='retained-group'),
+			(SELECT json_array(result, status, delivery, wake_message_id) FROM session_subagents WHERE id='retained-subagent'))`
+		var before string
+		if err := prior.QueryRowContext(ctx, historyQuery).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var after string
+			if err := upgraded.db.QueryRowContext(ctx, historyQuery).Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if after != before {
+				t.Fatalf("history changed across index upgrade: before %s, after %s", before, after)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	// Invariant: palette retirement merges counts and pins per workspace/profile exactly once; the reopen suite owns upgrades.
+	t.Run("Should preserve palette personalization across app retirement [IT-012]", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00129_automations_palette.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		otherProfile := "11111111111111111111111111"
+		if _, err := prior.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,created_at) VALUES (?, 'Palette other', 'blue', 'bot', '2026-10-08T00:00:00Z')`,
+			otherProfile,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, workspace := range []string{"", "workspace-other"} {
+			for _, profile := range []string{store.DefaultProfileID, otherProfile} {
+				for _, prefix := range []string{"app.open.", "palette.view."} {
+					for i, app := range []string{"jobs", "triggers", "automations"} {
+						count := []int{3, 2, 4}[i]
+						weight := []float64{1.5, 2, 1}[i]
+						last := []int{10, 20, 15}[i]
+						if _, err := prior.ExecContext(
+							ctx,
+							`INSERT INTO cmd_palette_usage VALUES (?,?,?,?,?,?,?)`,
+							workspace,
+							profile,
+							prefix+app,
+							count,
+							weight,
+							last,
+							last,
+						); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := prior.ExecContext(
+							ctx,
+							`INSERT INTO cmd_palette_query_hits VALUES (?,?,?,?,?,?)`,
+							workspace,
+							profile,
+							"jo",
+							prefix+app,
+							weight,
+							last,
+						); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := prior.ExecContext(
+							ctx,
+							`INSERT INTO cmd_palette_pins VALUES (?,?,?,?)`,
+							workspace,
+							profile,
+							prefix+app,
+							last,
+						); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				if _, err := prior.ExecContext(
+					ctx,
+					`INSERT INTO cmd_palette_usage VALUES (?,?, 'app.open.tasks',7,3,30,30)`,
+					workspace,
+					profile,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, workspace := range []string{"", "workspace-other"} {
+				for _, profile := range []string{store.DefaultProfileID, otherProfile} {
+					var total int
+					if err := upgraded.db.QueryRowContext(ctx, `SELECT sum(use_count) FROM cmd_palette_usage WHERE workspace_id=? AND profile_lens_id=?`, workspace, profile).
+						Scan(&total); err != nil {
+						t.Fatal(err)
+					}
+					if total != 25 {
+						t.Fatalf("per-lens use_count=%d, want 25", total)
+					}
+					for _, prefix := range []string{"app.open.", "palette.view."} {
+						var count, last, updated, pinned, hitLast int
+						var frequency, weight float64
+						if err := upgraded.db.QueryRowContext(ctx, `SELECT use_count,frecency_weight,last_used_at,updated_at FROM cmd_palette_usage WHERE workspace_id=? AND profile_lens_id=? AND command_id=?`, workspace, profile, prefix+"automations").
+							Scan(&count, &frequency, &last, &updated); err != nil {
+							t.Fatal(err)
+						}
+						if err := upgraded.db.QueryRowContext(ctx, `SELECT pinned_at FROM cmd_palette_pins WHERE workspace_id=? AND profile_lens_id=? AND command_id=?`, workspace, profile, prefix+"automations").
+							Scan(&pinned); err != nil {
+							t.Fatal(err)
+						}
+						if err := upgraded.db.QueryRowContext(ctx, `SELECT weight,last_used_at FROM cmd_palette_query_hits WHERE workspace_id=? AND profile_lens_id=? AND command_id=? AND query='jo'`, workspace, profile, prefix+"automations").
+							Scan(&weight, &hitLast); err != nil {
+							t.Fatal(err)
+						}
+						if count != 9 || frequency != 2 || last != 20 || updated != 20 || pinned != 10 ||
+							weight != 4.5 ||
+							hitLast != 20 {
+							t.Fatalf(
+								"merged signals = %d %g %d %d %d %g %d",
+								count,
+								frequency,
+								last,
+								updated,
+								pinned,
+								weight,
+								hitLast,
+							)
+						}
+					}
+				}
+			}
+			var retired int
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM (SELECT command_id FROM cmd_palette_usage UNION ALL SELECT command_id FROM cmd_palette_query_hits UNION ALL SELECT command_id FROM cmd_palette_pins) WHERE command_id IN ('app.open.jobs','app.open.triggers','palette.view.jobs','palette.view.triggers')`).
+				Scan(&retired); err != nil {
+				t.Fatal(err)
+			}
+			if retired != 0 {
+				t.Fatalf("retired rows=%d", retired)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	t.Run("Should backfill automation catalog targets and preserve run history across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00128_automation_latest_runs.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		priorClosed := false
+		t.Cleanup(func() {
+			if !priorClosed {
+				if err := prior.Close(); err != nil {
+					t.Errorf("close prior: %v", err)
+				}
+			}
+		})
+		for _, target := range []string{"agent", "loop", "task"} {
+			kind := target
+			var task any
+			if target == "task" {
+				kind = "agent"
+				task = `{"title":"Retained task"}`
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_jobs
+    (id, profile_id, scope, name, agent_name, prompt, task, retry, fire_limit, target_kind, created_at, updated_at)
+    VALUES (?, ?, 'global', ?, 'agent', 'Retained prompt', ?, '{}', '{}', ?, '2026-10-08T00:00:00Z', '2026-10-08T00:00:00Z')`, target, store.DefaultProfileID, target, task, kind); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_job_catalog_entries
+    (job_id, scope, source, source_rank, name, enabled, search_name, search_agent_name, search_prompt, search_scope,
+    search_source, search_schedule_mode, search_schedule_expr, search_schedule_interval, search_schedule_time)
+    VALUES (?, 'global', 'dynamic', 2, ?, 1, '', '', '', '', '', '', '', '', '')`, target, target); err != nil {
+				t.Fatal(err)
+			}
+			if target == "task" {
+				continue
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_triggers
+    (id, profile_id, scope, name, agent_name, prompt, event, retry, fire_limit, target_kind, created_at, updated_at)
+    VALUES (?, ?, 'global', ?, 'agent', 'Retained trigger prompt', 'session.stopped', '{}', '{}', ?, '2026-10-08T00:00:00Z', '2026-10-08T00:00:00Z')`, target, store.DefaultProfileID, target, kind); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_trigger_catalog_entries
+    (trigger_id, scope, event, source, source_rank, name, enabled, search_name, search_agent_name, search_prompt,
+    search_scope, search_source, search_event, search_endpoint_slug, search_webhook_id)
+    VALUES (?, 'global', 'session.stopped', 'dynamic', 2, ?, 1, '', '', '', '', '', '', '', '')`, target, target); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := prior.ExecContext(
+			ctx,
+			`INSERT INTO automation_runs (id, profile_id, job_id, status, started_at, metadata_json)
+    VALUES ('retained', ?, 'task', 'canceled', '2026-10-08T00:00:00Z', '{"reason":"self_overlap"}')`,
+			store.DefaultProfileID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		priorClosed = true
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			closed := false
+			t.Cleanup(func() {
+				if !closed {
+					if err := upgraded.Close(ctx); err != nil {
+						t.Errorf("close upgraded: %v", err)
+					}
+				}
+			})
+			for _, target := range []string{"agent", "loop", "task"} {
+				var projected, prompt string
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT c.target, j.prompt FROM automation_job_catalog_entries c JOIN automation_jobs j ON j.id=c.job_id WHERE c.job_id=?`, target).
+					Scan(&projected, &prompt); err != nil {
+					t.Fatal(err)
+				}
+				if projected != target || prompt != "Retained prompt" {
+					t.Fatalf("job %s = %q/%q", target, projected, prompt)
+				}
+				if target == "task" {
+					continue
+				}
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT target FROM automation_trigger_catalog_entries WHERE trigger_id=?`, target).
+					Scan(&projected); err != nil {
+					t.Fatal(err)
+				}
+				if projected != target {
+					t.Fatalf("trigger %s = %q", target, projected)
+				}
+			}
+			var reason string
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT json_extract(metadata_json, '$.reason') FROM automation_runs WHERE id='retained'`).
+				Scan(&reason); err != nil {
+				t.Fatal(err)
+			}
+			if reason != "self_overlap" {
+				t.Fatalf("retained run reason = %q", reason)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			closed = true
+		}
+	})
+
+	// Invariant: reconciliation indexes upgrade existing task history losslessly; the reopen suite owns it.
+	t.Run("Should preserve settled task history while adding reconciliation indexes", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00126_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO tasks (id, profile_id, scope, title, status, created_by_kind, created_by_ref,
+    origin_kind, origin_ref, created_at, updated_at, metadata_json)
+    VALUES ('history-task', '00000000000000000000000000', 'global', 'Retained task', 'completed',
+    'daemon', 'fixture', 'daemon', 'fixture', '2026-10-03T12:00:00Z', '2026-10-03T12:00:00Z', '{"keep":true}')`,
+			`INSERT INTO task_runs (id, task_id, status, attempt, origin_kind, origin_ref, queued_at, loop_run_id, result_json)
+    VALUES ('history-run', 'history-task', 'completed', 1, 'daemon', 'fixture', '2026-10-03T12:00:00Z',
+    'retained-loop', '{"value":{"answer":42}}')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var metadata, result string
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT t.metadata_json, r.result_json FROM tasks t
+    JOIN task_runs r ON r.task_id = t.id WHERE r.id = 'history-run'`).Scan(&metadata, &result); err != nil {
+				t.Fatal(err)
+			}
+			if metadata != `{"keep":true}` || result != `{"value":{"answer":42}}` {
+				t.Fatalf("history changed: %s %s", metadata, result)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
+	t.Run("Should preserve legacy profile markers without inventing creation provenance", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00127_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		priorClosed := false
+		t.Cleanup(func() {
+			if !priorClosed {
+				if err := prior.Close(); err != nil {
+					t.Errorf("Close(prior) error = %v", err)
+				}
+			}
+		})
+		const timestamp = "2026-10-04T10:00:00Z"
+		if _, err := prior.ExecContext(ctx, `
+			INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum)
+			VALUES ('retained-kit', '1.0.0', 'user', '/kit/extension.toml', ?, 'checksum')`, timestamp); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"retained", "deleted"} {
+			if _, err := prior.ExecContext(ctx, `
+				INSERT INTO extension_profile_markers (extension_name, profile_name, created_profile_id, created_at)
+				VALUES ('retained-kit', ?, ?, ?)`, name, name+"-profile-id", timestamp); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		priorClosed = true
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			closed := false
+			t.Cleanup(func() {
+				if !closed {
+					if err := upgraded.Close(testutil.Context(t)); err != nil {
+						t.Errorf("Close(upgraded) error = %v", err)
+					}
+				}
+			})
+			for _, name := range []string{"retained", "deleted"} {
+				var id, createdAt string
+				var creator sql.NullBool
+				if err := upgraded.db.QueryRowContext(ctx, `
+					SELECT created_profile_id, created_at, created_by_extension FROM extension_profile_markers
+					WHERE extension_name = 'retained-kit' AND profile_name = ?`, name).
+					Scan(&id, &createdAt, &creator); err != nil {
+					t.Fatal(err)
+				}
+				if id != name+"-profile-id" || createdAt != timestamp || creator.Valid {
+					t.Fatalf("marker %s = %q, %q, %#v, want preserved identity and unknown provenance",
+						name, id, createdAt, creator)
+				}
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			closed = true
+		}
+	})
+
+	// Invariant: feature retirement preserves retained runtime state and authored context across upgrades.
+	// Owner: global persistence; canonical suite: reopen and migration preservation.
+	t.Run("Should retire remote features while preserving local runtime and authored context", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00121_retire_network_bridges_sandbox.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		const timestamp = "2026-09-27T10:00:00Z"
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, add_dirs, created_at, updated_at, sandbox_ref)
+			 VALUES ('retained-ws', '/retained', 'retained', '[]', '` + timestamp + `', '` + timestamp + `', 'retired-sandbox')`,
+			`INSERT INTO agent_soul_snapshots (id, workspace_id, agent_name, source_path, digest, body, created_at)
+			 VALUES ('retained-soul', 'retained-ws', 'coder', '/SOUL.md', 'soul-digest', 'Keep persona', '` + timestamp + `')`,
+			`INSERT INTO agent_heartbeat_snapshots (id, workspace_id, agent_name, source_path, digest, config_digest,
+			 body, frontmatter_json, resolved_json, diagnostics_json, created_at)
+			 VALUES ('retained-heartbeat', 'retained-ws', 'coder', '/HEARTBEAT.md', 'heartbeat-digest', 'config-digest',
+			 'Keep wake policy', '{}', '{}', '[]', '` + timestamp + `')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at,
+			 soul_snapshot_id, soul_digest, sandbox_id, sandbox_backend, attention_revision, last_seen_revision)
+			 VALUES ('retained-session', '00000000000000000000000000', 'coder', 'retained-ws', 'stopped',
+			 '` + timestamp + `', '` + timestamp + `', 'retained-soul', 'soul-digest', 'retired-sandbox', 'daytona', 7, 4)`,
+			`INSERT INTO session_health (session_id, workspace_id, agent_name, state, health, active_prompt,
+			 attachable, eligible_for_wake, updated_at) VALUES ('retained-session', 'retained-ws', 'coder',
+			 'stopped', 'healthy', 0, 1, 0, '` + timestamp + `')`,
+			`INSERT INTO tasks (id, profile_id, scope, workspace_id, title, status, created_by_kind, created_by_ref,
+			 origin_kind, origin_ref, created_at, updated_at, owner_kind, owner_ref)
+			 VALUES ('retained-task', '00000000000000000000000000', 'workspace', 'retained-ws', 'Keep task', 'open',
+			 'network_peer', 'remote-peer', 'network', 'remote-origin', '` + timestamp + `', '` + timestamp + `', 'network_peer', 'remote-peer')`,
+			`INSERT INTO task_triage_state (task_id, actor_kind, actor_id, is_read, archived, dismissed, updated_at)
+			 VALUES ('retained-task', 'daemon', 'shared-actor', 1, 0, 1, '` + timestamp + `'),
+			 ('retained-task', 'network_peer', 'shared-actor', 0, 1, 0, '` + timestamp + `'),
+			 ('retained-task', 'network_peer', 'retired-actor', 0, 1, 0, '` + timestamp + `')`,
+			`INSERT INTO task_runs (id, task_id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at)
+			 VALUES ('retained-run', 'retained-task', 'retained-ws', 'queued', 1, 'network', 'remote-origin', '` + timestamp + `')`,
+			`INSERT INTO task_runs (id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at, run_kind,
+			 network_wake_id, network_target_session_id, network_owner_key)
+			 VALUES ('retired-wake', 'retained-ws', 'queued', 1, 'network', 'wake', '` + timestamp + `', 'network_wake',
+			 'wake', 'retained-session', 'retired-owner')`,
+			`INSERT INTO notification_cursors (scope_kind, profile_id, workspace_id, consumer_id, stream_name,
+			 subject_id, last_sequence, updated_at) VALUES ('workspace', '00000000000000000000000000',
+			 'retained-ws', 'task-status', 'task.events', 'retained-task', 12, '` + timestamp + `')`,
+			`INSERT INTO task_designation_rollups (designation_group_id, task_id, summary_json, created_at)
+			 VALUES ('retained-group', 'retained-task', '{"completed":1}', '` + timestamp + `')`,
+			`INSERT INTO vault_secrets (ref, kind, encrypted_value, created_at, updated_at) VALUES
+			 ('vault:providers/retained/token', 'provider', 'retained-ciphertext', '` + timestamp + `', '` + timestamp + `'),
+			 ('vault:bridges/retired/token', 'bridge', 'retired-ciphertext', '` + timestamp + `', '` + timestamp + `'),
+			 ('vault:sandbox/retired/token', 'sandbox', 'retired-ciphertext', '` + timestamp + `', '` + timestamp + `')`,
+			`INSERT INTO resource_records (kind, id, version, scope_kind, owner_kind, owner_id, source_kind, source_id,
+			 spec_json, created_at, updated_at) VALUES ('bridge.instance', 'retired-resource', 1, 'user', 'user', 'operator',
+			 'user', 'operator', '{}', '` + timestamp + `', '` + timestamp + `')`,
+			`INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum,
+			 network_requirement_digest, network_confirmed_by, network_confirmed_at)
+			 VALUES ('retained-gateway', '1.0.0', 'user', '/gateway/extension.toml', '` + timestamp + `', 'checksum',
+			 'gateway-digest', 'operator', '` + timestamp + `')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatalf("seed retirement fixture: %v", err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, retained := range []struct{ query, want string }{
+				{`SELECT soul_snapshot_id || ':' || soul_digest || ':' || attention_revision || ':' || last_seen_revision FROM sessions WHERE id='retained-session'`, "retained-soul:soul-digest:7:4"},
+				{`SELECT encrypted_value FROM vault_secrets WHERE ref='vault:providers/retained/token'`, "retained-ciphertext"},
+				{`SELECT body FROM agent_soul_snapshots WHERE id='retained-soul'`, "Keep persona"},
+				{`SELECT body FROM agent_heartbeat_snapshots WHERE id='retained-heartbeat'`, "Keep wake policy"},
+				{`SELECT health FROM session_health WHERE session_id='retained-session'`, "healthy"},
+				{`SELECT title || ':' || created_by_kind || ':' || origin_kind || ':' || COALESCE(owner_kind,'') FROM tasks WHERE id='retained-task'`, "Keep task:daemon:daemon:"},
+				{`SELECT actor_kind || ':' || actor_id || ':' || is_read || ':' || archived || ':' || dismissed FROM task_triage_state WHERE task_id='retained-task'`, "daemon:shared-actor:1:0:1"},
+				{`SELECT CAST(COUNT(*) AS TEXT) FROM task_triage_state WHERE task_id='retained-task'`, "1"},
+				{`SELECT origin_kind || ':' || run_kind FROM task_runs WHERE id='retained-run'`, "daemon:worker"},
+				{`SELECT CAST(last_sequence AS TEXT) FROM notification_cursors WHERE subject_id='retained-task'`, "12"},
+				{`SELECT summary_json FROM task_designation_rollups WHERE designation_group_id='retained-group'`, `{"completed":1}`},
+				{`SELECT gateway_requirement_digest || ':' || gateway_confirmed_by || ':' || gateway_confirmed_at FROM extensions WHERE name='retained-gateway'`, "gateway-digest:operator:" + timestamp},
+			} {
+				var got string
+				if err := upgraded.db.QueryRowContext(ctx, retained.query).Scan(&got); err != nil {
+					t.Fatal(err)
+				}
+				if got != retained.want {
+					t.Fatalf("retained state = %q, want %q", got, retained.want)
+				}
+			}
+			var wakeCount, retiredTables, retiredResources, retiredCredentials int
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_runs WHERE id='retired-wake'`).
+				Scan(&wakeCount); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND
+			 (name GLOB 'network_*' OR name GLOB 'bridge_*' OR name IN ('notification_presets','notification_delivery_permits',
+			 'notification_preset_enablement','task_network_coordination','workspace_network_coordination','task_profile_channels','task_profile_peers'))`).Scan(&retiredTables); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resource_records WHERE kind='bridge.instance'`).
+				Scan(&retiredResources); err != nil {
+				t.Fatal(err)
+			}
+			if retiredResources != 0 {
+				t.Fatalf("retired resource count = %d, want zero", retiredResources)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM vault_secrets WHERE ref GLOB 'vault:bridges/*' OR ref GLOB 'vault:sandbox/*'`).
+				Scan(&retiredCredentials); err != nil {
+				t.Fatal(err)
+			}
+			if retiredCredentials != 0 {
+				t.Fatalf("retired credential count = %d, want zero", retiredCredentials)
+			}
+			if wakeCount != 0 || retiredTables != 0 {
+				t.Fatalf("retired wake/table counts = %d/%d, want zero", wakeCount, retiredTables)
+			}
+			assertTableExcludesColumns(t, upgraded.db, "sessions", []string{"network_spec_json", "sandbox_id"})
+			assertTableExcludesColumns(
+				t,
+				upgraded.db,
+				"task_runs",
+				[]string{"network_mode", "network_wake_id", "claimed_peer_id"},
+			)
+			var violations int
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_foreign_key_check`).
+				Scan(&violations); err != nil {
+				t.Fatal(err)
+			}
+			if violations != 0 {
+				t.Fatalf("foreign-key violations = %d, want zero", violations)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	// Invariant: attachment migration preserves every installed package and its global/all-profile reach.
 	// Owner: global database upgrade. Canonical suite: reopen/preservation tests.
 	t.Run(
@@ -903,6 +1685,32 @@ func TestGlobalDBPhase0HomeWorkspaceMigration(t *testing.T) {
 			}
 		})
 		assertPhase0HomeWorkspaceDisposition(ctx, t, reopened)
+		healthRepo := &HeartbeatRepo{repoBase: newRepoBase(reopened, nil, new(atomic.Int32))}
+		health, err := healthRepo.GetSessionHealth(ctx, "home-session")
+		if err != nil {
+			t.Fatalf("GetSessionHealth(migrated Global session) error = %v", err)
+		}
+		if health.SessionID != "home-session" || health.WorkspaceID != "" || health.AgentName != "default" {
+			t.Fatalf("migrated session health = %#v, want the preserved Global owner", health)
+		}
+		recovery, err := healthRepo.ListSessionHealthRecoveryInputs(ctx, 0)
+		if err != nil {
+			t.Fatalf("ListSessionHealthRecoveryInputs(migrated Global session) error = %v", err)
+		}
+		if len(recovery) != 1 || recovery[0].SessionID != health.SessionID || recovery[0].WorkspaceID != "" {
+			t.Fatalf("recovery inputs = %#v, want the migrated Global session", recovery)
+		}
+		health.UpdatedAt = health.UpdatedAt.Add(time.Minute)
+		if _, err := healthRepo.UpsertSessionHealth(ctx, health); err != nil {
+			t.Fatalf("UpsertSessionHealth(migrated Global session) error = %v", err)
+		}
+		updated, err := healthRepo.GetSessionHealth(ctx, health.SessionID)
+		if err != nil {
+			t.Fatalf("GetSessionHealth(updated Global session) error = %v", err)
+		}
+		if updated.WorkspaceID != "" || !updated.UpdatedAt.Equal(health.UpdatedAt) {
+			t.Fatalf("updated health = %#v, want preserved ownership and the new timestamp", updated)
+		}
 	})
 
 	t.Run("Should abort atomically when the home workspace owns a worktree", func(t *testing.T) {
@@ -1967,7 +2775,7 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 
 	ctx := testutil.Context(t)
 	for _, table := range []string{"sessions", "task_runs"} {
-		assertOwnerTableCanonicalLocal(t, globalDB.db, table)
+		assertRetainedOwnerWithoutNetwork(t, globalDB.db, table)
 	}
 	var loopRunCount int
 	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_runs`).Scan(&loopRunCount); err != nil {
@@ -2056,46 +2864,6 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 	assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
 	assertTableExcludesColumns(t, globalDB.db, "tasks", []string{"network_channel"})
 	assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
-	assertTableExcludesColumns(t, globalDB.db, "network_channel_participants", []string{"peer_id"})
-	assertTableExcludesColumns(t, globalDB.db, "network_direct_rooms", []string{"peer_a", "peer_b"})
-	assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"peer_id"})
-	assertTableExcludesColumns(t, globalDB.db, "network_thread_participants", []string{"peer_id"})
-
-	guidanceExists, err := tableExists(ctx, globalDB.db, "network_delivery_guidance_state")
-	if err != nil {
-		t.Fatalf("tableExists(network_delivery_guidance_state) error = %v", err)
-	}
-	if guidanceExists {
-		t.Fatal("network_delivery_guidance_state still exists after destructive cut")
-	}
-	for _, relation := range []struct {
-		name  string
-		query string
-	}{
-		{name: "network_channel_participants", query: `SELECT COUNT(*) FROM network_channel_participants`},
-		{name: "network_direct_rooms", query: `SELECT COUNT(*) FROM network_direct_rooms`},
-		{name: "network_subscriptions", query: `SELECT COUNT(*) FROM network_subscriptions`},
-		{name: "network_thread_participants", query: `SELECT COUNT(*) FROM network_thread_participants`},
-	} {
-		var count int
-		if err := globalDB.db.QueryRowContext(ctx, relation.query).Scan(&count); err != nil {
-			t.Fatalf("count %s error = %v", relation.name, err)
-		}
-		if count != 0 {
-			t.Fatalf("%s row count after destructive cut = %d, want 0", relation.name, count)
-		}
-	}
-	var autoChannelCount int
-	if err := globalDB.db.QueryRowContext(
-		ctx,
-		`SELECT COUNT(*) FROM network_channels WHERE purpose = 'task_run_coordination'`,
-	).Scan(&autoChannelCount); err != nil {
-		t.Fatalf("count task_run_coordination channels error = %v", err)
-	}
-	if autoChannelCount != 0 {
-		t.Fatalf("task_run_coordination channel count = %d, want 0", autoChannelCount)
-	}
-
 	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
 		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
 		ID:        "sess-precut",
@@ -2104,15 +2872,15 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 	if err != nil {
 		t.Fatalf("ListSessions(pre-cut history) error = %v", err)
 	}
-	if len(sessions) != 1 || !reflect.DeepEqual(sessions[0].NetworkSpec, participation.LocalSpec()) {
-		t.Fatalf("ListSessions(pre-cut history) = %#v, want one canonical Local session", sessions)
+	if len(sessions) != 1 || sessions[0].ID != "sess-precut" {
+		t.Fatalf("ListSessions(pre-cut history) = %#v, want retained historical session", sessions)
 	}
 	taskRun, err := globalDB.GetTaskRun(ctx, "run-precut")
 	if err != nil {
 		t.Fatalf("GetTaskRun(pre-cut history) error = %v", err)
 	}
-	if !reflect.DeepEqual(taskRun.NetworkSpec, participation.LocalSpec()) {
-		t.Fatalf("GetTaskRun(pre-cut history).NetworkSpec = %#v, want canonical Local", taskRun.NetworkSpec)
+	if taskRun.ID != "run-precut" {
+		t.Fatalf("GetTaskRun(pre-cut history) = %#v, want retained historical run", taskRun)
 	}
 	if _, err := globalDB.GetLoopRun(
 		ctx,
@@ -2126,63 +2894,20 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 	}
 }
 
-func assertOwnerTableCanonicalLocal(t *testing.T, db *sql.DB, table string) {
+func assertRetainedOwnerWithoutNetwork(t *testing.T, db *sql.DB, table string) {
 	t.Helper()
-
-	queries := map[string]string{
-		"sessions":  `SELECT network_spec_json, network_mode, network_channel, network_source FROM sessions`,
-		"task_runs": `SELECT network_spec_json, network_mode, network_channel, network_source FROM task_runs`,
-		"loop_runs": `SELECT network_spec_json, network_mode, network_channel, network_source FROM loop_runs`,
+	assertTableExcludesColumns(
+		t,
+		db,
+		table,
+		[]string{"network_spec_json", "network_mode", "network_channel", "network_source"},
+	)
+	if table != "sessions" && table != "task_runs" {
+		t.Fatalf("unsupported owner table %q", table)
 	}
-	query, ok := queries[table]
-	if !ok {
-		t.Fatalf("assertOwnerTableCanonicalLocal(%q) has no canonical query", table)
-	}
-	rows, err := db.QueryContext(testutil.Context(t), query)
-	if err != nil {
-		t.Fatalf("query %s network snapshots error = %v", table, err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			t.Fatalf("close %s network snapshot rows error = %v", table, err)
-		}
-	}()
-	expectedJSON, err := json.Marshal(participation.LocalSpec())
-	if err != nil {
-		t.Fatalf("json.Marshal(canonical Local) error = %v", err)
-	}
-	count := 0
-	for rows.Next() {
-		var (
-			rawSnapshot string
-			mode        string
-			channel     sql.NullString
-			source      string
-		)
-		if err := rows.Scan(&rawSnapshot, &mode, &channel, &source); err != nil {
-			t.Fatalf("scan %s network snapshot error = %v", table, err)
-		}
-		count++
-		if rawSnapshot != string(expectedJSON) || mode != "local" || channel.Valid || source != "built_in_local" {
-			t.Fatalf(
-				"%s network snapshot = (%q, %q, %#v, %q), want canonical Local projections",
-				table,
-				rawSnapshot,
-				mode,
-				channel,
-				source,
-			)
-		}
-		decoded, err := decodeParticipationSnapshot("", rawSnapshot, mode, channel, source)
-		if err != nil {
-			t.Fatalf("decode %s network snapshot error = %v", table, err)
-		}
-		if !reflect.DeepEqual(decoded, participation.LocalSpec()) {
-			t.Fatalf("decoded %s NetworkSpec = %#v, want canonical Local", table, decoded)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate %s network snapshots error = %v", table, err)
+	var count int
+	if err := db.QueryRowContext(testutil.Context(t), "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+		t.Fatal(err)
 	}
 	if count != 1 {
 		t.Fatalf("%s retained owner count = %d, want 1", table, count)
@@ -2250,6 +2975,38 @@ func TestOpenGlobalDBRefusesLegacyDatabaseWithoutMutation(t *testing.T) {
 func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should avoid waiting for the writer when no observability rows have expired", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		writer, err := db.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		// Initialize the second reader before measuring contention, including under the race detector.
+		if _, err := db.SweepObservability(ctx, time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		sweepCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		result, sweepErr := db.SweepObservability(sweepCtx, time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC))
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if sweepErr != nil || result.DeletedEventSummaries != 0 || result.DeletedTokenStats != 0 ||
+			result.DeletedPermissionLogs != 0 || result.DeletedTokenUsageDaily != 0 {
+			t.Fatalf("empty sweep = %#v, %v", result, sweepErr)
+		}
+	})
+
 	ctx := testutil.Context(t)
 	globalDB := openTestGlobalDB(t)
 	registerSessionForGlobalTests(t, globalDB, "sess-retention")
@@ -2314,140 +3071,84 @@ func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	assertPermissionLogIDs(t, globalDB, []string{"perm-boundary", "perm-fresh"})
 }
 
-func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
-	t.Run("Should create every extension table with the expected columns", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openFreshTestGlobalDB(t)
-
-		assertTableColumns(t, globalDB.db, "extensions", []string{
-			"name",
-			"version",
-			"source",
-			"manifest_path",
-			"format",
-			"ingest_diagnostics_json",
-			"installed_at",
-			"provides_json",
-			"permissions_json",
-			"checksum",
-			"lifecycle_token",
-			"registry_slug",
-			"registry_name",
-			"remote_version",
-			globalDBExtensionProvenanceJSONKey,
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
-		})
-		assertTableColumns(t, globalDB.db, "extension_profile_enablement", []string{
-			"extension_name",
-			"profile_id",
-			"enabled",
-		})
-		assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
-			"extension_name",
-			"workspace_id",
-			"origin_path",
-			"bundle_generation",
-			"linked_at",
-			"format",
-			"ingest_diagnostics_json",
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
-		})
-		assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
-			"extension_name",
-			"profile_id",
-			"workspace_id",
-			"env_name",
-			"secret_ref",
-			"input_id",
-			"active",
-			"mcp_server",
-			"header_name",
-			"kind",
-			"created_at",
-			"updated_at",
-		})
-	})
-}
-
+// Invariant: a freshly migrated extension schema retains its exact shape on reopen.
+// Owner: global database integration; canonical suite: extension schema lifecycle.
 func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
-	t.Run("Should preserve the extension schema when the database reopens", func(t *testing.T) {
+	t.Run("Should create the extension schema and preserve it across reopen", func(t *testing.T) {
 		t.Parallel()
 
-		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		first, err := OpenGlobalDB(testutil.Context(t), dbPath)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(first) error = %v", err)
-		}
+		first := openFreshTestGlobalDB(t)
+		assertExtensionTableColumns(t, first)
+		dbPath := first.Path()
 		if err := first.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
 		}
-
 		second, err := OpenGlobalDB(testutil.Context(t), dbPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := second.Close(testutil.Context(t)); err != nil {
-				t.Fatalf("Close(second) error = %v", err)
+				t.Errorf("Close(second) error = %v", err)
 			}
 		})
+		assertExtensionTableColumns(t, second)
+	})
+}
 
-		assertTableColumns(t, second.db, "extensions", []string{
-			"name",
-			"version",
-			"source",
-			"manifest_path",
-			"format",
-			"ingest_diagnostics_json",
-			"installed_at",
-			"provides_json",
-			"permissions_json",
-			"checksum",
-			"lifecycle_token",
-			"registry_slug",
-			"registry_name",
-			"remote_version",
-			globalDBExtensionProvenanceJSONKey,
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
-		})
-		assertTableColumns(t, second.db, "extension_profile_enablement", []string{
-			"extension_name",
-			"profile_id",
-			"enabled",
-		})
-		assertTableColumns(t, second.db, "extension_dev_links", []string{
-			"extension_name",
-			"workspace_id",
-			"origin_path",
-			"bundle_generation",
-			"linked_at",
-			"format",
-			"ingest_diagnostics_json",
-			"network_requirement_digest",
-			"network_confirmed_by",
-			"network_confirmed_at",
-		})
-		assertTableColumns(t, second.db, "extension_env_bindings", []string{
-			"extension_name",
-			"profile_id",
-			"workspace_id",
-			"env_name",
-			"secret_ref",
-			"input_id",
-			"active",
-			"mcp_server",
-			"header_name",
-			"kind",
-			"created_at",
-			"updated_at",
-		})
+func assertExtensionTableColumns(t *testing.T, globalDB *GlobalDB) {
+	t.Helper()
+
+	assertTableColumns(t, globalDB.db, "extensions", []string{
+		"name",
+		"version",
+		"source",
+		"manifest_path",
+		"format",
+		"ingest_diagnostics_json",
+		"installed_at",
+		"provides_json",
+		"permissions_json",
+		"checksum",
+		"lifecycle_token",
+		"registry_slug",
+		"registry_name",
+		"remote_version",
+		globalDBExtensionProvenanceJSONKey,
+		"gateway_requirement_digest",
+		"gateway_confirmed_by",
+		"gateway_confirmed_at",
+	})
+	assertTableColumns(t, globalDB.db, "extension_profile_enablement", []string{
+		"extension_name",
+		"profile_id",
+		"enabled",
+	})
+	assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
+		"extension_name",
+		"workspace_id",
+		"origin_path",
+		"bundle_generation",
+		"linked_at",
+		"format",
+		"ingest_diagnostics_json",
+		"gateway_requirement_digest",
+		"gateway_confirmed_by",
+		"gateway_confirmed_at",
+	})
+	assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
+		"extension_name",
+		"profile_id",
+		"workspace_id",
+		"env_name",
+		"secret_ref",
+		"input_id",
+		"active",
+		"mcp_server",
+		"header_name",
+		"kind",
+		"created_at",
+		"updated_at",
 	})
 }
 
@@ -2482,6 +3183,52 @@ func TestRepositoryCheckReady(t *testing.T) {
 }
 
 func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
+	t.Run("Should retain Global sessions without exposing them in project listings", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "project", t.TempDir())
+		createdAt := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+		for _, entry := range []struct{ id, workspaceID string }{
+			{id: "sess-global-retained"},
+			{id: "sess-project-retained", workspaceID: workspaceID},
+		} {
+			if err := globalDB.RegisterSession(ctx, SessionInfo{
+				ID: entry.id, WorkspaceID: entry.workspaceID, ProfileID: store.DefaultProfileID,
+				AgentName: "general", Provider: "codex", RuntimeStatus: store.SessionRuntimeUnbound,
+				State: "stopped", CreatedAt: createdAt, UpdatedAt: createdAt,
+			}); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", entry.id, err)
+			}
+		}
+		path := globalDB.Path()
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close(before Global session reopen) error = %v", err)
+		}
+		globalDB = openGlobalDBForTest(t, path)
+		sessions, err := globalDB.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
+		if err != nil {
+			t.Fatalf("ListSessions(Global) error = %v", err)
+		}
+		if len(sessions) != 2 || !slices.ContainsFunc(sessions, func(info SessionInfo) bool {
+			return info.ID == "sess-global-retained" && info.WorkspaceID == "" &&
+				info.ProfileID == store.DefaultProfileID
+		}) {
+			t.Fatalf("Global sessions = %#v, want the retained unscoped session and project session", sessions)
+		}
+		projectSessions, err := globalDB.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("ListSessions(project) error = %v", err)
+		}
+		if len(projectSessions) != 1 || projectSessions[0].ID != "sess-project-retained" {
+			t.Fatalf("project sessions = %#v, want only the project-owned session", projectSessions)
+		}
+	})
+
 	t.Run("Should persist recovery state and preserve workspace-scoped listing", func(t *testing.T) {
 		t.Parallel()
 
@@ -2984,251 +3731,93 @@ func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
 }
 
 func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
-	t.Parallel()
+	t.Run("Should persist workspace changes and resolve canonical lookups", func(t *testing.T) {
+		t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	rootParent := t.TempDir()
-	rootDir := filepath.Join(rootParent, "workspace-root")
-	if err := os.MkdirAll(rootDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(rootDir) error = %v", err)
-	}
-	symlinkPath := filepath.Join(t.TempDir(), "workspace-link")
-	if err := os.Symlink(rootDir, symlinkPath); err != nil {
-		t.Fatalf("Symlink() error = %v", err)
-	}
-
-	canonicalRoot, err := filepath.EvalSymlinks(symlinkPath)
-	if err != nil {
-		t.Fatalf("EvalSymlinks() error = %v", err)
-	}
-
-	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-	ws := compozyworkspace.Workspace{
-		ID:             "ws-primary",
-		RootDir:        canonicalRoot,
-		AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
-		Name:           "alpha",
-		DefaultAgent:   "coder",
-		SandboxRef:     "daytona-dev",
-		CreatedAt:      createdAt,
-		UpdatedAt:      createdAt,
-	}
-	if err := globalDB.InsertWorkspace(testutil.Context(t), ws); err != nil {
-		t.Fatalf("InsertWorkspace() error = %v", err)
-	}
-
-	byID, err := globalDB.GetWorkspace(testutil.Context(t), ws.ID)
-	if err != nil {
-		t.Fatalf("GetWorkspace() error = %v", err)
-	}
-	assertWorkspaceEqual(t, byID, compozyworkspace.Workspace{
-		ID:             ws.ID,
-		RootDir:        canonicalRoot,
-		AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
-		Name:           "alpha",
-		DefaultAgent:   "coder",
-		SandboxRef:     "daytona-dev",
-		CreatedAt:      createdAt,
-		UpdatedAt:      createdAt,
-	})
-
-	byPath, err := globalDB.GetWorkspaceByPath(testutil.Context(t), canonicalRoot)
-	if err != nil {
-		t.Fatalf("GetWorkspaceByPath() error = %v", err)
-	}
-	assertWorkspaceEqual(t, byPath, byID)
-
-	byName, err := globalDB.GetWorkspaceByName(testutil.Context(t), "alpha")
-	if err != nil {
-		t.Fatalf("GetWorkspaceByName() error = %v", err)
-	}
-	assertWorkspaceEqual(t, byName, byID)
-
-	updated := byID
-	updated.Name = "beta"
-	updated.DefaultAgent = "reviewer"
-	updated.SandboxRef = "local-dev"
-	updated.AdditionalDirs = []string{filepath.Join(rootDir, "tools")}
-	updated.UpdatedAt = createdAt.Add(5 * time.Minute)
-	if err := globalDB.UpdateWorkspace(testutil.Context(t), updated); err != nil {
-		t.Fatalf("UpdateWorkspace() error = %v", err)
-	}
-
-	gotUpdated, err := globalDB.GetWorkspace(testutil.Context(t), updated.ID)
-	if err != nil {
-		t.Fatalf("GetWorkspace(updated) error = %v", err)
-	}
-	assertWorkspaceEqual(t, gotUpdated, updated)
-
-	t.Run("Should persist revisioned network coordination with availability fencing", func(t *testing.T) {
-		ctx := testutil.Context(t)
-		ref := compozyworkspace.CoordinationRef{
-			WorkspaceID: updated.ID,
-			ScopeKind:   compozyworkspace.InvitationScopeWorkspace,
+		globalDB := openTestGlobalDB(t)
+		rootParent := t.TempDir()
+		rootDir := filepath.Join(rootParent, "workspace-root")
+		if err := os.MkdirAll(rootDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(rootDir) error = %v", err)
 		}
-		commands := compozyworkspace.NewCoordinationService(globalDB, nil)
-		initialView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
-		if getErr != nil {
-			t.Fatalf("Get(initial coordination) error = %v", getErr)
-		}
-		initial := initialView.Setting
-		if initial.Enabled || initial.Revision != 0 || initial.WorkspaceID != updated.ID {
-			t.Fatalf("Get(initial coordination) = %#v, want disabled revision zero", initial)
-		}
-		if !initial.UpdatedAt.IsZero() || initial.UpdatedBy != "" {
-			t.Fatalf("Get(initial coordination) = %#v, absent row must not invent provenance", initial)
+		symlinkPath := filepath.Join(t.TempDir(), "workspace-link")
+		if err := os.Symlink(rootDir, symlinkPath); err != nil {
+			t.Fatalf("Symlink() error = %v", err)
 		}
 
-		firstTime := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
-		globalDB.now = func() time.Time { return firstTime }
-		firstView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 0,
-		}, operatorActorContextForTest("operator:first"))
-		if setErr != nil {
-			t.Fatalf("Set(first coordination) error = %v", setErr)
-		}
-		first := firstView.Setting
-		if !first.Enabled || first.Revision != 1 || first.UpdatedBy != "operator:first" {
-			t.Fatalf("Set(first coordination) = %#v, want enabled revision one", first)
+		canonicalRoot, err := filepath.EvalSymlinks(symlinkPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks() error = %v", err)
 		}
 
-		secondView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: false, ExpectedRevision: 1,
-		}, operatorActorContextForTest("operator:second"))
-		if setErr != nil {
-			t.Fatalf("Set(second coordination) error = %v", setErr)
+		createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+		ws := compozyworkspace.Workspace{
+			ID:             "ws-primary",
+			RootDir:        canonicalRoot,
+			AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
+			Name:           "alpha",
+			DefaultAgent:   "coder",
+			CreatedAt:      createdAt,
+			UpdatedAt:      createdAt,
 		}
-		second := secondView.Setting
-		if second.Enabled || second.Revision != 2 || second.UpdatedBy != "operator:second" {
-			t.Fatalf("Set(second coordination) = %#v, want disabled revision two", second)
-		}
-		if !second.UpdatedAt.After(first.UpdatedAt) {
-			t.Fatalf("second.UpdatedAt = %s, want after %s", second.UpdatedAt, first.UpdatedAt)
+		if err := globalDB.InsertWorkspace(testutil.Context(t), ws); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
 		}
 
-		if _, disableErr := globalDB.SetNetworkAvailability(ctx, false, "operator:disable"); disableErr != nil {
-			t.Fatalf("SetNetworkAvailability(false) error = %v", disableErr)
+		byID, err := globalDB.GetWorkspace(testutil.Context(t), ws.ID)
+		if err != nil {
+			t.Fatalf("GetWorkspace() error = %v", err)
 		}
-		if _, setErr = commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 2,
-		}, operatorActorContextForTest("operator:blocked")); !errors.Is(
-			setErr,
-			participation.ErrUnavailable,
+		assertWorkspaceEqual(t, byID, compozyworkspace.Workspace{
+			ID:             ws.ID,
+			RootDir:        canonicalRoot,
+			AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
+			Name:           "alpha",
+			DefaultAgent:   "coder",
+			CreatedAt:      createdAt,
+			UpdatedAt:      createdAt,
+		})
+
+		byPath, err := globalDB.GetWorkspaceByPath(testutil.Context(t), canonicalRoot)
+		if err != nil {
+			t.Fatalf("GetWorkspaceByPath() error = %v", err)
+		}
+		assertWorkspaceEqual(t, byPath, byID)
+
+		byName, err := globalDB.GetWorkspaceByName(testutil.Context(t), "alpha")
+		if err != nil {
+			t.Fatalf("GetWorkspaceByName() error = %v", err)
+		}
+		assertWorkspaceEqual(t, byName, byID)
+
+		updated := byID
+		updated.Name = "beta"
+		updated.DefaultAgent = "reviewer"
+		updated.AdditionalDirs = []string{filepath.Join(rootDir, "tools")}
+		updated.UpdatedAt = createdAt.Add(5 * time.Minute)
+		if err := globalDB.UpdateWorkspace(testutil.Context(t), updated); err != nil {
+			t.Fatalf("UpdateWorkspace() error = %v", err)
+		}
+
+		gotUpdated, err := globalDB.GetWorkspace(testutil.Context(t), updated.ID)
+		if err != nil {
+			t.Fatalf("GetWorkspace(updated) error = %v", err)
+		}
+		assertWorkspaceEqual(t, gotUpdated, updated)
+
+		if err := globalDB.DeleteWorkspace(testutil.Context(t), updated.ID); err != nil {
+			t.Fatalf("DeleteWorkspace() error = %v", err)
+		}
+		if _, err := globalDB.GetWorkspace(
+			testutil.Context(t),
+			updated.ID,
+		); !errors.Is(
+			err,
+			compozyworkspace.ErrWorkspaceNotFound,
 		) {
-			t.Fatalf("Set(while unavailable) error = %v, want %v", setErr, participation.ErrUnavailable)
-		}
-		unchangedView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
-		if getErr != nil {
-			t.Fatalf("Get(after blocked Set) error = %v", getErr)
-		}
-		unchanged := unchangedView.Setting
-		if unchanged.Revision != second.Revision || unchanged.UpdatedBy != second.UpdatedBy {
-			t.Fatalf("Get(after blocked Set) = %#v, want unchanged %#v", unchanged, second)
-		}
-		if _, enableErr := globalDB.SetNetworkAvailability(ctx, true, "operator:enable"); enableErr != nil {
-			t.Fatalf("SetNetworkAvailability(true) error = %v", enableErr)
-		}
-		thirdView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-			Ref: ref, Enabled: true, ExpectedRevision: 2,
-		}, operatorActorContextForTest("operator:third"))
-		if setErr != nil || thirdView.Setting.Revision != 3 {
-			t.Fatalf("Set(third coordination) = %#v, error = %v, want revision three", thirdView, setErr)
-		}
-
-		var clockCalls atomic.Int64
-		firstHasWriteLock := make(chan struct{})
-		releaseFirst := make(chan struct{})
-		globalDB.now = func() time.Time {
-			call := clockCalls.Add(1)
-			if call == 1 {
-				close(firstHasWriteLock)
-				<-releaseFirst
-			}
-			return firstTime.Add(time.Duration(call) * time.Minute)
-		}
-		type setResult struct {
-			view compozyworkspace.CoordinationView
-			err  error
-		}
-		firstResult := make(chan setResult, 1)
-		secondResult := make(chan setResult, 1)
-		waitForSetResult := func(name string, results <-chan setResult) setResult {
-			t.Helper()
-			select {
-			case result := <-results:
-				return result
-			case <-time.After(5 * time.Second):
-				t.Fatalf("timed out waiting for %s coordination result", name)
-				return setResult{}
-			}
-		}
-		go func() {
-			view, callErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-				Ref: ref, Enabled: true, ExpectedRevision: 3,
-			}, operatorActorContextForTest("operator:concurrent-first"))
-			firstResult <- setResult{view: view, err: callErr}
-		}()
-		select {
-		case <-firstHasWriteLock:
-		case result := <-firstResult:
-			t.Fatalf("first coordination writer returned before holding the write lock: %v", result.err)
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for first coordination writer to hold the write lock")
-		}
-		go func() {
-			view, callErr := commands.Set(ctx, compozyworkspace.SetCoordination{
-				Ref: ref, Enabled: false, ExpectedRevision: 3,
-			}, operatorActorContextForTest("operator:concurrent-second"))
-			secondResult <- setResult{view: view, err: callErr}
-		}()
-		close(releaseFirst)
-		firstConcurrent := waitForSetResult("first", firstResult)
-		if firstConcurrent.err != nil {
-			t.Fatalf("Set(concurrent first) error = %v", firstConcurrent.err)
-		}
-		secondConcurrent := waitForSetResult("second", secondResult)
-		if !errors.Is(secondConcurrent.err, compozyworkspace.ErrCoordinationConflict) {
-			t.Fatalf("Set(concurrent second) error = %v, want revision conflict", secondConcurrent.err)
-		}
-		winnerView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
-		if getErr != nil {
-			t.Fatalf("Get(concurrent winner) error = %v", getErr)
-		}
-		winner := winnerView.Setting
-		if !winner.Enabled || winner.UpdatedBy != "operator:concurrent-first" || winner.Revision != 4 {
-			t.Fatalf("Get(concurrent winner) = %#v, want sole first writer at revision four", winner)
-		}
-		summaries, summaryErr := globalDB.ListEventSummaries(
-			ctx,
-			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
-				WorkspaceID: updated.ID,
-				Type:        "network.coordination.setting_changed",
-			},
-		)
-		if summaryErr != nil {
-			t.Fatalf("ListEventSummaries(coordination) error = %v", summaryErr)
-		}
-		if len(summaries) != 4 {
-			t.Fatalf("len(coordination summaries) = %d, want four committed winners", len(summaries))
-		}
-		latestSummary := summaries[len(summaries)-1]
-		if latestSummary.ActorID != "operator:concurrent-first" {
-			t.Fatalf("latest coordination actor = %q, want committed CAS winner", latestSummary.ActorID)
+			t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
 		}
 	})
-
-	if err := globalDB.DeleteWorkspace(testutil.Context(t), updated.ID); err != nil {
-		t.Fatalf("DeleteWorkspace() error = %v", err)
-	}
-	if _, err := globalDB.GetWorkspace(
-		testutil.Context(t),
-		updated.ID,
-	); !errors.Is(
-		err,
-		compozyworkspace.ErrWorkspaceNotFound,
-	) {
-		t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
-	}
 }
 
 func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
@@ -4022,27 +4611,17 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	)
 
 	session := SessionInfo{
-		ProfileID:           store.DefaultProfileID,
-		ID:                  "sess-workspace-id",
-		AgentName:           "coder",
-		RuntimeStatus:       store.SessionRuntimeUnbound,
-		WorkspaceID:         workspaceID,
-		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
-		State:               "active",
+		ProfileID:     store.DefaultProfileID,
+		ID:            "sess-workspace-id",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
 		Liveness: &store.SessionLivenessMeta{
 			SubprocessPID: 77,
 			LastUpdateAt:  ptrTime(time.Date(2026, 4, 3, 13, 1, 0, 0, time.UTC)),
 			StallState:    store.SessionStallStateDetected,
 			StallReason:   store.SessionStallReasonActivityTimeout,
-		},
-		Sandbox: &store.SessionSandboxMeta{
-			SandboxID:     "env-workspace-id",
-			Backend:       "local",
-			Profile:       "local",
-			State:         "prepared",
-			InstanceID:    "instance-workspace-id",
-			ProviderState: []byte(`{"provider":true}`),
-			LastSyncError: "last sync failed",
 		},
 		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
@@ -4062,24 +4641,6 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	}
 	if got, want := sessions[0].WorkspaceID, workspaceID; got != want {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].NetworkSpecSnapshot().ChannelID, ""; got != want {
-		t.Fatalf("sessions[0] Network channel = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].NetworkSpec, participation.LocalSpec(); got != want {
-		t.Fatalf("sessions[0].NetworkSpec = %#v, want %#v", got, want)
-	}
-	if sessions[0].Sandbox == nil {
-		t.Fatal("sessions[0].Sandbox = nil, want sandbox metadata")
-	}
-	if got, want := sessions[0].Sandbox.SandboxID, "env-workspace-id"; got != want {
-		t.Fatalf("sessions[0].Sandbox.SandboxID = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].Sandbox.InstanceID, "instance-workspace-id"; got != want {
-		t.Fatalf("sessions[0].Sandbox.InstanceID = %q, want %q", got, want)
-	}
-	if got, want := sessions[0].Sandbox.LastSyncError, "last sync failed"; got != want {
-		t.Fatalf("sessions[0].Sandbox.LastSyncError = %q, want %q", got, want)
 	}
 	if sessions[0].Liveness == nil {
 		t.Fatal("sessions[0].Liveness = nil, want liveness metadata")
@@ -4158,14 +4719,6 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"last_seen_revision",
 				"last_seen_at",
 				"attention_changed_at",
-				"sandbox_id",
-				"sandbox_backend",
-				"sandbox_profile",
-				"sandbox_instance_id",
-				"sandbox_state",
-				"sandbox_provider_state_json",
-				"sandbox_last_sync_at",
-				"sandbox_last_sync_error",
 				"created_at",
 				"updated_at",
 				"failure_kind",
@@ -4187,10 +4740,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"creation_digest",
 				"policy_spec_digest",
 				"creation_profile_ref",
-				"network_spec_json",
-				"network_mode",
-				"network_channel",
-				"network_source",
+				"lineage_kind",
+				"origin_message_id",
+				"origin_agent_name",
 			},
 		)
 	})
@@ -5010,8 +5562,8 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReconcileSessions() error = %v", err)
 	}
-	sort.Strings(result.Indexed)
-	sort.Strings(result.Orphaned)
+	slices.Sort(result.Indexed)
+	slices.Sort(result.Orphaned)
 	if !testutil.EqualStringSlices(result.Indexed, []string{"sess-new"}) {
 		t.Fatalf("Indexed = %#v, want %#v", result.Indexed, []string{"sess-new"})
 	}
@@ -5252,8 +5804,8 @@ func assertEventSummaryIDs(t *testing.T, globalDB *GlobalDB, want []string) {
 	for _, event := range events {
 		got = append(got, event.ID)
 	}
-	sort.Strings(got)
-	sort.Strings(want)
+	slices.Sort(got)
+	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("event summary ids = %#v, want %#v", got, want)
 	}
@@ -5270,8 +5822,8 @@ func assertTokenStatAgents(t *testing.T, globalDB *GlobalDB, want []string) {
 	for _, stat := range stats {
 		got = append(got, stat.AgentName)
 	}
-	sort.Strings(got)
-	sort.Strings(want)
+	slices.Sort(got)
+	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("token stat agents = %#v, want %#v", got, want)
 	}
@@ -5288,8 +5840,8 @@ func assertPermissionLogIDs(t *testing.T, globalDB *GlobalDB, want []string) {
 	for _, entry := range entries {
 		got = append(got, entry.ID)
 	}
-	sort.Strings(got)
-	sort.Strings(want)
+	slices.Sort(got)
+	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("permission log ids = %#v, want %#v", got, want)
 	}
@@ -5302,7 +5854,6 @@ func assertWorkspaceEqual(t *testing.T, got compozyworkspace.Workspace, want com
 		got.RootDir != want.RootDir ||
 		got.Name != want.Name ||
 		got.DefaultAgent != want.DefaultAgent ||
-		got.SandboxRef != want.SandboxRef ||
 		!got.CreatedAt.Equal(want.CreatedAt) ||
 		!got.UpdatedAt.Equal(want.UpdatedAt) ||
 		!testutil.EqualStringSlices(got.AdditionalDirs, want.AdditionalDirs) {
@@ -5377,13 +5928,11 @@ func stringPointerForTest(value string) *string {
 		return nil
 	}
 
-	copyValue := value
-	return &copyValue
+	return new(value)
 }
 
 func ptrTime(value time.Time) *time.Time {
-	copyValue := value.UTC()
-	return &copyValue
+	return new(value.UTC())
 }
 
 func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
@@ -5440,4 +5989,206 @@ func assertSynchronousNormal(t *testing.T, db *sql.DB) {
 	if synchronous != 1 {
 		t.Fatalf("PRAGMA synchronous = %d, want 1 (NORMAL)", synchronous)
 	}
+}
+
+// Invariants IT-001/003/008: retirement preserves active state, removes derived memory
+// and legacy internal sessions, and keeps all nine session FK sites consistent.
+// Owner: global SQLite upgrade. Canonical suite: global DB retirement/preservation.
+func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
+	t.Parallel()
+	for _, fixture := range []struct {
+		name   string
+		memory bool
+	}{
+		{"Should retire populated memory state and legacy sessions while preserving active state", true},
+		{"Should upgrade databases without a memory stream without changing kept schema", false},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := globalMigrationTestContext(t)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(
+				t,
+				path,
+				globalMigrationPrefixBefore(t, "00130_retire_memory.sql"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seedMemoryRetirementKeptState(t, prior)
+			if fixture.memory {
+				fixtureSQL, err := os.ReadFile("testdata/retired_memory_v3.sql")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prior.ExecContext(ctx, string(fixtureSQL)); err != nil {
+					t.Fatal(err)
+				}
+				seedMemoryRetirementStream(t, prior)
+			}
+			keptQueries := []string{
+				`SELECT * FROM sessions WHERE id IN ('kept-user','kept-title','kept-reviewer') ORDER BY id`,
+				`SELECT * FROM tasks WHERE id='kept-task'`,
+				`SELECT * FROM loop_runs WHERE id='kept-loop'`,
+				`SELECT * FROM agent_soul_revisions WHERE id='kept-soul'`,
+				`SELECT * FROM automation_triggers WHERE id='kept-trigger'`,
+				`SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT GLOB 'memory_*' AND tbl_name NOT GLOB 'memory_*' AND name <> 'goose_db_version_memory' ORDER BY name`,
+			}
+			before := make([]string, len(keptQueries))
+			for i, query := range keptQueries {
+				before[i] = memoryRetirementRows(t, prior, query)
+			}
+			if err := prior.Close(); err != nil {
+				t.Fatal(err)
+			}
+			retirement := globalMigrationPrefixThrough(t, "00130_retire_memory.sql")
+			for range 2 {
+				upgraded, err := openGlobalMigrationPrefixDatabase(t, path, retirement)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i, query := range keptQueries {
+					if got := memoryRetirementRows(t, upgraded, query); got != before[i] {
+						t.Fatalf("kept state changed for %s", query)
+					}
+				}
+				for _, query := range []string{
+					`SELECT count(*) FROM sqlite_master WHERE name GLOB 'memory_*' OR name = 'goose_db_version_memory'`,
+					`SELECT count(*) FROM sessions WHERE session_type='dream' OR spawn_role IN ('memory-extractor','checkpoint-summary')`,
+					`SELECT count(*) FROM sessions WHERE parent_session_id='kept-user' AND id NOT IN ('kept-title','kept-reviewer')`,
+					`SELECT count(*) FROM pragma_foreign_key_check`,
+				} {
+					var count int
+					if err := upgraded.QueryRowContext(ctx, query).Scan(&count); err != nil {
+						t.Fatal(err)
+					}
+					if count != 0 {
+						t.Fatalf("%s = %d, want zero", query, count)
+					}
+				}
+				for _, eventID := range []string{"retired-wake", "retired-checkpoint-wake"} {
+					var eventSession sql.NullString
+					if err := upgraded.QueryRowContext(ctx, `SELECT session_id FROM agent_heartbeat_wake_events WHERE id=?`, eventID).
+						Scan(&eventSession); err != nil {
+						t.Fatal(err)
+					}
+					if eventSession.Valid {
+						t.Fatalf("heartbeat audit %s retains deleted session %q", eventID, eventSession.String)
+					}
+				}
+				status, err := store.Status(ctx, upgraded, retirement)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertCompleteMigrationStream(t, status, retirement)
+				if err := upgraded.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func seedMemoryRetirementKeptState(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for _, statement := range []string{
+		`INSERT INTO workspaces (id,root_dir,name,add_dirs,created_at,updated_at) VALUES ('retirement-ws','/retirement','Retirement','[]','2026-10-07','2026-10-07')`,
+		`INSERT INTO sessions (id,profile_id,agent_name,scope,workspace_id,state,session_type,spawn_role,parent_session_id,attention_revision,pending_permission_count,created_at,updated_at) VALUES
+		('kept-user','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user',NULL,NULL,7,0,'2026-10-07','2026-10-07'),
+		('retired-dream','00000000000000000000000000','coder','workspace','retirement-ws','stopped','dream',NULL,NULL,3,1,'2026-10-07','2026-10-07'),
+		('retired-extractor','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','memory-extractor','kept-user',4,1,'2026-10-07','2026-10-07'),
+		('retired-checkpoint','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','checkpoint-summary','kept-user',4,1,'2026-10-07','2026-10-07'),
+		('retired-checkpoint-dream','00000000000000000000000000','coder','workspace','retirement-ws','stopped','dream','checkpoint-summary','kept-user',4,1,'2026-10-07','2026-10-07'),
+		('kept-reviewer','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','reviewer','kept-user',0,0,'2026-10-07','2026-10-07'),
+		('kept-title','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','auto-title','kept-user',0,0,'2026-10-07','2026-10-07')`,
+		`INSERT INTO tasks (id,profile_id,scope,workspace_id,title,status,created_by_kind,created_by_ref,origin_kind,origin_ref,created_at,updated_at) VALUES ('kept-task','00000000000000000000000000','workspace','retirement-ws','Keep task','open','daemon','daemon','daemon','daemon','2026-10-07','2026-10-07')`,
+		`INSERT INTO loop_runs (id,profile_id,workspace_id,loop_name,status,last_progress_at,inputs_json) VALUES ('kept-loop','00000000000000000000000000','retirement-ws','kept','done','2026-10-07','{}')`,
+		`INSERT INTO agent_soul_revisions (id,workspace_id,agent_name,source_path,action,created_at) VALUES ('kept-soul','retirement-ws','coder','SOUL.md','put','2026-10-07')`,
+		`INSERT INTO automation_triggers (id,profile_id,scope,name,agent_name,prompt,event,retry,fire_limit,created_at,updated_at) VALUES ('kept-trigger','00000000000000000000000000','global','Kept','coder','Keep','session.created','{}','{}','2026-10-07','2026-10-07')`,
+	} {
+		if _, err := db.ExecContext(t.Context(), statement); err != nil {
+			t.Fatalf("seed kept state: %v", err)
+		}
+	}
+	for _, id := range []string{"retired-dream", "retired-extractor", "retired-checkpoint", "retired-checkpoint-dream"} {
+		for _, statement := range []string{
+			`INSERT INTO session_health (session_id,workspace_id,agent_name,state,health,active_prompt,attachable,eligible_for_wake,updated_at) VALUES (?,'retirement-ws','coder','stopped','healthy',0,1,0,'2026-10-07')`,
+			`INSERT INTO token_stats (id,session_id,agent_name,input_tokens,output_tokens,updated_at) VALUES (?,?,'coder',21,8,'2026-10-07')`,
+			`INSERT INTO permission_log (id,session_id,agent_name,action,resource,decision,policy_used,timestamp) VALUES (?,?,'coder','read','file','allow','policy','2026-10-07')`,
+			`INSERT INTO session_pending_interactions (interaction_id,session_id,kind,provider_request_id,status,created_at) VALUES (?,?,'permission','request','pending','2026-10-07')`,
+			`INSERT INTO session_prompt_admissions (id,workspace_id,session_id,message_id,idempotency_key,operation,fingerprint_version,request_fingerprint,state,turn_id,event_id,created_at,updated_at) VALUES (?,'retirement-ws',?,'message','key','prompt','v1','fingerprint','reserved','turn','event','2026-10-07','2026-10-07')`,
+			`INSERT INTO session_input_queue (id,session_id,prompt_admission_id,status,mode,text,enqueued_at,updated_at) VALUES (?,?,?,'queued','queue','prompt','2026-10-07','2026-10-07')`,
+			`INSERT INTO session_input_clear_traces (entry_id,session_id,turn_id,actor_kind,actor_id,queue_generation,created_at) VALUES (?,?,'turn','user','operator',0,'2026-10-07')`,
+			`INSERT INTO agent_heartbeat_wake_state (workspace_id,agent_name,session_id,last_result,updated_at) VALUES ('retirement-ws',?,?,'sent','2026-10-07')`,
+		} {
+			args := make([]any, strings.Count(statement, "?"))
+			for i := range args {
+				args[i] = id
+			}
+			if _, err := db.ExecContext(t.Context(), statement, args...); err != nil {
+				t.Fatalf("seed session dependent %s: %v", statement, err)
+			}
+		}
+	}
+	if _, err := db.ExecContext(
+		t.Context(),
+		`INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,session_id,source,result,reason,created_at,expires_at) VALUES ('retired-wake','retirement-ws','coder','retired-dream','manual','sent','wake_sent','2026-10-07','2026-10-08'), ('retired-checkpoint-wake','retirement-ws','coder','retired-checkpoint','manual','sent','wake_sent','2026-10-07','2026-10-08')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedMemoryRetirementStream(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for _, statement := range []string{
+		`INSERT INTO memory_catalog_entries (id,scope,type,slug,filename,content_hash,mtime_ms,indexed_at,updated_at) VALUES ('file','profile','project','fixture','project_fixture.md','hash',1,1,'2026-10-07')`,
+		`INSERT INTO memory_chunks (id,file_id,content,content_hash,start_line,end_line,indexed_at) VALUES ('chunk','file','Remember','hash',1,1,1)`,
+		`INSERT INTO memory_recall_signals (chunk_id,updated_at) VALUES ('chunk',1)`,
+		`INSERT INTO memory_catalog_state (key,value) VALUES ('fixture','value')`,
+		`INSERT INTO memory_consolidations (id,scope,started_at,status) VALUES ('consolidation','profile',1,'running')`,
+		`INSERT INTO memory_decisions (id,candidate_hash,idempotency_key,frontmatter_hash,scope,op,target_filename,confidence,source,rule_trace,decided_at) VALUES ('pending','hash','key','hash','profile','add','project_fixture.md',1,'rule','trace',1)`,
+		`INSERT INTO memory_events (op,actor_kind,ts_ms) VALUES ('memory.write.committed','user',1)`,
+		`UPDATE memory_maintenance_ops SET status='pending' WHERE op='move_global_dir'`,
+	} {
+		if _, err := db.ExecContext(t.Context(), statement); err != nil {
+			t.Fatalf("seed memory stream: %v", err)
+		}
+	}
+}
+
+func memoryRetirementRows(t *testing.T, db *sql.DB, query string) string {
+	t.Helper()
+	rows, err := db.QueryContext(t.Context(), query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	columns, err := rows.Columns()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result [][]any
+	for rows.Next() {
+		values := make([]any, len(columns))
+		pointers := make([]any, len(columns))
+		for i := range values {
+			pointers[i] = &values[i]
+		}
+		if err := rows.Scan(pointers...); err != nil {
+			t.Fatal(err)
+		}
+		result = append(result, values)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(contents)
 }

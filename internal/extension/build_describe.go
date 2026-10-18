@@ -74,11 +74,9 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 			Env:     cloneStringMap(payload.Subprocess.Env),
 		},
 	}
-	if payload.NetworkParticipation != nil {
-		manifest.NetworkParticipation = (&NetworkParticipationRequirement{
-			Required:      payload.NetworkParticipation.Required,
-			Mode:          strings.TrimSpace(payload.NetworkParticipation.Mode),
-			ChannelScopes: slices.Clone(payload.NetworkParticipation.ChannelScopes),
+	if payload.Gateway != nil {
+		manifest.Gateway = (&GatewayRequirement{
+			Permissions: slices.Clone(payload.Gateway.Permissions),
 		}).Normalize()
 	}
 	if err := validateDescribeSDK(payload.SDK); err != nil {
@@ -164,7 +162,6 @@ func normalizeDescribeProfiles(profiles []extensioncontract.DescribeProfile) []e
 			Defaults: extensioncontract.DescribeProfileDefaults{
 				Agent:    strings.TrimSpace(profile.Defaults.Agent),
 				Provider: strings.TrimSpace(profile.Defaults.Provider),
-				Sandbox:  strings.TrimSpace(profile.Defaults.Sandbox),
 			},
 			Credentials: slices.Compact(credentials),
 		})
@@ -187,7 +184,7 @@ func manifestProfilesFromDescribe(profiles []extensioncontract.DescribeProfile) 
 		result = append(result, ManifestProfile{
 			Name: profile.Name, Color: profile.Color, Icon: profile.Icon, Emoji: profile.Emoji,
 			Defaults: ManifestProfileDefaults{
-				Agent: profile.Defaults.Agent, Provider: profile.Defaults.Provider, Sandbox: profile.Defaults.Sandbox,
+				Agent: profile.Defaults.Agent, Provider: profile.Defaults.Provider,
 			},
 			Credentials: credentials,
 		})

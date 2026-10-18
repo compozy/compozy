@@ -23,9 +23,9 @@ type SkillPayload struct {
 	Activation  SkillActivationPayload   `json:"activation"`
 	Dir         string                   `json:"dir"`
 	Metadata    map[string]any           `json:"metadata,omitempty"`
-	Provenance  *ProvenancePayload       `json:"provenance,omitempty"`
+	Provenance  *ProvenancePayload       `json:"provenance,omitzero"`
 	Diagnostics []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
-	Exposures   *[]SkillExposurePayload  `json:"exposures,omitempty"`
+	Exposures   *[]SkillExposurePayload  `json:"exposures,omitzero"`
 }
 
 // SkillExposurePayload is one provider-root link and its reconciled health.
@@ -68,9 +68,9 @@ type SkillExposureFailureErrorPayload struct {
 type SkillExposureTargetResultPayload struct {
 	Target       string                     `json:"target"`
 	OK           bool                       `json:"ok"`
-	Exposure     *SkillExposurePayload      `json:"exposure,omitempty"`
-	Error        *SkillExposureErrorPayload `json:"error,omitempty"`
-	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitempty"`
+	Exposure     *SkillExposurePayload      `json:"exposure,omitzero"`
+	Error        *SkillExposureErrorPayload `json:"error,omitzero"`
+	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitzero"`
 }
 
 // SkillExposeResponse is the successful expose result.
@@ -94,7 +94,7 @@ type SkillExposureFailureResponse struct {
 	Name        string                             `json:"name"`
 	WorkspaceID string                             `json:"workspace_id,omitempty"`
 	Results     []SkillExposureTargetResultPayload `json:"results"`
-	RolledBack  *bool                              `json:"rolled_back,omitempty"`
+	RolledBack  *bool                              `json:"rolled_back,omitzero"`
 }
 
 // SkillContentResponse is the explicit response type for one skill body.

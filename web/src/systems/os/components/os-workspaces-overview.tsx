@@ -90,7 +90,7 @@ export function OsWorkspacesOverview({ open, onOpenChange, ...stage }: OsWorkspa
           // variant bucket — the overlay owns the whole viewport.
           "sm:max-w-none",
           "flex flex-col items-center justify-center rounded-none px-4 pt-6 pb-20",
-          "bg-transparent shadow-none backdrop-blur-shell-scrim"
+          "bg-transparent shadow-none"
         )}
         onClick={event => {
           // Backdrop click closes; the popup is full-bleed, so "backdrop" is
@@ -127,14 +127,9 @@ function flatNode(workspace: WorkspacePayload): WorkspaceTreeNode<WorkspacePaylo
   return { workspace, gitBacked: false, worktrees: [], adoptedCount: 0, runningAgents: 0 };
 }
 
-function subtitleFor(workspaceCount: number, totalWorktrees: number): string {
-  return [
-    `${workspaceCount} workspace${workspaceCount === 1 ? "" : "s"}`,
-    // Zero renders nothing rather than "0 worktrees".
-    totalWorktrees > 0 ? `${totalWorktrees} worktree${totalWorktrees === 1 ? "" : "s"}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+function subtitleFor(workspaceCount: number): string {
+  // Worktree counts stay on each tile's nest; the headline counts projects only.
+  return `${workspaceCount} project${workspaceCount === 1 ? "" : "s"}`;
 }
 
 function captionFor(
@@ -144,9 +139,8 @@ function captionFor(
   if (!entry || entry.kind === "add") {
     return {
       key: WORKSPACES_ADD_TILE_KEY,
-      title: "New workspace",
-      meta: "Register a project folder",
-      path: "directory picker",
+      title: "New project",
+      meta: "Pick a project folder",
     };
   }
   const rootDir = entry.node.workspace.root_dir;
@@ -160,7 +154,7 @@ function captionFor(
 const GLOBAL_CAPTION: OsWorkspacesCaptionModel = {
   key: "global",
   title: "Global",
-  meta: "visible to every workspace",
+  meta: "visible to every project",
   path: "~",
 };
 
@@ -186,23 +180,16 @@ function OsWorkspacesStage({
   escapeGuardRef,
   shortcutLabels,
 }: OsWorkspacesStageProps) {
-  const {
-    tree,
-    empty,
-    entries,
-    totalWorktrees,
-    readySelectedWorktreeKey,
-    canCreate,
-    menuModelByKey,
-  } = projectWorkspacesStage({
-    workspaces,
-    worktreesByWorkspace,
-    userHomeDir,
-    scope,
-    selectedWorktreeId,
-    activeWorkspaceId,
-    onCreateWorktree,
-  });
+  const { tree, empty, entries, readySelectedWorktreeKey, canCreate, menuModelByKey } =
+    projectWorkspacesStage({
+      workspaces,
+      worktreesByWorkspace,
+      userHomeDir,
+      scope,
+      selectedWorktreeId,
+      activeWorkspaceId,
+      onCreateWorktree,
+    });
 
   const activateEntry = (entry: WorkspacesSwitcherEntry) => {
     if (entry.kind === "add") {
@@ -257,39 +244,40 @@ function OsWorkspacesStage({
     escapeGuardRef.current = switcher.guardEscape;
   });
 
-  const { focusedEntry, menuModel, menuNavRows, scopedRowKey, focusedRowKey } =
-    focusedWorkspacesMenu(
-      switcher,
-      menuModelByKey,
-      scope,
-      activeWorkspaceId,
-      readySelectedWorktreeKey
-    );
+  const { focusedEntry, menuModel, scopedRowKey, focusedRowKey } = focusedWorkspacesMenu(
+    switcher,
+    menuModelByKey,
+    scope,
+    activeWorkspaceId,
+    readySelectedWorktreeKey
+  );
 
   return (
     <>
       <div
         data-slot="os-workspaces-stage"
         className={cn(
-          "flex w-workspaces-stage flex-col items-center",
+          // Above the reserved dismiss band below: a tall worktree menu hangs
+          // into that band and must stay clickable.
+          "relative z-1 flex w-workspaces-stage flex-col items-center",
           !reducedMotion && "os-wsov-in"
         )}
         onKeyDown={switcher.onStageKeyDown}
       >
-        <DialogTitle className="sr-only">Workspaces</DialogTitle>
+        <DialogTitle className="sr-only">Projects</DialogTitle>
         <DialogDescription
           className="mb-3.5 text-center text-form-label text-muted"
           data-testid="os-workspaces-subtitle"
         >
-          {subtitleFor(tree.length, totalWorktrees)}
+          {subtitleFor(tree.length)}
         </DialogDescription>
         {empty ? (
           <div
             data-slot="os-workspaces-strip"
             data-testid="os-workspaces-strip"
             className={cn(
-              "flex flex-col items-center gap-2.5 rounded-xl border border-line-strong px-6 py-5",
-              "bg-shell-glass-pop text-center shadow-shell-strip backdrop-blur-shell-strip backdrop-saturate-shell-glass"
+              "flex flex-col items-center gap-2.5 rounded-xl px-6 py-5",
+              "bg-popover text-center shadow-pop"
             )}
           >
             <p className="max-w-workspaces-empty-copy text-small-body text-muted">
@@ -302,8 +290,8 @@ function OsWorkspacesStage({
               type="button"
               onClick={() => activateEntry(ADD_ENTRY)}
             >
-              <Plus aria-hidden="true" className="size-3" />
-              New workspace
+              <Plus aria-hidden="true" data-icon="inline-start" />
+              New project
             </Button>
           </div>
         ) : (
@@ -365,7 +353,6 @@ function OsWorkspacesStage({
       />
       <OsWorkspacesHints
         layer={switcher.layer === "menu" ? "menu" : "strip"}
-        hasMenuRows={menuNavRows.length > 0}
         empty={empty}
         pickerShortcutLabel={shortcutLabels?.picker ?? null}
         globalScopeShortcutLabel={shortcutLabels?.globalScope ?? null}
@@ -461,7 +448,6 @@ function projectWorkspacesStage({
         ...tree.map(node => ({ key: node.workspace.id, kind: "workspace" as const, node })),
         ADD_ENTRY,
       ];
-  const totalWorktrees = tree.reduce((total, node) => total + node.adoptedCount, 0);
   const readySelectedWorktreeKey =
     scope === "workspace" && selectedWorktreeId
       ? (tree
@@ -479,7 +465,6 @@ function projectWorkspacesStage({
     tree,
     empty,
     entries,
-    totalWorktrees,
     readySelectedWorktreeKey,
     canCreate,
     menuModelByKey,

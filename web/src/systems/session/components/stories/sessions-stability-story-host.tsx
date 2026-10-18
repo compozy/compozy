@@ -10,14 +10,10 @@ import { Eyebrow } from "@compozy/ui";
 
 import type { SessionComposerProps } from "@/components/assistant-ui/session-composer";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
-import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
-import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import type { SessionThreadStatusSession } from "@/components/assistant-ui/session-thread-status-row";
 import { cn } from "@/lib/utils";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import { SessionQuietWarningNotice } from "@/systems/session/components/session-quiet-warning-notice";
 import { SessionTransportChip } from "@/systems/session/components/session-transport-chip";
-import type { SessionQuietWarning } from "@/systems/session/lib/session-quiet-warning";
 import {
   SessionTransportContext,
   type SessionTransportState,
@@ -30,7 +26,6 @@ export interface StabilityThreadHostProps {
   /** The session resource the status row reads; defaults to the settled fixture. */
   statusSession?: SessionThreadStatusSession | null;
   isSessionRunning?: boolean;
-  quietWarning?: SessionQuietWarning | null;
   liveDataEnabled?: boolean;
   stopCompletionNote?: boolean;
   /** Injected transport snapshot (the production context the chip, notices, and composer guard read). */
@@ -63,12 +58,11 @@ function TransportScope({
 
 /**
  * The session window body: a head line with the session name, the agent, and
- * the transport chip slot at its trailing edge; the notice rail; the thread.
+ * the transport chip slot at its trailing edge; the thread.
  */
 export function StabilityThreadHost({
   statusSession = STABILITY_SESSION,
   isSessionRunning = false,
-  quietWarning = null,
   liveDataEnabled = true,
   stopCompletionNote = false,
   transport,
@@ -86,7 +80,7 @@ export function StabilityThreadHost({
       <TransportScope transport={transport}>
         <div
           className={cn(
-            "flex max-w-full flex-col overflow-hidden rounded-window border border-line-focus bg-canvas shadow-window"
+            "flex max-w-full flex-col overflow-hidden rounded-lg border border-line bg-canvas shadow-elevated"
           )}
           data-testid="stability-story-window"
           style={{ height, width }}
@@ -98,22 +92,12 @@ export function StabilityThreadHost({
               <SessionTransportChip windowLive={windowLive} />
             </div>
           </div>
-          {quietWarning ? (
-            <ThreadContentRail inset={SESSION_THREAD_CONTENT_INSET_DEFAULT}>
-              <SessionQuietWarningNotice
-                isStopping={false}
-                onStop={() => undefined}
-                warning={quietWarning}
-              />
-            </ThreadContentRail>
-          ) : null}
           <SessionThread
             sessionId={STABILITY_SESSION.id}
             workspaceId={STABILITY_WORKSPACE_ID}
             agentName={STABILITY_SESSION.agent_name}
             sessionState={statusSession?.state ?? STABILITY_SESSION.state}
             statusSession={statusSession}
-            quietWarning={quietWarning}
             liveDataEnabled={liveDataEnabled}
             stopCompletionNote={stopCompletionNote}
             isSessionRunning={isSessionRunning}

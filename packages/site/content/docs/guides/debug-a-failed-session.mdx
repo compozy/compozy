@@ -52,8 +52,8 @@ private; redaction does not replace secure handling.
 compozy doctor -o json
 ```
 
-Look for unhealthy subsystems before focusing on the agent process. Memory indexing, event storage,
-or daemon connectivity problems can make a session look broken even when the provider process is
+Look for unhealthy subsystems before focusing on the agent process. Event storage or daemon
+connectivity problems can make a session look broken even when the provider process is
 not the root cause.
 
 ## 4. Inspect the session status
@@ -74,6 +74,19 @@ Check:
 
 What happened: the daemon returned the current session record, not a reconstructed transcript. Use
 this to learn what CompozyOS thinks the session is doing right now.
+
+### When the provider is silent during startup
+
+ACP control requests, including `initialize`, `session/new`, `session/load`, and session option
+changes, have a 30-second deadline per request. If `session/new` times out, CompozyOS stops the owned
+process tree and makes one fresh-process attempt after confirming exit. Other startup failures and
+operator cancellation do not trigger that retry. Both attempts can take their full deadline, plus
+process cleanup time.
+
+If creation still fails, the session becomes `stopped` and the startup error identifies the ACP
+method and provider. `compozy session stop <id>` also cancels a pending startup and reaps its provider
+process tree. Prompt execution and interactive clarification use their existing lifetimes; the
+control deadline does not limit an agent's working turn.
 
 ## 5. Read the durable event stream
 
@@ -155,7 +168,6 @@ data-loss problem.
 | Web UI is stale                            | `compozy status` and `compozy doctor`                           | [Web UI](/docs/getting-started/web-ui)            |
 | Attach is refused                          | `compozy session list --resumable` and `compozy session recap`  | [Resume Attach and Replay](/docs/sessions/resume) |
 | Agent cannot see project context           | `compozy workspace info <name>`                                 | [Workspace Resolver](/docs/workspaces/resolver)   |
-| Memory is missing                          | `compozy memory health -o json`                                 | [Memory System](/docs/memory/system)              |
 
 ## Evidence to collect before filing a bug
 

@@ -2,7 +2,8 @@ import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "lucide-react";
 
 import { Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
-const ACTION_CLASS = "text-muted hover:bg-row-hover hover:text-fg-strong";
+// Composer toolbar ink (P5): `fg-2` at rest, `fg` on hover from the quiet variant.
+const ACTION_CLASS = "text-fg-2";
 
 export type SessionEnvironmentChipState = "root" | "worktree" | "new" | "pending" | "failed";
 
@@ -45,9 +46,11 @@ export function SessionEnvironmentChip({
 }: SessionEnvironmentChipProps) {
   const Glyph = ICON[state];
   const forkAvailable = Boolean(onFork);
-  const environmentName = `${state === "worktree" ? "Worktree" : "Workspace"}: ${label}`;
+  const environmentName = `${state === "worktree" ? "Worktree" : "Project"}: ${label}`;
   const isLiveState = state === "root" || state === "worktree";
-  const tooltip = isLiveState ? `${environmentName} — fork into a new worktree` : environmentName;
+  const tooltip = isLiveState
+    ? `${environmentName} — move to a separate copy (worktree)`
+    : environmentName;
   const accessibleName = forkUnavailableReason ? `${tooltip}. ${forkUnavailableReason}` : tooltip;
   const toneClass = cn(
     state === "pending" && "border-dashed text-warning [&_svg]:text-warning",
@@ -62,7 +65,7 @@ export function SessionEnvironmentChip({
           <Button
             aria-disabled={forkAvailable ? undefined : true}
             aria-label={accessibleName}
-            className={cn("size-6", ACTION_CLASS, toneClass)}
+            className={cn(ACTION_CLASS, toneClass)}
             data-binding={state === "root" ? "root" : "worktree"}
             data-fork={
               forkAvailable ? "available" : forkUnavailableReason ? "unavailable" : undefined
@@ -72,11 +75,11 @@ export function SessionEnvironmentChip({
             data-slot="session-environment-chip"
             data-state={state}
             onClick={forkAvailable ? onFork : undefined}
-            size="icon-xs"
+            size="icon"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
-            <Glyph aria-hidden="true" className="size-3.5" />
+            <Glyph aria-hidden="true" />
           </Button>
         }
       />

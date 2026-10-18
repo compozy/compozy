@@ -94,9 +94,9 @@ export function LayoutCanvasFloating({
       aria-pressed={selected}
       className={cn(
         "absolute z-4 flex cursor-grab flex-col overflow-hidden rounded-sm border text-left",
-        "border-line-focus bg-elevated shadow-overlay",
+        "border-line bg-canvas shadow-elevated",
         "focus-visible:outline-none focus-visible:shadow-focus-ring active:cursor-grabbing",
-        selected && "border-accent",
+        selected && "border-fg",
         window.minimized && "border-dashed opacity-45"
       )}
       data-selected={selected ? "true" : undefined}

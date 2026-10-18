@@ -22,10 +22,6 @@ CREATE TABLE task_execution_profiles (
 			review_reasoning_effort  TEXT NOT NULL DEFAULT '',
 			review_speed             TEXT NOT NULL DEFAULT '' CHECK (review_speed IN ('', 'normal', 'fast')),
 			review_acp_options_json  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(review_acp_options_json)),
-			sandbox_mode             TEXT NOT NULL DEFAULT 'inherit' CHECK (
-				sandbox_mode IN ('inherit', 'none', 'ref')
-			),
-			sandbox_ref              TEXT NOT NULL DEFAULT '',
 			worktree_mode            TEXT NOT NULL DEFAULT 'inherit' CHECK (
 				worktree_mode IN ('inherit', 'none', 'ref', 'per_run')
 			),
@@ -34,18 +30,6 @@ CREATE TABLE task_execution_profiles (
 			updated_at               TEXT NOT NULL,
 			runtime_mode             TEXT NOT NULL DEFAULT 'default' CHECK (
 				runtime_mode IN ('default', 'evidence')
-			),
-			network_mode             TEXT NOT NULL DEFAULT '' CHECK (network_mode IN ('', 'local', 'live')),
-			network_channel_strategy TEXT CHECK (
-				network_channel_strategy IS NULL OR network_channel_strategy IN ('named', 'run', 'loop_run')
-			),
-			network_channel          TEXT,
-			network_bounds_json      TEXT CHECK (
-				network_bounds_json IS NULL OR json_valid(network_bounds_json)
-			),
-			CHECK (
-				(sandbox_mode = 'ref' AND sandbox_ref <> '') OR
-				(sandbox_mode <> 'ref' AND sandbox_ref = '')
 			),
 			CHECK (
 				(worktree_mode = 'ref') = (worktree_ref <> '')
@@ -68,22 +52,6 @@ CREATE TABLE task_profile_capabilities (
 			PRIMARY KEY (task_id, role, preference, capability_id)
 		);
 
-CREATE TABLE task_profile_channels (
-			task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-			role        TEXT NOT NULL CHECK (role IN ('review', 'participant')),
-			preference  TEXT NOT NULL CHECK (preference IN ('allowed', 'preferred')),
-			channel_id  TEXT NOT NULL CHECK (channel_id <> ''),
-			PRIMARY KEY (task_id, role, preference, channel_id)
-		);
-
-CREATE TABLE task_profile_peers (
-			task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-			role        TEXT NOT NULL CHECK (role IN ('review', 'participant')),
-			preference  TEXT NOT NULL CHECK (preference IN ('allowed', 'preferred')),
-			peer_id     TEXT NOT NULL CHECK (peer_id <> ''),
-			PRIMARY KEY (task_id, role, preference, peer_id)
-		);
-
 CREATE INDEX task_execution_profiles_task_id_idx
 			ON task_execution_profiles(task_id);
 
@@ -92,9 +60,3 @@ CREATE INDEX task_profile_agents_lookup_idx
 
 CREATE INDEX task_profile_capabilities_lookup_idx
 			ON task_profile_capabilities(role, preference, capability_id, task_id);
-
-CREATE INDEX task_profile_channels_lookup_idx
-			ON task_profile_channels(role, preference, channel_id, task_id);
-
-CREATE INDEX task_profile_peers_lookup_idx
-			ON task_profile_peers(role, preference, peer_id, task_id);

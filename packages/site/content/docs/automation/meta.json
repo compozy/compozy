@@ -1,5 +1,12 @@
 {
-    "title": "Automation",
-    "icon": "Clock",
-    "pages": ["suggestions", "jobs", "triggers", "webhooks"]
+    "title": "Automations",
+    "icon": "Zap",
+    "pages": [
+        "run-an-agent-every-morning",
+        "react-when-a-session-fails",
+        "schedules",
+        "events",
+        "webhooks",
+        "suggestions"
+    ]
 }

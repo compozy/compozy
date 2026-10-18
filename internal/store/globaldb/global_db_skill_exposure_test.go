@@ -197,7 +197,7 @@ func TestGlobalDBSkillExposureIndexMigration(t *testing.T) {
 
 func assertSkillExposureCheckConstraint(t *testing.T, database *GlobalDB, record store.SkillExposureRecord) {
 	t.Helper()
-	if _, err := database.CreateSkillExposure(context.Background(), record); err == nil ||
+	if _, err := database.CreateSkillExposure(t.Context(), record); err == nil ||
 		!strings.Contains(err.Error(), "CHECK constraint failed") {
 		t.Fatalf(
 			"CreateSkillExposure(%s/%s) error = %v, want CHECK constraint",

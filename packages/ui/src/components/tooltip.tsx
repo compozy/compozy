@@ -6,6 +6,7 @@ import { AnimatePresence, m } from "motion/react";
 
 import { MOTION_DURATION_BASE, MOTION_EASE_OUT } from "../lib/motion";
 import { cn } from "../lib/utils";
+import { DialogContext } from "./hooks/use-dialog-context";
 import {
   TooltipMotionContext,
   type TooltipMotionContextValue,
@@ -30,6 +31,12 @@ function Tooltip({
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
+  const registerOpenTooltip = React.use(DialogContext)?.registerOpenTooltip;
+  const disabled = props.disabled;
+
+  React.useEffect(() => {
+    if (open && !disabled) return registerOpenTooltip?.();
+  }, [open, disabled, registerOpenTooltip]);
 
   const handleOpenChange: NonNullable<TooltipRootProps["onOpenChange"]> = (next, details) => {
     if (!isControlled) setUncontrolledOpen(next);
@@ -96,13 +103,12 @@ function TooltipContent({
                 />
               }
               className={cn(
-                "pointer-events-none z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-canvas-soft px-3 py-1.5 text-form-label text-fg-strong shadow-hairline has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-xs",
+                "pointer-events-none z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-popover px-2 py-1 text-eyebrow font-medium text-fg shadow-pop",
                 className
               )}
               {...props}
             >
               {children}
-              <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-var(--space-switch-thumb-inset))] rotate-45 rounded-xs bg-canvas-soft fill-canvas-soft data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5" />
             </TooltipPrimitive.Popup>
           </TooltipPrimitive.Positioner>
         </TooltipPrimitive.Portal>

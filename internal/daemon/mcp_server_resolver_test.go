@@ -652,7 +652,7 @@ func TestDaemonMCPProviderRecordsExtensionLaunchFailures(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newDaemonMCPToolProvider() error = %v", err)
 		}
-		_, err = provider.List(context.Background(), toolspkg.Scope{Operator: true})
+		_, err = provider.List(t.Context(), toolspkg.Scope{Operator: true})
 		if err != nil {
 			t.Fatalf("provider.List() error = %v; discovery failures should degrade the source", err)
 		}

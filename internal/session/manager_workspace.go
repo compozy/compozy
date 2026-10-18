@@ -15,10 +15,13 @@ const sessionDefaultProfileName = "default"
 
 func resolveStoredSessionWorkspace(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	resolver workspacepkg.RuntimeResolver,
 	profileNames ProfileNameResolver,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if meta == nil {
+		return workspacepkg.ResolvedWorkspace{}, errors.New("session: session metadata is required")
+	}
 	if resolver == nil {
 		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace resolver is required")
 	}
@@ -107,42 +110,9 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 	}
 }
 
-func applyCreateSandboxOverride(
-	resolved *workspacepkg.ResolvedWorkspace,
-	opts CreateOpts,
-) (bool, error) {
-	if resolved == nil {
-		return false, errors.New("session: resolved workspace is required")
-	}
-	sandboxRef := strings.TrimSpace(opts.SandboxRef)
-	if opts.DisableSandbox {
-		if sandboxRef != "" {
-			return false, errors.New(
-				"session: sandbox ref and disabled sandbox are mutually exclusive",
-			)
-		}
-		return true, nil
-	}
-	if sandboxRef == "" {
-		return false, nil
-	}
-
-	sandbox, err := resolved.Config.ResolveSandbox(sandboxRef)
-	if err != nil {
-		return false, fmt.Errorf(
-			"session: resolve sandbox ref %q: %w",
-			sandboxRef,
-			err,
-		)
-	}
-	resolved.Sandbox = sandbox
-	resolved.SandboxRef = sandboxRef
-	return false, nil
-}
-
 func (m *Manager) resolveResumeWorkspace(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) (workspacepkg.ResolvedWorkspace, error) {
 	resolver, err := m.requireWorkspaceResolver()
 	if err != nil {
@@ -329,8 +299,6 @@ func builtinSessionAgentDef(agentName string, sessionType Type) (compozyconfig.A
 	switch normalizeSessionType(sessionType) {
 	case SessionTypeCoordinator:
 		expectedName = compozyconfig.BuiltinCoordinatorAgentName
-	case SessionTypeDream:
-		expectedName = compozyconfig.BuiltinDreamingCuratorAgentName
 	default:
 		return compozyconfig.AgentDef{}, false
 	}

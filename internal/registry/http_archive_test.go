@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -34,7 +33,7 @@ func TestHTTPArchiveDownloader(t *testing.T) {
 			t.Fatalf("NewHTTPArchiveDownloader() error = %v", err)
 		}
 		result, err := downloader.Download(
-			context.Background(),
+			t.Context(),
 			"compozy/repository-orientation",
 			DownloadOpts{Version: "1.0.0"},
 		)
@@ -72,7 +71,7 @@ func TestHTTPArchiveDownloader(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPArchiveDownloader() error = %v", err)
 		}
-		_, err = downloader.Download(context.Background(), "compozy/artifact", DownloadOpts{})
+		_, err = downloader.Download(t.Context(), "compozy/artifact", DownloadOpts{})
 		if !errors.Is(err, outboundpolicy.ErrInsecureTransport) {
 			t.Fatalf("Download() error = %v, want HTTPS redirect rejection", err)
 		}

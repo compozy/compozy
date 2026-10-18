@@ -1,11 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { loopNodeLifecycleFixture } from "../../testing/loop-node-lifecycle-fixture";
 import type { LoopRosterTableModel } from "../../lib/loop-run-roster-table";
-import type { LoopRunStoryScenario } from "../stories/loop-run-scenario-types";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -35,11 +34,7 @@ const { LoopRunStory } = await import("../run-page/loop-run-story");
 const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
 const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
 const registerFixtures = await import("../stories/loop-run-register-fixtures");
-const visualContractFixtures = await import("../stories/loop-run-vc-fixtures");
-const lifecycleFixtures = await import("../stories/loop-run-lifecycle-fixtures");
 const graphEngFixtures = await import("../stories/loop-run-graph-eng-fixtures");
-const pageFixtures = await import("../stories/loop-run-page-fixtures");
-const metricFixtures = await import("../stories/loop-run-metric-fixtures");
 const { registerPartialOutputsScenario } = registerFixtures;
 const { buildScenarioProps } = await import("../stories/loop-run-scenario-props");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
@@ -47,6 +42,8 @@ const { LOOP_NEEDS_YOU_ANCHOR_ID } = await import("../run-page/loop-run-briefing
 const { LoopRunBriefing } = await import("../run-page/loop-run-briefing");
 const { buildBriefingView } = await import("../../lib/loop-run-briefing-view");
 const { projectLoopRequest } = await import("../../lib/loop-request-model");
+const { projectLoopRunPageView } = await import("../../lib/loop-run-page-view");
+const { emptyLoopRunLiveState } = await import("../../lib/loop-events");
 const { answeredAskRequest, pendingEntityAskRequest, pendingReviewRequest } =
   await import("../../mocks/fixture-graph-eng-requests");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
@@ -94,6 +91,89 @@ describe("LoopNodeStateChip", () => {
 });
 
 describe("LoopRunNeedsYouCard", () => {
+  it.each(["fresh load", "stale approval frame"])(
+    "Should display the current durable human prompt on %s",
+    source => {
+      const currentRun = run({
+        status: "needs-approval",
+        generation: 2,
+        active_gate_id: "release_review",
+      });
+      const live = emptyLoopRunLiveState();
+      if (source === "stale approval frame") {
+        live.needsApproval = {
+          gateId: "release_review",
+          generation: 1,
+          title: "Old review",
+          prompt: "Approve the previous release?",
+          facts: [],
+        };
+      }
+      const view = projectLoopRunPageView({
+        run: currentRun,
+        generations: [
+          makeGeneration(1, {
+            verdicts: [
+              {
+                gate_id: "release_review",
+                item_index: 0,
+                outcome: "awaiting_approval",
+                blocking_issues: [],
+                criteria: [
+                  {
+                    id: "reviewer",
+                    type: "human",
+                    outcome: "awaiting_approval",
+                    passed: false,
+                    prompt: "Approve the previous release?",
+                  },
+                ],
+              },
+            ],
+          }),
+          makeGeneration(2, {
+            verdicts: [
+              {
+                gate_id: "release_review",
+                item_index: 0,
+                outcome: "awaiting_approval",
+                blocking_issues: [],
+                criteria: [
+                  {
+                    id: "reviewer",
+                    type: "human",
+                    outcome: "awaiting_approval",
+                    passed: false,
+                    prompt: "Approve onboarding/source-index.md for the Studio handoff?",
+                  },
+                ],
+              },
+            ],
+          }),
+        ],
+        definition: undefined,
+        live,
+        nowMs: Date.parse("2026-10-05T12:00:00Z"),
+      });
+      render(
+        <LoopRunNeedsYouCard
+          run={currentRun}
+          request={view.approvalRequest}
+          fallbackFacts={view.approvalFallbackFacts}
+          onDecision={vi.fn()}
+        />
+      );
+
+      expect(
+        screen.getByText("Approve onboarding/source-index.md for the Studio handoff?")
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Approve the previous release?")).not.toBeInTheDocument();
+      expect(screen.getByTestId("loop-run-needs-approval-origin")).toHaveTextContent(
+        "release review · round 2"
+      );
+    }
+  );
+
   it("Should keep same-node requests from different generations distinct and retry context", () => {
     const onRequestFullContext = vi.fn();
     const view = projectLoopRequest(pendingReviewRequest, {
@@ -310,7 +390,7 @@ describe("LoopRunNeedsYouCard", () => {
     expect(screen.queryByTestId("loop-run-needs-approval")).not.toBeInTheDocument();
     // A live run can still take the verb, so the row points at it.
     expect(screen.getByTestId("loop-run-needs-quarantine-detail-fix_batch-g2")).toHaveTextContent(
-      "Requeue it from the entry once it is repaired."
+      "Retry it once the problem is fixed."
     );
     fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-g2"));
     expect(onOpenQuarantine).toHaveBeenCalledWith("fix_batch");
@@ -350,7 +430,7 @@ describe("LoopRunNeedsYouCard", () => {
     // The daemon rejects requeue on a terminal run; the row keeps the reason
     // and the entry, and no longer asks for a verb nobody can take.
     const detail = screen.getByTestId("loop-run-needs-quarantine-detail-orchestrate-g2");
-    expect(detail).toHaveTextContent("Set aside after 2 attempts. This run has ended.");
+    expect(detail).toHaveTextContent("Set aside after 2 tries. This run has ended.");
     expect(detail).not.toHaveTextContent(/requeue/i);
     fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-orchestrate-g2"));
     expect(onOpenQuarantine).toHaveBeenCalledWith("orchestrate");
@@ -503,7 +583,7 @@ describe("LoopRunControlDialog", () => {
     const dialog = screen.getByTestId("loop-run-control-dialog");
     expect(dialog).toHaveTextContent("Cancel run r-7c4e19?");
     // The strip is the guard against acting on a stale screen.
-    expect(dialog).toHaveTextContent("r-7c4e19 is running · generation 2");
+    expect(dialog).toHaveTextContent("r-7c4e19 is running · round 2");
     expect(dialog).not.toHaveTextContent("in flight");
     expect(dialog).not.toHaveTextContent("waiting on you");
     expect(dialog).toHaveTextContent("Active sessions are stopped automatically");
@@ -525,7 +605,7 @@ describe("LoopRunControlDialog", () => {
     );
     const dialog = screen.getByTestId("loop-run-control-dialog");
     expect(dialog).toHaveTextContent("Cancel run r-7c4e19?");
-    expect(dialog).toHaveTextContent("r-7c4e19 is watching · generation 4");
+    expect(dialog).toHaveTextContent("r-7c4e19 is watching · round 4");
     expect(dialog).toHaveTextContent("Active sessions are stopped automatically");
     expect(dialog).toHaveTextContent("cause operator_cancel");
   });
@@ -562,7 +642,7 @@ describe("LoopRunControlDialog", () => {
       />
     );
     expect(screen.getByTestId("loop-run-control-dialog")).toHaveTextContent(
-      "r-7c4e19 is running · 2 lanes in flight · 1 waiting on you · generation 2 · 22m 14s"
+      "r-7c4e19 is running · 2 lanes in flight · 1 waiting on you · round 2 · 22m 14s"
     );
   });
 
@@ -766,23 +846,6 @@ describe("LoopNodeControlMenu", () => {
 });
 
 describe("LoopNodeRowActions", () => {
-  it("Should use the requeue icon for the promoted quarantine action", () => {
-    render(
-      <LoopNodeRowActions
-        node={loopNodeLifecycleFixture({
-          state: "quarantined",
-          parked: true,
-          quarantined: true,
-        })}
-        onVerb={vi.fn()}
-        runStatus="running"
-      />
-    );
-    const button = screen.getByTestId("loop-node-primary-requeue-task_03");
-    expect(button.querySelector(".lucide-redo-2")).toBeInTheDocument();
-    expect(button.querySelector(".lucide-play")).not.toBeInTheDocument();
-  });
-
   it("Should promote resume-wait when the open wait needs a decision", () => {
     render(
       <LoopNodeRowActions
@@ -809,7 +872,7 @@ describe("LoopNodeRowActions", () => {
       />
     );
     expect(screen.getByTestId("loop-node-primary-resume-wait-task_03")).toHaveTextContent(
-      "Resume with payload…"
+      "Resume with data…"
     );
   });
 });
@@ -874,7 +937,7 @@ describe("loopRunStateStrip", () => {
         status: "running",
         waitingOnYouCount: 0,
       })
-    ).toBe("r-7c4e19 is running · generation 2");
+    ).toBe("r-7c4e19 is running · round 2");
   });
 });
 
@@ -965,7 +1028,7 @@ describe("LoopQuarantineSheet", () => {
     expect(screen.queryByTestId("loop-quarantine-cancel")).not.toBeInTheDocument();
   });
 
-  it("Should keep the entry readable but withdraw the verbs once the run has ended", () => {
+  it("Should keep the entry readable but withdraw the verbs once the run has ended", async () => {
     const quarantined = loopNodeLifecycleFixture({
       state: "quarantined",
       parked: true,
@@ -973,12 +1036,14 @@ describe("LoopQuarantineSheet", () => {
       quarantineEntry: entry,
     });
     const props = { onOpenChange: vi.fn(), onVerb: vi.fn(), open: true, runId: "r-1" };
-    const { rerender } = render(<LoopQuarantineSheet {...props} node={quarantined} />);
+    const { rerender } = await act(async () =>
+      render(<LoopQuarantineSheet {...props} node={quarantined} />)
+    );
     // Live: the verbs are on offer and the foot says the run is still going.
     expect(screen.getByTestId("loop-quarantine-requeue")).toBeInTheDocument();
     expect(screen.getByTestId("loop-quarantine-foot")).toHaveTextContent("The run keeps working");
 
-    rerender(<LoopQuarantineSheet {...props} node={quarantined} runEnded />);
+    await act(async () => rerender(<LoopQuarantineSheet {...props} node={quarantined} runEnded />));
     // Ended: the daemon rejects requeue and cancel, so neither is offered, while
     // the hint, the facts and the attempt chain stay exactly as retained.
     expect(screen.queryByTestId("loop-quarantine-requeue")).not.toBeInTheDocument();
@@ -1032,7 +1097,6 @@ describe("LoopQuarantineSheet", () => {
         onOpenChange={vi.fn()}
         onVerb={vi.fn()}
         open
-        runId="r-1"
       />
     );
     expect(await screen.findByTestId("loop-quarantine-episode-1")).toHaveTextContent(
@@ -1109,7 +1173,7 @@ describe("LoopRunAboutRail", () => {
     // Operational status and navigation read with About still closed.
     expect(screen.queryByTestId("loop-run-about-id")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-run-about-last-woke")).toHaveTextContent("Last woke");
-    const best = screen.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
+    const best = screen.getByRole("link", { name: "Best result · Round 1 · 0.70" });
     expect(best).toHaveAttribute("href", "#loop-generation-1");
     await userEvent.click(best);
     expect(onOpenGeneration).toHaveBeenCalledWith(1);
@@ -1176,6 +1240,55 @@ describe("LoopRunBriefing needs-you action", () => {
   });
 });
 
+// Failure navigation requires an actual failed target, not just the briefing's
+// danger tone: budget exhaustion and stalling can leave every executed step healthy.
+describe("LoopRunBriefing failure action", () => {
+  it.each(["exhausted", "stalled"] as const)(
+    "Should omit failed-step navigation for %s without a failure reference",
+    status => {
+      render(
+        <LoopRunBriefing
+          briefing={buildBriefingView(makeBriefing({ status, tone: "failed", blockers: [] }))}
+          onOpenInspect={vi.fn()}
+          outcome={null}
+        />
+      );
+
+      expect(screen.queryByTestId("loop-run-briefing-action")).not.toBeInTheDocument();
+    }
+  );
+
+  it.each([{ node_id: "collect" }, { gate_id: "review" }])(
+    "Should retain Inspect navigation for the concrete failure reference %o",
+    async reference => {
+      const onOpenInspect = vi.fn();
+      render(
+        <LoopRunBriefing
+          briefing={buildBriefingView(
+            makeBriefing({
+              status: "failed",
+              tone: "failed",
+              blockers: [
+                {
+                  kind: "failure",
+                  ...reference,
+                  waiting_since: "2026-10-05T10:57:50Z",
+                  unblocker: "",
+                },
+              ],
+            })
+          )}
+          onOpenInspect={onOpenInspect}
+          outcome={null}
+        />
+      );
+
+      await userEvent.click(screen.getByTestId("loop-run-briefing-action"));
+      expect(onOpenInspect).toHaveBeenCalledOnce();
+    }
+  );
+});
+
 // The lib knows how to degrade a pruned session; what this owns is whether the
 // register ever hands it the truth to degrade on. Wiring is exactly where this
 // went wrong before: the projection took a pruned set the page never passed, so
@@ -1216,7 +1329,7 @@ describe("run-page reads that failed", () => {
     const failed = screen.getByTestId("loop-run-story-empty");
     expect(failed).toHaveAttribute("data-state", "error");
     expect(failed).not.toHaveTextContent("Nothing has happened in this run yet.");
-    expect(failed).toHaveTextContent("could not be read");
+    expect(failed).toHaveTextContent("could not be loaded");
   });
 
   it("Should mark stale story beats instead of passing them off as current", () => {
@@ -1379,65 +1492,6 @@ describe("run-page reads that failed", () => {
     );
     expect(screen.queryByTestId("loop-node-roster-empty")).toBeNull();
     expect(screen.getByTestId("loop-node-roster-error")).toHaveTextContent("could not be read");
-  });
-});
-
-// A staged scenario is evidence about the production reads, so its two reads
-// have to agree the way the daemon's do. They did not: the briefing was built
-// independently of the run record and re-synchronised on status and progress
-// alone, which left the spend free to drift — every register capture showed
-// 82.4k tokens over a run recording 68k, and every one of those captures passed
-// its visual contract. Sweeping the module rather than a list means a scenario
-// added later cannot quietly opt out.
-describe("staged register scenarios", () => {
-  // Every module that exports staged scenarios, so a story added to any of them
-  // is covered without anyone remembering to add it here.
-  const scenarios = [
-    ...Object.entries(registerFixtures),
-    ...Object.entries(visualContractFixtures),
-    ...Object.entries(lifecycleFixtures),
-    ...Object.entries(graphEngFixtures),
-    ...Object.entries(pageFixtures),
-    ...Object.entries(metricFixtures),
-  ].filter(
-    (candidate): candidate is [string, () => LoopRunStoryScenario] =>
-      candidate[0].endsWith("Scenario") &&
-      typeof candidate[1] === "function" &&
-      candidate[1].length === 0
-  );
-
-  it("Should match at least one staged scenario", () => {
-    // The only thing this guard owes: a filter that matched nothing would make
-    // every case below pass without asserting anything. How many fixtures the
-    // modules happen to export is not an invariant — freezing a count here would
-    // fail on a scenario being added or retired, neither of which can break read
-    // agreement.
-    expect(scenarios).not.toHaveLength(0);
-  });
-
-  // A scenario that stages events has a history, and the story pane reads the
-  // durable timeline rather than those events — so several contract rows
-  // captured "Nothing has happened in this run yet." over a run several rounds
-  // deep, and passed. The read is derived from the scenario's own events now,
-  // which is what the daemon does with them.
-  it.each(scenarios)("Should give %s a story when its events say it has one", (_name, build) => {
-    const scenario = build();
-    if (scenario.frames.length === 0) return;
-
-    expect(buildScenarioProps(scenario).registers.beats.length).toBeGreaterThan(0);
-  });
-
-  it.each(scenarios)("Should keep %s's briefing agreeing with its run", (_name, build) => {
-    const { run, briefing } = build();
-
-    expect(briefing.run_id).toBe(run.id);
-    expect(briefing.status).toBe(run.status);
-    expect(briefing.progress).toEqual(run.progress);
-    // Tokens are the run record's own number, never a second opinion about it.
-    expect(briefing.usage.tokens).toBe(run.tokens_used);
-    // A budget percentage over a run with no budget would be a division by zero
-    // rendered as a fact.
-    expect(briefing.usage.budget_used_pct === undefined).toBe(run.budget_tokens === 0);
   });
 });
 
@@ -2001,4 +2055,820 @@ describe("LoopRunStepsProgress fold", () => {
     expect(toggle).toHaveTextContent("Show fewer steps");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
+});
+
+// Invariant (#705): a step that started loop runs reads where each child is —
+// the inputs that set it apart, its status, the step it is on, why and for how
+// long, and how far through it is — closed by default in Progress, open in the
+// node panel, compact on the graph card, and a level down for a child's own
+// children. Every reading comes from the child's own detail, briefing and roster.
+// Owner: run-page components composed with useLoopChildRun and MSW I/O.
+describe("Nested child runs", () => {
+  /** Stubs the child-run routes over MSW and returns a provider with a query cache and the page context. */
+  async function childReadHarness(
+    options: {
+      clockLive?: boolean;
+      nowMs?: number;
+      handlers?: import("msw").HttpHandler[];
+      onRequest?: (url: URL) => void;
+    } = {}
+  ) {
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const { createMswFetch } = await import("@/test/msw-fetch");
+    const fixtures = await import("../stories/loop-run-nested-fixtures");
+    const { STORY_NOW } = await import("../stories/loop-run-page-fixture-world");
+    const { LoopRunChildReadContext } = await import("../../hooks/use-loop-run-child-read");
+    const mswFetch = createMswFetch(() => [
+      ...(options.handlers ?? []),
+      ...fixtures.nestedChildRunHandlers,
+    ]);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      options.onRequest?.(new URL(request.url, window.location.origin));
+      return mswFetch(input, init);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const context = {
+      workspaceId: fixtures.NESTED_STORY_WORKSPACE_ID,
+      nowMs: options.nowMs ?? STORY_NOW,
+      clockLive: options.clockLive ?? true,
+    };
+    /** Query cache plus the page context every child-run read takes. */
+    function Harness({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>
+          <LoopRunChildReadContext value={context}>{children}</LoopRunChildReadContext>
+        </QueryClientProvider>
+      );
+    }
+    /** Drops the cache and the fetch stub so the next case starts clean. */
+    const cleanup = () => {
+      client.clear();
+      vi.unstubAllGlobals();
+    };
+    return { Harness, cleanup, fixtures };
+  }
+
+  /** The child row for one run id inside a scope, failing loudly when it is absent. */
+  function childRow(scope: HTMLElement, runId: string) {
+    const row = within(scope)
+      .getAllByTestId("loop-run-child-run")
+      .find(element => element.getAttribute("data-child-run-id") === runId);
+    if (!row) throw new Error(`no row for ${runId}`);
+    return row;
+  }
+
+  it("Should read each child's inputs, status, step and time once Progress opens them", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      expect(
+        within(within(step).getByTestId("loop-run-step-rollup-fix_batch")).getByTestId(
+          "loop-state-chip-awaiting_child"
+        )
+      ).toBeVisible();
+      const toggle = within(step).getByTestId("loop-run-child-runs-toggle");
+      expect(toggle).toHaveTextContent("4 child runs");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(within(step).queryAllByTestId("loop-run-child-run")).toHaveLength(0);
+
+      await userEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At run tests")
+      );
+      const working = childRow(step, "r-8f21a0");
+      // Siblings run the same loop; their inputs are what tell them apart.
+      expect(within(working).getByTestId("loop-run-child-run-inputs")).toHaveTextContent(
+        "batch: api · files: 4"
+      );
+      expect(within(working).getByTestId("loop-run-child-run-link")).toHaveTextContent(
+        "fix-one-batch"
+      );
+      expect(within(working).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
+      expect(within(working).getByTestId("loop-run-child-run-on-step")).toHaveTextContent(
+        "2m 00s on this step"
+      );
+      expect(within(working).getByTestId("loop-run-child-run-meta")).toHaveTextContent(
+        "1 of 4 steps · 6m 00s"
+      );
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-3b9c55")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At finalize round — waiting for your decision")
+      );
+      const stuck = childRow(step, "r-3b9c55");
+      expect(within(stuck).getByTestId("loop-run-child-run-status")).toHaveTextContent(
+        "Needs approval"
+      );
+      // The stuck child's time on its step keeps growing past its frozen run clock.
+      expect(within(stuck).getByTestId("loop-run-child-run-on-step")).toHaveTextContent(
+        "47m 00s on this step"
+      );
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-d40e17")).getByTestId("loop-run-child-run-meta")
+        ).toHaveTextContent("4 of 4 steps · 9m 00s")
+      );
+      const done = childRow(step, "r-d40e17");
+      expect(within(done).getByTestId("loop-run-child-run-status")).toHaveTextContent("Done");
+      expect(within(done).getByTestId("loop-run-child-run-step")).toHaveTextContent("");
+
+      // A child waiting on a loop of its own opens it a level down.
+      const parent = await waitFor(() => {
+        const row = childRow(step, "r-5c71e2");
+        within(row).getByTestId("loop-run-child-runs-toggle");
+        return row;
+      });
+      const nestedToggle = within(parent).getByTestId("loop-run-child-runs-toggle");
+      expect(nestedToggle).toHaveTextContent("1 child run");
+      await userEvent.click(nestedToggle);
+      await waitFor(() =>
+        expect(
+          within(childRow(parent, "r-9e04aa")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At judge")
+      );
+      const grandchild = childRow(parent, "r-9e04aa");
+      expect(grandchild).toHaveAttribute("data-depth", "1");
+      expect(within(grandchild).getByTestId("loop-run-child-run-link")).toHaveTextContent(
+        "review-one-file"
+      );
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should tell awaiting child from pending on the graph and read the child on its card", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const scenario = fixtures.nestedWaveScenario();
+    const props = buildScenarioProps(scenario);
+    const dag = buildRunDag({
+      graph: props.graph,
+      nodes: scenario.rosterNodes ?? [],
+      rollups: [],
+      round: 1,
+    });
+    const rendered = render(
+      <Harness>
+        <LoopRunDag dag={dag} onSelect={vi.fn()} selection={null} />
+      </Harness>
+    );
+    try {
+      /** The state glyph drawn on one graph card. */
+      const glyph = (nodeId: string) =>
+        screen.getByTestId(`loop-dag-node-${nodeId}`).querySelector('[data-slot="state-glyph"]');
+      expect(glyph("wave")).toHaveAttribute("data-state", "delegated");
+      expect(glyph("wave_ok")).toHaveAttribute("data-state", "queued");
+
+      const wave = screen.getByTestId("loop-dag-node-wave");
+      const line = await within(wave).findByTestId("loop-dag-child-line");
+      await waitFor(() => expect(line).toHaveTextContent("fix batch9m 00s"));
+      expect(line).toHaveAttribute(
+        "title",
+        "Child run run-one-wave is at fix batch — waiting on a child run, 9m 00s on this step"
+      );
+      // Cards with no child carry no child line.
+      expect(
+        within(screen.getByTestId("loop-dag-node-wave_ok")).queryByTestId("loop-dag-child-line")
+      ).toBeNull();
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should open the child in the node panel without asking", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const { buildNodePanel } = await import("../../lib/loop-node-panel-view");
+    const { LoopNodePanel } = await import("../run-page/inspect/loop-node-panel");
+    const scenario = fixtures.nestedWaveScenario();
+    const wave = (scenario.rosterNodes ?? []).find(node => node.node_id === "wave")!;
+    const panel = buildNodePanel({ node: wave, graph: buildScenarioProps(scenario).graph });
+    const rendered = render(
+      <Harness>
+        <LoopNodePanel panel={panel} />
+      </Harness>
+    );
+    try {
+      const panelEl = screen.getByTestId("loop-node-panel");
+      expect(within(panelEl).getByTestId("loop-run-child-runs-toggle")).toHaveAttribute(
+        "aria-expanded",
+        "true"
+      );
+      await waitFor(() =>
+        expect(
+          within(childRow(panelEl, "r-wave02")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At fix batch — waiting on a child run")
+      );
+      expect(
+        within(childRow(panelEl, "r-wave02")).getByTestId("loop-run-child-run-inputs")
+      ).toHaveTextContent('batches: ["api","billing"] · wave: 2');
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should read only the child's current round, and say so when it is too wide", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const rosterReads: URL[] = [];
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      onRequest: url => {
+        if (url.pathname.endsWith("/nodes")) rosterReads.push(url);
+      },
+      handlers: [
+        // A round wider than the row reads: every page promises another.
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+          ({ params, request }) => {
+            if (params.run_id !== "r-8f21a0") return undefined;
+            const cursor = Number(new URL(request.url).searchParams.get("cursor") ?? "0");
+            return HttpResponse.json({
+              run_id: "r-8f21a0",
+              loop_name: "fix-one-batch",
+              run_status: "running",
+              nodes: [],
+              fanout_rollups: [],
+              next_cursor: String(cursor + 1),
+            });
+          }
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() => {
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("This round has more steps than a row reads");
+      });
+      const wide = rosterReads.filter(url => url.pathname.includes("/r-8f21a0/"));
+      // The round the briefing names, never the oldest-first whole roster,
+      // and no more pages than the cap.
+      expect(wide.every(url => url.searchParams.get("generation") === "1")).toBe(true);
+      expect(wide).toHaveLength(5);
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should stop paging a child's round after a page fails, leaving the retry to the poll", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const rosterReads: URL[] = [];
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      onRequest: url => {
+        if (url.pathname.endsWith("/r-8f21a0/nodes")) rosterReads.push(url);
+      },
+      handlers: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+          ({ params, request }) => {
+            if (params.run_id !== "r-8f21a0") return undefined;
+            // Page one promises more; the next page is the one the daemon fails.
+            return new URL(request.url).searchParams.has("cursor")
+              ? HttpResponse.json({ error: "roster unavailable" }, { status: 500 })
+              : HttpResponse.json({
+                  run_id: "r-8f21a0",
+                  loop_name: "fix-one-batch",
+                  run_status: "running",
+                  nodes: [],
+                  fanout_rollups: [],
+                  next_cursor: "1",
+                });
+          }
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("Couldn't read this child run")
+      );
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // One read for page one, one for the page that failed — and no more.
+      expect(rosterReads).toHaveLength(2);
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should say a child could not be read when its briefing fails, keeping what did arrive", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      handlers: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
+          ({ params }) =>
+            params.run_id === "r-8f21a0"
+              ? HttpResponse.json({ error: "briefing unavailable" }, { status: 500 })
+              : undefined
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("Couldn't read this child run")
+      );
+      // The detail did arrive, so the child is still named and its status shown.
+      const row = childRow(step, "r-8f21a0");
+      expect(within(row).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should keep a running child's clock ticking after the page clock stops", async () => {
+    // A detached child outlives its parent: the parent page's clock is frozen
+    // (here at 0), and the child's elapsed time must not freeze with it.
+    const { Harness, cleanup, fixtures } = await childReadHarness({ clockLive: false, nowMs: 0 });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      // The child started six minutes before the story clock and the page clock
+      // is frozen at 0, so a reading of at least six minutes can only come from
+      // the child's own live clock. How far past six depends on the suite's pace.
+      await waitFor(() => {
+        const meta = within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-meta");
+        const reading = /1 of 4 steps · (\d+)m (\d+)s/.exec(meta.textContent ?? "");
+        expect(reading).not.toBeNull();
+        expect(Number(reading![1]) * 60 + Number(reading![2])).toBeGreaterThanOrEqual(360);
+      });
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+});
+
+// Component-owned dialog and diff behavior formerly exercised through Storybook E2E.
+// Keep these in the canonical run-page suite; real daemon journeys remain in web/e2e.
+describe("Loop run dialogs and diff", () => {
+  it("Should prefill a fork from its source and surface field and generation refusals", async () => {
+    const { LoopForkDialog } = await import("../run-page/loop-fork-dialog");
+    const { releaseTrainDetail, releaseTrainRun, RELEASE_TRAIN_LOOP_NAME } =
+      await import("../../mocks");
+    const onSubmit = vi.fn();
+    const props = {
+      open: true,
+      loopName: RELEASE_TRAIN_LOOP_NAME,
+      generations: [3, 2, 1],
+      defaultGeneration: 2,
+      inputSchema: releaseTrainDetail.definition.inputs,
+      sourceInputs: releaseTrainRun.inputs ?? {},
+      onOpenChange: vi.fn(),
+      onSubmit,
+    };
+    const { rerender } = render(<LoopForkDialog {...props} />);
+    expect(screen.getByTestId("loop-fork-dialog")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-generation")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-input-severity")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-submit")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("loop-fork-submit"));
+    expect(onSubmit).toHaveBeenCalledWith({
+      generation: 2,
+      inputs: props.sourceInputs,
+      reason: "",
+    });
+
+    rerender(
+      <LoopForkDialog {...props} fieldErrors={{ services: "At least one service is required." }} />
+    );
+    expect(screen.getByText("At least one service is required.")).toBeVisible();
+    rerender(
+      <LoopForkDialog {...props} blockedReason="Generation 5 does not exist on this run." />
+    );
+    expect(screen.getByTestId("loop-fork-blocked")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-submit")).toBeDisabled();
+  });
+
+  it("Should keep the recorded amend output visible while showing daemon field errors", () => {
+    const props = {
+      open: true,
+      node: loopNodeLifecycleFixture({
+        nodeId: "render-notes",
+        paused: true,
+        state: "paused",
+        outputStatus: "succeeded",
+        itemIndex: 0,
+      }),
+      originalOutput: { risk: "high", summary: "Rollout for billing" },
+      outputSchema: {
+        type: "object",
+        required: ["risk"],
+        properties: {
+          risk: { type: "string", enum: ["low", "medium", "high"] },
+          summary: { type: "string" },
+        },
+      },
+      onOpenChange: vi.fn(),
+      onConfirm: vi.fn(),
+    };
+    const { rerender } = render(<LoopNodeAmendDialog {...props} />);
+    expect(screen.getByTestId("loop-node-amend-dialog")).toBeVisible();
+    expect(screen.getByTestId("loop-amend-original")).toBeVisible();
+    expect(screen.getByTestId("loop-amend-original")).toHaveTextContent('risk: "high"');
+    expect(screen.getByTestId("loop-amend-reason")).toBeVisible();
+    rerender(
+      <LoopNodeAmendDialog
+        {...props}
+        fieldErrors={{ risk: "risk must be one of low, medium, high." }}
+      />
+    );
+    expect(screen.getByTestId("loop-amend-field-error-risk")).toHaveTextContent(
+      "risk must be one of low, medium, high."
+    );
+    expect(screen.getByTestId("loop-amend-original")).toHaveTextContent('risk: "high"');
+  });
+
+  it("Should preview rerun and carried nodes while withholding amend and rerun from running cells", async () => {
+    const { LoopNodeRerunDialog } = await import("../run-page/loop-node-rerun-dialog");
+    const { unmount } = render(
+      <LoopNodeRerunDialog
+        open
+        node={loopNodeLifecycleFixture({
+          nodeId: "apply-migration",
+          outputStatus: "succeeded",
+          itemIndex: 0,
+        })}
+        rerunSet={{
+          fromNode: "apply-migration",
+          rerunNodes: ["apply-migration", "collect-rollout", "render-notes"],
+          carriedNodes: ["services", "triage", "standard", "rollout"],
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-node-rerun-dialog")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-set")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-node-apply-migration")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-node-collect-rollout")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-carried")).toHaveTextContent(
+      "4 nodes carry forward unchanged."
+    );
+    unmount();
+    render(
+      <LoopNodeControlMenu
+        node={loopNodeLifecycleFixture({ nodeId: "task_04", outputStatus: "running" })}
+        runStatus="running"
+        onVerb={vi.fn()}
+      />
+    );
+    await userEvent.click(screen.getByTestId("loop-node-menu-trigger-task_04"));
+    expect(screen.queryByTestId("loop-node-verb-amend")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-node-verb-rerun")).not.toBeInTheDocument();
+  });
+
+  it("Should render grouped generation differences, run inputs, and an empty comparison", async () => {
+    const { LoopRunDiffView } = await import("../run-diff/loop-run-diff-view");
+    const { LoopRunDiffPickers } = await import("../run-diff/loop-run-diff-pickers");
+    const { projectLoopDiff } = await import("../../lib/loop-run-diff-model");
+    const { generationDiffFixture, runDiffFixture, emptyDiffFixture } = await import("../../mocks");
+    const { rerender } = render(
+      <LoopRunDiffView
+        view={projectLoopDiff(generationDiffFixture)}
+        pickers={
+          <LoopRunDiffPickers
+            mode="generation"
+            generations={[3, 2, 1]}
+            baseGeneration={3}
+            againstGeneration={2}
+            againstRunId=""
+            runs={[]}
+            onModeChange={vi.fn()}
+            onBaseGenerationChange={vi.fn()}
+            onAgainstGenerationChange={vi.fn()}
+            onAgainstRunChange={vi.fn()}
+          />
+        }
+      />
+    );
+    expect(screen.getByTestId("loop-run-diff-view")).toBeVisible();
+    expect(screen.getByTestId("loop-diff-pickers")).toBeVisible();
+    expect(screen.getAllByTestId(/^loop-diff-group-/)[0]).toBeVisible();
+    expect(screen.getAllByTestId(/^loop-diff-row-/)[0]).toBeVisible();
+    expect(screen.getAllByTestId(/^loop-diff-row-/)[0]).toHaveAttribute("data-change");
+    rerender(<LoopRunDiffView view={projectLoopDiff(runDiffFixture)} />);
+    expect(screen.getByTestId("loop-diff-inputs")).toBeVisible();
+    rerender(<LoopRunDiffView view={projectLoopDiff(emptyDiffFixture)} />);
+    expect(screen.getByTestId("loop-diff-empty")).toBeVisible();
+  });
+});
+
+// E2E-020/021/024 presentation belongs to these real components, independent of a browser.
+describe("Loop request and timeline presentation", () => {
+  it("E2E-020 / E2E-021: Should render ask errors and navigate to the persisted review decisions", () => {
+    const scenario = graphEngFixtures.pendingRequestsScenario();
+    const props = buildScenarioProps(scenario);
+    const cardProps = {
+      run: props.run,
+      request: null,
+      fallbackFacts: [],
+      showApproval: false,
+      requests: props.requests,
+      onDecision: vi.fn(),
+    };
+    const { rerender } = render(<LoopRunNeedsYouCard {...cardProps} />);
+    expect(screen.getAllByTestId("loop-request-card")).toHaveLength(1);
+    expect(screen.getByTestId("loop-request-progress")).toHaveTextContent("Question 1 of 2");
+    expect(screen.getByTestId("loop-request-prompt")).toHaveTextContent(
+      "Which regions ship first?"
+    );
+    fireEvent.click(screen.getByTestId("loop-request-details"));
+    expect(screen.getByTestId("loop-request-context")).toBeVisible();
+    expect(screen.getByTestId("loop-request-context-fetch")).toBeVisible();
+    expect(screen.getByTestId("loop-request-submit")).toBeEnabled();
+    rerender(
+      <LoopRunNeedsYouCard
+        {...cardProps}
+        requestState={{
+          engagedKey: "3:confirm-rollout:0",
+          fieldErrors: { regions: "At least one region is required." },
+        }}
+      />
+    );
+    expect(screen.getByTestId("loop-request-field-error-regions")).toHaveTextContent(
+      "At least one region is required."
+    );
+    expect(screen.getByTestId("loop-request-submit")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("loop-request-next"));
+    expect(screen.getByTestId("loop-request-progress")).toHaveTextContent("Question 2 of 2");
+    expect(screen.getByTestId("loop-review-proposed-args")).toBeVisible();
+    for (const decision of ["approve", "edit", "reject", "respond"]) {
+      expect(screen.getByTestId(`loop-request-decision-${decision}`)).toBeVisible();
+    }
+    expect(screen.queryByTestId("loop-request-decision-escalate")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-request-decision-edit"));
+    expect(screen.getByTestId("loop-review-proposed-args")).toBeVisible();
+  });
+
+  it("E2E-022: Should show recorded outcomes, daemon refusals and pending submission state", () => {
+    const settled = buildScenarioProps(graphEngFixtures.resolvedRequestsScenario());
+    const pending = buildScenarioProps(graphEngFixtures.pendingRequestsScenario());
+    const common = { request: null, fallbackFacts: [], showApproval: false, onDecision: vi.fn() };
+    const { rerender } = render(
+      <LoopRunNeedsYouCard
+        key="settled"
+        {...common}
+        run={settled.run}
+        requests={settled.requests}
+      />
+    );
+    expect(screen.getAllByTestId("loop-request-resolution")[0]).toBeVisible();
+    expect(screen.queryByTestId("loop-request-submit")).not.toBeInTheDocument();
+    rerender(
+      <LoopRunNeedsYouCard
+        key="refused"
+        {...common}
+        run={pending.run}
+        requests={pending.requests}
+        requestState={{
+          engagedKey: "3:apply-migration:0",
+          refusal: "Someone already answered this request.",
+        }}
+      />
+    );
+    expect(screen.getByTestId("loop-request-refusal")).toHaveTextContent("already answered");
+    rerender(
+      <LoopRunNeedsYouCard
+        key="pending"
+        {...common}
+        run={pending.run}
+        requests={pending.requests}
+        requestState={{ engagedKey: "3:confirm-rollout:0", isAnswerPending: true }}
+      />
+    );
+    expect(screen.getByTestId("loop-request-submit")).toBeDisabled();
+  });
+
+  it("E2E-024: Should render graph-completion timeline rows from the durable projection", () => {
+    const props = buildScenarioProps(graphEngFixtures.pendingRequestsScenario());
+    if (!props.storyPaging) throw new Error("Graph-completion fixture requires story paging");
+    render(<LoopRunStory beats={props.registers.beats} paging={props.storyPaging} />);
+    const story = screen.getByTestId("loop-run-story");
+    expect(story).toBeVisible();
+    expect(within(story).getAllByTestId(/^loop-run-beat-/)[0]).toBeVisible();
+    for (const fragment of ["standard", "Which regions ship first?", "render-notes"]) {
+      expect(story).toHaveTextContent(fragment);
+    }
+  });
+});
+
+// Invariant: reduced motion removes a genuinely live DAG pulse while every
+// roster state retains both its readable name and glyph. Owner: run-page components.
+describe("E2E-019: run graph motion and non-color state signals", () => {
+  it("Should unmount a live graph pulse when reduced motion is enabled", async () => {
+    const { MotionConfig } = await import("motion/react");
+    const dag = buildRunDag({
+      graph: {
+        nodes: ["prepare", "execute"].map(id => ({
+          id,
+          nodeClass: "action" as const,
+          kind: "run-agent",
+          isGate: false,
+          eventsCount: 0,
+          routes: [],
+          hasAskExpect: false,
+        })),
+        edges: [{ from: "prepare", to: "execute" }],
+      },
+      nodes: [
+        makeRosterNode("prepare", "succeeded", { generation: 1 }),
+        makeRosterNode("execute", "running", { generation: 1 }),
+      ],
+      rollups: [],
+      round: 1,
+    });
+    const onSelect = vi.fn();
+    const { rerender } = render(
+      <MotionConfig reducedMotion="never">
+        <LoopRunDag dag={dag} onSelect={onSelect} selection={null} />
+      </MotionConfig>
+    );
+    expect(screen.getByTestId("loop-dag-edge-pulse")).toBeVisible();
+
+    rerender(
+      <MotionConfig reducedMotion="always">
+        <LoopRunDag dag={dag} onSelect={onSelect} selection={null} />
+      </MotionConfig>
+    );
+    expect(screen.queryByTestId("loop-dag-edge-pulse")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-dag-node-execute")).toHaveAttribute("data-state", "running");
+  });
+
+  it("Should pair every accessible roster state name with its visible glyph", () => {
+    render(
+      <>
+        {LOOP_ROSTER_STATES.map(state => (
+          <LoopNodeStateChip chip={loopRosterStateChip(state)} key={state} />
+        ))}
+      </>
+    );
+    for (const state of LOOP_ROSTER_STATES) {
+      const chip = screen.getByTestId(`loop-state-chip-${state}`);
+      expect(chip).toHaveAccessibleName(loopRosterStateChip(state).label);
+      expect(chip).toHaveTextContent(loopRosterStateChip(state).label);
+      expect(chip.querySelectorAll("svg")).toHaveLength(1);
+    }
+  });
+});
+
+// Invariant: request forms send the schema's exact value through the route's real
+// mutation state; a successful response cannot replace the durable read projection.
+// Owner: run-page components composed with useLoopRunRequestsState and MSW I/O.
+describe("RunRequests and RunEnumRequest route composition", () => {
+  it.each(["ask", "enum"] as const)(
+    "E2E-022: Should submit the %s story request without optimistically resolving it",
+    async kind => {
+      const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+      const { HttpResponse } = await import("msw");
+      const { compozyApiMock } = await import("@/storybook/openapi-msw");
+      const { createMswFetch } = await import("@/test/msw-fetch");
+      const { storybookSystemHandlerGroups } = await import("@/storybook/msw");
+      const { useLoopRun } = await import("../../hooks/use-loops");
+      const { useLoopRunRequestsState } =
+        await import("@/systems/os/apps/loops/use-loop-run-requests-state");
+      const { GRAPH_ENG_RUN_ID, pendingEnumAskRequest, releaseTrainRunDetail } =
+        await import("../../mocks");
+      const { primaryWorkspaceFixture } = await import("@/systems/workspace/mocks");
+      const { STORY_NOW } = await import("../stories/loop-run-page-fixture-world");
+      const storyHandlers = Object.values(storybookSystemHandlerGroups).flat();
+      const fixture =
+        kind === "enum"
+          ? { ...releaseTrainRunDetail, requests: [pendingEnumAskRequest] }
+          : releaseTrainRunDetail;
+      const requests: unknown[] = [];
+      const responses: Array<{ status: number; body: unknown }> = [];
+      const mswFetch = createMswFetch(() => [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", () =>
+          HttpResponse.json(fixture)
+        ),
+        ...storyHandlers,
+      ]);
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input.clone() : new Request(input, init);
+        const answering =
+          request.method === "POST" && new URL(request.url).pathname.endsWith("/respond");
+        if (answering) requests.push(await request.clone().json());
+        const response = await mswFetch(input, init);
+        if (answering)
+          responses.push({ status: response.status, body: await response.clone().json() });
+        return response;
+      });
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      function RequestRoute() {
+        const query = useLoopRun(primaryWorkspaceFixture.id, GRAPH_ENG_RUN_ID);
+        const requestState = useLoopRunRequestsState(primaryWorkspaceFixture.id, GRAPH_ENG_RUN_ID);
+        const detail = query.data;
+        if (!detail) return null;
+        return (
+          <LoopRunNeedsYouCard
+            run={detail.run}
+            request={null}
+            requests={(detail.requests ?? []).map(request =>
+              projectLoopRequest(request, {
+                nowMs: STORY_NOW,
+                runStatus: detail.run.status,
+              })
+            )}
+            requestState={requestState}
+            fallbackFacts={[]}
+            showApproval={false}
+            onDecision={vi.fn()}
+          />
+        );
+      }
+      const rendered = render(
+        <QueryClientProvider client={client}>
+          <RequestRoute />
+        </QueryClientProvider>
+      );
+      try {
+        const card = await screen.findByTestId("loop-request-card");
+        expect(card).toBeVisible();
+        if (kind === "enum") {
+          expect(within(card).getByTestId("loop-request-field-decision")).toBeVisible();
+          fireEvent.click(within(card).getByRole("radio", { name: "approve" }));
+        } else {
+          fireEvent.change(within(card).getByTestId("loop-request-field-regions"), {
+            target: { value: '["us-east"]' },
+          });
+          fireEvent.click(within(card).getByTestId("loop-request-option-canary-true"));
+        }
+        const submit = within(card).getByTestId("loop-request-submit");
+        expect(submit).toBeEnabled();
+        fireEvent.click(submit);
+        await waitFor(() =>
+          expect(responses).toEqual([
+            { status: 200, body: expect.objectContaining({ state: "answered" }) },
+          ])
+        );
+        expect(requests).toEqual([
+          expect.objectContaining({
+            payload:
+              kind === "enum" ? { decision: "approve" } : { regions: ["us-east"], canary: true },
+          }),
+        ]);
+        await waitFor(() => expect(submit).toBeEnabled());
+        expect(within(card).queryByTestId("loop-request-resolution")).not.toBeInTheDocument();
+      } finally {
+        rendered.unmount();
+        client.clear();
+        vi.unstubAllGlobals();
+      }
+    }
+  );
 });

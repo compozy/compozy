@@ -237,7 +237,7 @@ func matchingWebAssetsTag(ctx context.Context, assetsRepoDir string, metadata we
 	if err != nil {
 		return "", fmt.Errorf("list web assets tags: %w", err)
 	}
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		tag := strings.TrimSpace(line)
 		if tag == "" {
 			continue

@@ -28,14 +28,6 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("Should keep inbox identity out of the window body", () => {
-    render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
-
-    expect(screen.queryByTestId("tasks-inbox-page-head")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Inbox" })).toBeNull();
-    expect(screen.getByTestId("tasks-inbox-body")).toBeInTheDocument();
-  });
-
   it("Should render the toolbar with a filter trigger, search input, and unread switch", () => {
     render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
 
@@ -47,7 +39,7 @@ describe("TasksInboxView", () => {
     expect(screen.getByTestId("tasks-inbox-unread-toggle")).toBeInTheDocument();
   });
 
-  it("Should render approval items under the Needs review group with a warning solid dot", () => {
+  it("Should render approval items under the Needs review group with the attention glyph", () => {
     const inbox = buildInboxFixture({
       page: { has_more: false, limit: 50, total: 1 },
       unread_total: 1,
@@ -86,12 +78,11 @@ describe("TasksInboxView", () => {
 
     const group = screen.getByTestId("tasks-inbox-group-needs_review");
     expect(group).toBeInTheDocument();
-    const dot = screen.getByTestId("tasks-inbox-group-dot-needs_review");
-    expect(dot).toHaveAttribute("data-tone", "warning");
-    expect(dot).toHaveAttribute("data-variant", "solid");
+    const glyph = screen.getByTestId("tasks-inbox-group-dot-needs_review");
+    expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
-  it("Should render blocked items under the Blocked group with a danger solid dot", () => {
+  it("Should render blocked items under the Blocked group with the attention glyph", () => {
     const inbox = buildInboxFixture({
       page: { has_more: false, limit: 50, total: 1 },
       unread_total: 0,
@@ -129,9 +120,8 @@ describe("TasksInboxView", () => {
 
     const group = screen.getByTestId("tasks-inbox-group-blocked");
     expect(group).toBeInTheDocument();
-    const dot = screen.getByTestId("tasks-inbox-group-dot-blocked");
-    expect(dot).toHaveAttribute("data-tone", "danger");
-    expect(dot).toHaveAttribute("data-variant", "solid");
+    const glyph = screen.getByTestId("tasks-inbox-group-dot-blocked");
+    expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
   it("Should emit search and unread toggle changes", () => {
@@ -272,8 +262,13 @@ describe("TasksInboxView", () => {
     fireEvent.click(screen.getByTestId("tasks-inbox-item-approve-task_apr"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-reject-task_apr"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-retry-task_fail"));
+    // Low-frequency triage verbs live behind each row's overflow menu.
+    expect(screen.queryByTestId("tasks-inbox-item-dismiss-task_fail")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tasks-inbox-item-more-task_fail"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-dismiss-task_fail"));
+    fireEvent.click(screen.getByTestId("tasks-inbox-item-more-task_my"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-mark-read-task_my"));
+    fireEvent.click(screen.getByTestId("tasks-inbox-item-more-task_my"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-archive-task_my"));
 
     expect(handlers.onApprove).toHaveBeenCalledWith("task_apr");

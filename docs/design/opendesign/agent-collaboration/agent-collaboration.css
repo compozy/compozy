@@ -1,0 +1,199 @@
+/* ============================================================
+   AGENT COLLABORATION — agent-collaboration.css
+   Domain lane for the boards under opendesign/agent-collaboration/.
+   Load order: ../design-system/ds-core.css → ds-shell.css →
+   ../subagents/subagents.css (lab scaffold, SubagentCard, SubagentAvatar,
+   HoverCard, roster — reused, never rebound) → this file.
+   Contract: DESIGN-NOTES.md. Spec: .compozy/tasks/agent-collaboration/_uiux.md (S1–S5).
+
+   Naming rule: every product class is named after the production
+   component it renders:
+     .session-message*        → session-messages/session-message-frame.tsx (new · shared frame S1 S2 S3)
+     .session-message--from   → session-messages/session-message-card.tsx (new · S1)
+     .session-message--reply  → session-messages/session-reply-card.tsx (new · S2)
+     .session-sent-card*      → session-messages/session-sent-card.tsx (new · S3)
+     .session-reply-state*    → reply state slot of the sent card (S3)
+     .session-queue-strip*    → session-queue-strip.tsx (modify · S4 rows)
+     .session-queue-row*      → session-queue-strip-row.tsx (modify · S4 session-message owner)
+     .subagent-branch*        → subagents/subagent-card.tsx line 2 (modify · S5)
+     .subagent-pr-link*       → subagents/subagent-row-trail.tsx (modify · S5 trail)
+     .subagent-hover__facts*  → subagents/subagent-hover-content.tsx location slot (modify · S5)
+   Lab chrome stays `lab-` / `sa-*` (from subagents.css) and is never product UI.
+
+   Color = state, never decoration. Sender identity = provider mark, never a
+   hue. Outcome = StatusDot tones (success · danger · faint). Chips neutral.
+   ============================================================ */
+
+/* ============ 01 · SessionMessageFrame (S1 · S2 · S3) ============
+   Borrows SubagentCard's frame: rounded-md · line-soft · canvas-soft ·
+   24px avatar column · max-w-140 (560px). Left-aligned, agent-authored.
+   The operator bubble (right, borderless wash) stays the only right-aligned surface. */
+.session-message{
+  align-self:flex-start;display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:10px;row-gap:4px;
+  width:100%;max-width:560px;padding:9px 12px 10px 9px;
+  border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);color:var(--fg)
+}
+.session-message > .subagent-avatar{grid-row:1 / span 2;align-self:start}
+.session-message__head{display:flex;align-items:center;gap:6px;min-width:0;min-height:24px}
+.session-message__from{display:inline-flex;align-items:baseline;gap:4px;min-width:0;font-size:12px;color:var(--subtle);white-space:nowrap}
+.session-message__link{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:510;color:var(--fg-strong);border-radius:var(--radius-xxs);cursor:pointer}
+.session-message__link:hover{text-decoration:underline;text-decoration-color:var(--fg-2);text-underline-offset:2px}
+.session-message__link:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.session-message__gone{color:var(--muted);font-weight:510}
+.session-message__ws{flex:none;font-size:11px;color:var(--subtle);white-space:nowrap}
+.session-message__ws svg{width:11px;height:11px;vertical-align:-1.5px;margin-right:2px;color:var(--faint)}
+.session-message__word{flex:none;font-size:10.5px;color:var(--subtle);white-space:nowrap}
+.session-message__word[data-tone="danger"]{color:var(--danger)}
+.session-message__time{margin-left:auto;flex:none;padding-left:8px;font-family:var(--font-mono);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* neutral chips: mode (Steered · Interrupted · Superseded) and "Reply requested" */
+.session-message__chip{display:inline-flex;align-items:center;gap:4px;flex:none;height:18px;padding:0 6px;border-radius:var(--radius-xs);background:var(--badge-fill);font-size:10.5px;font-weight:500;color:var(--muted);white-space:nowrap}
+.session-message__chip svg{width:11px;height:11px;color:var(--subtle)}
+.session-message__chip[data-kind="superseded"]{color:var(--subtle)}
+
+/* body: operator bubble's reading type + its clamp (176px, bottom mask, Show more) */
+.session-message__body{grid-column:2;min-width:0;font-size:var(--text-small-body);line-height:1.6;color:var(--fg);overflow-wrap:anywhere;text-wrap:pretty}
+.session-message__body p + p{margin-top:8px}
+.session-message__body code{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-2);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.session-message__body[data-clamped="true"]{max-height:176px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent)}
+.session-message[data-subdued="true"] .session-message__body{color:var(--subtle)}
+.session-message__body--quiet{color:var(--subtle)}
+.session-message__body--danger{color:var(--danger)}
+.session-message__more{grid-column:2;justify-self:start;margin-left:-4px;padding:0 4px;border-radius:var(--radius-xs);font-size:11px;color:var(--subtle);transition:color var(--dur) var(--ease)}
+.session-message__more:hover{color:var(--fg)}
+.session-message__more:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.session-message__more[hidden]{display:none}
+.session-message__note{grid-column:2;display:flex;align-items:center;gap:6px;margin-top:4px;padding-top:7px;border-top:1px solid var(--line-soft);font-size:11px;color:var(--subtle)}
+.session-message__note svg{width:12px;height:12px;color:var(--faint)}
+.session-message__note a{color:var(--fg-2);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:2px;cursor:pointer}
+.session-message__note a:hover{color:var(--fg-strong)}
+
+/* attachments + skill chip, reused from UserMessage (gallery tiles, directive chip) */
+.session-message__attach{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.session-attachment{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 9px 0 4px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--canvas);font-size:11.5px;color:var(--fg-2)}
+.session-attachment__mark{display:grid;place-items:center;width:22px;height:22px;border-radius:var(--radius-xxs);background:var(--surface-2);font-family:var(--font-mono);font-size:8.5px;font-weight:600;color:var(--subtle)}
+.session-attachment__size{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.session-directive{display:inline-flex;align-items:center;gap:3px;height:19px;padding:0 6px;margin-right:2px;border-radius:var(--radius-xs);background:var(--badge-fill);font-family:var(--font-mono);font-size:11px;color:var(--fg-2);vertical-align:1px}
+
+/* sender avatar: identity only — no status dot on S1 */
+.session-message .subagent-avatar{box-shadow:0 0 0 2px var(--canvas-soft)}
+.session-message .subagent-avatar .status-dot{box-shadow:0 0 0 2px var(--canvas-soft)}
+
+/* ============ 02 · SessionSentCard (S3) ============
+   One compact row in the sender's transcript, outside work groups:
+   [arrow-out tile 24][Sent to {title} · mode chip / first line][reply state][time]. */
+.session-sent-card{
+  align-self:flex-start;display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;column-gap:10px;
+  width:100%;max-width:560px;min-height:46px;padding:7px 12px 7px 9px;
+  border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft)
+}
+.session-sent-card__glyph{display:grid;place-items:center;width:24px;height:24px;border-radius:var(--radius-pill);background:var(--surface-2);border:1px solid var(--line-strong);color:var(--muted)}
+.session-sent-card__glyph svg{width:12px;height:12px}
+.session-sent-card[data-state="failed"] .session-sent-card__glyph{color:var(--danger);border-color:color-mix(in oklab,var(--danger) 40%,var(--line-strong))}
+.session-sent-card__main{min-width:0;display:flex;flex-direction:column;gap:1px}
+.session-sent-card__line1{display:flex;align-items:center;gap:6px;min-width:0}
+.session-sent-card__line2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;line-height:1.45;color:var(--muted)}
+.session-sent-card[data-state="failed"] .session-sent-card__line2{color:var(--danger)}
+.session-sent-card__end{display:inline-flex;align-items:center;gap:10px;flex:none}
+.session-reply-state{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--subtle);white-space:nowrap}
+.session-reply-state .status-dot{position:static;width:7px;height:7px;border-radius:var(--radius-pill);box-shadow:0 0 0 2px var(--canvas-soft)}
+.session-reply-state[data-tone="success"]{color:var(--muted)}
+.session-reply-state[data-tone="danger"]{color:var(--danger)}
+.session-reply-state .spin{width:11px;height:11px;color:var(--subtle);animation:sa-spin 1s linear infinite}
+@media (prefers-reduced-motion:reduce){.session-reply-state .spin{animation:none}}
+.session-sent-card .session-message__time{padding-left:0}
+
+/* ============ 03 · SessionQueueStrip rows (S4) ============
+   production: session-queue-strip.tsx — sunken inset, rounded-lg, pb-1, header h-8 pl-3.5;
+   rows min-h-8 gap-2 pl-3.5 pr-1.5 · position mono faint · ListPlus 12 faint · owner · preview 12.5 muted. */
+.session-queue-strip{display:flex;flex-direction:column;overflow:hidden;margin:0 0 8px;padding-bottom:4px;border-radius:var(--radius-lg);background:var(--sunken)}
+.session-queue-strip__head{display:flex;align-items:center;gap:8px;height:32px;padding:0 6px 0 14px;font-size:var(--text-eyebrow);color:var(--subtle)}
+.session-queue-strip__head .n{font-family:var(--font-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.session-queue-strip__head .spacer{flex:1}
+.session-queue-row{display:flex;align-items:center;gap:8px;min-width:0;min-height:32px;padding:3px 6px 3px 14px;transition:opacity var(--dur) var(--ease)}
+.session-queue-row.is-leaving{opacity:0}
+.session-queue-row__pos{flex:none;min-width:14px;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint);font-variant-numeric:tabular-nums}
+.session-queue-row__kind{flex:none;width:12px;height:12px;color:var(--faint)}
+.session-queue-row__owner{display:inline-flex;align-items:center;gap:6px;flex:none;max-width:44%;min-width:0;font-size:var(--text-micro);color:var(--muted)}
+.session-queue-row__owner b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:510;color:var(--fg-2)}
+.session-queue-row__owner .gone{font-weight:500;color:var(--muted)}
+.session-queue-row__owner .subagent-avatar{width:18px;height:18px;box-shadow:none}
+.session-queue-row__owner .subagent-avatar img{width:10px;height:10px}
+.owner-avatar{display:inline-grid;place-items:center;flex:none;width:18px;height:18px;border-radius:var(--radius-xs);background:var(--surface-2);font-family:var(--font-mono);font-size:8px;font-weight:600;color:var(--subtle)}
+.owner-avatar svg{width:11px;height:11px}
+.session-queue-row__prev{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--muted)}
+.session-queue-row__acts{display:flex;align-items:center;gap:1px;flex:none}
+.icon-btn{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:var(--radius-sm);color:var(--faint);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.icon-btn:hover{background:var(--btn-hover);color:var(--fg)}
+.icon-btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.icon-btn svg{width:12px;height:12px}
+.ghost-btn{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:var(--radius-sm);font-size:11.5px;color:var(--muted);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.ghost-btn:hover{background:var(--btn-hover);color:var(--fg)}
+.ghost-btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.ghost-btn svg{width:12px;height:12px}
+
+/* ============ 04 · Subagent worktree facts (S5) ============ */
+/* card: stretched open button so the PR link is a sibling, never nested in a button */
+.subagent-card.ac-card{cursor:pointer;transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease)}
+.subagent-card.ac-card:hover{background:var(--surface-2);border-color:var(--line)}
+.subagent-card.ac-card:has(.ac-card__open:focus-visible){box-shadow:var(--focus-ring)}
+.ac-card__open{position:static;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;font-size:12px;font-weight:510;color:var(--fg-strong);outline:none}
+.ac-card__open::after{content:"";position:absolute;inset:0;border-radius:inherit;z-index:0}
+.subagent-card.ac-card .subagent-card__chev{position:relative}
+.ac-card__end{display:inline-flex;align-items:center;gap:8px;flex:none}
+.subagent-branch{display:inline-flex;align-items:center;gap:4px;max-width:26ch;flex:none;font-family:var(--font-mono);font-size:10.5px;color:var(--fg-2);vertical-align:bottom}
+.subagent-branch svg{width:11px;height:11px;flex:none;color:var(--subtle)}
+.subagent-branch span{overflow:hidden;white-space:nowrap}
+.subagent-card__line2 .sep{color:var(--faint);margin:0 5px}
+.subagent-pr-link{position:relative;z-index:1;display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px 0 5px;border-radius:var(--radius-pill);font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--fg-2);font-variant-numeric:tabular-nums;transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.subagent-pr-link:hover{background:var(--btn-hover);color:var(--fg-strong)}
+.subagent-pr-link:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.subagent-pr-link svg{width:12px;height:12px;flex:none}
+.subagent-pr-link[data-pr="open"] svg{color:var(--info)}
+.subagent-pr-link[data-pr="draft"] svg{color:var(--faint)}
+.subagent-pr-link[data-pr="merged"] svg{color:var(--success)}
+.subagent-pr-link[data-pr="closed"] svg{color:var(--faint)}
+.subagent-pr-link .ext{width:10px;height:10px;color:var(--faint);opacity:0;margin-left:-1px;transition:opacity var(--dur-fast) var(--ease)}
+.subagent-pr-link:hover .ext,.subagent-pr-link:focus-visible .ext{opacity:1}
+
+/* hover: PropertyRow-style location + git + PR facts under the status row */
+.subagent-hover__facts{display:grid;grid-template-columns:62px minmax(0,1fr);gap:4px 10px;padding-top:8px;border-top:1px solid var(--line-soft);font-size:11.5px}
+.subagent-hover__facts dt{color:var(--subtle)}
+.subagent-hover__facts dd{min-width:0;display:flex;align-items:center;gap:5px;color:var(--fg-2)}
+.subagent-hover__facts .mono{font-family:var(--font-mono);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.subagent-hover__facts .arrow{color:var(--faint)}
+.subagent-hover__facts .q{color:var(--subtle)}
+.subagent-hover__facts .dirty{color:var(--warning)}
+.subagent-hover__facts svg{width:12px;height:12px;flex:none}
+.subagent-hover__facts a{color:var(--fg);border-radius:var(--radius-xxs);cursor:pointer}
+.subagent-hover__facts a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.subagent-hover__facts [data-pr="open"]{color:var(--info)}
+.subagent-hover__facts [data-pr="draft"],.subagent-hover__facts [data-pr="closed"]{color:var(--faint)}
+.subagent-hover__facts [data-pr="merged"]{color:var(--success)}
+
+/* inspector roster: isolated rows gain a second line (branch) and the PR link in the trail */
+.subagent-roster__row--iso{align-items:start;min-height:40px;padding-top:5px;padding-bottom:5px}
+.subagent-roster__row--iso .subagent-avatar{margin-top:1px}
+.subagent-roster__main{min-width:0;display:flex;flex-direction:column;gap:1px}
+.subagent-roster__main .subagent-branch{max-width:100%;font-size:10px}
+.subagent-roster__row--iso .subagent-roster__end{padding-top:1px}
+
+.session-message[hidden],.session-sent-card[hidden],.session-queue-strip[hidden],[data-ac-after][hidden]{display:none}
+
+/* ============ 05 · lab-only helpers ============ */
+.ac-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:1100px){.ac-pair{grid-template-columns:1fr}}
+.ac-flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.ac-flow__step{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+.ac-flow__step b{color:var(--fg);font-weight:600}
+.ac-asst{font-size:var(--text-small-body);line-height:1.6;color:var(--fg);max-width:66ch;text-wrap:pretty}
+.ac-asst code{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-2);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.ac-user{align-self:flex-end;max-width:80%;padding:8px 12px;border-radius:var(--radius-lg);background:rgba(255,255,255,.045);font-size:var(--text-small-body);line-height:1.6;color:var(--fg)}
+.ac-cell-stack{display:flex;flex-direction:column;gap:10px}
+.ac-mini-head{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--subtle);margin-bottom:8px}
+.ac-mini-head b{font-weight:510;color:var(--fg-2)}
+.ac-mini-head img{width:12px;height:12px}
+.ac-empty{font-size:11.5px;color:var(--faint)}
+.subagent-roster__main .ac-card__open{font-weight:400;color:var(--fg)}
+.subagent-roster__row--iso:has(.ac-card__open:focus-visible){box-shadow:var(--focus-ring-inset)}
+.subagent-roster__row--iso .subagent-pr-link{height:18px;padding:0 5px 0 4px;font-size:10px}

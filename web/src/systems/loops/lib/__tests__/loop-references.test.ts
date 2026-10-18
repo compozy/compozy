@@ -37,7 +37,7 @@ describe("loop references", () => {
     expect(paths).toContain("generation");
   });
 
-  it("Should offer the trigger namespace for webhook/trigger/schedule/network starts only", () => {
+  it("Should offer the trigger namespace for webhook/trigger/schedule starts only", () => {
     const withWebhook = buildReferenceNamespace(
       { inputs: {}, start: [{ kind: "webhook" }] },
       { nodes }

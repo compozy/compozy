@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: PR-309-coderabbit-remediation
 evidence: /Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/journey-log.jsonl;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/session-catalog-desktop.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/agent-sessions-narrow.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-review-20260805-060247-848289-lab/qa-artifacts/qa/journey-log.jsonl;docs/qa/evidence/2026-08-05-session-archive-coderabbit/CH-archive-session-catalog-delete-pending-fixed.png;docs/qa/evidence/2026-08-05-session-archive-coderabbit/session-catalog-visual.png
 last_report: docs/qa/reports/2026-08-05-session-archive-coderabbit.md
-overlaps: RT-014;RT-082;ET-web-sessions-catalog-modal
+overlaps: RT-014; RT-082; ET-web-sessions-catalog-modal
 ---
 
 The menu must use the shared UI primitives and keep Archive unavailable when runtime truth says the
@@ -33,3 +33,13 @@ request settled. The global catalog also closed, leaving no pending feedback. Se
 QA completion 2026-08-05: a fresh Cora replay held DELETE open and confirmed the shared confirmation
 retained its target, pending state, and dismissal guard. A real follow-up deletion removed the row
 only after success while leaving the catalog open.
+
+## Profile-bound session regression (#783)
+
+From All profiles, operate on a stopped session owned by a nondefault profile. Rename,
+archive, and restore it without switching the selected profile; inspect its deep link
+and subagent roster. Confirm the request uses the row owner for mutations, the roster
+returns successfully, and a terminal 404/410 does not cause recurring control polls.
+A failed cold roster page must stop automatic pagination until an explicit retry.
+Record the session slice separately from this scenario's broader coverage in
+`docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.

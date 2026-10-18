@@ -16,5 +16,5 @@ type MetricSpec struct {
 
 	// MinDelta is the optional non-negative improvement required beyond the current best score.
 	// Nil accepts any strict directional improvement; zero preserves strict comparison semantics.
-	MinDelta *float64 `json:"min_delta,omitempty" yaml:"min_delta,omitempty"`
+	MinDelta *float64 `json:"min_delta,omitzero" yaml:"min_delta,omitempty"`
 }

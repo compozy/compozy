@@ -23,15 +23,6 @@ export const footerColumns: FooterColumn[] = [
     ],
   },
   {
-    title: "Compozy Network",
-    items: [
-      { label: "Overview", href: "/docs/network" },
-      { label: "Protocol spec", href: "/docs/network/protocol" },
-      { label: "Envelope", href: "/docs/network/protocol/envelope" },
-      { label: "Conformance", href: "/docs/network/protocol/conformance" },
-    ],
-  },
-  {
     title: "Resources",
     items: [
       { label: "Marketplace", href: "/marketplace" },

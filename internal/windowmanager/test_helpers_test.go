@@ -36,6 +36,22 @@ type testEnvironment struct {
 	repository *MemoryRepository
 }
 
+// floatingConfig returns the defaults with floating new-window placement, for fixtures that need
+// freshly opened windows to float instead of tiling beside focus.
+func floatingConfig() Config {
+	config := DefaultConfig()
+	config.NewWindowPolicy = NewWindowFloating
+	return config
+}
+
+// besideFocusConfig returns the defaults with beside-focus placement, for fixtures whose client opens
+// must tile beside focus instead of joining the focused frame as a tab.
+func besideFocusConfig() Config {
+	config := DefaultConfig()
+	config.NewWindowPolicy = NewWindowInsert
+	return config
+}
+
 func newTestEnvironment(t *testing.T, config Config, workspaces ...WorkspaceID) testEnvironment {
 	t.Helper()
 	return newTestEnvironmentWithOptions(t, config, workspaces)

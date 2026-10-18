@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -401,16 +402,14 @@ func cloneStringMap(src map[string]string) map[string]string {
 	if len(src) == 0 {
 		return nil
 	}
-	cloned := make(map[string]string, len(src))
-	maps.Copy(cloned, src)
-	return cloned
+	return maps.Clone(src)
 }
 
 func cloneRaw(src json.RawMessage) json.RawMessage {
 	if len(src) == 0 {
 		return nil
 	}
-	return append(json.RawMessage(nil), src...)
+	return slices.Clone(src)
 }
 
 func trimStrings(values []string) []string {

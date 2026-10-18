@@ -1,14 +1,6 @@
 import { RefreshCw, TriangleAlert } from "lucide-react";
 
-import {
-  Alert,
-  AlertActions,
-  AlertDescription,
-  AlertMeta,
-  AlertTitle,
-  Button,
-  Spinner,
-} from "@compozy/ui";
+import { Alert, AlertActions, AlertDescription, AlertTitle, Button, Spinner } from "@compozy/ui";
 
 import { STOP_VERIFICATION_FAILED_ATTENTION } from "../lib/session-stop-attention";
 
@@ -45,13 +37,8 @@ export function SessionStopAttentionNotice({
         Couldn&rsquo;t confirm the agent stopped.
       </AlertTitle>
       <AlertDescription data-testid="session-stop-attention-message">
-        The stop ran all the way to a forced kill, and the runtime still couldn&rsquo;t confirm the
-        process is gone. The session stays &ldquo;stopping&rdquo; until it can.
+        CompozyOS will keep trying. You can also try stopping it again now.
       </AlertDescription>
-      <AlertMeta data-testid="session-stop-attention-meta">
-        <span>needs attention</span>
-        <span className="font-mono">{STOP_VERIFICATION_FAILED_ATTENTION}</span>
-      </AlertMeta>
       {onRetry ? (
         <AlertActions>
           <Button

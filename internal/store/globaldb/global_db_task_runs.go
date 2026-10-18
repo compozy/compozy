@@ -14,27 +14,14 @@ import (
 
 func bindTaskRunWorkspace(run taskpkg.Run, taskRecord taskpkg.Task) (taskpkg.Run, error) {
 	taskWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
-	specWorkspaceID := strings.TrimSpace(run.NetworkSpecSnapshot().WorkspaceID)
-	if taskWorkspaceID != "" && specWorkspaceID != "" && taskWorkspaceID != specWorkspaceID {
-		return taskpkg.Run{}, fmt.Errorf(
-			"%w: task run workspace %q conflicts with task workspace %q",
-			taskpkg.ErrInvalidScopeBinding,
-			specWorkspaceID,
-			taskWorkspaceID,
-		)
-	}
-	authoritativeWorkspaceID := taskWorkspaceID
-	if authoritativeWorkspaceID == "" {
-		authoritativeWorkspaceID = specWorkspaceID
-	}
 	if run.WorkspaceID == "" {
-		run.WorkspaceID = authoritativeWorkspaceID
-	} else if authoritativeWorkspaceID != "" && run.WorkspaceID != authoritativeWorkspaceID {
+		run.WorkspaceID = taskWorkspaceID
+	} else if taskWorkspaceID != "" && run.WorkspaceID != taskWorkspaceID {
 		return taskpkg.Run{}, fmt.Errorf(
 			"%w: task run workspace %q conflicts with authoritative workspace %q",
 			taskpkg.ErrInvalidScopeBinding,
 			run.WorkspaceID,
-			authoritativeWorkspaceID,
+			taskWorkspaceID,
 		)
 	}
 	if err := run.Validate(); err != nil {
@@ -105,7 +92,6 @@ func (g *TaskRepo) listTaskRunsWithExecutor(
 		store.StringClause("status", normalized.Status.String()),
 		store.StringClause("session_id", normalized.SessionID),
 		store.StringClause("designation_group_id", normalized.DesignationGroupID),
-		store.StringClause("network_channel", normalized.ParticipationChannel),
 	)
 	if normalized.ReadScope != (store.ReadScope{}) && !normalized.ReadScope.AllProfiles {
 		profilePredicate := "EXISTS (SELECT 1 FROM tasks WHERE tasks.id = task_runs.task_id AND tasks.profile_id = ?)"

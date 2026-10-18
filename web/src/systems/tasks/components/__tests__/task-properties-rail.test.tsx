@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -18,32 +18,26 @@ import { buildDetailFixture } from "../../mocks/fixtures";
 import { TaskPropertiesRail } from "../task-properties-rail";
 
 describe("TaskPropertiesRail", () => {
-  it("Should expose exact approval progress and keep heartbeat diagnostics out of the rail", () => {
-    const onApprove = vi.fn();
+  it("Should keep approval, ids, CLI hints, and heartbeat diagnostics out of the rail", () => {
     render(
       <TaskPropertiesRail
-        approvalPending={{ approve: true }}
         detail={buildDetailFixture({
           task: { approval_state: "pending", status: "blocked" },
           summary: { status: "blocked" },
         } as never)}
-        onApprove={onApprove}
         onAutoEnqueueChange={vi.fn()}
         onEditSetup={vi.fn()}
         onInspect={vi.fn()}
         onPriorityChange={vi.fn()}
-        onReject={vi.fn()}
         runs={[]}
       />
     );
 
-    const approve = screen.getByTestId("tasks-rail-approve");
-    expect(approve).toBeDisabled();
-    expect(approve).toHaveAttribute("aria-busy", "true");
-    expect(approve).toHaveTextContent("Approving…");
+    const rail = screen.getByTestId("tasks-detail-rail");
+    expect(screen.queryByTestId("tasks-rail-approve")).toBeNull();
+    expect(screen.queryByTestId("tasks-rail-reject")).toBeNull();
+    expect(rail).not.toHaveTextContent(/Task id|Run id|compozy task inspect/);
     expect(screen.queryByText(/heartbeat/i)).toBeNull();
-
-    fireEvent.click(approve);
-    expect(onApprove).not.toHaveBeenCalled();
+    expect(screen.getByTestId("tasks-rail-inspect")).toBeInTheDocument();
   });
 });

@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/frontmatter"
@@ -129,7 +129,7 @@ func reviewRoundIssuePaths(root *reviewArtifactRoot, roundDir string) ([]string,
 			paths = append(paths, filepath.Join(roundDir, entry.Name()))
 		}
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	return paths, nil
 }
 

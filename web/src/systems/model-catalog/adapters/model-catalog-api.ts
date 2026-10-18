@@ -15,12 +15,17 @@ import type {
   ProviderModelsRefreshInput,
   ProviderModelsRefreshResponse,
   ProviderModelStatusResponse,
+  ProviderModelSourceStatus,
 } from "../types";
 
 export class ModelCatalogApiError extends Error {
+  /** Client-side observation time, comparable to Query's successful-read timestamp. */
+  readonly observedAt = Date.now();
+
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    public readonly sources: ProviderModelSourceStatus[] = []
   ) {
     super(message);
     this.name = "ModelCatalogApiError";
@@ -81,11 +86,24 @@ export async function refreshAllModels(
   });
   if (apiRequestFailed(response, error)) {
     throw new ModelCatalogApiError(
-      defaultApiErrorMessage("Failed to refresh the model catalog", response, error),
-      response.status
+      "Could not refresh the model list. Try again.",
+      response.status,
+      error && "sources" in error ? error.sources : []
     );
   }
   return requireResponseData(data, response, "Failed to refresh the model catalog");
+}
+
+export async function getModelSourceStatus(
+  signal?: AbortSignal
+): Promise<ProviderModelStatusResponse> {
+  const { data, error, response } = await apiClient.GET("/api/model-catalog/sources/status", {
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new ModelCatalogApiError("Could not load model list status. Try again.", response.status);
+  }
+  return requireResponseData(data, response, "Could not load model list status. Try again.");
 }
 
 export async function getProviderModelStatus(
@@ -135,8 +153,9 @@ export async function refreshProviderModels(
   );
   if (apiRequestFailed(response, error)) {
     throw new ModelCatalogApiError(
-      defaultApiErrorMessage(`Failed to refresh models for "${providerId}"`, response, error),
-      response.status
+      "Could not refresh the model list. Try again.",
+      response.status,
+      error && "sources" in error ? error.sources : []
     );
   }
   return requireResponseData(data, response, `Failed to refresh models for "${providerId}"`);

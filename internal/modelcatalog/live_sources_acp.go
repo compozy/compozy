@@ -106,6 +106,7 @@ func (s *LiveProviderSource) listACP(
 	}
 	for index := range rows {
 		applyACPModelReasoning(&rows[index], inspection.Models)
+		markUnobservedACPModel(&rows[index], inspection.ModelErrors)
 	}
 	return rows, nil
 }
@@ -238,6 +239,21 @@ func applyACPModelReasoning(row *ModelRow, models map[string][]acp.SessionConfig
 	row.SupportsReasoning = new(true)
 	if option.CurrentValueID != providerDefaultOption {
 		row.DefaultReasoningEffort = normalizedDefaultReasoningEffort(option.CurrentValueID)
+	}
+}
+
+// markUnobservedACPModel records why an advertised model has no option snapshot, so
+// the merge reports its reasoning as unknown instead of borrowing static seed levels.
+func markUnobservedACPModel(row *ModelRow, modelErrors map[string]error) {
+	if hasACPModelOptions(*row) {
+		return
+	}
+	transportID := row.ModelID
+	if binding, ok := PreferredTransportBinding(row.TransportBindings); ok {
+		transportID = binding.TransportModelID
+	}
+	if err := modelErrors[transportID]; err != nil {
+		row.LastError = RedactString("model catalog: model options unavailable: " + err.Error())
 	}
 }
 

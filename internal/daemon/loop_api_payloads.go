@@ -1,14 +1,15 @@
 package daemon
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func loopDefinitionPayload(
@@ -105,37 +106,36 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		return contract.LoopRunPayload{}, err
 	}
 	payload := contract.LoopRunPayload{
-		ID:                           string(run.ID),
-		ProfileID:                    run.ProfileID,
-		WorkspaceID:                  string(run.WorkspaceID),
-		LoopName:                     run.LoopName,
-		Status:                       contract.LoopRunStatus(run.Status),
-		Historical:                   run.Historical,
-		CompletionState:              contract.LoopCompletionState(run.CompletionStateSnapshot()),
-		Generation:                   int64(run.Generation),
-		ReattemptStrategy:            contract.LoopReattemptStrategy(run.ReattemptStrategy),
-		CreatedAt:                    run.CreatedAt,
-		StartedAt:                    run.StartedAt,
-		LastProgressAt:               run.LastProgressAt,
-		CompletedAt:                  cloneOptional(run.CompletedAt),
-		StartedByKind:                string(run.StartedBy.Kind),
-		StartedByRef:                 run.StartedBy.Ref,
-		StartedOriginKind:            string(run.StartedOrigin.Kind),
-		StartedOriginRef:             run.StartedOrigin.Ref,
-		DefinitionVersion:            run.DefinitionVersion,
-		DefinitionDigest:             run.DefinitionDigest,
-		ActiveGateID:                 string(run.ActiveGateID),
-		BudgetApprovalSeq:            run.BudgetApprovalSeq,
-		StartMetadata:                startMetadata,
-		IterationCap:                 run.IterationCap,
-		BudgetTokens:                 run.BudgetTokens,
-		BudgetWallSec:                run.BudgetWallSec,
-		BudgetOnExceeded:             contract.LoopBudgetExceeded(run.BudgetOnExceeded),
-		TokensUsed:                   run.TokensUsed,
-		ParentLoopRunID:              string(run.ParentLoopRunID),
-		PauseRequested:               run.PauseRequested,
-		Inputs:                       inputs,
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		ID:                string(run.ID),
+		ProfileID:         run.ProfileID,
+		WorkspaceID:       string(run.WorkspaceID),
+		LoopName:          run.LoopName,
+		Status:            contract.LoopRunStatus(run.Status),
+		Historical:        run.Historical,
+		CompletionState:   contract.LoopCompletionState(run.CompletionStateSnapshot()),
+		Generation:        int64(run.Generation),
+		ReattemptStrategy: contract.LoopReattemptStrategy(run.ReattemptStrategy),
+		CreatedAt:         run.CreatedAt,
+		StartedAt:         run.StartedAt,
+		LastProgressAt:    run.LastProgressAt,
+		CompletedAt:       cloneOptional(run.CompletedAt),
+		StartedByKind:     string(run.StartedBy.Kind),
+		StartedByRef:      run.StartedBy.Ref,
+		StartedOriginKind: string(run.StartedOrigin.Kind),
+		StartedOriginRef:  run.StartedOrigin.Ref,
+		DefinitionVersion: run.DefinitionVersion,
+		DefinitionDigest:  run.DefinitionDigest,
+		ActiveGateID:      string(run.ActiveGateID),
+		BudgetApprovalSeq: run.BudgetApprovalSeq,
+		StartMetadata:     startMetadata,
+		IterationCap:      run.IterationCap,
+		BudgetTokens:      run.BudgetTokens,
+		BudgetWallSec:     run.BudgetWallSec,
+		BudgetOnExceeded:  contract.LoopBudgetExceeded(run.BudgetOnExceeded),
+		TokensUsed:        run.TokensUsed,
+		ParentLoopRunID:   string(run.ParentLoopRunID),
+		PauseRequested:    run.PauseRequested,
+		Inputs:            inputs,
 	}
 	payload.BestGeneration = cloneOptional(run.BestGeneration)
 	payload.BestScore = cloneOptional(run.BestScore)
@@ -209,14 +209,12 @@ func loopLintErrorsPayload(errors []looppkg.LintError) []contract.LoopLintErrorP
 			Severity: contract.LoopLintSeverity(item.Severity),
 		})
 	}
-	sort.SliceStable(payloads, func(left, right int) bool {
-		if payloads[left].NodeID != payloads[right].NodeID {
-			return payloads[left].NodeID < payloads[right].NodeID
-		}
-		if payloads[left].Path != payloads[right].Path {
-			return payloads[left].Path < payloads[right].Path
-		}
-		return payloads[left].Code < payloads[right].Code
+	slices.SortStableFunc(payloads, func(a, b contract.LoopLintErrorPayload) int {
+		return cmp.Or(
+			strings.Compare(a.NodeID, b.NodeID),
+			strings.Compare(a.Path, b.Path),
+			strings.Compare(a.Code, b.Code),
+		)
 	})
 	return payloads
 }

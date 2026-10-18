@@ -36,32 +36,6 @@ func actionParamsExcept(
 	return renderNodeParamsExcept(node, in.Namespace, rawKeys)
 }
 
-func renderHarvestSpec(node dsl.Node, namespace map[string]any) (*dsl.HarvestSpec, error) {
-	if node.Harvest == nil {
-		return nil, nil
-	}
-	rendered := *node.Harvest
-	responder, err := refs.RenderTemplateString(
-		fmt.Sprintf("nodes.%s.harvest.responder", node.ID),
-		rendered.Responder,
-		namespace,
-	)
-	if err != nil {
-		return nil, materializationError("nodes."+string(node.ID)+".harvest.responder", err)
-	}
-	contentRule, err := refs.RenderTemplateString(
-		fmt.Sprintf("nodes.%s.harvest.content_rule", node.ID),
-		rendered.ContentRule,
-		namespace,
-	)
-	if err != nil {
-		return nil, materializationError("nodes."+string(node.ID)+".harvest.content_rule", err)
-	}
-	rendered.Responder = responder
-	rendered.ContentRule = contentRule
-	return &rendered, nil
-}
-
 func renderNodeParamsExcept(
 	node dsl.Node,
 	namespace map[string]any,
@@ -262,9 +236,8 @@ func evaluateTransformMapping(key string, mapping dsl.TransformMapping, namespac
 }
 
 func namespacePathValue(namespace map[string]any, path string) (any, error) {
-	segments := strings.Split(strings.TrimPrefix(strings.TrimSpace(path), "."), ".")
 	var current any = namespace
-	for _, segment := range segments {
+	for segment := range strings.SplitSeq(strings.TrimPrefix(strings.TrimSpace(path), "."), ".") {
 		if segment == "" {
 			return nil, fmt.Errorf("%w: empty path segment", ErrValidation)
 		}

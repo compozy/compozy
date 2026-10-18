@@ -6,8 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 )
 
-func resolveDaemonResourceStore[T any](
-	state *bootState,
+func (state *bootState) resolveDaemonResourceStore[T any](
 	kind resources.ResourceKind,
 	label string,
 ) (resources.KindCodec[T], resources.Store[T], error) {

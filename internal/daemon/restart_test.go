@@ -426,6 +426,9 @@ func TestRequestRestartWritesOperationBeforeShutdownSignal(t *testing.T) {
 		if got, want := persisted.Status, RestartStatusStopping; got != want {
 			t.Fatalf("persisted.Status = %q, want %q before shutdown signal", got, want)
 		}
+		if got, want := persisted.OldPID, 4242; got != want {
+			t.Fatalf("persisted.OldPID = %d, want %d before shutdown signal", got, want)
+		}
 		if got, want := persisted.ActiveSessionCount, 3; got != want {
 			t.Fatalf("persisted.ActiveSessionCount = %d, want %d", got, want)
 		}
@@ -1272,7 +1275,7 @@ func sequentialTime(values []time.Time) func() time.Time {
 func TestWithTimeoutCapHonorsEarlierDeadlineAndShortensLongerParent(t *testing.T) {
 	t.Parallel()
 
-	baseCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	sameCtx, sameCancel := withTimeoutCap(baseCtx, time.Second)
@@ -1298,7 +1301,7 @@ func TestWithTimeoutCapHonorsEarlierDeadlineAndShortensLongerParent(t *testing.T
 		t.Fatalf("shortened deadline %v is not earlier than parent deadline %v", shortenedDeadline, parentDeadline)
 	}
 
-	derivedCtx, derivedCancel := withTimeoutCap(context.Background(), 50*time.Millisecond)
+	derivedCtx, derivedCancel := withTimeoutCap(t.Context(), 50*time.Millisecond)
 	defer derivedCancel()
 	deadline, ok := derivedCtx.Deadline()
 	if !ok {

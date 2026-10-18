@@ -11,14 +11,13 @@ describe("isQuietActivityEvent", () => {
     expect(isQuietActivityEvent({ type: "tool_call", outcome: "info" })).toBe(true);
     expect(isQuietActivityEvent({ type: "tool.call_completed", outcome: "success" })).toBe(true);
     expect(isQuietActivityEvent({ type: "config.read", outcome: "info" })).toBe(true);
-    expect(isQuietActivityEvent({ type: "memory.compaction_completed", outcome: "info" })).toBe(
-      true
-    );
+    expect(isQuietActivityEvent({ type: "hook.dispatch.complete", outcome: "info" })).toBe(true);
   });
 
   it("Should keep lifecycle and problem events loud", () => {
     expect(isQuietActivityEvent({ type: "task.run_completed", outcome: "success" })).toBe(false);
     expect(isQuietActivityEvent({ type: "message", outcome: "info" })).toBe(false);
+    expect(isQuietActivityEvent({ type: "memory.dream.completed", outcome: "info" })).toBe(false);
     expect(isQuietActivityEvent({ type: "tool.call_failed", outcome: "failure" })).toBe(false);
     expect(isQuietActivityEvent({ type: "hook.dispatch.complete", outcome: "warning" })).toBe(
       false

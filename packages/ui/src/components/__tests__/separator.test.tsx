@@ -22,11 +22,4 @@ describe("Separator", () => {
     expect(label).toHaveTextContent("Replies");
     expect(lines).toHaveLength(2);
   });
-
-  it("Should expose the accent tone for labelled separators via data-tone", () => {
-    render(<Separator label="New" tone="accent" />);
-    const separator = screen.getByRole("separator");
-
-    expect(separator).toHaveAttribute("data-tone", "accent");
-  });
 });

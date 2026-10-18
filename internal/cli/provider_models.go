@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/spf13/cobra"
 )
 
@@ -104,12 +105,10 @@ func newProviderModelsSetCommand(deps commandDeps) *cobra.Command {
 				request.Deprecated = &deprecated
 			}
 			if cmd.Flags().Changed("default-effort") {
-				effort := contract.ReasoningEffort(strings.TrimSpace(defaultEffort))
-				request.DefaultReasoningEffort = &effort
+				request.DefaultReasoningEffort = new(contract.ReasoningEffort(strings.TrimSpace(defaultEffort)))
 			}
 			if cmd.Flags().Changed("default-speed") {
-				speed := contract.Speed(strings.TrimSpace(defaultSpeed))
-				request.DefaultSpeed = &speed
+				request.DefaultSpeed = new(contract.Speed(strings.TrimSpace(defaultSpeed)))
 			}
 			record, err := client.CurateProviderModel(cmd.Context(), providerID, request)
 			if err != nil {
@@ -321,11 +320,12 @@ func providerModelSourceStatusBundle(
 		[]string{
 			agentKernelProviderValue,
 			authoredContextSourceValue,
-			bridgeKindValue,
+			cliOutputKindValue,
 			authoredContextStateValue,
 			"Rows",
 			"Stale",
 			providerModelsErrorValue,
+			"Reason",
 		},
 		toonName,
 		[]string{
@@ -336,8 +336,9 @@ func providerModelSourceStatusBundle(
 			"row_count",
 			"stale",
 			"last_error",
+			"failure_reason",
 		},
-		providerModelSourceStatusRow,
+		providerModelSourceStatusHumanRow,
 		providerModelSourceStatusRow,
 	)
 }
@@ -351,7 +352,26 @@ func providerModelSourceStatusRow(source ProviderModelSourceStatusRecord) []stri
 		fmt.Sprintf("%d", source.RowCount),
 		providerModelBoolString(source.Stale),
 		source.LastError,
+		source.FailureReason,
 	}
+}
+
+func providerModelSourceStatusHumanRow(source ProviderModelSourceStatusRecord) []string {
+	return providerModelSourceStatusRow(providerModelSourceStatusHumanSource(source))
+}
+
+func providerModelSourceStatusHumanSource(source ProviderModelSourceStatusRecord) ProviderModelSourceStatusRecord {
+	switch source.FailureReason {
+	case "auth_required":
+		source.LastError = "Sign in to update the model list."
+	case "timeout":
+		source.LastError = "The model list took too long to update. Try refreshing again."
+	default:
+		if source.RefreshState == string(modelcatalog.RefreshStateFailed) {
+			source.LastError = "Could not update the model list. Try refreshing again."
+		}
+	}
+	return source
 }
 
 func optionalProviderArg() cobra.PositionalArgs {

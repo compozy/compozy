@@ -83,7 +83,7 @@ export const RawKindMeta: Story = {
     icon: <InfoIcon />,
     children: (
       <>
-        Runtime event <MarkerMeta>agent.sandbox.escalation</MarkerMeta>
+        Runtime event <MarkerMeta>agent.permission.denied</MarkerMeta>
       </>
     ),
   },

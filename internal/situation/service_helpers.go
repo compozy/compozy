@@ -5,53 +5,14 @@ import (
 
 	"errors"
 
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/compozy/internal/network"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
-
-func peerDisplayName(peer network.PeerInfo) string {
-	if peer.PeerCard.DisplayName != nil {
-		if display := strings.TrimSpace(*peer.PeerCard.DisplayName); display != "" {
-			return display
-		}
-	}
-	return strings.TrimSpace(peer.PeerID)
-}
-
-func peerCapabilities(peer network.PeerInfo) []string {
-	values := make([]string, 0, len(peer.PeerCard.Capabilities)+len(peer.CapabilityCatalog))
-	seen := make(map[string]struct{}, cap(values))
-	for _, capability := range peer.PeerCard.Capabilities {
-		addStringSet(&values, seen, capability)
-	}
-	if peer.CapabilityCatalogKnown {
-		for _, capability := range peer.CapabilityCatalog {
-			addStringSet(&values, seen, capability.ID)
-		}
-	}
-	slices.Sort(values)
-	return values
-}
-
-func addStringSet(values *[]string, seen map[string]struct{}, value string) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return
-	}
-	if _, exists := seen[trimmed]; exists {
-		return
-	}
-	seen[trimmed] = struct{}{}
-	*values = append(*values, trimmed)
-}
 
 func sectionMeta(total int, limit int) contract.AgentContextSectionMetaPayload {
 	normalizedLimit := limit
@@ -63,10 +24,6 @@ func sectionMeta(total int, limit int) contract.AgentContextSectionMetaPayload {
 		Returned:  min(total, normalizedLimit),
 		Truncated: total > normalizedLimit,
 	}
-}
-
-func emptySectionMeta(limit int) contract.AgentContextSectionMetaPayload {
-	return sectionMeta(0, limit)
 }
 
 func boundedCapabilities(
@@ -82,47 +39,18 @@ func boundedCapabilities(
 	return values[:limit]
 }
 
-func boundedInbox(values []contract.AgentInboxItemPayload, limit int) []contract.AgentInboxItemPayload {
-	if len(values) == 0 {
-		return []contract.AgentInboxItemPayload{}
-	}
-	if limit <= 0 || len(values) <= limit {
-		return values
-	}
-	return values[:limit]
-}
-
-func boundedPeers(values []contract.AgentPeerSummaryPayload, limit int) []contract.AgentPeerSummaryPayload {
-	if len(values) == 0 {
-		return []contract.AgentPeerSummaryPayload{}
-	}
-	if limit <= 0 || len(values) <= limit {
-		return values
-	}
-	return values[:limit]
-}
-
 func cloneActorIdentity(value *taskpkg.ActorIdentity) *taskpkg.ActorIdentity {
 	if value == nil {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 func cloneOwnership(value *taskpkg.Ownership) *taskpkg.Ownership {
 	if value == nil {
 		return nil
 	}
-	clone := *value
-	return &clone
-}
-
-func coordinationChannelID(context contract.AgentCoordinationChannelContextPayload) string {
-	if context.Channel == nil {
-		return ""
-	}
-	return strings.TrimSpace(context.Channel.ID)
+	return new(*value)
 }
 
 func latestTime(values ...time.Time) time.Time {
@@ -143,8 +71,7 @@ func optionalTimePtr(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	clone := value.UTC()
-	return &clone
+	return new(value.UTC())
 }
 
 func firstTrimmed(values ...string) string {

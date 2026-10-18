@@ -5,7 +5,7 @@
 // Boundary IN: OsWorkspacesOverview interaction model — tiles, caption, worktree menu, hints.
 // Boundary OUT: active-workspace store semantics, worktree dialog flows, transport, and the
 // strip's scroll physics (no layout in jsdom).
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -200,7 +200,7 @@ describe("OsWorkspacesOverview", () => {
     // ← from the first tile wraps to the trailing add tile — instantly.
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByTestId("os-workspace-tile-add")).toHaveFocus();
-    expect(caption()).toHaveTextContent("New workspace");
+    expect(caption()).toHaveTextContent("New project");
 
     await user.keyboard("{ArrowRight}");
     expect(tile(COMPOZY.id)).toHaveFocus();
@@ -244,8 +244,8 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onSelectWorkspace).toHaveBeenCalledExactlyOnceWith(NOTES.id);
   });
 
-  it("Should display worktree row paths home-contracted", () => {
-    renderOverview();
+  it("Should display worktree row paths home-contracted", async () => {
+    await act(async () => renderOverview());
     const row = screen.getByTestId(
       `os-workspaces-worktree-row-${worktreeReadyDirtyRunningFixture.id}`
     );
@@ -524,24 +524,28 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("Should mark the current workspace as root", () => {
-    renderOverview();
+  it("Should mark the current workspace as root", async () => {
+    await act(async () => renderOverview());
     expect(tile(COMPOZY.id)).toHaveAttribute("data-current", "root");
   });
 
-  it("Should move the check into the menu row while the tile carries the branch badge", () => {
-    renderOverview({ selectedWorktreeId: worktreeReadyDirtyRunningFixture.id });
+  it("Should move the check into the menu row while the tile carries the branch badge", async () => {
+    await act(async () =>
+      renderOverview({ selectedWorktreeId: worktreeReadyDirtyRunningFixture.id })
+    );
     expect(tile(COMPOZY.id)).toHaveAttribute("data-current", "wt");
     expect(
       screen.getByTestId(`os-workspaces-worktree-row-${worktreeReadyDirtyRunningFixture.id}`)
     ).toHaveAttribute("aria-checked", "true");
   });
 
-  it("Should not mark a non-ready worktree as the current scope", () => {
-    renderOverview({
-      worktreesByWorkspace: MIXED_LISTINGS,
-      selectedWorktreeId: worktreePendingFixture.id,
-    });
+  it("Should not mark a non-ready worktree as the current scope", async () => {
+    await act(async () =>
+      renderOverview({
+        worktreesByWorkspace: MIXED_LISTINGS,
+        selectedWorktreeId: worktreePendingFixture.id,
+      })
+    );
 
     expect(tile(COMPOZY.id)).toHaveAttribute("data-current", "root");
     expect(
@@ -577,8 +581,8 @@ describe("OsWorkspacesOverview", () => {
     );
   });
 
-  it("Should show no current marker anywhere while Global is on", () => {
-    renderOverview({ scope: "global", selectedWorktreeId: null });
+  it("Should show no current marker anywhere while Global is on", async () => {
+    await act(async () => renderOverview({ scope: "global", selectedWorktreeId: null }));
     expect(tile(COMPOZY.id)).not.toHaveAttribute("data-current");
     expect(tile(BRANAS.id)).not.toHaveAttribute("data-current");
     expect(tile(COMPOZY.id)).toHaveAttribute("aria-selected", "false");
@@ -627,14 +631,16 @@ describe("OsWorkspacesOverview", () => {
     expect(screen.queryByTestId("os-workspaces-worktree-menu")).not.toBeInTheDocument();
   });
 
-  it("Should expose every worktree inside the scrolling nest without an overflow jump", () => {
-    renderOverview({
-      worktreesByWorkspace: {
-        [COMPOZY.id]: scrollableWorktreesListingFixture,
-        [BRANAS.id]: emptyWorktreeListingFixture,
-        [NOTES.id]: nonGitWorktreeListingFixture,
-      },
-    });
+  it("Should expose every worktree inside the scrolling nest without an overflow jump", async () => {
+    await act(async () =>
+      renderOverview({
+        worktreesByWorkspace: {
+          [COMPOZY.id]: scrollableWorktreesListingFixture,
+          [BRANAS.id]: emptyWorktreeListingFixture,
+          [NOTES.id]: nonGitWorktreeListingFixture,
+        },
+      })
+    );
 
     const menu = screen.getByTestId("os-workspaces-worktree-menu");
     const rows = menu.querySelectorAll('[data-slot="os-workspaces-worktree-row"]');
@@ -661,8 +667,8 @@ describe("OsWorkspacesOverview", () => {
       screen.getByText("No project folders yet. Sessions run in Global until you add one.")
     ).toBeInTheDocument();
     expect(caption()).toHaveTextContent("Global");
-    expect(caption()).toHaveTextContent("visible to every workspace");
-    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent("0 workspaces");
+    expect(caption()).toHaveTextContent("visible to every project");
+    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent("0 projects");
 
     await user.click(screen.getByTestId("os-workspaces-new"));
     expect(callbacks.onNewWorkspace).toHaveBeenCalledTimes(1);
@@ -683,26 +689,28 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onNewWorkspace).toHaveBeenCalledOnce();
   });
 
-  it("Should apply the live current workspace when data arrives after an empty mount", () => {
+  it("Should apply the live current workspace when data arrives after an empty mount", async () => {
     const callbacks = renderOverview({
       workspaces: [],
       worktreesByWorkspace: {},
       activeWorkspaceId: BRANAS.id,
     });
 
-    callbacks.rerenderOverview({ workspaces: [COMPOZY, BRANAS], worktreesByWorkspace: LISTINGS });
+    await act(async () =>
+      callbacks.rerenderOverview({ workspaces: [COMPOZY, BRANAS], worktreesByWorkspace: LISTINGS })
+    );
 
     expect(tile(BRANAS.id)).toHaveFocus();
   });
 
-  it("Should count adopted worktrees only and singularize one workspace", () => {
-    renderOverview({
-      workspaces: [COMPOZY],
-      worktreesByWorkspace: { [COMPOZY.id]: worktreeListingFixture },
-    });
-    // 7 adopted records — the discovered checkout never enters the count.
-    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent(
-      `1 workspace · ${worktreeListingFixture.worktrees.length} worktrees`
+  it("Should count projects only and singularize one project", async () => {
+    await act(async () =>
+      renderOverview({
+        workspaces: [COMPOZY],
+        worktreesByWorkspace: { [COMPOZY.id]: worktreeListingFixture },
+      })
     );
+    // Worktrees stay on the tile's own nest; the headline never counts them.
+    expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent(/^1 project$/);
   });
 });

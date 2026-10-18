@@ -12,7 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -137,7 +137,7 @@ func directoryDigest(root string) (string, error) {
 	if len(paths) == 0 {
 		return "", fmt.Errorf("%s contains no files", root)
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	hash := sha256.New()
 	for _, path := range paths {
 		rel, err := filepath.Rel(root, path)
@@ -282,7 +282,7 @@ func readWebAssetsMetadata(moduleDir string) (webAssetsMetadata, error) {
 }
 
 func goStringConst(source string, name string) string {
-	for _, line := range strings.Split(source, "\n") {
+	for line := range strings.SplitSeq(source, "\n") {
 		line = strings.TrimSpace(line)
 		left, right, ok := strings.Cut(line, "=")
 		if !ok || strings.TrimSpace(left) != name {

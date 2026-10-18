@@ -35,9 +35,9 @@ func TestUpdateProjectionContracts(t *testing.T) {
 			ActiveTarget:  TargetRuntime,
 			Percent:       42,
 			Runtime: &RuntimeOperationState{
-				ArtifactIdentity: ArtifactIdentity{FromVersion: "v1", ToVersion: "v2"},
-				InstallMethod:    InstallMethodDesktopApp,
-				Phase:            PhaseDownloading,
+				FromVersion: "v1", ToVersion: "v2",
+				InstallMethod: InstallMethodDesktopApp,
+				Phase:         PhaseDownloading,
 			},
 			App:       &AppOperationState{AttemptID: "attempt-1", Phase: PhasePending},
 			Holder:    new(operationTestHolder("generation-1", testOperationNow)),
@@ -84,9 +84,9 @@ func TestUpdateProjectionContracts(t *testing.T) {
 		applyArchivedRuntimeOutcome(&runtime, &Operation{
 			LastError: "replacement health check failed",
 			Runtime: &RuntimeOperationState{
-				ArtifactIdentity: ArtifactIdentity{FromVersion: "v1.0.0", ToVersion: "v1.1.0"},
-				Phase:            PhaseRolledBack,
-				DaemonRestarted:  true,
+				FromVersion: "v1.0.0", ToVersion: "v1.1.0",
+				Phase:           PhaseRolledBack,
+				DaemonRestarted: true,
 			},
 		})
 		if runtime.Status != StatusFailed || runtime.RestoredVersion != "v1.0.0" ||
@@ -151,7 +151,7 @@ func TestRecoveredRuntimeProjection(t *testing.T) {
 			t.Parallel()
 			state := State{Status: StatusUpToDate, CurrentVersion: current, Message: "current"}
 			archived := &Operation{LastError: "old failure", Runtime: &RuntimeOperationState{
-				ArtifactIdentity: ArtifactIdentity{FromVersion: "v1.0.0", ToVersion: "v1.1.0"}, Phase: PhaseRolledBack,
+				FromVersion: "v1.0.0", ToVersion: "v1.1.0", Phase: PhaseRolledBack,
 			}}
 			applyArchivedRuntimeOutcome(&state, archived)
 			if state.Status != StatusUpToDate || state.LastError != "" || state.RestoredVersion != "" {

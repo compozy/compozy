@@ -79,6 +79,23 @@ func (q *Queries) EnsureSessionTranscriptEpoch(ctx context.Context, arg EnsureSe
 	return transcript_epoch, err
 }
 
+const getSessionArchivedAt = `-- name: GetSessionArchivedAt :one
+SELECT archived_at FROM sessions
+WHERE workspace_id = ?1 AND id = ?2
+`
+
+type GetSessionArchivedAtParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	ID          string `json:"id"`
+}
+
+func (q *Queries) GetSessionArchivedAt(ctx context.Context, arg GetSessionArchivedAtParams) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getSessionArchivedAt, arg.WorkspaceID, arg.ID)
+	var archived_at sql.NullString
+	err := row.Scan(&archived_at)
+	return archived_at, err
+}
+
 const getSessionAttachState = `-- name: GetSessionAttachState :one
 SELECT state, failure_kind, stall_state, attached_to, attach_expires_at
 FROM sessions
@@ -250,15 +267,14 @@ INSERT INTO sessions (
   profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
-  runtime_selection_revision, workspace_id, worktree_id, session_type,
-  network_spec_json, network_mode, network_channel, network_source, state,
+  runtime_selection_revision, scope, workspace_id, worktree_id, session_type,
+  state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
+  lineage_kind, origin_message_id, origin_agent_name,
   acp_session_id, stop_reason, stop_escalated, stop_verification_failed, stop_detail, failure_kind, failure_summary, crash_bundle_path,
   subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
-  sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
-  sandbox_state, sandbox_provider_state_json, sandbox_last_sync_at, sandbox_last_sync_error,
   created_at, updated_at
 ) SELECT
   ?1, ?2, ?3, ?4, ?5, ?6,
@@ -266,21 +282,20 @@ INSERT INTO sessions (
   ?11, ?12, ?13,
   ?14, ?15,
   ?16, ?17, ?18,
-  ?19, ?20, ?21, ?22,
+  ?19, ?20, ?21,
+  CASE WHEN ?22 = '' THEN 'global' ELSE 'workspace' END,
+  ?22,
   ?23,
   ?24, ?25, ?26,
   ?27, ?28, ?29, ?30,
   ?31, ?32, ?33, ?34,
-  ?35, ?36, ?37, ?38,
-  ?39, ?40, ?41, ?42, ?43, ?44,
-  ?45, ?46, ?47,
-  ?48, ?49, ?50,
-  ?51, ?52, ?53,
-  ?54, ?55, ?56,
-  ?57, ?58, ?59,
-  ?60, ?61, ?62,
-  ?63, ?64,
-  ?65, ?66
+  ?35, ?36, ?37,
+  ?38, ?39, ?40, ?41, ?42, ?43,
+  ?44, ?45, ?46,
+  ?47, ?48, ?49,
+  ?50, ?51, ?52,
+  ?53, ?54, ?55,
+  ?56, ?57
 WHERE ?23 IS NULL
    OR EXISTS (
       SELECT 1
@@ -329,6 +344,9 @@ ON CONFLICT(id) DO UPDATE SET
   notify_creator = excluded.notify_creator,
   spawn_budget_json = excluded.spawn_budget_json,
   permission_policy_json = excluded.permission_policy_json,
+  lineage_kind = excluded.lineage_kind,
+  origin_message_id = excluded.origin_message_id,
+  origin_agent_name = excluded.origin_agent_name,
   acp_session_id = excluded.acp_session_id,
   stop_reason = excluded.stop_reason,
   stop_escalated = excluded.stop_escalated,
@@ -347,21 +365,9 @@ ON CONFLICT(id) DO UPDATE SET
   soul_snapshot_id = excluded.soul_snapshot_id,
   soul_digest = excluded.soul_digest,
   parent_soul_digest = excluded.parent_soul_digest,
-  sandbox_id = excluded.sandbox_id,
-  sandbox_backend = excluded.sandbox_backend,
-  sandbox_profile = excluded.sandbox_profile,
-  sandbox_instance_id = excluded.sandbox_instance_id,
-  sandbox_state = excluded.sandbox_state,
-  sandbox_provider_state_json = excluded.sandbox_provider_state_json,
-  sandbox_last_sync_at = excluded.sandbox_last_sync_at,
-  sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
 WHERE sessions.workspace_id = excluded.workspace_id
   AND sessions.worktree_id IS excluded.worktree_id
-  AND sessions.network_spec_json IS excluded.network_spec_json
-  AND sessions.network_mode IS excluded.network_mode
-  AND sessions.network_channel IS excluded.network_channel
-  AND sessions.network_source IS excluded.network_source
 `
 
 type UpsertSessionParams struct {
@@ -389,10 +395,6 @@ type UpsertSessionParams struct {
 	WorkspaceID              string         `json:"workspace_id"`
 	WorktreeID               sql.NullString `json:"worktree_id"`
 	SessionType              string         `json:"session_type"`
-	NetworkSpecJson          string         `json:"network_spec_json"`
-	NetworkMode              string         `json:"network_mode"`
-	NetworkChannel           sql.NullString `json:"network_channel"`
-	NetworkSource            string         `json:"network_source"`
 	State                    string         `json:"state"`
 	ParentSessionID          sql.NullString `json:"parent_session_id"`
 	RootSessionID            sql.NullString `json:"root_session_id"`
@@ -403,6 +405,9 @@ type UpsertSessionParams struct {
 	NotifyCreator            bool           `json:"notify_creator"`
 	SpawnBudgetJson          string         `json:"spawn_budget_json"`
 	PermissionPolicyJson     string         `json:"permission_policy_json"`
+	LineageKind              string         `json:"lineage_kind"`
+	OriginMessageID          sql.NullString `json:"origin_message_id"`
+	OriginAgentName          string         `json:"origin_agent_name"`
 	AcpSessionID             sql.NullString `json:"acp_session_id"`
 	StopReason               sql.NullString `json:"stop_reason"`
 	StopEscalated            bool           `json:"stop_escalated"`
@@ -421,14 +426,6 @@ type UpsertSessionParams struct {
 	SoulSnapshotID           sql.NullString `json:"soul_snapshot_id"`
 	SoulDigest               string         `json:"soul_digest"`
 	ParentSoulDigest         string         `json:"parent_soul_digest"`
-	SandboxID                string         `json:"sandbox_id"`
-	SandboxBackend           string         `json:"sandbox_backend"`
-	SandboxProfile           string         `json:"sandbox_profile"`
-	SandboxInstanceID        string         `json:"sandbox_instance_id"`
-	SandboxState             string         `json:"sandbox_state"`
-	SandboxProviderStateJson string         `json:"sandbox_provider_state_json"`
-	SandboxLastSyncAt        sql.NullString `json:"sandbox_last_sync_at"`
-	SandboxLastSyncError     string         `json:"sandbox_last_sync_error"`
 	CreatedAt                string         `json:"created_at"`
 	UpdatedAt                string         `json:"updated_at"`
 }
@@ -459,10 +456,6 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.WorkspaceID,
 		arg.WorktreeID,
 		arg.SessionType,
-		arg.NetworkSpecJson,
-		arg.NetworkMode,
-		arg.NetworkChannel,
-		arg.NetworkSource,
 		arg.State,
 		arg.ParentSessionID,
 		arg.RootSessionID,
@@ -473,6 +466,9 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.NotifyCreator,
 		arg.SpawnBudgetJson,
 		arg.PermissionPolicyJson,
+		arg.LineageKind,
+		arg.OriginMessageID,
+		arg.OriginAgentName,
 		arg.AcpSessionID,
 		arg.StopReason,
 		arg.StopEscalated,
@@ -491,14 +487,6 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.SoulSnapshotID,
 		arg.SoulDigest,
 		arg.ParentSoulDigest,
-		arg.SandboxID,
-		arg.SandboxBackend,
-		arg.SandboxProfile,
-		arg.SandboxInstanceID,
-		arg.SandboxState,
-		arg.SandboxProviderStateJson,
-		arg.SandboxLastSyncAt,
-		arg.SandboxLastSyncError,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)

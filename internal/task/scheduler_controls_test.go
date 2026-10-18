@@ -24,6 +24,7 @@ type schedulerControlTestStore struct {
 	starvedRunCount        int
 	escalatingCountCalls   int
 	needsAttentionRunCount int
+	backlog                SchedulerBacklog
 }
 
 var _ taskPauseStore = (*schedulerControlTestStore)(nil)
@@ -173,7 +174,7 @@ func (s *schedulerControlTestStore) SchedulerBacklog(
 	if err := ctx.Err(); err != nil {
 		return SchedulerBacklog{}, err
 	}
-	return SchedulerBacklog{}, nil
+	return s.backlog, nil
 }
 
 func (s *schedulerControlTestStore) WriteEventSummary(ctx context.Context, summary storepkg.EventSummary) error {
@@ -197,6 +198,38 @@ func (s *schedulerControlTestStore) requireStatusDeadline(ctx context.Context) e
 func TestSchedulerControls(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain each task owner on queued backlog runs", func(t *testing.T) {
+		t.Parallel()
+
+		store := newSchedulerControlTestStore()
+		store.backlog = SchedulerBacklog{
+			Total: 2,
+			Runs: []SchedulerBacklogRun{
+				{
+					Task: Task{ID: "task-marketing", ProfileID: "profile-marketing"},
+					Run:  Run{ID: "run-marketing", TaskID: "task-marketing"},
+				},
+				{
+					Task: Task{ID: "task-default", ProfileID: storepkg.DefaultProfileID},
+					Run:  Run{ID: "run-default", TaskID: "task-default"},
+				},
+			},
+		}
+		manager := newTaskManagerForTest(t, store)
+		backlog, err := manager.SchedulerBacklog(t.Context(), SchedulerBacklogQuery{}, validActorContext())
+		if err != nil {
+			t.Fatalf("SchedulerBacklog() error = %v", err)
+		}
+		if backlog.Total != 2 || len(backlog.Runs) != 2 {
+			t.Fatalf("SchedulerBacklog() = %#v, want both queued runs", backlog)
+		}
+		for _, item := range backlog.Runs {
+			if item.Run.ProfileID != item.Task.ProfileID {
+				t.Errorf("run %s owner = %q, want %q", item.Run.ID, item.Run.ProfileID, item.Task.ProfileID)
+			}
+		}
+	})
+
 	for _, status := range []Status{TaskStatusCompleted, TaskStatusFailed, TaskStatusCanceled} {
 		t.Run("Should reject pausing "+string(status)+" task", func(t *testing.T) {
 			t.Parallel()
@@ -211,7 +244,7 @@ func TestSchedulerControls(t *testing.T) {
 			manager := newTaskManagerForTest(t, store)
 
 			_, err := manager.PauseTask(
-				context.Background(),
+				t.Context(),
 				"task-terminal",
 				PauseTaskRequest{Reason: "hold"},
 				validActorContext(),
@@ -245,7 +278,7 @@ func TestSchedulerControls(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		_, err := manager.PauseTask(
-			context.Background(),
+			t.Context(),
 			"task-pause-preflight",
 			PauseTaskRequest{Reason: strings.Repeat("<", 12*1024)},
 			validActorContext(),
@@ -280,7 +313,7 @@ func TestSchedulerControls(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		_, err := manager.ResumeTask(
-			context.Background(),
+			t.Context(),
 			"task-resume-preflight",
 			ResumeTaskRequest{Metadata: metadata},
 			validActorContext(),
@@ -310,7 +343,7 @@ func TestSchedulerControls(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		_, err := manager.PauseTask(
-			context.Background(),
+			t.Context(),
 			"task-pause-redaction",
 			PauseTaskRequest{
 				Reason: "operator supplied " + rawToken,
@@ -360,7 +393,7 @@ func TestSchedulerControls(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		_, err := manager.ResumeTask(
-			context.Background(),
+			t.Context(),
 			"task-resume-redaction",
 			ResumeTaskRequest{
 				Metadata: json.RawMessage(
@@ -394,7 +427,7 @@ func TestSchedulerControls(t *testing.T) {
 	t.Run("Should complete drain audit after request context is canceled", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		store := newSchedulerControlTestStore()
 		store.activeClaimCount = []int{1, 0}
@@ -434,7 +467,7 @@ func TestSchedulerControls(t *testing.T) {
 			PausedAt:  asOf.Add(-10 * time.Minute),
 			UpdatedAt: asOf.Add(-10 * time.Minute),
 		}
-		paused, err := manager.SchedulerStatus(context.Background(), validActorContext())
+		paused, err := manager.SchedulerStatus(t.Context(), validActorContext())
 		if err != nil {
 			t.Fatalf("SchedulerStatus(paused) error = %v", err)
 		}
@@ -443,7 +476,7 @@ func TestSchedulerControls(t *testing.T) {
 		}
 
 		store.pause = SchedulerPauseState{UpdatedAt: asOf.Add(-time.Minute)}
-		grace, err := manager.SchedulerStatus(context.Background(), validActorContext())
+		grace, err := manager.SchedulerStatus(t.Context(), validActorContext())
 		if err != nil {
 			t.Fatalf("SchedulerStatus(grace) error = %v", err)
 		}
@@ -455,7 +488,7 @@ func TestSchedulerControls(t *testing.T) {
 		}
 
 		store.pause = SchedulerPauseState{UpdatedAt: asOf.Add(-3 * time.Minute)}
-		eligible, err := manager.SchedulerStatus(context.Background(), validActorContext())
+		eligible, err := manager.SchedulerStatus(t.Context(), validActorContext())
 		if err != nil {
 			t.Fatalf("SchedulerStatus(eligible) error = %v", err)
 		}

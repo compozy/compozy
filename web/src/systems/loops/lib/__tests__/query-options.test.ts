@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
+import { loopCatalogFixtures } from "../../mocks/fixtures";
 
 import {
   goalTurnsOptions,
@@ -18,6 +19,63 @@ import {
 } from "../query-options";
 
 describe("loop query-options", () => {
+  it("Should retain the catalog profile through pagination and isolate its cached population", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const requests: URL[] = [];
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL((input as Request).url);
+      requests.push(url);
+      const selected = url.searchParams.get("profile") === "engineering";
+      const aggregate = url.searchParams.get("all_profiles") === "true";
+      const secondPage = url.searchParams.has("cursor");
+      return Response.json(
+        {
+          loops: selected ? loopCatalogFixtures.slice(secondPage ? 1 : 0, secondPage ? 2 : 1) : [],
+          facets: { categories: {}, kinds: {}, statuses: {} },
+          page: {
+            total: selected ? 2 : 0,
+            limit: 1,
+            has_more: selected && !secondPage,
+            next_cursor: selected && !secondPage ? "engineering-page-2" : undefined,
+          },
+        },
+        {
+          status: selected || aggregate || url.searchParams.get("profile") === "studio" ? 200 : 400,
+        }
+      );
+    });
+    const options = loopsCatalogOptions("ws_a", { profile: "engineering", limit: 1 });
+    const observer = new InfiniteQueryObserver(client, options);
+    try {
+      await client.fetchInfiniteQuery(options);
+      const result = await observer.fetchNextPage();
+      expect(result.data?.pages.flatMap(page => page.loops)).toEqual(
+        loopCatalogFixtures.slice(0, 2)
+      );
+      expect(requests[1]?.searchParams.get("profile")).toBe("engineering");
+      expect(requests[1]?.searchParams.get("cursor")).toBe("engineering-page-2");
+      expect(result.hasNextPage).toBe(false);
+
+      const studio = await client.fetchInfiniteQuery(
+        loopsCatalogOptions("ws_a", { profile: "studio", limit: 1 })
+      );
+      const aggregate = await client.fetchInfiniteQuery(
+        loopsCatalogOptions("ws_a", { all_profiles: true, limit: 1 })
+      );
+      expect(studio.pages[0]?.loops).toEqual([]);
+      expect(aggregate.pages[0]?.loops).toEqual([]);
+      expect(requests).toHaveLength(4);
+      expect(requests[2]?.searchParams.get("profile")).toBe("studio");
+      expect(requests[3]?.searchParams.get("all_profiles")).toBe("true");
+      expect(requests[3]?.searchParams.has("profile")).toBe(false);
+      expect(client.getQueryData(options.queryKey)).toEqual(result.data);
+    } finally {
+      observer.destroy();
+      client.clear();
+      fetch.mockRestore();
+    }
+  });
+
   it("Should page Goal turns by the server cursor and isolate workspace and Profile caches", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const requests: URL[] = [];
@@ -65,6 +123,7 @@ describe("loop query-options", () => {
       "loops",
       "catalog",
       "ws_a",
+      "",
       "",
       "",
       "",

@@ -7,12 +7,8 @@ import (
 )
 
 type rolesOverlay struct {
-	Coordinator       coordinatorRoleOverlay      `toml:"coordinator"`
-	Dream             roleOverlay                 `toml:"dream"`
-	CheckpointSummary roleOverlay                 `toml:"checkpoint_summary"`
-	MemoryExtractor   roleOverlay                 `toml:"memory_extractor"`
-	AutoTitle         roleOverlay                 `toml:"auto_title"`
-	MemoryController  memoryControllerRoleOverlay `toml:"memory_controller"`
+	Coordinator coordinatorRoleOverlay `toml:"coordinator"`
+	AutoTitle   roleOverlay            `toml:"auto_title"`
 }
 
 type roleOverlay struct {
@@ -33,27 +29,9 @@ type coordinatorRoleOverlay struct {
 	MaxActiveSessionsPerWorkspace *int           `toml:"max_active_sessions_per_workspace"`
 }
 
-type memoryControllerRoleOverlay struct {
-	Enabled         *bool                 `toml:"enabled"`
-	Provider        *string               `toml:"provider"`
-	Model           *string               `toml:"model"`
-	ReasoningEffort *string               `toml:"reasoning_effort"`
-	Speed           *string               `toml:"speed"`
-	ACPOptions      *[]ACPOptionSelection `toml:"acp_options"`
-	Timeout         *time.Duration        `toml:"timeout"`
-	TopK            *int                  `toml:"top_k"`
-	PromptVersion   *string               `toml:"prompt_version"`
-	MaxTokensOut    *int                  `toml:"max_tokens_out"`
-	FallbackChain   *[]RoleFallback       `toml:"fallback_chain"`
-}
-
 func (o rolesOverlay) Apply(dst *RolesConfig) {
 	o.Coordinator.Apply(&dst.Coordinator)
-	o.Dream.Apply(&dst.Dream)
-	o.CheckpointSummary.Apply(&dst.CheckpointSummary)
-	o.MemoryExtractor.Apply(&dst.MemoryExtractor)
 	o.AutoTitle.Apply(&dst.AutoTitle)
-	o.MemoryController.Apply(&dst.MemoryController)
 }
 
 func (o roleOverlay) Apply(dst *RoleConfig) {
@@ -93,41 +71,5 @@ func (o coordinatorRoleOverlay) Apply(dst *CoordinatorRoleConfig) {
 	}
 	if o.MaxActiveSessionsPerWorkspace != nil {
 		dst.MaxActiveSessionsPerWorkspace = *o.MaxActiveSessionsPerWorkspace
-	}
-}
-
-func (o memoryControllerRoleOverlay) Apply(dst *MemoryControllerRoleConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
-	if o.Provider != nil {
-		dst.Provider = *o.Provider
-	}
-	if o.Model != nil {
-		dst.Model = *o.Model
-	}
-	if o.ReasoningEffort != nil {
-		dst.ReasoningEffort = *o.ReasoningEffort
-	}
-	if o.Speed != nil {
-		dst.Speed = speedpkg.Speed(*o.Speed)
-	}
-	if o.ACPOptions != nil {
-		dst.ACPOptions = CloneACPOptionSelections(*o.ACPOptions)
-	}
-	if o.Timeout != nil {
-		dst.Timeout = *o.Timeout
-	}
-	if o.TopK != nil {
-		dst.TopK = *o.TopK
-	}
-	if o.PromptVersion != nil {
-		dst.PromptVersion = *o.PromptVersion
-	}
-	if o.MaxTokensOut != nil {
-		dst.MaxTokensOut = *o.MaxTokensOut
-	}
-	if o.FallbackChain != nil {
-		dst.FallbackChain = cloneRoleFallbacks(*o.FallbackChain)
 	}
 }

@@ -10,26 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
-func TestUDSHandlersModelCatalogDependency(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should pass model catalog service to base handlers", func(t *testing.T) {
-		t.Parallel()
-
-		service := udsModelCatalogServiceStub{}
-		handlers := newHandlers(&handlerConfig{modelCatalog: service})
-		if handlers.BaseHandlers == nil {
-			t.Fatal("newHandlers() BaseHandlers = nil")
-		}
-		if handlers.ModelCatalog == nil {
-			t.Fatal("newHandlers() ModelCatalog = nil, want injected service")
-		}
-		if handlers.ModelCatalog != service {
-			t.Fatalf("newHandlers() ModelCatalog = %#v, want %#v", handlers.ModelCatalog, service)
-		}
-	})
-}
-
 func TestUDSModelCatalogRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -76,29 +56,6 @@ func TestUDSModelCatalogRoutes(t *testing.T) {
 			t.Fatalf("body = %q, want %q", got, want)
 		}
 	})
-}
-
-type udsModelCatalogServiceStub struct{}
-
-func (udsModelCatalogServiceStub) ListModels(
-	context.Context,
-	modelcatalog.ListOptions,
-) ([]modelcatalog.Model, error) {
-	return nil, nil
-}
-
-func (udsModelCatalogServiceStub) Refresh(
-	context.Context,
-	modelcatalog.RefreshOptions,
-) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
-}
-
-func (udsModelCatalogServiceStub) ListSourceStatus(
-	context.Context,
-	modelcatalog.StatusOptions,
-) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
 }
 
 type udsModelCatalogServiceSpy struct {

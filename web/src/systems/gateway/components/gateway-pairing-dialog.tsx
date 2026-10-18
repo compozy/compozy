@@ -57,13 +57,13 @@ export function GatewayPairingDialog({
         <DialogHeader>
           <DialogTitle>Pair a device</DialogTitle>
           <DialogDescription>
-            This code works once. Mint a new one after it expires or is used.
+            This code works once. Create a new one after it expires or is used.
           </DialogDescription>
         </DialogHeader>
 
         {isMinting ? (
           <div className="flex items-center justify-center py-8" role="status">
-            <Spinner aria-label="Minting a pairing code" className="size-5 text-subtle" />
+            <Spinner aria-label="Creating a pairing code" className="size-5 text-subtle" />
           </div>
         ) : null}
 
@@ -135,8 +135,8 @@ export function GatewayPairingDialog({
             onClick={onMint}
             type="button"
           >
-            <RefreshCw aria-hidden="true" className="size-3" />
-            {artifact ? "Mint a new code" : "Mint a code"}
+            <RefreshCw aria-hidden="true" />
+            {artifact ? "Create a new code" : "Create a code"}
           </Button>
         </DialogFooter>
       </DialogContent>

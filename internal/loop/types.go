@@ -97,6 +97,8 @@ const (
 	CodeWatchEventsFilterTooBroad = "watch_events_filter_too_broad"
 	// CodeWatchEventsShapeInvalid reports events/watch/produces shape contradictions.
 	CodeWatchEventsShapeInvalid = "watch_events_shape_invalid"
+	// CodeRunLoopOutputShapeInvalid reports a produces shape unsupported by run-loop completion.
+	CodeRunLoopOutputShapeInvalid = "run_loop_output_shape_invalid"
 	// CodeFileImportParseRequired reports a missing or unsupported file-import parse mode.
 	CodeFileImportParseRequired = "file_import_parse_required"
 	// CodeDuplicateNodeID reports repeated node IDs.
@@ -145,10 +147,6 @@ const (
 	CodeEnvironmentInvalid = "environment_invalid"
 	// CodeEnvironmentUnsupported reports Environment on a node that cannot start agents.
 	CodeEnvironmentUnsupported = "environment_unsupported"
-	// CodeNetworkParticipationInvalid reports malformed authored participation intent.
-	CodeNetworkParticipationInvalid = "network_participation_invalid"
-	// CodeLoopRequiresLive reports a Network-using graph without authored Live participation.
-	CodeLoopRequiresLive = "loop_requires_live"
 	// CodeErrorRouteBackward reports an error route that is not a direct forward edge.
 	CodeErrorRouteBackward = "error_route_backward"
 	// CodeErrorRouteConflict reports route and allow_fail on the same error policy.

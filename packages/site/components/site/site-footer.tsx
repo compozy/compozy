@@ -6,6 +6,8 @@ import { SectionFrame } from "@/components/landing/primitives/section-frame";
 import { type FooterColumn, type FooterLink, footerColumns } from "@/lib/footer-config";
 import { siteConfig } from "@/lib/site-config";
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 const LINK_CLASS =
   "inline-flex items-center text-sm text-muted transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:rounded-sm";
 
@@ -43,8 +45,7 @@ function FooterColumnGroup({ column, className }: { column: FooterColumn; classN
 }
 
 export function SiteFooter() {
-  const currentYear = new Date().getFullYear();
-  const [runtime, network, resources] = footerColumns;
+  const [runtime, resources] = footerColumns;
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas">
@@ -73,7 +74,6 @@ export function SiteFooter() {
           </div>
 
           <FooterColumnGroup column={runtime} className="lg:col-span-2" />
-          <FooterColumnGroup column={network} className="lg:col-span-2" />
           <FooterColumnGroup column={resources} className="lg:col-span-3" />
         </div>
 
@@ -84,7 +84,7 @@ export function SiteFooter() {
           )}
         >
           <p className="text-xs text-subtle">
-            © {currentYear} {siteConfig.name}.
+            © {CURRENT_YEAR} {siteConfig.name}.
           </p>
           <a
             href={siteConfig.githubUrl}

@@ -1,8 +1,9 @@
 package core
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -101,7 +102,7 @@ func (c *terminalCatalog) drainLocked() {
 		case record := <-c.inbox:
 			records = append(records, record)
 		default:
-			sort.Slice(records, func(left, right int) bool { return records[left].Sequence < records[right].Sequence })
+			slices.SortFunc(records, func(a, b terminalCatalogEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
 			droppedThrough := c.droppedThrough.Load()
 			if droppedThrough > c.resetFloor {
 				c.events = nil

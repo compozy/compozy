@@ -2,11 +2,12 @@ package redact
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -78,11 +79,8 @@ func registeredSecretEncodings() []string {
 			encoded = append(encoded, value)
 		}
 	}
-	sort.Slice(encoded, func(i int, j int) bool {
-		if len(encoded[i]) == len(encoded[j]) {
-			return encoded[i] < encoded[j]
-		}
-		return len(encoded[i]) > len(encoded[j])
+	slices.SortFunc(encoded, func(a, b string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
 	})
 	return encoded
 }

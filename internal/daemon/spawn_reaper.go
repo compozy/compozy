@@ -245,7 +245,7 @@ func (r *spawnReaper) reapSpawnedCandidate(
 	info.Lineage = lineage
 
 	now := r.now().UTC()
-	if lineage.TTLExpiresAt != nil && !lineage.TTLExpiresAt.After(now) {
+	if lineage.SpawnRole != store.SubagentSpawnRole && lineage.TTLExpiresAt != nil && !lineage.TTLExpiresAt.After(now) {
 		return spawnReapCandidate{
 			child:  info,
 			parent: parents[lineage.ParentSessionID],
@@ -257,6 +257,10 @@ func (r *spawnReaper) reapSpawnedCandidate(
 		return spawnReapCandidate{child: info, reason: spawnReapReasonOrphaned}, true
 	}
 	if lineage.AutoStopOnParent && !spawnReaperLiveState(parent.State) {
+		if lineage.SpawnRole == store.SubagentSpawnRole &&
+			(parent.StopReason == store.StopShutdown || parent.StopReason == store.StopAgentCrashed) {
+			return spawnReapCandidate{}, false
+		}
 		return spawnReapCandidate{
 			child:  info,
 			parent: parent,

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
-
 import type { TaskBlockedReason, TaskListItem, TaskRecord, TaskRun } from "../../types";
-import { buildTaskRunRecordFixture } from "../../mocks/fixtures";
 import {
   countTasksByStatus,
   formatAttemptLabel,
@@ -12,8 +9,6 @@ import {
   formatRelativeTime,
   matchesTaskQuery,
   projectBlockedReasonChips,
-  runCoordinationChannelLabel,
-  runIsCoordinated,
   taskApprovalStateLabel,
   taskCanRecover,
   taskHandoffActionCopy,
@@ -33,7 +28,8 @@ import {
   taskRunStatusLabel,
   taskRunStatusTone,
   taskStatusLabel,
-  taskStatusSignal,
+  taskStateGlyph,
+  taskRunStateGlyph,
   taskStatusTone,
   taskWakeIndicatorApplies,
 } from "../task-formatters";
@@ -178,7 +174,6 @@ describe("task predicates and counts", () => {
 
   it("formats owner labels with kind fallbacks", () => {
     expect(taskOwnerKindLabel("agent_session")).toBe("Agent");
-    expect(taskOwnerKindLabel("network_peer")).toBe("Peer");
     expect(taskOwnerKindLabel(null)).toBe("Unassigned");
     expect(taskOwnerLabel(null)).toBe("Unassigned");
     expect(taskOwnerLabel({ kind: "agent_session", ref: "Coder" })).toBe("Coder");
@@ -329,44 +324,6 @@ describe("task handoff actions — boundary semantics", () => {
   });
 });
 
-describe("coordination channel signal", () => {
-  it("recognises runs with live resolved participation as coordinated", () => {
-    const run = buildTaskRunRecordFixture({
-      coordination_channel: null,
-      resolved_network_participation: buildLiveNetworkParticipationFixture({
-        workspaceId: "ws_storybook",
-        channelId: "coord-task-001",
-      }),
-    });
-
-    expect(runIsCoordinated(run)).toBe(true);
-    expect(runCoordinationChannelLabel(run)).toBe("coord-task-001");
-  });
-
-  it("prefers the embedded display name when available", () => {
-    const run = buildTaskRunRecordFixture({
-      resolved_network_participation: buildLiveNetworkParticipationFixture({
-        workspaceId: "ws_storybook",
-        channelId: "coord-task-001",
-      }),
-      coordination_channel: {
-        id: "coord-task-001",
-        display_name: "TASK-1 coordination",
-        allowed_message_kinds: ["status"],
-      },
-    });
-
-    expect(runIsCoordinated(run)).toBe(true);
-    expect(runCoordinationChannelLabel(run)).toBe("TASK-1 coordination");
-  });
-
-  it("ignores runs without channel binding", () => {
-    expect(runIsCoordinated(null)).toBe(false);
-    expect(runIsCoordinated({} as TaskRun)).toBe(false);
-    expect(runCoordinationChannelLabel(null)).toBe("");
-  });
-});
-
 function makeRun(status: TaskRun["status"]): TaskListItem["active_run"] {
   return {
     id: "run_test",
@@ -447,12 +404,62 @@ describe("recover + wake affordance gating", () => {
     expect(taskCanRecover({ status: "completed" } as Pick<TaskRecord, "status">)).toBe(false);
   });
 
-  it("Should render blocked and needs_attention as distinct StatusDot signals", () => {
-    // The header title dot must agree with the status pill and keep the two
-    // states distinct (no coercion): blocked → danger, needs_attention → warning.
-    expect(taskStatusSignal("blocked").tone).toBe("danger");
-    expect(taskStatusSignal("needs_attention").tone).toBe("warning");
-    expect(taskStatusSignal("blocked").tone).not.toBe(taskStatusSignal("needs_attention").tone);
+  it("Should map every task and run status onto the canonical StateGlyph states", () => {
+    // Both escalations wait on a person, so both read as attention; their
+    // labels (taskStatusLabel) keep them distinct.
+    expect(
+      Object.fromEntries(
+        (
+          [
+            "draft",
+            "pending",
+            "ready",
+            "in_progress",
+            "blocked",
+            "needs_attention",
+            "completed",
+            "failed",
+            "canceled",
+          ] as const
+        ).map(status => [status, taskStateGlyph(status)])
+      )
+    ).toEqual({
+      draft: "queued",
+      pending: "queued",
+      ready: "queued",
+      in_progress: "running",
+      blocked: "attention",
+      needs_attention: "attention",
+      completed: "done",
+      failed: "failed",
+      canceled: "stopped",
+    });
+    expect(taskStateGlyph("mystery")).toBe("idle");
+    expect(
+      Object.fromEntries(
+        (
+          [
+            "queued",
+            "claimed",
+            "starting",
+            "running",
+            "needs_attention",
+            "completed",
+            "failed",
+            "canceled",
+          ] as const
+        ).map(status => [status, taskRunStateGlyph(status)])
+      )
+    ).toEqual({
+      queued: "queued",
+      claimed: "running",
+      starting: "running",
+      running: "running",
+      needs_attention: "attention",
+      completed: "done",
+      failed: "failed",
+      canceled: "stopped",
+    });
   });
 
   it("Should surface the wake indicator only for agent-session-created tasks", () => {

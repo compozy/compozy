@@ -111,13 +111,27 @@ func populateRootRuntimeStatus(
 		if skill.RootID == rootID {
 			status.SkillCount++
 		}
+		definitionsInRoot := 0
+		if skill.RootID == rootID {
+			definitionsInRoot++
+		}
+		for _, shadow := range skill.Diagnostics.ShadowedDefinitions {
+			if pathWithinSkillRoot(shadow.Path, status.Spec.Dir) {
+				definitionsInRoot++
+			}
+		}
 		for _, shadow := range skill.Diagnostics.ShadowedDefinitions {
 			if !pathWithinSkillRoot(shadow.Path, status.Spec.Dir) {
 				continue
 			}
 			qualifier := normalizedSkillOrigin(status.Spec.SourceSlug)
-			if qualifier == normalizedSkillOrigin(skill.Origin) && skill.RootID != rootID {
-				qualifier = rootQualifiedSourceID(qualifier, rootID)
+			if qualifier == normalizedSkillOrigin(skill.Origin) {
+				switch {
+				case definitionsInRoot > 1:
+					qualifier = definitionQualifiedSourceID(qualifier, rootID, shadow.Path)
+				case skill.RootID != rootID:
+					qualifier = rootQualifiedSourceID(qualifier, rootID)
+				}
 			}
 			status.Collisions = append(status.Collisions, SkillSourceCollision{
 				Name: strings.TrimSpace(skill.Meta.Name), WinnerRootID: skill.RootID,

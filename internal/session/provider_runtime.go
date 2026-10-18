@@ -2,19 +2,15 @@ package session
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
 	"github.com/compozy/compozy/internal/providerenv"
 	authproviders "github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/subprocess"
-
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -151,7 +147,6 @@ func providerProbeEnvForStart(
 	resolved compozyconfig.ResolvedAgent,
 	env []string,
 	cwd string,
-	launcher sandbox.Launcher,
 ) authproviders.ProbeEnv {
 	probe := authproviders.ProbeEnv{
 		ProviderName:  strings.TrimSpace(resolved.Provider),
@@ -162,7 +157,9 @@ func providerProbeEnvForStart(
 		CommandEnv:    append([]string(nil), env...),
 		CommandDir:    cwd,
 	}
-	configureProviderCommandRuntime(&probe, launcher)
+	probe.LookPath = providerLookPath(probe.CommandEnv, probe.CommandDir)
+	probe.ResolveCommand = authproviders.DefaultProviderAuthCommandResolver
+	probe.RunCommand = authproviders.DefaultProviderAuthCommandRunner
 	return probe
 }
 
@@ -178,7 +175,7 @@ func (m *Manager) finalizeProviderProbeEnvForStart(
 	providerConfig := *opts.ProviderConfig
 	providerConfig.Command = next.Command
 	next.ProviderConfig = &providerConfig
-	probeEnv := providerProbeEnvForStart(m, session, resolved, next.Env, next.Cwd, next.Launcher)
+	probeEnv := providerProbeEnvForStart(m, session, resolved, next.Env, next.Cwd)
 	next.ProviderAuthEnv = &probeEnv
 	return next
 }
@@ -199,13 +196,6 @@ func providerPreStartScopeForSession(
 		ProfileID:    strings.TrimSpace(info.ProfileID),
 		HomeIdentity: providerHomeIdentity(env),
 	}
-	if info.Sandbox == nil {
-		return scope
-	}
-	scope.SandboxID = strings.TrimSpace(info.Sandbox.SandboxID)
-	scope.SandboxBackend = strings.TrimSpace(info.Sandbox.Backend)
-	scope.SandboxProfile = strings.TrimSpace(info.Sandbox.Profile)
-	scope.SandboxInstanceID = strings.TrimSpace(info.Sandbox.InstanceID)
 	return scope
 }
 

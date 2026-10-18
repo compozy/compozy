@@ -250,6 +250,13 @@ func TestVaultHandlersRejectInvalidRequests(t *testing.T) {
 			wantError: "vault: unsupported secret ref",
 		},
 		{
+			name:      "Should explain the supported format when a secret name has no supported namespace",
+			method:    http.MethodPut,
+			path:      "/api/vault/secrets",
+			body:      []byte(`{"ref":"vault:editorial/notes-token","secret_value":"local-editorial-notes-only"}`),
+			wantError: "providers, profiles, automation, mcp, hooks, extensions, or sessions",
+		},
+		{
 			name:      "Should reject blank daemon vault secret values",
 			method:    http.MethodPut,
 			path:      "/api/vault/secrets",
@@ -293,6 +300,9 @@ func TestVaultHandlersRejectInvalidRequests(t *testing.T) {
 			}
 			if !strings.Contains(resp.Body.String(), tc.wantError) {
 				t.Fatalf("error body = %s, want %q", resp.Body.String(), tc.wantError)
+			}
+			if strings.Contains(resp.Body.String(), "local-editorial-notes-only") {
+				t.Fatal("invalid request response exposed the submitted secret value")
 			}
 		})
 	}

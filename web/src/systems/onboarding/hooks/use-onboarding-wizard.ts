@@ -2,6 +2,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSelector } from "@xstate/store-react";
 
+import { enableGlobalScope } from "@/systems/workspace";
+
 import { onboardingDraftStore } from "../stores/use-onboarding-draft-store";
 import { useCompleteOnboarding } from "./use-complete-onboarding";
 import {
@@ -14,25 +16,22 @@ export const ONBOARDING_STEP_COUNT = 2;
 
 /**
  * The step strip carries progress and the footer carries what will be saved, so
- * a pane only needs a heading that stands alone. Skip, default, and Network
+ * a pane only needs a heading that stands alone. Skip and default
  * consequences the heading does not name live in `help`.
  */
 export interface OnboardingStepMeta {
   title: string;
   help: string;
-  helpLabel: string;
 }
 
 const STEP_META: Record<number, OnboardingStepMeta> = {
   1: {
     title: "Choose the model your agents run on",
-    help: "New agents inherit this model. Change it any time in Settings.",
-    helpLabel: "About the default model",
+    help: "New agents use this model. You can change it any time in Settings.",
   },
   2: {
-    title: "Pick where agents can work",
-    help: "Skip starts in Global (~, your home folder). Setup does not enable Network.",
-    helpLabel: "About workspace",
+    title: "Choose a project folder",
+    help: "Agents can read and change files in the folders you add. You can add more later.",
   },
 };
 
@@ -54,6 +53,7 @@ export interface OnboardingWizardApi {
   goToStep: (step: number) => void;
   back: () => void;
   next: () => Promise<void>;
+  skipToGlobal: () => Promise<void>;
 }
 
 export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi {
@@ -79,10 +79,11 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     }
   };
 
-  const finish = async () => {
+  const finish = async (scope: "current" | "global") => {
     setCommitError(null);
     try {
       await complete.mutateAsync();
+      if (scope === "global") enableGlobalScope();
       onboardingDraftStore.trigger.draftCleared();
       onComplete();
     } catch (error) {
@@ -109,9 +110,14 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
       return;
     }
     if (step === 2) {
-      await finish();
+      await finish("current");
       return;
     }
+  };
+
+  const skipToGlobal = async () => {
+    if (step !== 2 || workspaceBusy || complete.isPending) return;
+    await finish("global");
   };
 
   return {
@@ -127,5 +133,6 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     goToStep,
     back,
     next,
+    skipToGlobal,
   };
 }

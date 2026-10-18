@@ -74,24 +74,21 @@ func nullableInt64Pointer(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
 	}
-	result := value.Int64
-	return &result
+	return new(value.Int64)
 }
 
 func nullableFloat64Pointer(value sql.NullFloat64) *float64 {
 	if !value.Valid {
 		return nil
 	}
-	result := value.Float64
-	return &result
+	return new(value.Float64)
 }
 
 func nullableStringPointer(value sql.NullString) *string {
 	if !value.Valid {
 		return nil
 	}
-	result := value.String
-	return &result
+	return new(value.String)
 }
 
 func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage) error {
@@ -99,22 +96,23 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage)
 		usage.Timestamp = s.now()
 	}
 
-	if err := sqlcgen.New(s.db).UpsertTokenUsage(ctx, sqlcgen.UpsertTokenUsageParams{
-		TurnID:           usage.TurnID,
-		InputTokens:      sessionNullableInt64(usage.InputTokens),
-		OutputTokens:     sessionNullableInt64(usage.OutputTokens),
-		TotalTokens:      sessionNullableInt64(usage.TotalTokens),
-		ThoughtTokens:    sessionNullableInt64(usage.ThoughtTokens),
-		CacheReadTokens:  sessionNullableInt64(usage.CacheReadTokens),
-		CacheWriteTokens: sessionNullableInt64(usage.CacheWriteTokens),
-		ContextUsed:      sessionNullableInt64(usage.ContextUsed),
-		ContextSize:      sessionNullableInt64(usage.ContextSize),
-		CostAmount:       sessionNullableFloat64(usage.CostAmount),
-		CostCurrency:     sessionNullableStringPointer(usage.CostCurrency),
-		Timestamp:        store.FormatTimestamp(usage.Timestamp),
-	}); err != nil {
-		return fmt.Errorf("store: upsert token usage: %w", err)
-	}
-
-	return nil
+	return store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+		if err := sqlcgen.New(tx).UpsertTokenUsage(ctx, sqlcgen.UpsertTokenUsageParams{
+			TurnID:           usage.TurnID,
+			InputTokens:      sessionNullableInt64(usage.InputTokens),
+			OutputTokens:     sessionNullableInt64(usage.OutputTokens),
+			TotalTokens:      sessionNullableInt64(usage.TotalTokens),
+			ThoughtTokens:    sessionNullableInt64(usage.ThoughtTokens),
+			CacheReadTokens:  sessionNullableInt64(usage.CacheReadTokens),
+			CacheWriteTokens: sessionNullableInt64(usage.CacheWriteTokens),
+			ContextUsed:      sessionNullableInt64(usage.ContextUsed),
+			ContextSize:      sessionNullableInt64(usage.ContextSize),
+			CostAmount:       sessionNullableFloat64(usage.CostAmount),
+			CostCurrency:     sessionNullableStringPointer(usage.CostCurrency),
+			Timestamp:        store.FormatTimestamp(usage.Timestamp),
+		}); err != nil {
+			return fmt.Errorf("store: upsert token usage: %w", err)
+		}
+		return nil
+	})
 }

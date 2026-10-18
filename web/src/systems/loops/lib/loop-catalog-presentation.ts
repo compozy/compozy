@@ -1,6 +1,5 @@
 import type { LoopCatalogEntry } from "../types";
-import { hasHumanGate, iterationCapLabel, loopCategory, loopInputCount } from "./loop-catalog";
-import { loopRunBestLabel } from "./loop-generation-presentation";
+import { hasHumanGate, loopCategory } from "./loop-catalog";
 
 export interface LoopLastRunFact {
   id: string;
@@ -11,20 +10,15 @@ export interface LoopLastRunFact {
  * The shape-of-the-loop facts both catalog views state, in one order.
  *
  * Rows and cards render the same declared facts so a loop reads the same either
- * way; only the separator differs (meta dots vs a joined line). Category leads;
- * best is a plain metric, never a state tone.
+ * way; only the separator differs (meta dots vs a joined line). The catalog keeps
+ * this short on purpose: inputs, the round cap, and the best score live on the
+ * detail page.
  */
 export function loopFactsSegments(entry: LoopCatalogEntry): string[] {
   const segments: string[] = [];
   const category = loopCategory(entry);
   if (category) segments.push(category);
-  segments.push(
-    `${loopInputCount(entry)} inputs`,
-    `iteration cap ${iterationCapLabel(entry.contract.iteration_cap)}`
-  );
-  if (hasHumanGate(entry)) segments.push("human gate");
-  const best = entry.last_run ? loopRunBestLabel(entry.last_run) : null;
-  if (best) segments.push(`best ${best}`);
+  if (hasHumanGate(entry)) segments.push("Asks you before finishing");
   return segments;
 }
 

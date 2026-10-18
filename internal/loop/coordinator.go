@@ -102,6 +102,7 @@ type GateDecisionReader interface {
 
 // CoordinatorRunner computes loop generation plans without mutating task storage.
 type CoordinatorRunner struct {
+	candidateVerifier  WorktreeCandidateVerifier
 	taskRuns           CoordinatorTaskRunReader
 	store              Store
 	outputs            GenerationOutputReader
@@ -272,19 +273,14 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	plan, err := buildInitialControlAwareCoordinatorPlan(
+	plan, err := r.buildInitialControlAwareCoordinatorPlan(
 		ctx,
+		taskRun,
 		run,
 		generation,
 		resolved,
 		effective,
-		r.gateEvaluator,
-		r.store,
-		r.controls,
-		r.runtimeCatalog,
 		fanOutWidth,
-		r.watchRuntime(),
-		r.watchEventsRuntime(),
 		history,
 		r.now().UTC(),
 	)

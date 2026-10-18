@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -17,11 +18,238 @@ import (
 func TestExitActions(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: failed inventory preserves running receipts until readable journals can recover them.
+	// Owner: worktree recovery; canonical exit sequencing suite with real filesystem failure.
+	t.Run(
+		"Should preserve delivery receipt when journal inventory fails and recover after restoration",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newExitActionFixture(t, false)
+			f.service.root = t.TempDir()
+			caller := &managedFailureSessionBoundary{cause: ErrExitActionInvalid}
+			WithManagedDeliverySessions(caller)(f.service)
+			operation := ExitOperation{ID: "inventory-unavailable", WorkspaceID: f.item.WorkspaceID,
+				WorktreeID: f.item.ID, Action: string(ExitActionDeliver), State: exitOperationRunning,
+				StartedAt: statusTestClock()}
+			if err := f.store.InsertExitOperation(t.Context(), operation); err != nil {
+				t.Fatal(err)
+			}
+			directory := filepath.Join(f.service.root, ".delivery")
+			const original = "journal inventory is not a directory"
+			if err := os.WriteFile(directory, []byte(original), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.ReadDir(directory); err == nil || errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("fixture must fail inventory without implying absence: %v", err)
+			}
+			if err := f.service.RecoverManagedDeliveries(
+				t.Context(),
+			); !errors.Is(
+				err,
+				ErrDeliveryInventoryUnavailable,
+			) {
+				t.Fatalf("failed inventory must request lifecycle-owned retry: %v", err)
+			}
+			running, err := f.store.ListRunningExitOperations(t.Context())
+			if err != nil || len(running) != 1 || running[0].ID != operation.ID || running[0].FinishedAt != nil {
+				t.Fatalf("failed inventory changed receipt: %#v error=%v", running, err)
+			}
+			f.events.mu.Lock()
+			eventCount := len(f.events.events)
+			f.events.mu.Unlock()
+			if eventCount != 0 || caller.stops.Load() != 0 || len(f.runner.commands()) != 0 {
+				t.Fatal("failed inventory caused recovery effects")
+			}
+			data, err := os.ReadFile(directory)
+			if err != nil || string(data) != original {
+				t.Fatalf("failed inventory changed filesystem: %q error=%v", data, err)
+			}
+			if err := os.Remove(directory); err != nil {
+				t.Fatal(err)
+			}
+			journal := &managedDeliveryJournal{
+				Version: 1, OperationID: operation.ID, Item: f.item, Phase: exitStepCompleted,
+			}
+			if err := saveDeliveryJournal(filepath.Join(directory, "restored.json"), journal); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.service.RecoverManagedDeliveries(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			waitForExitOperation(t, f.store, operation.ID, exitStepCompleted)
+			if caller.stops.Load() != 0 || len(f.runner.commands()) != 0 {
+				t.Fatal("restored terminal receipt replayed execution effects")
+			}
+		},
+	)
+
+	// Invariant: unknown journals preserve bytes and never prevent independent receipt recovery.
+	// Owner: worktree recovery; canonical exit sequencing suite at journal/store I/O boundaries.
+	for _, contents := range []string{"{broken", `{"version":2,"phase":"prepared"}`, `{"version":1,"phase":"future"}`} {
+		t.Run("Should preserve unreadable journal and recover sibling receipt "+contents, func(t *testing.T) {
+			t.Parallel()
+			f := newExitActionFixture(t, false)
+			f.service.root = t.TempDir()
+			caller := &managedFailureSessionBoundary{cause: ErrExitActionInvalid}
+			WithManagedDeliverySessions(caller)(f.service)
+			operation := ExitOperation{ID: "readable", WorkspaceID: f.item.WorkspaceID,
+				WorktreeID: f.item.ID, Action: string(ExitActionDeliver), State: exitOperationRunning,
+				StartedAt: statusTestClock()}
+			if err := f.store.InsertExitOperation(t.Context(), operation); err != nil {
+				t.Fatal(err)
+			}
+			directory := filepath.Join(f.service.root, ".delivery")
+			if err := saveDeliveryJournal(filepath.Join(directory, "valid.json"), &managedDeliveryJournal{
+				Version: 1, OperationID: operation.ID, Item: f.item, Phase: exitStepCompleted,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			badPath := filepath.Join(directory, "bad.json")
+			if err := os.WriteFile(badPath, []byte(contents), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.service.RecoverManagedDeliveries(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			waitForExitOperation(t, f.store, operation.ID, exitStepCompleted)
+			data, err := os.ReadFile(badPath)
+			if err != nil || string(data) != contents {
+				t.Fatalf("unknown journal changed: data=%q error=%v", data, err)
+			}
+			if caller.stops.Load() != 0 || len(f.runner.commands()) != 0 {
+				t.Fatal("unknown journal caused execution effects")
+			}
+		})
+	}
+
+	// Invariant: orphan delivery receipts release the SQL active fence as explicit failures without effects.
+	// Owner: worktree recovery; canonical exit sequencing store/journal boundary suite.
+	for _, reason := range []string{"missing-root", "missing-file", "unreadable-file", "no-runtime", "no-runtime-journal"} {
+		t.Run("Should fail orphan delivery receipt with "+reason, func(t *testing.T) {
+			t.Parallel()
+			f := newExitActionFixture(t, false)
+			caller := &managedFailureSessionBoundary{cause: ErrExitActionInvalid}
+			WithManagedDeliverySessions(caller)(f.service)
+			if reason != "missing-root" {
+				f.service.root = t.TempDir()
+			}
+			if reason == "no-runtime" || reason == "no-runtime-journal" {
+				f.service.deliverySessions = nil
+			}
+			if reason == "unreadable-file" {
+				directory := filepath.Join(f.service.root, ".delivery")
+				if err := os.MkdirAll(directory, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(
+					filepath.Join(directory, "unreadable.json"),
+					[]byte("{broken"),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			operation := ExitOperation{ID: "orphan", WorkspaceID: f.item.WorkspaceID,
+				WorktreeID: f.item.ID, Action: string(ExitActionDeliver), State: exitOperationRunning,
+				StartedAt: statusTestClock()}
+			if err := f.store.InsertExitOperation(t.Context(), operation); err != nil {
+				t.Fatal(err)
+			}
+			if reason == "no-runtime-journal" {
+				journal := &managedDeliveryJournal{
+					Version: 1, OperationID: operation.ID, Item: f.item, Phase: deliveryPhasePrepared,
+				}
+				if err := saveDeliveryJournal(
+					filepath.Join(f.service.root, ".delivery", "valid.json"),
+					journal,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := f.service.RecoverManagedDeliveries(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			waitForExitOperation(t, f.store, operation.ID, exitStepFailed)
+			payload := exitEventPayload(t, f.events, EventExitActionFailed)
+			expectedMessage := "journal unavailable"
+			if reason == "no-runtime-journal" {
+				expectedMessage = "interrupted by daemon restart"
+			}
+			if !strings.Contains(payload.Message, expectedMessage) || caller.stops.Load() != 0 ||
+				len(f.runner.commands()) != 0 {
+				t.Fatalf("orphan recovery=%#v stops=%d commands=%v", payload, caller.stops.Load(), f.runner.commands())
+			}
+			operation.ID = "next-reviewed-operation"
+			if err := f.store.InsertExitOperation(t.Context(), operation); err != nil {
+				t.Fatalf("orphan still holds SQL active-operation fence: %v", err)
+			}
+		})
+	}
+
+	// Invariant: done/map completion cannot become visible while the session fence remains held.
+	// Owner: managed execution lifetime; canonical exit sequencing session boundary suite.
+	t.Run("Should release managed session fence before signaling cleanup completion", func(t *testing.T) {
+		t.Parallel()
+		f := newExitActionFixture(t, false)
+		f.service.root = t.TempDir()
+		WithManagedDeliverySessions(&managedFailureSessionBoundary{cause: ErrExitActionInvalid})(f.service)
+		operation := ExitOperation{ID: "cleanup", WorkspaceID: f.item.WorkspaceID,
+			WorktreeID: f.item.ID, Action: string(ExitActionDeliver), State: exitOperationRunning,
+			StartedAt: statusTestClock()}
+		if err := f.store.InsertExitOperation(t.Context(), operation); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		control := &exitOperationControl{done: make(chan struct{}), cancel: cancel}
+		f.service.exits[operation.ID] = control
+		releasing, unblock := make(chan struct{}), make(chan struct{})
+		release := sync.OnceFunc(func() { close(unblock) })
+		t.Cleanup(release)
+		journal := &managedDeliveryJournal{
+			Version:     1,
+			OperationID: operation.ID,
+			Item:        f.item,
+			Phase:       deliveryPhasePrepared,
+		}
+		go f.service.runManagedDelivery(
+			ctx,
+			cancel,
+			control,
+			func() { close(releasing); <-unblock },
+			"caller",
+			filepath.Join(f.service.root, "cleanup.json"),
+			journal,
+			operation,
+		)
+		select {
+		case <-releasing:
+		case <-time.After(5 * time.Second):
+			t.Fatal("session fence release did not start")
+		}
+		select {
+		case <-control.done:
+			t.Fatal("completion signaled before fence released")
+		default:
+		}
+		f.service.exitMu.Lock()
+		registered := f.service.exits[operation.ID] == control
+		f.service.exitMu.Unlock()
+		if !registered {
+			t.Fatal("control disappeared while session fence held")
+		}
+		release()
+		select {
+		case <-control.done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("cleanup completion not signaled after release")
+		}
+	})
+
 	t.Run("Should run commit and push once with announced phases and one CTA", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, false)
 		opID, err := fixture.service.RunExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.Name,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.Name,
 			ExitActionRequest{Action: ExitActionCommitPush},
 		)
 		if err != nil || opID != "op-exit" {
@@ -57,7 +285,7 @@ func TestExitActions(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, true)
 		opID, err := fixture.service.RunExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.ID,
 			ExitActionRequest{Action: ExitActionCommitPush, Message: "Keep this commit"},
 		)
 		if err != nil {
@@ -69,7 +297,7 @@ func TestExitActions(t *testing.T) {
 			t.Fatal("push phase did not start")
 		}
 		if err := fixture.service.CancelExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.Name, opID,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.Name, opID,
 		); err != nil {
 			t.Fatalf("CancelExitAction() error = %v", err)
 		}
@@ -99,7 +327,7 @@ func TestExitActions(t *testing.T) {
 		}
 
 		err := fixture.service.CancelExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID, "op-exit",
+			t.Context(), fixture.item.WorkspaceID, fixture.item.ID, "op-exit",
 		)
 		if !errors.Is(err, storeErr) || errors.Is(err, ErrNotFound) ||
 			!strings.Contains(err.Error(), "read exit cancellation target") {
@@ -110,14 +338,14 @@ func TestExitActions(t *testing.T) {
 	t.Run("Should refuse a second durable operation before starting another worker", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, false)
-		if err := fixture.store.InsertExitOperation(context.Background(), ExitOperation{
+		if err := fixture.store.InsertExitOperation(t.Context(), ExitOperation{
 			ID: "op-active", WorkspaceID: fixture.item.WorkspaceID, WorktreeID: fixture.item.ID,
 			Action: string(ExitActionPush), State: "running", StartedAt: statusTestClock(),
 		}); err != nil {
 			t.Fatalf("seed active operation: %v", err)
 		}
 		_, err := fixture.service.RunExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.ID,
 			ExitActionRequest{Action: ExitActionCommit},
 		)
 		if !errors.Is(err, ErrOperationInProgress) {
@@ -132,7 +360,7 @@ func TestExitActions(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := Worktree{ID: "wt-exit", WorkspaceID: "ws-exit", State: StateReady}
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		finished := statusTestClock()
@@ -145,7 +373,7 @@ func TestExitActions(t *testing.T) {
 			Action: string(ExitActionPush), State: "running", StartedAt: finished.Add(time.Second),
 		}
 		service := NewService(store, &recordingGitRunner{})
-		if err := service.CancelExitAction(context.Background(), item.WorkspaceID, item.ID, "op-stale"); err != nil {
+		if err := service.CancelExitAction(t.Context(), item.WorkspaceID, item.ID, "op-stale"); err != nil {
 			t.Fatalf("CancelExitAction(stale) error = %v", err)
 		}
 		if got := exitOperation(store, "op-later"); got.State != "running" {
@@ -160,7 +388,7 @@ func TestExitActions(t *testing.T) {
 			ID: "wt-refresh", WorkspaceID: "ws-refresh", Branch: "feature/refresh",
 			Path: "/repo/refresh", State: StateReady, CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 		}
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed refresh worktree: %v", err)
 		}
 		runner := &recordingGitRunner{responses: []gitResponse{
@@ -170,14 +398,14 @@ func TestExitActions(t *testing.T) {
 		}}
 		provider := &recordingExitForge{status: &ForgeStatus{Provider: "github"}}
 		service := NewService(store, runner, WithForge(provider), WithClock(statusTestClock))
-		service.refreshAfterExit(context.Background(), item)
+		service.refreshAfterExit(t.Context(), item)
 
 		if provider.statusCalls != 1 || len(provider.lastStatus.RemoteURLs) != 1 ||
 			provider.lastStatus.RemoteURLs[0] != "git@github.com:acme/repo.git" ||
 			provider.lastStatus.Branch != item.Branch {
 			t.Fatalf("forge refresh calls/request = %d/%#v", provider.statusCalls, provider.lastStatus)
 		}
-		cached, err := store.GetForgeStatus(context.Background(), item.WorkspaceID, item.ID)
+		cached, err := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil || cached == nil || cached.Provider != "github" {
 			t.Fatalf("cached forge refresh = %#v, %v", cached, err)
 		}
@@ -190,7 +418,7 @@ func TestExitActions(t *testing.T) {
 				"# branch.upstream origin/feature/exit\x00# branch.ab +0 -0\x00",
 		)}}}
 		service := NewService(newMemoryWorktreeStore(), runner)
-		step, err := service.runExitPush(context.Background(), Worktree{Path: "/repo", Branch: "feature/exit"}, false)
+		step, err := service.runExitPush(t.Context(), Worktree{Path: "/repo", Branch: "feature/exit"}, false)
 		if err != nil || step.State != "skipped" || step.Reason != "already up to date" ||
 			containsCommandPrefix(invocationCommands(runner.invocations()), "push") {
 			t.Fatalf("runExitPush() = %#v, %v; calls=%#v", step, err, runner.invocations())
@@ -207,7 +435,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		step, err := service.runExitPush(
-			context.Background(), Worktree{Path: "/repo", Branch: "feature/exit"}, false,
+			t.Context(), Worktree{Path: "/repo", Branch: "feature/exit"}, false,
 		)
 		if err != nil || step.Upstream != "fork/review" {
 			t.Fatalf("runExitPush() = %#v, %v, want configured upstream", step, err)
@@ -226,7 +454,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		steps, err := service.runExitSequence(
-			context.Background(), ExitOperation{ID: "op-hook"}, Worktree{Path: "/repo", Branch: "feature/exit"},
+			t.Context(), ExitOperation{ID: "op-hook"}, Worktree{Path: "/repo", Branch: "feature/exit"},
 			&ExitPlan{CommitScope: ExitCommitScope{ChangedFiles: 1}},
 			ExitActionRequest{Action: ExitActionCommitPush, Message: "Run hooks"},
 		)
@@ -252,7 +480,7 @@ func TestExitActions(t *testing.T) {
 		events := &recordingEventSink{}
 		service := NewService(newMemoryWorktreeStore(), runner, WithEvents(events))
 		steps, err := service.runExitSequence(
-			context.Background(),
+			t.Context(),
 			ExitOperation{ID: "op-hook-output", WorkspaceID: "ws-hook", WorktreeID: "wt-hook"},
 			Worktree{Path: "/repo", Branch: "feature/exit"},
 			&ExitPlan{CommitScope: ExitCommitScope{ChangedFiles: 1}},
@@ -296,7 +524,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		steps, err := service.runExitSequence(
-			context.Background(), ExitOperation{ID: "op-push-failure"},
+			t.Context(), ExitOperation{ID: "op-push-failure"},
 			Worktree{Path: "/repo", Branch: "feature/exit"},
 			&ExitPlan{CommitScope: ExitCommitScope{ChangedFiles: 1}},
 			ExitActionRequest{Action: ExitActionCommitPush},
@@ -312,7 +540,7 @@ func TestExitActions(t *testing.T) {
 		runner := &recordingGitRunner{responses: []gitResponse{{}, {}}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		step, err := service.runExitCommit(
-			context.Background(), ExitOperation{}, ExitActionCommit,
+			t.Context(), ExitOperation{}, ExitActionCommit,
 			Worktree{Path: "/repo"}, ExitCommitScope{}, "",
 		)
 		if err != nil || step.State != "skipped" || step.Reason != "nothing to commit" ||
@@ -328,7 +556,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		step, err := service.runExitCommit(
-			context.Background(), ExitOperation{}, ExitActionCommit,
+			t.Context(), ExitOperation{}, ExitActionCommit,
 			Worktree{Path: "/repo"}, ExitCommitScope{}, "",
 		)
 		if err != nil || step.State != "completed" || step.SHA != "deadbeef" ||
@@ -344,7 +572,7 @@ func TestExitActions(t *testing.T) {
 			ID: "wt-pr", WorkspaceID: "ws-pr", Path: "/repo", Branch: "feature/pr", State: StateReady,
 			CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 		}
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed PR worktree: %v", err)
 		}
 		provider := &recordingExitForge{create: &ForgePRResult{
@@ -352,11 +580,11 @@ func TestExitActions(t *testing.T) {
 			URL: "https://secret@github.com/acme/repo/pull/51?token=bad#fragment",
 		}}
 		service := NewService(store, &recordingGitRunner{}, WithForge(provider), WithClock(statusTestClock))
-		step, err := service.runExitPR(context.Background(), item, &ExitPlan{
+		step, err := service.runExitPR(t.Context(), item, &ExitPlan{
 			Base: "main", RemoteURLs: []string{"https://github.com/acme/repo.git"},
 			Forge: &ForgeCapabilities{Provider: "github"},
 		}, ExitActionRequest{Action: ExitActionOpenPR, Title: "Exit", Body: "Ready", Draft: true})
-		cached, cacheErr := store.GetForgeStatus(context.Background(), item.WorkspaceID, item.ID)
+		cached, cacheErr := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil || cacheErr != nil || step.PRStatus != "opened_existing" || step.PRNumber != 51 ||
 			step.URL != "https://github.com/acme/repo/pull/51" || cached == nil || cached.PRURL != step.URL || provider.createCalls != 1 ||
 			!provider.lastCreate.Draft || provider.lastCreate.Title != "Exit" || provider.lastCreate.Body != "Ready" ||
@@ -378,7 +606,7 @@ func TestExitActions(t *testing.T) {
 			CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 		}
 		store := newMemoryWorktreeStore()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		provider := &recordingExitForge{create: &ForgePRResult{
@@ -387,7 +615,7 @@ func TestExitActions(t *testing.T) {
 		runner := &recordingGitRunner{}
 		service := NewService(store, runner, WithForge(provider), WithClock(statusTestClock))
 		step, err := service.runExitPR(
-			context.Background(),
+			t.Context(),
 			item,
 			&ExitPlan{
 				Base: "main", RemoteURLs: []string{"https://github.com/acme/repo.git"},
@@ -470,7 +698,7 @@ func newExitActionFixture(t *testing.T, blockPush bool) exitActionFixture {
 		CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 	}
 	store := newMemoryWorktreeStore()
-	if err := store.Insert(context.Background(), item); err != nil {
+	if err := store.Insert(t.Context(), item); err != nil {
 		t.Fatalf("seed worktree: %v", err)
 	}
 	runner := &scriptedExitRunner{
@@ -582,9 +810,18 @@ func (r *scriptedExitRunner) commands() []string {
 	return append([]string(nil), r.calls...)
 }
 
-func waitForExitOperation(t *testing.T, store *memoryWorktreeStore, opID, state string) ExitOperation {
+func waitForExitOperation(
+	t *testing.T,
+	store *memoryWorktreeStore,
+	opID, state string,
+	timeout ...time.Duration,
+) ExitOperation {
 	t.Helper()
-	deadline := time.NewTimer(time.Second)
+	limit := time.Second
+	if len(timeout) > 0 {
+		limit = timeout[0]
+	}
+	deadline := time.NewTimer(limit)
 	defer deadline.Stop()
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
@@ -693,4 +930,19 @@ func countCommand(commands []string, expected string) int {
 		}
 	}
 	return count
+}
+
+// managedFailureSessionBoundary isolates the runtime stop/fence I/O in exit tests.
+type managedFailureSessionBoundary struct {
+	cause error
+	stops atomic.Int64
+}
+
+func (c *managedFailureSessionBoundary) AcquireDeliveryFence(context.Context, string, string, string) (func(), error) {
+	return func() {}, nil
+}
+
+func (c *managedFailureSessionBoundary) StopDeliverySession(context.Context, string) error {
+	c.stops.Add(1)
+	return c.cause
 }

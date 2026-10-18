@@ -7,12 +7,12 @@ A session is the durable logical unit CompozyOS manages. Creation returns it `ac
 it has a workspace, permission policy, event store, and attach record under one stable CompozyOS
 session ID, but no ACP process. The first prompt binds a provider runtime snapshot and starts ACP.
 
-Live session events are written to `events.db` while the session runs. After the session stops,
-CompozyOS materializes a read-only forensic JSONL ledger at
-`$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
-`$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
-is content-addressed and idempotent on rerun, never accepted as a memory scope, and never read by
-the recall pipeline — it is operator-readable history only.
+Live session events are written to `events.db` while the session runs, and that store stays the
+durable record after the session stops. Read it with
+[`compozy session events`](/docs/cli/session/events) and
+[`compozy session history`](/docs/cli/session/history). The agent owns its own context window:
+CompozyOS never summarizes a session's history, and only a conversation rewind that you request
+archives events. [Context compaction](/docs/sessions/compaction) describes what it does observe and bound.
 
 Session-scoped Vault refs use `vault:sessions/<session_id>/<name>`. They are ordinary encrypted
 Vault records filtered by the session prefix, and the session inspector shows only redacted metadata
@@ -55,8 +55,8 @@ the daemon or database itself, use Operations after you identify the affected se
 ## Browse the session catalog
 
 `compozy session list -o json` returns a counted page owned by the daemon. Filter by workspace, exact
-agent, state, or session type; filter by resumability or a text query; choose `recent` or
-`last_activity` ordering; and add `--include-health` only when the caller needs the metadata-only
+agent, state, or session type; filter by resumability or a text query; choose `recent`,
+`last_activity`, or `manual` ordering; and add `--include-health` only when the caller needs the metadata-only
 health projection. For example, `--type user --state active --sort last_activity` returns active
 operator-created sessions ordered by their latest runtime activity. The response keeps rows under
 `sessions` and reports exact `total`, applied `limit`, `has_more`, and `next_cursor` values under
@@ -69,6 +69,34 @@ visibility, not the runtime state, and preserves the complete session record.
 Use `--cursor` to continue with the same filters and sort. A cursor from another workspace or query
 is rejected instead of crossing catalog boundaries. See the generated
 [`compozy session list`](/docs/cli/session/list) reference for every flag.
+
+## Organize sessions into folders
+
+Group sessions into named folders and keep them in your own order. Folders and order belong to your
+profile inside one workspace, persist in the daemon, and appear in every open window and client.
+
+1. In the sessions sidebar, open the **+** menu and choose **New folder**, then name it.
+2. Right-click a session and choose **Move to folder**, or drag the session onto the folder header.
+3. Open the sort menu and choose **Manual**, then drag sessions to reorder them. From the keyboard,
+   open the row menu with **Shift+F10** and use **Move up** or **Move down**.
+
+Right-click a folder header to start a **New session in folder**, rename the folder, move it, or
+delete it. Deleting a folder moves its sessions back to the list; no session is deleted.
+
+The same operations are available to agents and scripts:
+
+```bash
+compozy session folder create "Release" -o json
+# {"id":"sfold-…","name":"Release","position":0,"session_count":0,…}
+compozy session move sess_1234 --folder sfold-…
+compozy session reorder sess_b sess_a          # pin the root order
+compozy session list --sort manual -o json      # folders first, each row has folder_id
+```
+
+Native tools mirror the CLI: `compozy__session_folder_list`, `compozy__session_folder_create`,
+`compozy__session_folder_rename`, `compozy__session_folder_delete`, `compozy__session_folder_reorder`,
+`compozy__session_move`, and `compozy__session_reorder`. Subagent sessions always stay under their
+parent and cannot be moved on their own. Archived sessions keep their folder when unarchived.
 
 ## Find sessions that need attention
 
@@ -115,6 +143,16 @@ authoritative `workspace_id`. The event is a wake signal, not a row delta: recon
 catalog page after every event. `Last-Event-ID` resumes from a non-negative stream sequence within
 the selected scope.
 
+The catalog route also accepts a WebSocket upgrade. Each text message contains one complete SSE
+frame with the same event name, JSON data, and event id. Browser clients use this transport for the
+session catalog, `/api/worktrees/catalog-stream`, and `/api/logs/stream` so multiple tabs leave
+HTTP/1.1 connections available for navigation and commands. The original SSE routes remain available.
+Use `last_event_id=<id>` on an upgrade to resume; `Last-Event-ID` takes precedence when present.
+Session catalog ids are sequences; log ids are the complete composite values from their frames.
+Keep the same filters and profile/workspace scope when reconnecting, and obtain a fresh single-use
+stream ticket for every upgrade through a remote gateway. Worktree catalog reconnects require a
+catalog refetch because those wake events have no retained cursor.
+
 The same stream emits `session_attention_changed` after a committed badge edge. Its payload carries
 the old and new badge, the new attention class, `workspace_id`, and the canonical transition time.
 Extensions can observe the matching async-only `session.attention.changed` hook; observer failure
@@ -136,6 +174,13 @@ permissions for the two most common operator questions: "can I re-enter this liv
     meta="State model"
   />
   <RouteRow
+    href="/docs/sessions/subagents"
+    label="Subagents"
+    title="Delegate one task to another agent, provider, or model"
+    description="Use this page to let an agent hand off a task, watch the subagent card, read its answer, and inspect or cancel subagents from the terminal."
+    meta="Delegation"
+  />
+  <RouteRow
     href="/docs/sessions/health"
     label="Health"
     title="Session presence, attachability, and wake eligibility"
@@ -148,6 +193,13 @@ permissions for the two most common operator questions: "can I re-enter this liv
     title="Attach to live sessions and replay stored work"
     description="Use this page to understand explicit resume attach, deterministic recap, transcript markers, and replay reconstruction."
     meta="Recovery"
+  />
+  <RouteRow
+    href="/docs/sessions/compaction"
+    label="Compaction"
+    title="Bounded rebuilds and the agent's own context compaction"
+    description="Use this page to understand how rebuilt sessions replay a bounded transcript, how CompozyOS observes native agent compaction, and how to request Compact now."
+    meta="Context"
   />
   <RouteRow
     href="/docs/sessions/events"

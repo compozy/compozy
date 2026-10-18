@@ -1,3 +1,5 @@
+//go:build integration
+
 package extensionpkg_test
 
 import (

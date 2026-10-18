@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 
@@ -27,6 +28,10 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceGlobal && overlay.Permissions.ProviderFullAccess != nil &&
+		*overlay.Permissions.ProviderFullAccess {
+		return fmt.Errorf("permissions.provider_full_access can only be enabled in the global config")
+	}
 	if err := overlay.Apply(dst); err != nil {
 		return err
 	}
@@ -109,10 +114,7 @@ func rejectRemovedExtensionMarketplaceKeys(source string, keys []burnttoml.Key) 
 			removedSection = key
 			continue
 		}
-		replacement := replacements[key[2]]
-		if replacement == "" {
-			replacement = "extensions.trust or extensions.sources"
-		}
+		replacement := cmp.Or(replacements[key[2]], "extensions.trust or extensions.sources")
 		return fmt.Errorf(
 			"removed config key %q in %q: use %q",
 			key.String(),
@@ -196,9 +198,6 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 	if o.Provider != nil {
 		dst.Provider = *o.Provider
 	}
-	if o.Sandbox != nil {
-		dst.Sandbox = *o.Sandbox
-	}
 }
 
 func (o agentsOverlay) Apply(dst *AgentsConfig) {
@@ -266,5 +265,8 @@ func (o limitsOverlay) Apply(dst *LimitsConfig) {
 func (o permissionsOverlay) Apply(dst *PermissionsConfig) {
 	if o.Mode != nil {
 		dst.Mode = *o.Mode
+	}
+	if o.ProviderFullAccess != nil {
+		dst.ProviderFullAccess = *o.ProviderFullAccess
 	}
 }

@@ -86,7 +86,7 @@ export function buildGatewayProviderModel(
   }
 
   const candidates = installed.map(extension => {
-    const digest = extension.network_requirement_digest?.trim();
+    const digest = extension.gateway_requirement_digest?.trim();
     return {
       name: extension.name,
       installSource: extension.source,
@@ -136,9 +136,9 @@ function providerBlockers(extension: ExtensionEntry): readonly GatewayProviderBl
       message: `Enable the ${extension.name} extension in Settings → Extensions first.`,
     });
   }
-  if (extension.network_confirmation_required) {
+  if (extension.gateway_confirmation_required) {
     blockers.push({
-      id: "network-confirmation",
+      id: "gateway-confirmation",
       message: `Confirm what ${extension.name} may reach, in Settings → Extensions.`,
     });
   }

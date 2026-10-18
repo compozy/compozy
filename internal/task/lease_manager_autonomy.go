@@ -72,8 +72,6 @@ func normalizeAutonomyLeaseHandle(handle AutonomyLeaseHandle) AutonomyLeaseHandl
 	handle.TaskID = strings.TrimSpace(handle.TaskID)
 	handle.RunKind = handle.RunKind.Normalize()
 	handle.WorkspaceID = strings.TrimSpace(handle.WorkspaceID)
-	handle.TargetSessionID = strings.TrimSpace(handle.TargetSessionID)
-	handle.OwnerKey = strings.TrimSpace(handle.OwnerKey)
 	handle.ClaimToken = strings.TrimSpace(handle.ClaimToken)
 	handle.ClaimTokenHash = strings.TrimSpace(handle.ClaimTokenHash)
 	return handle

@@ -12,30 +12,10 @@ import (
 	"time"
 
 	compozysdk "github.com/compozy/compozy/sdk/go"
-	contract "github.com/compozy/compozy/sdk/go/contracts"
 )
 
 func TestSDKRuntimeContracts(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should expose session archive methods through the public SDK", func(t *testing.T) {
-		t.Parallel()
-
-		if got, want := string(
-			compozysdk.HostAPIMethodSessionsArchive,
-		), string(
-			contract.HostAPIMethodSessionsArchive,
-		); got != want {
-			t.Fatalf("HostAPIMethodSessionsArchive = %q, want %q", got, want)
-		}
-		if got, want := string(
-			compozysdk.HostAPIMethodSessionsUnarchive,
-		), string(
-			contract.HostAPIMethodSessionsUnarchive,
-		); got != want {
-			t.Fatalf("HostAPIMethodSessionsUnarchive = %q, want %q", got, want)
-		}
-	})
 
 	t.Run("Should reject response frames missing both result and error", func(t *testing.T) {
 		t.Parallel()
@@ -53,7 +33,7 @@ func TestSDKRuntimeContracts(t *testing.T) {
 		callErr := make(chan error, 1)
 		go func() {
 			var result json.RawMessage
-			callErr <- transport.Call(context.Background(), "echo", nil, &result)
+			callErr <- transport.Call(t.Context(), "echo", nil, &result)
 		}()
 		message := readMessage(t, bufio.NewReader(outputReader))
 		if got, want := message["method"], "echo"; got != want {
@@ -88,7 +68,7 @@ func TestSDKRuntimeContracts(t *testing.T) {
 			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 			compozysdk.WithStderr(io.Discard),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() {

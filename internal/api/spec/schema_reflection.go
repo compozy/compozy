@@ -3,7 +3,6 @@ package spec
 import (
 	"reflect"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -106,6 +105,8 @@ func buildParameter(spec ParameterSpec) *openapi3.Parameter {
 func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 	var schema *openapi3.Schema
 	switch spec.Kind {
+	case "array":
+		schema = openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema())
 	case "boolean":
 		schema = openapi3.NewBoolSchema()
 	case specIntegerKey:
@@ -213,7 +214,7 @@ func applyStructRequirements(
 	for name := range required {
 		schema.Required = append(schema.Required, name)
 	}
-	sort.Strings(schema.Required)
+	slices.Sort(schema.Required)
 }
 
 func collectStructRequirements(

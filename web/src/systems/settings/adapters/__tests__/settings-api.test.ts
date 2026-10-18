@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import {
-  deleteSettingsSandbox,
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
@@ -18,12 +17,10 @@ import {
   getSettingsRestartStatus,
   getSettingsRoles,
   getSettingsSkills,
-  listSettingsSandboxes,
   listSettingsApplyRecords,
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
-  putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
@@ -31,7 +28,10 @@ import {
   SettingsApiError,
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
+  updateSettingsAttention,
   updateSettingsAutomation,
+  updateSettingsHooksExtensions,
+  updateSettingsObservability,
   updateSettingsCmdPalette,
   updateSettingsGeneral,
   updateSettingsPersona,
@@ -43,6 +43,16 @@ import {
   settingsRolesConfigWithFallbackFixture,
   settingsRolesSectionFixture,
 } from "../../mocks/roles-fixtures";
+
+import {
+  settingsAttentionSectionFixture,
+  settingsAutomationSectionFixture,
+  settingsGeneralSectionFixture,
+  settingsHooksExtensionsSectionFixture,
+  settingsObservabilitySectionFixture,
+  settingsSkillsSectionFixture,
+} from "../../mocks/fixtures";
+import { settingsPersonaSectionFixture } from "../../mocks/layered-fixtures";
 
 const generalSectionFixture = {
   section: "general" as const,
@@ -102,15 +112,64 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("SettingsApiError", () => {
-  it("captures status code and name", () => {
-    const err = new SettingsApiError("boom", 500);
-    expect(err.name).toBe("SettingsApiError");
-    expect(err.status).toBe(500);
-  });
-});
-
 describe("section reads and updates", () => {
+  // Invariant: failed fetches retain their cause as typed Settings failures; cancellation stays cancellation.
+  // Owner: Settings HTTP adapter; canonical settings-api suite.
+  it.each([
+    {
+      name: "General",
+      save: () => updateSettingsGeneral({ config: settingsGeneralSectionFixture.config }),
+    },
+    {
+      name: "Automation",
+      save: () => updateSettingsAutomation({ config: settingsAutomationSectionFixture.config }),
+    },
+    {
+      name: "Diagnostics",
+      save: () =>
+        updateSettingsObservability({ config: settingsObservabilitySectionFixture.config }),
+    },
+    {
+      name: "Extensions",
+      save: () =>
+        updateSettingsHooksExtensions({ config: settingsHooksExtensionsSectionFixture.config }),
+    },
+    {
+      name: "Roles",
+      save: () => updateSettingsRoles({ config: settingsRolesSectionFixture.config }),
+    },
+    {
+      name: "Persona",
+      save: () =>
+        updateSettingsPersona({ config: settingsPersonaSectionFixture.config }, { scope: "user" }),
+    },
+    {
+      name: "Skills",
+      save: () =>
+        updateSettingsSkills({ config: settingsSkillsSectionFixture.config }, { scope: "user" }),
+    },
+    {
+      name: "Notifications",
+      save: () =>
+        updateSettingsAttention(
+          { config: settingsAttentionSectionFixture.config },
+          { scope: "user" }
+        ),
+    },
+  ])("$name classifies transport failure without changing cancellation", async ({ save }) => {
+    const cause = new TypeError("Failed to fetch");
+    vi.mocked(fetch).mockRejectedValueOnce(cause);
+    await expect(save()).rejects.toMatchObject({
+      name: "SettingsApiError",
+      status: 0,
+      cause,
+    });
+
+    const cancelled = new DOMException("Request aborted", "AbortError");
+    vi.mocked(fetch).mockRejectedValueOnce(cancelled);
+    await expect(save()).rejects.toBe(cancelled);
+  });
+
   // Invariant: catalog settings requests preserve the global payload and cancellation.
   // Owner: settings adapter; canonical settings API suite.
   it("reads and updates marketplace catalog settings", async () => {
@@ -196,7 +255,7 @@ describe("section reads and updates", () => {
       config: {
         daemon: {
           memory_report_interval: "10m",
-          reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+          reload_timeouts: { mcp: "10s", providers: "5s" },
           socket: "/tmp/next.sock",
         },
         http: { host: "127.0.0.1", port: 2123 },
@@ -236,7 +295,7 @@ describe("section reads and updates", () => {
       scope: "profile" as const,
       profile: "marketing",
       available_scopes: ["user", "profile", "workspace"] as const,
-      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+      config: { agent: "campaigns", provider: "openai" },
     };
     mockJsonResponse(persona);
 
@@ -257,7 +316,7 @@ describe("section reads and updates", () => {
       write_target: "profile-config",
     });
     const body = {
-      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+      config: { agent: "campaigns", provider: "openai" },
     };
 
     const result = await updateSettingsPersona(body, {
@@ -410,7 +469,7 @@ describe("roles section", () => {
 
     const result = await getRolesStatus();
 
-    expect(result.roles).toHaveLength(6);
+    expect(result.roles).toHaveLength(2);
     await expectFetchRequest({ path: "/api/roles" });
   });
 
@@ -420,7 +479,7 @@ describe("roles section", () => {
     const result = await getSettingsRoles();
 
     expect(result.section).toBe("roles");
-    expect(result.config.memory_controller.timeout).toBe("250ms");
+    expect(result.config.coordinator.ttl).toBe("2h");
     await expectFetchRequest({ path: "/api/settings/roles" });
   });
 
@@ -543,56 +602,6 @@ describe("collection endpoints", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(deleteSettingsProvider("missing")).rejects.toThrow("Provider not found: missing");
-  });
-
-  it("lists sandboxes", async () => {
-    const sandboxes = {
-      collection: "sandboxes" as const,
-      scope: "user" as const,
-      available_scopes: ["user" as const],
-      sandboxes: [
-        {
-          name: "local",
-          profile: { backend: "host" },
-          workspace_usage_count: 2,
-          source_metadata: {
-            available_targets: ["global-config" as const],
-            effective_source: { kind: "global-config" as const, scope: "user" as const },
-          },
-        },
-      ],
-    };
-
-    mockJsonResponse(sandboxes);
-    const result = await listSettingsSandboxes();
-
-    expect(result.sandboxes[0]?.workspace_usage_count).toBe(2);
-    await expectFetchRequest({ path: "/api/settings/sandboxes" });
-  });
-
-  it("deletes sandboxes and propagates mutation responses", async () => {
-    mockJsonResponse({ ...mutationFixture, section: "general" as const });
-
-    const result = await deleteSettingsSandbox("local");
-
-    expect(result.applied).toBe(true);
-    await expectFetchRequest({
-      method: "DELETE",
-      path: "/api/settings/sandboxes/local",
-    });
-  });
-
-  it("puts sandboxes", async () => {
-    mockJsonResponse({ ...mutationFixture, section: "general" as const });
-
-    const body = { profile: { backend: "daytona" } };
-    await putSettingsSandbox("cloud", body);
-
-    await expectFetchRequest({
-      body,
-      method: "PUT",
-      path: "/api/settings/sandboxes/cloud",
-    });
   });
 
   it("lists hooks", async () => {

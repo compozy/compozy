@@ -27,14 +27,15 @@ export function TerminalExitBar({ exit, terminal, retentionNote }: TerminalExitB
       data-testid="terminal-exit-bar"
       role="status"
     >
-      <Pill size="xs" tone={copy.tone === "success" ? "success" : "neutral"}>
+      <Pill form="plain" size="xs" tone={copy.tone === "success" ? "success" : "neutral"}>
+        <Pill.Dot />
         {copy.label}
       </Pill>
       <MonoId size="sm" value={copy.code} />
       {copy.note ? <span>{copy.note}</span> : null}
       {retentionNote ? <span>{retentionNote}</span> : null}
       {terminal.exit?.at ? (
-        <Time className="ml-auto font-mono text-micro text-faint" iso={terminal.exit.at} />
+        <Time className="ml-auto font-mono text-eyebrow text-faint" iso={terminal.exit.at} />
       ) : null}
     </div>
   );

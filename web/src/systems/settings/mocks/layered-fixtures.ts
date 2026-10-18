@@ -17,7 +17,6 @@ export function settingsPersonaSectionFixtureFor(
     config: {
       agent: profile === "marketing" ? "campaigns" : "general",
       provider: profile === "marketing" ? "openai" : "claude",
-      sandbox: "local",
     },
     ...target,
   };

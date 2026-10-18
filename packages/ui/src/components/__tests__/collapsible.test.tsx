@@ -5,17 +5,6 @@ import { describe, expect, it } from "vitest";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsible";
 
 describe("Collapsible", () => {
-  it("Should render the collapsible root + trigger with stable data-slots", () => {
-    const { container } = render(
-      <Collapsible>
-        <CollapsibleTrigger>Toggle</CollapsibleTrigger>
-        <CollapsibleContent>Body</CollapsibleContent>
-      </Collapsible>
-    );
-    expect(container.querySelector("[data-slot=collapsible]")).toBeInTheDocument();
-    expect(container.querySelector("[data-slot=collapsible-trigger]")).toBeInTheDocument();
-  });
-
   it("Should start closed and open the panel on trigger click", async () => {
     const user = userEvent.setup();
     render(

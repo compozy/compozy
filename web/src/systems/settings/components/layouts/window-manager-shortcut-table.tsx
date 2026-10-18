@@ -84,7 +84,7 @@ export function WindowManagerShortcutTable({
           disabled={changed === 0 || recorder.saving}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={recorder.resetAll}
         >
           Reset all
@@ -122,7 +122,7 @@ export function WindowManagerShortcutTable({
           data-testid="window-manager-shortcut-empty"
           description={
             rows.length === 0
-              ? "The daemon has not reported any bindable commands for this workspace."
+              ? "No shortcuts are available for this project yet."
               : "No commands come from this source."
           }
           title={rows.length === 0 ? "No commands to bind" : "No matches"}

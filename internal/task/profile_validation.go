@@ -3,8 +3,6 @@ package task
 import (
 	"fmt"
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // Normalize returns a canonical copy with trimmed fields, default modes, and stable selector sets.
@@ -25,20 +23,8 @@ func (p *ExecutionProfile) Normalize(options ExecutionProfileValidationOptions) 
 		return ExecutionProfile{}, err
 	}
 	normalized.Participants = normalizeParticipantPolicy(normalized.Participants)
-	normalized.Sandbox = normalizeSandboxPolicy(normalized.Sandbox)
 	normalized.Worktree = normalizeWorktreePolicy(normalized.Worktree)
 	normalized.Runtime = normalizeRuntimePolicy(normalized.Runtime)
-	if normalized.NetworkParticipation != nil {
-		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
-		if err != nil {
-			return ExecutionProfile{}, fmt.Errorf("task_execution_profile.network_participation: %w", err)
-		}
-		if request == (participation.Request{}) {
-			normalized.NetworkParticipation = nil
-		} else {
-			normalized.NetworkParticipation = &request
-		}
-	}
 
 	if err := (&normalized).Validate(options); err != nil {
 		return ExecutionProfile{}, err
@@ -64,9 +50,6 @@ func (p *ExecutionProfile) Validate(options ExecutionProfileValidationOptions) e
 		return err
 	}
 	if err := validateParticipantPolicy(p.Participants); err != nil {
-		return err
-	}
-	if err := validateSandboxPolicy(p.Sandbox, options); err != nil {
 		return err
 	}
 	if err := validateWorktreePolicy(p.Worktree); err != nil {

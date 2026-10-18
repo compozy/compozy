@@ -6,13 +6,13 @@ persona: Ada
 journey: J-administer-window-manager
 expected: Export returns a history-free workspace document and preserves daemon-owned `return_anchor.source_group` state for every tiled return anchor; validate and preview report stable diagnostics without writing; apply replaces the complete topology once at the expected revision; undo and redo round-trip it; global and workspace `window_layout` resources resolve with workspace precedence; malformed, executable-like, mixed resource-inline, foreign-workspace, stale, and unsupported-version documents preserve the last known-good state.
 entry_points: compozy layout export|validate|apply|undo|redo|arrange; compozy__layout_*; compozy__resources_list; Settings layout editor
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
 evidence: docs/qa/evidence/2026-08-01-window-tabs/agent-02-layouts-applies-now.png; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260801-085219-264358-lab/qa-artifacts/qa/evidence/layout-v3.json
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-layout-gestures; MS-configure-window-manager
 ---
 
@@ -30,3 +30,7 @@ as user → profile → workspace → workspace-profile. Separately, window-mana
 partition per profile, so export, apply, undo, and redo operate on the acting profile's topology.
 Re-walk the resource-precedence and recovery arms in a non-default profile.
 `ET-profile-desktop-restoration` owns per-profile restoration itself.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

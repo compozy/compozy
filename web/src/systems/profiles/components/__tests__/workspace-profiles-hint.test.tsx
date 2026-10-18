@@ -34,7 +34,7 @@ describe("WorkspaceProfilesHint", () => {
     );
 
     expect(screen.getByTestId("workspace-profiles-hint")).toHaveTextContent(
-      "This project declares content for profile dev."
+      "This project includes settings for the profile “dev”. Create it to use them."
     );
     expect(screen.queryByText("Create marketing")).not.toBeInTheDocument();
 

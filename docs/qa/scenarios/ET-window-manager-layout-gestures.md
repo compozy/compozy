@@ -101,3 +101,5 @@ passed in 5.1s, including exact pointer-delta geometry for the window's own tile
 `.tmp/issue-585/e2e-resize.log` (final regression); trace and final screenshot under
 `.tmp/playwright/test-results/__tests__-os-shell-Issue-5-8963a-across-repeated-zoom-cycles/compozy-artifacts/`.
 Fixture teardown completed successfully. Linux and Electron were not run locally.
+
+qa-impact: 2026-09-30 shell-rail polish E2E triage — a side or corner snap now stores the exact zone fraction (one-half is 0.5) instead of normalizing the preview's whole-pixel edge, which drifted to 0.50036 on the odd-width desk the new 1px desk hairline produces. No visible change beyond sub-pixel; flag only, E2E-026/027/029 cover it.

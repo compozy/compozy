@@ -1,4 +1,5 @@
 import { acquireStreamTicket, appendStreamTicket } from "./gateway-stream-auth";
+import { WebSocketEventSource } from "./web-socket-event-source";
 
 /**
  * The union of the `EventSource` surface the app's stream consumers rely on.
@@ -15,6 +16,8 @@ export interface StreamEventSource {
 }
 
 interface StreamEventSourceOptions {
+  /** Keep document-wide streams out of the browser's HTTP/1.1 request pool. */
+  transport?: "websocket";
   /** Re-seed a freshly ticketed socket from the last durable SSE event id. */
   resumeWithLastEventId?: boolean;
 }
@@ -25,14 +28,15 @@ const RECONNECT_MAX_EXPONENT = 4;
 const RECONNECT_STABLE_MS = RECONNECT_MAX_MS;
 
 /**
- * Opens a live SSE stream for the page's own origin.
+ * Opens a live event stream for the page's own origin.
  *
  * On a local same-origin session this is a native `EventSource` with its native
  * reconnect behaviour left untouched. On a remote gateway session the ticket is
  * single-use, so native reconnect would replay a spent credential and be
  * rejected: the facade closes the socket on error and reopens it with a freshly
  * minted ticket instead. Consumers see the same `open` / `error` sequence
- * either way.
+ * either way. Document-wide streams opt into WebSocket framing and use this
+ * same ticket, cursor, and backoff lifecycle on local and remote listeners.
  */
 export function createStreamEventSource(
   url: string,
@@ -48,7 +52,7 @@ class TicketedEventSource implements StreamEventSource {
 
   private readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
   private readonly forwarders = new Map<string, EventListener>();
-  private native: EventSource | null = null;
+  private native: (StreamEventSource & { readonly url: string }) | null = null;
   private attachedTypes = new Set<string>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private stableTimer: ReturnType<typeof setTimeout> | null = null;
@@ -114,7 +118,13 @@ class TicketedEventSource implements StreamEventSource {
   }
 
   private async connect(): Promise<void> {
-    if (this.closed || typeof EventSource === "undefined") return;
+    if (this.closed) return;
+    if (
+      this.options.transport === "websocket"
+        ? typeof WebSocket === "undefined" || typeof window === "undefined"
+        : typeof EventSource === "undefined"
+    )
+      return;
     const controller = new AbortController();
     this.controller = controller;
     let authorizedUrl: string;
@@ -122,7 +132,11 @@ class TicketedEventSource implements StreamEventSource {
       const ticket = await acquireStreamTicket(controller.signal);
       const resumeUrl =
         this.options.resumeWithLastEventId && this.lastEventId !== ""
-          ? appendAfterSequence(this.url, this.lastEventId)
+          ? appendEventCursor(
+              this.url,
+              this.lastEventId,
+              this.options.transport === "websocket" ? "last_event_id" : "after_sequence"
+            )
           : this.url;
       authorizedUrl = ticket === null ? resumeUrl : appendStreamTicket(resumeUrl, ticket);
     } catch {
@@ -134,7 +148,10 @@ class TicketedEventSource implements StreamEventSource {
     }
     if (this.closed || controller.signal.aborted) return;
 
-    const native = new EventSource(authorizedUrl);
+    const native =
+      this.options.transport === "websocket"
+        ? new WebSocketEventSource(authorizedUrl)
+        : new EventSource(authorizedUrl);
     this.native = native;
     this.attachedTypes = new Set();
     native.onmessage = event => {
@@ -158,11 +175,12 @@ class TicketedEventSource implements StreamEventSource {
   /**
    * A local stream keeps the browser's own retry. A remote stream cannot: the
    * ticket in the current URL has already been consumed, so the socket is torn
-   * down and reopened with a new one.
+   * down and reopened with a new one. WebSockets also reconnect here because
+   * they have no native retry loop.
    */
-  private handleNativeError(native: EventSource): void {
+  private handleNativeError(native: StreamEventSource & { readonly url: string }): void {
     if (this.closed || this.native !== native) return;
-    if (!isTicketedUrl(native.url)) return;
+    if (this.options.transport !== "websocket" && !isTicketedUrl(native.url)) return;
     this.teardownNative();
     this.scheduleReconnect();
   }
@@ -193,7 +211,7 @@ class TicketedEventSource implements StreamEventSource {
     this.reconnectTimer = null;
   }
 
-  private scheduleStableReset(native: EventSource): void {
+  private scheduleStableReset(native: StreamEventSource): void {
     this.clearStableReset();
     this.stableTimer = setTimeout(() => {
       this.stableTimer = null;
@@ -235,9 +253,9 @@ function isTicketedUrl(url: string): boolean {
   return url.includes("ticket=");
 }
 
-function appendAfterSequence(url: string, sequence: string): string {
+function appendEventCursor(url: string, cursor: string, parameter: string): string {
   const absolute = /^[a-z][a-z\d+.-]*:/iu.test(url);
   const parsed = new URL(url, "http://compozy.local");
-  parsed.searchParams.set("after_sequence", sequence);
+  parsed.searchParams.set(parameter, cursor);
   return absolute ? parsed.toString() : `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }

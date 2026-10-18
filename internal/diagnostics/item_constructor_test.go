@@ -1,6 +1,7 @@
 package diagnostics
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -39,8 +40,15 @@ func TestDiagnosticItemConstructionBoundary(t *testing.T) {
 				if filepath.ToSlash(relPath) == "internal/diagnostics/item.go" {
 					return nil
 				}
+				contents, err := os.ReadFile(path)
+				if err != nil {
+					return fmt.Errorf("read %s: %w", relPath, err)
+				}
+				if !bytes.Contains(contents, []byte("DiagnosticItem")) {
+					return nil
+				}
 				fileSet := token.NewFileSet()
-				file, err := parser.ParseFile(fileSet, path, nil, 0)
+				file, err := parser.ParseFile(fileSet, path, contents, parser.SkipObjectResolution)
 				if err != nil {
 					return fmt.Errorf("parse %s: %w", relPath, err)
 				}

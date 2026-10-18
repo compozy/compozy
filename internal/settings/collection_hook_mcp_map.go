@@ -49,7 +49,6 @@ func hookMatcherMap(declaration hookspkg.HookDecl) map[string]any {
 	hookMatcherString(matcher, "decision_class", declaration.Matcher.DecisionClass)
 	hookMatcherString(matcher, "message_role", declaration.Matcher.MessageRole)
 	hookMatcherString(matcher, "message_delta_type", declaration.Matcher.MessageDeltaType)
-	hookNetworkMatcherMap(matcher, declaration.Matcher.NetworkMatcher)
 	hookCompactionMatcherMap(matcher, declaration.Matcher.CompactionMatcher)
 	return matcher
 }
@@ -60,23 +59,11 @@ func hookMatcherString(matcher map[string]any, key string, value string) {
 	}
 }
 
-func hookNetworkMatcherMap(matcher map[string]any, network *hookspkg.NetworkMatcher) {
-	if network == nil {
-		return
-	}
-	hookMatcherString(matcher, "channel", network.Channel)
-	hookMatcherString(matcher, "surface", network.Surface)
-	hookMatcherString(matcher, "kind", network.Kind)
-	hookMatcherString(matcher, "direction", network.Direction)
-	hookMatcherString(matcher, "work_state", network.WorkState)
-}
-
 func hookCompactionMatcherMap(matcher map[string]any, compaction *hookspkg.CompactionMatcher) {
 	if compaction == nil {
 		return
 	}
-	hookMatcherString(matcher, "compaction_reason", compaction.Reason)
-	hookMatcherString(matcher, "compaction_strategy", compaction.Strategy)
+	hookMatcherString(matcher, "compaction_trigger", compaction.Trigger)
 }
 
 func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {

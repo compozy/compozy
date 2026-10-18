@@ -17,7 +17,7 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	sessionID, info, ok := h.routeSessionRead(c)
 	if !ok {
 		return
 	}

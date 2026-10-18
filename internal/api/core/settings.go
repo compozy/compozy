@@ -32,6 +32,9 @@ type SettingsLogTailEventPayload struct {
 	Line string `json:"line"`
 }
 
+const settingsSessionTimeoutDeprecationWarning = `299 compozy "general.config.session_timeout is deprecated ` +
+	`and has no effect; use idle_release_after; removed in v0.5.0"`
+
 // GetSettingsGeneral returns the general settings section.
 func (h *BaseHandlers) GetSettingsGeneral(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionGeneral)
@@ -44,24 +47,9 @@ func (h *BaseHandlers) UpdateSettingsGeneral(c *gin.Context) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
-	h.updateSettingsSection(c, req)
-}
-
-// GetSettingsMemory returns the memory settings section.
-func (h *BaseHandlers) GetSettingsMemory(c *gin.Context) {
-	h.getSettingsSection(c, settingspkg.SectionMemory)
-}
-
-// UpdateSettingsMemory persists the memory settings section.
-func (h *BaseHandlers) UpdateSettingsMemory(c *gin.Context) {
-	req, err := parseUpdateSettingsMemoryRequest(c)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	if err := h.validateSettingsMemoryProvider(c.Request.Context(), req); err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
+	// The deprecated session_timeout field is accepted through v0.4; remove it in v0.5.0.
+	if req.General.SessionTimeout > 0 {
+		c.Header("Warning", settingsSessionTimeoutDeprecationWarning)
 	}
 	h.updateSettingsSection(c, req)
 }
@@ -129,21 +117,6 @@ func (h *BaseHandlers) GetSettingsAutomation(c *gin.Context) {
 // UpdateSettingsAutomation persists the automation settings section.
 func (h *BaseHandlers) UpdateSettingsAutomation(c *gin.Context) {
 	req, err := parseUpdateSettingsAutomationRequest(c)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.updateSettingsSection(c, req)
-}
-
-// GetSettingsNetwork returns the network settings section.
-func (h *BaseHandlers) GetSettingsNetwork(c *gin.Context) {
-	h.getSettingsSection(c, settingspkg.SectionNetwork)
-}
-
-// UpdateSettingsNetwork persists the network settings section.
-func (h *BaseHandlers) UpdateSettingsNetwork(c *gin.Context) {
-	req, err := parseUpdateSettingsNetworkRequest(c)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
@@ -328,36 +301,6 @@ func (h *BaseHandlers) PutSettingsMCPServer(c *gin.Context) {
 // DeleteSettingsMCPServer deletes one MCP server settings item.
 func (h *BaseHandlers) DeleteSettingsMCPServer(c *gin.Context) {
 	req, err := parseDeleteSettingsCollectionRequest(c, settingspkg.CollectionMCPServers)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.deleteSettingsCollectionItem(c, req)
-}
-
-// ListSettingsSandboxes returns the sandbox settings collection.
-func (h *BaseHandlers) ListSettingsSandboxes(c *gin.Context) {
-	h.listSettingsCollection(c, settingspkg.CollectionSandboxes)
-}
-
-// GetSettingsSandbox returns one sandbox settings item.
-func (h *BaseHandlers) GetSettingsSandbox(c *gin.Context) {
-	h.getSettingsCollectionItem(c, settingspkg.CollectionSandboxes)
-}
-
-// PutSettingsSandbox upserts one sandbox settings item.
-func (h *BaseHandlers) PutSettingsSandbox(c *gin.Context) {
-	req, err := parsePutSettingsSandboxRequest(c)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.putSettingsCollectionItem(c, req)
-}
-
-// DeleteSettingsSandbox deletes one sandbox settings item.
-func (h *BaseHandlers) DeleteSettingsSandbox(c *gin.Context) {
-	req, err := parseDeleteSettingsCollectionRequest(c, settingspkg.CollectionSandboxes)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return

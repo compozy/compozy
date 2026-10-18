@@ -108,9 +108,9 @@ func TestExtensionLifecycleEventCoverageMatrix(t *testing.T) {
 			want: map[string]any{"extension_name": "alpha", "workspace_id": "workspace-1"},
 		},
 		{
-			name: "Should emit network confirmation keys",
+			name: "Should emit gateway confirmation keys",
 			event: LifecycleEvent{
-				Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: "alpha", WorkspaceID: "workspace-1",
+				Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: "alpha", WorkspaceID: "workspace-1",
 				Digest: "digest-1", ConfirmedBy: "agent:session-1", SourceKind: secret,
 			},
 			want: map[string]any{

@@ -345,10 +345,16 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
         current_version: fixture.current_version,
         latest_version: fixture.next_version,
       });
-    await product.getByRole("button", { name: "Update available" }).click();
+    // The menubar offers the one-click update; the stage fixture stands in for the
+    // daemon's verified plan so the real shell consumer drives the install.
+    const indicator = product.getByTestId("os-menubar-update");
+    await expect(indicator).toHaveAttribute("data-state", "available");
     await stageAppOperation(desktop, fixture, digest);
     await product.reload({ waitUntil: "domcontentloaded" });
-    await expect(product.getByRole("group", { name: "App" }).getByRole("status")).toContainText(
+    await expect(indicator).toHaveAttribute("data-state", "updating");
+    await desktop.cli(["app", "open", "/settings/general"]);
+    await expect(product.getByTestId("settings-page-general-update-progress")).toHaveAttribute(
+      "data-phase",
       "download"
     );
     feed.releaseAsset();

@@ -3,15 +3,17 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 const (
-	cmdPaletteInvalidWorkspaceDescription = "Invalid workspace"
-	cmdPaletteInvalidRequestDescription   = "Invalid request"
-	cmdPaletteUnavailableDescription      = "Command palette unavailable"
-	cmdPaletteCommandNotFoundDescription  = "Command not found"
-	cmdPaletteViewNotFoundDescription     = "View not found"
-	cmdPaletteInvokeOperationID           = "invokeCmdPaletteCommand"
-	cmdPaletteOpenViewOperationID         = "openCmdPaletteViewSession"
-	cmdPaletteAdmitViewEventOperationID   = "admitCmdPaletteViewSessionEvent"
-	cmdPaletteCloseViewOperationID        = "closeCmdPaletteViewSession"
+	cmdPaletteApprovalNotFoundDescription    = "Approval not found"
+	cmdPaletteApprovalUnavailableDescription = "Tool approval unavailable"
+	cmdPaletteInvalidWorkspaceDescription    = "Invalid workspace"
+	cmdPaletteInvalidRequestDescription      = "Invalid request"
+	cmdPaletteUnavailableDescription         = "Command palette unavailable"
+	cmdPaletteCommandNotFoundDescription     = "Command not found"
+	cmdPaletteViewNotFoundDescription        = "View not found"
+	cmdPaletteInvokeOperationID              = "invokeCmdPaletteCommand"
+	cmdPaletteOpenViewOperationID            = "openCmdPaletteViewSession"
+	cmdPaletteAdmitViewEventOperationID      = "admitCmdPaletteViewSessionEvent"
+	cmdPaletteCloseViewOperationID           = "closeCmdPaletteViewSession"
 )
 
 var (
@@ -259,23 +261,51 @@ var (
 			Method: httpMethodGet, Path: "/api/tools/approvals/{id}",
 			OperationID: "getPendingToolApproval", Summary: "Get one pending tool approval lifecycle",
 			Tags: []string{specToolsKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{pathParam("id", "Stable approval id")},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Stable approval id"),
+				queryParam("profile", "Profile that owns the approval", false),
+			},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.ToolApprovalStatusResponse{}},
-				{Status: 404, Description: "Approval not found", Body: contract.CmdPaletteError{}},
-				{Status: 503, Description: "Tool approval unavailable", Body: contract.CmdPaletteError{}},
+				{Status: 404, Description: cmdPaletteApprovalNotFoundDescription, Body: contract.CmdPaletteError{}},
+				{Status: 503, Description: cmdPaletteApprovalUnavailableDescription, Body: contract.CmdPaletteError{}},
+			},
+		},
+		{
+			Method: httpMethodPost, Path: "/api/tools/approvals/{id}/resolve",
+			OperationID: "resolvePendingToolApproval", Summary: "Approve or deny one pending tool approval",
+			Tags: []string{specToolsKey}, Transports: cmdPaletteTransports,
+			Parameters: []ParameterSpec{
+				pathParam("id", "Stable approval id"),
+				queryParam("profile", "Profile that owns the approval", false),
+			},
+			RequestBody: contract.ResolveToolApprovalRequest{},
+			Responses: []ResponseSpec{
+				{
+					Status:      200,
+					Description: "Decision recorded; execution may still be running",
+					Body:        contract.ToolApprovalStatusResponse{},
+				},
+				{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.CmdPaletteError{}},
+				{Status: 403, Description: "Local operator surface required", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: cmdPaletteApprovalNotFoundDescription, Body: contract.CmdPaletteError{}},
+				{Status: 409, Description: "Approval already terminal", Body: contract.CmdPaletteError{}},
+				{Status: 503, Description: cmdPaletteApprovalUnavailableDescription, Body: contract.CmdPaletteError{}},
 			},
 		},
 		{
 			Method: httpMethodPost, Path: "/api/tools/approvals/{id}/cancel",
 			OperationID: "cancelPendingToolApproval", Summary: "Cancel one pending tool approval",
 			Tags: []string{specToolsKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{pathParam("id", "Stable approval id")},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Stable approval id"),
+				queryParam("profile", "Profile that owns the approval", false),
+			},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Canceled", Body: contract.ToolApprovalStatusResponse{}},
-				{Status: 404, Description: "Approval not found", Body: contract.CmdPaletteError{}},
+				{Status: 404, Description: cmdPaletteApprovalNotFoundDescription, Body: contract.CmdPaletteError{}},
 				{Status: 409, Description: "Approval already terminal", Body: contract.CmdPaletteError{}},
-				{Status: 503, Description: "Tool approval unavailable", Body: contract.CmdPaletteError{}},
+				{Status: 503, Description: cmdPaletteApprovalUnavailableDescription, Body: contract.CmdPaletteError{}},
 			},
 		},
 	}

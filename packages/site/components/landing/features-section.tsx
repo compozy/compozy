@@ -5,14 +5,6 @@ import { Eyebrow } from "@compozy/ui";
 
 const FEATURES = [
   {
-    eyebrow: "Memory",
-    title: "Context that survives restarts",
-    description:
-      "Global and per-workspace memory in plain Markdown. Four types, one index per scope.",
-    image: "/images/everything/illustration_02.png",
-    imageAlt: "Memory cards stored in a global Markdown index.",
-  },
-  {
     eyebrow: "Sessions",
     title: "Agent work that outlives the terminal",
     description:
@@ -46,7 +38,7 @@ export function FeaturesSection() {
         align="start"
         eyebrow="Built in"
         title="Comes with what you would otherwise build."
-        description="Loops, memory, automation, permissions, approvals, and run history are core objects in one runtime, reachable from CLI, HTTP, and UDS. Same primitives for you and for the agents you run."
+        description="Loops, automation, permissions, approvals, and run history are core objects in one runtime, reachable from CLI, HTTP, and UDS. Same primitives for you and for the agents you run."
       />
 
       <ul className="mt-12 grid gap-4 md:grid-cols-2">

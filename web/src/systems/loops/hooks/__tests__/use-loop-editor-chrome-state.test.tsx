@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -34,6 +34,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   resetChrome();
   window.localStorage.clear();
 });

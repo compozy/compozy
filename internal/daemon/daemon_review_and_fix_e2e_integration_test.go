@@ -54,7 +54,7 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 		},
 		StartTimeout: 30 * time.Second,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	requireSpecCycleExtensionEnabled(t, ctx, harness)
 	for _, agent := range []struct {
@@ -594,9 +594,9 @@ func reviewGoldenPath(t testing.TB, name string) string {
 func reviewFrontmatterValue(t testing.TB, content string, key string) string {
 	t.Helper()
 	prefix := key + ": "
-	for _, line := range strings.Split(content, "\n") {
-		if strings.HasPrefix(line, prefix) {
-			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+	for line := range strings.SplitSeq(content, "\n") {
+		if value, found := strings.CutPrefix(line, prefix); found {
+			return strings.TrimSpace(value)
 		}
 	}
 	t.Fatalf("frontmatter key %q missing from artifact", key)

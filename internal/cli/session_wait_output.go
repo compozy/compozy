@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"strconv"
 	"time"
 
@@ -8,10 +9,7 @@ import (
 )
 
 func sessionWaitBundle(outcome SessionWaitRecord) outputBundle {
-	state := outcome.State
-	if state == "" {
-		state = outcome.Outcome
-	}
+	state := cmp.Or(outcome.State, outcome.Outcome)
 	return outputBundle{
 		jsonValue: outcome,
 		jsonl: func(cmd *cobra.Command) error {

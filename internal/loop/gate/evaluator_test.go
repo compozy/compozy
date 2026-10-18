@@ -47,7 +47,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				return CommandResult{ExitCode: 0, Stdout: "ok"}, nil
 			},
 		)))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "verify_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
@@ -76,7 +76,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				return JudgeResponse{Raw: "not-json"}, nil
 			},
 		)))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "judge_gate",
 			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 			Criteria: []dsl.GateCriterion{{
@@ -147,7 +147,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				}, nil
 			},
 		)))
-		_, err := evaluator.Evaluate(context.Background(), Gate{
+		_, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "judge_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{
@@ -186,37 +186,6 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 		}
 	})
 
-	t.Run("Should map judge transport failure to Broken for fail-open routing", func(t *testing.T) {
-		t.Parallel()
-
-		evaluator := NewEvaluator(WithJudgeRunner(judgeRunnerFunc(
-			func(context.Context, JudgeRequest) (JudgeResponse, error) {
-				return JudgeResponse{}, errors.New("agent unavailable")
-			},
-		)))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
-			ID:            "judge_gate",
-			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
-			Criteria: []dsl.GateCriterion{{
-				ID:     "rubric",
-				Type:   dsl.CriterionAgentJudge,
-				Rubric: "Check the output",
-			}},
-		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: new(validContract())})
-		if err != nil {
-			t.Fatalf("Evaluate() error = %v", err)
-		}
-		if !verdict.Broken {
-			t.Fatal("Verdict.Broken = false, want true")
-		}
-		if verdict.Route.Action != RouteNextGeneration {
-			t.Fatalf("Route.Action = %q, want fail-open %q", verdict.Route.Action, RouteNextGeneration)
-		}
-		if verdict.Route.Action == RouteDone || verdict.Route.Action == RouteContinue {
-			t.Fatalf("Route.Action = %q, want no false done or DoD continue for broken judge", verdict.Route.Action)
-		}
-	})
-
 	t.Run("Should derive complete judge correlation without a tool call owner", func(t *testing.T) {
 		t.Parallel()
 
@@ -229,7 +198,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				}, nil
 			},
 		)))
-		_, err := evaluator.Evaluate(context.Background(), Gate{
+		_, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "quality_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
@@ -250,7 +219,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 	t.Run("Should map human approval decisions through ActorContext", func(t *testing.T) {
 		t.Parallel()
 
-		verdict, err := NewEvaluator().Evaluate(context.Background(), Gate{
+		verdict, err := NewEvaluator().Evaluate(t.Context(), Gate{
 			ID:            "human_gate",
 			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 			Criteria: []dsl.GateCriterion{{
@@ -294,7 +263,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				}, nil
 			},
 		)))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "extension_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
@@ -328,7 +297,7 @@ func TestEvaluatorEvaluateCriteriaBundle(t *testing.T) {
 				}, nil
 			})),
 		)
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "bundle_gate",
 			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 			Criteria: []dsl.GateCriterion{
@@ -375,7 +344,7 @@ func TestEvaluatorCommandExpectations(t *testing.T) {
 			},
 		)))
 		verdict, err := evaluator.Evaluate(
-			context.Background(),
+			t.Context(),
 			commandGate("cmd", "verify", "exit 0"),
 			GateInput{Placement: PlacementInBody},
 		)
@@ -394,7 +363,7 @@ func TestEvaluatorCommandExpectations(t *testing.T) {
 			},
 		)))
 		verdict, err := evaluator.Evaluate(
-			context.Background(),
+			t.Context(),
 			commandGate("cmd", "verify", "exit_nonzero"),
 			GateInput{Placement: PlacementInBody},
 		)
@@ -417,7 +386,7 @@ func TestEvaluatorCommandExpectations(t *testing.T) {
 		)))
 		gate := commandGate("cmd", "verify", "stdout_contains")
 		gate.Criteria[0].Contains = "ready"
-		verdict, err := evaluator.Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+		verdict, err := evaluator.Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -433,7 +402,7 @@ func TestEvaluatorCommandExpectations(t *testing.T) {
 			},
 		)))
 		verdict, err := evaluator.Evaluate(
-			context.Background(),
+			t.Context(),
 			commandGate("cmd", "verify", "stdout_contains"),
 			GateInput{Placement: PlacementInBody},
 		)
@@ -455,7 +424,7 @@ func TestEvaluatorCommandExpectations(t *testing.T) {
 			},
 		)))
 		verdict, err := evaluator.Evaluate(
-			context.Background(),
+			t.Context(),
 			commandGate("cmd", "verify", "unsupported"),
 			GateInput{Placement: PlacementInBody},
 		)
@@ -489,7 +458,7 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 			}},
 		}
 
-		inBody, err := evaluator.Evaluate(context.Background(), gate, GateInput{
+		inBody, err := evaluator.Evaluate(t.Context(), gate, GateInput{
 			Placement:         PlacementInBody,
 			Contract:          new(validContract()),
 			BrokenJudgeStreak: 0,
@@ -501,13 +470,16 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 			t.Fatalf("in-body Route.Action = %q, want %q", inBody.Route.Action, RouteContinue)
 		}
 
-		first, err := evaluator.Evaluate(context.Background(), gate, GateInput{
+		first, err := evaluator.Evaluate(t.Context(), gate, GateInput{
 			Placement:         PlacementDefinitionOfDone,
 			Contract:          new(validContract()),
 			BrokenJudgeStreak: 0,
 		})
 		if err != nil {
 			t.Fatalf("Evaluate() first error = %v", err)
+		}
+		if !first.Broken {
+			t.Fatal("Verdict.Broken = false, want true for judge transport failure")
 		}
 		if first.Route.Action != RouteNextGeneration {
 			t.Fatalf("first Route.Action = %q, want %q", first.Route.Action, RouteNextGeneration)
@@ -516,7 +488,7 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 			t.Fatalf("first NextBrokenJudgeStreak = %d, want 1", first.NextBrokenJudgeStreak)
 		}
 
-		third, err := evaluator.Evaluate(context.Background(), gate, GateInput{
+		third, err := evaluator.Evaluate(t.Context(), gate, GateInput{
 			Placement:         PlacementDefinitionOfDone,
 			Contract:          new(validContract()),
 			BrokenJudgeStreak: 2,
@@ -540,7 +512,7 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 				return JudgeResponse{}, errors.New("transport down")
 			})),
 		)
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "dod",
 			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 			MaxRevisions:  1,
@@ -581,7 +553,7 @@ func TestEvaluatorBrokenJudgeWithRealFailure(t *testing.T) {
 				return JudgeResponse{}, errors.New("judge transport down")
 			})),
 		)
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "mixed_gate",
 			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 			Criteria: []dsl.GateCriterion{
@@ -608,7 +580,7 @@ func TestEvaluatorHumanDecisionRoutes(t *testing.T) {
 	t.Run("Should route request_changes to revision", func(t *testing.T) {
 		t.Parallel()
 
-		verdict, err := NewEvaluator().Evaluate(context.Background(), humanGate(), GateInput{
+		verdict, err := NewEvaluator().Evaluate(t.Context(), humanGate(), GateInput{
 			Placement: PlacementInBody,
 			HumanDecisions: map[string]HumanDecision{
 				"owner_approval": {
@@ -631,7 +603,7 @@ func TestEvaluatorHumanDecisionRoutes(t *testing.T) {
 	t.Run("Should route reject to terminal blocked", func(t *testing.T) {
 		t.Parallel()
 
-		verdict, err := NewEvaluator().Evaluate(context.Background(), humanGate(), GateInput{
+		verdict, err := NewEvaluator().Evaluate(t.Context(), humanGate(), GateInput{
 			Placement: PlacementDefinitionOfDone,
 			HumanDecisions: map[string]HumanDecision{
 				"owner_approval": {
@@ -654,13 +626,18 @@ func TestEvaluatorHumanDecisionRoutes(t *testing.T) {
 	t.Run("Should route pending human decision to approval escalation", func(t *testing.T) {
 		t.Parallel()
 
-		verdict, err := NewEvaluator().Evaluate(context.Background(), humanGate(), GateInput{
+		gate := humanGate()
+		gate.Criteria[0].Prompt = "Review release v2.4.1"
+		verdict, err := NewEvaluator().Evaluate(t.Context(), gate, GateInput{
 			Placement: PlacementDefinitionOfDone,
 		})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
 		requireOutcome(t, verdict, VerdictOutcomeAwaitingApproval)
+		if got, want := verdict.Criteria[0].Prompt, gate.Criteria[0].Prompt; got != want {
+			t.Fatalf("pending human prompt = %q, want %q", got, want)
+		}
 		requireIssueID(t, verdict.BlockingIssues, blockerHumanPending)
 		if verdict.Route.Action != RouteEscalate {
 			t.Fatalf("Route.Action = %q, want %q", verdict.Route.Action, RouteEscalate)
@@ -682,7 +659,7 @@ func TestEvaluatorHumanDecisionRoutes(t *testing.T) {
 			t.Run("Should escalate "+string(placement), func(t *testing.T) {
 				t.Parallel()
 
-				verdict, err := NewEvaluator().Evaluate(context.Background(), gate, GateInput{Placement: placement})
+				verdict, err := NewEvaluator().Evaluate(t.Context(), gate, GateInput{Placement: placement})
 				if err != nil {
 					t.Fatalf("Evaluate() error = %v", err)
 				}
@@ -703,7 +680,7 @@ func TestEvaluatorHumanDecisionRoutes(t *testing.T) {
 		gate := humanGate()
 		gate.OnResult = map[string]any{"approval": "done"}
 		verdict, err := NewEvaluator().Evaluate(
-			context.Background(),
+			t.Context(),
 			gate,
 			GateInput{Placement: PlacementDefinitionOfDone},
 		)
@@ -724,7 +701,7 @@ func TestEvaluatorHumanDecisionRoutes(t *testing.T) {
 
 		gate := humanGate()
 		gate.OnResult = map[string]any{"approval": "escalate"}
-		verdict, err := NewEvaluator().Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+		verdict, err := NewEvaluator().Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -760,7 +737,7 @@ func TestEvaluatorPlacementRouting(t *testing.T) {
 		}
 
 		inBodyRejected, err := NewEvaluator(WithCommandRunner(failingCommand)).
-			Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+			Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() in-body rejected error = %v", err)
 		}
@@ -769,7 +746,7 @@ func TestEvaluatorPlacementRouting(t *testing.T) {
 		}
 
 		dodRejected, err := NewEvaluator(WithCommandRunner(failingCommand)).
-			Evaluate(context.Background(), gate, GateInput{Placement: PlacementDefinitionOfDone})
+			Evaluate(t.Context(), gate, GateInput{Placement: PlacementDefinitionOfDone})
 		if err != nil {
 			t.Fatalf("Evaluate() DoD rejected error = %v", err)
 		}
@@ -778,7 +755,7 @@ func TestEvaluatorPlacementRouting(t *testing.T) {
 		}
 
 		dodApproved, err := NewEvaluator(WithCommandRunner(passingCommand)).
-			Evaluate(context.Background(), gate, GateInput{Placement: PlacementDefinitionOfDone})
+			Evaluate(t.Context(), gate, GateInput{Placement: PlacementDefinitionOfDone})
 		if err != nil {
 			t.Fatalf("Evaluate() DoD approved error = %v", err)
 		}
@@ -800,7 +777,7 @@ func TestEvaluatorRouteOverrides(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 1}, nil
 			},
-		))).Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+		))).Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -818,7 +795,7 @@ func TestEvaluatorRouteOverrides(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 0}, nil
 			},
-		))).Evaluate(context.Background(), gate, GateInput{Placement: PlacementDefinitionOfDone})
+		))).Evaluate(t.Context(), gate, GateInput{Placement: PlacementDefinitionOfDone})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -838,7 +815,7 @@ func TestEvaluatorRouteOverrides(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 1}, nil
 			},
-		))).Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+		))).Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -862,7 +839,7 @@ func TestEvaluatorRouteOverrides(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 1}, nil
 			},
-		))).Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+		))).Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -880,7 +857,7 @@ func TestEvaluatorRouteOverrides(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{}, errors.New("runner unavailable")
 			},
-		))).Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+		))).Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -902,7 +879,7 @@ func TestEvaluatorMaxRevisions(t *testing.T) {
 				return CommandResult{ExitCode: 1}, nil
 			},
 		)))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "max_revisions_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			MaxRevisions:  2,
@@ -926,7 +903,7 @@ func TestEvaluatorMaxRevisions(t *testing.T) {
 	t.Run("Should reject max revisions above the ceiling", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewEvaluator().Evaluate(context.Background(), Gate{
+		_, err := NewEvaluator().Evaluate(t.Context(), Gate{
 			ID:            "invalid_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			MaxRevisions:  dsl.GateMaxRevisionsCeiling + 1,
@@ -953,7 +930,7 @@ func TestEvaluatorExtensionOutputs(t *testing.T) {
 				return tools.ToolResult{Structured: []byte(`{"exit_code":2,"stdout":"out","stderr":"err"}`)}, nil
 			},
 		)))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "extension_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
@@ -980,7 +957,7 @@ func TestEvaluatorExtensionOutputs(t *testing.T) {
 				return tools.ToolResult{}, nil
 			},
 		)))
-		verdict, err := evaluator.Evaluate(context.Background(), extensionGate(), GateInput{Placement: PlacementInBody})
+		verdict, err := evaluator.Evaluate(t.Context(), extensionGate(), GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -996,7 +973,7 @@ func TestEvaluatorExtensionOutputs(t *testing.T) {
 				return tools.ToolResult{}, errors.New("tool unavailable")
 			},
 		)))
-		verdict, err := evaluator.Evaluate(context.Background(), extensionGate(), GateInput{Placement: PlacementInBody})
+		verdict, err := evaluator.Evaluate(t.Context(), extensionGate(), GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -1017,7 +994,7 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 0, Stdout: `{"score":0.72}`}, nil
 			},
-		))).Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+		))).Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -1047,7 +1024,7 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 					func(context.Context, CommandRequest) (CommandResult, error) {
 						return CommandResult{ExitCode: 0, Stdout: tc.stdout}, nil
 					},
-				))).Evaluate(context.Background(), gate, GateInput{Placement: PlacementInBody})
+				))).Evaluate(t.Context(), gate, GateInput{Placement: PlacementInBody})
 				if err != nil {
 					t.Fatalf("Evaluate() error = %v", err)
 				}
@@ -1088,7 +1065,7 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 			func(context.Context, JudgeRequest) (JudgeResponse, error) {
 				return JudgeResponse{Raw: `{"verdict":"pass","evidence":{"checked":true},"score":0.91}`}, nil
 			},
-		))).Evaluate(context.Background(), Gate{
+		))).Evaluate(t.Context(), Gate{
 			ID: "judge_gate", VerdictPolicy: dsl.VerdictPolicyFixedPasses, Criteria: []dsl.GateCriterion{criterion},
 		}, GateInput{Placement: PlacementInBody, Contract: new(validContract())})
 		if err != nil {
@@ -1107,7 +1084,7 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 			func(context.Context, JudgeRequest) (JudgeResponse, error) {
 				return JudgeResponse{Raw: `{"verdict":"pass","evidence":{"checked":true}}`}, nil
 			},
-		))).Evaluate(context.Background(), Gate{
+		))).Evaluate(t.Context(), Gate{
 			ID: "judge_gate", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
 				ID:     "judge",
@@ -1130,7 +1107,7 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 			func(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
 				return tools.ToolResult{Structured: []byte(`{"verdict":"pass","score":0.83}`)}, nil
 			},
-		))).Evaluate(context.Background(), Gate{
+		))).Evaluate(t.Context(), Gate{
 			ID: "extension_gate", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
 				ID:     "extension",
@@ -1156,7 +1133,7 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 0, Stdout: `{"score":0.72}`}, nil
 			},
-		))).Evaluate(context.Background(), commandGate("plain", "verify", "exit_zero"), GateInput{
+		))).Evaluate(t.Context(), commandGate("plain", "verify", "exit_zero"), GateInput{
 			Placement: PlacementInBody,
 			BestScore: &bestScore,
 		})
@@ -1179,7 +1156,7 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 0, Stdout: `{"score":0.72}`}, nil
 			},
-		))).Evaluate(context.Background(), runtimeGate, GateInput{
+		))).Evaluate(t.Context(), runtimeGate, GateInput{
 			Placement: PlacementInBody,
 			BestScore: &bestScore,
 		})
@@ -1455,8 +1432,6 @@ func TestNewVerdictIntent(t *testing.T) {
 		t.Parallel()
 
 		nan := math.NaN()
-		scoreOne := 0.5
-		scoreTwo := 0.6
 		negative := -1
 		tests := []struct {
 			name      string
@@ -1474,7 +1449,7 @@ func TestNewVerdictIntent(t *testing.T) {
 			},
 			{
 				name: "Should classify multiple scores", gateID: "quality", itemIndex: 0,
-				verdict: Verdict{Criteria: []CriterionResult{{Score: &scoreOne}, {Score: &scoreTwo}}},
+				verdict: Verdict{Criteria: []CriterionResult{{Score: new(0.5)}, {Score: new(0.6)}}},
 			},
 		}
 		for _, tt := range tests {
@@ -1548,19 +1523,6 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject approved judge verdict without evidence without Broken", func(t *testing.T) {
-		t.Parallel()
-
-		result := ParseJudgeVerdict("judge", dsl.CriterionAgentJudge, `{"verdict":"approved","evidence":{}}`)
-		if result.Outcome != VerdictOutcomeRejected {
-			t.Fatalf("Outcome = %q, want %q", result.Outcome, VerdictOutcomeRejected)
-		}
-		if result.Broken {
-			t.Fatal("Broken = true, want false")
-		}
-		requireIssueID(t, result.BlockingIssues, JudgeEvidenceRequiredIssueID)
-	})
-
 	t.Run("Should reject approved judge verdict with whitespace-only evidence object", func(t *testing.T) {
 		t.Parallel()
 
@@ -1612,7 +1574,7 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 			},
 		)))
 		var reports []int64
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID: "judge-usage", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{
 				{ID: "first", Type: dsl.CriterionAgentJudge, Rubric: "Check first"},
@@ -1646,7 +1608,7 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 			},
 		)))
 		var reports []int64
-		_, err := evaluator.Evaluate(context.Background(), Gate{
+		_, err := evaluator.Evaluate(t.Context(), Gate{
 			ID: "judge-zero", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{
 				ID: "zero", Type: dsl.CriterionAgentJudge, Rubric: "Check zero",
@@ -1803,7 +1765,7 @@ func TestEvaluatorVerdictPolicyValidation(t *testing.T) {
 			func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{ExitCode: 0}, nil
 			},
-		))).Evaluate(context.Background(), Gate{
+		))).Evaluate(t.Context(), Gate{
 			ID:            "policy_gate",
 			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 			Criteria: []dsl.GateCriterion{{

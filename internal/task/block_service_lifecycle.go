@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -181,7 +181,7 @@ func transientExpiryTriggerRef(blocks []TaskBlock) string {
 	for _, block := range blocks {
 		ids = append(ids, block.ID)
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return strings.Join(ids, ",")
 }
 

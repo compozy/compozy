@@ -8,8 +8,8 @@ groups and floating windows; clients project that same normalized topology into 
 The daemon, not the browser, validates membership, layout trees, weights, history, and revisions.
 
 <OperatorNote>
-  Window management is workspace state, not durable memory. Deleting a workspace removes its
-  topology. A browser stores only its stable client identifier locally.
+  Window management is workspace state. Deleting a workspace removes its topology. A browser stores
+  only its stable client identifier locally.
 </OperatorNote>
 
 ## Topology and presentation
@@ -49,6 +49,12 @@ compozy window move --workspace <workspace-id> --revision <revision> --id <windo
   --desktop <desktop-id> --group
 ```
 
+The app ids `jobs` and `triggers` are deprecated: one `automations` app replaced them in v0.4.0
+(`--app automations --pathname /automations/jobs/<job-id>`). Until v0.5.0, `--app jobs|triggers`,
+window commands, and `window_layout` resources that name them open Automations on the matching path
+and warn; v0.5.0 rejects them like any unknown app id. Saved layouts that named them migrate
+permanently. See [Upgrading from v0.3](/docs/automation#upgrading-from-v03).
+
 On `window_manager_revision_conflict`, read the topology again and recompute the semantic action.
 Do not replay stale geometry blindly.
 
@@ -59,12 +65,50 @@ resumes after reload or daemon restart and converges in peer clients. Add `--cli
 
 ## Tiling behavior
 
-New windows float by default and may be opened tiled beside the focused window. Structural drops
+New windows open as a new tab in the focused window by default (`new_window_policy = "tab"`). On an
+empty desktop, or when the focused window sits on another desktop or is minimized, the first window
+fills the whole desktop instead. Set `beside_focus` to tile new windows beside the focused one, or
+`floating` to open them as floating windows. An open without a connected client (for example an
+agent's `compozy__window_open` call without `client_id`) never joins a tab you are looking at. When
+another client's open turns a window you are showing into a tab group, you keep seeing that window;
+pass `--id` (`window_id`) with the open for this to hold, because a window whose ID the daemon
+generates becomes the group's active tab for every other connected client. An explicit placement
+always wins over the policy: `--stack-target` joins that window's tabs, `--tiled` splits beside the
+client's focus, and `--floating` opens a free floating window. Structural drops
 use `before`, `after`, `left`, `right`, `top`, `bottom`, or `center`; dropping onto an occupied target
 reflows the tree instead of overlapping it. Shared-boundary resize updates all descendants on each
 side. When a viewport cannot satisfy minimum window sizes, that client projects the affected split
 as a stack without corrupting the stored topology. Group relocation moves the source window's tiled
 group and is exclusive with `--target`, `--placement`, and `--rect`.
+
+`compozy layout arrange --arrangement` accepts `horizontal`, `vertical`, `grid`, `stack`, or
+`main_stack`. Main and stack gives the first listed window a 60% main column and splits the rest
+vertically in the column beside it. Each `--window` is its own participant, so naming two tabs of one
+deck splits them apart. Add `--keep-frames` to arrange each named window's whole tab frame instead:
+the deck moves as one participant and keeps its tabs, active tab, and identity.
+
+In the app, **Window › Arrange** applies the same arrangements to the focused window and the other
+visible windows on its desktop, keeping every tab deck whole: **Main and stack** (the focused
+window takes the main column), **Columns** (every visible window side by side), **Grid**, and
+**Balance sizes** (equal splits).
+**Window › Move window to** sends the focused window to another desktop by name. The panes between
+tiled windows share a single hairline; drag it, or focus it and use the arrow keys (hold Shift for
+10% steps), to resize the panes on either side. Each pane keeps at least 220 px.
+
+In the app, clicking an icon in the left rail goes to that app's open window, or opens it as a new
+tab when it has none (Sessions goes to your latest session). Hold a modifier to open another window of
+the app instead:
+
+| Gesture            | Opens                                               |
+| ------------------ | --------------------------------------------------- |
+| Click              | The open window, or a new tab in the focused window |
+| Option (⌥) + click | A new window split beside the focused one           |
+| Shift (⇧) + click  | A new desktop, with the new window filling it       |
+
+Right-click an icon (or focus it and press Shift+F10) for every destination: **Open in new tab**,
+**Open in split**, **Open in new window** (a floating window), **Open in new desktop**, and **Go to
+tab** when the app already has a window. For Sessions, these open the session list window, where you
+pick a session or start a new one. Enter and Space on a focused icon act like a plain click.
 
 Repeated side snapping cycles through one-half, two-thirds, and one-third by default. Top-center
 targets zoom the window: the unit holding it (the window or its whole tab frame) becomes the only
@@ -75,8 +119,8 @@ Unzooming brings the unit back to where it came from and removes the desktop the
 is empty; closing the zoomed window does the same. Grouping a window into the zoomed frame keeps the
 zoom; tiling another window to a screen edge gives the zoomed window the remaining space and ends the
 zoom, and arranging, moving, swapping, resizing, or floating ends it in place. A minimized window that
-was zoomed comes back zoomed. Bottom-center is reserved for the Dock unless remapped. Both behavior and
-thresholds are validated under `[window_manager]` in `config.toml`.
+was zoomed comes back zoomed. Bottom-center also zooms by default; set it to `reserved` or `none` to
+disable it. Both behavior and thresholds are validated under `[window_manager]` in `config.toml`.
 
 To restore an internal maximized window, click its **Restore window** control (the zoom button
 changes its icon and label while maximized). This returns the saved size and placement. You can
@@ -97,8 +141,8 @@ compozy desktop delete --workspace <workspace-id> --revision <revision> --id <de
 
 Deleting the final desktop is rejected. A non-empty desktop requires a distinct destination so the
 window transfer and deletion happen in one transaction. The Web shell exposes the same desktops as
-a minimal horizontal dot pager at the lower left, aligned with the Dock, and opens full management
-on demand.
+a minimal dot pager in the top bar, next to an **All desktops** button that opens full management on
+demand.
 
 ## Declarative layouts and recovery
 
@@ -141,6 +185,23 @@ changed in the meantime, CompozyOS preserves those edits and falls back to the s
 the client's focused window on the same desktop, then a floating placement. A zoomed window's
 `return_anchor` is the slot unzoom takes it back to. Preserve `source_group` and `return_anchor.zoomed`
 during raw document round trips instead of constructing or editing this recovery state.
+
+### Retired apps in saved layouts
+
+A saved layout can name an app that CompozyOS no longer ships. When the daemon loads a workspace's
+saved window topology, it removes every window whose app is no longer registered, including the same
+windows inside undo and redo history and recently closed entries. It then renormalizes the affected
+desktops, rewrites a Settings window's saved `/settings/memory` route to `/settings`, and persists the
+result once. After the write succeeds it logs `windowmanager.snapshot_reconciled` with the
+`workspace_id`, the `profile_id`, the sorted `dropped_apps` (the IDs of the removed apps), the number
+of `rewritten_routes`, and the new `revision`. The app IDs and the route count cover the current
+windows, the undo and redo history, and the recently closed entries. The next load changes nothing.
+
+Declarative `window_layout` resources follow the same rule. The daemon rewrites stored ones once at
+boot, drops the removed windows from their participant slots, and logs
+`window_manager.layout_reconciled` with the `resource_id`; layout listings always show the reconciled
+form. A layout document passed to `compozy layout apply` must carry the current snapshot `version`,
+which is `4`.
 
 ## Agent and transport access
 

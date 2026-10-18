@@ -24,7 +24,7 @@ type addInput struct {
 }
 
 type recentInput struct {
-	Limit  int64  `json:"limit,omitempty"`
+	Limit  int64  `json:"limit,omitzero"`
 	Format string `json:"format,omitempty"`
 }
 

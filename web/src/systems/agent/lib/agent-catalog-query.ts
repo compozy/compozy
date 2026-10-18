@@ -27,7 +27,7 @@ export function agentCatalogRequest(
   cursor?: string
 ) {
   return {
-    workspace: workspace.trim(),
+    workspace: normalizeOptionalText(workspace),
     ...normalizeAgentCatalogFilter(filters),
     ...(cursor ? { cursor } : {}),
   };

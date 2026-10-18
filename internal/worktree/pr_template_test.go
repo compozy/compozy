@@ -1,7 +1,6 @@
 package worktree
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -28,7 +27,7 @@ func TestPRTemplateDetection(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		if got := service.detectPRTemplate(
-			context.Background(),
+			t.Context(),
 			"/repo",
 			"main",
 			nil,
@@ -44,7 +43,7 @@ func TestPRTemplateDetection(t *testing.T) {
 				"100644 blob def\t.github/pull_request_template.txt\x00",
 		)}}}
 		service := NewService(newMemoryWorktreeStore(), runner)
-		if got := service.detectPRTemplate(context.Background(), "/repo", "main", nil); got != "" {
+		if got := service.detectPRTemplate(t.Context(), "/repo", "main", nil); got != "" {
 			t.Fatalf("detectPRTemplate(ambiguous) = %q, want abstention", got)
 		}
 		if len(runner.invocations()) != 1 {
@@ -60,7 +59,7 @@ func TestPRTemplateDetection(t *testing.T) {
 			{stdout: []byte(content)},
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
-		got := service.detectPRTemplate(context.Background(), "/repo", "main", nil)
+		got := service.detectPRTemplate(t.Context(), "/repo", "main", nil)
 		if len(got) > prTemplateMaxBytes || !strings.HasSuffix(got, "a") {
 			t.Fatalf("bounded template length/suffix = %d/%q", len(got), got[len(got)-1:])
 		}
@@ -77,7 +76,7 @@ func TestPRTemplateDetection(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		got := service.detectPRTemplate(
-			context.Background(), "/repo", "main", []string{".forge/review.md"},
+			t.Context(), "/repo", "main", []string{".forge/review.md"},
 		)
 		if got != "Provider-owned template" {
 			t.Fatalf("detectPRTemplate(provider paths) = %q", got)

@@ -25,15 +25,16 @@ const (
 )
 
 type sessionWriteRequest struct {
-	ctx     context.Context
-	kind    sessionWriteKind
-	event   store.SessionEvent
-	events  []store.SessionEvent
-	usage   store.TokenUsage
-	hook    hookspkg.HookRunRecord
-	archive store.EventArchiveRequest
-	rewind  *store.ConversationRewindRequest
-	result  chan sessionWriteResult
+	ctx      context.Context
+	kind     sessionWriteKind
+	event    store.SessionEvent
+	events   []store.SessionEvent
+	usage    store.TokenUsage
+	hook     hookspkg.HookRunRecord
+	archive  store.EventArchiveRequest
+	rewind   *store.ConversationRewindRequest
+	baseline *conversationRewindBaselineRefresh
+	result   chan sessionWriteResult
 }
 
 type sessionWriteResult struct {
@@ -65,11 +66,19 @@ type SessionDB struct {
 
 	drainTimeout time.Duration
 	now          func() time.Time
+
+	// transcriptFolds is touched only by the writer goroutine.
+	transcriptFolds transcriptFoldCache
+	// walTruncateBytes overrides the live WAL truncation bound when positive.
+	walTruncateBytes atomic.Int64
+	// walMaintenanceDelayOverride overrides the idle WAL maintenance delay, in nanoseconds, when positive.
+	walMaintenanceDelayOverride atomic.Int64
 }
 
 var _ store.EventRecorder = (*SessionDB)(nil)
 var _ store.EventArchiver = (*SessionDB)(nil)
 var _ store.ConversationRewinder = (*SessionDB)(nil)
+var _ store.ConversationRewindBaselineRefresher = (*SessionDB)(nil)
 var _ store.ConversationRewindReader = (*SessionDB)(nil)
 
 // OpenSessionDB opens or creates the per-session events database at path.

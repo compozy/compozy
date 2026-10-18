@@ -25,6 +25,15 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
+/**
+ * The same 1 Hz clock for non-React consumers (labels that write their own
+ * text): the listener reads the shared instant, so every live label on the
+ * page ticks in phase with `useSecondClock`.
+ */
+export function subscribeSecondClock(listener: (nowMs: number) => void): () => void {
+  return subscribe(() => listener(nowMs));
+}
+
 function subscribePaused(): () => void {
   return () => undefined;
 }

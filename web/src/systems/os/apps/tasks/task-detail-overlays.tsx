@@ -74,15 +74,6 @@ export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocat
       />
       <TaskInspectDrawer
         activeTab={controller.search.inspect ?? "diagnostics"}
-        bridges={{
-          subscriptions: operator.subscriptions,
-          isLoading: operator.subscriptionsLoading,
-          errorMessage: operator.subscriptionsError?.message ?? null,
-          isCreatePending: operator.isCreateSubscriptionPending,
-          isDeletePending: operator.isDeleteSubscriptionPending,
-          onCreate: operator.handleCreateSubscription,
-          onDelete: operator.handleDeleteSubscription,
-        }}
         detail={detail}
         inspect={page.inspect}
         inspectErrorMessage={page.inspectError?.message ?? null}

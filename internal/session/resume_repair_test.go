@@ -112,7 +112,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 					SubprocessPID: os.Getpid(), SubprocessStartedAt: &previousIdentity,
 				}
 			}
-			gotMeta, gotChanged := classifyPreviousStop(tc.meta)
+			gotMeta, gotChanged := classifyPreviousStop(&tc.meta)
 			if gotChanged != tc.wantChanged {
 				t.Fatalf("classifyPreviousStop() changed = %v, want %v", gotChanged, tc.wantChanged)
 			}
@@ -128,6 +128,80 @@ func TestClassifyPreviousStop(t *testing.T) {
 	}
 }
 
+// Invariant: a runtime released while idle ends like a clean shutdown on daemon restart and keeps its ACP
+// session for the next prompt once its process exit is verified; a release interrupted while the recorded
+// process may still run keeps verifying that process. Owner: session boot recovery.
+func TestClassifyInactiveMetaForRecoveryReleasedRuntime(t *testing.T) {
+	t.Parallel()
+	t.Run("Should end a released idle runtime like a clean shutdown", func(t *testing.T) {
+		t.Parallel()
+		meta := store.SessionMeta{
+			State:         string(StateActive),
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			ACPSessionID:  stringPointer("acp-released"),
+			Liveness:      &store.SessionLivenessMeta{},
+		}
+		got, changed := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+		if !changed || got.State != string(StateStopped) || got.StopVerificationFailed || got.Failure != nil {
+			t.Fatalf("released runtime = %s, verification failed %t, failure %#v", got.State,
+				got.StopVerificationFailed, got.Failure)
+		}
+		assertOptionalStopReasonEqual(t, got.StopReason, stopReasonPointer(store.StopShutdown))
+		assertOptionalStringEqual(t, got.ACPSessionID, stringPointer("acp-released"))
+	})
+	t.Run("Should verify the recorded process of an interrupted release", func(t *testing.T) {
+		t.Parallel()
+		started, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name    string
+			started time.Time
+			want    State
+		}{
+			{"Should keep stopping while the released process may still run", started, StateStopping},
+			{"Should end like a clean shutdown once the released process exited", started.Add(-time.Hour), StateStopped},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				meta := store.SessionMeta{
+					State:         string(StateActive),
+					RuntimeStatus: store.SessionRuntimeUnbound,
+					ACPSessionID:  stringPointer("acp-releasing"),
+					Liveness: &store.SessionLivenessMeta{
+						SubprocessPID: os.Getpid(), SubprocessStartedAt: &tc.started,
+					},
+				}
+				got, changed := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+				if !changed || got.State != string(tc.want) ||
+					got.StopVerificationFailed != (tc.want == StateStopping) {
+					t.Fatalf("interrupted release = %s, verification failed %t", got.State, got.StopVerificationFailed)
+				}
+				if clean := got.StopReason != nil &&
+					*got.StopReason == store.StopShutdown; clean != (tc.want == StateStopped) {
+					t.Fatalf("interrupted release stop reason = %v, want clean shutdown %t", got.StopReason, !clean)
+				}
+				assertOptionalStringEqual(t, got.ACPSessionID, stringPointer("acp-releasing"))
+			})
+		}
+	})
+	t.Run("Should keep crash attribution for an exited runtime mid-transition", func(t *testing.T) {
+		t.Parallel()
+		meta := store.SessionMeta{
+			State:             string(StateActive),
+			RuntimeStatus:     store.SessionRuntimeUnbound,
+			RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
+			ACPSessionID:      stringPointer("acp-exited"),
+			Liveness:          &store.SessionLivenessMeta{},
+		}
+		got, _ := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+		if got.StopReason != nil && *got.StopReason == store.StopShutdown {
+			t.Fatalf("exited runtime classified as a clean shutdown: %#v", got)
+		}
+	})
+}
+
 func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 	t.Parallel()
 	t.Run(
@@ -139,12 +213,12 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				Failure: &store.SessionFailure{Kind: store.FailureProviderAuth, Summary: "provider login required"},
 			}
 			now := time.Now()
-			first, changed := ClassifyInactiveMetaForRecovery(now, meta)
+			first, changed := ClassifyInactiveMetaForRecovery(now, &meta)
 			if !changed || first.State != string(StateStopping) || !interruptedStartupMeta(&first) ||
 				first.Failure.Kind != store.FailureProviderAuth || first.Failure.Summary != meta.Failure.Summary {
 				t.Fatalf("startup inventory lost provider failure or startup attribution: %#v", first)
 			}
-			second, changed := ClassifyInactiveMetaForRecovery(now, first)
+			second, changed := ClassifyInactiveMetaForRecovery(now, &first)
 			if changed || !interruptedStartupMeta(&second) || !second.StopVerificationFailed ||
 				second.Failure.Kind != store.FailureProviderAuth || second.Failure.Summary != meta.Failure.Summary {
 				t.Fatalf("repeated inventory changed startup evidence: %#v", second)
@@ -158,7 +232,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				func(t *testing.T) {
 					t.Parallel()
 					meta := store.SessionMeta{State: string(state), Liveness: liveness}
-					recovered, changed := ClassifyInactiveMetaForRecovery(time.Now(), meta)
+					recovered, changed := ClassifyInactiveMetaForRecovery(time.Now(), &meta)
 					if !changed || recovered.State != string(StateStopping) || !recovered.StopVerificationFailed {
 						t.Fatalf("missing identity fabricated terminal state: %#v", recovered)
 					}
@@ -170,7 +244,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 	t.Run("Should retain unverified stop attention when process identity is unavailable", func(t *testing.T) {
 		t.Parallel()
 		meta := store.SessionMeta{State: string(StateStopping), StopVerificationFailed: true}
-		recovered, _ := ClassifyInactiveMetaForRecovery(time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC), meta)
+		recovered, _ := ClassifyInactiveMetaForRecovery(time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC), &meta)
 		if recovered.State != string(StateStopping) || !recovered.StopVerificationFailed {
 			t.Fatalf("unverified stop lost its exit-proof requirement: %#v", recovered)
 		}
@@ -186,22 +260,17 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 			name    string
 			started time.Time
 			want    State
-			remote  bool
 		}{
-			{"Should retain a matching live process", started, StateStopping, false},
-			{"Should retain an unverifiable identity", time.Time{}, StateStopping, false},
-			{"Should recognize an exited identity when the PID is reused", started.Add(-time.Hour), StateStopped, false},
-			{"Should not treat a reused local PID as remote exit proof", started.Add(-time.Hour), StateStopping, true},
+			{"Should retain a matching live process", started, StateStopping},
+			{"Should retain an unverifiable identity", time.Time{}, StateStopping},
+			{"Should recognize an exited identity when the PID is reused", started.Add(-time.Hour), StateStopped},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				meta := store.SessionMeta{State: string(StateActive), Liveness: &store.SessionLivenessMeta{
 					SubprocessPID: os.Getpid(), SubprocessStartedAt: &tc.started,
 				}}
-				if tc.remote {
-					meta.Sandbox = &store.SessionSandboxMeta{Backend: "daytona"}
-				}
-				recovered, changed := ClassifyInactiveMetaForRecovery(started.Add(time.Hour), meta)
+				recovered, changed := ClassifyInactiveMetaForRecovery(started.Add(time.Hour), &meta)
 				if !changed || recovered.State != string(tc.want) ||
 					recovered.StopVerificationFailed != (tc.want == StateStopping) {
 					t.Fatalf("recovery state = %q, changed=%t", recovered.State, changed)
@@ -236,7 +305,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				},
 			}
 
-			repaired, changed := ClassifyInactiveMetaForRecovery(now, meta)
+			repaired, changed := ClassifyInactiveMetaForRecovery(now, &meta)
 			if !changed {
 				t.Fatal("ClassifyInactiveMetaForRecovery() changed = false, want true")
 			}
@@ -282,7 +351,7 @@ func TestValidateInfrastructure(t *testing.T) {
 			meta.AgentName = "profile-only"
 			writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-			if errs := h.manager.validateInfrastructure(testutil.Context(t), meta); len(errs) != 0 {
+			if errs := h.manager.validateInfrastructure(testutil.Context(t), &meta); len(errs) != 0 {
 				t.Fatalf("validateInfrastructure() errors = %v, want the persisted profile agent", errs)
 			}
 		})
@@ -295,7 +364,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "sess-valid")
 		writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		if len(errs) != 0 {
 			t.Fatalf("validateInfrastructure() errors = %#v, want none", errs)
 		}
@@ -307,12 +376,10 @@ func TestValidateInfrastructure(t *testing.T) {
 		h := newHarness(t)
 		missingWorkspace := filepath.Join(t.TempDir(), "missing-workspace")
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: missingWorkspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: missingWorkspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
@@ -322,7 +389,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "sess-missing-workspace")
 		writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, missingWorkspace)
 	})
 
@@ -334,7 +401,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta.AgentName = "missing-agent"
 		writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, "missing-agent")
 	})
 
@@ -344,7 +411,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		h := newHarness(t)
 		meta := validResumeMeta(h, "sess-missing-store")
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, meta.ID)))
 	})
 
@@ -355,7 +422,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "sess-empty-store")
 		writeResumeEventStore(t, h.homePaths, meta.ID, nil)
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, "file is empty")
 	})
 
@@ -366,7 +433,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "")
 		writeResumeEventStore(t, h.homePaths, "ignored", []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, "session id")
 	})
 
@@ -376,12 +443,10 @@ func TestValidateInfrastructure(t *testing.T) {
 		h := newHarness(t)
 		missingWorkspace := filepath.Join(t.TempDir(), "missing-workspace")
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: missingWorkspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: missingWorkspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
@@ -392,7 +457,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta.AgentName = "missing-agent"
 		writeResumeEventStore(t, h.homePaths, meta.ID, nil)
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		if got, want := len(errs), 3; got != want {
 			t.Fatalf("len(validateInfrastructure() errors) = %d, want %d (%#v)", got, want, errs)
 		}
@@ -404,14 +469,13 @@ func TestValidateInfrastructure(t *testing.T) {
 
 func validResumeMeta(h *harness, sessionID string) store.SessionMeta {
 	return store.SessionMeta{
-		ID:                   sessionID,
-		Name:                 "resume-session",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: testLocalParticipationPtr(),
-		SessionType:          string(SessionTypeUser),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
+		ID:            sessionID,
+		Name:          "resume-session",
+		AgentName:     "coder",
+		WorkspaceID:   h.workspaceID,
+		SessionType:   string(SessionTypeUser),
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
 	}
 }
 
@@ -431,7 +495,7 @@ func TestRepairRejectsNilContext(t *testing.T) {
 				h := newHarness(t)
 				meta := validResumeMeta(h, "sess-nil-repair-context")
 				var nilCtx context.Context
-				_, err := h.manager.repairInactiveMeta(nilCtx, filepath.Join(t.TempDir(), "meta.json"), meta)
+				_, err := h.manager.repairInactiveMeta(nilCtx, filepath.Join(t.TempDir(), "meta.json"), &meta)
 				return err
 			},
 			want: errResumeRepairContextRequired,

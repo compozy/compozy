@@ -81,6 +81,15 @@ func (b *clarifyBridge) release(handle *clarifyHandle, result clarifyResult) {
 	}
 	handle.terminal = true
 	b.mu.Unlock()
+	// Terminal debug line carries the last ping seq for correlation; debug
+	// only, since unbounded waits ping for hours.
+	b.logger.DebugContext(
+		context.Background(),
+		"clarification terminal transition",
+		"session_id", handle.pending.SessionID,
+		"request_id", handle.pending.RequestID,
+		"last_ping_seq", handle.pingSeq,
+	)
 	handle.result <- result
 }
 
@@ -185,8 +194,7 @@ func cloneClarifyAnswer(answer *toolspkg.ClarifyAnswer) *toolspkg.ClarifyAnswer 
 	}
 	cloned := *answer
 	if answer.Choice != nil {
-		choice := *answer.Choice
-		cloned.Choice = &choice
+		cloned.Choice = new(*answer.Choice)
 	}
 	return &cloned
 }

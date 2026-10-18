@@ -14,7 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,6 +28,7 @@ import (
 )
 
 const (
+	loopReadRetryLoopName      = "loop-read-retry"
 	loopReadApprovalLoopName   = "loop-read-approval"
 	loopReadUnblockerLoopName  = "loop-read-unblocker"
 	loopReadQuarantineLoopName = "loop-read-quarantine"
@@ -63,9 +64,10 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			},
 		},
 	})
-	setupCtx, setupCancel := context.WithTimeout(context.Background(), 45*time.Second)
+	setupCtx, setupCancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer setupCancel()
 	createLoopViaHTTP(t, setupCtx, harness, loopEventsDefinition())
+	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadRetryLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadApprovalLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadUnblockerLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadQuarantineLoopName)
@@ -449,7 +451,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	})
 	t.Run("Should expose settled attempts through the roster E2E-005", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
-		retryRun := runLoopViaHTTP(t, ctx, harness, lifecycleRetryLoopName)
+		retryRun := runLoopViaHTTP(t, ctx, harness, loopReadRetryLoopName)
 		waitForLoopRunStatus(t, ctx, harness, retryRun.ID, compozycontract.LoopRunStatusDone)
 		var roster compozycontract.LoopRunNodesResponse
 		if err := harness.CLI.RunJSON(
@@ -1112,6 +1114,7 @@ func seedLoopReadDefinitions(t testing.TB, workspaceRoot string) {
 	t.Helper()
 	root := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 	definitions := map[string]string{
+		loopReadRetryLoopName:      loopReadRetryYAML(),
 		loopReadApprovalLoopName:   loopReadApprovalYAML(),
 		loopReadUnblockerLoopName:  loopReadUnblockerYAML(),
 		loopReadQuarantineLoopName: loopReadQuarantineYAML(),
@@ -1126,6 +1129,14 @@ func seedLoopReadDefinitions(t testing.TB, workspaceRoot string) {
 			t.Fatalf("WriteDefinition(%s) error = %v", name, err)
 		}
 	}
+}
+
+func loopReadRetryYAML() string {
+	return strings.NewReplacer(
+		"node-lifecycle-retry", loopReadRetryLoopName,
+		"timeout: 2s", "timeout: 10s",
+		`prompt: "retry lifecycle"`, `prompt: "read retry lifecycle"`,
+	).Replace(lifecycleRetryLoopYAML())
 }
 
 func loopReadUnblockerYAML() string {
@@ -1288,9 +1299,8 @@ func runLoopWithHumanGate(
 	harness *e2etest.RuntimeHarness,
 ) compozycontract.LoopRunPayload {
 	t.Helper()
-	enabled := true
 	request := compozycontract.RunLoopRequest{
-		ConfigOverrides: &compozycontract.LoopConfig{HumanGateEnabled: &enabled},
+		ConfigOverrides: &compozycontract.LoopConfig{HumanGateEnabled: new(true)},
 	}
 	var response compozycontract.RunLoopResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
@@ -1460,7 +1470,7 @@ func assertSettledLoopTaskList(t testing.TB, raw string, runID string) {
 func timelineJSONLSequences(t testing.TB, raw string) []int64 {
 	t.Helper()
 	sequences := make([]int64, 0)
-	for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(raw), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -1483,8 +1493,8 @@ func assertTimelineResumeParity(
 	for index := range complete {
 		want[index] = complete[index].Seq
 	}
-	sort.Slice(combined, func(i, j int) bool { return combined[i] < combined[j] })
-	sort.Slice(want, func(i, j int) bool { return want[i] < want[j] })
+	slices.Sort(combined)
+	slices.Sort(want)
 	if len(combined) != len(want) {
 		t.Fatalf("resumed/complete sequence counts = %d/%d; got=%v want=%v", len(combined), len(want), combined, want)
 	}

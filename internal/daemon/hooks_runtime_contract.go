@@ -43,23 +43,7 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.SessionRuntimeRecoveryExhaustedPayload,
 	) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error)
-	DispatchSandboxPrepare(
-		context.Context,
-		*hookspkg.SandboxPreparePayload,
-	) (*hookspkg.SandboxPreparePayload, error)
-	DispatchSandboxReady(
-		context.Context,
-		hookspkg.SandboxReadyPayload,
-	) (hookspkg.SandboxReadyPayload, error)
-	DispatchSandboxSyncBefore(
-		context.Context,
-		hookspkg.SandboxSyncBeforePayload,
-	) (hookspkg.SandboxSyncBeforePayload, error)
-	DispatchSandboxSyncAfter(
-		context.Context,
-		hookspkg.SandboxSyncAfterPayload,
-	) (hookspkg.SandboxSyncAfterPayload, error)
-	DispatchSandboxStop(context.Context, hookspkg.SandboxStopPayload) (hookspkg.SandboxStopPayload, error)
+
 	DispatchInputPreSubmit(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
 	DispatchPromptPostAssemble(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
 	DispatchEventPreRecord(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
@@ -267,36 +251,4 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.SessionAttentionChangedPayload,
 	) (hookspkg.SessionAttentionChangedPayload, error)
-	DispatchNetworkPeerJoined(
-		context.Context,
-		hookspkg.NetworkPeerJoinedPayload,
-	) (hookspkg.NetworkPeerJoinedPayload, error)
-	DispatchNetworkPeerLeft(
-		context.Context,
-		hookspkg.NetworkPeerLeftPayload,
-	) (hookspkg.NetworkPeerLeftPayload, error)
-	DispatchNetworkThreadOpened(
-		context.Context,
-		hookspkg.NetworkThreadOpenedPayload,
-	) (hookspkg.NetworkThreadOpenedPayload, error)
-	DispatchNetworkDirectRoomOpened(
-		context.Context,
-		hookspkg.NetworkDirectRoomOpenedPayload,
-	) (hookspkg.NetworkDirectRoomOpenedPayload, error)
-	DispatchNetworkMessagePersisted(
-		context.Context,
-		hookspkg.NetworkMessagePersistedPayload,
-	) (hookspkg.NetworkMessagePersistedPayload, error)
-	DispatchNetworkWorkOpened(
-		context.Context,
-		hookspkg.NetworkWorkOpenedPayload,
-	) (hookspkg.NetworkWorkOpenedPayload, error)
-	DispatchNetworkWorkTransitioned(
-		context.Context,
-		hookspkg.NetworkWorkTransitionedPayload,
-	) (hookspkg.NetworkWorkTransitionedPayload, error)
-	DispatchNetworkWorkClosed(
-		context.Context,
-		hookspkg.NetworkWorkClosedPayload,
-	) (hookspkg.NetworkWorkClosedPayload, error)
 }

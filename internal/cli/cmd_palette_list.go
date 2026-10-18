@@ -1,7 +1,8 @@
 package cli
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -68,6 +69,7 @@ func newCmdPaletteInspectCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			commandID = canonicalCmdPaletteCommandID(cmd, commandID)
 			command, ok := findCmdPaletteCommand(catalog.Commands, commandID)
 			if !ok {
 				return cmdPaletteCommandNotFoundError(commandID)
@@ -117,7 +119,9 @@ func filterCmdPaletteCommands(
 		}
 		filtered = append(filtered, command)
 	}
-	sort.Slice(filtered, func(left, right int) bool { return filtered[left].ID < filtered[right].ID })
+	slices.SortFunc(filtered, func(left, right contract.CmdPaletteCommand) int {
+		return cmp.Compare(left.ID, right.ID)
+	})
 	return filtered
 }
 
@@ -137,7 +141,7 @@ func cmdPaletteListOutput(workspace string, commands []contract.CmdPaletteComman
 		"COMMANDS (workspace: "+workspace+")",
 		[]string{"ID", "TITLE", cliSourceHeader, "AVAILABLE", "BINDINGS"},
 		"commands",
-		[]string{"id", networkTitleKey, automationSourceKey, cmdPaletteAvailableFlag, cliBindingsKey},
+		[]string{"id", cliOutputTitleKey, automationSourceKey, cmdPaletteAvailableFlag, cliBindingsKey},
 		cmdPaletteCommandRow,
 		cmdPaletteCommandRow,
 	)
@@ -159,7 +163,7 @@ func cmdPaletteInspectOutput(command contract.CmdPaletteCommand) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"command",
-				[]string{"id", networkTitleKey, automationSourceKey, cmdPaletteAvailableFlag, "reason"},
+				[]string{"id", cliOutputTitleKey, automationSourceKey, cmdPaletteAvailableFlag, "reason"},
 				[]string{
 					string(command.ID),
 					command.Title,

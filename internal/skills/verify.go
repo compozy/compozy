@@ -1,9 +1,9 @@
 package skills
 
 import (
+	"cmp"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -135,11 +135,8 @@ func VerifyContent(content string) []Warning {
 		return nil
 	}
 
-	sort.SliceStable(warnings, func(i, j int) bool {
-		if warnings[i].Severity != warnings[j].Severity {
-			return warnings[i].Severity > warnings[j].Severity
-		}
-		return warnings[i].Pattern < warnings[j].Pattern
+	slices.SortStableFunc(warnings, func(left, right Warning) int {
+		return cmp.Or(cmp.Compare(right.Severity, left.Severity), strings.Compare(left.Pattern, right.Pattern))
 	})
 
 	return slices.Clip(warnings)

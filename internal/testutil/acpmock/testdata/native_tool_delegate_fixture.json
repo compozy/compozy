@@ -1,0 +1,208 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "subagent-delegator",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "delegate",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "delegate child work"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_capabilities",
+                            "tool_call_id": "discover-subagents",
+                            "raw_input": {}
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "delegate-child",
+                            "raw_input": {
+                                "task": "child work",
+                                "title": "Fixture delegation",
+                                "target": {
+                                    "agent": "subagent-worker"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Delegated; waiting for the completion wake."
+                        }
+                    ]
+                },
+                {
+                    "name": "live",
+                    "match": {
+                        "user_text": "delegate live tree"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "delegate-live",
+                            "raw_input": {
+                                "task": "nested live",
+                                "target": {
+                                    "agent": "subagent-worker"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Live tree delegated."
+                        }
+                    ]
+                },
+                {
+                    "name": "nested",
+                    "match": {
+                        "user_text": "delegate nested work"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "delegate-nested",
+                            "omit_tool_call_id": true,
+                            "raw_input": {
+                                "task": "nested work",
+                                "target": {
+                                    "agent": "subagent-worker"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Nested work delegated."
+                        }
+                    ]
+                },
+                {
+                    "name": "wake",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Child completion received."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "subagent-worker",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "work",
+                    "match": {
+                        "user_text": "child work"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Child work completed."
+                        }
+                    ]
+                },
+                {
+                    "name": "nested",
+                    "match": {
+                        "user_text": "nested work"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_status",
+                            "tool_call_id": "status-from-child",
+                            "raw_input": {
+                                "subagent_id": "sub-missing"
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "delegate-grandchild",
+                            "omit_tool_call_id": true,
+                            "raw_input": {
+                                "task": "child work",
+                                "target": {
+                                    "agent": "subagent-worker"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Grandchild delegated."
+                        }
+                    ]
+                },
+                {
+                    "name": "wake",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Nested completion received."
+                        }
+                    ]
+                },
+                {
+                    "name": "nested-live",
+                    "match": {
+                        "user_text": "nested live"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "live-grandchild",
+                            "raw_input": {
+                                "task": "hold live",
+                                "target": {
+                                    "agent": "subagent-worker"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "hold-live",
+                    "match": {
+                        "user_text": "hold live"
+                    },
+                    "steps": [
+                        {
+                            "kind": "thought",
+                            "text": "Live child ready"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

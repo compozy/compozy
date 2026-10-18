@@ -20,11 +20,10 @@ type taskOrchestrationOverlay struct {
 	SchedulerBadTickThreshold *int                            `toml:"scheduler_bad_tick_threshold"`
 	SchedulerBadTickCooldown  *time.Duration                  `toml:"scheduler_bad_tick_cooldown"`
 	DefaultMaxRuntime         *time.Duration                  `toml:"default_max_runtime"`
-	BridgeNotificationTimeout *time.Duration                  `toml:"bridge_notification_timeout"`
 	DesignatedRunMax          *int                            `toml:"designated_run_max"`
 	MaxActiveRunsPerWorkspace *int                            `toml:"max_active_runs_per_workspace"`
-	NetworkStatusQueueSize    *int                            `toml:"network_status_queue_size"`
-	NetworkStatusTimeout      *time.Duration                  `toml:"network_status_timeout"`
+	StatusProjectionQueueSize *int                            `toml:"status_projection_queue_size"`
+	StatusProjectionTimeout   *time.Duration                  `toml:"status_projection_timeout"`
 	Profile                   taskOrchestrationProfileOverlay `toml:"profile"`
 	Review                    taskOrchestrationReviewOverlay  `toml:"review"`
 }
@@ -32,10 +31,8 @@ type taskOrchestrationOverlay struct {
 type taskOrchestrationProfileOverlay struct {
 	DefaultCoordinatorMode    *string `toml:"default_coordinator_mode"`
 	DefaultWorkerMode         *string `toml:"default_worker_mode"`
-	DefaultSandboxMode        *string `toml:"default_sandbox_mode"`
 	DefaultWorktreeMode       *string `toml:"default_worktree_mode"`
 	AllowTaskProviderOverride *bool   `toml:"allow_task_provider_override"`
-	AllowTaskSandboxNone      *bool   `toml:"allow_task_sandbox_none"`
 }
 
 type taskOrchestrationReviewOverlay struct {
@@ -89,20 +86,17 @@ func (o taskOrchestrationOverlay) Apply(dst *TaskOrchestrationConfig) {
 	if o.DefaultMaxRuntime != nil {
 		dst.DefaultMaxRuntime = *o.DefaultMaxRuntime
 	}
-	if o.BridgeNotificationTimeout != nil {
-		dst.BridgeNotificationTimeout = *o.BridgeNotificationTimeout
-	}
 	if o.DesignatedRunMax != nil {
 		dst.DesignatedRunMax = *o.DesignatedRunMax
 	}
 	if o.MaxActiveRunsPerWorkspace != nil {
 		dst.MaxActiveRunsPerWorkspace = *o.MaxActiveRunsPerWorkspace
 	}
-	if o.NetworkStatusQueueSize != nil {
-		dst.NetworkStatusQueueSize = *o.NetworkStatusQueueSize
+	if o.StatusProjectionQueueSize != nil {
+		dst.StatusProjectionQueueSize = *o.StatusProjectionQueueSize
 	}
-	if o.NetworkStatusTimeout != nil {
-		dst.NetworkStatusTimeout = *o.NetworkStatusTimeout
+	if o.StatusProjectionTimeout != nil {
+		dst.StatusProjectionTimeout = *o.StatusProjectionTimeout
 	}
 	o.Profile.Apply(&dst.Profile)
 	o.Review.Apply(&dst.Review)
@@ -115,17 +109,11 @@ func (o taskOrchestrationProfileOverlay) Apply(dst *TaskOrchestrationProfileConf
 	if o.DefaultWorkerMode != nil {
 		dst.DefaultWorkerMode = *o.DefaultWorkerMode
 	}
-	if o.DefaultSandboxMode != nil {
-		dst.DefaultSandboxMode = *o.DefaultSandboxMode
-	}
 	if o.DefaultWorktreeMode != nil {
 		dst.DefaultWorktreeMode = *o.DefaultWorktreeMode
 	}
 	if o.AllowTaskProviderOverride != nil {
 		dst.AllowTaskProviderOverride = *o.AllowTaskProviderOverride
-	}
-	if o.AllowTaskSandboxNone != nil {
-		dst.AllowTaskSandboxNone = *o.AllowTaskSandboxNone
 	}
 }
 

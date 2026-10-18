@@ -40,9 +40,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
 		SessionID:      loadRequest.SessionId,
 	}
-	loadResponse, err := acpsdk.SendRequest[wireSessionSetupResponse](
-		process.conn,
-		ctx,
+	loadResponse, err := process.sendControlRequest[wireSessionSetupResponse](ctx,
 		acpsdk.AgentMethodSessionLoad,
 		loadWireRequest,
 	)
@@ -57,12 +55,15 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		))
 	}
 
+	// session/load returned: ACP accepted this binding. Every later failure is an
+	// accepted failure so fallback-chain owners never try another route.
 	process.SessionID = normalized.ResumeSessionID
+	process.bindSessionRoute(acpsdk.SessionId(normalized.ResumeSessionID))
 	if err := process.checkpointProcessOwner(ctx); err != nil {
-		return err
+		return WrapAcceptedStart(process.SessionID, err)
 	}
 	process.setCaps(captureSessionSetupCaps(process.CapsSnapshot(), loadResponse))
-	return d.applySessionConfiguration(ctx, process, normalized)
+	return WrapAcceptedStart(process.SessionID, d.applySessionConfiguration(ctx, process, normalized))
 }
 
 func (d *Driver) createSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
@@ -76,9 +77,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		McpServers:     newRequest.McpServers,
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
 	}
-	newResponse, err := acpsdk.SendRequest[wireSessionSetupResponse](
-		process.conn,
-		ctx,
+	newResponse, err := process.sendControlRequest[wireSessionSetupResponse](ctx,
 		acpsdk.AgentMethodSessionNew,
 		newWireRequest,
 	)
@@ -91,13 +90,15 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		)
 	}
 
+	// session/new returned a session id: ACP accepted this binding (ADR-005).
 	process.SessionID = string(newResponse.SessionID)
+	process.bindSessionRoute(newResponse.SessionID)
 	d.logStartStage(normalized, process, "session_new", startOutcomeSucceeded, stageStartedAt)
 	if err := process.checkpointProcessOwner(ctx); err != nil {
-		return err
+		return WrapAcceptedStart(process.SessionID, err)
 	}
 	process.setCaps(captureSessionSetupCaps(process.CapsSnapshot(), newResponse))
-	return d.applySessionConfiguration(ctx, process, normalized)
+	return WrapAcceptedStart(process.SessionID, d.applySessionConfiguration(ctx, process, normalized))
 }
 
 func (d *Driver) applySessionConfiguration(

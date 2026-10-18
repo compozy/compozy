@@ -51,7 +51,11 @@ func (s *daemonLoopAPIService) goalContextSnapshot(
 			err,
 		)
 	}
-	if !usage.Known || usage.Size <= 0 || usage.Used < 0 {
+	if !usage.Known {
+		result.State = loopManagedContextStateUnknown
+		return result, nil
+	}
+	if usage.Size <= 0 || usage.Used < 0 {
 		return session.GoalContextSnapshot{}, fmt.Errorf(
 			"%w: known Goal context usage is unavailable",
 			looppkg.ErrValidation,
@@ -145,6 +149,5 @@ func cloneStringPointer(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

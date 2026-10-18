@@ -46,6 +46,10 @@ func TestValidateTriggerPromptTemplateAcceptsSupportedReferences(t *testing.T) {
 			prompt: `{{ define "body" }}{{ .Source }}{{ end }}{{ template "body" . }}`,
 		},
 		{
+			name:   "Should accept conditional control flow",
+			prompt: `{{ if .Data.session_id }}ready{{ else }}missing{{ end }}`,
+		},
+		{
 			name:   "Should accept plain text without template delimiters",
 			prompt: "Trigger kind: plain text only",
 		},
@@ -73,7 +77,7 @@ func TestValidateTriggerPromptTemplateRejectsUnsupportedReferences(t *testing.T)
 		{
 			name:   "Should reject unknown top level fields",
 			prompt: `{{ .EnvelopeID }}`,
-			want:   []string{"EnvelopeID"},
+			want:   []string{"validate trigger prompt template", "EnvelopeID"},
 		},
 		{
 			name:   "Should reject child fields on scalar values",
@@ -94,6 +98,11 @@ func TestValidateTriggerPromptTemplateRejectsUnsupportedReferences(t *testing.T)
 			name:   "Should reject root dot index targets",
 			prompt: `{{ index . "payload" }}`,
 			want:   []string{"only .Data"},
+		},
+		{
+			name:   "Should reject scalar scoped dot index targets",
+			prompt: `{{ with .Kind }}{{ index . "payload" }}{{ end }}`,
+			want:   []string{".Kind"},
 		},
 		{
 			name:   "Should reject variable rooted lookups",

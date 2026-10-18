@@ -19,7 +19,7 @@ type DevelopmentGeneration struct {
 	Name                     string
 	OriginPath               string
 	GenerationHash           string
-	NetworkRequirementDigest string
+	GatewayRequirementDigest string
 	Format                   ExtensionFormat
 	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
 }
@@ -59,7 +59,7 @@ func (m *Manager) InspectDevelopmentGeneration(
 		Name:                     strings.TrimSpace(verified.Manifest.Name),
 		OriginPath:               verified.OriginPath,
 		GenerationHash:           verified.GenerationHash,
-		NetworkRequirementDigest: verified.NetworkRequirementDigest,
+		GatewayRequirementDigest: verified.GatewayRequirementDigest,
 		Format:                   verified.Manifest.Format,
 		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	}, nil
@@ -117,8 +117,8 @@ func (m *Manager) LinkDevelopment(
 	if err != nil {
 		return nil, err
 	}
-	if developmentLinkRequiresConfirmation(link, verified.NetworkRequirementDigest) {
-		confirmationErr := &NetworkConfirmationRequiredError{CurrentDigest: verified.NetworkRequirementDigest}
+	if developmentLinkRequiresConfirmation(link, verified.GatewayRequirementDigest) {
+		confirmationErr := &GatewayConfirmationRequiredError{CurrentDigest: verified.GatewayRequirementDigest}
 		return nil, errors.Join(confirmationErr, m.restoreDevelopmentLinkSnapshot(key, previous))
 	}
 	extension, err := m.activateDevelopmentLinkLocked(ctx, key, link, verified)
@@ -161,8 +161,8 @@ func (m *Manager) ReloadExtension(
 	if err != nil {
 		return nil, err
 	}
-	if developmentLinkRequiresConfirmation(link, verified.NetworkRequirementDigest) {
-		return nil, &NetworkConfirmationRequiredError{CurrentDigest: verified.NetworkRequirementDigest}
+	if developmentLinkRequiresConfirmation(link, verified.GatewayRequirementDigest) {
+		return nil, &GatewayConfirmationRequiredError{CurrentDigest: verified.GatewayRequirementDigest}
 	}
 	candidate, activationErr := m.startVerifiedDevCandidate(ctx, key, verified)
 	if activationErr != nil {
@@ -180,7 +180,7 @@ func (m *Manager) ReloadExtension(
 		WorkspaceID:              key.WorkspaceID,
 		OriginPath:               verified.OriginPath,
 		GenerationHash:           verified.GenerationHash,
-		NetworkRequirementDigest: verified.NetworkRequirementDigest,
+		GatewayRequirementDigest: verified.GatewayRequirementDigest,
 		Format:                   verified.Manifest.Format,
 		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	})
@@ -355,7 +355,7 @@ func (m *Manager) restoreDevLink(key InstanceKey, prior *DevLink) error {
 		WorkspaceID:              prior.WorkspaceID,
 		OriginPath:               prior.OriginPath,
 		GenerationHash:           prior.BundleGeneration,
-		NetworkRequirementDigest: prior.NetworkRequirementDigest,
+		GatewayRequirementDigest: prior.GatewayRequirementDigest,
 		Format:                   prior.Format,
 		IngestDiagnostics:        prior.IngestDiagnostics,
 	}); err != nil {

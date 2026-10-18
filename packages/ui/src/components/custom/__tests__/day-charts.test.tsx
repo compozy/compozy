@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
 import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 // jsdom reports zero-sized layout boxes; pin a deterministic chart size so
 // recharts actually renders bars and paths.
@@ -28,6 +28,14 @@ vi.mock("recharts", async () => {
 
 import { DayAreaChart } from "../day-area-chart";
 import { DayStackedBars } from "../day-stacked-bars";
+
+// Both charts load recharts through `React.lazy`. A cold import of the (mocked)
+// module can take longer than `waitFor`'s window when the whole suite runs in
+// parallel, so resolve it once up front: the assertions then measure rendering,
+// not module loading.
+beforeAll(async () => {
+  await import("recharts");
+});
 
 describe("DayStackedBars", () => {
   it("Should render caller-supplied series fills with aria metadata", async () => {

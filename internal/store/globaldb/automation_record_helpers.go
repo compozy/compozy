@@ -225,14 +225,6 @@ func encodeAutomationRunMetadata(metadata map[string]any) (string, error) {
 	return encodeAutomationJSON(metadata, "run.metadata")
 }
 
-func encodeOptionalAutomationParticipation(value any, empty bool, label string) (sql.NullString, error) {
-	encoded, err := encodeOptionalAutomationJSON(value, empty, label)
-	if err != nil {
-		return sql.NullString{}, err
-	}
-	return nullableAutomationJSON(encoded, label)
-}
-
 func decodeAutomationRunMetadata(raw string, target *map[string]any) error {
 	if strings.TrimSpace(raw) == "" {
 		*target = map[string]any{}

@@ -53,8 +53,25 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 			"status", c.Writer.Status(),
 			"latency_ms", time.Since(started).Milliseconds(),
 			"client_ip", c.ClientIP(),
+			"client_id", requestClientID(c.GetHeader("X-Compozy-Client-ID")),
 		)
 	}
+}
+
+// Client IDs are opaque labels, never credentials or arbitrary log content.
+func requestClientID(value string) string {
+	if value == "" || len(value) > 80 {
+		return "unidentified"
+	}
+	for _, char := range value {
+		switch {
+		case char >= 'a' && char <= 'z', char >= 'A' && char <= 'Z',
+			char >= '0' && char <= '9', char == '-', char == '_':
+		default:
+			return "unidentified"
+		}
+	}
+	return value
 }
 
 func corsMiddleware(boundHost string) gin.HandlerFunc {
@@ -65,7 +82,10 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 	return func(c *gin.Context) {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		headers := c.Writer.Header()
-		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept, Authorization")
+		headers.Set(
+			"Access-Control-Allow-Headers",
+			"Content-Type, Last-Event-ID, Accept, Authorization, X-Compozy-Client-ID",
+		)
 		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		headers.Set(
 			"Access-Control-Expose-Headers",
@@ -74,7 +94,11 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 		headers.Set("Vary", "Origin")
 		if origin != "" {
 			allowedOrigin, ok := resolveAllowedOriginForTarget(
-				origin, requestScheme(c.Request), c.Request.Host, boundHost, allowForwardedTarget,
+				origin,
+				requestSchemeForTarget(c.Request, allowForwardedTarget),
+				c.Request.Host,
+				boundHost,
+				allowForwardedTarget,
 			)
 			if !ok {
 				abortForbiddenRequest(c, errOriginNotAllowed)
@@ -169,7 +193,7 @@ func requestTargetAllowedForMode(request *http.Request, boundHost string, allowF
 	if request == nil {
 		return false
 	}
-	requestSpec, ok := canonicalOriginFromHost(request.Host, requestScheme(request), "")
+	requestSpec, ok := canonicalOriginFromHost(request.Host, requestSchemeForTarget(request, allowForwardedTarget), "")
 	if !ok {
 		return false
 	}
@@ -212,17 +236,24 @@ type canonicalOrigin struct {
 	wildcard  bool
 }
 
-const defaultRequestScheme = "http"
+const (
+	defaultRequestScheme = "http"
+	secureRequestScheme  = "https"
+)
 
-func requestScheme(r *http.Request) string {
+func requestSchemeForTarget(r *http.Request, allowForwardedTarget bool) string {
 	if r == nil {
 		return defaultRequestScheme
 	}
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
-		return strings.ToLower(forwarded)
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if allowForwardedTarget && err == nil && net.ParseIP(peer).IsLoopback() {
+		forwarded := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
+		if forwarded == secureRequestScheme || forwarded == defaultRequestScheme {
+			return forwarded
+		}
 	}
 	if r.TLS != nil {
-		return "https"
+		return secureRequestScheme
 	}
 	if scheme := strings.TrimSpace(r.URL.Scheme); scheme != "" {
 		return strings.ToLower(scheme)

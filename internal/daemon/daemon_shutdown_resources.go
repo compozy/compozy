@@ -21,13 +21,6 @@ func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutd
 	if err := RemoveInfo(targets.infoPath); err != nil {
 		*errs = append(*errs, err)
 	}
-	if targets.memoryCatalogStore != nil {
-		appendWrappedError(
-			errs,
-			"daemon: close memory catalog database",
-			targets.memoryCatalogStore.CloseCatalog(ctx),
-		)
-	}
 	if targets.registry != nil {
 		appendWrappedError(errs, "daemon: close global database", targets.registry.Close(ctx))
 	}

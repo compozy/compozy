@@ -16,6 +16,51 @@ import (
 
 func TestLayoutResourceCodec(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: a previous-version public layout preserves all windows while aliasing retired apps; codec suite owns resource admission.
+	t.Run("Should rewrite retired resource apps and navigation [IT-014]", func(t *testing.T) {
+		t.Parallel()
+		var warnings []string
+		codec, err := NewLayoutResourceCodec(func(_ context.Context, app, replacement, source string) {
+			warnings = append(warnings, app+":"+replacement+":"+source)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resource := testLayoutResource("legacy")
+		resource.Document.Version = PreviousSnapshotVersion
+		for id, window := range resource.Document.Windows {
+			window.App = "jobs"
+			window.Route = testRoute("/jobs/morning-digest")
+			resource.Document.Windows[id] = window
+		}
+		raw, err := codec.Encode(resource)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := codec.DecodeAndValidate(
+			t.Context(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			raw,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Document.Version != SnapshotVersion || len(got.Document.Windows) != len(resource.Document.Windows) ||
+			len(warnings) != len(resource.Document.Windows) {
+			t.Fatalf("resource=%+v warnings=%v", got, warnings)
+		}
+		for _, window := range got.Document.Windows {
+			if window.App != "automations" || window.Route.Pathname != "/automations/jobs/morning-digest" {
+				t.Fatalf("window=%+v", window)
+			}
+		}
+		for _, warning := range warnings {
+			if warning != "jobs:automations:resource" {
+				t.Fatal(warning)
+			}
+		}
+	})
 	codec, err := NewLayoutResourceCodec()
 	if err != nil {
 		t.Fatalf("NewLayoutResourceCodec() error = %v", err)
@@ -30,7 +75,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatalf("Encode() error = %v", err)
 		}
 		got, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			encoded,
 		)
@@ -53,7 +98,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatalf("Encode() error = %v", err)
 		}
 		_, err = codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			encoded,
 		)
@@ -69,7 +114,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			`"document":{"version":2,"workspace_id":"","desktops":[],"windows":{},"overrides":{}},` +
 			`"legacy":true}`)
 		_, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			raw,
 		)
@@ -87,7 +132,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatalf("Encode() error = %v", err)
 		}
 		_, err = codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
 			encoded,
 		)

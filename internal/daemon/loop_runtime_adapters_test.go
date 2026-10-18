@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -195,7 +196,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			Permissions: string(compozyconfig.PermissionModeDenyAll),
 		}})
 		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-policy"}
-		loopParticipation := daemonTestLiveParticipation("ws-loop", "loop-run-channel")
+
 		binder := &loopActionSessionBinder{
 			sessions: sessions,
 			policyGate: &loopSessionPolicyGate{
@@ -205,7 +206,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		binding, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID:  looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:    looppkg.RunID("loop-run-policy"),
 			Agent:        "task-worker",
@@ -215,8 +216,8 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 				Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high",
 				ACPOptions: []looppkg.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 			},
-			ContractBlock:             "Follow the loop contract.",
-			NetworkParticipation:      new(loopParticipation),
+			ContractBlock: "Follow the loop contract.",
+
 			ProvenanceParentSessionID: "sess-orchestrator",
 		})
 		if err != nil {
@@ -226,9 +227,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf("binding.SessionID = %q, want %q", got, want)
 		}
 		createCall := sessions.singleCreateCall(t)
-		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
-			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
-		}
+
 		if got, want := createCall.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
@@ -242,12 +241,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			createCall.ACPOptions[0].BoolValue == nil || !*createCall.ACPOptions[0].BoolValue {
 			t.Fatalf("CreateOpts.ACPOptions = %#v, want thinking=true", createCall.ACPOptions)
 		}
-		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
-			t.Fatalf("CreateOpts participation = %#v, want owner-bound %#v", got, loopParticipation)
-		}
-		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-policy"; got != want {
-			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
-		}
+
 		if createCall.ProvenanceParentSessionID != "" {
 			t.Fatalf(
 				"ephemeral CreateOpts.ProvenanceParentSessionID = %q, want empty",
@@ -310,7 +304,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}}
 		_, opts, _, err := binder.resolveRunOwnedBindingProfile(
-			context.Background(),
+			t.Context(),
 			looppkg.ActionSessionBindRequest{
 				ProfileID: store.DefaultProfileID, WorkspaceID: "ws-loop",
 				LoopRunID: "loop-run-goal", Agent: "task-worker",
@@ -347,7 +341,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		binding, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: "ws-loop", Agent: "task-worker", Handle: "execute_task",
 		})
 		if err != nil {
@@ -390,7 +384,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 
 		for itemIndex := range 3 {
-			_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 				ProfileID:   "profile-marketing",
 				WorkspaceID: "ws-loop",
 				LoopRunID:   "loop-run-worktree",
@@ -456,7 +450,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: "ws-loop",
 			LoopRunID:   "loop-run-removed-ref",
 			Generation:  1,
@@ -504,7 +498,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: "ws-loop",
 			LoopRunID:   "loop-run-failure",
 			Generation:  1,
@@ -551,7 +545,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID:   looppkg.WorkspaceID("ws-loop"),
 			Agent:         "task-worker",
 			Handle:        "execute_task",
@@ -583,7 +577,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			Agent:       "missing-worker",
 			Handle:      "execute_task",
@@ -621,16 +615,15 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		opts := session.CreateOpts{
 			WorkspacePath: workspacePath,
 		}
-		_, err := binder.policyGate.applyResolved(context.Background(), &opts, "task-worker", nil)
+		_, err := binder.policyGate.applyResolved(t.Context(), &opts, "task-worker", nil)
 		if err != nil {
 			t.Fatalf("applyResolved() error = %v", err)
 		}
 		if resolveOrRegisterCalled {
 			t.Fatal("ResolveOrRegister() was called for a registered loop workspace path")
 		}
-		if opts.SandboxRef != resolved.SandboxRef ||
-			opts.Permissions != compozyconfig.PermissionModeDenyAll {
-			t.Fatalf("resolved CreateOpts = %#v, want registered workspace sandbox and permissions", opts)
+		if opts.Permissions != compozyconfig.PermissionModeDenyAll {
+			t.Fatalf("resolved CreateOpts = %#v, want registered workspace permissions", opts)
 		}
 	})
 }
@@ -747,7 +740,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 				Text: `{"verdict":"pass","evidence":{"checked":true}}`,
 			}},
 		}
-		loopParticipation := daemonTestLiveParticipation("ws-loop", "loop-run-channel")
+
 		runner := &loopGateJudgeRunner{
 			sessions: sessions,
 			policyGate: &loopSessionPolicyGate{
@@ -758,36 +751,32 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			executions: newLoopJudgeExecutionRegistry(),
 		}
 
-		_, err := runner.Judge(context.Background(), gate.JudgeRequest{
-			GateID:        "quality-gate",
-			CriterionID:   "review",
-			LoopRunID:     "loop-run-judge",
-			Attempt:       2,
-			CorrelationID: "goal-judge:stable-attempt",
-			WorkspaceID:   "ws-loop",
-			Agent:         "loop-judge",
+		_, err := runner.Judge(t.Context(), gate.JudgeRequest{
+			ParentSessionID: "sess-goal-owner",
+			GateID:          "quality-gate",
+			CriterionID:     "review",
+			LoopRunID:       "loop-run-judge",
+			Attempt:         2,
+			CorrelationID:   "goal-judge:stable-attempt",
+			WorkspaceID:     "ws-loop",
+			Agent:           "loop-judge",
 			Runtime: looppkg.RuntimeSpec{
 				ACPOptions: []looppkg.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 			},
-			Rubric:               "Review the evidence.",
-			NetworkParticipation: new(loopParticipation),
+			Rubric: "Review the evidence.",
 		})
 		if err != nil {
 			t.Fatalf("Judge() error = %v", err)
 		}
 		createCall := sessions.singleCreateCall(t)
-		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
-			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
+		if createCall.ProvenanceParentSessionID != "sess-goal-owner" || createCall.Type != session.SessionTypeSystem {
+			t.Fatalf("judge ownership = %#v", createCall)
 		}
+
 		if got, want := createCall.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
-		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
-			t.Fatalf("CreateOpts participation = %#v, want owner-bound %#v", got, loopParticipation)
-		}
-		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-judge"; got != want {
-			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
-		}
+
 		if len(createCall.ACPOptions) != 1 || createCall.ACPOptions[0].ID != "thinking" ||
 			createCall.ACPOptions[0].BoolValue == nil || !*createCall.ACPOptions[0].BoolValue {
 			t.Fatalf("judge CreateOpts.ACPOptions = %#v, want thinking=true", createCall.ACPOptions)
@@ -821,7 +810,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			}},
 		}
 		runner := loopJudgeRunnerForTest(t, sessions)
-		response, err := runner.Judge(context.Background(), loopJudgeRequestForTest())
+		response, err := runner.Judge(t.Context(), loopJudgeRequestForTest())
 		if err != nil {
 			t.Fatalf("Judge() error = %v", err)
 		}
@@ -850,7 +839,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 				},
 			},
 		}
-		_, err := loopJudgeRunnerForTest(t, sessions).Judge(context.Background(), loopJudgeRequestForTest())
+		_, err := loopJudgeRunnerForTest(t, sessions).Judge(t.Context(), loopJudgeRequestForTest())
 		if err == nil || !strings.Contains(err.Error(), "verdict-only judge attempted tool activity") {
 			t.Fatalf("Judge() error = %v, want verdict-only tool activity rejection", err)
 		}
@@ -862,48 +851,22 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should use only the final agent message as verdict authority", func(t *testing.T) {
+	t.Run("Should preserve streamed verdict chunks including whitespace", func(t *testing.T) {
 		t.Parallel()
 
-		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN"}}`
-		sessions := &loopActionBinderSessionManager{
-			sessionID: "sess-loop-judge-reasoning",
-			events: []acp.AgentEvent{
-				{Type: acp.EventTypeThought, Text: "The candidate satisfies the contract."},
-				{Type: acp.EventTypeAgentMessage, Text: verdict},
-			},
-		}
-		response, err := loopJudgeRunnerForTest(t, sessions).Judge(
-			context.Background(),
-			loopJudgeRequestForTest(),
-		)
-		if err != nil {
-			t.Fatalf("Judge() error = %v", err)
-		}
-		if got := response.Raw; got != verdict {
-			t.Fatalf("JudgeResponse.Raw = %q, want final agent verdict %q", got, verdict)
-		}
-		result := gate.ParseJudgeVerdict("review", dsl.CriterionAgentJudge, response.Raw)
-		if !result.Passed || result.Outcome != gate.VerdictOutcomeApproved {
-			t.Fatalf("ParseJudgeVerdict() = %#v, want approved", result)
-		}
-	})
-
-	t.Run("Should concatenate streamed verdict chunks without inventing separators", func(t *testing.T) {
-		t.Parallel()
-
-		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN","exact_match":true}}`
-		split := len(verdict) / 2
+		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN LIGHT","exact_match":true}}`
+		split := strings.IndexByte(verdict, ' ')
 		sessions := &loopActionBinderSessionManager{
 			sessionID: "sess-loop-judge-chunked-verdict",
 			events: []acp.AgentEvent{
 				{Type: acp.EventTypeThought, Text: "The candidate satisfies the contract."},
 				{Type: acp.EventTypeAgentMessage, Text: verdict[:split]},
-				{Type: acp.EventTypeAgentMessage, Text: verdict[split:]},
+				{Type: acp.EventTypeAgentMessage, Text: " "},
+				{Type: acp.EventTypeAgentMessage, Text: verdict[split+1:]},
 			},
 		}
 		response, err := loopJudgeRunnerForTest(t, sessions).Judge(
-			context.Background(),
+			t.Context(),
 			loopJudgeRequestForTest(),
 		)
 		if err != nil {
@@ -918,24 +881,49 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 	})
 
+	// Invariant: judge Loop work remains discoverable through revocation until session cleanup completes.
+	// Owner: daemon judge execution lifecycle; canonical Loop runtime adapters suite.
 	t.Run("Should cancel and join the exact active judge execution", func(t *testing.T) {
 		t.Parallel()
 
 		started := make(chan struct{})
 		released := make(chan struct{})
+		stopStarted := make(chan struct{})
+		stopReleased := make(chan struct{})
+		releaseStop := sync.OnceFunc(func() { close(stopReleased) })
+		t.Cleanup(releaseStop)
 		sessions := &loopActionBinderSessionManager{
 			sessionID:              "sess-loop-judge-clear",
 			blockPromptUntilCancel: true,
 			promptStarted:          started,
 			promptReleased:         released,
+			stopStarted:            stopStarted,
+			stopReleased:           stopReleased,
 		}
 		runner := loopJudgeRunnerForTest(t, sessions)
 		runner.executions = newLoopJudgeExecutionRegistry()
 		req := loopJudgeRequestForTest()
 		req.CorrelationID = "judge-attempt-clear"
+		req.LoopRunID = "loop-run-judge-clear"
+		workSources := loopJudgeWorkSourcesForTest(t, runner, sessions.sessionID, req.LoopRunID)
+		assertLoopWork := func(want bool) {
+			t.Helper()
+			work, err := workSources.loops(t.Context(), sessions.sessionID)
+			if err != nil {
+				t.Fatalf("judge Loop work: %v", err)
+			}
+			if want && (len(work) != 1 || work[0].Ref != req.LoopRunID) {
+				t.Fatalf("judge Loop work = %#v, want parent %q", work, req.LoopRunID)
+			}
+			if !want && len(work) != 0 {
+				t.Fatalf("finished judge retained Loop work = %#v", work)
+			}
+		}
 		judgeDone := make(chan error, 1)
+		judgeCtx, cancelJudge := context.WithCancel(t.Context())
+		t.Cleanup(cancelJudge)
 		go func() {
-			_, err := runner.Judge(context.Background(), req)
+			_, err := runner.Judge(judgeCtx, req)
 			judgeDone <- err
 		}()
 		select {
@@ -943,14 +931,34 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("judge prompt did not start")
 		}
+		assertLoopWork(true)
+		if got := runner.executions.loopRunForSession("foreign-session"); got != "" {
+			t.Fatalf("foreign session Loop work owner = %q, want none", got)
+		}
 
 		revoker := loopGoalPromptLeaseRevoker{judges: runner}
-		if err := revoker.RevokeGoalPromptLease(
-			context.Background(),
-			looppkg.GoalPromptLease{JudgeAttemptID: "judge-attempt-clear"},
-			string(looppkg.TransitionCauseGoalClear),
-		); err != nil {
-			t.Fatalf("RevokeGoalPromptLease() error = %v", err)
+		revoked := make(chan error, 1)
+		go func() {
+			revoked <- revoker.RevokeGoalPromptLease(
+				t.Context(),
+				looppkg.GoalPromptLease{JudgeAttemptID: "judge-attempt-clear"},
+				string(looppkg.TransitionCauseGoalClear),
+			)
+		}()
+		select {
+		case <-stopStarted:
+		case <-time.After(5 * time.Second):
+			t.Fatal("judge session cleanup did not start")
+		}
+		assertLoopWork(true)
+		releaseStop()
+		select {
+		case err := <-revoked:
+			if err != nil {
+				t.Fatalf("RevokeGoalPromptLease() error = %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("judge revocation did not join after cleanup")
 		}
 		select {
 		case err := <-judgeDone:
@@ -960,6 +968,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("judge execution did not join after revoke")
 		}
+		assertLoopWork(false)
 		if got, want := sessions.cancelCount(), 1; got != want {
 			t.Fatalf("CancelPrompt call count = %d, want %d", got, want)
 		}
@@ -987,7 +996,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 
 		judgeDone := make(chan error, 1)
 		go func() {
-			_, err := runner.Judge(context.Background(), req)
+			_, err := runner.Judge(t.Context(), req)
 			judgeDone <- err
 		}()
 		select {
@@ -998,7 +1007,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 
 		revokeDone := make(chan error, 1)
 		go func() {
-			revokeDone <- runner.revokeExecution(context.Background(), req.CorrelationID)
+			revokeDone <- runner.revokeExecution(t.Context(), req.CorrelationID)
 		}()
 		waitForCondition(t, "judge revocation recorded before bind", func() bool {
 			runner.executions.mu.Lock()
@@ -1059,7 +1068,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		req.CorrelationID = "judge-attempt-clear-stop-failure"
 		judgeDone := make(chan error, 1)
 		go func() {
-			_, err := runner.Judge(context.Background(), req)
+			_, err := runner.Judge(t.Context(), req)
 			judgeDone <- err
 		}()
 		select {
@@ -1070,7 +1079,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 
 		revoker := loopGoalPromptLeaseRevoker{judges: runner}
 		err := revoker.RevokeGoalPromptLease(
-			context.Background(),
+			t.Context(),
 			looppkg.GoalPromptLease{JudgeAttemptID: req.CorrelationID},
 			string(looppkg.TransitionCauseGoalClear),
 		)
@@ -1100,7 +1109,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		defer release()
 		revoker := loopGoalPromptLeaseRevoker{judges: runner}
 		if err := revoker.RevokeGoalPromptLease(
-			context.Background(),
+			t.Context(),
 			looppkg.GoalPromptLease{JudgeAttemptID: "judge-attempt-revoked-before-begin"},
 			string(looppkg.TransitionCauseGoalClear),
 		); err != nil {
@@ -1108,7 +1117,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		req := loopJudgeRequestForTest()
 		req.CorrelationID = "judge-attempt-revoked-before-begin"
-		_, err = runner.Judge(context.Background(), req)
+		_, err = runner.Judge(t.Context(), req)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Judge() error = %v, want context.Canceled", err)
 		}
@@ -1127,7 +1136,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		runner := loopJudgeRunnerForTest(t, &loopActionBinderSessionManager{})
 		runner.executions = registry
-		if err := runner.revokeExecution(context.Background(), "judge-attempt-abandoned"); err != nil {
+		if err := runner.revokeExecution(t.Context(), "judge-attempt-abandoned"); err != nil {
 			t.Fatalf("revokeExecution() error = %v", err)
 		}
 		release()
@@ -1151,7 +1160,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			promptErr: context.Canceled,
 		}
 		runner := loopJudgeRunnerForTest(t, sessions)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := runner.Judge(ctx, loopJudgeRequestForTest())
 		if !errors.Is(err, context.Canceled) {
@@ -1177,7 +1186,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			}},
 			stopErr: stopErr,
 		}
-		_, err := loopJudgeRunnerForTest(t, sessions).Judge(context.Background(), loopJudgeRequestForTest())
+		_, err := loopJudgeRunnerForTest(t, sessions).Judge(t.Context(), loopJudgeRequestForTest())
 		if !errors.Is(err, stopErr) {
 			t.Fatalf("Judge() error = %v, want cleanup failure", err)
 		}
@@ -1195,7 +1204,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			createErr:                createErr,
 			returnSessionOnCreateErr: true,
 		}
-		_, err := loopJudgeRunnerForTest(t, sessions).Judge(context.Background(), loopJudgeRequestForTest())
+		_, err := loopJudgeRunnerForTest(t, sessions).Judge(t.Context(), loopJudgeRequestForTest())
 		if !errors.Is(err, createErr) {
 			t.Fatalf("Judge() error = %v, want create failure", err)
 		}
@@ -1218,7 +1227,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			}},
 		}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop",
 			looppkg.ActionPromptRequest{Message: "loop event probe"},
@@ -1239,11 +1248,12 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 
 		manager := loopPromptResultSessionManager{events: []acp.AgentEvent{
 			{Type: acp.EventTypeAgentMessage, Text: `{"status":"completed","summary":"root scripts (dev:`},
+			{Type: acp.EventTypeAgentMessage, Text: " "},
 			{Type: acp.EventTypeAgentMessage, Text: `server, test) pass",`},
 			{Type: acp.EventTypeAgentMessage, Text: `"files_changed":["server/index.ts"]}`},
 		}}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop-deltas",
 			looppkg.ActionPromptRequest{Message: "loop delta probe"},
@@ -1258,7 +1268,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 		if err := json.Unmarshal([]byte(result.Text), &decoded); err != nil {
 			t.Fatalf("unmarshal joined deltas error = %v", err)
 		}
-		if decoded["summary"] != "root scripts (dev:server, test) pass" {
+		if decoded["summary"] != "root scripts (dev: server, test) pass" {
 			t.Fatalf("joined summary = %v, want delta boundary inside the string preserved", decoded["summary"])
 		}
 	})
@@ -1272,7 +1282,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			{Type: acp.EventTypeAgentMessage, Text: `{"status":"completed","summary":"shipped"}`},
 		}}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop-filter",
 			looppkg.ActionPromptRequest{Message: "loop filter probe"},
@@ -1295,7 +1305,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			{Type: acp.EventTypeThought, Text: "only thoughts this turn"},
 		}}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop-fallback",
 			looppkg.ActionPromptRequest{Message: "loop fallback probe"},
@@ -1317,7 +1327,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 		}}}
 		var reported []int64
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop",
 			looppkg.ActionPromptRequest{
@@ -1347,6 +1357,8 @@ type loopActionBinderSessionManager struct {
 	promptErr                error
 	cancelErr                error
 	stopErr                  error
+	stopStarted              chan struct{}
+	stopReleased             chan struct{}
 	events                   []acp.AgentEvent
 	blockPromptUntilCancel   bool
 	promptStarted            chan struct{}
@@ -1398,16 +1410,16 @@ func (m *loopActionBinderSessionManager) Create(
 		sessionID = "sess-loop-action"
 	}
 	created := &session.Session{
-		ID:                   sessionID,
-		Name:                 opts.Name,
-		AgentName:            opts.AgentName,
-		Model:                opts.Model,
-		WorkspaceID:          opts.Workspace,
-		Workspace:            firstNonEmpty(opts.Workspace, opts.WorkspacePath),
-		NetworkParticipation: daemonTestParticipationFromCreateOpts(opts),
-		Type:                 opts.Type,
-		State:                session.StateActive,
-		CreatedAt:            time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC),
+		ID:          sessionID,
+		Name:        opts.Name,
+		AgentName:   opts.AgentName,
+		Model:       opts.Model,
+		WorkspaceID: opts.Workspace,
+		Workspace:   firstNonEmpty(opts.Workspace, opts.WorkspacePath),
+
+		Type:      opts.Type,
+		State:     session.StateActive,
+		CreatedAt: time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC),
 	}
 	return created, createErr
 }
@@ -1486,12 +1498,23 @@ func (m *loopActionBinderSessionManager) StopWithCause(
 	detail string,
 ) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.stopIDs = append(m.stopIDs, id)
 	m.stopCauses = append(m.stopCauses, cause)
 	m.stopDetails = append(m.stopDetails, detail)
 	m.stopSawCanceledContexts = append(m.stopSawCanceledContexts, ctx.Err() != nil)
-	return m.stopErr
+	started, released, stopErr := m.stopStarted, m.stopReleased, m.stopErr
+	m.mu.Unlock()
+	if started != nil {
+		close(started)
+	}
+	if released != nil {
+		select {
+		case <-released:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return stopErr
 }
 
 func (m *loopActionBinderSessionManager) singleCreateCall(t *testing.T) session.CreateOpts {
@@ -1592,15 +1615,12 @@ func loopActionBinderWorkspace(t *testing.T, agents []compozyconfig.AgentDef) wo
 	t.Helper()
 	cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()})
 	cfg.Defaults.Provider = "mock"
-	cfg.Defaults.Sandbox = "evidence-lab"
+
 	cfg.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
-	cfg.Sandboxes["evidence-lab"] = compozyconfig.SandboxProfile{Backend: "local"}
+
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:         "ws-loop",
-			RootDir:    t.TempDir(),
-			SandboxRef: "evidence-lab",
-		},
+		ID:          "ws-loop",
+		RootDir:     t.TempDir(),
 		WorkspaceID: "ws-loop",
 		Config:      cfg,
 		Agents:      append([]compozyconfig.AgentDef(nil), agents...),
@@ -1661,6 +1681,54 @@ func (m loopPromptResultSessionManager) StopWithCause(
 	return errors.New("unexpected StopWithCause call")
 }
 
+func loopJudgeWorkSourcesForTest(
+	t *testing.T,
+	runner *loopGateJudgeRunner,
+	sessionID, runID string,
+) sessionWorkSources {
+	t.Helper()
+	ctx := t.Context()
+	registry, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := registry.Close(context.Background()); err != nil {
+			t.Errorf("close judge work store: %v", err)
+		}
+	})
+	now := time.Now().UTC()
+	if _, err := registry.DB().ExecContext(ctx, `INSERT INTO loop_runs
+		(id, profile_id, workspace_id, loop_name, status, last_progress_at, inputs_json, created_at)
+		VALUES (?, ?, 'ws-loop', 'judge-work', 'running', ?, '{}', ?)`,
+		runID, store.DefaultProfileID, store.FormatTimestamp(now), store.FormatTimestamp(now)); err != nil {
+		t.Fatal(err)
+	}
+	homePaths := testHomePaths(t)
+	if err := store.WriteSessionMeta(
+		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
+		&store.SessionMeta{
+			ID: sessionID, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-loop",
+			AgentName: "loop-judge", Provider: "mock", State: string(session.StateStopped),
+			RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now,
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := session.NewManager(session.WithHomePaths(homePaths), session.WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Errorf("shutdown judge work manager: %v", err)
+		}
+	})
+	return sessionWorkSources{
+		state: &bootState{registry: registry, tasks: &taskRuntime{loopJudges: runner}}, manager: manager,
+	}
+}
+
 func loopJudgeRunnerForTest(
 	t *testing.T,
 	sessions *loopActionBinderSessionManager,
@@ -1707,26 +1775,41 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return normal text without error on successful model output", func(t *testing.T) {
-		t.Parallel()
-		sessions := &loopActionBinderSessionManager{
-			events: []acp.AgentEvent{
-				{Type: acp.EventTypeAgentMessage, Text: `{"status":"ok"}`},
-			},
-		}
-		res, err := collectLoopPromptResult(
-			context.Background(),
-			sessions,
-			"sess-1",
-			looppkg.ActionPromptRequest{Message: "hello"},
-		)
-		if err != nil {
-			t.Fatalf("collectLoopPromptResult() error = %v", err)
-		}
-		if res.Text != `{"status":"ok"}` {
-			t.Fatalf("res.Text = %q, want {\"status\":\"ok\"}", res.Text)
-		}
-	})
+	for _, response := range []struct {
+		name string
+		text string
+	}{
+		{name: "Should reject a canceled prompt with no output"},
+		{name: "Should reject a canceled prompt with partial output", text: `{"status":`},
+		{name: "Should reject a canceled prompt with complete output", text: `{"status":"ok"}`},
+	} {
+		t.Run(response.name, func(t *testing.T) {
+			t.Parallel()
+
+			sessions := &loopActionBinderSessionManager{
+				events: []acp.AgentEvent{
+					{Type: acp.EventTypeAgentMessage, Text: response.text},
+					{
+						Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonCancelled,
+						Usage: &acp.TokenUsage{TotalTokens: new(int64(27))},
+					},
+				},
+			}
+			result, err := collectLoopPromptResult(
+				t.Context(), sessions, "sess-canceled", looppkg.ActionPromptRequest{Message: "Write the handoff"},
+			)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled prompt error = %v, want context.Canceled", err)
+			}
+			if result.Text != "" || result.TokensUsed != 27 || !result.TokensReported {
+				t.Fatalf("canceled result = %#v, want retained usage without an action answer", result)
+			}
+			safe, ok := errors.AsType[looppkg.SafeActionFailureProvider](err)
+			if !ok || safe.SafeActionFailure().Code != string(store.FailureCanceled) {
+				t.Fatalf("canceled prompt error = %v, want safe cancellation failure", err)
+			}
+		})
+	}
 
 	t.Run("Should preserve valid model response with non-JSON text for output validation", func(t *testing.T) {
 		t.Parallel()
@@ -1736,7 +1819,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		res, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -1870,7 +1953,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -1899,7 +1982,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -1932,7 +2015,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -1952,6 +2035,26 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 }
 func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should discard full access mode when loop permissions are restricted", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name: "restricted-worker", Provider: "codex", Prompt: "Work.",
+			Permissions: string(compozyconfig.PermissionModeApproveReads),
+		}
+		agent.SetACPOptions([]compozyconfig.ACPOptionSelection{{ID: "mode", ValueID: "agent-full-access"}})
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		gate := &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+		}}
+		opts := session.CreateOpts{Workspace: "ws-loop"}
+		if _, err := gate.applyResolved(t.Context(), &opts, agent.Name, nil); err != nil {
+			t.Fatalf("applyResolved() error = %v", err)
+		}
+		if opts.Permissions != compozyconfig.PermissionModeApproveReads || len(opts.ACPOptions) != 0 {
+			t.Fatalf("restricted CreateOpts = %#v, want approve-reads without full access mode", opts)
+		}
+	})
 
 	t.Run("Should propagate agent default ACP options into session creation opts", func(t *testing.T) {
 		t.Parallel()
@@ -1976,7 +2079,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:   looppkg.RunID("loop-run-opt"),
 			Agent:       "opt-worker",
@@ -2020,8 +2123,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			},
 		}
 
-		trueVal := true
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:   looppkg.RunID("loop-run-override"),
 			Agent:       "override-worker",
@@ -2029,7 +2131,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			Runtime: &looppkg.RuntimeSpec{
 				ACPOptions: []dsl.ACPOptionSelection{
 					{ID: "thinking", ValueID: "max"},
-					{ID: "fast_mode", BoolValue: &trueVal},
+					{ID: "fast_mode", BoolValue: new(true)},
 				},
 			},
 		})
@@ -2069,7 +2171,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:   looppkg.RunID("loop-run-speed"),
 			Agent:       "speed-worker",

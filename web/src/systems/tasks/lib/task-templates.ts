@@ -6,7 +6,6 @@ export const TASK_TEMPLATE_IDS = [
   "one_shot",
   "recurring",
   "epic",
-  "remote_peer",
   "human_in_loop",
   "blank",
 ] as const;
@@ -75,7 +74,7 @@ const RECURRING_TEMPLATE: TaskTemplate = {
   simpleLabel: "Recurring",
   simpleDescription: "",
   defaults: { draft: true, priority: "medium" },
-  badges: [{ label: "Automation", tone: "info" }],
+  badges: [{ label: "Automation", tone: "neutral" }],
   preview: {
     enqueueOnSubmit: false,
     facts: ["schedule attached in Automation"],
@@ -92,21 +91,8 @@ const EPIC_TEMPLATE: TaskTemplate = {
   simpleLabel: "Break into steps",
   simpleDescription: "A big goal — add sub-tasks under it afterward.",
   defaults: { draft: false, priority: "high" },
-  badges: [{ label: "Epic", tone: "warning" }],
+  badges: [{ label: "Epic", tone: "neutral" }],
   preview: { enqueueOnSubmit: true },
-};
-
-const REMOTE_PEER_TEMPLATE: TaskTemplate = {
-  id: "remote_peer",
-  label: "Remote from peer",
-  description:
-    "Ingress from a network channel. Remote peers enqueue; local owner claims when ready.",
-  simple: false,
-  simpleLabel: "Remote",
-  simpleDescription: "",
-  defaults: { draft: false, priority: "medium" },
-  badges: [{ label: "Network", tone: "info" }],
-  preview: { enqueueOnSubmit: true, facts: ["enqueued by remote peer"] },
 };
 
 const HUMAN_IN_LOOP_TEMPLATE: TaskTemplate = {
@@ -117,7 +103,7 @@ const HUMAN_IN_LOOP_TEMPLATE: TaskTemplate = {
   simpleLabel: "Needs approval",
   simpleDescription: "The agent waits for your sign-off before acting.",
   defaults: { draft: false, priority: "high", approval_policy: "manual" },
-  badges: [{ label: "Approvals", tone: "warning" }],
+  badges: [{ label: "Approvals", tone: "neutral" }],
   preview: {
     enqueueOnSubmit: true,
     notice: "First run will wait for approval in the Inbox before claiming.",
@@ -140,7 +126,6 @@ const TEMPLATE_BY_ID: Record<TaskTemplateId, TaskTemplate> = {
   one_shot: ONE_SHOT_TEMPLATE,
   recurring: RECURRING_TEMPLATE,
   epic: EPIC_TEMPLATE,
-  remote_peer: REMOTE_PEER_TEMPLATE,
   human_in_loop: HUMAN_IN_LOOP_TEMPLATE,
   blank: BLANK_TEMPLATE,
 };
@@ -149,7 +134,6 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   ONE_SHOT_TEMPLATE,
   RECURRING_TEMPLATE,
   EPIC_TEMPLATE,
-  REMOTE_PEER_TEMPLATE,
   HUMAN_IN_LOOP_TEMPLATE,
   BLANK_TEMPLATE,
 ];

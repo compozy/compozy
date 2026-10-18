@@ -30,13 +30,13 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 		return item.Scope == prepared.target.scope
 	})
 	update := extensionpkg.MarketplaceUpdateRequest{}
-	confirmed := s.configureUpdateNetworkGate(&update, request.ConfirmNetworkDigest, actor)
+	confirmed := s.configureUpdateGatewayGate(&update, request.ConfirmGatewayDigest, actor)
 	s.configureUpdateProfileGate(ctx, &update, actor)
 	plans := s.configureUpdateInputGate(ctx, &update, request.Inputs, prepared.target)
 	if attach {
 		s.configureReinstallAttachment(ctx, &update, prepared.target.scope)
 	}
-	_, needsConfirmation, err := candidateNetworkConfirmationRequirement(installed, prepared.manifest)
+	_, needsConfirmation, err := candidateGatewayConfirmationRequirement(installed, prepared.manifest)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 			return statusErr
 		}
 		if confirmation, ok := confirmed[installed.Name]; ok {
-			if err := s.recordExtensionNetworkConfirmedEvent(
+			if err := s.recordExtensionGatewayConfirmedEvent(
 				ctx, actor, extensionpkg.GlobalInstanceKey(installed.Name), confirmation,
 			); err != nil {
 				return err

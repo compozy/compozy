@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
@@ -291,12 +292,9 @@ func validateModelSourceBindingSelection(
 }
 
 func modelSourceOptionHasValue(option modelcatalog.ModelOptionDescriptor, valueID string) bool {
-	for _, value := range option.Values {
-		if value.ValueID == valueID {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(option.Values, func(value modelcatalog.ModelOptionValue) bool {
+		return value.ValueID == valueID
+	})
 }
 
 func modelSourceOptionError(rowIndex int, optionIndex int, detail string) error {
@@ -346,8 +344,7 @@ func cloneModelSourceRuntimeFields(
 		target.TransportBindings[index].Fast = cloneModelSourceBoolPointer(binding.Fast)
 		target.TransportBindings[index].Thinking = cloneModelSourceBoolPointer(binding.Thinking)
 		if binding.ReasoningEffort != nil {
-			effort := *binding.ReasoningEffort
-			target.TransportBindings[index].ReasoningEffort = &effort
+			target.TransportBindings[index].ReasoningEffort = new(*binding.ReasoningEffort)
 		}
 		target.TransportBindings[index].OptionSelections = make(
 			[]extensioncontract.ModelSourceOptionSelection,

@@ -23,6 +23,7 @@ type Manager struct {
 	clientObserver         ClientUnregisteredObserver
 	globalShortcutObserver GlobalShortcutFailureObserver
 	workspaceConfig        WorkspaceConfigResolver
+	appDeprecationObserver AppDeprecationObserver
 	defaultsMu             sync.RWMutex
 
 	mu               sync.Mutex
@@ -103,6 +104,7 @@ func NewService(
 		eventObserver:          resolved.eventObserver,
 		clientObserver:         resolved.clientObserver,
 		workspaceConfig:        resolved.workspaceConfig,
+		appDeprecationObserver: resolved.appDeprecationObserver,
 		workspaceLocks:         make(map[WorkspaceID]*workspaceLock),
 		clients:                make(map[WorkspaceID]map[ClientID]ClientView),
 		clientTokens:           make(map[WorkspaceID]map[ClientID][32]byte),
@@ -132,6 +134,7 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 	if err := m.resolveWorkspace(ctx, request.WorkspaceID); err != nil {
 		return Result{}, err
 	}
+	request = m.canonicalCommandApps(ctx, request)
 	commandID, err := validateCommandRequest(request)
 	if err != nil {
 		return Result{}, err
@@ -186,6 +189,7 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 	if err := m.resolveWorkspace(ctx, request.WorkspaceID); err != nil {
 		return Preview{}, err
 	}
+	request = m.canonicalCommandApps(ctx, request)
 	commandID, err := validateCommandRequest(request)
 	if err != nil {
 		return Preview{}, err

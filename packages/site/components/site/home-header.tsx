@@ -76,7 +76,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
             <>
               <HeaderSearchInput
                 hideIfDisabled
-                className="hidden min-w-search-input-min rounded-full border border-line bg-canvas-soft ps-2.5 lg:flex"
+                className="hidden rounded-full border border-line bg-canvas-soft ps-2.5 lg:flex"
               />
               <slots.searchTrigger.sm
                 hideIfDisabled

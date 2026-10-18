@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,7 +9,7 @@ import (
 	"maps"
 
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -62,10 +63,7 @@ func normalizeSkillGroup(group string) (string, error) {
 }
 
 func defaultSkillTemplate(name string) string {
-	trimmedName := strings.TrimSpace(name)
-	if trimmedName == "" {
-		trimmedName = defaultSkillName
-	}
+	trimmedName := cmp.Or(strings.TrimSpace(name), defaultSkillName)
 
 	return fmt.Sprintf(`---
 name: %q
@@ -129,11 +127,7 @@ func sortedSkillMetadataEntries(metadata map[string]any) []keyValue {
 		return nil
 	}
 
-	keys := make([]string, 0, len(metadata))
-	for key := range metadata {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(metadata))
 
 	entries := make([]keyValue, 0, len(keys))
 	for _, key := range keys {

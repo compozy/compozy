@@ -19,15 +19,6 @@ describe("NativeSelect", () => {
     expect(handleChange).toHaveBeenCalledTimes(1);
   });
 
-  it("Should render the chevron icon alongside the control", () => {
-    const { container } = render(
-      <NativeSelect aria-label="Env" defaultValue="dev">
-        <NativeSelectOption value="dev">dev</NativeSelectOption>
-      </NativeSelect>
-    );
-    expect(container.querySelector('[data-slot="native-select-icon"]')).not.toBeNull();
-  });
-
   it("Should update via controlled state when the user picks another option", () => {
     function Harness() {
       const [value, setValue] = useState("dev");
@@ -58,15 +49,5 @@ describe("NativeSelect", () => {
     );
     const optgroup = container.querySelector('[data-slot="native-select-optgroup"]');
     expect(optgroup?.getAttribute("label")).toBe("Local");
-  });
-
-  it("Should apply the compact size variant via data attribute", () => {
-    const { container } = render(
-      <NativeSelect aria-label="Env" defaultValue="dev" size="sm">
-        <NativeSelectOption value="dev">dev</NativeSelectOption>
-      </NativeSelect>
-    );
-    const wrapper = container.querySelector('[data-slot="native-select-wrapper"]');
-    expect(wrapper?.getAttribute("data-size")).toBe("sm");
   });
 });

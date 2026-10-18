@@ -13,8 +13,8 @@ import (
 )
 
 func isGoalControlStale(err error) bool {
-	var reason *looppkg.ReasonError
-	return errors.As(err, &reason) && reason.Code == looppkg.ReasonCodeGoalControlStale
+	reason, reasonOK := errors.AsType[*looppkg.ReasonError](err)
+	return reasonOK && reason.Code == looppkg.ReasonCodeGoalControlStale
 }
 
 func failStaleBindingCreationWithCleanup(

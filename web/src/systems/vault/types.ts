@@ -9,12 +9,10 @@ export type VaultListFilter = NonNullable<OperationQuery<"listVaultSecrets">>;
 
 export const VAULT_NAMESPACES = [
   "automation",
-  "bridges",
   "extensions",
   "hooks",
   "mcp",
   "providers",
-  "sandbox",
   "sessions",
 ] as const;
 

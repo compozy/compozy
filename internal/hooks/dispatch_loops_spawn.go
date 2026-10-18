@@ -7,9 +7,8 @@ func (h *Hooks) DispatchLoopStarted(
 	ctx context.Context,
 	payload LoopStartedPayload,
 ) (LoopStartedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookLoopStarted,
 		payload,
 		dispatchConfig[LoopStartedPayload, LoopObservationPatch]{
@@ -24,9 +23,8 @@ func (h *Hooks) DispatchLoopGenerationPre(
 	ctx context.Context,
 	payload LoopGenerationPrePayload,
 ) (LoopGenerationPrePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookLoopGenerationPre,
 		payload,
 		dispatchConfig[LoopGenerationPrePayload, LoopGenerationPrePatch]{
@@ -45,9 +43,8 @@ func (h *Hooks) DispatchLoopGenerationPost(
 	ctx context.Context,
 	payload LoopGenerationPostPayload,
 ) (LoopGenerationPostPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookLoopGenerationPost,
 		payload,
 		dispatchConfig[LoopGenerationPostPayload, LoopObservationPatch]{
@@ -62,9 +59,8 @@ func (h *Hooks) DispatchLoopGatePre(
 	ctx context.Context,
 	payload LoopGatePrePayload,
 ) (LoopGatePrePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookLoopGatePre,
 		payload,
 		dispatchConfig[LoopGatePrePayload, LoopGatePrePatch]{
@@ -83,9 +79,8 @@ func (h *Hooks) DispatchLoopGatePost(
 	ctx context.Context,
 	payload LoopGatePostPayload,
 ) (LoopGatePostPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookLoopGatePost,
 		payload,
 		dispatchConfig[LoopGatePostPayload, LoopObservationPatch]{
@@ -100,9 +95,8 @@ func (h *Hooks) DispatchLoopNodeTerminal(
 	ctx context.Context,
 	payload LoopNodeTerminalPayload,
 ) (LoopNodeTerminalPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookLoopNodeTerminal,
 		payload,
 		dispatchConfig[LoopNodeTerminalPayload, LoopObservationPatch]{
@@ -117,9 +111,8 @@ func (h *Hooks) DispatchLoopTerminal(
 	ctx context.Context,
 	payload LoopTerminalPayload,
 ) (LoopTerminalPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookLoopTerminal,
 		payload,
 		dispatchConfig[LoopTerminalPayload, LoopObservationPatch]{
@@ -134,9 +127,8 @@ func (h *Hooks) DispatchSpawnPreCreate(
 	ctx context.Context,
 	payload SpawnPreCreatePayload,
 ) (SpawnPreCreatePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSpawnPreCreate,
 		payload,
 		dispatchConfig[SpawnPreCreatePayload, SpawnCreatePatch]{
@@ -156,9 +148,8 @@ func (h *Hooks) DispatchSpawnCreated(
 	ctx context.Context,
 	payload SpawnCreatedPayload,
 ) (SpawnCreatedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSpawnCreated,
 		payload,
 		dispatchConfig[SpawnCreatedPayload, SpawnObservationPatch]{
@@ -173,9 +164,8 @@ func (h *Hooks) DispatchSpawnParentStopped(
 	ctx context.Context,
 	payload SpawnParentStoppedPayload,
 ) (SpawnParentStoppedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSpawnParentStopped,
 		payload,
 		dispatchConfig[SpawnParentStoppedPayload, SpawnObservationPatch]{
@@ -190,9 +180,8 @@ func (h *Hooks) DispatchSpawnTTLExpired(
 	ctx context.Context,
 	payload SpawnTTLExpiredPayload,
 ) (SpawnTTLExpiredPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSpawnTTLExpired,
 		payload,
 		dispatchConfig[SpawnTTLExpiredPayload, SpawnObservationPatch]{
@@ -207,9 +196,8 @@ func (h *Hooks) DispatchSpawnReaped(
 	ctx context.Context,
 	payload SpawnReapedPayload,
 ) (SpawnReapedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSpawnReaped,
 		payload,
 		dispatchConfig[SpawnReapedPayload, SpawnObservationPatch]{

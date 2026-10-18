@@ -278,8 +278,7 @@ func profilePointer(snapshot gatewayProfileSnapshot) *compozyconfig.GatewayConne
 	if !snapshot.exists {
 		return nil
 	}
-	profile := snapshot.profile
-	return &profile
+	return new(snapshot.profile)
 }
 
 func gatewayProfileTOMLValues(profile compozyconfig.GatewayConnectionConfig) map[string]any {

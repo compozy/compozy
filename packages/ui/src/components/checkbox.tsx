@@ -10,8 +10,8 @@ function Checkbox({ className, indeterminate, ...props }: CheckboxPrimitive.Root
       data-slot="checkbox"
       indeterminate={indeterminate}
       className={cn(
-        "peer relative flex size-4 shrink-0 items-center justify-center rounded-xs border border-line bg-elevated transition-colors outline-none after:absolute after:-inset-x-3 after:-inset-y-2 group-has-disabled/field:opacity-50 focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger data-checked:border-accent data-checked:bg-accent data-checked:text-accent-ink",
-        "data-indeterminate:border-accent data-indeterminate:bg-accent data-indeterminate:text-accent-ink",
+        "peer relative flex size-4 shrink-0 items-center justify-center rounded-xs border border-line-strong bg-canvas transition-colors outline-none after:absolute after:-inset-x-3 after:-inset-y-2 group-has-disabled/field:opacity-50 focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground",
+        "data-indeterminate:border-primary data-indeterminate:bg-primary data-indeterminate:text-primary-foreground",
         className
       )}
       {...props}

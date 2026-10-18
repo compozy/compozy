@@ -157,7 +157,7 @@ type Metadata struct {
 	RevocationEndpoint            string   `json:"revocation_endpoint,omitempty"`
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
 	ScopesSupported               []string `json:"scopes_supported,omitempty"`
-	IssuerParameterSupported      bool     `json:"authorization_response_iss_parameter_supported,omitempty"`
+	IssuerParameterSupported      bool     `json:"authorization_response_iss_parameter_supported,omitzero"`
 }
 
 // TokenRecord is the durable token-store row. It must never be rendered

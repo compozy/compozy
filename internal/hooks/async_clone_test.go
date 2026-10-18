@@ -3,86 +3,13 @@ package hooks
 import (
 	"encoding/json"
 	"testing"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should sandbox prepare", func(t *testing.T) {
+	t.Run("Should clone prompt context blocks", func(t *testing.T) {
 		t.Parallel()
-
-		original := SandboxPreparePayload{
-			Profile: SandboxProfilePayload{
-				Env: map[string]string{"PATH": "/usr/bin"},
-			},
-			LocalAdditionalDirs: []string{"/tmp/a"},
-			AgentEnv:            []string{"KEY=before"},
-			EnvOverrides:        map[string]string{"KEY": "before"},
-		}
-		cloned := cloneAsyncPayload(original)
-
-		original.Profile.Env["PATH"] = "/bin"
-		original.LocalAdditionalDirs[0] = "/tmp/b"
-		original.AgentEnv[0] = "KEY=after"
-		original.EnvOverrides["KEY"] = "after"
-
-		if cloned.Profile.Env["PATH"] != "/usr/bin" {
-			t.Fatalf("cloned profile env = %q, want %q", cloned.Profile.Env["PATH"], "/usr/bin")
-		}
-		if cloned.LocalAdditionalDirs[0] != "/tmp/a" {
-			t.Fatalf("cloned local dir = %q, want %q", cloned.LocalAdditionalDirs[0], "/tmp/a")
-		}
-		if cloned.AgentEnv[0] != "KEY=before" {
-			t.Fatalf("cloned agent env = %q, want %q", cloned.AgentEnv[0], "KEY=before")
-		}
-		if cloned.EnvOverrides["KEY"] != "before" {
-			t.Fatalf("cloned env override = %q, want %q", cloned.EnvOverrides["KEY"], "before")
-		}
-	})
-
-	t.Run("Should sandbox lifecycle slices", func(t *testing.T) {
-		t.Parallel()
-
-		ready := cloneAsyncPayload(SandboxReadyPayload{RuntimeAdditionalDirs: []string{"/runtime"}})
-		syncBefore := cloneAsyncPayload(SandboxSyncBeforePayload{ExcludePatterns: []string{"*.tmp"}})
-		syncAfter := cloneAsyncPayload(SandboxSyncAfterPayload{Errors: []string{"before"}})
-
-		if ready.RuntimeAdditionalDirs[0] != "/runtime" {
-			t.Fatalf("cloned runtime dir = %q, want %q", ready.RuntimeAdditionalDirs[0], "/runtime")
-		}
-		if syncBefore.ExcludePatterns[0] != "*.tmp" {
-			t.Fatalf("cloned exclude pattern = %q, want %q", syncBefore.ExcludePatterns[0], "*.tmp")
-		}
-		if syncAfter.Errors[0] != "before" {
-			t.Fatalf("cloned error entry = %q, want %q", syncAfter.Errors[0], "before")
-		}
-	})
-
-	t.Run("Should prompt and context payloads", func(t *testing.T) {
-		t.Parallel()
-
-		original := ContextCompactPayload{
-			ContextBlocks: []ContextBlock{{
-				Kind: "note",
-				Text: "before",
-				Metadata: map[string]string{
-					"scope": "before",
-				},
-			}},
-		}
-		cloned := cloneAsyncPayload(original)
-
-		original.ContextBlocks[0].Text = "after"
-		original.ContextBlocks[0].Metadata["scope"] = "after"
-
-		if cloned.ContextBlocks[0].Text != "before" {
-			t.Fatalf("cloned context text = %q, want %q", cloned.ContextBlocks[0].Text, "before")
-		}
-		if cloned.ContextBlocks[0].Metadata["scope"] != "before" {
-			t.Fatalf("cloned context metadata = %q, want %q", cloned.ContextBlocks[0].Metadata["scope"], "before")
-		}
 
 		prompt := PromptPayload{
 			ContextBlocks: []ContextBlock{{
@@ -254,7 +181,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 	t.Run("Should default branch returns value", func(t *testing.T) {
 		t.Parallel()
 
-		original := SessionPreCreatePayload{SessionContext: SessionContext{SessionID: "session-default"}}
+		original := SessionPreCreatePayload{SessionID: "session-default"}
 		cloned := cloneAsyncPayload(original)
 		if cloned.SessionID != original.SessionID {
 			t.Fatalf("cloned session id = %q, want %q", cloned.SessionID, original.SessionID)
@@ -272,7 +199,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 				name: "Should clone input pre-submit session soul context",
 				clone: func(soul *SessionSoulContext) *SessionSoulContext {
 					cloned := cloneAsyncPayload(InputPreSubmitPayload{
-						SessionContext: SessionContext{SessionSoulContext: soul},
+						SessionSoulContext: soul,
 					})
 					return cloned.SessionSoulContext
 				},
@@ -281,7 +208,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 				name: "Should clone session pre-create soul context",
 				clone: func(soul *SessionSoulContext) *SessionSoulContext {
 					cloned := cloneAsyncPayload(SessionPreCreatePayload{
-						SessionContext: SessionContext{SessionSoulContext: soul},
+						SessionSoulContext: soul,
 					})
 					return cloned.SessionSoulContext
 				},
@@ -290,7 +217,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 				name: "Should clone session lifecycle soul context",
 				clone: func(soul *SessionSoulContext) *SessionSoulContext {
 					cloned := cloneAsyncPayload(SessionLifecyclePayload{
-						SessionContext: SessionContext{SessionSoulContext: soul},
+						SessionSoulContext: soul,
 					})
 					return cloned.SessionSoulContext
 				},
@@ -334,41 +261,25 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 		t.Parallel()
 
 		original := TaskRunPreClaimPayload{
-			TaskRunContext: &TaskRunContext{
-				ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-					ChannelID: "operations",
-				}),
-			},
+			TaskRunContext: &TaskRunContext{},
 			Criteria: TaskRunClaimCriteria{
-				RequiredCapabilities: []string{"network"},
+				RequiredCapabilities: []string{"coding"},
 			},
 		}
 		cloned := cloneAsyncPayload(original)
 		original.Criteria.RequiredCapabilities[0] = "mutated"
-		original.ResolvedNetworkParticipation.ChannelID = "mutated"
 
-		if cloned.Criteria.RequiredCapabilities[0] != "network" {
-			t.Fatalf(
-				"cloned required capability = %q, want %q",
-				cloned.Criteria.RequiredCapabilities[0],
-				"network",
-			)
-		}
-		if cloned.ResolvedNetworkParticipation.ChannelID != "operations" {
-			t.Fatalf(
-				"cloned network channel = %q, want %q",
-				cloned.ResolvedNetworkParticipation.ChannelID,
-				"operations",
-			)
+		if cloned.Criteria.RequiredCapabilities[0] != "coding" {
+			t.Fatalf("cloned required capability = %q, want coding", cloned.Criteria.RequiredCapabilities[0])
 		}
 	})
 
 	t.Run("Should task value payloads", func(t *testing.T) {
 		t.Parallel()
 
-		enqueued := cloneAsyncPayload(TaskRunEnqueuedPayload{TaskRunContext: TaskRunContext{TaskID: "task-enqueued"}})
-		postClaim := cloneAsyncPayload(TaskRunPostClaimPayload{TaskRunContext: TaskRunContext{TaskID: "task-claim"}})
-		lease := cloneAsyncPayload(TaskRunLeasePayload{TaskRunContext: TaskRunContext{TaskID: "task-lease"}})
+		enqueued := cloneAsyncPayload(TaskRunEnqueuedPayload{TaskID: "task-enqueued"})
+		postClaim := cloneAsyncPayload(TaskRunPostClaimPayload{TaskID: "task-claim"})
+		lease := cloneAsyncPayload(TaskRunLeasePayload{TaskID: "task-lease"})
 
 		if enqueued.TaskID != "task-enqueued" {
 			t.Fatalf("enqueued task id = %q, want task-enqueued", enqueued.TaskID)
@@ -386,12 +297,10 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 
 		original := SpawnPreCreatePayload{
 			ParentPermissions: &PermissionSet{
-				Tools:           []string{"tool.before"},
-				Skills:          []string{"skill.before"},
-				MCPServers:      []string{"mcp.before"},
-				WorkspacePaths:  []string{"/workspace/before"},
-				NetworkChannels: []string{"network.before"},
-				SandboxProfiles: []string{"sandbox.before"},
+				Tools:          []string{"tool.before"},
+				Skills:         []string{"skill.before"},
+				MCPServers:     []string{"mcp.before"},
+				WorkspacePaths: []string{"/workspace/before"},
 			},
 			ChildPermissions: &PermissionSet{Tools: []string{"child.before"}},
 		}
@@ -400,8 +309,6 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 		original.ParentPermissions.Skills[0] = "skill.after"
 		original.ParentPermissions.MCPServers[0] = "mcp.after"
 		original.ParentPermissions.WorkspacePaths[0] = "/workspace/after"
-		original.ParentPermissions.NetworkChannels[0] = "network.after"
-		original.ParentPermissions.SandboxProfiles[0] = "sandbox.after"
 		original.ChildPermissions.Tools[0] = "child.after"
 
 		if cloned.ParentPermissions.Tools[0] != "tool.before" {
@@ -415,12 +322,6 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 		}
 		if cloned.ParentPermissions.WorkspacePaths[0] != "/workspace/before" {
 			t.Fatalf("cloned workspace paths = %#v, want preserved paths", cloned.ParentPermissions.WorkspacePaths)
-		}
-		if cloned.ParentPermissions.NetworkChannels[0] != "network.before" {
-			t.Fatalf("cloned network channels = %#v, want preserved channels", cloned.ParentPermissions.NetworkChannels)
-		}
-		if cloned.ParentPermissions.SandboxProfiles[0] != "sandbox.before" {
-			t.Fatalf("cloned sandbox profiles = %#v, want preserved profiles", cloned.ParentPermissions.SandboxProfiles)
 		}
 		if cloned.ChildPermissions.Tools[0] != "child.before" {
 			t.Fatalf("cloned child tools = %#v, want preserved tools", cloned.ChildPermissions.Tools)

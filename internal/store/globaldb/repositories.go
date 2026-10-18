@@ -23,6 +23,8 @@ type repoBase struct {
 	closed   *atomic.Int32
 	tasks    *TaskRepo
 	sessions *SessionRepo
+
+	outboxSignals *outboxSignalHub
 }
 
 func newRepoBase(db *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBase {
@@ -31,6 +33,8 @@ func newRepoBase(db *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBa
 		queries: sqlcgen.New(db),
 		now:     now,
 		closed:  closed,
+
+		outboxSignals: &outboxSignalHub{},
 	}
 }
 
@@ -72,11 +76,13 @@ type TaskRepo struct {
 
 type TaskRunRepo struct {
 	*repoBase
-	tasks *TaskRepo
+	tasks                *TaskRepo
+	leaseSettlementsMu   sync.Mutex
+	leaseSettlements     map[string]string
+	leaseRecoveryVersion atomic.Uint64
 }
 type AutomationRepo struct{ *repoBase }
-type BridgeRepo struct{ *repoBase }
-type NetworkRepo struct{ *repoBase }
+
 type GatewayRepo struct{ *repoBase }
 
 type LoopRepo struct {
@@ -87,6 +93,7 @@ type LoopRepo struct {
 type GoalRepo struct{ *repoBase }
 type HeartbeatRepo struct{ *repoBase }
 type SoulRepo struct{ *repoBase }
+
 type ModelCatalogRepo struct{ *repoBase }
 type MarketplaceRepo struct{ *repoBase }
 type SkillExposureRepo struct{ *repoBase }
@@ -126,8 +133,6 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	taskRepo.runs = taskRunRepo
 	taskRunRepo.tasks = taskRepo
 	g.AutomationRepo = &AutomationRepo{repoBase: base}
-	g.BridgeRepo = &BridgeRepo{repoBase: base}
-	g.NetworkRepo = &NetworkRepo{repoBase: base}
 	g.GatewayRepo = &GatewayRepo{repoBase: base}
 	loopRepo := &LoopRepo{repoBase: base}
 	g.LoopRepo = loopRepo

@@ -9,18 +9,14 @@
 
 import type { TerminalInfo, TerminalInputRequest } from "../types";
 
-/** A terminal approval still waiting for a decision. */
-export interface TerminalPendingApproval {
-  profileId: string;
-}
-
 export interface TerminalBadgeInput {
   /** `(workspace, profile)` identity these rows were read under. */
   scopeKey: string;
   profileId: string;
   /** Only the owning profile is read, so any row carrying one qualifies. */
   inputRequests: readonly Pick<TerminalInputRequest, "profile_id">[];
-  pendingApprovals: readonly TerminalPendingApproval[];
+  /** Exact server count read for this workspace and destination profile. */
+  pendingApprovalCount: number;
 }
 
 export interface TerminalBadgeProjection {
@@ -39,10 +35,7 @@ export function projectTerminalBadge(input: TerminalBadgeInput): TerminalBadgePr
   const requests = input.inputRequests.filter(
     request => request.profile_id === input.profileId
   ).length;
-  const approvals = input.pendingApprovals.filter(
-    approval => approval.profileId === input.profileId
-  ).length;
-  const total = requests + approvals;
+  const total = requests + input.pendingApprovalCount;
   return { scopeKey: input.scopeKey, count: total === 0 ? undefined : total };
 }
 

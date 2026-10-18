@@ -71,8 +71,6 @@ type WatchEvent struct {
 	LoopRunID   string         `json:"loop_run_id,omitempty"`
 	LoopName    string         `json:"loop_name,omitempty"`
 	SessionID   string         `json:"session_id,omitempty"`
-	Channel     string         `json:"channel,omitempty"`
-	WorkID      string         `json:"work_id,omitempty"`
 	Payload     map[string]any `json:"payload,omitempty"`
 	LedgerKind  string         `json:"-"`
 }
@@ -90,8 +88,6 @@ func (e WatchEvent) EventMap() map[string]any {
 		"loop_run_id":           strings.TrimSpace(e.LoopRunID),
 		"loop_name":             strings.TrimSpace(e.LoopName),
 		"session_id":            strings.TrimSpace(e.SessionID),
-		"channel":               strings.TrimSpace(e.Channel),
-		"work_id":               strings.TrimSpace(e.WorkID),
 		watchEventsFieldPayload: cloneAnyMap(e.Payload),
 	}
 	return event

@@ -2,7 +2,8 @@ package daemon
 
 import (
 	"fmt"
-	"sort"
+	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -89,11 +90,11 @@ func extensionPaletteSettingsByName(
 		})
 	}
 	for _, palette := range result {
-		sort.Slice(palette.Commands, func(i, j int) bool {
-			return palette.Commands[i].ID < palette.Commands[j].ID
+		slices.SortFunc(palette.Commands, func(a, b settingspkg.InstalledExtensionPaletteCommand) int {
+			return strings.Compare(a.ID, b.ID)
 		})
-		sort.Slice(palette.Views, func(i, j int) bool {
-			return palette.Views[i].ID < palette.Views[j].ID
+		slices.SortFunc(palette.Views, func(a, b settingspkg.InstalledExtensionPaletteView) int {
+			return strings.Compare(a.ID, b.ID)
 		})
 	}
 	return result

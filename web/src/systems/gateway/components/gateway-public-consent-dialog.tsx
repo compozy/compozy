@@ -51,7 +51,7 @@ export function GatewayPublicConsentDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent data-testid="gateway-public-consent-dialog">
         <DialogHeader>
-          <DialogTitle>Serve the operator UI on your public address?</DialogTitle>
+          <DialogTitle>Make CompozyOS reachable from the internet?</DialogTitle>
           <DialogDescription>
             Confirm what becomes publicly reachable before this is turned on.
           </DialogDescription>

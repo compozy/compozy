@@ -10,9 +10,11 @@ export interface TaskExceptionPill {
   title?: string;
 }
 
+// Priority is hierarchy, not state: it never takes a signal hue (danger and
+// warning belong to failures and real warnings, accent to needs-you).
 const PRIORITY_EXCEPTION: Partial<Record<TaskPriority, { label: string; tone: PillTone }>> = {
-  urgent: { label: "Urgent", tone: "danger" },
-  high: { label: "High", tone: "warning" },
+  urgent: { label: "Urgent", tone: "neutral" },
+  high: { label: "High", tone: "neutral" },
   low: { label: "Low", tone: "neutral" },
 };
 
@@ -29,7 +31,7 @@ export function projectTaskExceptionPills(detail: TaskDetailView): TaskException
   const pills: TaskExceptionPill[] = [];
 
   if (taskHasApprovalPending(record)) {
-    pills.push({ key: "approval", label: "Approval pending", tone: "info" });
+    pills.push({ key: "approval", label: "Approval pending", tone: "accent" });
   }
 
   const priority = record.priority ? PRIORITY_EXCEPTION[record.priority] : undefined;

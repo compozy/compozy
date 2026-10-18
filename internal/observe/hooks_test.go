@@ -11,8 +11,8 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -203,15 +203,14 @@ func TestObserverHookOptionsUseCustomSourcesAndStores(t *testing.T) {
 		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(path), err)
 	}
 	now := time.Date(2026, 4, 9, 19, 9, 0, 0, time.UTC)
-	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Dir(path)), store.SessionMeta{
-		ID:                   sessionID,
-		AgentName:            "coder",
-		WorkspaceID:          observerWorkspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            now,
-		UpdatedAt:            now,
+	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Dir(path)), &store.SessionMeta{
+		ID:            sessionID,
+		AgentName:     "coder",
+		WorkspaceID:   observerWorkspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", sessionID, err)
 	}
@@ -268,7 +267,7 @@ func TestObserverHookOptionsUseCustomSourcesAndStores(t *testing.T) {
 		t.Fatalf("ReadSessionMeta(before owner substitution) error = %v", err)
 	}
 	meta.WorkspaceID = "ws-substituted-hook-owner"
-	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+	if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 		t.Fatalf("WriteSessionMeta(substituted owner) error = %v", err)
 	}
 	beforeRejectedOpen := openCalls
@@ -331,17 +330,16 @@ func openObserverHookSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, 
 	}
 	now := time.Date(2026, 4, 9, 18, 55, 0, 0, time.UTC)
 	metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID))
-	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-		ID:                   sessionID,
-		AgentName:            "coder",
-		WorkspaceID:          owner.WorkspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            now,
-		UpdatedAt:            now,
+	if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
+		ID:            sessionID,
+		AgentName:     "coder",
+		WorkspaceID:   owner.WorkspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}); err != nil {
-		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		closeCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		if closeErr := db.Close(closeCtx); closeErr != nil {
 			t.Fatalf("WriteSessionMeta(%q) error = %v; Close() error = %v", sessionID, err, closeErr)
@@ -379,7 +377,7 @@ func registerObserverHookSessionOwner(
 func closeObserverHookSessionDB(t *testing.T, db *sessiondb.SessionDB) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	if err := db.Close(ctx); err != nil {
 		t.Fatalf("SessionDB.Close() error = %v", err)

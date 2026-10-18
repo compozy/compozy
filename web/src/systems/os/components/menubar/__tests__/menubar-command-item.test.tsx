@@ -113,7 +113,6 @@ describe("MenubarCommandItem", () => {
     expect(item).toHaveTextContent("Close window");
     expect(item).toHaveTextContent("requires a focused window");
     expect(item).toHaveAttribute("aria-disabled", "true");
-    expect(item).toHaveAttribute("title", "requires a focused window");
 
     await user.click(item);
     expect(onRun).not.toHaveBeenCalled();

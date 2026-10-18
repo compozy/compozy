@@ -191,8 +191,8 @@ func readRemoteDaemonStatusRaw(
 }
 
 func isRemoteDaemonUnavailable(err error) bool {
-	var commandErr *sshCommandError
-	if !errors.As(err, &commandErr) {
+	commandErr, commandErrOK := errors.AsType[*sshCommandError](err)
+	if !commandErrOK {
 		return false
 	}
 	var payload contract.ErrorPayload
@@ -400,8 +400,8 @@ func classifySSHFailure(err error) error {
 			cause:   err,
 		}
 	}
-	var commandErr *sshCommandError
-	if errors.As(err, &commandErr) && commandErr.exitCode() == 255 {
+	commandErr, commandErrOK := errors.AsType[*sshCommandError](err)
+	if commandErrOK && commandErr.exitCode() == 255 {
 		return &gatewayClientError{
 			code: sshUnreachableCode, statusCode: http.StatusServiceUnavailable,
 			message: "SSH host is unreachable or authentication failed",

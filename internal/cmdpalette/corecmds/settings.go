@@ -16,7 +16,12 @@ var settingsDestinations = []settingsDestination{
 		Icon:     "sliders-horizontal",
 		Keywords: []string{"defaults", "permissions", "updates"},
 	},
-	{Slug: "appearance", Title: "Appearance", Icon: "palette", Keywords: []string{"wallpaper", "theme", "dock"}},
+	{
+		Slug:     "appearance",
+		Title:    "Appearance",
+		Icon:     "palette",
+		Keywords: []string{"theme", "dark mode", "light mode", "wallpaper", "motion"},
+	},
 	{Slug: coreProfilesKey, Title: "Profiles", Icon: "users", Keywords: []string{"identity", "context", "switch"}},
 	{
 		Slug:     "layouts",
@@ -25,16 +30,14 @@ var settingsDestinations = []settingsDestination{
 		Keywords: []string{"window manager", "desktops", "shortcuts"},
 	},
 	{Slug: "providers", Title: "Providers", Icon: "cpu", Keywords: []string{"models", "auth", "codex", "claude"}},
-	{Slug: "memory", Title: "Memory", Icon: "brain", Keywords: []string{"recall", "ledger", "dream"}},
 	{Slug: "roles", Title: "Roles", Icon: "route", Keywords: []string{"coordinator", "routing", "model"}},
 	{Slug: "skills", Title: "Skills", Icon: "wrench", Keywords: []string{"registry", coreAppMarketplace, "install"}},
 	{
 		Slug:     "automation",
 		Title:    "Automation",
 		Icon:     coreIconZap,
-		Keywords: []string{coreAppJobs, coreAppTriggers, "scheduler", "cron"},
+		Keywords: []string{coreAppAutomations, "jobs", "triggers", "scheduler", "cron"},
 	},
-	{Slug: coreNetworkKey, Title: "Network", Icon: coreNetworkKey, Keywords: []string{"peers", "channels", "delivery"}},
 	{Slug: "gateway", Title: "Gateway", Icon: "radio", Keywords: []string{"remote", "pairing", "devices"}},
 	{Slug: "attention", Title: "Attention", Icon: "bell", Keywords: []string{"notifications", "sound", "mute"}},
 	{
@@ -43,7 +46,7 @@ var settingsDestinations = []settingsDestination{
 		Icon:     "activity",
 		Keywords: []string{"logs", "capture", "support bundle"},
 	},
-	{Slug: "hooks", Title: "Hooks", Icon: "webhook", Keywords: []string{"lifecycle", "events", "presets"}},
+	{Slug: "hooks", Title: "Hooks", Icon: coreKeywordWebhook, Keywords: []string{"lifecycle", "events", "presets"}},
 	{Slug: "palette", Title: "Palette", Icon: coreIconCommand, Keywords: []string{"commands", "shortcuts", "search"}},
 	{Slug: coreAppExtensions, Title: "Extensions", Icon: "puzzle", Keywords: []string{"policy", "registry", "trust"}},
 }
@@ -59,7 +62,7 @@ func settingsCommands() []cmdpalette.Descriptor {
 			cmdpalette.Action{
 				Kind: cmdpalette.ActionKindNavigate,
 				App:  coreSettingsKey,
-				Args: map[string]any{"pathname": "/settings/" + destination.Slug},
+				Args: map[string]any{coreArgPathname: "/settings/" + destination.Slug},
 			},
 		)
 		command.Keywords = append([]string(nil), destination.Keywords...)

@@ -21,6 +21,9 @@ type CmdPaletteClient interface {
 	GetCmdPalettePersonalization(context.Context, string) (contract.CmdPalettePersonalizationResponse, error)
 	ResetCmdPalettePersonalization(context.Context, string) (contract.CmdPalettePersonalizationResetResponse, error)
 	GetPendingToolApproval(context.Context, string) (contract.ToolApprovalStatusResponse, error)
+	ResolvePendingToolApproval(
+		context.Context, string, contract.ResolveToolApprovalRequest,
+	) (contract.ToolApprovalStatusResponse, error)
 	CancelPendingToolApproval(context.Context, string) (contract.ToolApprovalStatusResponse, error)
 }
 
@@ -181,6 +184,19 @@ func (c *daemonClient) CancelPendingToolApproval(
 	var response contract.ToolApprovalStatusResponse
 	path := "/api/tools/approvals/" + url.PathEscape(strings.TrimSpace(approvalID)) + "/cancel"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return contract.ToolApprovalStatusResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) ResolvePendingToolApproval(
+	ctx context.Context,
+	approvalID string,
+	request contract.ResolveToolApprovalRequest,
+) (contract.ToolApprovalStatusResponse, error) {
+	var response contract.ToolApprovalStatusResponse
+	path := "/api/tools/approvals/" + url.PathEscape(strings.TrimSpace(approvalID)) + "/resolve"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return contract.ToolApprovalStatusResponse{}, err
 	}
 	return response, nil

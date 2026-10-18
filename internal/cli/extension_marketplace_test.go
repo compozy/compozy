@@ -26,8 +26,8 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 			request ExtensionSearchRequest,
 		) (ExtensionSearchRecord, error) {
 			called = true
-			if request.Query != "bridge" || request.Limit != 7 {
-				t.Fatalf("SearchExtensions(%#v), want bridge limit 7", request)
+			if request.Query != "utility" || request.Limit != 7 {
+				t.Fatalf("SearchExtensions(%#v), want utility limit 7", request)
 			}
 			if request.Cursor != "next" {
 				t.Fatalf("SearchExtensions cursor = %q, want next", request.Cursor)
@@ -37,9 +37,9 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 			}
 			return ExtensionSearchRecord{
 				Items: []contract.ExtensionSearchItem{{
-					Slug:        "acme/bridge-ext",
-					Name:        "bridge-ext",
-					Description: "Bridge extension",
+					Slug:        "acme/utility-ext",
+					Name:        "utility-ext",
+					Description: "Utility extension",
 					Author:      "acme",
 					Version:     "1.0.0",
 					Source:      "curated",
@@ -58,7 +58,7 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 		deps,
 		"extension",
 		"search",
-		"bridge",
+		"utility",
 		"--limit",
 		"7",
 		"--cursor",
@@ -76,9 +76,9 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 		t.Fatalf("json.Unmarshal(search) error = %v; stdout=%s", err, stdout)
 	}
-	if len(payload.Items) != 1 || payload.Items[0].Slug != "acme/bridge-ext" ||
+	if len(payload.Items) != 1 || payload.Items[0].Slug != "acme/utility-ext" ||
 		payload.NextCursor != "page-two" || !reflect.DeepEqual(payload.SourcesDegraded, []string{"github"}) {
-		t.Fatalf("search payload = %#v, want bridge-ext", payload)
+		t.Fatalf("search payload = %#v, want utility-ext", payload)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestExtensionSearchCommandRejectsNonPositiveLimit(t *testing.T) {
 
 	deps, _ := newExtensionLocalDeps(t, &stubClient{})
 	markExtensionDaemonRunning(&deps)
-	_, _, err := executeRootCommand(t, deps, "extension", "search", "bridge", "--limit", "0")
+	_, _, err := executeRootCommand(t, deps, "extension", "search", "utility", "--limit", "0")
 	if err == nil || !strings.Contains(err.Error(), "search limit must be positive") {
 		t.Fatalf("extension search --limit=0 error = %v, want limit validation", err)
 	}

@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"context"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -97,7 +96,7 @@ func BenchmarkLoopWatchEventsObserverEventPostRecordDoorbell(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
+			if err := observer.OnEventPostRecord(b.Context(), payload); err != nil {
 				b.Fatalf("OnEventPostRecord(unrelated) error = %v", err)
 			}
 		}
@@ -118,14 +117,14 @@ func BenchmarkLoopWatchEventsObserverEventPostRecordDoorbell(b *testing.B) {
 		))
 		observer := newLoopWatchEventsObserverForBenchmark(b, watchStore)
 		payload := watchEventsPostRecordPayloadForDoorbellTest()
-		if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
+		if err := observer.OnEventPostRecord(b.Context(), payload); err != nil {
 			b.Fatalf("OnEventPostRecord(warm cache) error = %v", err)
 		}
 
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
+			if err := observer.OnEventPostRecord(b.Context(), payload); err != nil {
 				b.Fatalf("OnEventPostRecord(cached CEL) error = %v", err)
 			}
 		}
@@ -145,18 +144,16 @@ func BenchmarkLoopWatchEventsObserverWorkerTerminal(b *testing.B) {
 	observer := newLoopWatchEventsObserverForBenchmark(b, watchStore)
 	runKind := "worker"
 	payload := hookspkg.TaskRunLeasePayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted},
-		TaskRunContext: hookspkg.TaskRunContext{
-			RunID:     "worker-run",
-			RunKind:   &runKind,
-			LoopRunID: "loop-run-1",
-		},
+		Event:     hookspkg.HookTaskRunCompleted,
+		RunID:     "worker-run",
+		RunKind:   &runKind,
+		LoopRunID: "loop-run-1",
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		if err := observer.OnTaskRunTerminal(context.Background(), payload); err != nil {
+		if err := observer.OnTaskRunTerminal(b.Context(), payload); err != nil {
 			b.Fatalf("OnTaskRunTerminal(worker) error = %v", err)
 		}
 	}
@@ -192,7 +189,7 @@ func newLoopWatchEventsObserverForBenchmark(
 	if err != nil {
 		b.Fatalf("newLoopWatchEventsObserver() error = %v", err)
 	}
-	if err := observer.Hydrate(context.Background()); err != nil {
+	if err := observer.Hydrate(b.Context()); err != nil {
 		b.Fatalf("Hydrate() error = %v", err)
 	}
 	return observer
@@ -226,16 +223,12 @@ func watchEventsDoorbellSubscriptionsForTest(
 
 func watchEventsPostRecordPayloadForDoorbellTest() hookspkg.EventPostRecordPayload {
 	return hookspkg.EventPostRecordPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookEventPostRecord,
-			Timestamp: time.Date(2026, 7, 9, 11, 45, 0, 0, time.UTC),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   "sess-hot",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
-		},
-		TurnContext: hookspkg.TurnContext{TurnID: "turn-hot"},
+		Event:       hookspkg.HookEventPostRecord,
+		Timestamp:   time.Date(2026, 7, 9, 11, 45, 0, 0, time.UTC),
+		SessionID:   "sess-hot",
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+		TurnID:      "turn-hot",
 		RecordType:  "agent_message",
 		Sequence:    100,
 	}

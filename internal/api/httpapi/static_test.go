@@ -8,63 +8,75 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
-	t.Setenv(webDistDirEnvVar, "")
+	t.Run("Should serve the revalidated SPA shell for the root and deep links", func(t *testing.T) {
+		t.Setenv(webDistDirEnvVar, "")
 
-	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		homePaths := newTestHomePaths(t)
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
-	rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
-	if rootResp.Code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want %d; body=%s", rootResp.Code, http.StatusOK, rootResp.Body.String())
-	}
-	if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
-	}
-	const expectedContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
-		"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; " +
-		"connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; " +
-		"object-src 'none'; base-uri 'self'; form-action 'self'"
-	if got := rootResp.Header().Get("Content-Security-Policy"); got != expectedContentSecurityPolicy {
-		t.Fatalf("GET / Content-Security-Policy = %q, want exact production policy", got)
-	}
-	for _, forbidden := range []string{"script-src 'self' 'unsafe-inline'", "'unsafe-eval'"} {
-		if strings.Contains(rootResp.Header().Get("Content-Security-Policy"), forbidden) {
-			t.Fatalf("GET / Content-Security-Policy contains forbidden source %q", forbidden)
+		rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
+		if rootResp.Code != http.StatusOK {
+			t.Fatalf("GET / status = %d, want %d; body=%s", rootResp.Code, http.StatusOK, rootResp.Body.String())
 		}
-	}
+		if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
+			t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
+		}
+		const expectedContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
+			"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; " +
+			"connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; " +
+			"object-src 'none'; base-uri 'self'; form-action 'self'"
+		if got := rootResp.Header().Get("Content-Security-Policy"); got != expectedContentSecurityPolicy {
+			t.Fatalf("GET / Content-Security-Policy = %q, want exact production policy", got)
+		}
+		for _, forbidden := range []string{"script-src 'self' 'unsafe-inline'", "'unsafe-eval'"} {
+			if strings.Contains(rootResp.Header().Get("Content-Security-Policy"), forbidden) {
+				t.Fatalf("GET / Content-Security-Policy contains forbidden source %q", forbidden)
+			}
+		}
+		// A cached shell must be revalidated, or an updated runtime boots the previous bundle (#742).
+		if got := rootResp.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("GET / Cache-Control = %q, want no-cache", got)
+		}
 
-	deepLinkResp := performRequest(t, engine, http.MethodGet, "/session/sess-001", nil)
-	if deepLinkResp.Code != http.StatusOK {
-		t.Fatalf(
-			"GET /session/sess-001 status = %d, want %d; body=%s",
-			deepLinkResp.Code,
-			http.StatusOK,
-			deepLinkResp.Body.String(),
-		)
-	}
-	if !strings.Contains(deepLinkResp.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET /session/sess-001 body = %q, want SPA shell", deepLinkResp.Body.String())
-	}
+		deepLinkResp := performRequest(t, engine, http.MethodGet, "/session/sess-001", nil)
+		if deepLinkResp.Code != http.StatusOK {
+			t.Fatalf(
+				"GET /session/sess-001 status = %d, want %d; body=%s",
+				deepLinkResp.Code,
+				http.StatusOK,
+				deepLinkResp.Body.String(),
+			)
+		}
+		if !strings.Contains(deepLinkResp.Body.String(), `<div id="app"></div>`) {
+			t.Fatalf("GET /session/sess-001 body = %q, want SPA shell", deepLinkResp.Body.String())
+		}
+		if got := deepLinkResp.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("GET /session/sess-001 Cache-Control = %q, want no-cache", got)
+		}
 
-	loopTaskPath := "/tasks/loop.looprun-001.g1.node.review.0"
-	loopTaskResp := performRequestWithHeaders(t, engine, http.MethodGet, loopTaskPath, nil, map[string]string{
-		"Accept": "text/html,application/xhtml+xml",
+		loopTaskPath := "/tasks/loop.looprun-001.g1.node.review.0"
+		loopTaskResp := performRequestWithHeaders(t, engine, http.MethodGet, loopTaskPath, nil, map[string]string{
+			"Accept": "text/html,application/xhtml+xml",
+		})
+		if loopTaskResp.Code != http.StatusOK {
+			t.Fatalf(
+				"GET %s status = %d, want %d; body=%s",
+				loopTaskPath,
+				loopTaskResp.Code,
+				http.StatusOK,
+				loopTaskResp.Body.String(),
+			)
+		}
+		if !strings.Contains(loopTaskResp.Body.String(), `<div id="app"></div>`) {
+			t.Fatalf("GET %s body = %q, want SPA shell", loopTaskPath, loopTaskResp.Body.String())
+		}
 	})
-	if loopTaskResp.Code != http.StatusOK {
-		t.Fatalf(
-			"GET %s status = %d, want %d; body=%s",
-			loopTaskPath,
-			loopTaskResp.Code,
-			http.StatusOK,
-			loopTaskResp.Body.String(),
-		)
-	}
-	if !strings.Contains(loopTaskResp.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET %s body = %q, want SPA shell", loopTaskPath, loopTaskResp.Body.String())
-	}
 }
 
 func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {
@@ -84,6 +96,55 @@ func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {
 	if strings.Contains(resp.Body.String(), "<!doctype html>") {
 		t.Fatalf("GET %s returned SPA HTML instead of asset payload", requestPath)
 	}
+}
+
+// Invariant: every listener revalidates the shell and unversioned files, so an updated runtime
+// never boots the previous release's bundle from a cache (#742); fingerprinted build output stays
+// cacheable for good. Owner: the shared static route behind every surface's NoRoute fallback.
+func TestStaticRoutesCachePolicy(t *testing.T) {
+	// not parallel: t.Setenv selects the process-wide local Web bundle.
+	t.Run("Should revalidate the shell on every listener surface and keep fingerprinted assets", func(t *testing.T) {
+		const fingerprinted = "assets/session-thread-Bg_R4-Fj.js"
+		distDir := writeLocalStaticDist(t, "cache policy shell", map[string]string{
+			fingerprinted:                   "console.log('chunk');",
+			"assets/emojibase/en/data.json": "[]",
+			"theme-boot.js":                 "void 0;",
+		})
+		t.Setenv(webDistDirEnvVar, distDir)
+		homePaths := newTestHomePaths(t)
+		want := map[string]string{
+			"/":                              "no-cache",
+			"/session/sess-001":              "no-cache",
+			"/theme-boot.js":                 "no-cache",
+			"/assets/emojibase/en/data.json": "no-cache",
+			"/" + fingerprinted:              "public, max-age=31536000, immutable",
+		}
+		// Every surface that serves the Web; public ingress carries webhooks only.
+		for _, surfaceSet := range []SurfaceSet{
+			SurfaceSetLocal,
+			SurfaceSetPrivate,
+			SurfaceSetPublicOperator,
+			SurfaceSetPublicCombined,
+		} {
+			router := gin.New()
+			RegisterSurfaceRoutes(
+				router,
+				newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths),
+				surfaceSet,
+			)
+			for requestPath, cacheControl := range want {
+				resp := performRequestWithHeaders(t, router, http.MethodGet, requestPath, nil, map[string]string{
+					"Accept": "text/html,application/xhtml+xml",
+				})
+				if resp.Code != http.StatusOK {
+					t.Fatalf("%s GET %s status = %d; body=%s", surfaceSet, requestPath, resp.Code, resp.Body.String())
+				}
+				if got := resp.Header().Get("Cache-Control"); got != cacheControl {
+					t.Fatalf("%s GET %s Cache-Control = %q, want %q", surfaceSet, requestPath, got, cacheControl)
+				}
+			}
+		}
+	})
 }
 
 func TestStaticRoutesDoNotFallbackForMissingAssetsOrAPIRoutes(t *testing.T) {
@@ -153,28 +214,80 @@ func TestStaticRoutesServeLocalWebDistOverride(t *testing.T) {
 }
 
 func TestStaticRoutesObserveLocalWebDistRewrite(t *testing.T) {
-	t.Run("Should serve rewritten COMPOZY_WEB_DIST_DIR files without rebuilding Go", func(t *testing.T) {
-		distDir := writeLocalStaticDist(t, "local shell before", nil)
-		t.Setenv(webDistDirEnvVar, distDir)
+	// not parallel: t.Setenv selects the process-wide local Web bundle.
+	for _, tt := range []struct {
+		name        string
+		requestPath string
+		asset       string
+		before      string
+		after       string
+	}{
+		{
+			name:        "Should revalidate rewritten local index without restarting",
+			requestPath: "/",
+			asset:       "index.html",
+			before:      "local shell before",
+			after:       "<!doctype html><div>local shell after</div>",
+		},
+		{
+			name:        "Should revalidate a deep link after the local index changes",
+			requestPath: "/jobs/job-001",
+			asset:       "index.html",
+			before:      "local shell before",
+			after:       "<!doctype html><div>local shell after</div>",
+		},
+		{
+			name:        "Should revalidate rewritten local assets without restarting",
+			requestPath: "/assets/local.js",
+			asset:       "assets/local.js",
+			before:      "console.log('before');",
+			after:       "console.log('after');",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			distDir := writeLocalStaticDist(t, "local shell before", map[string]string{
+				"assets/local.js": "console.log('before');",
+			})
+			t.Setenv(webDistDirEnvVar, distDir)
+			assetPath := filepath.Join(distDir, filepath.FromSlash(tt.asset))
+			modified := time.Date(2026, time.January, 1, 12, 0, 0, 0, time.UTC)
+			if err := os.Chtimes(assetPath, modified, modified); err != nil {
+				t.Fatalf("os.Chtimes before rewrite error = %v", err)
+			}
 
-		homePaths := newTestHomePaths(t)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+			homePaths := newTestHomePaths(t)
+			engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+			before := performRequest(t, engine, http.MethodGet, tt.requestPath, nil)
+			if got := before.Body.String(); before.Code != http.StatusOK || !strings.Contains(got, tt.before) {
+				t.Fatalf("GET %s before status = %d body = %q, want %q", tt.requestPath, before.Code, got, tt.before)
+			}
+			validator := before.Header().Get("Last-Modified")
+			if validator == "" {
+				t.Fatal("Last-Modified is empty, want conditional request validator")
+			}
+			headers := map[string]string{"If-Modified-Since": validator}
+			unchanged := performRequestWithHeaders(t, engine, http.MethodGet, tt.requestPath, nil, headers)
+			if unchanged.Code != http.StatusNotModified || unchanged.Body.Len() != 0 {
+				t.Fatalf(
+					"unchanged status = %d body = %q, want 304 with no body",
+					unchanged.Code,
+					unchanged.Body.String(),
+				)
+			}
 
-		before := performRequest(t, engine, http.MethodGet, "/", nil)
-		if got := before.Body.String(); before.Code != http.StatusOK || !strings.Contains(got, "local shell before") {
-			t.Fatalf("GET / before status = %d body = %q, want local shell before", before.Code, got)
-		}
-
-		indexPath := filepath.Join(distDir, "index.html")
-		if err := os.WriteFile(indexPath, []byte("<!doctype html><div>local shell after</div>"), 0o644); err != nil {
-			t.Fatalf("os.WriteFile(index.html rewrite) error = %v", err)
-		}
-
-		after := performRequest(t, engine, http.MethodGet, "/", nil)
-		if got := after.Body.String(); after.Code != http.StatusOK || !strings.Contains(got, "local shell after") {
-			t.Fatalf("GET / after status = %d body = %q, want local shell after", after.Code, got)
-		}
-	})
+			if err := os.WriteFile(assetPath, []byte(tt.after), 0o644); err != nil {
+				t.Fatalf("os.WriteFile rewrite error = %v", err)
+			}
+			modified = modified.Add(time.Hour)
+			if err := os.Chtimes(assetPath, modified, modified); err != nil {
+				t.Fatalf("os.Chtimes after rewrite error = %v", err)
+			}
+			after := performRequestWithHeaders(t, engine, http.MethodGet, tt.requestPath, nil, headers)
+			if got := after.Body.String(); after.Code != http.StatusOK || got != tt.after {
+				t.Fatalf("GET %s after status = %d body = %q, want %q", tt.requestPath, after.Code, got, tt.after)
+			}
+		})
+	}
 }
 
 func TestStaticRoutesRejectMissingLocalWebDistIndex(t *testing.T) {

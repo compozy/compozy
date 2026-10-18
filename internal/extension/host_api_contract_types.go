@@ -24,18 +24,6 @@ type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
 
 type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
 
-type hostAPISandboxListParams = extensioncontract.SandboxListParams
-
-type hostAPISandboxInfoParams = extensioncontract.SandboxInfoParams
-
-type hostAPISandboxExecParams = extensioncontract.SandboxExecParams
-
-type hostAPIMemoryStoreParams = extensioncontract.MemoryStoreParams
-
-type hostAPIMemoryRecallParams = extensioncontract.MemoryRecallParams
-
-type hostAPIMemoryForgetParams = extensioncontract.MemoryForgetParams
-
 type hostAPIListLogsParams = extensioncontract.ListLogsParams
 
 type hostAPISkillsListParams = extensioncontract.SkillsListParams
@@ -55,16 +43,6 @@ type hostAPISessionInput = extensioncontract.SessionInput
 type hostAPISessionInputListResult = extensioncontract.SessionInputListResult
 
 type hostAPISessionInputResult = extensioncontract.SessionInputResult
-
-type hostAPISandboxListResult = extensioncontract.SandboxListResult
-
-type hostAPISandboxSummary = extensioncontract.SandboxSummary
-
-type hostAPISandboxInfoResult = extensioncontract.SandboxInfoResult
-
-type hostAPISandboxExecResult = extensioncontract.SandboxExecResult
-
-type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
 
 type hostAPISkillSummary = extensioncontract.SkillSummary
 

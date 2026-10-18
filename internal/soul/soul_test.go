@@ -17,7 +17,7 @@ func TestParseMarkdownOnlySoul(t *testing.T) {
 		t.Parallel()
 
 		cfg := testSoulConfig()
-		first, err := Parse(context.Background(), ParseRequest{
+		first, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "/tmp/work/.compozy/agents/coder/SOUL.md",
 			Content:    []byte("# Persona\r\nLead with clarity.\n"),
 			Config:     cfg,
@@ -25,7 +25,7 @@ func TestParseMarkdownOnlySoul(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Parse(first) error = %v", err)
 		}
-		second, err := Parse(context.Background(), ParseRequest{
+		second, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "/tmp/work/.compozy/agents/coder/SOUL.md",
 			Content:    []byte("# Persona\nLead with clarity.\n\n"),
 			Config:     cfg,
@@ -58,7 +58,7 @@ func TestParseStrictFrontmatterSoul(t *testing.T) {
 	t.Run("Should resolve allowlisted strict frontmatter and body", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "agents/reviewer/SOUL.md",
 			Content: []byte(strings.Join([]string{
 				"---",
@@ -96,7 +96,6 @@ func TestParseStrictFrontmatterSoul(t *testing.T) {
 		assertStrings(t, resolved.Profile.Principles, []string{"protect correctness"})
 		assertStrings(t, resolved.Profile.Constraints, []string{"no hidden authority"})
 		assertStrings(t, resolved.Profile.Collaboration, []string{"ask only when blocked"})
-		assertStrings(t, resolved.Profile.MemoryPolicy, []string{"cite durable memory"})
 		assertStrings(t, resolved.Profile.Tags, []string{"qa"})
 		if got, want := resolved.ReadModel.Body, "Review implementation behavior."; got != want {
 			t.Fatalf("ReadModel.Body = %q, want %q", got, want)
@@ -109,7 +108,7 @@ func TestParseWorkspaceRelativeSourcePath(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    ".compozy/agents/coder/SOUL.md",
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte("Lead with clarity."),
@@ -178,7 +177,7 @@ func TestParseRejectsAuthorityClaims(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "/home/user/project/.compozy/agents/reviewer/SOUL.md",
 				Content:    []byte(tt.content),
 				Config:     testSoulConfig(),
@@ -232,17 +231,16 @@ func TestParseRejectsForbiddenOwnerCategories(t *testing.T) {
 		{name: "Should reject capability authority", field: "capabilities", owner: "capabilities"},
 		{name: "Should reject claim token authority", field: "claim_token", owner: "task runtime"},
 		{name: "Should reject session liveness authority", field: "session_liveness", owner: "runtime state"},
-		{name: "Should reject network presence authority", field: "presence", owner: "Compozy Network presence"},
+		{name: "Should reject network presence authority", field: "presence", owner: "runtime state"},
 		{name: "Should reject spawn overlay authority", field: "spawn", owner: "session spawn overlays"},
 		{name: "Should reject config authority", field: "settings", owner: "config"},
-		{name: "Should reject memory runtime authority", field: "memory_scope", owner: "memory runtime"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "SOUL.md",
 				Content: []byte(strings.Join([]string{
 					"---",
@@ -335,7 +333,7 @@ func TestParseRejectsMalformedFrontmatterAndInvalidTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "SOUL.md",
 				Content:    []byte(tt.content),
 				Config:     testSoulConfig(),
@@ -386,7 +384,7 @@ func TestParseRejectsOversizedInputs(t *testing.T) {
 				MaxBodyBytes:           256,
 				ContextProjectionBytes: 256,
 			}
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "SOUL.md",
 				Content:    []byte(tt.content),
 				Config:     cfg,
@@ -440,7 +438,7 @@ func TestResolveMissingAndDisabledSoul(t *testing.T) {
 				writeTestFile(t, filepath.Join(agentDir, FileName), "Lead with precision.")
 			}
 
-			resolved, err := Resolve(context.Background(), ResolveRequest{
+			resolved, err := Resolve(t.Context(), ResolveRequest{
 				AgentPath:     agentPath,
 				WorkspaceRoot: workspaceRoot,
 				Config:        tt.config,
@@ -467,7 +465,7 @@ func TestResolveClosedDiagnostics(t *testing.T) {
 	t.Run("Should reject empty agent path with sanitized diagnostic", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			Config: testSoulConfig(),
 		})
 		if err == nil {
@@ -493,7 +491,7 @@ func TestResolveClosedDiagnostics(t *testing.T) {
 			t.Fatalf("Mkdir(SOUL.md) error = %v", err)
 		}
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        testSoulConfig(),
@@ -513,7 +511,7 @@ func TestContextCancellation(t *testing.T) {
 	t.Run("Should return context cancellation before parsing", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		_, err := Parse(ctx, ParseRequest{
@@ -534,7 +532,7 @@ func TestCompactProjection(t *testing.T) {
 	t.Run("Should reject impossible compact projection budgets", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := Parse(context.Background(), ParseRequest{
+		_, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "agents/coder/SOUL.md",
 			Content:    []byte("Keep the projection bounded."),
 			Config: compozyconfig.SoulConfig{
@@ -554,7 +552,7 @@ func TestCompactProjection(t *testing.T) {
 	t.Run("Should truncate compact projection without exposing full body", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "agents/coder/SOUL.md",
 			Content: []byte(strings.Join([]string{
 				"---",
@@ -616,7 +614,7 @@ func TestResolvePathSafety(t *testing.T) {
 			t.Skipf("symlink unavailable: %v", err)
 		}
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        testSoulConfig(),
@@ -664,7 +662,7 @@ func TestResolveAfterAgentLoad(t *testing.T) {
 			t.Fatalf("Agent.Name = %q, want %q", got, want)
 		}
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        testSoulConfig(),
@@ -711,5 +709,60 @@ func assertStrings(t *testing.T, got []string, want []string) {
 		if got[idx] != want[idx] {
 			t.Fatalf("strings[%d] = %q, want %q", idx, got[idx], want[idx])
 		}
+	}
+}
+
+// Invariant: retired memory_policy cannot invalidate the retained persona fields.
+// Owner: soul parsing. Canonical suite: soul_test.go.
+func TestParseIgnoresRetiredMemoryPolicy(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"[keep notes]", "{invalid: [1, false]}", "42", "null"} {
+		t.Run("Should ignore retired policy value "+value+" [UT-009]", func(t *testing.T) {
+			t.Parallel()
+			resolved, err := Parse(
+				t.Context(),
+				ParseRequest{
+					SourcePath: "SOUL.md",
+					Content: []byte(
+						"---\nrole: Reviewer\nprinciples: [protect correctness]\nmemory_policy: " + value + "\n---\nKeep the persona.",
+					),
+					Config: testSoulConfig(),
+				},
+			)
+			if err != nil || len(resolved.Diagnostics) != 0 || !resolved.Active {
+				t.Fatalf("Parse() = %#v, %v, want active persona without diagnostics", resolved, err)
+			}
+			if resolved.Profile.Role != "Reviewer" || resolved.Profile.Body != "Keep the persona." {
+				t.Fatalf("Profile = %#v, want preserved role and body", resolved.Profile)
+			}
+			assertStrings(t, resolved.Profile.Principles, []string{"protect correctness"})
+		})
+	}
+}
+
+// Invariant: unsupported memory authority keys remain invalid without a retired runtime owner.
+// Owner: soul parsing. Canonical suite: soul_test.go.
+func TestParseUnsupportedRetiredMemoryKeys(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"memory", "memory_store", "memory_scope", "memory_type", "memories"} {
+		t.Run("Should reject unsupported key "+field+" [UT-010]", func(t *testing.T) {
+			t.Parallel()
+			resolved, err := Parse(
+				t.Context(),
+				ParseRequest{
+					SourcePath: "SOUL.md",
+					Content:    []byte("---\n" + field + ": value\n---\nPersona"),
+					Config:     testSoulConfig(),
+				},
+			)
+			if err == nil || len(resolved.Diagnostics) != 1 {
+				t.Fatalf("Parse() = %#v, %v, want one diagnostic", resolved, err)
+			}
+			diag := resolved.Diagnostics[0]
+			if diag.Code != "unsupported_field" || diag.Field != field ||
+				strings.Contains(diag.Message, "memory runtime") {
+				t.Fatalf("Diagnostic = %#v", diag)
+			}
+		})
 	}
 }

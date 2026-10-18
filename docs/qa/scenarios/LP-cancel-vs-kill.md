@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: looprun-db9; looprun-1e5; looprun-08b; looprun-d7f; /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/loop-cancel-draining.json;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/loop-cancel-latest.json;docs/qa/reports/2026-08-31-loop-result-fix.md
 last_report: docs/qa/reports/2026-08-31-loop-result-fix.md
-overlaps: LP-016;LP-forced-cancel-owned-sessions
+overlaps: LP-016; LP-forced-cancel-owned-sessions
 ---
 
 acceptance-walk: Cancel one active run and kill another through Web, then repeat and race the run and node verbs through structured CLI and HTTP. Confirm the cooperative drain versus immediate session stop, exact terminal causes, one terminal effect, deterministic loser responses, fresh-read parity, and absence of every retired stop control or route.

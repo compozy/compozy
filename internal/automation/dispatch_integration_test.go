@@ -55,7 +55,7 @@ func TestDispatcherIntegrationDifferentActivationKindsShareConcurrencyGate(t *te
 	_, err = dispatcher.Dispatch(ctx, DispatchRequest{
 		Kind:     DispatchKindTrigger,
 		Trigger:  &trigger,
-		Envelope: pointerToEnvelope(testEnvelope(AutomationScopeGlobal, "")),
+		Envelope: new(testEnvelope(AutomationScopeGlobal, "")),
 	})
 	if !errors.Is(err, ErrConcurrencyLimitReached) {
 		t.Fatalf("Dispatch(trigger) error = %v, want ErrConcurrencyLimitReached", err)
@@ -264,7 +264,7 @@ func openAutomationIntegrationDB(t *testing.T, ctx context.Context) *globaldb.Gl
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(ctx); err != nil {
+		if err := db.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})

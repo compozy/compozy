@@ -110,15 +110,11 @@ function selectedValue(container: HTMLElement): string | null {
 }
 
 describe("Command", () => {
-  it("Should hide the decorative search icon from assistive technologies", () => {
+  it("Should filter items as the user types", async () => {
+    const user = userEvent.setup();
     const { container } = render(<PaletteExample />);
     const searchIcon = container.querySelector("[data-slot='command-input-group'] svg");
     expect(searchIcon).toHaveAttribute("aria-hidden", "true");
-  });
-
-  it("Should filter items as the user types", async () => {
-    const user = userEvent.setup();
-    render(<PaletteExample />);
     expect(screen.getByText("Go to sessions")).toBeInTheDocument();
     expect(screen.getByText("Start new session")).toBeInTheDocument();
     await user.type(screen.getByLabelText("Search"), "agents");

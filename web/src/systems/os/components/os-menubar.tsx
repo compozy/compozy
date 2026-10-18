@@ -1,19 +1,34 @@
-import { Bell, ChevronsUpDown, Command, Settings } from "lucide-react";
+import { Bell, ChevronDown, Command, LayoutGrid } from "lucide-react";
 
-import { Icon, Logo, Menubar, MenubarTrigger } from "@compozy/ui";
+import {
+  Avatar,
+  AvatarFallback,
+  Icon,
+  Kbd,
+  Logo,
+  Menubar,
+  MenubarTrigger,
+  PillCount,
+  StatusDot,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 /**
- * The desktop menubar: CompozyOS mark, Global globe toggle, workspace chip, app
- * menus, the approvals bell, the ⌘K palette chip, and Settings. Glass shell
- * chrome (the sanctioned carve-out).
+ * The desktop topbar: CompozyOS mark, Global globe toggle, workspace chip, app
+ * menus, then the tray — desktop pager dots, All desktops, the approvals bell,
+ * and the ⌘K palette button. Flat chrome on the rail surface across the full
+ * window width with no bottom hairline: topbar and rail read as one surface
+ * around the inset desk panel, which draws the only edge.
  *
  * The mark and the workspace chip are separate `role="menubar"`s so the globe
  * toggle can sit between them without becoming a menu item. App menus follow
  * in a third menubar. Compact chrome can hide Session/Go/Window/Help without
- * losing mark + toggle + chip. The bell, the palette button, and the settings cog
- * stay outside all three: they are controls, not menus.
+ * losing mark + toggle + chip. The pager, All desktops, the bell, and the palette
+ * button stay outside all three: they are controls, not menus.
  *
  * The shell owns the menus themselves; a control renders as a real trigger only
  * when a menu owner is supplied, otherwise as truthful presentation.
@@ -24,7 +39,13 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * actually receive work — a missing one reverts the chip to the workspace so
    * the bar never advertises a scope that cannot run anything.
    */
-  workspace: { name: string; monogram: string; worktree?: string | null };
+  workspace: {
+    name: string;
+    monogram: string;
+    worktree?: string | null;
+    /** Scope problem (e.g. the worktree fell back); a warning dot marks the chip. */
+    warning?: string | null;
+  };
   /** Functional notice rendered outside `role="menu"` (e.g. scope fell back). */
   scopeNotice?: React.ReactNode;
   /** Composed `<MenubarMenu>` children rendered after the workspace chip. */
@@ -38,9 +59,20 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    */
   updateIndicator?: React.ReactNode;
   onCommandClick?: () => void;
-  onSettingsClick?: () => void;
+  /** Opens the desktops overview; omitted, the All desktops button is inert chrome. */
+  onDesktopsClick?: () => void;
+  /** The desktops overview is open (the All desktops button reads expanded). */
+  desktopsOpen?: boolean;
+  /**
+   * The frameless macOS Electron window draws its traffic lights over the bar's
+   * leading edge. `env(titlebar-area-*)` places the bar beside them; this only
+   * supplies the fixed fallback reservation when those variables are missing.
+   */
+  trafficLights?: boolean;
   /** Live daemon binding for the command-palette chip. */
   commandShortcutLabel?: string;
+  /** The same binding in `aria-keyshortcuts` syntax; absent until the keymap is known. */
+  commandKeyShortcuts?: string;
   /** Renders the CompozyOS mark inside its system-menu owner (shell wiring). */
   logoMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /** Renders the workspace chip inside its menu owner (shell wiring). */
@@ -51,23 +83,22 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * losing mark + toggle + chip.
    */
   scopeControl?: React.ReactNode;
+  /** Desktop pager, the first control of the trailing tray (shell wiring). */
+  pager?: React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
-  /**
-   * Profile switcher, rendered between the command-palette trigger and Settings.
-   * Quiet-until-plural is the switcher's own business: the bar just gives it the
-   * slot.
-   */
-  profileSwitcher?: React.ReactNode;
 }
 
 const WINDOW_DRAG = "[app-region:drag]";
 const WINDOW_NO_DRAG = "[app-region:no-drag]";
 const INTERACTIVE = [
   WINDOW_NO_DRAG,
-  "transition-colors duration-base hover:bg-btn-default-fill hover:text-fg-strong",
+  "transition-colors duration-base hover:bg-rail-hover hover:text-fg",
+  "data-popup-open:bg-rail-selected data-popup-open:text-fg",
   "focus-visible:shadow-focus-ring focus-visible:outline-none",
 ].join(" ");
+/** Tray icon button (shell-rail v2 `.ib`): 34px pill, muted 16px glyph. */
+const ICON_BUTTON = "relative grid size-8.5 place-items-center rounded-pill text-muted";
 
 interface ControlProps extends Omit<React.ComponentProps<"button">, "onClick" | "children"> {
   onClick?: () => void;
@@ -128,11 +159,48 @@ function MenuControl({ menu, className, children, ...props }: MenuControlProps) 
   );
 }
 
-function NotificationBadge({ count }: { count: number }) {
+/** Styled, keyboard-reachable hint for an icon-only control (never native `title`). */
+function ControlTooltip({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactElement;
+}) {
   return (
-    <span className="absolute top-0.5 right-0 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-1 font-mono text-micro font-bold text-accent-ink">
-      {count > 9 ? "9+" : count}
-    </span>
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side="bottom" className="flex items-center gap-2">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }) {
+  return (
+    <>
+      <Avatar size="sm" className="size-5.5">
+        <AvatarFallback className="bg-rail-selected text-badge font-semibold">
+          {workspace.monogram}
+        </AvatarFallback>
+      </Avatar>
+      <span className="text-item-title font-medium text-fg">{workspace.name}</span>
+      {workspace.worktree ? (
+        <span data-slot="os-menubar-worktree" className="max-w-42.5 truncate text-body text-muted">
+          / {workspace.worktree}
+        </span>
+      ) : null}
+      {workspace.warning ? (
+        <StatusDot
+          tone="warning"
+          size="sm"
+          label={workspace.warning}
+          data-slot="os-menubar-warning"
+        />
+      ) : null}
+      <Icon as={ChevronDown} className="size-3.75 text-muted" />
+    </>
   );
 }
 
@@ -144,13 +212,16 @@ export function OsMenuBar({
   status,
   updateIndicator,
   onCommandClick,
-  onSettingsClick,
+  onDesktopsClick,
+  desktopsOpen = false,
+  trafficLights = false,
   commandShortcutLabel,
+  commandKeyShortcuts,
   logoMenu,
   workspaceMenu,
   scopeControl,
   wrapBellTrigger,
-  profileSwitcher,
+  pager,
   className,
   ...props
 }: OsMenuBarProps) {
@@ -161,36 +232,19 @@ export function OsMenuBar({
     <MenuControl
       data-slot="os-menubar-logo"
       aria-label="CompozyOS"
-      className="grid size-7 place-items-center rounded-menubar-control p-0"
+      className="grid size-8.5 place-items-center rounded-md p-0 text-fg"
       menu={logoMenu}
     >
-      <Logo variant="symbol" decorative className="size-menubar-logo" />
+      <Logo variant="symbol" decorative className="size-5" />
     </MenuControl>
   );
   const workspaceControl = (
     <MenuControl
       data-slot="os-menubar-workspace"
-      className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
+      className="flex h-8.5 min-w-0 items-center gap-2.25 rounded-pill pr-3 pl-1.5 text-fg"
       menu={workspaceMenu}
     >
-      <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
-        {workspace.monogram}
-      </span>
-      <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
-      {workspace.worktree ? (
-        <>
-          <span aria-hidden="true" className="text-small-body text-faint">
-            /
-          </span>
-          <span
-            data-slot="os-menubar-worktree"
-            className="max-w-40 truncate text-small-body text-fg"
-          >
-            {workspace.worktree}
-          </span>
-        </>
-      ) : null}
-      <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
+      <WorkspaceChip workspace={workspace} />
     </MenuControl>
   );
 
@@ -199,7 +253,7 @@ export function OsMenuBar({
       data-slot="os-menubar"
       aria-label="System bar"
       className={cn(
-        "flex h-menubar shrink-0 items-center justify-between border-b border-line bg-shell-glass backdrop-blur-shell select-none",
+        "flex h-menubar shrink-0 items-center bg-rail select-none",
         WINDOW_DRAG,
         className
       )}
@@ -208,15 +262,19 @@ export function OsMenuBar({
       <div
         data-slot="os-menubar-safe-area"
         className={cn(
-          "flex h-full min-w-0 items-center justify-between px-2.5",
+          "flex h-full min-w-0 items-center gap-4 pr-3.5",
           WINDOW_DRAG,
-          "ml-[env(titlebar-area-x,0px)] w-[env(titlebar-area-width,100%)]"
+          // Beside the macOS traffic lights the mark follows them after the bar
+          // gap; in the browser it centres over the rail column.
+          trafficLights
+            ? "ml-[env(titlebar-area-x,var(--width-traffic-lights))] w-[env(titlebar-area-width,calc(100%-var(--width-traffic-lights)))] pl-4"
+            : "ml-[env(titlebar-area-x,0px)] w-[env(titlebar-area-width,100%)] pl-3.25"
         )}
       >
-        <div className={cn("flex min-w-0 items-center gap-1", WINDOW_NO_DRAG)}>
-          <div data-slot="os-menubar-identity" className="flex items-center gap-1">
+        <div className={cn("flex min-w-0 items-center gap-0.5", WINDOW_NO_DRAG)}>
+          <div data-slot="os-menubar-identity" className="flex min-w-0 items-center gap-0.5">
             {wrapMenus ? (
-              <Menubar aria-label="System menu" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar aria-label="System menu" className={cn("gap-0.5", WINDOW_NO_DRAG)}>
                 {logoControl}
               </Menubar>
             ) : (
@@ -224,7 +282,7 @@ export function OsMenuBar({
             )}
             {scopeControl}
             {wrapMenus ? (
-              <Menubar aria-label="Workspace" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar aria-label="Project" className={cn("min-w-0 gap-0.5", WINDOW_NO_DRAG)}>
                 {workspaceControl}
               </Menubar>
             ) : (
@@ -232,17 +290,38 @@ export function OsMenuBar({
             )}
           </div>
           {menus ? (
-            <Menubar
-              data-slot="os-menubar-menus"
-              aria-label="App menus"
-              className={cn("gap-1", WINDOW_NO_DRAG)}
-            >
-              {menus}
-            </Menubar>
+            <>
+              <span aria-hidden="true" className="mx-1.5 h-4.5 w-px shrink-0 bg-line" />
+              <Menubar
+                data-slot="os-menubar-menus"
+                aria-label="App menus"
+                className={cn("gap-0.5", WINDOW_NO_DRAG)}
+              >
+                {menus}
+              </Menubar>
+            </>
           ) : null}
         </div>
 
-        <div className={cn("flex items-center gap-2", WINDOW_NO_DRAG)}>
+        <span aria-hidden="true" className="min-w-3 flex-1 self-stretch" />
+
+        <div
+          data-slot="os-menubar-tray"
+          className={cn("flex min-w-0 items-center gap-0.5", WINDOW_NO_DRAG)}
+        >
+          {pager}
+          <ControlTooltip label="All desktops">
+            <Control
+              data-slot="os-menubar-desktops"
+              aria-label="All desktops"
+              aria-haspopup={onDesktopsClick ? "dialog" : undefined}
+              aria-expanded={onDesktopsClick ? desktopsOpen : undefined}
+              className={cn(ICON_BUTTON, desktopsOpen && "bg-rail-selected text-fg")}
+              onClick={onDesktopsClick}
+            >
+              <Icon as={LayoutGrid} className="size-4" />
+            </Control>
+          </ControlTooltip>
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
               not a menu item, and nesting it there breaks the menu's semantics. */}
           {scopeNotice}
@@ -252,36 +331,35 @@ export function OsMenuBar({
             data-slot="os-menubar-bell"
             aria-label={notifications ? `Attention, ${notifications} waiting` : "Attention"}
             aria-haspopup={wrapBellTrigger ? "true" : undefined}
-            className="relative grid size-7 place-items-center rounded-md text-muted"
+            className={ICON_BUTTON}
             wrap={wrapBellTrigger}
           >
-            <Icon as={Bell} size="lg" />
-            {notifications ? <NotificationBadge count={notifications} /> : null}
+            <Icon as={Bell} className="size-4" />
+            {notifications ? (
+              <PillCount
+                count={notifications}
+                className="absolute top-0.75 right-0.5 ring-2 ring-rail"
+              />
+            ) : null}
           </Control>
-          <Control
-            data-slot="os-menubar-command"
-            aria-label="Command palette"
-            title={
-              commandShortcutLabel ? `Command palette · ${commandShortcutLabel}` : "Command palette"
+          <ControlTooltip
+            label={
+              <>
+                Command palette
+                {commandShortcutLabel ? <Kbd>{commandShortcutLabel}</Kbd> : null}
+              </>
             }
-            className="grid size-7 place-items-center rounded-md text-muted"
-            onClick={onCommandClick}
           >
-            <Icon as={Command} size="lg" />
-          </Control>
-          {/* The conventional profile-selector position: last thing before
-              Settings, and outside every `role="menubar"` subtree so its popover
-              keeps its own semantics. */}
-          {profileSwitcher}
-          <Control
-            data-slot="os-menubar-settings"
-            aria-label="Settings"
-            title="Settings"
-            className="grid size-7 place-items-center rounded-md text-muted"
-            onClick={onSettingsClick}
-          >
-            <Icon as={Settings} size="lg" />
-          </Control>
+            <Control
+              data-slot="os-menubar-command"
+              aria-label="Command palette"
+              aria-keyshortcuts={commandKeyShortcuts || undefined}
+              className={ICON_BUTTON}
+              onClick={onCommandClick}
+            >
+              <Icon as={Command} className="size-4" />
+            </Control>
+          </ControlTooltip>
         </div>
       </div>
     </header>

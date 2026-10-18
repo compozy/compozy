@@ -156,9 +156,6 @@ func (m *Manager) prepareExtensionStartup(
 
 	runtime, resourceSession, err := m.launchStartupRuntime(ctx, ext, prepared.grant, transaction)
 	if err != nil {
-		if errors.Is(err, ErrBridgeRuntimeDeferred) {
-			return prepared, nil
-		}
 		m.setFailure(ext, ExtensionPhaseInitialize, err)
 		return nil, phaseError(ext.info.Name, ExtensionPhaseInitialize, err)
 	}

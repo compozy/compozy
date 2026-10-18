@@ -18,6 +18,8 @@ export interface EditorRequestFence {
 
 export interface WorkspaceEditorFailure {
   submitError: string;
+  /** The field the error belongs to; `null` shows it as a dialog-level alert. */
+  submitErrorField?: "name" | null;
   toastError: string;
 }
 
@@ -27,6 +29,7 @@ export interface WorkspaceEditorContext<T> extends WorkspaceEditorInput {
   pendingRequest: EditorRequestFence | null;
   requestCount: number;
   submitError: string | null;
+  submitErrorField: "name" | null;
 }
 
 type WorkspaceEditorEvents<T, TResult> = {
@@ -76,12 +79,13 @@ export function createWorkspaceEditorLogic<T extends WorkspaceEditorValue, TResu
       pendingRequest: null,
       requestCount: 0,
       submitError: null,
+      submitErrorField: null,
       workspaceId: input.workspaceId,
     }),
     on: {
       draftChanged: (context, event) => {
         if (!context.editor || context.pendingRequest) return;
-        return { ...context, editor: event.draft, submitError: null };
+        return { ...context, editor: event.draft, submitError: null, submitErrorField: null };
       },
       editorClosed: context => invalidateEditor(context),
       lifecycleDisposed: context => invalidateEditor(context),
@@ -91,6 +95,7 @@ export function createWorkspaceEditorLogic<T extends WorkspaceEditorValue, TResu
         generation: context.generation + 1,
         pendingRequest: null,
         submitError: null,
+        submitErrorField: null,
         workspaceId: event.workspaceId,
       }),
       submissionRequested: (context, event, enqueue) => {
@@ -126,12 +131,18 @@ export function createWorkspaceEditorLogic<T extends WorkspaceEditorValue, TResu
           pendingRequest: request,
           requestCount: requestId,
           submitError: null,
+          submitErrorField: null,
         };
       },
       submissionFailed: (context, event, enqueue) => {
         if (!hasEditorRequestFence(context.pendingRequest, event)) return;
         enqueue.effect(() => notifyUser({ message: event.failure.toastError, tone: "error" }));
-        return { ...context, pendingRequest: null, submitError: event.failure.submitError };
+        return {
+          ...context,
+          pendingRequest: null,
+          submitError: event.failure.submitError,
+          submitErrorField: event.failure.submitErrorField ?? null,
+        };
       },
       submissionSucceeded: (context, event, enqueue) => {
         if (!hasEditorRequestFence(context.pendingRequest, event)) return;
@@ -150,5 +161,6 @@ function invalidateEditor<T>(context: WorkspaceEditorContext<T>): WorkspaceEdito
     generation: context.generation + 1,
     pendingRequest: null,
     submitError: null,
+    submitErrorField: null,
   };
 }

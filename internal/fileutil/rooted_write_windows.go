@@ -23,18 +23,26 @@ func openOrCreateDirectoryNoFollow(path string, perm os.FileMode) (*os.File, err
 	if err != nil {
 		return nil, err
 	}
-	handle, err := openWindowsRoot(root, openIntentMutate)
+	rootIntent := openIntentRead
+	if len(parts) == 0 {
+		rootIntent = openIntentMutate
+	}
+	handle, err := openWindowsRoot(root, rootIntent)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, part := range parts {
+	for index, part := range parts {
+		access := uint32(windows.FILE_GENERIC_READ)
+		if index == len(parts)-1 {
+			access |= windows.FILE_GENERIC_WRITE
+		}
 		next, err := openWindowsChildWithDisposition(
 			handle,
 			part,
 			entryDirectory,
 			windows.FILE_OPEN_IF,
-			windows.FILE_GENERIC_READ|windows.FILE_GENERIC_WRITE,
+			access,
 		)
 		if err != nil {
 			if closeErr := windows.CloseHandle(handle); closeErr != nil {

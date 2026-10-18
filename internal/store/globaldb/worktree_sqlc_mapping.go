@@ -74,24 +74,21 @@ func pointerString(value sql.NullString) *string {
 	if !value.Valid {
 		return nil
 	}
-	cloned := value.String
-	return &cloned
+	return new(value.String)
 }
 
 func pointerInt(value sql.NullInt64) *int {
 	if !value.Valid {
 		return nil
 	}
-	cloned := int(value.Int64)
-	return &cloned
+	return new(int(value.Int64))
 }
 
 func pointerBool(value sql.NullInt64) *bool {
 	if !value.Valid {
 		return nil
 	}
-	cloned := value.Int64 != 0
-	return &cloned
+	return new(value.Int64 != 0)
 }
 
 func pointerTime(value sql.NullString) (*time.Time, error) {

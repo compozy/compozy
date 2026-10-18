@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"sync"
 	"time"
 )
@@ -126,9 +127,7 @@ func (p *pairingStore) Redeem(artifact string, issue func(PairingSource) error) 
 }
 
 func (p *pairingStore) sweepExpired(now time.Time) {
-	for digest, entry := range p.entries {
-		if !now.Before(entry.expiresAt) {
-			delete(p.entries, digest)
-		}
-	}
+	maps.DeleteFunc(p.entries, func(_ string, entry pairingEntry) bool {
+		return !now.Before(entry.expiresAt)
+	})
 }

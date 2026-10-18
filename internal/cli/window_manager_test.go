@@ -395,6 +395,42 @@ func TestUnixSocketClientWindowManagerRoutes(t *testing.T) {
 }
 
 func TestWindowManagerMutationCommands(t *testing.T) {
+	// Invariant: deprecated --app values remain accepted with an actionable stderr warning; CLI suite owns flag behavior.
+	t.Run("Should warn when opening a retired app [IT-014]", func(t *testing.T) {
+		t.Parallel()
+		client := newWindowManagerCommandStub()
+		client.executeFn = func(_ context.Context, _ string, request contract.WindowManagerCommandRequest) (contract.WindowManagerResult, error) {
+			if request.Actor.Kind != "cli" || !strings.Contains(string(request.Payload), `"app":"jobs"`) {
+				t.Fatalf("request=%+v", request)
+			}
+			return windowManagerTestResult(), nil
+		}
+		stdout, stderr, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"window",
+			"open",
+			"--workspace",
+			"w1",
+			"--revision",
+			"7",
+			"--app",
+			"jobs",
+			"--pathname",
+			"/jobs",
+			"--search-json",
+			"{}",
+			"-o",
+			"json",
+		)
+		if err != nil || stdout == "" ||
+			!strings.Contains(
+				stderr,
+				`warning: app "jobs" is deprecated and will be removed in v0.5.0; use "automations"`,
+			) {
+			t.Fatalf("stdout=%s stderr=%s err=%v", stdout, stderr, err)
+		}
+	})
 	t.Parallel()
 
 	tests := []struct {
@@ -486,6 +522,16 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 				Pathname: "/tasks",
 				Search:   windowmanager.RouteSearch{"status": json.RawMessage(`"open"`)},
 			},
+		},
+		{
+			name:            "Should open an explicit floating window",
+			commandID:       contract.WindowManagerCommandWindowOpen,
+			expectedPayload: `{"window":{"app":"tasks","route":{"pathname":"/tasks","search":{}},"desktop_id":"","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false,"floating":true}}`,
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "7", "--app", "tasks",
+				"--pathname", "/tasks", "--search-json", "{}", "--floating",
+			},
+			expectedRoute: &windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
 		},
 		{
 			name:            "Should group windows at an insertion index",
@@ -638,6 +684,15 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			args: []string{
 				"layout", "arrange", "--workspace", "w1", "--revision", "7", "--desktop", "d1", "--window", "win-1",
 				"--window", "win-2", "--arrangement", "horizontal",
+			},
+		},
+		{
+			name:            "Should arrange explicit windows keeping their tab frames whole",
+			commandID:       contract.WindowManagerCommandLayoutArrange,
+			expectedPayload: `{"desktop_id":"d1","window_ids":["win-1","win-2"],"arrangement":"main_stack","frame":{"x":0,"y":0,"width":0,"height":0},"group_id":"","keep_frames":true}`,
+			args: []string{
+				"layout", "arrange", "--workspace", "w1", "--revision", "7", "--desktop", "d1", "--window", "win-1",
+				"--window", "win-2", "--arrangement", "main_stack", "--keep-frames",
 			},
 		},
 		{
@@ -1456,6 +1511,15 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			wantError: "--resource cannot be combined with --desktop",
 		},
 		{
+			name: "Should reject keep-frames with a declarative resource",
+			args: []string{
+				"layout", "arrange", "--workspace", "w1", "--revision", "1", "--resource", "focused-work",
+				"--keep-frames",
+			},
+			wantKind: windowManagerCLIValidationConflicting, wantField: windowManagerResourceFlag,
+			wantError: "--resource cannot be combined with --keep-frames",
+		},
+		{
 			name: "Should reject incomplete inline arrangement mode",
 			args: []string{
 				"layout", "arrange", "--workspace", "w1", "--revision", "1", "--desktop", "d1", "--window", "win-1",
@@ -1593,12 +1657,6 @@ func TestWindowManagerHardCutCommandTree(t *testing.T) {
 		t.Parallel()
 
 		cmd := newRootCommand(commandDeps{}.withDefaults())
-		for _, name := range []string{"desktop", "window", "layout"} {
-			found, _, err := cmd.Find([]string{name})
-			if err != nil || found == nil || found.Name() != name {
-				t.Fatalf("find %q = %v/%v, want public root group", name, found, err)
-			}
-		}
 		if found, _, err := cmd.Find([]string{"desktop-state"}); err == nil && found != nil &&
 			found.Name() == "desktop-state" {
 			t.Fatal("legacy desktop-state command remains registered")

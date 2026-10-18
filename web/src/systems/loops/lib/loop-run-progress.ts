@@ -9,6 +9,7 @@ import {
   progressSegmentForState,
   resolveFanOutBranches,
 } from "./loop-run-fanout-band";
+import { type LoopStepChildRun, stepChildRuns } from "./loop-run-child-runs";
 import {
   type LoopStateChip,
   isParkedRosterState,
@@ -42,6 +43,8 @@ export interface LoopStepRow {
   attemptLabel: string | null;
   /** Present only on a fan-out container; the branches live inside it. */
   fanOut: LoopFanOutBand | null;
+  /** Loop runs this step started — one per branch on a fan-out. */
+  childRuns: LoopStepChildRun[];
   /** The authored class; null for a roster row the definition does not name. */
   nodeClass: LoopNodeClass | null;
   /**
@@ -182,6 +185,14 @@ function buildSteps(
         ),
         attemptLabel: null,
         fanOut: band,
+        childRuns: stepChildRuns(
+          band.branches.map(branch => ({
+            key: branch.key,
+            childRunId: branch.childRunId,
+            slotLabel: branch.label,
+            itemIndex: branch.itemIndex,
+          }))
+        ),
         nodeClass: authoredClass(graph, nodeId),
         // A fan-out never folds: the band is the only place its width is drawn.
         quiet: false,
@@ -198,6 +209,14 @@ function buildSteps(
         chip: loopRosterStateChip(node.state),
         attemptLabel: loopAttemptLabel(node.attempt),
         fanOut: null,
+        childRuns: stepChildRuns([
+          {
+            key: rowKey(node),
+            childRunId: node.child_loop_run_id ?? null,
+            slotLabel: null,
+            itemIndex: node.item_index,
+          },
+        ]),
         nodeClass,
         quiet: isQuietStep(nodeClass, node.state),
       });

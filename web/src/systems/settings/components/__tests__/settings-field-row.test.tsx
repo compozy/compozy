@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { PillGroup, TooltipProvider } from "@compozy/ui";
+import { PillGroup, RequiredMark, TooltipProvider } from "@compozy/ui";
 
 import { SettingRow } from "../setting-row";
 import { ModalSettingsFieldRow, SettingsFieldRow } from "../settings-field-row";
@@ -27,7 +27,7 @@ describe("SettingsFieldRow", () => {
     render(
       <TooltipProvider delay={0}>
         <SettingsFieldRow
-          label="Default sandbox"
+          label="Default provider"
           help="How much of your file system new sessions can touch."
           control={<input />}
           data-testid="field-row"
@@ -36,9 +36,33 @@ describe("SettingsFieldRow", () => {
     );
 
     const row = screen.getByTestId("field-row");
-    expect(row).toHaveTextContent("Default sandbox");
+    expect(row).toHaveTextContent("Default provider");
     expect(row).not.toHaveTextContent("How much of your file system");
-    expect(screen.getByRole("button", { name: "About default sandbox" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About default provider" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["SettingsFieldRow", SettingsFieldRow],
+    ["ModalSettingsFieldRow", ModalSettingsFieldRow],
+  ])("names help for a decorated label without changing the field name in %s", (_, Row) => {
+    render(
+      <TooltipProvider delay={0}>
+        <Row
+          label={
+            <>
+              Name <RequiredMark />
+            </>
+          }
+          help="Choose a supported namespace and path."
+          helpLabel="About name"
+          control={<input />}
+        />
+      </TooltipProvider>
+    );
+
+    const help = screen.getByRole("button", { name: "About name" });
+    expect(help.closest("label")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Name required" })).toBeInTheDocument();
   });
 
   it("forwards the error message when provided", () => {
@@ -54,22 +78,6 @@ describe("SettingsFieldRow", () => {
     const row = screen.getByTestId("field-row");
     expect(row).toHaveTextContent("required");
     expect(screen.getByLabelText("API key")).toHaveAttribute("aria-invalid", "true");
-  });
-
-  it("renders the srow anatomy by default and the Field container in ModalSettingsFieldRow", () => {
-    render(
-      <SettingsFieldRow label="Session timeout" control={<input />} data-testid="field-row" />
-    );
-    expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "setting-row");
-
-    render(
-      <ModalSettingsFieldRow
-        control={<input />}
-        data-testid="field-row-modal"
-        label="Display name"
-      />
-    );
-    expect(screen.getByTestId("field-row-modal")).toHaveAttribute("data-slot", "field");
   });
 
   it("labels composite control groups with the field label", () => {
@@ -136,6 +144,7 @@ describe("SettingsFieldRow", () => {
     const group = screen.getByRole("group", { name: "Session timeout" });
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("description"));
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("error"));
+    expect(group).toHaveAccessibleDescription("Ends inactive sessions Enter a whole number.");
     expect(group).not.toHaveAttribute("aria-invalid");
   });
 });

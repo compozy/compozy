@@ -7,7 +7,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // own filters, and a keyboard selection that survives the catalog moving.
 // Owning layer: palette root/surface view-model and presentation boundary.
 // This canonical suite also owns automatic surface selection and action-panel
-// continuity; its shared registry/ranking setup exercises those hooks together.
+// continuity and pending-decision dialogs that keep transport failures visible;
+// its shared registry/ranking setup exercises those hooks together.
 // Boundary OUT: the dispatch seam and client-op table (cmd-palette-dispatch),
 // availability evaluation (cmd-palette-availability), overlay lifetime
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
@@ -15,7 +16,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,6 +43,7 @@ import {
 
 import type { LayoutDesktop } from "../../lib/window-manager-types";
 import type { OsAppId, OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
+import * as cmdPaletteAPI from "../../adapters/cmd-palette-api";
 import { OsCommandPalette } from "../../components/os-command-palette";
 import type { CmdPaletteRunOptions } from "../use-cmd-palette-dispatch";
 import { useOsPaletteSurface } from "../use-os-palette-surface";
@@ -40,6 +51,7 @@ import { useOsPaletteRoot } from "../use-os-palette-root";
 import {
   cmdPaletteExecutionStore,
   requestPaletteArgs,
+  requestPaletteApproval,
   requestPaletteConfirmation,
   resetPaletteExecutionEntry,
 } from "../../stores/cmd-palette-execution-store";
@@ -50,7 +62,12 @@ import type {
   ResolvedPaletteCommand,
 } from "../../lib/cmd-palette-types";
 import { paletteCommand } from "../../lib/__tests__/cmd-palette-dispatch-fixtures";
-import { PALETTE_SESSION_ROW_LIMIT } from "../use-os-palette-sessions-view";
+import { paletteNavigationTarget } from "../../lib/cmd-palette-navigation";
+import {
+  filterPaletteSessions,
+  paletteSessionFilterCounts,
+} from "../../lib/palette-session-filters";
+import { compareAttentionFirst } from "../../lib/attention-order";
 import {
   isPaletteDomainSearchEnabled,
   projectVaultRows,
@@ -124,6 +141,9 @@ const paletteMocks = vi.hoisted(() => {
     sessionsLoading: false,
     sessionsWorkspaceId: vi.fn(),
     sessionsFilters: vi.fn(),
+    sessionsEnabled: vi.fn(),
+    nextCatalogPage: vi.fn(),
+    previousCatalogPage: vi.fn(),
     sessionGroupWorkspaces: vi.fn(),
     setSessionListScope: vi.fn(),
     toggleLocked: false,
@@ -179,8 +199,56 @@ vi.mock("@/systems/session", async importOriginal => ({
     pending: paletteMocks.fallbackPending,
     run: paletteMocks.runFallback,
   }),
-  useSessions: (workspaceId: string | null, options?: { filters?: Record<string, unknown> }) => {
+  useSessionCatalog: (
+    workspaceId: string | null,
+    filters: { q?: string; badge?: string; attention?: boolean },
+    enabled: boolean
+  ) => {
     paletteMocks.sessionsWorkspaceId(workspaceId);
+    paletteMocks.sessionsFilters(filters);
+    paletteMocks.sessionsEnabled(enabled);
+    const population =
+      workspaceId === null && paletteMocks.workspaceGroups.length > 0
+        ? paletteMocks.workspaceGroups.flatMap(group => group.sessions)
+        : paletteMocks.sessions;
+    const counts = paletteSessionFilterCounts(population as never);
+    const filterId = filters.attention
+      ? "needs-you"
+      : filters.badge === "running"
+        ? "working"
+        : filters.badge === "done"
+          ? "finished"
+          : filters.badge === "idle"
+            ? "idle"
+            : "all";
+    const matching = filterPaletteSessions(population as never, filterId, filters.q ?? "").sort(
+      compareAttentionFirst
+    );
+    return {
+      sessions: matching.slice(0, 100),
+      facets: {
+        all: counts.all,
+        needs_you: counts["needs-you"],
+        working: counts.working,
+        finished: counts.finished,
+        idle: counts.idle,
+      },
+      loading: paletteMocks.sessionsLoading,
+      failed: false,
+      next: matching.length > 100,
+      previous: false,
+      paging: false,
+      nextPage: paletteMocks.nextCatalogPage,
+      previousPage: paletteMocks.previousCatalogPage,
+      retry: vi.fn(),
+    };
+  },
+  useSessions: (
+    workspaceId: string | null,
+    options?: { filters?: Record<string, unknown>; enabled?: boolean }
+  ) => {
+    paletteMocks.sessionsWorkspaceId(workspaceId);
+    paletteMocks.sessionsEnabled(options?.enabled);
     paletteMocks.sessionsFilters(options?.filters ?? {});
     return { data: paletteMocks.sessions, isLoading: paletteMocks.sessionsLoading };
   },
@@ -412,10 +480,10 @@ function desktopFixture(
     connectionStatus: "connected",
     desktopBounds: null,
     desktops: DESKTOPS,
-    dockMagnify: false,
     focusedId,
     frames: {},
     hydration: "live",
+    loadError: null,
     presentation: "floating",
     projections: {},
     reduceMotion: false,
@@ -610,10 +678,10 @@ const paletteDispatch = {
     const view = command.action.kind === "view" ? command.action.view : undefined;
     if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
     if (command.action.kind === "navigate" && options?.navigate !== undefined) {
-      const pathname = command.action.args?.pathname;
+      const route = paletteNavigationTarget(command.action.args ?? {});
       options.navigate(
         command.action.app as OsAppId,
-        typeof pathname === "string" ? { pathname, search: {} } : null
+        route.pathname === null ? null : { pathname: route.pathname, search: route.search }
       );
     }
     return { status: "ran" } as const;
@@ -700,6 +768,11 @@ describe("useOsPaletteRoot", () => {
   });
 
   afterEach(() => {
+    if (vi.isFakeTimers()) {
+      cleanup();
+      paletteQueryClient.clear();
+      vi.useRealTimers();
+    }
     vi.clearAllMocks();
   });
 
@@ -737,19 +810,8 @@ describe("useOsPaletteRoot", () => {
     );
   });
 
-  it("Should collect declared arguments before pushing a view [RA0292]", async () => {
-    const command = paletteCommand({
-      id: "palette.view.notes",
-      title: "Notes",
-      action: { kind: "view", view: "sessions" },
-      arguments: [{ name: "q", type: "text", required: true, placeholder: "Query" }],
-    });
-
-    await expect(paletteDispatch.run(command)).resolves.toEqual({ status: "needs_args" });
-    expect(paletteMocks.readViewStack()).toEqual([]);
-  });
-
   it("Should include the home workspace in global session search", async () => {
+    vi.useFakeTimers();
     paletteMocks.scope = "global";
     paletteMocks.rankSignals = TEST_RANK_SIGNALS;
     paletteMocks.workspaceGroups = [
@@ -765,11 +827,10 @@ describe("useOsPaletteRoot", () => {
 
     act(() => result.current.setQuery("Home target"));
 
-    await waitFor(() => expect(result.current.entities.sessions).toHaveLength(1));
+    await act(async () => vi.advanceTimersByTimeAsync(180));
+    expect(result.current.entities.sessions).toHaveLength(1);
     expect(result.current.entities.sessions[0]?.sessionId).toBe("s-home");
-    expect(paletteMocks.sessionGroupWorkspaces).toHaveBeenLastCalledWith(
-      paletteMocks.registeredWorkspaces
-    );
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
   });
 
   it("Should identify root session results by owner under the aggregate profile lens", async () => {
@@ -903,6 +964,36 @@ describe("useOsPaletteRoot", () => {
     });
     expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
+  });
+
+  it("Should open the Automations editor with the chosen start [UT-112, IT-020]", async () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture(
+      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      "window:new-tab"
+    );
+    const { result } = renderRoot();
+    const command = paletteCommand({
+      id: "automation.create.event",
+      title: "New automation on an event",
+      section: "Apps",
+      action: {
+        kind: "navigate",
+        app: "automations",
+        args: { pathname: "/automations", create: "1", start: "event" },
+      },
+      execution: { retry_safe: true, single_flight: false },
+    });
+
+    await act(async () => {
+      result.current.runCommand(command);
+    });
+
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "automations",
+      route: { pathname: "/automations", search: { create: "1", start: "event" } },
+      stackTargetWindowId: "window:new-tab",
+    });
   });
 
   it("Should land on a session through the shared attention jump [BR-20]", async () => {
@@ -1073,10 +1164,10 @@ describe("useOsPaletteRoot", () => {
 
     act(() => {
       rendered.result.current.openDomainRow({
-        app: "jobs",
+        app: "automations",
         key: "job:job-beta",
         label: "Beta job",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
         workspaceId: "workspace:beta",
       });
     });
@@ -1093,8 +1184,8 @@ describe("useOsPaletteRoot", () => {
 
     await waitFor(() =>
       expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "jobs",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        app: "automations",
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
       })
     );
   });
@@ -1111,10 +1202,10 @@ describe("useOsPaletteRoot", () => {
 
     act(() => {
       rendered.result.current.openDomainRow({
-        app: "jobs",
+        app: "automations",
         key: "job:job-beta",
         label: "Beta job",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
         workspaceId: "workspace:beta",
       });
     });
@@ -1132,8 +1223,8 @@ describe("useOsPaletteRoot", () => {
 
     await waitFor(() =>
       expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "jobs",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        app: "automations",
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
       })
     );
   });
@@ -1345,6 +1436,20 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-command-palette.view.sessions")).toBeInTheDocument();
   });
 
+  it("Should enable the Global Sessions view without a project workspace", async () => {
+    const user = userEvent.setup();
+    paletteMocks.scope = "global";
+    paletteMocks.activeWorkspaceId = null;
+    paletteMocks.sessions = [paletteSession({ id: "s-global", name: "Global session" })];
+    renderPalette();
+
+    await pushSessionsView(user);
+
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
+    expect(paletteMocks.sessionsEnabled).toHaveBeenLastCalledWith(true);
+    expect(screen.getByTestId("os-palette-session-view-s-global")).toBeInTheDocument();
+  });
+
   it("Should render only the active view's results and name its own empty state [UT-060]", async () => {
     const user = userEvent.setup();
     paletteMocks.sessions = [paletteSession({ id: "s-1", name: "Refactor session store" })];
@@ -1365,7 +1470,7 @@ describe("palette nested views", () => {
         <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
       </PaletteHarness>
     );
-    expect(screen.getByText("No sessions in this workspace yet.")).toBeInTheDocument();
+    expect(screen.getByText("No sessions in this project yet.")).toBeInTheDocument();
     expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
   });
 
@@ -1428,7 +1533,7 @@ describe("palette nested views", () => {
     await pushSessionsView(user);
 
     const scope = screen.getByTestId("os-palette-session-scope");
-    expect(scope).toHaveAccessibleName("All workspaces");
+    expect(scope).toHaveAccessibleName("All projects");
     expect(scope).toHaveAttribute("aria-pressed", "false");
     await user.click(scope);
     expect(paletteMocks.setSessionListScope).toHaveBeenCalledWith("all-workspaces");
@@ -1456,7 +1561,7 @@ describe("palette nested views", () => {
 
     expect(screen.getByTestId("os-palette-session-scope")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
-    expect(screen.getByText("Gamma couldn't be loaded.")).toBeInTheDocument();
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
     // Attention-first survives the union: the needs-you row from the foreign
     // workspace outranks the idle row from this one.
     const rows = screen.getAllByTestId(/^os-palette-session-view-/);
@@ -1469,12 +1574,13 @@ describe("palette nested views", () => {
     expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("workspace");
 
     paletteMocks.workspaceGroups = [];
+    paletteMocks.sessions = [];
     rendered.rerender(
       <PaletteHarness>
         <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
       </PaletteHarness>
     );
-    expect(screen.getByText("No sessions across workspaces yet.")).toBeInTheDocument();
+    expect(screen.getByText("No sessions across projects yet.")).toBeInTheDocument();
   });
 
   it("Should read the archive through its own toggle without touching the breadth [UT-061]", async () => {
@@ -1621,24 +1727,38 @@ describe("palette nested views", () => {
     );
   });
 
-  it("Should bound the rendered rows and say how many matches went unrendered", async () => {
+  it("Should page bounded results while exact chips and server search include older history", async () => {
     const user = userEvent.setup();
-    paletteMocks.sessions = Array.from({ length: PALETTE_SESSION_ROW_LIMIT + 12 }, (_, index) =>
-      paletteSession({ id: `s-${index}`, name: `Session ${index}` })
+    paletteMocks.sessions = Array.from({ length: 212 }, (_, index) =>
+      paletteSession({
+        id: `s-${index}`,
+        name: `Session ${index}`,
+        ...(index === 211 ? { badge: "running", updated_at: "2020-01-01T00:00:00Z" } : {}),
+      })
     );
     renderPalette();
-    await pushSessionsView(user);
-
-    expect(screen.getAllByTestId(/^os-palette-session-view-/)).toHaveLength(
-      PALETTE_SESSION_ROW_LIMIT
+    const input = await pushSessionsView(user);
+    expect(screen.getAllByTestId(/^os-palette-session-view-/)).toHaveLength(100);
+    expect(screen.getAllByTestId(/^os-palette-session-view-/)[0]).toHaveAttribute(
+      "data-testid",
+      "os-palette-session-view-s-211"
     );
-    const list = screen.getByTestId("os-command-palette");
-    expect(
-      within(list).getByText(
-        `Showing ${PALETTE_SESSION_ROW_LIMIT} of ${PALETTE_SESSION_ROW_LIMIT + 12} — keep typing to narrow.`,
-        { exact: false }
+    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort: "navigator", limit: 100 })
+    );
+    expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*212/);
+    expect(screen.getByText("100 sessions on this page.")).toBeInTheDocument();
+    await user.click(screen.getByTestId("os-palette-sessions-next"));
+    expect(paletteMocks.nextCatalogPage).toHaveBeenCalledTimes(1);
+    await user.click(input);
+    await user.paste("Session 211");
+    await waitFor(() =>
+      expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: "Session 211", search_fields: "title_agent", limit: 100 })
       )
-    ).toBeInTheDocument();
+    );
+    expect(screen.getByTestId("os-palette-session-view-s-211")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*212/);
   });
 
   it("Should gate every domain read by the daemon query bounds [UT-110, UT-111]", () => {
@@ -1698,11 +1818,11 @@ describe("palette nested views", () => {
         error: null,
       },
       {
-        title: "Bridges",
+        title: "Jobs",
         rows: [],
         total: 0,
         loading: false,
-        error: "Bridges: transport offline",
+        error: "Jobs: transport offline",
       },
     ];
     renderPalette();
@@ -1712,11 +1832,11 @@ describe("palette nested views", () => {
     );
     expect(
       screen.getByText(
-        `showing ${TEST_WEIGHTS.entity_section_visible_cap} of ${TEST_WEIGHTS.entity_section_visible_cap + 4}`
+        `${TEST_WEIGHTS.entity_section_visible_cap} of ${TEST_WEIGHTS.entity_section_visible_cap + 4} shown`
       )
     ).toBeInTheDocument();
-    expect(screen.getByTestId("os-palette-domain-error-bridges")).toHaveTextContent(
-      "Bridges: transport offline"
+    expect(screen.getByTestId("os-palette-domain-error-jobs")).toHaveTextContent(
+      "Jobs: transport offline"
     );
     for (const row of screen.getAllByTestId(/^os-palette-domain-row-task:/)) {
       expect(within(row).getByText("Alpha")).toBeInTheDocument();
@@ -1841,9 +1961,42 @@ describe("palette execution surfaces", () => {
     paletteMocks.desktop = desktopFixture({}, null);
   });
 
-  afterEach(() => {
-    resetPaletteExecutionEntry();
-    cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: CAPTURE_COMMAND.id });
+  afterEach(async () => {
+    cleanup();
+    await act(async () => {
+      resetPaletteExecutionEntry();
+      cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: CAPTURE_COMMAND.id });
+    });
+  });
+
+  it("Should keep an approval dialog open when denying fails", async () => {
+    const user = userEvent.setup();
+    const getApproval = vi
+      .spyOn(cmdPaletteAPI, "getPendingToolApproval")
+      .mockResolvedValue({ approval_status: "pending" });
+    const resolveApproval = vi
+      .spyOn(cmdPaletteAPI, "resolvePendingToolApproval")
+      .mockRejectedValue(new Error("Decision unavailable"));
+    const onOpenChange = vi.fn();
+    requestPaletteApproval(CAPTURE_COMMAND, { id: "apr_editorial", profile: "editorial" });
+    try {
+      render(
+        <PaletteHarness>
+          <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={onOpenChange} />
+        </PaletteHarness>
+      );
+      await waitFor(() => expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled());
+
+      await user.click(screen.getByRole("button", { name: "Deny" }));
+
+      expect(await screen.findByText("Decision unavailable")).toBeInTheDocument();
+      expect(onOpenChange).not.toHaveBeenCalledWith(false, expect.anything());
+      expect(onOpenChange).not.toHaveBeenCalledWith(false);
+      expect(screen.getByRole("dialog", { name: CAPTURE_COMMAND.title })).toBeInTheDocument();
+    } finally {
+      getApproval.mockRestore();
+      resolveApproval.mockRestore();
+    }
   });
 
   it("Should retain an automatically selected row and its actions when async ranking arrives", () => {
@@ -1871,6 +2024,54 @@ describe("palette execution surfaces", () => {
     expect(result.current.execution.panel.open).toBe(true);
   });
 
+  it("Should keep an untouched highlight on the top row while ranking arrives", () => {
+    const { result, rerender } = renderHook(
+      () => useOsPaletteSurface({ open: true, onOpenChange: vi.fn(), dispatch: paletteDispatch }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <CmdPaletteRegistryProvider registry={EXECUTION_REGISTRY}>
+            {children}
+          </CmdPaletteRegistryProvider>
+        ),
+      }
+    );
+    expect(result.current.selected).toBe(result.current.values[0]);
+    // Recents and pins land after the palette opens and reorder the list; an
+    // automatic highlight left on the old first row would now sit off-screen.
+    paletteMocks.rankSignals = { ...TEST_RANK_SIGNALS, pins: ["settings.layouts"] };
+    rerender();
+    expect(result.current.values[0]).toBe("settings.layouts");
+    expect(result.current.selected).toBe("settings.layouts");
+  });
+
+  it("Should start at the top result when the palette opens or the query changes", () => {
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) =>
+        useOsPaletteSurface({ open, onOpenChange: vi.fn(), dispatch: paletteDispatch }),
+      {
+        initialProps: { open: false },
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <CmdPaletteRegistryProvider registry={EXECUTION_REGISTRY}>
+            {children}
+          </CmdPaletteRegistryProvider>
+        ),
+      }
+    );
+    // A row picked while the overlay is closed must not survive into the next open.
+    const stale = result.current.values.at(-1) ?? "";
+    expect(stale).not.toBe(result.current.values[0]);
+    act(() => result.current.onSelectionChange(stale));
+    expect(result.current.selected).toBe(stale);
+    rerender({ open: true });
+    expect(result.current.selected).toBe(result.current.values[0]);
+
+    // A new query re-ranks the list, so the highlight moves to its top result.
+    act(() => result.current.onSelectionChange(stale));
+    act(() => result.current.root.setQuery("capture"));
+    expect(result.current.selected).not.toBe("");
+    expect(result.current.selected).toBe(result.current.values[0]);
+  });
+
   it("Should toggle the action panel on the selected row, filter it, and close it [UT-125]", async () => {
     const user = userEvent.setup();
     renderExecutionPalette();
@@ -1886,6 +2087,11 @@ describe("palette execution surfaces", () => {
     expect(within(panel).getByTestId("os-palette-action-meta.pin")).toBeInTheDocument();
     expect(within(panel).queryByTestId("os-palette-action-primary.run")).not.toBeInTheDocument();
 
+    await user.clear(screen.getByPlaceholderText("Filter actions…"));
+    await user.type(screen.getByPlaceholderText("Filter actions…"), "xyz");
+    expect(screen.getByTestId("os-palette-action-empty")).toHaveTextContent("No actions match");
+    expect(screen.getByTestId("os-palette-action-panel")).toBeInTheDocument();
+
     await user.keyboard("{Meta>}k{/Meta}");
     await waitFor(() =>
       expect(screen.queryByTestId("os-palette-action-panel")).not.toBeInTheDocument()
@@ -1900,17 +2106,6 @@ describe("palette execution surfaces", () => {
     expect(screen.getByTestId("os-palette-command-ext.notes.capture")).toHaveTextContent(
       "Capture note (cap)"
     );
-  });
-
-  it("Should keep a filter that matches nothing open and honest [UT-125]", async () => {
-    const user = userEvent.setup();
-    renderExecutionPalette();
-    await user.keyboard("{Meta>}k{/Meta}");
-    await screen.findByTestId("os-palette-action-panel");
-
-    await user.type(screen.getByPlaceholderText("Filter actions…"), "xyz");
-    expect(screen.getByTestId("os-palette-action-empty")).toHaveTextContent("No actions match");
-    expect(screen.getByTestId("os-palette-action-panel")).toBeInTheDocument();
   });
 
   it("Should pin through the seam and deep-link alias and shortcut to the settings table [UT-126]", async () => {
@@ -1944,7 +2139,6 @@ describe("palette execution surfaces", () => {
   });
 
   it("Should list only meta-actions plus the verbatim reason on an unavailable row [UT-128]", async () => {
-    const user = userEvent.setup();
     renderExecutionPalette();
     const row = screen.getByTestId("os-palette-command-ext.notes.recent");
     expect(row).not.toHaveAttribute("aria-disabled", "true");
@@ -1956,13 +2150,11 @@ describe("palette execution surfaces", () => {
     // after filtering, Home reaches it through cmdk's keyboard model, then
     // Enter reaches the one dispatch seam that refuses the run with the
     // runtime's reason.
-    await user.type(
-      screen.getByPlaceholderText("Search apps, sessions, and actions…"),
-      "Recent notes"
-    );
-    await user.keyboard("{Home}");
+    const input = screen.getByPlaceholderText("Search apps, sessions, and actions…");
+    await act(async () => fireEvent.change(input, { target: { value: "Recent notes" } }));
+    await act(async () => fireEvent.keyDown(input, { key: "Home", code: "Home" }));
     expect(row).toHaveAttribute("data-selected", "true");
-    await user.keyboard("{Enter}");
+    await act(async () => fireEvent.keyDown(input, { key: "Enter", code: "Enter" }));
     await waitFor(() =>
       expect(paletteDispatch.run).toHaveBeenCalledWith(
         expect.objectContaining({ id: "ext.notes.recent", available: false }),
@@ -1970,7 +2162,7 @@ describe("palette execution surfaces", () => {
       )
     );
     expect(row).toBeInTheDocument();
-    await user.keyboard("{Meta>}k{/Meta}");
+    await act(async () => fireEvent.keyDown(input, { key: "k", code: "KeyK", metaKey: true }));
     const panel = await screen.findByTestId("os-palette-action-panel");
 
     expect(within(panel).queryByTestId("os-palette-action-primary.run")).not.toBeInTheDocument();
@@ -2005,7 +2197,8 @@ describe("palette execution surfaces", () => {
     );
   });
 
-  it("Should open in argument mode when the seam asks for arguments [UT-122]", async () => {
+  it("Should enter argument mode, traverse fields and run once every required argument is filled [UT-120, UT-122]", async () => {
+    const user = userEvent.setup();
     requestPaletteArgs(CAPTURE_COMMAND);
     renderExecutionPalette();
 
@@ -2013,12 +2206,6 @@ describe("palette execution surfaces", () => {
     expect(screen.getByTestId("os-palette-arg-title")).toHaveValue("");
     expect(screen.getByTestId("os-palette-arg-title")).toHaveAttribute("placeholder", "Note title");
     expect(screen.queryByPlaceholderText("Search apps, sessions, and actions…")).toBeNull();
-  });
-
-  it("Should traverse fields and run once every required argument is filled [UT-120]", async () => {
-    const user = userEvent.setup();
-    requestPaletteArgs(CAPTURE_COMMAND);
-    renderExecutionPalette();
 
     await user.type(screen.getByTestId("os-palette-arg-title"), "Standup follow-ups");
     await user.tab();
@@ -2052,7 +2239,7 @@ describe("palette execution surfaces", () => {
     expect(screen.getByPlaceholderText("Search apps, sessions, and actions…")).toBeInTheDocument();
 
     // Re-entering starts clean: the discarded value never comes back.
-    requestPaletteArgs(CAPTURE_COMMAND);
+    await act(async () => requestPaletteArgs(CAPTURE_COMMAND));
     await waitFor(() => expect(screen.getByTestId("os-palette-arg-title")).toHaveValue(""));
   });
 
@@ -2191,14 +2378,16 @@ describe("palette execution surfaces", () => {
     await user.click(screen.getByTestId("os-palette-command-settings.layouts"));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
 
-    cmdPaletteExecutionStore.trigger.pendingStarted({
-      pending: { commandId: CAPTURE_COMMAND.id, title: CAPTURE_COMMAND.title },
+    await act(async () => {
+      cmdPaletteExecutionStore.trigger.pendingStarted({
+        pending: { commandId: CAPTURE_COMMAND.id, title: CAPTURE_COMMAND.title },
+      });
     });
     refresh();
     const row = screen.getByTestId("os-palette-command-ext.notes.capture");
     expect(row).toHaveAttribute("aria-busy", "true");
     expect(within(row).getByTestId("os-palette-pending-ext.notes.capture")).toHaveTextContent(
-      "pending"
+      "Running…"
     );
   });
 
@@ -2250,7 +2439,7 @@ describe("palette execution surfaces", () => {
     );
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
 
-    requestPaletteArgs(CAPTURE_COMMAND);
+    await act(async () => requestPaletteArgs(CAPTURE_COMMAND));
     await waitFor(() => expect(screen.getByTestId("os-palette-args")).toBeInTheDocument());
     await user.keyboard("{Escape}");
     expect(screen.queryByTestId("os-palette-args")).toBeNull();

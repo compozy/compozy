@@ -3,6 +3,7 @@ import type { ToolCallStatus } from "@compozy/ui";
 import type {
   CompozyPermissionData,
   AgentEventPayload,
+  SessionCompactionItemData,
   PermissionDecision,
   PermissionRequest,
   ToolArtifactRef,
@@ -69,6 +70,41 @@ export function toPermissionRequest(data: CompozyPermissionData): PermissionRequ
 
 export function isAgentEventPayload(value: unknown): value is AgentEventPayload {
   return isRecord(value) && typeof value.type === "string";
+}
+
+/**
+ * True when a message's parts carry a compaction item — the message the transcript
+ * projects per compaction id. The thread runtime normalizes `data-compozy-compaction`
+ * parts to `{ type: "data", name: "compozy-compaction" }`; both shapes count.
+ */
+export function messageHasCompactionPart(content: unknown): boolean {
+  return (
+    Array.isArray(content) &&
+    content.some(
+      part =>
+        isRecord(part) &&
+        (part.type === "data-compozy-compaction" ||
+          (part.type === "data" && part.name === "compozy-compaction"))
+    )
+  );
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+/** A `data-compozy-compaction` payload: one observed agent compaction (any `status` string). */
+export function isCompactionItemData(value: unknown): value is SessionCompactionItemData {
+  return (
+    isRecord(value) &&
+    value.kind === "compaction" &&
+    typeof value.compaction_id === "string" &&
+    typeof value.status === "string" &&
+    typeof value.started_at === "string" &&
+    isOptionalString(value.summary) &&
+    isOptionalString(value.error) &&
+    isOptionalString(value.ended_at)
+  );
 }
 
 function artifactRefFromValue(value: unknown): ToolArtifactRef | null {

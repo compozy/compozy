@@ -17,6 +17,7 @@ interface LoopRuntimeValueControlProps {
   disabled?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  labelledBy?: string;
   onChange: (value: unknown) => void;
 }
 
@@ -70,6 +71,7 @@ export function LoopRuntimeValueControl({
   testId,
   disabled,
   invalid,
+  labelledBy,
   onChange,
 }: LoopRuntimeValueControlProps) {
   const catalogs = useLoopInputCatalogs();
@@ -78,7 +80,7 @@ export function LoopRuntimeValueControl({
   return (
     <RuntimeSelector
       allowCustomProvider
-      ariaLabelledby={undefined}
+      ariaLabelledby={labelledBy}
       catalogStatus={catalogs.runtimeError}
       className={cn("w-full", invalid && "border-danger")}
       disabled={disabled}

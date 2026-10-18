@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -21,10 +20,8 @@ func (r *CoordinatorRunner) dispatchGenerationPre(
 		return false, task.CoordinatorCompletionPlan{}
 	}
 	payload := hookspkg.LoopGenerationPrePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopGenerationPre,
-			Timestamp: r.now().UTC(),
-		},
+		Event:            hookspkg.HookLoopGenerationPre,
+		Timestamp:        r.now().UTC(),
 		LoopContext:      coordinatorLoopContext(taskRun, run, int(intent.Generation)),
 		Origin:           hookspkg.LoopGenerationOrigin(intent.Origin),
 		ParentGeneration: intent.ParentGeneration,
@@ -60,10 +57,8 @@ func (r *CoordinatorRunner) dispatchGenerationPost(
 		return
 	}
 	payload := hookspkg.LoopGenerationPostPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopGenerationPost,
-			Timestamp: r.now().UTC(),
-		},
+		Event:            hookspkg.HookLoopGenerationPost,
+		Timestamp:        r.now().UTC(),
 		LoopContext:      coordinatorLoopContext(taskRun, run, int(intent.Generation)),
 		Origin:           hookspkg.LoopGenerationOrigin(intent.Origin),
 		ParentGeneration: intent.ParentGeneration,
@@ -165,7 +160,7 @@ func (r *CoordinatorRunner) loopGateHookPayload(
 ) hookspkg.LoopGatePayload {
 	status, reasonCode := loopGateHookPlanState(plan)
 	return hookspkg.LoopGatePayload{
-		PayloadBase:    hookspkg.PayloadBase{Event: event, Timestamp: r.now().UTC()},
+		Event: event, Timestamp: r.now().UTC(),
 		LoopContext:    coordinatorLoopContext(taskRun, run, plan.Snapshot.Generation),
 		GateID:         gateID,
 		Outcome:        outcome,
@@ -230,20 +225,18 @@ func deniedCoordinatorTerminal(status Status, reason string) *task.CoordinatorTe
 }
 
 func coordinatorLoopContext(taskRun task.Run, run Run, generation int) hookspkg.LoopContext {
-	networkSpec := taskRun.NetworkSpecSnapshot()
 	return hookspkg.LoopContext{
-		ProfileID:                    strings.TrimSpace(run.ProfileID),
-		LoopRunID:                    string(run.ID),
-		ParentLoopRunID:              string(run.ParentLoopRunID),
-		WorkspaceID:                  string(run.WorkspaceID),
-		LoopName:                     strings.TrimSpace(run.LoopName),
-		Generation:                   generation,
-		TaskID:                       strings.TrimSpace(taskRun.TaskID),
-		RunID:                        strings.TrimSpace(taskRun.ID),
-		RunKind:                      taskRun.RunKind.Normalize().String(),
-		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
-		SessionID:                    strings.TrimSpace(taskRun.SessionID),
-		OriginKind:                   string(taskRun.Origin.Kind.Normalize()),
-		OriginRef:                    strings.TrimSpace(taskRun.Origin.Ref),
+		ProfileID:       strings.TrimSpace(run.ProfileID),
+		LoopRunID:       string(run.ID),
+		ParentLoopRunID: string(run.ParentLoopRunID),
+		WorkspaceID:     string(run.WorkspaceID),
+		LoopName:        strings.TrimSpace(run.LoopName),
+		Generation:      generation,
+		TaskID:          strings.TrimSpace(taskRun.TaskID),
+		RunID:           strings.TrimSpace(taskRun.ID),
+		RunKind:         taskRun.RunKind.Normalize().String(),
+		SessionID:       strings.TrimSpace(taskRun.SessionID),
+		OriginKind:      string(taskRun.Origin.Kind.Normalize()),
+		OriginRef:       strings.TrimSpace(taskRun.Origin.Ref),
 	}
 }

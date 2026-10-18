@@ -140,17 +140,7 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 			"daemon stop",
 			"doctor",
 			"install",
-			"network",
-			"network directs",
-			"network inbox",
-			"network invitation",
-			"network invitation dismiss",
-			"network invitation reset",
-			"network peers",
-			"network send",
-			"network status",
-			"network subscriptions",
-			"network threads",
+
 			"update",
 		} {
 			command, _, err := root.Find(strings.Fields(commandPath))
@@ -168,16 +158,6 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 		if usage := sessionList.UsageString(); !strings.Contains(usage, "--profile") {
 			t.Fatalf("session list help omits profile selection:\n%s", usage)
 		}
-		for _, commandPath := range []string{"network threads list"} {
-			command, _, err := root.Find(strings.Fields(commandPath))
-			if err != nil {
-				t.Fatalf("find %q: %v", commandPath, err)
-			}
-			usage := command.UsageString()
-			if !strings.Contains(usage, "--profile") || !strings.Contains(usage, "--all-profiles") {
-				t.Fatalf("profile-aware help for %q omits a selector:\n%s", commandPath, usage)
-			}
-		}
 	})
 
 	t.Run("Should reject profile selection before running profile-independent commands", func(t *testing.T) {
@@ -188,14 +168,10 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 			{"completion", "bash", "--profile", "marketing"},
 			{"--profile", "marketing", "install"},
 			{"install", "--profile", "marketing"},
-			{"--profile", "marketing", "network", "status"},
-			{"network", "status", "--profile", "marketing"},
-			{"--profile", "marketing", "network", "peers"},
-			{"network", "peers", "--profile", "marketing"},
 		} {
 			_, _, err := executeRootCommand(t, commandDeps{}, args...)
-			var profileErr *profileCommandError
-			if !errors.As(err, &profileErr) || profileErr.payload.Error.Code != profileSelectionUnsupportedCode {
+			profileErr, profileErrOK := errors.AsType[*profileCommandError](err)
+			if !profileErrOK || profileErr.payload.Error.Code != profileSelectionUnsupportedCode {
 				t.Fatalf(
 					"executeRootCommand(%v) error = %v, want %s payload",
 					args,
@@ -234,7 +210,7 @@ func findMDX(t *testing.T, outputDir string) map[string]bool {
 func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	t.Parallel()
 
-	outputDir := filepath.Join(t.TempDir(), "cli-docs")
+	outputDir := filepath.Join(t.TempDir(), "nested", "deep", "output")
 
 	root := newRootCommand(commandDeps{})
 	root.SetArgs([]string{"doc", "--output-dir", outputDir})
@@ -247,6 +223,28 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	mdxFiles := findMDX(t, outputDir)
 	if len(mdxFiles) == 0 {
 		t.Fatal("doc command should generate .mdx files")
+	}
+
+	// Expected files in the nested layout: parents with children render as
+	// <segment>/index.mdx; leaves render as <segment>.mdx.
+	expected := []string{
+		"compozy.mdx",        // from compozy
+		"session/index.mdx",  // parent with children
+		"daemon/index.mdx",   // parent with children
+		"tool/index.mdx",     // parent with children
+		"tool/list.mdx",      // tool registry operator command
+		"tool/search.mdx",    // tool registry operator command
+		"tool/info.mdx",      // tool registry operator command
+		"tool/invoke.mdx",    // tool registry operator command
+		"toolsets/index.mdx", // parent with children
+		"toolsets/list.mdx",  // toolset operator command
+		"toolsets/info.mdx",  // toolset operator command
+		"version.mdx",        // leaf without children
+	}
+	for _, want := range expected {
+		if !mdxFiles[want] {
+			t.Errorf("expected file %q to exist, got files: %v", want, sortedKeys(mdxFiles))
+		}
 	}
 
 	// Verify compozy.mdx exists at the root (from compozy.md). Root index.mdx is
@@ -343,22 +341,17 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 		}
 	}
 
-	generated := findMDX(t, outputDir)
 	for _, expected := range []string{
 		"mcp/auth/login.mdx",
-		"memory/extractor/list-failures.mdx",
-		"network/work/lookup.mdx",
 	} {
-		if !generated[expected] {
+		if !mdxFiles[expected] {
 			t.Errorf("expected generated CLI doc %q", expected)
 		}
 	}
 	for _, removed := range []string{
 		"mcp/authorize.mdx",
-		"memory/extractor/list-pending.mdx",
-		"network/work/status.mdx",
 	} {
-		if generated[removed] {
+		if mdxFiles[removed] {
 			t.Errorf("removed CLI command doc %q must not be generated", removed)
 		}
 	}
@@ -418,60 +411,6 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("walk: %v", err)
-	}
-}
-
-func TestNewDocCommand_CreatesOutputDir(t *testing.T) {
-	t.Parallel()
-
-	outputDir := filepath.Join(t.TempDir(), "nested", "deep", "output")
-
-	root := newRootCommand(commandDeps{})
-	root.SetArgs([]string{"doc", "--output-dir", outputDir})
-
-	if err := root.Execute(); err != nil {
-		t.Fatalf("doc command should create output dir: %v", err)
-	}
-
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		t.Error("output directory should have been created")
-	}
-}
-
-func TestNewDocCommand_GeneratesAllCommands(t *testing.T) {
-	t.Parallel()
-
-	outputDir := filepath.Join(t.TempDir(), "cli-docs")
-
-	root := newRootCommand(commandDeps{})
-	root.SetArgs([]string{"doc", "--output-dir", outputDir})
-
-	if err := root.Execute(); err != nil {
-		t.Fatalf("doc command failed: %v", err)
-	}
-
-	mdxFiles := findMDX(t, outputDir)
-
-	// Expected files in the nested layout: parents with children render as
-	// <segment>/index.mdx; leaves render as <segment>.mdx.
-	expected := []string{
-		"compozy.mdx",        // from compozy
-		"session/index.mdx",  // parent with children
-		"daemon/index.mdx",   // parent with children
-		"tool/index.mdx",     // parent with children
-		"tool/list.mdx",      // tool registry operator command
-		"tool/search.mdx",    // tool registry operator command
-		"tool/info.mdx",      // tool registry operator command
-		"tool/invoke.mdx",    // tool registry operator command
-		"toolsets/index.mdx", // parent with children
-		"toolsets/list.mdx",  // toolset operator command
-		"toolsets/info.mdx",  // toolset operator command
-		"version.mdx",        // leaf without children
-	}
-	for _, want := range expected {
-		if !mdxFiles[want] {
-			t.Errorf("expected file %q to exist, got files: %v", want, sortedKeys(mdxFiles))
-		}
 	}
 }
 

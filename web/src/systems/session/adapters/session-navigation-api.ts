@@ -25,13 +25,19 @@ export async function searchSessionTranscript(
   query: SessionTranscriptSearchQuery,
   signal?: AbortSignal
 ): Promise<SessionTranscriptSearchResponse> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query },
-      signal,
-    }
-  );
+  const { data, error, response } =
+    workspaceId === ""
+      ? await apiClient.GET("/api/sessions/{session_id}/transcript/search", {
+          params: { path: { session_id: id }, query: { ...query, all_profiles: true } },
+          signal,
+        })
+      : await apiClient.GET(
+          "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
+          {
+            params: { path: { workspace_id: workspaceId, session_id: id }, query },
+            signal,
+          }
+        );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to search session "${id}"`, id);
   }
@@ -43,13 +49,19 @@ export async function fetchSessionTranscriptOutline(
   id: string,
   signal?: AbortSignal
 ): Promise<SessionTranscriptOutlineResponse> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
+  const { data, error, response } =
+    workspaceId === ""
+      ? await apiClient.GET("/api/sessions/{session_id}/transcript/outline", {
+          params: { path: { session_id: id }, query: { all_profiles: true } },
+          signal,
+        })
+      : await apiClient.GET(
+          "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
+          {
+            params: { path: { workspace_id: workspaceId, session_id: id } },
+            signal,
+          }
+        );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to read the outline of session "${id}"`, id);
   }

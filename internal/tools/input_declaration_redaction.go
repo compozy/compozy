@@ -1,7 +1,8 @@
 package tools
 
 import (
-	"sort"
+	"maps"
+	"slices"
 )
 
 var publicInputDeclarationKeys = map[string]struct{}{
@@ -67,10 +68,7 @@ func IsPublicInputDeclaration(value any) bool {
 }
 
 func sortedAnyKeys(values map[string]any) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(values)), maps.Keys(values))
+	slices.Sort(keys)
 	return keys
 }

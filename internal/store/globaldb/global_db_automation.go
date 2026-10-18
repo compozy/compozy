@@ -68,18 +68,10 @@ func (g *AutomationRepo) UpdateRun(ctx context.Context, run automation.Run) (aut
 	if err != nil {
 		return automation.Run{}, err
 	}
-	networkParticipation, err := encodeOptionalAutomationParticipation(
-		normalized.NetworkParticipation,
-		normalized.NetworkParticipation == nil,
-		"run.network_participation",
-	)
-	if err != nil {
-		return automation.Run{}, err
-	}
 
 	affected, err := g.queries.UpdateAutomationRun(
 		ctx,
-		automationRunUpdateParams(normalized, networkParticipation, metadataJSON),
+		automationRunUpdateParams(normalized, metadataJSON),
 	)
 	if err != nil {
 		return automation.Run{}, fmt.Errorf(
@@ -134,7 +126,7 @@ func (g *AutomationRepo) GetRun(ctx context.Context, id string) (automation.Run,
 	row := g.db.QueryRowContext(ctx, `SELECT
 		id, `+automationRunProfileIDSQL+`, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
-		delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
+		delivery_error, delivery_error_at, loop_run_id, metadata_json
 		FROM automation_runs WHERE id = ?`, trimmedID)
 	run, err := scanAutomationRun(row)
 	if err != nil {
@@ -162,7 +154,7 @@ func (g *AutomationRepo) ListRuns(
 	sqlQuery := `SELECT
 		id, ` + automationRunProfileIDSQL + `, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
-		delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
+		delivery_error, delivery_error_at, loop_run_id, metadata_json
 		FROM automation_runs`
 	where, args := buildAutomationRunClauses(query)
 	sqlQuery = store.AppendWhere(sqlQuery, where)

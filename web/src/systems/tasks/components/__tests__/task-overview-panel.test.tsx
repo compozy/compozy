@@ -29,6 +29,7 @@ import {
   buildTaskFixture,
   buildTaskRecordFixture,
   buildTaskRunFixture,
+  buildTaskRunRecordFixture,
 } from "../../mocks/fixtures";
 import type { TaskNowStripHandlers } from "../task-now-strip";
 import { TaskOverviewPanel } from "../task-overview-panel";
@@ -147,21 +148,56 @@ describe("TaskOverviewPanel", () => {
       />
     );
 
-    fireEvent.click(screen.getByTestId("tasks-detail-now-approve"));
-    fireEvent.click(screen.getByTestId("tasks-detail-now-reject"));
+    // Approval is explained here but decided once, in the window head.
+    expect(screen.getByTestId("tasks-detail-now-approval")).toHaveTextContent(
+      "Waiting for your approval"
+    );
+    expect(screen.queryByTestId("tasks-detail-now-approve")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-now-reject")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("tasks-detail-now-open-blocking-task_dep_001"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-open-blocking-task_dep_002"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-clear-block-block_001"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-clear-block-block_002"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-open-run"));
 
-    expect(handlers.onApprove).toHaveBeenCalledTimes(1);
-    expect(handlers.onReject).toHaveBeenCalledTimes(1);
     expect(handlers.onOpenTask).toHaveBeenNthCalledWith(1, "task_dep_001");
     expect(handlers.onOpenTask).toHaveBeenNthCalledWith(2, "task_dep_002");
     expect(handlers.onClearBlock).toHaveBeenNthCalledWith(1, "block_001");
     expect(handlers.onClearBlock).toHaveBeenNthCalledWith(2, "block_002");
     expect(handlers.onOpenRun).toHaveBeenCalledWith("run_active");
+  });
+
+  it("Should quote a failed run's error on its own line, apart from the retry guidance", () => {
+    const detail = buildDetailFixture({
+      task: { status: "failed", max_attempts: 3 },
+      summary: { active_run: null, status: "failed" },
+    } as never);
+    const failedRun = buildTaskRunRecordFixture({
+      id: "run_failed",
+      status: "failed",
+      attempt: 2,
+      error: "batch 2 settled before batch 1",
+    });
+
+    render(
+      <TaskOverviewPanel
+        detail={detail}
+        isLive={false}
+        nowHandlers={buildHandlers()}
+        onViewAllActivity={vi.fn()}
+        runs={[failedRun]}
+        timeline={[]}
+      />
+    );
+
+    // The runtime error carries no punctuation contract, so it must not run
+    // into the guidance sentence ("…batch 1 Retry to queue…").
+    expect(screen.getByTestId("tasks-detail-now-failed-error")).toHaveTextContent(
+      /^batch 2 settled before batch 1$/
+    );
+    expect(screen.getByTestId("tasks-detail-now-failed")).toHaveTextContent(
+      "Retry to queue a new attempt, or open the run to see what happened."
+    );
   });
 
   it("Should render the route-owned active-run elapsed value", () => {

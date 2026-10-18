@@ -7,7 +7,6 @@ import (
 	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation/model"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -161,14 +160,6 @@ func (j AutomationJob) Validate(path string) error {
 	}
 	if j.Task != nil {
 		if err := j.Task.Validate(path + ".task"); err != nil {
-			return err
-		}
-		if err := automationpkg.ValidateDirectTaskParticipationScope(
-			j.Scope,
-			j.Task.NetworkParticipation,
-			path+".task.network_participation",
-			path+".scope",
-		); err != nil {
 			return err
 		}
 		if j.Retry.Strategy != automationpkg.RetryStrategyNone {
@@ -368,10 +359,8 @@ func cloneParsedJobTaskConfig(config *automationpkg.JobTaskConfig) *automationpk
 	}
 	cloned := *config
 	if config.Owner != nil {
-		owner := *config.Owner
-		cloned.Owner = &owner
+		cloned.Owner = new(*config.Owner)
 	}
-	cloned.NetworkParticipation = participation.CloneRequest(config.NetworkParticipation)
 	return &cloned
 }
 
@@ -382,7 +371,6 @@ func cloneAutomationLoopTarget(target *automationpkg.LoopTarget) *automationpkg.
 	cloned := *target
 	cloned.Inputs = cloneConfigAnyMap(target.Inputs)
 	cloned.InputMapping = mergeStringMaps(nil, target.InputMapping)
-	cloned.NetworkParticipation = participation.CloneRequest(target.NetworkParticipation)
 	return &cloned
 }
 

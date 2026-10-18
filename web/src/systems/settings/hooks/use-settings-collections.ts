@@ -1,12 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  settingsSandboxDetailOptions,
-  settingsSandboxesListOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
   settingsMCPServerDetailOptions,
-  settingsNotificationPresetsOptions,
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
 } from "../lib/query-options";
@@ -14,7 +11,6 @@ import type {
   SettingsHookListFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerGetFilter,
-  SettingsNotificationPresetFilter,
 } from "../types";
 
 interface QueryEnabledOptions {
@@ -31,14 +27,6 @@ export function useSettingsProviders(options: QueryEnabledOptions = {}) {
 
 export function useSettingsProvider(name: string, options: QueryEnabledOptions = {}) {
   return useQuery(settingsProviderDetailOptions(name, options.enabled ?? true));
-}
-
-export function useSettingsSandboxes() {
-  return useQuery(settingsSandboxesListOptions());
-}
-
-export function useSettingsSandbox(name: string, options: QueryEnabledOptions = {}) {
-  return useQuery(settingsSandboxDetailOptions(name, options.enabled ?? true));
 }
 
 export function useSettingsHooks(filter: SettingsHookListFilter = {}) {
@@ -62,8 +50,4 @@ export function useSettingsMCPServers(
   return useQuery(
     settingsMCPServersListOptions(filter, options.enabled ?? true, options.refetchInterval)
   );
-}
-
-export function useSettingsNotificationPresets(filter: SettingsNotificationPresetFilter = {}) {
-  return useQuery(settingsNotificationPresetsOptions(filter));
 }

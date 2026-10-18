@@ -1,7 +1,7 @@
-// Invariant: the marketplace formats versions consistently and strips retired query controls.
+// Invariant: the marketplace formats versions and trust consistently and strips retired query controls.
 // Owner: marketplace presentation helpers; canonical suite: marketplace-ui.test.ts.
 import { describe, expect, it } from "vitest";
-import { formatMarketplaceVersion } from "../marketplace-ui";
+import { formatMarketplaceVersion, marketplaceTrustSentence } from "../marketplace-ui";
 import { validateMarketplaceSearch } from "../../lib/marketplace-search";
 
 describe("marketplace UI helpers", () => {
@@ -12,6 +12,14 @@ describe("marketplace UI helpers", () => {
     ["Vv1.8.0", "v1.8.0"],
   ])("Should render marketplace version %s with exactly one prefix", (version, expected) => {
     expect(formatMarketplaceVersion(version)).toBe(expected);
+  });
+
+  it.each([
+    [{ tier: "official", trust: { checksum_verified: true } }, "Official · checked by CompozyOS"],
+    [{ tier: "community", trust: { checksum_verified: false } }, "Community · not verified"],
+    [{ tier: undefined, trust: null }, "Community · not verified"],
+  ])("Should summarize trust in one plain sentence", (entry, expected) => {
+    expect(marketplaceTrustSentence(entry)).toBe(expected);
   });
 
   it("Should retain only the normalized search query", () => {

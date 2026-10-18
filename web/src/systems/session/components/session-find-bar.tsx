@@ -1,7 +1,16 @@
 import { ChevronDown, ChevronUp, X } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, type ComponentProps, type KeyboardEvent } from "react";
 
-import { Button, Kbd, KbdGroup, SearchInput, Spinner } from "@compozy/ui";
+import {
+  Button,
+  Kbd,
+  KbdGroup,
+  SearchInput,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -14,6 +23,30 @@ import {
 } from "../lib/session-navigation";
 import type { SessionTranscriptSearchMatch } from "../types";
 import type { SessionFindModel } from "../hooks/use-session-navigation";
+
+/** An icon control that names itself and its shortcut in a tooltip. */
+function FindIconButton({
+  label,
+  shortcut,
+  children,
+  ...props
+}: Omit<ComponentProps<typeof Button>, "aria-label"> & { label: string; shortcut: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button type="button" variant="ghost" size="icon-xs" aria-label={label} {...props} />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent className="gap-1.5">
+        {label}
+        <Kbd>{shortcut}</Kbd>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export interface SessionFindBarProps {
   /** The host's `useSessionFind` model: the host owns it so marks and folds read the same matches. */
@@ -116,11 +149,7 @@ export function SessionFindBar({
       data-state={findBarState(find, hasQuery)}
       onKeyDown={handleKeyDown}
       onSubmit={event => event.preventDefault()}
-      className={cn(
-        "relative flex flex-col border-b border-line bg-elevated",
-        "shadow-highlight",
-        className
-      )}
+      className={cn("relative flex flex-col border-b border-line bg-canvas", className)}
     >
       <div className="flex h-10 items-center gap-2 px-3">
         <SearchInput
@@ -143,28 +172,24 @@ export function SessionFindBar({
         </span>
         {hasMatches ? (
           <div className="flex shrink-0 items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Previous match (Shift+Enter)"
+            <FindIconButton
+              label="Previous match"
+              shortcut="⇧⏎"
               data-testid="session-find-previous"
               disabled={loadingOlder}
               onClick={() => find.step(-1)}
             >
               <ChevronUp aria-hidden="true" className="size-3" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Next match (Enter)"
+            </FindIconButton>
+            <FindIconButton
+              label="Next match"
+              shortcut="⏎"
               data-testid="session-find-next"
               disabled={loadingOlder}
               onClick={() => find.step(1)}
             >
               <ChevronDown aria-hidden="true" className="size-3" />
-            </Button>
+            </FindIconButton>
           </div>
         ) : null}
         {find.isError ? (
@@ -181,17 +206,15 @@ export function SessionFindBar({
             Try again
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Close find (Esc)"
+        <FindIconButton
+          label="Close find"
+          shortcut="Esc"
           className="text-faint hover:text-fg"
           data-testid="session-find-close"
           onClick={onClose}
         >
           <X aria-hidden="true" className="size-3" />
-        </Button>
+        </FindIconButton>
       </div>
       <FindResults
         find={find}
@@ -345,8 +368,8 @@ function SessionFindMatchRow({
       onClick={onJump}
       className={cn(
         "flex min-w-0 items-baseline gap-2 px-3 py-1.5 text-left text-transcript-body",
-        "transition-colors duration-fast ease-out hover:bg-btn-default-hover",
-        active ? "bg-elevated text-fg-strong" : "text-muted"
+        "transition-colors duration-fast ease-out hover:bg-surface-2",
+        active ? "bg-selected text-fg" : "text-muted"
       )}
     >
       <span className="w-14 shrink-0 truncate text-eyebrow text-subtle">
@@ -360,7 +383,7 @@ function SessionFindMatchRow({
               data-testid="session-find-mark"
               className={cn(
                 "rounded-xxs px-px text-inherit",
-                active ? "bg-accent-tint-strong ring-1 ring-accent-dim" : "bg-badge-fill"
+                active ? "bg-accent-tint-strong ring-1 ring-accent-dim" : "bg-surface-2"
               )}
             >
               {segment.text}
@@ -371,7 +394,7 @@ function SessionFindMatchRow({
         )}
         {folded ? (
           <span
-            className="ml-1.5 rounded-xxs bg-badge-fill px-1 font-mono text-mono-id text-faint"
+            className="ml-1.5 rounded-xxs bg-surface-2 px-1 font-mono text-mono-id text-faint"
             data-testid="session-find-folded"
           >
             folded

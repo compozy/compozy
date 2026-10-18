@@ -12,33 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
-func TestHTTPHandlersModelCatalogDependency(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldPassModelCatalogServiceToBaseHandlers", func(t *testing.T) {
-		t.Parallel()
-
-		service := httpModelCatalogServiceStub{}
-		handlers := newHandlers(&handlerConfig{modelCatalog: service})
-		if handlers.BaseHandlers == nil {
-			t.Fatal("newHandlers() BaseHandlers = nil")
-		}
-		if handlers.ModelCatalog == nil {
-			t.Fatal("newHandlers() ModelCatalog = nil, want injected service")
-		}
-		if handlers.ModelCatalog != service {
-			t.Fatalf("newHandlers() ModelCatalog = %#v, want %#v", handlers.ModelCatalog, service)
-		}
-		if handlers.ModelCatalog != service {
-			t.Fatalf(
-				"newHandlers() BaseHandlers.ModelCatalog = %#v, want %#v",
-				handlers.ModelCatalog,
-				service,
-			)
-		}
-	})
-}
-
 func TestHTTPModelCatalogRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -113,29 +86,6 @@ func TestHTTPModelCatalogRoutes(t *testing.T) {
 	})
 }
 
-type httpModelCatalogServiceStub struct{}
-
-func (httpModelCatalogServiceStub) ListModels(
-	context.Context,
-	modelcatalog.ListOptions,
-) ([]modelcatalog.Model, error) {
-	return nil, nil
-}
-
-func (httpModelCatalogServiceStub) Refresh(
-	context.Context,
-	modelcatalog.RefreshOptions,
-) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
-}
-
-func (httpModelCatalogServiceStub) ListSourceStatus(
-	context.Context,
-	modelcatalog.StatusOptions,
-) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
-}
-
 type httpModelCatalogServiceSpy struct {
 	listModelsFn       func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	refreshFn          func(context.Context, modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
@@ -179,7 +129,7 @@ func newHTTPModelCatalogRouter(
 ) http.Handler {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(newTestHomePaths(t))
+	cfg := testConfigForTest(newTestHomePaths(t))
 	cfg.HTTP.Host = boundHost
 	cfg.HTTP.Port = 2123
 	handlers := newHandlers(&handlerConfig{

@@ -37,8 +37,8 @@ function ListingRow({
       data-interactive={interactive ? "true" : undefined}
       className={cn(
         "grid grid-cols-[var(--size-icon-well-row)_minmax(0,1fr)_auto] items-center gap-3.5 border-b border-line-soft px-4 py-3 text-fg transition-colors duration-base ease-out last:border-b-0",
-        interactive && "hover:bg-row-hover",
-        selected && "bg-row-selected",
+        interactive && "hover:bg-surface-2",
+        selected && "bg-selected",
         className
       )}
       {...props}

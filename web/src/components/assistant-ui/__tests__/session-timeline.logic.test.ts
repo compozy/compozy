@@ -358,7 +358,6 @@ describe("session timeline derivation", () => {
     if (live?.kind !== "live-tool") throw new Error("expected live row");
     expect(live.id).toBe("live:turn-1");
     expect(live.entries.map(entry => entry.id)).toEqual(["tool-3"]);
-    expect(live.agent).toBe(false);
 
     const parallel = deriveSessionRows(
       [
@@ -415,7 +414,9 @@ describe("session timeline derivation", () => {
     }
   );
 
-  it("Should give each running child agent its own live row, never counted into the parallel row", () => {
+  // The name-only Task/Agent classifier is gone (`_spec.md` delete target): a
+  // running Task call without a subagent card is an ordinary running tool.
+  it("Should count a running Task call without a card into the one parallel live row", () => {
     const rows = deriveSessionRows(
       [
         tool(1, {
@@ -425,12 +426,6 @@ describe("session timeline derivation", () => {
           result: undefined,
         }),
         tool(2, {
-          toolName: "Task",
-          args: { description: "scout the store" },
-          status: "running",
-          result: undefined,
-        }),
-        tool(3, {
           toolName: "Bash",
           args: { command: "go vet" },
           status: "running",
@@ -439,15 +434,10 @@ describe("session timeline derivation", () => {
       ],
       { activeTurnId: "turn-1" }
     );
-    expect(rows.map(row => row.kind)).toEqual(["live-tool", "live-tool", "live-tool"]);
-    expect(rows.map(row => (row.kind === "live-tool" ? row.agent : null))).toEqual([
-      true,
-      true,
-      false,
-    ]);
-    const shell = rows[2];
-    if (shell?.kind !== "live-tool") throw new Error("expected live row");
-    expect(shell.entries.map(entry => entry.id)).toEqual(["tool-3"]);
+    expect(rows.map(row => row.kind)).toEqual(["live-tool"]);
+    const live = rows[0];
+    if (live?.kind !== "live-tool") throw new Error("expected live row");
+    expect(live.entries.map(entry => entry.id)).toEqual(["tool-1", "tool-2"]);
   });
 
   // UT-087: completed tools of the live turn collapse into one expandable group
@@ -470,7 +460,7 @@ describe("session timeline derivation", () => {
     const group = rows[0];
     if (group?.kind !== "work") throw new Error("expected group row");
     expect(group.active).toBe(true);
-    expect(group.summary?.label).toBe("Ran 2 commands, edited 2 files");
+    expect(group.summary?.label).toBe("Ran 2 commands · Edited 2 files");
     expect(group.summary?.failedCount).toBe(0);
     expect(group.expanded).toBe(false);
 
@@ -541,7 +531,7 @@ describe("session timeline derivation", () => {
     const group = rows[0];
     if (group?.kind !== "work") throw new Error("expected group row");
     expect(group.entries.map(entry => entry.id)).toEqual(["tool-1", "tool-2", "tool-3"]);
-    expect(group.summary?.label).toBe("Ran 2 commands, edited 1 file");
+    expect(group.summary?.label).toBe("Ran 2 commands · Edited a.ts");
     expect(group.summary?.failedCount).toBe(1);
 
     // A settled run with a failure folds the same way once the turn moves on.
@@ -550,7 +540,7 @@ describe("session timeline derivation", () => {
     expect(settled[0]).toMatchObject({ kind: "work", active: false });
   });
 
-  it("Should order summary categories Ran, Edited, Read, Searched, agent, Used with distinct-file counts", () => {
+  it("Should order summary categories Ran, Edited, Read, Searched, Used with distinct-file counts", () => {
     const parts: SessionTimelinePart[] = [
       tool(1, { toolName: "mcp__linear__list_issues", args: {} }),
       tool(2, { toolName: "Task", args: { prompt: "explore" } }),
@@ -571,8 +561,47 @@ describe("session timeline derivation", () => {
     // Fixed presentation order regardless of call order; the two same-path
     // Reads count as one distinct file.
     expect(workRow.summary?.label).toBe(
-      "Ran 1 command, edited 1 file, read 1 file, searched 1 file, ran 1 agent task, used 1 tool"
+      "Ran 1 command · Edited b.ts · Read a.ts · Searched once · Used 2 tools"
     );
+  });
+
+  // Invariant: the group sentence counts each call as the kind its row shows.
+  it("Should count title-named shell tools and read-only shell commands by the kind their rows show", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Terminal", args: { command: "go test ./..." } }),
+      tool(2, { toolName: "Bash", args: { command: "cat web/package.json" } }),
+      tool(3, { toolName: "Bash", args: { command: "rg -n TODO web/src" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Ran 1 command · Read package.json · Searched once");
+  });
+
+  // Invariant: a file counts once however its reads were spelled, and a directory listing is not a file.
+  it("Should count shell and tool reads of one path as one file and listings as directories", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Bash", args: { command: "cat web/a.ts" } }),
+      tool(2, { toolName: "Bash", args: { command: "cat web/a.ts" } }),
+      tool(3, { toolName: "Read", args: { file_path: "web/a.ts" } }),
+      tool(4, { toolName: "Bash", args: { command: "ls web/src" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Read a.ts · Listed src");
+  });
+
+  it("Should count one relative path read under two leading cd directories as two files", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Bash", args: { command: "cd /repo/a && cat package.json" } }),
+      tool(2, { toolName: "Bash", args: { command: "cd /repo/b && cat package.json" } }),
+      tool(3, { toolName: "Read", args: { file_path: "/repo/a/package.json" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Read 2 files");
   });
 
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {
@@ -652,6 +681,43 @@ describe("session timeline derivation", () => {
     }
     expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
     expect(permissionRow.part.name).toBe("data-compozy-permission");
+  });
+
+  // Invariant (S18): an observed compaction is its own visible row — never a hidden
+  // progress tick, never one of the turn's intra-turn work behind "Worked for".
+  it("Should keep a compaction item as its own row outside a settled turn fold", () => {
+    const compaction: SessionTimelinePart = {
+      kind: "data",
+      id: "c1f0b8f4",
+      name: "data-compozy-compaction",
+      data: {
+        kind: "compaction",
+        compaction_id: "c1f0b8f4",
+        status: "in_progress",
+        started_at: "2026-07-07T12:00:02Z",
+      },
+      turnId: "turn-compaction",
+      timestamp: "2026-07-07T12:00:02Z",
+    };
+    const alone = deriveSessionRows([compaction], { foldSettledTurns: true });
+    expect(alone).toHaveLength(1);
+    expect(alone[0]).toMatchObject({ kind: "data", id: "data:c1f0b8f4" });
+
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-compaction", timestamp: "2026-07-07T12:00:00Z" }),
+        compaction,
+        text("terminal-compaction", "Done.", "turn-compaction", "2026-07-07T12:00:05Z"),
+      ],
+      { foldSettledTurns: true }
+    );
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "data", "text"]);
+    const [foldRow, compactionRow] = rows;
+    if (foldRow?.kind !== "turn-fold" || compactionRow?.kind !== "data") {
+      throw new Error("expected a fold followed by the compaction row");
+    }
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+    expect(compactionRow.part.name).toBe("data-compozy-compaction");
   });
 
   it("Should keep a settled deliberate terminal block outside a turn fold and summary", () => {
@@ -1048,8 +1114,8 @@ it("Should fold a settled turn behind duration and counts with the answer outsid
   expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
   const foldRow = rows[0];
   if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
-  expect(foldRow.label).toBe("Worked for 4m 12s · Ran 2 commands, read 1 file");
-  expect(foldRow.counts).toBe("Ran 2 commands, read 1 file");
+  expect(foldRow.label).toBe("Worked for 4m 12s · Ran 2 commands · Read a.ts");
+  expect(foldRow.counts).toBe("Ran 2 commands · Read a.ts");
   expect(foldRow.cause).toBe("settled");
   expect(foldRow.open).toBe(false);
 });
@@ -1375,5 +1441,304 @@ describe("marker clustering", () => {
       if (row.kind !== "data") throw new Error("expected data rows");
       expect(row.count).toBe(1);
     }
+  });
+});
+
+// Suite extension: subagent projection (`_uiux.md` S1, S2, S6, S8). Invariant: card-owned tool
+// calls never draw twice, adjacent same-turn cards group, live cards outlive turn folds, and
+// provider-native inner parts render only inside their card. Owning layer: timeline derivation.
+function subagentPart(
+  id: string,
+  toolCallId: string,
+  overrides: { turnId?: string; origin?: string; timestamp?: string } = {}
+): SessionTimelinePart {
+  return {
+    kind: "data",
+    id,
+    name: "data-compozy-subagent",
+    data: {
+      subagent_id: id,
+      tool_call_id: toolCallId,
+      origin: overrides.origin ?? "delegated",
+      title: `Task ${id}`,
+    },
+    turnId: overrides.turnId ?? "turn-1",
+    timestamp: overrides.timestamp ?? "2026-07-07T12:00:05Z",
+  };
+}
+
+const delegate = (index: number, overrides: Partial<SessionTimelineToolPart> = {}) =>
+  tool(index, {
+    toolName: "compozy__subagent_delegate",
+    args: { title: `Task ${index}` },
+    result: { subagent_id: `sub-${index}` },
+    ...overrides,
+  });
+
+describe("session timeline subagent cards", () => {
+  it("UT-W02: Should hide a delegate call that has a card and keep a failed delegate as a tool row", () => {
+    const rows = deriveSessionRows([
+      delegate(1),
+      subagentPart("sub-1", "tool-call-1"),
+      delegate(2, { isError: true, result: { error: "codex is not installed" } }),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["subagents", "work"]);
+    const failed = rows[1];
+    if (failed?.kind !== "work") throw new Error("expected the failed delegate row");
+    expect(failed.entries.map(entry => entry.id)).toEqual(["tool-2"]);
+  });
+
+  it("UT-W03: Should group adjacent same-turn cards and split them across text or turns", () => {
+    const grouped = deriveSessionRows([
+      delegate(1),
+      delegate(2),
+      subagentPart("sub-1", "tool-call-1"),
+      subagentPart("sub-2", "tool-call-2"),
+      text("t1", "Waiting on both.", "turn-1"),
+      subagentPart("sub-3", "tool-call-3"),
+      subagentPart("sub-4", "tool-call-4", { turnId: "turn-2" }),
+    ]);
+    expect(grouped.map(row => row.kind)).toEqual(["subagents", "text", "subagents", "subagents"]);
+    const [group, , afterText, nextTurn] = grouped;
+    if (group?.kind !== "subagents") throw new Error("expected a group");
+    expect(group.id).toBe("subagent-group:sub-1");
+    expect(group.subagentIds).toEqual(["sub-1", "sub-2"]);
+    expect(afterText).toMatchObject({ id: "subagent:sub-3", subagentIds: ["sub-3"] });
+    expect(nextTurn).toMatchObject({ id: "subagent:sub-4", turnId: "turn-2" });
+
+    const expanded = deriveSessionRows(
+      [subagentPart("sub-1", "tool-call-1"), subagentPart("sub-2", "tool-call-2")],
+      { expandedWorkGroupIds: new Set(["subagent-group:sub-1"]) }
+    );
+    expect(expanded[0]).toMatchObject({ kind: "subagents", expanded: true });
+  });
+
+  it("UT-W04: Should keep live and unconfirmed cards outside the settled turn fold and fold settled ones", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1),
+      tool(2),
+      subagentPart("sub-live", "tool-call-9"),
+      tool(3),
+      subagentPart("sub-done", "tool-call-8"),
+      text("t1", "Both are on their way.", "turn-1"),
+    ];
+    const rows = deriveSessionRows(parts, {
+      foldSettledTurns: true,
+      settledSubagentIds: new Set(["sub-done"]),
+    });
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "subagents", "text"]);
+    expect(rows[1]).toMatchObject({ id: "subagent:sub-live", live: true });
+    const fold = rows[0];
+    if (fold?.kind !== "turn-fold") throw new Error("expected a fold");
+    expect(fold.rows.map(row => row.id)).toContain("subagent:sub-done");
+
+    const settled = deriveSessionRows(parts, {
+      foldSettledTurns: true,
+      settledSubagentIds: new Set(["sub-live", "sub-done"]),
+    });
+    expect(settled.map(row => row.kind)).toEqual(["turn-fold", "text"]);
+    // A card the roster has not confirmed reads as running: it never folds.
+    const unconfirmed = deriveSessionRows(parts, { foldSettledTurns: true });
+    expect(unconfirmed.map(row => row.kind)).toEqual([
+      "turn-fold",
+      "subagents",
+      "subagents",
+      "text",
+    ]);
+  });
+
+  it("UT-W11: Should nest parts attributed to a native card and leave unknown parents in the flow", () => {
+    const inner = tool(2, { toolName: "Read", parentToolCallId: "toolu-native" });
+    const innerText: SessionTimelinePart = {
+      ...text("t-inner", "Found it."),
+      parentToolCallId: "toolu-native",
+    };
+    const orphan = tool(3, { toolName: "Grep", parentToolCallId: "toolu-unknown" });
+    const rows = deriveSessionRows([
+      tool(1, {
+        toolName: "Agent",
+        toolCallId: "toolu-native",
+        status: "running",
+        result: undefined,
+      }),
+      subagentPart("sub-native", "toolu-native", { origin: "provider_native" }),
+      inner,
+      innerText,
+      orphan,
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["subagents", "work"]);
+    const card = rows[0];
+    if (card?.kind !== "subagents") throw new Error("expected the native card");
+    expect(card.nested.get("sub-native")).toEqual([inner, innerText]);
+    const flow = rows[1];
+    if (flow?.kind !== "work") throw new Error("expected the parent's own work");
+    expect(flow.entries).toEqual([orphan]);
+  });
+
+  it("Should keep prose blocks apart when a card-owned call between them leaves the flow", () => {
+    const tick: SessionTimelinePart = {
+      kind: "data",
+      id: "tick",
+      name: "data-compozy-event",
+      data: { type: "tool_call", tool_call_id: "tool-call-1" },
+      turnId: "turn-1",
+    };
+    const rows = deriveSessionRows([
+      text("t1", "I'll pick this up when they wake me.", "turn-1"),
+      delegate(1),
+      tick,
+      text("t2", "The three subagents are still running.", "turn-1"),
+      subagentPart("sub-1", "tool-call-1"),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["text", "text", "subagents"]);
+    expect(rows[0]).toMatchObject({ part: { text: "I'll pick this up when they wake me." } });
+
+    // Inner parts of a native card leave the flow the same way.
+    const native = deriveSessionRows([
+      text("t1", "Reviewing.", "turn-1"),
+      subagentPart("sub-n", "toolu", { origin: "provider_native" }),
+      { ...text("inner", "inside", "turn-1"), parentToolCallId: "toolu" },
+      tick,
+      text("t2", "Done.", "turn-1"),
+    ]);
+    expect(native.filter(row => row.kind === "text").map(row => row.part.text)).toEqual([
+      "Reviewing.",
+      "Done.",
+    ]);
+  });
+
+  it("UT-W09: Should summarize subagent tools in their own verbs", () => {
+    const capabilities = (index: number, isError = false) =>
+      tool(index, { toolName: "compozy__subagent_capabilities", args: {}, isError });
+    const [checked] = deriveSessionRows([capabilities(1), capabilities(2)]);
+    expect(checked).toMatchObject({ kind: "work" });
+    if (checked?.kind !== "work") throw new Error("expected a summary");
+    expect(checked.summary?.label).toBe("Checked subagent capabilities 2 times");
+
+    const [tried] = deriveSessionRows([capabilities(1, true), capabilities(2, true)]);
+    if (tried?.kind !== "work") throw new Error("expected a summary");
+    expect(tried.summary?.label).toBe("Tried to check subagent capabilities");
+
+    const [mixed] = deriveSessionRows([
+      capabilities(1),
+      tool(2, { toolName: "compozy__subagent_status", args: {} }),
+    ]);
+    if (mixed?.kind !== "work") throw new Error("expected a summary");
+    expect(mixed.summary?.label).toBe("Checked subagent capabilities · Read subagent status");
+  });
+});
+
+// Suite extension: "Sent to" projection (agent collaboration `_uiux.md` S3). Invariant: a
+// `compozy__session_prompt` call that has a `data-compozy-session-message` part draws once, as
+// its own "session-message" row outside work groups, failed or not, and that row survives the
+// settled turn fold. Owning layer: timeline derivation.
+function sessionMessagePart(
+  id: string,
+  toolCallId: string,
+  overrides: { state?: string; turnId?: string; targetSessionId?: string } = {}
+): SessionTimelinePart {
+  return {
+    kind: "data",
+    id,
+    name: "data-compozy-session-message",
+    data: {
+      tool_call_id: toolCallId,
+      target_session_id: overrides.targetSessionId ?? "sess-c03f9d61b2e84a07",
+      target_workspace_id: "ws_alpha",
+      message_id: `msg-${id}`,
+      mode: "queue",
+      reply_watch_id: "rw-6e2d81a0",
+      state: overrides.state ?? "done",
+    },
+    turnId: overrides.turnId ?? "turn-1",
+    timestamp: "2026-07-07T12:00:05Z",
+  };
+}
+
+const sessionPrompt = (index: number, overrides: Partial<SessionTimelineToolPart> = {}) =>
+  tool(index, {
+    toolName: "compozy__session_prompt",
+    args: { session_id: "sess-c03f9d61b2e84a07", message: "Is the retry budget per job?" },
+    result: { status: "accepted" },
+    ...overrides,
+  });
+
+describe("session timeline sent messages", () => {
+  it("UT-065: Should draw a session_prompt call as its own row outside the work group", () => {
+    const rows = deriveSessionRows([
+      tool(1),
+      sessionPrompt(2),
+      sessionMessagePart("sm-1", "tool-call-2"),
+      tool(3),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["work", "session-message", "work"]);
+    const [before, sent, after] = rows;
+    if (before?.kind !== "work" || after?.kind !== "work") throw new Error("expected work rows");
+    expect([...before.entries, ...after.entries].map(entry => entry.id)).toEqual([
+      "tool-1",
+      "tool-3",
+    ]);
+    if (sent?.kind !== "session-message") throw new Error("expected the sent row");
+    expect(sent.id).toBe("session-message:tool-call-2");
+    expect(sent.toolPart?.id).toBe("tool-2");
+  });
+
+  it("UT-065: Should keep a failed call inside its card instead of a failed tool row", () => {
+    const rows = deriveSessionRows([
+      sessionPrompt(1, { isError: true, result: { error: "Message chain limit reached." } }),
+      sessionMessagePart("sm-1", "tool-call-1", { state: "error" }),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["session-message"]);
+    expect(rows[0]).toMatchObject({ toolPart: { isError: true } });
+  });
+
+  it("UT-065: Should keep a send made inside a provider-native subagent in that subagent's card", () => {
+    // Live stream shape: only the call carries the attribution; its card part inherits it.
+    const childCall = { ...sessionPrompt(2), parentToolCallId: "toolu-native" };
+    const childCard = sessionMessagePart("sm-child", "tool-call-2");
+    const rows = deriveSessionRows([
+      tool(1, {
+        toolName: "Agent",
+        toolCallId: "toolu-native",
+        status: "running",
+        result: undefined,
+      }),
+      subagentPart("sub-native", "toolu-native", { origin: "provider_native" }),
+      childCall,
+      childCard,
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["subagents"]);
+    const card = rows[0];
+    if (card?.kind !== "subagents") throw new Error("expected the native card");
+    const inner = card.nested.get("sub-native") ?? [];
+    expect(inner.map(part => part.id)).toEqual([childCall.id, childCard.id]);
+    expect(deriveSessionRows(inner).map(row => row.kind)).toEqual(["session-message"]);
+  });
+
+  it("UT-065: Should leave a session_prompt call with no part as a tool row", () => {
+    expect(deriveSessionRows([sessionPrompt(1)]).map(row => row.kind)).toEqual(["work"]);
+  });
+
+  it("Should keep the tool row and draw no raw data row for a part that names no target (#742)", () => {
+    // How an older daemon stored a settled Codex send: the part never named its target.
+    const rows = deriveSessionRows([
+      sessionPrompt(1),
+      sessionMessagePart("sm-1", "tool-call-1", { state: "running", targetSessionId: "" }),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["work"]);
+  });
+
+  it("UT-065: Should keep the sent row visible when its settled turn folds", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1),
+        tool(2),
+        sessionPrompt(3),
+        sessionMessagePart("sm-1", "tool-call-3"),
+        text("t1", "Asked. Waiting for the answer.", "turn-1"),
+      ],
+      { foldSettledTurns: true }
+    );
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "session-message", "text"]);
   });
 });

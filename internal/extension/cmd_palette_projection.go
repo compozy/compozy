@@ -269,9 +269,7 @@ func projectCmdPaletteCommand(
 		action.View = cmdPaletteNamespacedID(extensionName, action.View)
 	}
 	if action.Args != nil {
-		cloned := make(map[string]any, len(action.Args))
-		maps.Copy(cloned, action.Args)
-		action.Args = cloned
+		action.Args = maps.Clone(action.Args)
 	}
 	section := command.Section
 	if section == "" {
@@ -356,6 +354,5 @@ func cloneCmdPaletteConfirmation(source *CmdPaletteConfirmation) *CmdPaletteConf
 	if source == nil {
 		return nil
 	}
-	cloned := *source
-	return &cloned
+	return new(*source)
 }

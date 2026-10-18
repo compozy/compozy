@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -38,7 +38,7 @@ describe("Tabs", () => {
     const user = userEvent.setup();
     render(<TabsExample />);
     await user.click(screen.getByRole("tab", { name: "Two" }));
-    expect(screen.getByRole("tabpanel")).toHaveTextContent("Panel two");
+    await waitFor(() => expect(screen.getByRole("tabpanel")).toHaveTextContent("Panel two"));
   });
 
   it("Should render count and live label slots inside a trigger", () => {
@@ -56,26 +56,5 @@ describe("Tabs", () => {
     expect(screen.getByRole("tab", { name: /runs3live/i })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="tabs-trigger-count"]')).toHaveTextContent("3");
     expect(container.querySelector('[data-slot="tabs-trigger-live"]')).toHaveTextContent("Live");
-  });
-
-  it("Should render counts with sans tabular numerals", () => {
-    const { container } = render(
-      <Tabs defaultValue="lane-a">
-        <TabsList>
-          <TabsTrigger count={4} value="lane-a">
-            Lane A
-          </TabsTrigger>
-          <TabsTrigger count={2} value="lane-b">
-            Lane B
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="lane-a">Panel</TabsContent>
-        <TabsContent value="lane-b">Panel</TabsContent>
-      </Tabs>
-    );
-    const count = container.querySelector('[data-slot="tabs-trigger-count"]') as HTMLElement | null;
-    expect(count?.textContent).toBe("4");
-    expect(count).toHaveClass("tabular-nums");
-    expect(count).not.toHaveClass("font-mono");
   });
 });

@@ -14,9 +14,9 @@ export interface DescriptionCardProps extends Omit<React.ComponentProps<"div">, 
 }
 
 /**
- * Operator-authored markdown card. Rounded `bg-canvas-soft` chrome around a
+ * Operator-authored markdown card. `Surface` card chrome around a
  * `<Markdown />` body so the same prose grammar is shared with every other
- * markdown surface in the runtime (chat messages, tool-call panels, knowledge
+ * markdown surface in the runtime (chat messages, tool-call panels, task
  * notes). Pass `bare` to drop the chrome and consume only the prose styles
  * inline.
  */

@@ -4,16 +4,16 @@ import { isFailedRosterState, isUnsettledRosterState } from "./loop-run-state-co
 import { deriveCostEstimate } from "./loop-run-usage";
 
 const ORIGIN_LABELS: Record<LoopRunGeneration["origin"], string> = {
-  initial: "Initial generation",
+  initial: "First round",
   stop_when: "Stop condition",
   reattempt: "Re-attempt",
   gate_revise: "Gate revision",
   gate_next_generation: "Gate continuation",
-  dod_retry: "Definition-of-done retry",
-  ratchet_restore: "Ratchet restore",
-  requeue: "Manual requeue",
-  operator_rerun: "Operator rerun",
-  fork_seed: "Fork seed",
+  dod_retry: "Retry to meet the finish line",
+  ratchet_restore: "Restored best round",
+  requeue: "Retried by you",
+  operator_rerun: "Rerun by you",
+  fork_seed: "Forked run",
 };
 
 /** Formats persisted metric values consistently across run summaries and detail. */
@@ -27,7 +27,7 @@ export function loopRunBestLabel(
 ): string | null {
   if (run.best_generation === null || run.best_generation === undefined) return null;
   const score = formatLoopScore(run.best_score);
-  return score ? `Gen ${run.best_generation} · ${score}` : `Gen ${run.best_generation}`;
+  return score ? `Round ${run.best_generation} · ${score}` : `Round ${run.best_generation}`;
 }
 
 /** Human-readable provenance for one persisted generation. */
@@ -35,7 +35,7 @@ export function loopGenerationOriginLabel(
   origin: LoopRunGeneration["origin"],
   parentGeneration: number
 ): string {
-  if (origin === "ratchet_restore") return `Restored from gen ${parentGeneration}`;
+  if (origin === "ratchet_restore") return `Restored from round ${parentGeneration}`;
   return ORIGIN_LABELS[origin];
 }
 

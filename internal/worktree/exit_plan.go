@@ -348,7 +348,7 @@ func (s *Service) readOriginRemoteURLs(ctx context.Context, path string) ([]stri
 	stdout, stderr, err := s.runner.Run(ctx, path, "remote", "get-url", "--all", "origin")
 	if err != nil {
 		var exitError interface{ ExitCode() int }
-		if errors.As(err, &exitError) && exitError.ExitCode() == 2 {
+		if errors.As(err, &exitError) && exitError.ExitCode() == 2 { //nolint:forbidigo // ExitCode is not error.
 			return nil, nil
 		}
 		safe := diagnostics.RedactAndBound(exitCommandOutput(stdout, stderr, err), 2048)
@@ -421,6 +421,6 @@ func (s *Service) readExitCommitScope(ctx context.Context, item Worktree, status
 	return ExitCommitScope{
 		ChangedFiles: valueOrZero(status.DirtyFiles), Insertions: valueOrZero(status.Insertions),
 		Deletions: valueOrZero(status.Deletions), UntrackedFiles: untracked,
-		UntrackedTotal: total, UntrackedTruncated: total > len(untracked),
+		UntrackedTotal: total, UntrackedTruncated: total > len(untracked), Complete: total <= len(untracked),
 	}, nil
 }

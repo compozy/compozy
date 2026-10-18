@@ -42,7 +42,7 @@ func BenchmarkValidateAuthoredContextRedactedNestedPayload(b *testing.B) {
 
 func jsonSafetyBenchmarkPayload() map[string]any {
 	sections := make([]any, 0, 24)
-	for i := 0; i < cap(sections); i++ {
+	for range cap(sections) {
 		sections = append(sections, map[string]any{
 			"section_id": "public-section",
 			"summary":    "bounded public agent context",

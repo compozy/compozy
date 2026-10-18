@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { resolveDesktopWorkspaceId } from "./-route-preload";
+import { resolveActiveWorkspaceSelection } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
   resolveSessionOwner,
@@ -35,13 +35,17 @@ export async function prefetchAgentSessionRoute({
   queryClient: QueryClient;
   sessionId: string;
 }): Promise<AgentSessionRouteLoaderData> {
-  const workspaceId = await resolveDesktopWorkspaceId(queryClient);
+  const selection = await resolveActiveWorkspaceSelection(queryClient);
+  const workspaceId = selection.desktopWorkspaceId;
   if (!workspaceId) {
     return { status: "not-found" };
   }
 
   const knownOwner = cachedForeignSessionOwner(queryClient, sessionId, workspaceId);
   if (knownOwner) {
+    if (knownOwner.workspaceId === "" && selection.scope === "global") {
+      return resolveForeignSession(queryClient, sessionId, workspaceId, true);
+    }
     return { status: "foreign", owner: knownOwner };
   }
 
@@ -55,7 +59,12 @@ export async function prefetchAgentSessionRoute({
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
-      return resolveForeignSession(queryClient, sessionId, workspaceId);
+      return resolveForeignSession(
+        queryClient,
+        sessionId,
+        workspaceId,
+        selection.scope === "global"
+      );
     }
     throw error;
   }
@@ -74,18 +83,19 @@ export async function prefetchAgentSessionRoute({
 async function resolveForeignSession(
   queryClient: QueryClient,
   sessionId: string,
-  activeWorkspaceId: string
+  activeWorkspaceId: string,
+  globalScope: boolean
 ): Promise<AgentSessionRouteLoaderData> {
   const owner = await resolveSessionOwner(queryClient, sessionId);
   if (!owner) {
     return { status: "not-found" };
   }
-  if (owner.workspaceId === activeWorkspaceId) {
+  if (owner.workspaceId === activeWorkspaceId || (globalScope && owner.workspaceId === "")) {
     await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
     await Promise.allSettled([
-      queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(activeWorkspaceId, sessionId)),
+      queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
-    return { status: "loaded", workspaceId: activeWorkspaceId };
+    return { status: "loaded", workspaceId: owner.workspaceId };
   }
   return { status: "foreign", owner };
 }

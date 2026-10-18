@@ -47,18 +47,18 @@ func (e *Evaluator) evaluateAgentJudge(
 	runtime := mergeJudgeRuntime(in.JudgeRuntime, criterion.Runtime)
 	attempt := in.Revision + 1
 	response, err := e.judges.Judge(ctx, JudgeRequest{
-		LoopRunID:            strings.TrimSpace(in.LoopRunID),
-		GateID:               gate.ID,
-		CriterionID:          criterion.ID,
-		Attempt:              attempt,
-		CorrelationID:        agentJudgeCorrelationID(in, gate.ID, criterion.ID, attempt),
-		ProfileID:            in.ToolScope.ProfileID,
-		WorkspaceID:          in.ToolScope.WorkspaceID,
-		Agent:                criterion.Agent,
-		Runtime:              runtime,
-		Rubric:               rubric,
-		Contract:             contract,
-		NetworkParticipation: in.NetworkParticipation,
+		ParentSessionID: strings.TrimSpace(in.JudgeParentSessionID),
+		LoopRunID:       strings.TrimSpace(in.LoopRunID),
+		GateID:          gate.ID,
+		CriterionID:     criterion.ID,
+		Attempt:         attempt,
+		CorrelationID:   agentJudgeCorrelationID(in, gate.ID, criterion.ID, attempt),
+		ProfileID:       in.ToolScope.ProfileID,
+		WorkspaceID:     in.ToolScope.WorkspaceID,
+		Agent:           criterion.Agent,
+		Runtime:         runtime,
+		Rubric:          rubric,
+		Contract:        contract,
 	})
 	if err != nil {
 		return CriterionResult{
@@ -131,6 +131,7 @@ func (e *Evaluator) evaluateHuman(gate Gate, criterion dsl.GateCriterion, in Gat
 			ID:      criterion.ID,
 			Type:    criterion.Type,
 			Outcome: VerdictOutcomeAwaitingApproval,
+			Prompt:  criterion.Prompt,
 			BlockingIssues: []BlockingIssue{{
 				ID:   blockerHumanPending,
 				Note: "human decision is pending",

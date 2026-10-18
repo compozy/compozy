@@ -16,6 +16,8 @@ type registryEntry struct {
 	descriptor Descriptor
 	provider   Provider
 	conflicts  []ReasonCode
+	// owned marks a descriptor cloned privately for this index; shared native descriptors are not owned.
+	owned bool
 }
 
 func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registryIndex, error) {
@@ -39,7 +41,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 		if native, ok := provider.(*NativeProvider); ok {
 			// Native descriptors are validated and privately cloned at construction.
 			for _, id := range native.ids {
-				index.add(native.tools[id].Descriptor, provider)
+				index.add(native.tools[id].Descriptor, provider, false)
 			}
 			continue
 		}
@@ -55,7 +57,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 			if err := descriptor.Validate(); err != nil {
 				return nil, indexValidationError(descriptor.ID, err)
 			}
-			index.add(cloneDescriptor(*descriptor), provider)
+			index.add(cloneDescriptor(*descriptor), provider, true)
 		}
 	}
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {
@@ -68,13 +70,13 @@ func (r *RuntimeRegistry) buildIndexMatching(
 }
 
 // add retains the first descriptor for each ID and records conflicts from subsequent providers.
-func (i *registryIndex) add(descriptor Descriptor, provider Provider) {
+func (i *registryIndex) add(descriptor Descriptor, provider Provider, owned bool) {
 	if existing, ok := i.byID[descriptor.ID]; ok {
 		reason := conflictReason(&existing.descriptor, &descriptor)
 		existing.conflicts = appendReason(existing.conflicts, reason)
 		return
 	}
-	entry := &registryEntry{descriptor: descriptor, provider: provider}
+	entry := &registryEntry{descriptor: descriptor, provider: provider, owned: owned}
 	i.byID[descriptor.ID] = entry
 	i.entries = append(i.entries, entry)
 }

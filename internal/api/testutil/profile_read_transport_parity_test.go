@@ -43,12 +43,10 @@ func TestProfileDetailReadHTTPUDSTransportParityIT070(t *testing.T) {
 		}, nil
 	}}
 	profiles := parityProfileService{profiles: []profilepkg.WithCounts{
-		{Profile: profilepkg.Profile{
-			ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive,
-		}},
-		{Profile: profilepkg.Profile{
-			ID: aggregateReadProfileID, Name: "marketing", Color: "#E8572A", State: profilepkg.StateActive,
-		}},
+		{
+			ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive},
+		{
+			ID: aggregateReadProfileID, Name: "marketing", Color: "#E8572A", State: profilepkg.StateActive},
 	}}
 	httpRouter := newProfileReadParityHTTPRouter(t, taskService, profiles)
 	udsRouter := newProfileReadParityUDSRouter(t, taskService, profiles)
@@ -87,30 +85,6 @@ func TestProfileDetailReadHTTPUDSTransportParityIT070(t *testing.T) {
 	}
 }
 
-// Canonical suite: IT-074 memory aggregate reads fail closed across HTTP and UDS.
-func TestMemoryAggregateReadRefusalHTTPUDSTransportParityIT074(t *testing.T) {
-	t.Parallel()
-	t.Run("Should reject memory aggregate reads", func(t *testing.T) {
-		t.Parallel()
-		profiles := parityProfileService{profiles: []profilepkg.WithCounts{{Profile: profilepkg.Profile{
-			ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive,
-		}}}}
-		httpRouter := newProfileReadParityHTTPRouter(t, &testutil.StubTaskManager{}, profiles)
-		udsRouter := newProfileReadParityUDSRouter(t, &testutil.StubTaskManager{}, profiles)
-		httpResponse := performWorktreeParityRequest(t, httpRouter, http.MethodGet, "/api/memory?all_profiles=true", "")
-		udsResponse := performWorktreeParityRequest(t, udsRouter, http.MethodGet, "/api/memory?all_profiles=true", "")
-		assertWorktreeParityResponse(t, httpResponse, udsResponse, http.StatusBadRequest)
-
-		var payload contract.ProfileErrorPayload
-		if err := json.Unmarshal(httpResponse.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("decode memory aggregate refusal: %v", err)
-		}
-		if payload.Error.Code != "profile_selection_conflict" {
-			t.Fatalf("memory aggregate error = %#v, want profile_selection_conflict", payload.Error)
-		}
-	})
-}
-
 type parityProfileService struct {
 	core.ProfileService
 	profiles []profilepkg.WithCounts
@@ -141,7 +115,7 @@ func newProfileReadParityHTTPRouter(
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", 2123
 	if _, err := httpapi.New(
 		httpapi.WithEngine(engine), httpapi.WithHomePaths(homePaths), httpapi.WithConfig(&cfg),
@@ -167,7 +141,7 @@ func newProfileReadParityUDSRouter(
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	if _, err := udsapi.New(
 		udsapi.WithEngine(engine), udsapi.WithHomePaths(homePaths), udsapi.WithConfig(&cfg),
 		udsapi.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),

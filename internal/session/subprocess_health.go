@@ -1,8 +1,9 @@
 package session
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/subprocess"
 )
@@ -45,9 +46,7 @@ func (m *Manager) SubprocessHealthSnapshots() []SubprocessHealthSnapshot {
 		}
 		snapshots = append(snapshots, subprocessHealthSnapshot(sess, health))
 	}
-	sort.Slice(snapshots, func(i int, j int) bool {
-		return snapshots[i].SessionID < snapshots[j].SessionID
-	})
+	slices.SortFunc(snapshots, func(a, b SubprocessHealthSnapshot) int { return cmp.Compare(a.SessionID, b.SessionID) })
 	return snapshots
 }
 

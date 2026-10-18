@@ -1,16 +1,14 @@
 import { useMCPOverrideEditor } from "../use-mcp-override-editor";
 import type { SettingsMCPServerEntry } from "../../types";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../adapters/settings-api", () => ({
-  deleteSettingsSandbox: vi.fn(),
   deleteSettingsHook: vi.fn(),
   deleteSettingsMCPServer: vi.fn(),
   deleteSettingsProvider: vi.fn(),
-  putSettingsSandbox: vi.fn(),
   putSettingsHook: vi.fn(),
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),
@@ -19,9 +17,8 @@ vi.mock("../../adapters/settings-api", () => ({
   updateSettingsAttention: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
-  updateSettingsMemory: vi.fn(),
-  updateSettingsNetwork: vi.fn(),
   updateSettingsObservability: vi.fn(),
+  updateSettingsPersona: vi.fn(),
   updateSettingsRoles: vi.fn(),
   updateSettingsSkills: vi.fn(),
 }));
@@ -38,10 +35,13 @@ import {
   putSettingsMCPServer,
   reloadSettings,
   updateSettingsAttention,
+  updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
-  updateSettingsMemory,
+  updateSettingsObservability,
+  updateSettingsPersona,
   updateSettingsRoles,
+  updateSettingsSkills,
 } from "../../adapters/settings-api";
 import {
   exchangeSettingsMCPAuth,
@@ -51,9 +51,14 @@ import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
 import { settingsKeys } from "../../lib/query-keys";
 import {
+  settingsAttentionSectionFixture,
+  settingsAutomationSectionFixture,
+  settingsGeneralSectionFixture,
   settingsHooksExtensionsSectionFixture,
-  settingsMemoryConfigFixture,
+  settingsObservabilitySectionFixture,
+  settingsSkillsSectionFixture,
 } from "../../mocks/fixtures";
+import { settingsPersonaSectionFixture } from "../../mocks/layered-fixtures";
 import { settingsRolesSectionFixture } from "../../mocks/roles-fixtures";
 import { settingsRestartStore } from "../../stores/settings-restart-store";
 import { resetSettingsRestartStore } from "../../stores/use-settings-restart-store";
@@ -65,10 +70,13 @@ import {
   usePutSettingsMCPServer,
   useReloadSettings,
   useUpdateSettingsAttention,
+  useUpdateSettingsAutomation,
   useUpdateSettingsGeneral,
   useUpdateSettingsHooksExtensions,
-  useUpdateSettingsMemory,
+  useUpdateSettingsObservability,
+  useUpdateSettingsPersona,
   useUpdateSettingsRoles,
+  useUpdateSettingsSkills,
 } from "../use-settings-mutations";
 
 function createWrapper() {
@@ -106,6 +114,148 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("explicit Settings form saves while offline", () => {
+  it.each([
+    {
+      name: "General",
+      adapter: updateSettingsGeneral,
+      useSave: () => {
+        const mutation = useUpdateSettingsGeneral();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsGeneralSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Automation",
+      adapter: updateSettingsAutomation,
+      useSave: () => {
+        const mutation = useUpdateSettingsAutomation();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsAutomationSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Diagnostics",
+      adapter: updateSettingsObservability,
+      useSave: () => {
+        const mutation = useUpdateSettingsObservability();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsObservabilitySectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Extensions",
+      adapter: updateSettingsHooksExtensions,
+      useSave: () => {
+        const mutation = useUpdateSettingsHooksExtensions();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsHooksExtensionsSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Roles",
+      adapter: updateSettingsRoles,
+      useSave: () => {
+        const mutation = useUpdateSettingsRoles();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsRolesSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Persona",
+      adapter: updateSettingsPersona,
+      useSave: () => {
+        const mutation = useUpdateSettingsPersona();
+        return {
+          mutation,
+          save: () =>
+            mutation.mutate({
+              body: { config: settingsPersonaSectionFixture.config },
+              filter: { scope: "user" },
+            }),
+        };
+      },
+    },
+    {
+      name: "Skills",
+      adapter: updateSettingsSkills,
+      useSave: () => {
+        const mutation = useUpdateSettingsSkills();
+        return {
+          mutation,
+          save: () =>
+            mutation.mutate({
+              body: { config: settingsSkillsSectionFixture.config },
+              filter: { scope: "user" },
+            }),
+        };
+      },
+    },
+    {
+      name: "Notifications",
+      adapter: updateSettingsAttention,
+      useSave: () => {
+        const mutation = useUpdateSettingsAttention();
+        return {
+          mutation,
+          save: () =>
+            mutation.mutate({
+              body: { config: settingsAttentionSectionFixture.config },
+              filter: { scope: "user" },
+            }),
+        };
+      },
+    },
+  ])(
+    "$name settles failure and waits for an explicit retry after reconnect",
+    async ({ adapter, useSave }) => {
+      const { queryClient, wrapper } = createWrapper();
+      const networkError = new TypeError("Failed to fetch");
+      const request = Promise.reject(networkError);
+      // Attention starts its request in the gesture, before the mutation consumes it.
+      void request.catch(() => {});
+      vi.mocked(adapter).mockReturnValue(request);
+      onlineManager.setOnline(false);
+      const { result, unmount } = renderHook(() => useSave(), { wrapper });
+
+      try {
+        act(() => result.current.save());
+        await waitFor(() => expect(result.current.mutation.error).toBe(networkError));
+        expect(result.current.mutation.isPending).toBe(false);
+        expect(result.current.mutation.isPaused).toBe(false);
+        expect(adapter).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          onlineManager.setOnline(true);
+          await queryClient.resumePausedMutations();
+        });
+        expect(adapter).toHaveBeenCalledTimes(1);
+        expect(result.current.mutation.error).toBe(networkError);
+
+        vi.mocked(adapter).mockResolvedValue(generalMutation);
+        act(() => result.current.save());
+        await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
+        expect(adapter).toHaveBeenCalledTimes(2);
+        expect(result.current.mutation.error).toBeNull();
+      } finally {
+        unmount();
+        queryClient.clear();
+        onlineManager.setOnline(true);
+      }
+    }
+  );
+});
+
 describe("useUpdateSettingsGeneral", () => {
   it("records mutation state and invalidates the general section plus apply records", async () => {
     const { queryClient, wrapper } = createWrapper();
@@ -119,7 +269,7 @@ describe("useUpdateSettingsGeneral", () => {
         config: {
           daemon: {
             memory_report_interval: "5m",
-            reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+            reload_timeouts: { mcp: "10s", providers: "5s" },
             socket: "/tmp/a.sock",
           },
           http: { host: "127.0.0.1", port: 2123 },
@@ -162,11 +312,6 @@ describe("useUpdateSettingsGeneral", () => {
     expect(settingsRestartStore.getSnapshot().context.lastMutation?.applyRecordId).toBe(
       "cfg_apply_001"
     );
-
-    const memoryInvalidations = invalidateSpy.mock.calls.filter(([arg]) =>
-      JSON.stringify(arg?.queryKey).includes("memory")
-    );
-    expect(memoryInvalidations).toHaveLength(0);
   });
 });
 
@@ -200,39 +345,12 @@ describe("useUpdateSettingsAttention", () => {
   });
 });
 
-describe("useUpdateSettingsMemory", () => {
-  it("invalidates memory section and apply records", async () => {
-    const { queryClient, wrapper } = createWrapper();
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    vi.mocked(updateSettingsMemory).mockResolvedValue({
-      ...generalMutation,
-      section: "memory" as const,
-    });
-
-    const { result } = renderHook(() => useUpdateSettingsMemory(), { wrapper });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        config: {
-          ...settingsMemoryConfigFixture,
-          dream: { ...settingsMemoryConfigFixture.dream, min_hours: 1 },
-        },
-      });
-    });
-
-    await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.section("memory") });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.applyRoot() });
-    });
-  });
-});
-
 describe("useUpdateSettingsRoles", () => {
   it("Should reconcile the section cache and invalidate role consumers", async () => {
     const { queryClient, wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const updatedConfig = structuredClone(settingsRolesSectionFixture.config);
-    updatedConfig.dream.model = "updated-dream-model";
+    updatedConfig.auto_title.model = "updated-auto-title-model";
     queryClient.setQueryData(settingsKeys.section("roles"), settingsRolesSectionFixture);
     vi.mocked(updateSettingsRoles).mockResolvedValue({
       ...generalMutation,
@@ -248,7 +366,7 @@ describe("useUpdateSettingsRoles", () => {
     });
 
     expect(queryClient.getQueryData(settingsKeys.section("roles"))).toMatchObject({
-      config: { dream: { model: "updated-dream-model" } },
+      config: { auto_title: { model: "updated-auto-title-model" } },
     });
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.section("roles") });

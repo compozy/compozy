@@ -180,7 +180,7 @@ export const GlobalOn: Story = {
   render: () => <OsWorkspacesOverview {...baseProps()} scope="global" selectedWorktreeId={null} />,
 };
 
-/** The dashed add tile focused: caption names the directory picker. */
+/** The dashed add tile focused: caption invites picking a project folder. */
 export const AddTileFocused: Story = {
   args: {},
   tags: ["play-fn"],
@@ -188,7 +188,7 @@ export const AddTileFocused: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await body.findByTestId("os-workspace-tile-add");
     await userEvent.keyboard("{End}");
-    await body.findByText("Register a project folder");
+    await body.findByText("Pick a project folder");
   },
   render: () => <OsWorkspacesOverview {...baseProps()} />,
 };

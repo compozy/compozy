@@ -10,12 +10,14 @@ import {
   type GlobalShortcutBinding,
   type GlobalShortcutRegistration,
   type ProductMethod,
+  type ProductResponses,
+  type ThemePreference,
 } from "./product-contract";
 
-async function invoke(
-  method: ProductMethod,
+async function invoke<M extends ProductMethod>(
+  method: M,
   params: unknown
-): Promise<GlobalShortcutRegistration[]> {
+): Promise<ProductResponses[M]> {
   if (!isProductMethod(method)) throw new Error("The product action is not supported.");
   if (!validProductParams(method, params)) {
     throw new TypeError("Product action parameters are invalid.");
@@ -50,6 +52,11 @@ contextBridge.exposeInMainWorld("compozyShell", {
     },
     async status(): Promise<GlobalShortcutRegistration[]> {
       return await invoke("global_shortcuts.status", {});
+    },
+  },
+  theme: {
+    async set(preference: ThemePreference): Promise<void> {
+      await invoke("theme.set", { preference });
     },
   },
 });

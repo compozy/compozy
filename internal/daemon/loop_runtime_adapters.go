@@ -9,10 +9,11 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -88,7 +89,8 @@ func (r *loopGateJudgeRunner) Judge(
 	}
 	var executionCleanupErr error
 	defer func() { finishExecution(executionCleanupErr) }()
-	ctx = judgeCtx
+	// Loop judges are daemon-initiated and yield to host CPU pressure at admission.
+	ctx = admission.WithBackgroundWork(judgeCtx)
 	agent := strings.TrimSpace(req.Agent)
 	if agent == "" {
 		return gate.JudgeResponse{}, fmt.Errorf("%w: judge agent is required", looppkg.ErrValidation)
@@ -117,7 +119,7 @@ func (r *loopGateJudgeRunner) Judge(
 		executionCleanupErr = r.stopJudgeSession(ctx, sessionID, err)
 		err = errors.Join(err, executionCleanupErr)
 	}()
-	if err := r.bindExecution(req.CorrelationID, sessionID); err != nil {
+	if err := r.bindExecution(req.CorrelationID, sessionID, looppkg.RunID(req.LoopRunID)); err != nil {
 		return gate.JudgeResponse{}, err
 	}
 	if createErr != nil {
@@ -142,19 +144,16 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 ) (session.CreateOpts, error) {
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
-		ProfileID:                    strings.TrimSpace(req.ProfileID),
-		AgentName:                    agent,
-		Provider:                     strings.TrimSpace(req.Runtime.Provider),
-		Model:                        strings.TrimSpace(req.Runtime.Model),
-		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
-		Speed:                        req.Runtime.Speed,
-		ACPOptions:                   loopACPOptionsForSession(req.Runtime.ACPOptions),
-		Name:                         loopRuntimeSessionName("gate", agent, req.CriterionID),
-		ResolvedNetworkParticipation: req.NetworkParticipation,
-		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindLoopRun,
-			ID:   req.LoopRunID,
-		}),
+		ProvenanceParentSessionID: strings.TrimSpace(req.ParentSessionID),
+		ProfileID:                 strings.TrimSpace(req.ProfileID),
+		AgentName:                 agent,
+		Provider:                  strings.TrimSpace(req.Runtime.Provider),
+		Model:                     strings.TrimSpace(req.Runtime.Model),
+		ReasoningEffort:           strings.TrimSpace(req.Runtime.Reasoning),
+		Speed:                     req.Runtime.Speed,
+		ACPOptions:                loopACPOptionsForSession(req.Runtime.ACPOptions),
+		Name:                      loopRuntimeSessionName("gate", agent, req.CriterionID),
+
 		PromptOverlay:   contractOverlay,
 		ContractOverlay: contractOverlay,
 		Type:            session.SessionTypeSystem,
@@ -344,7 +343,8 @@ func collectLoopPromptResult(
 	if strings.TrimSpace(sessionID) == "" {
 		return looppkg.ActionPromptResult{}, errors.New("daemon: loop prompt session id is required")
 	}
-	events, err := sessions.Prompt(ctx, sessionID, req.Message)
+	// Loop prompts are daemon-initiated and yield to host CPU pressure at admission.
+	events, err := sessions.Prompt(admission.WithBackgroundWork(ctx), sessionID, req.Message)
 	if err != nil {
 		return looppkg.ActionPromptResult{}, err
 	}
@@ -365,15 +365,11 @@ func collectLoopPromptResult(
 		if event.PromptStopReason != "" && stopReason == "" {
 			stopReason = event.PromptStopReason
 		}
-		// Chunks are streaming deltas of one turn, not lines: any injected
-		// separator lands inside JSON string literals and corrupts the answer.
-		// The transcript projector concatenates the same way.
-		if strings.TrimSpace(event.Text) != "" {
-			if event.Type == acp.EventTypeAgentMessage {
-				agentText.WriteString(event.Text)
-			}
-			allText.WriteString(event.Text)
+		// Streaming deltas must retain every byte inside JSON strings.
+		if event.Type == acp.EventTypeAgentMessage {
+			agentText.WriteString(event.Text)
 		}
+		allText.WriteString(event.Text)
 		if tokens, ok := loopPromptTokensUsed(event.Usage); ok {
 			tokensUsed = tokens
 			tokensReported = true

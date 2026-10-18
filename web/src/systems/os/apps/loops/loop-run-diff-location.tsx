@@ -9,7 +9,7 @@ import {
   LoopRunDiffPickers,
   LoopRunDiffView,
   type LoopRunDiffRouteSearch,
-  LoopStatusPill,
+  LoopStatusMark,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -28,9 +28,9 @@ export function LoopRunDiffLocation({
     <div className="flex min-h-0 flex-1 flex-col" data-testid="loop-run-diff-location">
       {workspaceId === "" ? (
         <DiffState
-          description="Select a workspace to compare this run."
+          description="Select a project to compare this run."
           testId="loop-run-diff-no-workspace"
-          title="No workspace selected"
+          title="No project selected"
         />
       ) : (
         <LoopRunDiffPage key={runId} runId={runId} search={search} workspaceId={workspaceId} />
@@ -58,7 +58,7 @@ function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
       openRuns: page.goToRuns,
       runId,
     }),
-    status: page.run ? <LoopStatusPill status={page.run.status} /> : undefined,
+    status: page.run ? <LoopStatusMark status={page.run.status} /> : undefined,
   });
 
   if (page.isRunLoading) {
@@ -111,7 +111,7 @@ function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
         <Empty
           className="mt-4"
           data-testid="loop-run-diff-unselected"
-          description="Pick an against side: another generation of this run, or another run of this loop."
+          description="Pick what to compare with: another round of this run, or another run of this Loop."
           framed
           icon={GitCompare}
           title="Nothing compared yet"

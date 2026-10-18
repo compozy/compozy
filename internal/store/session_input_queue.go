@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -39,6 +40,10 @@ const (
 )
 
 var (
+	//nolint:revive,staticcheck // This sentinel carries the exact public queue mutation refusal message.
+	ErrSessionInputAgentAuthored = errors.New(
+		"This message was sent by another session and can't be edited. Cancel it instead.",
+	)
 	// ErrSessionInputQueueFull reports that accepting an entry would exceed the configured capacity.
 	ErrSessionInputQueueFull = errors.New("store: session input queue full")
 	// ErrSessionInputQueueEntryNotFound reports that a queued input entry does not exist for a session.
@@ -74,6 +79,7 @@ func (r SessionInputRuntime) Normalize() SessionInputRuntime {
 
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
+	Priority int
 	// SupersededIDs identifies entries canceled by the transaction creating this input.
 	SupersededIDs            []string
 	ID                       string
@@ -91,6 +97,9 @@ type SessionInputQueueEntry struct {
 	Text                     string
 	Runtime                  SessionInputRuntime
 	SkillInvocations         []commandpkg.Invocation
+	Origin                   json.RawMessage
+	OriginClass              string
+	OriginSessionID          string
 	Attachments              []SessionInputAttachment
 	SessionGeneration        int64
 	TaskRunID                string
@@ -142,6 +151,7 @@ type SessionInputQueueSummary struct {
 
 // SessionInputQueueInsert captures the atomic insert request for busy input.
 type SessionInputQueueInsert struct {
+	Priority          int
 	OwnerKind         string
 	SyntheticPrompt   *SessionInputSyntheticPrompt
 	ID                string
@@ -158,6 +168,14 @@ type SessionInputQueueInsert struct {
 	Text              string
 	Runtime           SessionInputRuntime
 	SkillInvocations  []commandpkg.Invocation
+	Origin            json.RawMessage
+	// OriginClass and OriginSessionID default from OwnerKind and Origin; set
+	// OriginClass explicitly only when a human re-authors an agent row.
+	OriginClass     string
+	OriginSessionID string
+	// Supersede cancels the same sender's older undispatched messages to this session in the
+	// transaction that inserts this agent-authored queue entry.
+	Supersede         bool
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64
 	TaskRunID         string
@@ -185,10 +203,12 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized.Text = strings.TrimSpace(normalized.Text)
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
+	normalized.Origin = append(json.RawMessage(nil), normalized.Origin...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
 	normalized.OwnerKind = strings.TrimSpace(normalized.OwnerKind)
 	normalized.SyntheticPrompt = normalized.SyntheticPrompt.Clone()
+	normalized = normalized.normalizeOriginClass()
 	if normalized.Now.IsZero() {
 		normalized.Now = time.Now().UTC()
 	} else {
@@ -224,6 +244,11 @@ func (r SessionInputQueueInsert) Validate() error {
 		return errors.New("store: session input queue text is required")
 	case normalized.QueueCap <= 0:
 		return fmt.Errorf("store: session input queue cap must be positive: %d", normalized.QueueCap)
+	}
+	switch normalized.OriginClass {
+	case SessionInputOriginClassHuman, SessionInputOriginClassAgent, SessionInputOriginClassSynthetic:
+	default:
+		return fmt.Errorf("store: invalid session input origin class %q", normalized.OriginClass)
 	}
 	switch normalized.Mode {
 	case SessionInputQueueModeQueue:

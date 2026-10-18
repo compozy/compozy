@@ -31,7 +31,7 @@ func ACPPromptStopReasonValues() []string {
 type ACPAvailableCommandPayload struct {
 	Name        string                           `json:"name"`
 	Description string                           `json:"description"`
-	Input       *ACPAvailableCommandInputPayload `json:"input,omitempty"`
+	Input       *ACPAvailableCommandInputPayload `json:"input,omitzero"`
 }
 
 // ACPAvailableCommandInputPayload describes the optional unstructured command argument.
@@ -42,6 +42,8 @@ type ACPAvailableCommandInputPayload struct {
 // ACPCapsPayload is the JSON representation of ACP capabilities.
 type ACPCapsPayload struct {
 	SupportsLoadSession   bool                         `json:"supports_load_session"`
+	SupportsForkSession   bool                         `json:"supports_fork_session"`
+	SupportsResumeSession bool                         `json:"supports_resume_session"`
 	PromptImage           bool                         `json:"prompt_image"`
 	PromptAudio           bool                         `json:"prompt_audio"`
 	PromptEmbeddedContext bool                         `json:"prompt_embedded_context"`
@@ -57,6 +59,8 @@ func ACPCapsPayloadFromACP(caps acp.Caps, known bool) *ACPCapsPayload {
 
 	return &ACPCapsPayload{
 		SupportsLoadSession:   caps.SupportsLoadSession,
+		SupportsForkSession:   caps.SupportsForkSession,
+		SupportsResumeSession: caps.SupportsResumeSession,
 		PromptImage:           caps.PromptImage,
 		PromptAudio:           caps.PromptAudio,
 		PromptEmbeddedContext: caps.PromptEmbeddedContext,

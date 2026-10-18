@@ -100,8 +100,7 @@ func skillInfoItemFromSkill(skill *skills.Skill, resources []string, now time.Ti
 	}
 	shadows, ok := skills.ShadowsForSkill(skill, now)
 	if ok {
-		provenance := skillProvenanceRecordFromSkill(skill, shadows)
-		item.Provenance = &provenance
+		item.Provenance = new(skillProvenanceRecordFromSkill(skill, shadows))
 	}
 	return item
 }

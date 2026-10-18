@@ -56,6 +56,20 @@ describe("app registry", () => {
     expect(resolveAppForPath("/terminal")?.app.id).toBe("terminal");
   });
 
+  it("Should register one Automations app after Loops and no Jobs or Triggers apps", () => {
+    const ids = Object.keys(OS_APPS);
+    expect(ids).not.toContain("jobs");
+    expect(ids).not.toContain("triggers");
+    expect(ids.indexOf("automations")).toBe(ids.indexOf("loops") + 1);
+    expect(OS_APPS.automations).toMatchObject({
+      title: "Automations",
+      paths: ["/automations"],
+      dock: { group: 2 },
+    });
+    expect(resolveAppForPath("/automations/jobs/morning-digest")?.app.id).toBe("automations");
+    expect(resolveAppForPath("/automations/triggers/rerun-delivery")?.app.id).toBe("automations");
+  });
+
   it("Should own the desktop root exactly (no prefix bleed)", () => {
     expect(resolveAppForPath("/")?.app.id).toBe("dashboard");
     expect(resolveAppForPath("/tasks")?.app.id).toBe("tasks");

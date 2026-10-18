@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -23,7 +24,7 @@ func TestExtensionExecInvokesCanonicalToolExactlyOnceAcrossOutputFormatsIntegrat
 	t.Parallel()
 
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = shortSocketPath(t)
 	workspaceRoot := t.TempDir()
 	registry := newCommandInvokeSpyRegistry()
@@ -43,7 +44,7 @@ func TestExtensionExecInvokesCanonicalToolExactlyOnceAcrossOutputFormatsIntegrat
 		udsapi.WithWorkspaceResolver(testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: ref, RootDir: workspaceRoot, Name: ref},
+					ID: ref, RootDir: workspaceRoot, Name: ref,
 					WorkspaceID: ref,
 				}, nil
 			},
@@ -54,7 +55,7 @@ func TestExtensionExecInvokesCanonicalToolExactlyOnceAcrossOutputFormatsIntegrat
 	if err != nil {
 		t.Fatalf("udsapi.New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("server.Start() error = %v", err)
 	}
 	t.Cleanup(func() {

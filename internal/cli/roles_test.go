@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -22,9 +24,6 @@ func TestRolesCommands(t *testing.T) {
 			{Role: "auto_title", Enabled: true, ResolutionMode: contract.RoleResolutionModeInherit,
 				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
 				Diagnostics: []contract.RoleDiagnostic{}},
-			{Role: "checkpoint_summary", Enabled: true, ResolutionMode: contract.RoleResolutionModeBuiltin,
-				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
-				Diagnostics: []contract.RoleDiagnostic{}},
 			{Role: "coordinator", Enabled: true, ResolutionMode: contract.RoleResolutionModeBuiltin,
 				Provider: &provider, Model: &model,
 				FallbackChain: []contract.RoleFallbackStatus{{
@@ -34,15 +33,6 @@ func TestRolesCommands(t *testing.T) {
 				Diagnostics: []contract.RoleDiagnostic{{
 					Code: "role_agent_not_found", Message: "configured agent is unavailable", Agent: "missing",
 				}}},
-			{Role: "dream", Enabled: true, ResolutionMode: contract.RoleResolutionModeBuiltin,
-				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
-				Diagnostics: []contract.RoleDiagnostic{}},
-			{Role: "memory_controller", Enabled: true, ResolutionMode: contract.RoleResolutionModeInherit,
-				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
-				Diagnostics: []contract.RoleDiagnostic{}},
-			{Role: "memory_extractor", Enabled: true, ResolutionMode: contract.RoleResolutionModeInherit,
-				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
-				Diagnostics: []contract.RoleDiagnostic{}},
 		}
 		deps := newWorkspaceTestDeps(t, &stubClient{
 			listRolesFn: func(_ context.Context, query RoleQuery) ([]RoleRecord, error) {
@@ -77,7 +67,7 @@ func TestRolesCommands(t *testing.T) {
 		provider := "anthropic"
 		model := "claude-sonnet"
 		role := RoleRecord{
-			Role:           "dream",
+			Role:           "auto_title",
 			Enabled:        true,
 			ResolutionMode: contract.RoleResolutionModeCatalog,
 			Agent:          &agent,
@@ -85,6 +75,8 @@ func TestRolesCommands(t *testing.T) {
 			Model:          &model,
 			FallbackChain: []contract.RoleFallbackStatus{{
 				Provider: "backup", Model: "fallback-model", ReasoningEffort: "medium",
+				Command:            "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp",
+				CommandFingerprint: "sha256:abc",
 			}},
 			Provenance: map[string]string{"agent": "workspace", "provider": "global"},
 			Diagnostics: []contract.RoleDiagnostic{{
@@ -93,8 +85,8 @@ func TestRolesCommands(t *testing.T) {
 		}
 		deps := newWorkspaceTestDeps(t, &stubClient{
 			getRoleFn: func(_ context.Context, name string, query RoleQuery) (RoleRecord, error) {
-				if name != "dream" || query.Workspace != "workspace-b" {
-					t.Fatalf("GetRole() role/workspace = %q/%q, want dream/workspace-b", name, query.Workspace)
+				if name != "auto_title" || query.Workspace != "workspace-b" {
+					t.Fatalf("GetRole() role/workspace = %q/%q, want auto_title/workspace-b", name, query.Workspace)
 				}
 				return role, nil
 			},
@@ -103,7 +95,7 @@ func TestRolesCommands(t *testing.T) {
 		stdout, stderr, err := executeRootCommand(
 			t,
 			deps,
-			"roles", "show", "dream", "--workspace", "workspace-b", "-o", "json",
+			"roles", "show", "auto_title", "--workspace", "workspace-b", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("executeRootCommand(roles show) error = %v; stderr=%s", err, stderr)
@@ -117,11 +109,47 @@ func TestRolesCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should print the fallback route command column in human output", func(t *testing.T) {
+		t.Parallel()
+
+		command := "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		provider := "claude"
+		model := "haiku-4-5"
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getRoleFn: func(context.Context, string, RoleQuery) (RoleRecord, error) {
+				return RoleRecord{
+					Role:           "auto_title",
+					Enabled:        true,
+					ResolutionMode: contract.RoleResolutionModeInherit,
+					Provider:       &provider,
+					Model:          &model,
+					FallbackChain: []contract.RoleFallbackStatus{
+						{Provider: "claude", Model: "haiku-4-5", Command: command},
+						{Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high"},
+					},
+				}, nil
+			},
+		})
+
+		stdout, stderr, err := executeRootCommand(t, deps, "roles", "show", "auto_title")
+		if err != nil {
+			t.Fatalf("executeRootCommand(roles show human) error = %v; stderr=%s", err, stderr)
+		}
+		for _, want := range []string{"Fallback Chain", "Command", command, "grok-4.6"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("roles show human output missing %q:\n%s", want, stdout)
+			}
+		}
+	})
+
 	t.Run("Should render role_unknown as a structured nonzero failure", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			getRoleFn: func(context.Context, string, RoleQuery) (RoleRecord, error) {
+			getRoleFn: func(_ context.Context, name string, _ RoleQuery) (RoleRecord, error) {
+				if name != "dream" {
+					t.Fatalf("role lookup = %q, want dream", name)
+				}
 				return RoleRecord{}, &daemonAPIError{
 					statusCode: http.StatusNotFound,
 					payload: contract.ErrorPayload{
@@ -138,9 +166,9 @@ func TestRolesCommands(t *testing.T) {
 		exitCode, stdout, stderr := executeRootCommandWithExit(
 			t,
 			deps,
-			"roles", "show", "judge", "-o", "json",
+			"roles", "show", "dream", "-o", "json",
 		)
-		if exitCode == 0 || stdout != "" {
+		if exitCode != agentidentity.ExitUnavailable || stdout != "" {
 			t.Fatalf("roles show unknown exit/stdout = %d/%q, want nonzero/empty", exitCode, stdout)
 		}
 		var payload contract.ErrorPayload

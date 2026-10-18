@@ -24,7 +24,6 @@ const (
 	workspaceBindingPath       = extensionpkg.HostAPIWorkspaceBindingPath
 	workspaceBindingID         = extensionpkg.HostAPIWorkspaceBindingID
 	workspaceBindingTask       = extensionpkg.HostAPIWorkspaceBindingTask
-	workspaceBindingMemory     = extensionpkg.HostAPIWorkspaceBindingMemory
 	workspaceBindingResource   = extensionpkg.HostAPIWorkspaceBindingResource
 	workspaceBindingAutomation = extensionpkg.HostAPIWorkspaceBindingAutomation
 )
@@ -122,7 +121,7 @@ func makeBoundFieldsOptional(raw json.RawMessage, binding workspaceBinding) (jso
 		boundFields[hostAPIWorkspaceLiteral] = struct{}{}
 	case workspaceBindingID:
 		boundFields["workspace_id"] = struct{}{}
-	case workspaceBindingTask, workspaceBindingMemory:
+	case workspaceBindingTask:
 		boundFields["scope"] = struct{}{}
 		boundFields[hostAPIWorkspaceLiteral] = struct{}{}
 	case workspaceBindingResource:

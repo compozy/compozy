@@ -145,7 +145,7 @@ describe("StdioTransport", () => {
     const { transport } = createTransport();
 
     await expect(
-      transport.call("memory/store", { blob: "a".repeat(DEFAULT_MAX_MESSAGE_BYTES) })
+      transport.call("custom/store", { blob: "a".repeat(DEFAULT_MAX_MESSAGE_BYTES) })
     ).rejects.toThrow(`message exceeds ${DEFAULT_MAX_MESSAGE_BYTES} bytes`);
   });
 

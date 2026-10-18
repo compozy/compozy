@@ -2,10 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DetailInspector, type DetailInspectorTab } from "../detail-inspector";
-import {
-  DETAIL_INSPECTOR_INLINE_BREAKPOINT,
-  DETAIL_INSPECTOR_INLINE_WIDTH,
-} from "../detail-inspector-constants";
+import { DETAIL_INSPECTOR_INLINE_WIDTH } from "../detail-inspector-constants";
 
 interface MediaMock {
   matches: boolean;
@@ -127,11 +124,6 @@ describe("DetailInspector", () => {
       expect.any(Function)
     );
     expect(subscribedMock?._listeners.size).toBe(0);
-  });
-
-  it("Should default the breakpoint to 1440", () => {
-    expect(DETAIL_INSPECTOR_INLINE_BREAKPOINT).toBe(1440);
-    expect(DETAIL_INSPECTOR_INLINE_WIDTH).toBe(320);
   });
 
   it("Should name the drawer from aria-label and keep a single close", () => {

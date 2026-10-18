@@ -17,8 +17,9 @@ export function useLoops(
   filters: LoopCatalogStableFilter = {},
   enabled = true
 ) {
+  const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
-    ...loopsCatalogOptions(workspaceId, filters),
+    ...loopsCatalogOptions(workspaceId, { ...filters, ...params }),
     enabled: Boolean(workspaceId) && enabled,
   });
   const page = loopCatalogPage(query.data);

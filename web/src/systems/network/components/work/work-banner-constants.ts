@@ -1,1 +1,0 @@
-export const WORK_BANNER_HARD_STOP_THRESHOLD = 3;

@@ -1,12 +1,14 @@
 package doctor
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -69,8 +71,8 @@ func (p *DeadEntityProbe) Run(
 	if err != nil {
 		return nil, fmt.Errorf("doctor: list dead-entity workspaces: %w", err)
 	}
-	sort.Slice(workspaces, func(left int, right int) bool {
-		return workspaces[left].ID < workspaces[right].ID
+	slices.SortFunc(workspaces, func(left, right workspacepkg.Workspace) int {
+		return cmp.Compare(left.ID, right.ID)
 	})
 
 	items := make([]contract.DiagnosticItem, 0)
@@ -104,13 +106,6 @@ func deadEntityDiagnosticSpec(kind store.DeadEntityKind) (deadEntitySpec, bool) 
 			category: contract.CategoryMCP,
 			code:     contract.CodeMCPServerUnavailable,
 			title:    "MCP server is marked dead",
-		}, true
-	case store.DeadEntityKindBridge:
-		return deadEntitySpec{
-			id:       "bridge",
-			category: contract.CategoryBridge,
-			code:     contract.CodeBridgeHealthUnavailable,
-			title:    "Bridge runtime is marked dead",
 		}, true
 	case store.DeadEntityKindExtension:
 		return deadEntitySpec{
@@ -156,4 +151,22 @@ func deadEntityDiagnosticItem(
 			"marked_at":      markedAt,
 		}),
 	)
+}
+
+func diagnosticIDPart(value string) string {
+	var builder strings.Builder
+	separatorPending := false
+	for _, char := range strings.ToLower(strings.TrimSpace(value)) {
+		switch {
+		case unicode.IsLetter(char), unicode.IsDigit(char):
+			if separatorPending && builder.Len() > 0 {
+				builder.WriteByte('-')
+			}
+			builder.WriteRune(char)
+			separatorPending = false
+		case builder.Len() > 0:
+			separatorPending = true
+		}
+	}
+	return builder.String()
 }

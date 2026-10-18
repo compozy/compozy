@@ -12,49 +12,6 @@ func (m HookMatcher) MatchesSession(payload SessionContext) bool {
 	return m.matchSessionContext(payload, true)
 }
 
-// MatchesSandboxPrepare matches sandbox prepare hooks.
-func (m HookMatcher) MatchesSandboxPrepare(payload *SandboxPreparePayload) bool {
-	return m.matchSandbox(
-		payload.SessionContext,
-		payload.SandboxID,
-		payload.Backend,
-		payload.Profile.Profile,
-		"",
-	)
-}
-
-// MatchesSandboxReady matches sandbox ready hooks.
-func (m HookMatcher) MatchesSandboxReady(payload SandboxReadyPayload) bool {
-	return m.matchSandbox(payload.SessionContext, payload.SandboxID, payload.Backend, payload.Profile, "")
-}
-
-// MatchesSandboxSyncBefore matches sandbox pre-sync hooks.
-func (m HookMatcher) MatchesSandboxSyncBefore(payload SandboxSyncBeforePayload) bool {
-	return m.matchSandbox(
-		payload.SessionContext,
-		payload.SandboxID,
-		payload.Backend,
-		payload.Profile,
-		payload.Direction,
-	)
-}
-
-// MatchesSandboxSyncAfter matches sandbox post-sync hooks.
-func (m HookMatcher) MatchesSandboxSyncAfter(payload SandboxSyncAfterPayload) bool {
-	return m.matchSandbox(
-		payload.SessionContext,
-		payload.SandboxID,
-		payload.Backend,
-		payload.Profile,
-		payload.Direction,
-	)
-}
-
-// MatchesSandboxStop matches sandbox stop hooks.
-func (m HookMatcher) MatchesSandboxStop(payload SandboxStopPayload) bool {
-	return m.matchSandbox(payload.SessionContext, payload.SandboxID, payload.Backend, payload.Profile, "")
-}
-
 // MatchesInput matches input-family hooks.
 func (m HookMatcher) MatchesInput(payload InputPreSubmitPayload) bool {
 	return m.matchSessionContext(payload.SessionContext, false) &&
@@ -140,11 +97,10 @@ func (m HookMatcher) MatchesPermissionDenied(payload PermissionDeniedPayload) bo
 }
 
 // MatchesContextCompact matches context-compaction hooks.
-func (m HookMatcher) MatchesContextCompact(payload ContextCompactPayload) bool {
+func (m HookMatcher) MatchesContextCompact(payload ContextCompactionPayload) bool {
 	compaction := m.compaction()
 	return m.matchSessionContext(payload.SessionContext, false) &&
-		matchStringField(compaction.Reason, payload.Reason) &&
-		matchStringField(compaction.Strategy, payload.Strategy)
+		matchStringField(compaction.Trigger, payload.Trigger)
 }
 
 // MatchesCoordinator matches coordinator-family hooks.
@@ -156,10 +112,6 @@ func (m HookMatcher) MatchesCoordinator(payload CoordinatorContext) bool {
 		matchStringField(autonomy.TaskID, payload.TaskID) &&
 		matchStringField(autonomy.RunID, payload.RunID) &&
 		matchStringField(autonomy.WorkflowID, payload.WorkflowID) &&
-		matchStringField(
-			autonomy.ParticipationChannel,
-			resolvedParticipationChannel(payload.ResolvedNetworkParticipation),
-		) &&
 		matchStringField(autonomy.CoordinatorSessionID, payload.CoordinatorSessionID)
 }
 
@@ -174,7 +126,6 @@ func (m HookMatcher) MatchesTask(payload TaskContext) bool {
 		"",
 		"",
 		payload.WorkflowID,
-		payload.NetworkSpecSnapshot().ChannelID,
 		payload.ReleaseReason,
 	)
 }
@@ -190,7 +141,6 @@ func (m HookMatcher) MatchesTaskRun(payload TaskRunContext) bool {
 		"",
 		"",
 		payload.WorkflowID,
-		payload.NetworkSpecSnapshot().ChannelID,
 		payload.ReleaseReason,
 	)
 }
@@ -206,7 +156,6 @@ func (m HookMatcher) MatchesLoop(payload LoopContext) bool {
 		payload.LoopName,
 		payload.NodeID,
 		payload.WorkflowID,
-		resolvedParticipationChannel(payload.ResolvedNetworkParticipation),
 		"",
 	)
 }
@@ -220,7 +169,6 @@ func (m HookMatcher) matchTaskAutonomyFields(
 	loopName string,
 	nodeID string,
 	workflowID string,
-	participationChannel string,
 	releaseReason string,
 ) bool {
 	autonomy := m.autonomy()
@@ -232,7 +180,6 @@ func (m HookMatcher) matchTaskAutonomyFields(
 		matchStringField(autonomy.LoopName, loopName) &&
 		matchStringField(autonomy.NodeID, nodeID) &&
 		matchStringField(autonomy.WorkflowID, workflowID) &&
-		matchStringField(autonomy.ParticipationChannel, participationChannel) &&
 		matchStringField(autonomy.ReleaseReason, releaseReason)
 }
 
@@ -245,10 +192,6 @@ func (m HookMatcher) MatchesSpawn(payload SpawnContext) bool {
 		matchStringField(autonomy.TaskID, payload.TaskID) &&
 		matchStringField(autonomy.RunID, payload.RunID) &&
 		matchStringField(autonomy.WorkflowID, payload.WorkflowID) &&
-		matchStringField(
-			autonomy.ParticipationChannel,
-			resolvedParticipationChannel(payload.ResolvedNetworkParticipation),
-		) &&
 		matchStringField(autonomy.ParentSessionID, payload.ParentSessionID) &&
 		matchStringField(autonomy.RootSessionID, payload.RootSessionID) &&
 		matchStringField(autonomy.ChildSessionID, payload.ChildSessionID) &&

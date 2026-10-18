@@ -1,4 +1,4 @@
-import { Button, Time } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import { taskRunCanRecover } from "../lib/task-run-recovery";
 import type { TaskDetailView } from "../types";
@@ -30,43 +30,15 @@ function blockerKey(reason: BlockedReason, index: number): string {
   return reason.block_id ?? reason.depends_on_task_ids?.[0] ?? `${reason.source}-${index}`;
 }
 
-function TaskApprovalState({
-  handlers,
-  pending,
-}: Pick<TaskNowAttentionStatesProps, "handlers" | "pending">) {
-  const approvalPending = Boolean(pending.approve || pending.reject);
+/** Explains the approval gate; Approve and Reject live once, in the window head. */
+function TaskApprovalState() {
   return (
     <TaskStateBand
-      actions={
-        <>
-          <Button
-            className="min-h-6"
-            data-testid="tasks-detail-now-reject"
-            disabled={approvalPending}
-            onClick={handlers.onReject}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Reject
-          </Button>
-          <Button
-            className="min-h-6"
-            data-testid="tasks-detail-now-approve"
-            disabled={approvalPending}
-            onClick={handlers.onApprove}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            Approve
-          </Button>
-        </>
-      }
-      body="A manual check is required before this task can start."
+      body="Approve or reject it above. It won't start until someone approves it."
       data-testid="tasks-detail-now-approval"
       title="Waiting for your approval"
-      tone="info"
+      // An approval waits on a person: the needs-you accent.
+      tone="accent"
     />
   );
 }
@@ -91,7 +63,6 @@ function TaskBlockingState({
         actions={
           dependencyId ? (
             <Button
-              className="min-h-6"
               data-testid={`tasks-detail-now-open-blocking-${key}`}
               onClick={() => handlers.onOpenTask(dependencyId)}
               size="sm"
@@ -109,7 +80,7 @@ function TaskBlockingState({
         }
         data-testid={`tasks-detail-now-dependency-${key}`}
         title="Waits on another task"
-        tone="warning"
+        tone="neutral"
       />
     );
   }
@@ -119,7 +90,6 @@ function TaskBlockingState({
       <TaskStateBand
         actions={
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-resume"
             disabled={pending.resume}
             onClick={handlers.onResume}
@@ -133,7 +103,7 @@ function TaskBlockingState({
         body={detail.task.paused_reason || "New runs stay queued until the task is resumed."}
         data-testid="tasks-detail-now-paused"
         title="Paused"
-        tone="warning"
+        tone="neutral"
       />
     );
   }
@@ -144,7 +114,6 @@ function TaskBlockingState({
       actions={
         blockId ? (
           <Button
-            className="min-h-6"
             data-testid={`tasks-detail-now-clear-block-${key}`}
             disabled={pending.clearBlock}
             onClick={() => handlers.onClearBlock(blockId)}
@@ -159,7 +128,8 @@ function TaskBlockingState({
       body={reason.reason || "A block is holding this task."}
       data-testid={`tasks-detail-now-block-${key}`}
       title={reason.kind === "needs_input" ? "Needs input to continue" : "Blocked"}
-      tone="warning"
+      // A block waits on a person: the needs-you accent, never the warning amber.
+      tone="accent"
     />
   );
 }
@@ -171,7 +141,6 @@ function TaskNeedsAttentionState({
 }: Pick<TaskNowAttentionStatesProps, "detail" | "handlers" | "pending">) {
   const record = detail.task;
   const activeRun = detail.summary?.active_run ?? null;
-  const heartbeat = activeRun?.heartbeat_at;
   const canRecover = activeRun
     ? taskRunCanRecover(activeRun, record.max_attempts)
     : record.status === "needs_attention";
@@ -181,7 +150,6 @@ function TaskNeedsAttentionState({
       actions={
         canRecover ? (
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-recover"
             disabled={pending.recover}
             onClick={handlers.onRecover}
@@ -189,26 +157,17 @@ function TaskNeedsAttentionState({
             type="button"
             variant="neutral"
           >
-            Recover
+            Try again
           </Button>
         ) : undefined
       }
       body={
         <>
-          {record.needs_attention_reason?.trim() || "This attempt requires operator attention."}
-          {heartbeat ? (
-            <>
-              {" "}
-              Last heartbeat <Time iso={heartbeat} mode="relative" />. Recover requeues the work as
-              a fresh attempt; nothing done so far is lost.
-            </>
-          ) : (
-            <> Recover requeues the work as a fresh attempt; nothing done so far is lost.</>
-          )}
+          {record.needs_attention_reason?.trim() || "This attempt got stuck."} Try again starts a
+          fresh attempt; nothing done so far is lost.
         </>
       }
       data-testid="tasks-detail-now-stuck"
-      micro={activeRun ? `task_run_stuck · ${activeRun.id}` : undefined}
       title="This attempt needs attention"
       tone="danger"
     />
@@ -224,9 +183,7 @@ export function TaskNowAttentionStates({
 }: TaskNowAttentionStatesProps) {
   return (
     <>
-      {detail.task.approval_state === "pending" ? (
-        <TaskApprovalState handlers={handlers} pending={pending} />
-      ) : null}
+      {detail.task.approval_state === "pending" ? <TaskApprovalState /> : null}
       {(detail.task.blocked_reasons ?? []).map((reason, index) =>
         reason.source === "approval" ? null : (
           <TaskBlockingState

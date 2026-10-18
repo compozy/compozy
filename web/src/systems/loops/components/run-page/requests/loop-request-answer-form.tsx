@@ -84,6 +84,61 @@ interface AnswerFieldProps {
   onChange: (name: string, value: string) => void;
 }
 
+interface AnswerFieldLayout {
+  controlId: string;
+  labelId: string;
+  errorId: string;
+  describedBy?: string;
+  /** Choice lists are named by aria-labelledby, so their label points at no control. */
+  labelFor?: string;
+  controlLabelledBy?: string;
+  placeholder?: string;
+  showDescription: boolean;
+}
+
+/** Derives ids and label/description placement for one answer field. */
+function answerFieldLayout(
+  field: LoopRequestField,
+  idPrefix: string,
+  error: string | undefined,
+  labelledBy: string | undefined
+): AnswerFieldLayout {
+  const controlId = `${idPrefix}-${field.name}`;
+  const labelId = `${controlId}-label`;
+  const errorId = `${controlId}-error`;
+  const isChoice = field.control.kind === "select" || field.control.kind === "boolean";
+  const asPlaceholder = labelledBy !== undefined && !isChoice;
+  const hasDescription = field.description !== "";
+  return {
+    controlId,
+    labelId,
+    errorId,
+    describedBy: error ? errorId : undefined,
+    labelFor: isChoice ? undefined : controlId,
+    controlLabelledBy: labelledBy ?? (isChoice ? labelId : undefined),
+    placeholder: asPlaceholder && hasDescription ? field.description : undefined,
+    showDescription: hasDescription && !asPlaceholder,
+  };
+}
+
+interface AnswerFieldLabelProps {
+  field: LoopRequestField;
+  labelId: string;
+  htmlFor?: string;
+}
+
+function AnswerFieldLabel({ field, labelId, htmlFor }: AnswerFieldLabelProps) {
+  return (
+    <FieldLabel htmlFor={htmlFor} id={labelId}>
+      {loopRequestFieldLabel(field)}
+      {field.required ? <RequiredMark className="ml-0" /> : null}
+      {field.control.kind === "json" ? (
+        <span className="font-mono text-mono-id text-faint">JSON</span>
+      ) : null}
+    </FieldLabel>
+  );
+}
+
 function AnswerField({
   field,
   idPrefix,
@@ -93,40 +148,27 @@ function AnswerField({
   labelledBy,
   onChange,
 }: AnswerFieldProps) {
-  const controlId = `${idPrefix}-${field.name}`;
-  const labelId = `${controlId}-label`;
-  const errorId = `${controlId}-error`;
-  const describedBy = error ? errorId : undefined;
-  const isChoice = field.control.kind === "select" || field.control.kind === "boolean";
-  const asPlaceholder = labelledBy !== undefined && !isChoice;
+  const layout = answerFieldLayout(field, idPrefix, error, labelledBy);
   return (
     <Field data-invalid={error ? true : undefined}>
       {labelledBy === undefined ? (
-        <FieldLabel htmlFor={isChoice ? undefined : controlId} id={labelId}>
-          {loopRequestFieldLabel(field)}
-          {field.required ? <RequiredMark className="ml-0" /> : null}
-          {field.control.kind === "json" ? (
-            <span className="font-mono text-mono-id text-faint">JSON</span>
-          ) : null}
-        </FieldLabel>
+        <AnswerFieldLabel field={field} htmlFor={layout.labelFor} labelId={layout.labelId} />
       ) : null}
       <AnswerControl
-        controlId={controlId}
-        describedBy={describedBy}
+        controlId={layout.controlId}
+        describedBy={layout.describedBy}
         disabled={disabled}
         field={field}
         invalid={Boolean(error)}
-        labelledBy={labelledBy ?? (isChoice ? labelId : undefined)}
+        labelledBy={layout.controlLabelledBy}
         lone={labelledBy !== undefined}
         onChange={onChange}
-        placeholder={asPlaceholder && field.description !== "" ? field.description : undefined}
+        placeholder={layout.placeholder}
         value={value}
       />
-      {field.description !== "" && !asPlaceholder ? (
-        <FieldDescription>{field.description}</FieldDescription>
-      ) : null}
+      {layout.showDescription ? <FieldDescription>{field.description}</FieldDescription> : null}
       {error ? (
-        <FieldError data-testid={`loop-request-field-error-${field.name}`} id={errorId}>
+        <FieldError data-testid={`loop-request-field-error-${field.name}`} id={layout.errorId}>
           {error}
         </FieldError>
       ) : null}
@@ -293,7 +335,6 @@ function LoopRequestChoiceList({
     >
       {options.map(option => (
         <RadioCard
-          className={value === option.token ? undefined : "bg-canvas-tint"}
           data-testid={`loop-request-option-${name}-${option.token}`}
           disabled={disabled}
           key={option.token}

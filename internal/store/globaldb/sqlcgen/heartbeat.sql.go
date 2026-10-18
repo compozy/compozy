@@ -244,6 +244,17 @@ func (q *Queries) GetSessionHealth(ctx context.Context, sessionID string) (Sessi
 	return i, err
 }
 
+const hasExpiredHeartbeatWakeEvents = `-- name: HasExpiredHeartbeatWakeEvents :one
+SELECT EXISTS (SELECT 1 FROM agent_heartbeat_wake_events WHERE expires_at < ?1)
+`
+
+func (q *Queries) HasExpiredHeartbeatWakeEvents(ctx context.Context, cutoff string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasExpiredHeartbeatWakeEvents, cutoff)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertHeartbeatRevision = `-- name: InsertHeartbeatRevision :exec
 INSERT INTO agent_heartbeat_revisions (
   id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,

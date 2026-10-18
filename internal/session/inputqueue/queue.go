@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +33,8 @@ type Config struct {
 
 // InputRequest carries the common fields for a non-admitted busy input.
 type InputRequest struct {
+	MessageID        string
+	Priority         int
 	SessionID        string
 	Text             string
 	TargetTurnID     string
@@ -53,6 +56,7 @@ type Service struct {
 }
 
 type insertSpec struct {
+	origin           json.RawMessage
 	sessionID        string
 	text             string
 	mode             string
@@ -137,7 +141,7 @@ func (s *Service) Enqueue(
 
 // PrepareQueue validates queued input and allocates its durable insert without persisting it.
 func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert, error) {
-	return s.newInsert(insertSpec{
+	insert, err := s.newInsert(insertSpec{
 		sessionID:        req.SessionID,
 		targetTurnID:     req.TargetTurnID,
 		text:             req.Text,
@@ -148,14 +152,20 @@ func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert,
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
+	insert.MessageID = req.MessageID
+	insert.Priority = req.Priority
+	return insert, err
 }
 
-// EnqueueAdmitted atomically persists one external command receipt and its queue entry.
+// EnqueueAdmitted atomically persists one external command receipt and its queue entry. With
+// supersede, an agent-authored entry cancels its sender's older undispatched entries in the same
+// transaction; the store ignores it for operator input.
 func (s *Service) EnqueueAdmitted(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
 	targetTurnID string,
+	supersede bool,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
 	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
 		mode:         store.SessionInputQueueModeQueue,
@@ -166,6 +176,7 @@ func (s *Service) EnqueueAdmitted(
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
 	}
+	insert.Supersede = supersede
 	receipt, entry, position, created, err := admissionStore.EnqueueAdmittedSessionInput(
 		ctx,
 		admission,
@@ -242,12 +253,15 @@ func (s *Service) StageSteer(
 	return s.store.StageSessionSteer(ctx, insert)
 }
 
-// StageAdmittedSteer atomically persists one external receipt and its steering entry.
+// StageAdmittedSteer atomically persists one external receipt and its steering entry. With supersede,
+// an agent-authored steer also cancels its sender's older undispatched queued messages in the same
+// transaction, exactly as a superseding queued send does.
 func (s *Service) StageAdmittedSteer(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
 	targetTurnID string,
 	generation int64,
+	supersede bool,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
 	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
 		mode:         store.SessionInputQueueModeSteer,
@@ -258,6 +272,7 @@ func (s *Service) StageAdmittedSteer(
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
 	}
+	insert.Supersede = supersede
 	return admissionStore.StageAdmittedSessionSteer(ctx, admission, insert)
 }
 
@@ -272,6 +287,7 @@ func (s *Service) prepareAdmittedEntry(
 		)
 	}
 	spec.sessionID = admission.SessionID
+	spec.origin = append(json.RawMessage(nil), admission.Origin...)
 	spec.text = admission.AuthoredText
 	spec.runtime = admission.Runtime
 	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
@@ -398,6 +414,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 	}
 	return store.SessionInputQueueInsert{
 		ID:                entryID,
+		Origin:            append(json.RawMessage(nil), spec.origin...),
 		SessionID:         target,
 		Mode:              spec.mode,
 		Delivery:          spec.delivery,

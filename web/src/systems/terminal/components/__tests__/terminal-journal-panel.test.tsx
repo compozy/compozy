@@ -247,23 +247,6 @@ describe("TerminalJournalPanel", () => {
     expect(screen.queryByTestId("terminal-journal-confidence-cmd-77c1d0")).not.toBeInTheDocument();
   });
 
-  it("Should plate stopped and ended as hollow, and leave a failed exit filled", () => {
-    renderPanel();
-
-    const stopped = within(screen.getByTestId("terminal-journal-row-cmd-2c8de1")).getByText(
-      "Stopped"
-    );
-    expect(stopped).toHaveAttribute("data-form", "hollow");
-
-    const ended = within(screen.getByTestId("terminal-journal-row-cmd-8be44d")).getByText("Ended");
-    expect(ended).toHaveAttribute("data-form", "hollow");
-
-    const failed = within(screen.getByTestId("terminal-journal-row-cmd-4aa01f")).getByText(
-      "Finished with errors"
-    );
-    expect(failed).toHaveAttribute("data-form", "tint");
-  });
-
   it("Should copy the recorded command from the rail", async () => {
     const onCopyCommand = vi.fn();
     renderPanel({ onCopyCommand });

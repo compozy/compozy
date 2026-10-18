@@ -29,7 +29,7 @@ type LoopNodeControlPayload struct {
 	LoopRunID       string                        `json:"loop_run_id"`
 	NodeID          string                        `json:"node_id"`
 	Paused          bool                          `json:"paused"`
-	PauseProvenance *LoopControlProvenancePayload `json:"pause_provenance,omitempty"`
+	PauseProvenance *LoopControlProvenancePayload `json:"pause_provenance,omitzero"`
 	Quarantined     bool                          `json:"quarantined"`
 	QuarantineEntry json.RawMessage               `json:"quarantine_entry,omitempty"`
 	QuarantinedAt   *time.Time                    `json:"quarantined_at,omitempty"`
@@ -39,7 +39,7 @@ type LoopNodeControlPayload struct {
 	// quarantined producer that owns the repair record.
 	AttentionProducerNodeID string                        `json:"attention_producer_node_id,omitempty"`
 	CancelState             string                        `json:"cancel_state,omitempty"`
-	CancelProvenance        *LoopControlProvenancePayload `json:"cancel_provenance,omitempty"`
+	CancelProvenance        *LoopControlProvenancePayload `json:"cancel_provenance,omitzero"`
 	LastEvidenceAt          *time.Time                    `json:"last_evidence_at,omitempty"`
 	DeathResumeStreak       int                           `json:"death_resume_streak"`
 	Revision                int64                         `json:"revision"`
@@ -76,9 +76,9 @@ type LoopNodeInventoryItem struct {
 	NodeID     string                  `json:"node_id"`
 	ItemIndex  int                     `json:"item_index"`
 	StateAt    time.Time               `json:"state_at"`
-	Wait       *LoopNodeWaitPayload    `json:"wait,omitempty"`
-	Control    *LoopNodeControlPayload `json:"control,omitempty"`
-	Output     *LoopGenerationOutput   `json:"output,omitempty"`
+	Wait       *LoopNodeWaitPayload    `json:"wait,omitzero"`
+	Control    *LoopNodeControlPayload `json:"control,omitzero"`
+	Output     *LoopGenerationOutput   `json:"output,omitzero"`
 }
 
 // LoopNodeInventoryResponse is one page of workspace-scoped node state.
@@ -91,25 +91,25 @@ type LoopNodeInventoryResponse struct {
 type LoopNodePauseRequest struct {
 	Mode      string `json:"mode"`
 	Reason    string `json:"reason,omitempty"`
-	ItemIndex *int   `json:"item_index,omitempty"`
+	ItemIndex *int   `json:"item_index,omitzero"`
 }
 
 // LoopNodeResumeRequest releases one authored node pause or manual wait.
 type LoopNodeResumeRequest struct {
 	Mode      string          `json:"mode"`
-	ItemIndex *int            `json:"item_index,omitempty"`
+	ItemIndex *int            `json:"item_index,omitzero"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 }
 
 // LoopNodeMutationRequest carries optional operator context for a node mutation.
 type LoopNodeMutationRequest struct {
 	Reason    string `json:"reason,omitempty"`
-	ItemIndex *int   `json:"item_index,omitempty"`
+	ItemIndex *int   `json:"item_index,omitzero"`
 }
 
 type LoopNodeAmendRequest struct {
-	Generation int             `json:"generation,omitempty"`
-	ItemIndex  int             `json:"item_index,omitempty"`
+	Generation int             `json:"generation,omitzero"`
+	ItemIndex  int             `json:"item_index,omitzero"`
 	Payload    json.RawMessage `json:"payload"`
 	Reason     string          `json:"reason,omitempty"`
 }
@@ -122,8 +122,8 @@ type LoopNodeAmendmentPayload struct {
 	Sequence        int                        `json:"amendment_seq"`
 	Original        json.RawMessage            `json:"original,omitempty"`
 	Amended         json.RawMessage            `json:"amended,omitempty"`
-	OriginalSummary *LoopAmendmentValueSummary `json:"original_summary,omitempty"`
-	AmendedSummary  *LoopAmendmentValueSummary `json:"amended_summary,omitempty"`
+	OriginalSummary *LoopAmendmentValueSummary `json:"original_summary,omitzero"`
+	AmendedSummary  *LoopAmendmentValueSummary `json:"amended_summary,omitzero"`
 	ActorKind       string                     `json:"actor_kind"`
 	ActorID         string                     `json:"actor_id"`
 	Reason          string                     `json:"reason,omitempty"`
@@ -145,10 +145,10 @@ type LoopMutationResponse struct {
 	OK         bool                          `json:"ok"`
 	RunID      string                        `json:"run_id"`
 	NodeID     string                        `json:"node_id,omitempty"`
-	ItemIndex  *int                          `json:"item_index,omitempty"`
+	ItemIndex  *int                          `json:"item_index,omitzero"`
 	Status     string                        `json:"status,omitempty"`
-	Provenance *LoopControlProvenancePayload `json:"provenance,omitempty"`
-	Control    *LoopNodeControlPayload       `json:"control,omitempty"`
+	Provenance *LoopControlProvenancePayload `json:"provenance,omitzero"`
+	Control    *LoopNodeControlPayload       `json:"control,omitzero"`
 }
 
 // LoopNodeInventoryStateValues returns the closed inventory-state vocabulary.

@@ -26,9 +26,7 @@ func newDefaultServer(homePaths compozyconfig.HomePaths) *Server {
 		},
 		pollInterval: defaultPollInterval,
 		agentLoader:  compozyconfig.LoadAgentDef,
-		httpExtendedServices: httpExtendedServices{
-			surfaceSet: SurfaceSetLocal,
-		},
+		surfaceSet:   SurfaceSetLocal,
 	}
 }
 

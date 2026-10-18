@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 
 import { cn } from "@compozy/ui";
 
@@ -16,9 +16,10 @@ const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
 
 /**
  * Demoted page meta line — the window head owns identity, so the body opens
- * with a 12px date · workspace line instead of a second H1.
+ * with a 12px date · project line instead of a second H1.
  */
 export function HomePageMeta({ workspaceName, today, className, ...props }: HomePageMetaProps) {
+  const [mountedAt] = useState(() => new Date());
   return (
     <div
       className={cn(
@@ -28,12 +29,12 @@ export function HomePageMeta({ workspaceName, today, className, ...props }: Home
       data-slot="home-page-meta"
       {...props}
     >
-      <span>{DATE_FORMAT.format(today ?? new Date())}</span>
+      <span>{DATE_FORMAT.format(today ?? mountedAt)}</span>
       {workspaceName ? (
         <>
           <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
           <span>
-            workspace <span className="font-medium text-muted">{workspaceName}</span>
+            project <span className="font-medium text-muted">{workspaceName}</span>
           </span>
         </>
       ) : null}

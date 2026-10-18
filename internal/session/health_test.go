@@ -150,7 +150,7 @@ func TestManagerSessionHealthTransitions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should touch idle presence without prompt ACP network or notifier side effects", func(t *testing.T) {
+	t.Run("Should touch idle presence without prompt ACP or notifier side effects", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseAt := time.Date(2026, 5, 2, 13, 0, 0, 0, time.UTC)
 		clock := newSessionHealthTestClock(baseAt)
@@ -163,14 +163,10 @@ func TestManagerSessionHealthTransitions(t *testing.T) {
 				t.Fatalf("Stop() cleanup error = %v", err)
 			}
 		})
-		lifecycle := newFakeNetworkPeerLifecycle()
-		h.manager.SetNetworkPeerLifecycle(lifecycle)
 		promptCallsBefore := len(h.driver.promptCalls)
 		notifierEventsBefore := h.notifier.eventCount(session.ID)
 		createdBefore := h.notifier.createdCount()
 		stoppedBefore := h.notifier.stoppedCount()
-		joinsBefore := lifecycle.joinCount()
-		leavesBefore := lifecycle.leaveCount()
 		upsertsBefore := healthStore.upsertCount()
 
 		touchAt := baseAt.Add(30 * time.Second)
@@ -199,12 +195,6 @@ func TestManagerSessionHealthTransitions(t *testing.T) {
 		}
 		if got := h.notifier.stoppedCount(); got != stoppedBefore {
 			t.Fatalf("notifier stopped count after presence touch = %d, want %d", got, stoppedBefore)
-		}
-		if got := lifecycle.joinCount(); got != joinsBefore {
-			t.Fatalf("network join count after presence touch = %d, want %d", got, joinsBefore)
-		}
-		if got := lifecycle.leaveCount(); got != leavesBefore {
-			t.Fatalf("network leave count after presence touch = %d, want %d", got, leavesBefore)
 		}
 		if got, want := healthStore.upsertCount(), upsertsBefore+1; got != want {
 			t.Fatalf("health upsert count after presence touch = %d, want %d", got, want)
@@ -239,7 +229,7 @@ func TestManagerSessionHealthHooks(t *testing.T) {
 			EligibleForWake: true,
 			UpdatedAt:       baseAt,
 		}
-		if _, err := h.manager.storeSessionHealth(ctx, idle); err != nil {
+		if _, err := h.manager.storeSessionHealth(ctx, heartbeat.SessionHealth{}, idle); err != nil {
 			t.Fatalf("storeSessionHealth(idle) error = %v", err)
 		}
 
@@ -251,7 +241,7 @@ func TestManagerSessionHealthHooks(t *testing.T) {
 		prompting.EligibleForWake = false
 		prompting.IneligibilityReason = string(heartbeat.SessionHealthReasonPromptActive)
 		prompting.UpdatedAt = promptingAt
-		if _, err := h.manager.storeSessionHealth(ctx, prompting); err != nil {
+		if _, err := h.manager.storeSessionHealth(ctx, idle, prompting); err != nil {
 			t.Fatalf("storeSessionHealth(prompting) error = %v", err)
 		}
 
@@ -259,7 +249,7 @@ func TestManagerSessionHealthHooks(t *testing.T) {
 		clock.Set(idleAgainAt)
 		idleAgain := idle
 		idleAgain.UpdatedAt = idleAgainAt
-		if _, err := h.manager.storeSessionHealth(ctx, idleAgain); err != nil {
+		if _, err := h.manager.storeSessionHealth(ctx, prompting, idleAgain); err != nil {
 			t.Fatalf("storeSessionHealth(idle again) error = %v", err)
 		}
 
@@ -743,7 +733,7 @@ func TestManagerSessionHealthErrorPaths(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		manager := newHarness(t).manager
-		if _, err := manager.storeSessionHealth(ctx, heartbeat.SessionHealth{}); !errors.Is(
+		if _, err := manager.storeSessionHealth(ctx, heartbeat.SessionHealth{}, heartbeat.SessionHealth{}); !errors.Is(
 			err,
 			heartbeat.ErrInvalidSessionHealth,
 		) {

@@ -25,7 +25,7 @@ export interface AgentFleetSessionSignals {
 }
 
 export function formatAgentOriginLabel(origin: AgentPayload["origin"]): string {
-  return origin === "workspace" ? "Workspace" : "Global";
+  return origin === "workspace" ? "This project" : "All projects";
 }
 
 export function formatAgentLayer(agent: AgentPayload): string {
@@ -69,12 +69,11 @@ export function formatCategoryMetaSegment(path: string[] | null | undefined): st
   return `${first}${sep}${last}`;
 }
 
-/** Row meta facts: category · provider · model (origin is a Name pill, not meta). */
+/** Row meta facts: category · model (provider is the row icon; origin is a Name pill). */
 export function formatAgentFleetMeta(agent: AgentPayload): string {
   const segments: string[] = [];
   const category = formatCategoryMetaSegment(agent.category_path);
   if (category) segments.push(category);
-  if (agent.provider) segments.push(agent.provider);
   if (agent.model) segments.push(agent.model);
   return segments.join(META_SEPARATOR);
 }

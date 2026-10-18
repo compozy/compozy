@@ -8,6 +8,9 @@ const SESSION_STOPPED_EVENT = "session_stopped";
 const SESSION_DONE_EVENT = "done";
 /** A slow watcher was shed (task_04); the server replays the gap on this stream right after. */
 const STREAM_CONSUMER_DEGRADED_EVENT = "stream.consumer_degraded";
+/** The parent's subagent roster: the full rows after subscribe, then one row per change (L-017). */
+const SUBAGENTS_SNAPSHOT_EVENT = "subagents_snapshot";
+const SUBAGENT_UPDATED_EVENT = "subagent_updated";
 
 export interface SessionStreamEventSource {
   addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
@@ -26,6 +29,8 @@ export interface SessionStreamListeners {
   delta: EventListener;
   goalSnapshot: EventListener;
   snapshot: EventListener;
+  subagentsSnapshot: EventListener;
+  subagentUpdated: EventListener;
   terminal: EventListener;
 }
 
@@ -48,6 +53,8 @@ export function attachSessionStreamSource(
   source.addEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
   source.addEventListener(SESSION_DONE_EVENT, listeners.terminal);
   source.addEventListener(STREAM_CONSUMER_DEGRADED_EVENT, listeners.degraded);
+  source.addEventListener(SUBAGENTS_SNAPSHOT_EVENT, listeners.subagentsSnapshot);
+  source.addEventListener(SUBAGENT_UPDATED_EVENT, listeners.subagentUpdated);
   return () => {
     if (!source.removeEventListener) return;
     source.removeEventListener(TRANSCRIPT_SNAPSHOT_EVENT, listeners.snapshot);
@@ -58,5 +65,7 @@ export function attachSessionStreamSource(
     source.removeEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
     source.removeEventListener(SESSION_DONE_EVENT, listeners.terminal);
     source.removeEventListener(STREAM_CONSUMER_DEGRADED_EVENT, listeners.degraded);
+    source.removeEventListener(SUBAGENTS_SNAPSHOT_EVENT, listeners.subagentsSnapshot);
+    source.removeEventListener(SUBAGENT_UPDATED_EVENT, listeners.subagentUpdated);
   };
 }

@@ -27,15 +27,9 @@ export const sessionKeys = {
   /** Exact cross-workspace attention counts — operator scope, no workspace segment. */
   attentionSummary: () => [...sessionKeys.all, "attention-summary"] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
-  /** A complete filtered catalog, isolated from the infinite-list cache. */
-  completeList: (filters: SessionListFilters = {}) => {
-    const normalized = normalizeSessionListFilters(filters);
-    return [
-      ...sessionKeys.workspaceLists(normalized.workspace_id ?? ""),
-      "complete",
-      normalized,
-    ] as const;
-  },
+  /** One profile's session folders in a workspace; under the list family so catalog wakes reread it. */
+  folders: (workspace: string, profile: string) =>
+    [...sessionKeys.workspaceLists(workspace), "folders", profile.trim()] as const,
   workspaceActivity: (workspace: string) =>
     [...sessionKeys.workspaceLists(workspace), "activity"] as const,
   list: (filters: SessionListFilters = {}) => {
@@ -87,12 +81,22 @@ export const sessionKeys = {
     [...sessionKeys.detail(workspace, id), "input-queue"] as const,
   recap: (workspace: string, id: string, limit?: number) =>
     [...sessionKeys.detail(workspace, id), "recap", limit ?? "default"] as const,
-  ledger: (workspace: string, id: string) =>
-    [...sessionKeys.detail(workspace, id), "ledger"] as const,
   usage: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "usage"] as const,
   usageTurns: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "usage-turns"] as const,
+  /** What a continue/fork would carry; `""` is the whole-session cut. */
+  derivePreview: (workspace: string, id: string, messageId = "") =>
+    [...sessionKeys.detail(workspace, id), "derive-preview", messageId.trim()] as const,
+  /** Client-held roster the session stream writes (`subagents_snapshot` / `subagent_updated`). */
+  subagentRoster: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "subagent-roster"] as const,
+  /** The bounded mid-prompt read that feeds the roster while the session SSE is closed. */
+  subagentRosterPoll: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "subagent-roster-poll"] as const,
+  /** A parent's direct subagents, every page of the list route (S10, chip preview). */
+  subagents: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "subagents"] as const,
   contextReset: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>

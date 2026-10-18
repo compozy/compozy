@@ -28,6 +28,7 @@ const (
 	statusStateDegraded            = "degraded"
 	statusStateOK                  = "ok"
 	statusStateRunning             = "running"
+	statusStateUnavailable         = "unavailable"
 	statusStateWarn                = "warn"
 	statusStateError               = "error"
 )
@@ -70,17 +71,9 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, err
 	}
-	memoryHealth, err := h.memoryHealthSnapshot(ctx, workspaceID)
-	if err != nil {
-		return contract.StatusPayload{}, fmt.Errorf("api: collect memory health: %w", err)
-	}
 	automationHealth, err := h.automationHealth(ctx)
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect automation health: %w", err)
-	}
-	networkStatus, err := h.runtimeNetworkStatusPayload(ctx)
-	if err != nil {
-		return contract.StatusPayload{}, fmt.Errorf("api: collect network status: %w", err)
 	}
 	gatewayStatus, err := h.runtimeGatewayStatusPayload(ctx)
 	if err != nil {
@@ -113,17 +106,14 @@ func (h *BaseHandlers) statusPayload(
 		Daemon: h.daemonStatusPayload(
 			&health,
 			sessionSummary.Total,
-			networkStatus,
 			gatewayStatus,
 			schemaStreams,
 		),
 		Sessions:         sessionSummary,
 		SubprocessHealth: h.subprocessHealthAggregate(workspaceID),
 		Health:           ObserveHealthPayloadFromHealth(&health),
-		Memory:           memoryHealth,
 		Automation:       automationHealth,
 		Tasks:            TaskHealthPayloadFromObserve(health.Tasks),
-		Bridges:          BridgeAggregateHealthPayloadFromObserve(health.Bridges),
 		Providers:        providers,
 		MCPServers:       mcpServers,
 		Skills:           skillStatus,
@@ -154,26 +144,6 @@ func (h *BaseHandlers) runtimeGatewayStatusPayload(ctx context.Context) (*contra
 		return nil, err
 	}
 	return &payload, nil
-}
-
-func (h *BaseHandlers) runtimeNetworkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {
-	if !h.Config.Network.Enabled {
-		return h.networkStatusPayload(ctx)
-	}
-	if h.Network == nil {
-		return &contract.NetworkStatusPayload{
-			Enabled: true,
-			Status:  memoryHealthStatusUnavailable,
-		}, nil
-	}
-	payload, err := h.networkStatusPayload(ctx)
-	if err != nil {
-		return &contract.NetworkStatusPayload{
-			Enabled: true,
-			Status:  memoryHealthStatusUnavailable,
-		}, nil
-	}
-	return payload, nil
 }
 
 func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAggregatePayload, error) {
@@ -319,7 +289,7 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	if h.Settings == nil {
 		return contract.LogTailStatusPayload{
 			Available: false,
-			Status:    memoryHealthStatusUnavailable,
+			Status:    statusStateUnavailable,
 		}
 	}
 	envelope, err := h.Settings.GetSection(ctx, settingspkg.SectionRequest{
@@ -329,7 +299,7 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	if err != nil || envelope.Observability == nil {
 		return contract.LogTailStatusPayload{
 			Available: false,
-			Status:    memoryHealthStatusUnavailable,
+			Status:    "unavailable",
 		}
 	}
 	if envelope.Observability.LogTailSupport.Available {
@@ -340,6 +310,6 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	}
 	return contract.LogTailStatusPayload{
 		Available: false,
-		Status:    memoryHealthStatusDisabled,
+		Status:    "disabled",
 	}
 }

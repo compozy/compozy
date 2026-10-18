@@ -1,25 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-
-import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { agentFixtures } from "@/systems/agent/mocks";
 import { workspaceDetailFixture } from "@/systems/workspace/mocks";
 
 import { SessionCreateDialog } from "../session-create-dialog";
 
 const workspace = workspaceDetailFixture.workspace;
-
-const localParticipation = {
-  mode: "local",
-  channelStrategy: "",
-  channelId: "",
-} satisfies NetworkParticipationDraft;
-
-const liveParticipation = {
-  mode: "live",
-  channelStrategy: "named",
-  channelId: "release-room",
-} satisfies NetworkParticipationDraft;
 
 const baseArgs = {
   open: true,
@@ -34,9 +20,7 @@ const baseArgs = {
   sessionName: "Investigate checkout latency",
   onSessionNameChange: fn(),
   selectedAgentName: agentFixtures[0]?.name ?? "",
-  networkParticipation: localParticipation,
   onAgentChange: fn(),
-  onNetworkParticipationChange: fn(),
   onSubmit: fn(),
   isSubmitting: false,
   submitError: null,
@@ -50,7 +34,7 @@ const meta: Meta<typeof SessionCreateDialog> = {
     docs: {
       description: {
         component:
-          "Session creation starts durable work without fabricating a first message. Simple selects the agent; Advanced reveals name and Network participation. Runtime choices belong to the session composer.",
+          "Session creation starts durable work without fabricating a first message. Simple selects the agent; Advanced reveals name and environment. Runtime choices belong to the session composer.",
       },
     },
   },
@@ -70,20 +54,11 @@ export const AggregateDestination: Story = {
   },
 };
 
-/** VC-02: the sole disclosure tier contains name and Network participation. */
+/** VC-02: the sole disclosure tier contains name and environment. */
 export const Advanced: Story = {
   args: {
     ...baseArgs,
     mode: "advanced" as const,
-  },
-};
-
-/** VC-03: explicit Live participation is valid only with its named channel. */
-export const LiveParticipation: Story = {
-  args: {
-    ...baseArgs,
-    mode: "advanced" as const,
-    networkParticipation: liveParticipation,
   },
 };
 

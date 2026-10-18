@@ -145,6 +145,9 @@ func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 }
 
 // RequestPermission reuses the ACP client-side permission path for daemon-originated tool approvals.
+// The daemon already routed the request to this process by its Compozy session
+// id, which is not the ACP session id, so the inbound bound-session guard that
+// quarantines agent callbacks from clone or foreign ids does not apply here.
 func (p *AgentProcess) RequestPermission(
 	ctx context.Context,
 	req RequestPermissionRequest,
@@ -160,7 +163,7 @@ func (p *AgentProcess) RequestPermission(
 		return RequestPermissionResponse{}, errors.New("acp: agent process is stopped")
 	default:
 	}
-	return p.handleRequestPermission(ctx, req)
+	return p.resolvePermissionRequest(ctx, req)
 }
 
 func (p *AgentProcess) permissionTimeoutOrDefault() time.Duration {

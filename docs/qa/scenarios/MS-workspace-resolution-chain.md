@@ -5,7 +5,7 @@ title: Resolve workspace context through one precedence chain
 persona: Ada
 journey: J-operate-workspace-context
 expected: Workspace-scoped CLI commands resolve positional ref, flag, environment, validated session identity, then nearest enclosing cwd in that order without registering a nested directory.
-entry_points: compozy workspace info; compozy loop run; compozy session new; compozy config set --scope workspace; compozy memory list
+entry_points: compozy workspace info; compozy loop run; compozy session new; compozy config set --scope workspace
 qa_status: pass
 bug_ids: BUG-20260729-nearest-workspace-case-alias
 fix_status: fixed
@@ -20,7 +20,7 @@ Graduated from seed `cfg-07-workspace-resolver-modes`.
 
 In one isolated `COMPOZY_HOME`, register `ws-alpha` at `/tmp/alpha`, a nested workspace at
 `/tmp/alpha/packages/nested`, and `ws-beta` at `/tmp/beta`. From a subdirectory of each root, run
-workspace info, Loop, config, memory, and session creation without `--workspace`; confirm the nearest
+workspace info, Loop, config, and session creation without `--workspace`; confirm the nearest
 registered root wins and the catalog does not gain a subdirectory registration.
 
 Repeat with `COMPOZY_WORKSPACE=ws-beta`, an explicit `--workspace`, and a positional workspace ref.

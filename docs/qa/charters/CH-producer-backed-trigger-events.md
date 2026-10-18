@@ -19,7 +19,7 @@ charter:
       - "Create and update valid built-in, hook, webhook, and ext.* definitions; independently read each stored event."
       - "Try an unknown event, whole-event whitespace, hook delimiter padding, a bare ext. prefix, and the valid free-form ext. release suffix."
       - "Run config validate with valid and invalid trigger definitions and inspect the structured error path."
-      - "Cause at least one real lifecycle producer and a successful workspace memory consolidation, then read trigger history from a second public surface."
+      - "Cause at least one real lifecycle producer (a session created or stopped, a hook completion, or a webhook), then read trigger history from a second public surface."
     must_avoid:
       - "Calling internal observers or reading SQLite to prove activation."
       - "Treating a stored trigger as proof that its producer fired."

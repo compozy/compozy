@@ -7,9 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -355,11 +356,7 @@ func loopRunOutputBundle(response contract.RunLoopResponse, summary string) outp
 	bundle.human = func() (string, error) {
 		lines := []string{strings.TrimSpace(summary)}
 		if response.DryRun != nil {
-			keys := make([]string, 0, len(response.DryRun.ResolvedInputs))
-			for key := range response.DryRun.ResolvedInputs {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
+			keys := slices.Sorted(maps.Keys(response.DryRun.ResolvedInputs))
 			for _, key := range keys {
 				encoded, err := json.Marshal(response.DryRun.ResolvedInputs[key])
 				if err != nil {

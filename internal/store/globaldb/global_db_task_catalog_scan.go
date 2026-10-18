@@ -5,66 +5,61 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type taskCatalogScanFields struct {
-	identifier               sql.NullString
-	scope                    string
-	workspaceID              sql.NullString
-	parentTaskID             sql.NullString
-	priority                 string
-	maxAttempts              int
-	autoEnqueueOnReady       bool
-	status                   string
-	approvalPolicy           string
-	approvalState            string
-	ownerKind                sql.NullString
-	ownerRef                 sql.NullString
-	currentRunID             sql.NullString
-	createdByKind            string
-	originKind               string
-	createdAt                string
-	updatedAt                string
-	closedAt                 sql.NullString
-	metadataJSON             sql.NullString
-	needsAttentionReason     sql.NullString
-	needsAttentionAt         sql.NullString
-	needsAttentionByKind     sql.NullString
-	needsAttentionByRef      sql.NullString
-	wakeCreator              bool
-	childCount               int
-	dependencyCount          int
-	lastActivityAt           string
-	priorityRank             int
-	activeRunID              sql.NullString
-	activeRunWorkspaceID     sql.NullString
-	activeRunStatus          sql.NullString
-	activeRunAttempt         sql.NullInt64
-	activeRunRecoveryCount   sql.NullInt64
-	activeRunPreviousRunID   sql.NullString
-	activeRunFailureKind     sql.NullString
-	activeRunClaimedByKind   sql.NullString
-	activeRunClaimedByRef    sql.NullString
-	activeRunSessionID       sql.NullString
-	activeRunWorktreeID      sql.NullString
-	activeRunWorktreeMode    sql.NullString
-	activeRunWorktreeRef     sql.NullString
-	activeRunLeaseUntil      sql.NullString
-	activeRunHeartbeatAt     sql.NullString
-	activeRunNetworkSpecJSON sql.NullString
-	activeRunNetworkMode     sql.NullString
-	activeRunNetworkChannel  sql.NullString
-	activeRunNetworkSource   sql.NullString
-	activeRunQueuedAt        sql.NullString
-	activeRunClaimedAt       sql.NullString
-	activeRunStartedAt       sql.NullString
-	activeRunEndedAt         sql.NullString
-	activeRunError           sql.NullString
-	provenanceLoopRunID      sql.NullString
-	provenanceRunKind        sql.NullString
+	identifier             sql.NullString
+	scope                  string
+	workspaceID            sql.NullString
+	parentTaskID           sql.NullString
+	priority               string
+	maxAttempts            int
+	autoEnqueueOnReady     bool
+	status                 string
+	approvalPolicy         string
+	approvalState          string
+	ownerKind              sql.NullString
+	ownerRef               sql.NullString
+	currentRunID           sql.NullString
+	createdByKind          string
+	originKind             string
+	createdAt              string
+	updatedAt              string
+	closedAt               sql.NullString
+	metadataJSON           sql.NullString
+	needsAttentionReason   sql.NullString
+	needsAttentionAt       sql.NullString
+	needsAttentionByKind   sql.NullString
+	needsAttentionByRef    sql.NullString
+	wakeCreator            bool
+	childCount             int
+	dependencyCount        int
+	lastActivityAt         string
+	priorityRank           int
+	activeRunID            sql.NullString
+	activeRunWorkspaceID   sql.NullString
+	activeRunStatus        sql.NullString
+	activeRunAttempt       sql.NullInt64
+	activeRunRecoveryCount sql.NullInt64
+	activeRunPreviousRunID sql.NullString
+	activeRunFailureKind   sql.NullString
+	activeRunClaimedByKind sql.NullString
+	activeRunClaimedByRef  sql.NullString
+	activeRunSessionID     sql.NullString
+	activeRunWorktreeID    sql.NullString
+	activeRunWorktreeMode  sql.NullString
+	activeRunWorktreeRef   sql.NullString
+	activeRunLeaseUntil    sql.NullString
+	activeRunHeartbeatAt   sql.NullString
+	activeRunQueuedAt      sql.NullString
+	activeRunClaimedAt     sql.NullString
+	activeRunStartedAt     sql.NullString
+	activeRunEndedAt       sql.NullString
+	activeRunError         sql.NullString
+	provenanceLoopRunID    sql.NullString
+	provenanceRunKind      sql.NullString
 }
 
 func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
@@ -120,10 +115,6 @@ func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
 		&fields.activeRunWorktreeRef,
 		&fields.activeRunLeaseUntil,
 		&fields.activeRunHeartbeatAt,
-		&fields.activeRunNetworkSpecJSON,
-		&fields.activeRunNetworkMode,
-		&fields.activeRunNetworkChannel,
-		&fields.activeRunNetworkSource,
 		&fields.activeRunQueuedAt,
 		&fields.activeRunClaimedAt,
 		&fields.activeRunStartedAt,
@@ -232,16 +223,6 @@ func taskCatalogRunSummary(
 	if !fields.activeRunID.Valid {
 		return nil, nil
 	}
-	networkSpec, err := decodeParticipationSnapshot(
-		taskNullStringValue(fields.activeRunWorkspaceID),
-		fields.activeRunNetworkSpecJSON.String,
-		fields.activeRunNetworkMode.String,
-		fields.activeRunNetworkChannel,
-		fields.activeRunNetworkSource.String,
-	)
-	if err != nil {
-		return nil, err
-	}
 	resolvedWorktreeMode := taskpkg.WorktreeMode(
 		strings.TrimSpace(fields.activeRunWorktreeMode.String),
 	).Normalize()
@@ -249,20 +230,19 @@ func taskCatalogRunSummary(
 		resolvedWorktreeMode = taskpkg.WorktreeModeNone
 	}
 	run := &taskpkg.RunSummary{
-		ID:                           strings.TrimSpace(fields.activeRunID.String),
-		TaskID:                       strings.TrimSpace(taskID),
-		Status:                       taskpkg.ParseRunStatus(fields.activeRunStatus.String).Normalize(),
-		Attempt:                      int(fields.activeRunAttempt.Int64),
-		RecoveryCount:                int(fields.activeRunRecoveryCount.Int64),
-		PreviousRunID:                strings.TrimSpace(fields.activeRunPreviousRunID.String),
-		FailureKind:                  strings.TrimSpace(fields.activeRunFailureKind.String),
-		MaxAttempts:                  maxAttempts,
-		SessionID:                    strings.TrimSpace(fields.activeRunSessionID.String),
-		WorktreeID:                   strings.TrimSpace(fields.activeRunWorktreeID.String),
-		ResolvedWorktreeMode:         resolvedWorktreeMode,
-		ResolvedWorktreeRef:          strings.TrimSpace(fields.activeRunWorktreeRef.String),
-		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
-		Error:                        strings.TrimSpace(fields.activeRunError.String),
+		ID:                   strings.TrimSpace(fields.activeRunID.String),
+		TaskID:               strings.TrimSpace(taskID),
+		Status:               taskpkg.ParseRunStatus(fields.activeRunStatus.String).Normalize(),
+		Attempt:              int(fields.activeRunAttempt.Int64),
+		RecoveryCount:        int(fields.activeRunRecoveryCount.Int64),
+		PreviousRunID:        strings.TrimSpace(fields.activeRunPreviousRunID.String),
+		FailureKind:          strings.TrimSpace(fields.activeRunFailureKind.String),
+		MaxAttempts:          maxAttempts,
+		SessionID:            strings.TrimSpace(fields.activeRunSessionID.String),
+		WorktreeID:           strings.TrimSpace(fields.activeRunWorktreeID.String),
+		ResolvedWorktreeMode: resolvedWorktreeMode,
+		ResolvedWorktreeRef:  strings.TrimSpace(fields.activeRunWorktreeRef.String),
+		Error:                strings.TrimSpace(fields.activeRunError.String),
 	}
 	if fields.activeRunClaimedByKind.Valid || fields.activeRunClaimedByRef.Valid {
 		run.ClaimedBy = &taskpkg.ActorIdentity{

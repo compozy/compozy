@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, screen } from "electron";
+import { BrowserWindow, clipboard, dialog, Menu, screen } from "electron";
 
 import { productDeepLink, productNavigationURL, type DeepLinkQueue } from "../deep-links/deep-link";
 import { writeWindowState, readWindowState, type StoredWindowState } from "./window-state-store";
@@ -6,11 +6,17 @@ import { CrashRecoveryBudget } from "./crash-recovery-policy";
 import { guardWindowNavigation } from "./security";
 import { productWindowChrome } from "./product-window-chrome";
 import { presentWindow, type WindowPresentation } from "./window-presentation";
+import type { WindowTheme } from "./window-theme";
 import { MINIMUM_WINDOW_SIZE, restoreWindowBounds } from "./window-state-policy";
 import { nextZoomLevel } from "./zoom-policy";
 
+import { productContextMenu, type SpellcheckSettings } from "./context-menu";
+
 const REVEAL_DEADLINE_MS = 10_000;
 const SAVE_DEBOUNCE_MS = 250;
+// The runtime serves the shell. A cached copy from before a runtime update would boot the
+// previous release's bundle, so every shell load skips the HTTP cache (#742).
+const SHELL_LOAD_OPTIONS = { extraHeaders: "pragma: no-cache\n" };
 
 async function showCrashLoopDialog(window: BrowserWindow): Promise<void> {
   const observer = Reflect.get(globalThis, "__compozyCrashDialogObserver");
@@ -32,6 +38,7 @@ export class ProductWindow {
   readonly #preloadPath: string;
   readonly #presentation: WindowPresentation;
   readonly #links: DeepLinkQueue;
+  readonly #theme: Pick<WindowTheme, "backgroundColor" | "dark" | "track">;
   readonly #onReady: () => Promise<void>;
   readonly #onLoadFailure: (error: Error) => Promise<void>;
   readonly #onError: (error: Error) => void;
@@ -40,6 +47,7 @@ export class ProductWindow {
   #ready = false;
   #navigating = false;
   #zoomLevel = 0;
+  #spellcheck: SpellcheckSettings | undefined;
   #saveTimer: NodeJS.Timeout | null = null;
 
   constructor(options: {
@@ -48,6 +56,7 @@ export class ProductWindow {
     preloadPath: string;
     presentation: WindowPresentation;
     links: DeepLinkQueue;
+    theme: Pick<WindowTheme, "backgroundColor" | "dark" | "track">;
     onReady: () => Promise<void>;
     onLoadFailure: (error: Error) => Promise<void>;
     onError: (error: Error) => void;
@@ -56,6 +65,7 @@ export class ProductWindow {
     this.#windowStatePath = options.windowStatePath;
     this.#preloadPath = options.preloadPath;
     this.#presentation = options.presentation;
+    this.#theme = options.theme;
     this.#links = options.links;
     this.#onReady = options.onReady;
     this.#onLoadFailure = options.onLoadFailure;
@@ -69,14 +79,15 @@ export class ProductWindow {
     const bounds = restoreWindowBounds(saved, displays);
     this.#ready = false;
     this.#zoomLevel = saved?.zoom_level ?? 0;
+    this.#spellcheck = saved?.spellcheck;
     const window = new BrowserWindow({
       ...bounds,
-      ...productWindowChrome(process.platform),
+      ...productWindowChrome(process.platform, this.#theme.dark),
       minWidth: MINIMUM_WINDOW_SIZE.width,
       minHeight: MINIMUM_WINDOW_SIZE.height,
       show: false,
       title: "CompozyOS",
-      backgroundColor: "#131211",
+      backgroundColor: this.#theme.backgroundColor("chrome"),
       autoHideMenuBar: true,
       webPreferences: {
         preload: this.#preloadPath,
@@ -85,9 +96,26 @@ export class ProductWindow {
         nodeIntegration: false,
         webviewTag: false,
         devTools: true,
+        // A hidden or occluded window must not burn renderer CPU. Nothing in the
+        // renderer needs full-rate timers in the background: live session streams
+        // close while the document is hidden, SSE delivery is not timer-driven,
+        // and the bell's hidden 30s poll tolerates throttled wake-ups.
+        backgroundThrottling: true,
       },
     });
     this.#window = window;
+    if (this.#spellcheck) {
+      const session = window.webContents.session;
+      if (process.platform !== "darwin") {
+        const languages = this.#spellcheck.languages.filter(language =>
+          session.availableSpellCheckerLanguages.includes(language)
+        );
+        if (languages.length) session.setSpellCheckerLanguages(languages);
+      }
+      // Setting languages enables spellchecking on Windows and Linux.
+      session.setSpellCheckerEnabled(this.#spellcheck.enabled);
+    }
+    this.#theme.track(window, "chrome");
     if (saved?.maximized) window.maximize();
     if (!saved) window.center();
     guardWindowNavigation(window, this.#origin, this.#onError);
@@ -100,7 +128,7 @@ export class ProductWindow {
     }, REVEAL_DEADLINE_MS);
     deadline.unref();
     window.webContents.once("did-finish-load", () => clearTimeout(deadline));
-    await window.loadURL(initialURL);
+    await window.loadURL(initialURL, SHELL_LOAD_OPTIONS);
     return window;
   }
 
@@ -159,6 +187,19 @@ export class ProductWindow {
   }
 
   #wireLifecycle(window: BrowserWindow): void {
+    window.webContents.on("context-menu", (_event, params) => {
+      const template = productContextMenu(
+        params,
+        window.webContents,
+        url => clipboard.writeText(url),
+        settings => {
+          this.#spellcheck = settings;
+          this.#scheduleSave();
+        },
+        process.platform
+      );
+      if (template.length) Menu.buildFromTemplate(template).popup({ window });
+    });
     window.webContents.on("did-finish-load", () => {
       window.webContents.setZoomLevel(this.#zoomLevel);
       this.#scheduleSave();
@@ -234,7 +275,7 @@ export class ProductWindow {
     if (window.webContents.getURL() === target) return;
     this.#navigating = true;
     void window
-      .loadURL(target)
+      .loadURL(target, SHELL_LOAD_OPTIONS)
       .catch(this.#onError)
       .finally(() => {
         this.#navigating = false;
@@ -259,6 +300,7 @@ export class ProductWindow {
       ...bounds,
       maximized: window.isMaximized(),
       zoom_level: this.#zoomLevel,
+      ...(this.#spellcheck ? { spellcheck: this.#spellcheck } : {}),
     };
     await writeWindowState(this.#windowStatePath, state);
   }

@@ -1,8 +1,6 @@
 package core
 
 import (
-	"context"
-
 	"errors"
 	"log/slog"
 	"net/http"
@@ -140,29 +138,6 @@ func (h *BaseHandlers) ListLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.LogsListResponse{Events: payload})
-}
-
-func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {
-	if !h.Config.Network.Enabled {
-		return &contract.NetworkStatusPayload{
-			Enabled:     false,
-			Status:      memoryHealthStatusDisabled,
-			KindMetrics: []contract.NetworkKindMetricPayload{},
-		}, nil
-	}
-	if h.Network == nil {
-		return nil, errors.New("api: network service is required when network is enabled")
-	}
-
-	status, err := h.Network.Status(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if status == nil {
-		return nil, errors.New("api: network status is required")
-	}
-
-	return NetworkStatusPayloadFromStatus(status), nil
 }
 
 func (h *BaseHandlers) daemonUserHomeDir() string {

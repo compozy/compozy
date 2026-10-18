@@ -37,3 +37,7 @@ SSH, credentials, query, and fragment syntax inline with specific recovery text.
 extension required explicit consent, became active, appeared in Installed, and was removed after the
 canary. The official bundled `compozy` skill remained visible. Desktop and narrow captures plus every
 Git recovery state are linked above.
+
+QA impact 2026-09-28 (ui-normie-pass): Version, Asset and "Allow an unverified package" now sit under a
+closed "More options" fold in the install dialog; open it before setting them. Request shape is unchanged.
+The description reads "Install from GitHub, a git link, or a folder on this computer." Reset to untested.

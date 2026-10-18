@@ -30,9 +30,18 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionArchiveDescriptor(true),
 	sessionArchiveDescriptor(false),
 	sessionRenameDescriptor(),
+	sessionFolderListDescriptor(),
+	sessionFolderCreateDescriptor(),
+	sessionFolderRenameDescriptor(),
+	sessionFolderDeleteDescriptor(),
+	sessionFolderReorderDescriptor(),
+	sessionMoveDescriptor(),
+	sessionReorderDescriptor(),
 	sessionCreateDescriptor(),
 	sessionPromptDescriptor(),
 	sessionRewindDescriptor(),
+	sessionContinueDescriptor(),
+	sessionForkDescriptor(),
 	sessionRuntimeSetDescriptor(),
 	sessionRuntimeClearDescriptor(),
 	sessionInputsListDescriptor(),
@@ -123,8 +132,21 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionPrompt,
 		"session_prompt",
 		"Session Prompt",
-		"Send a prompt to a session. While it is busy, choose queue, interrupt, or steer; "+
-			"steering uses the expected active turn.",
+		"Send a prompt to a session. Each message costs the receiver a full turn, so send at milestones "+
+			"and batch updates instead of streaming status. While the target is busy, mode chooses queue "+
+			"(after its current turn), steer (into the active turn), or interrupt; omitting mode uses "+
+			"session.busy_input.default_mode (steer by default). An agent never cancels another session's "+
+			"turn: its interrupt is delivered as steer, or queued when it has attachments, and the result "+
+			"reports the mode used. Queued messages from other sessions are answered together in one turn, "+
+			"and are injected into a turn that runs past session.messaging.queue_promote_after when the "+
+			"target supports steering. Set supersede to replace your own older queued message to the same "+
+			"target. Agent calls carry an immutable sender origin; "+
+			"self-targeting is rejected. Forwarding depth is limited to 8 hops, but answering the session "+
+			"that started your current turn, or replying with in_reply_to, keeps the hop. Each sender→target "+
+			"pair has a rate budget (message_rate_limited when exceeded). Without notify_on_complete nobody "+
+			"is woken when the receiver finishes; set it to get the receiver's final answer back as a reply "+
+			"wake. To answer a message you received, pass its message id as in_reply_to. notify_on_complete "+
+			"and in_reply_to require an agent session; operator-scoped calls are refused with invalid_request.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -235,7 +257,7 @@ const sessionListInputSchema = `{
 		"resumable":{"type":"boolean"},
 		"archive":{"type":"string","enum":["exclude","only","include"]},
 		"include_health":{"type":"boolean"},
-		"sort":{"type":"string","enum":["recent","last_activity"]},
+		"sort":{"type":"string","enum":["recent","created","name","last_activity","attention","navigator","manual"]},
 		"cursor":{"type":"string"},
 		"limit":{"type":"integer","minimum":1,"maximum":100}
 	},
@@ -252,9 +274,24 @@ const sessionPromptInputSchema = `{
 		"attachments":{"type":"array","items":{"type":"string","minLength":1}},
 		"message_id":{"type":"string","minLength":1},
 		"idempotency_key":{"type":"string","minLength":1},
-		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
+		"mode":{"type":"string","enum":["queue","interrupt","steer"],
+ "description":"How to deliver while the target is busy: queue waits for its current turn to end, ` +
+	`steer joins the active turn, interrupt cancels it. An agent session's interrupt never cancels the ` +
+	`target's turn: it is delivered as steer, or queued when the message has attachments. ` +
+	`Omitted means session.busy_input.default_mode (steer by default)."},
 		"expected_turn_id":{"type":"string","minLength":1},
-		"wait":{"type":"boolean","default":false,"description":"Wait for completion instead of immediate acceptance."},
+		"notify_on_complete":{"type":"boolean","default":false,
+ "description":"Request a reply wake with the receiver's final answer when its turn completes. ` +
+	`When omitted or false, nobody is woken when the receiver finishes. Requires an agent session."},
+		"in_reply_to":{"type":"string","minLength":1,"maxLength":200,"pattern":"^\\S+$",
+ "description":"Message id this message answers (shown on the received message). ` +
+	`A reply keeps the hop instead of adding one. It never releases the sender's reply watch: ` +
+	`a notify_on_complete wake still fires when your turn completes. Requires an agent session."},
+		"supersede":{"type":"boolean","default":false,
+ "description":"Cancel your own older messages still queued for the same target, in the same step ` +
+	`that queues this one, so the target receives only the latest. Never touches operator input or other ` +
+	`senders' messages. The result's canceled_queued_entries counts the replaced messages. Requires an agent session."},
+ "wait":{"type":"boolean","default":false,"description":"Wait for completion instead of immediate acceptance."},
 		"runtime":{
 			"type":"object",
 			"required":["provider"],
@@ -321,6 +358,10 @@ const sessionPromptOutputSchema = `{
 				"previous_turn_id":{"type":"string"},
 				"new_turn_id":{"type":"string"},
 				"canceled_queued_entries":{"type":"integer"},
+ "target_workspace_id":{"type":"string"},
+ "reply_watch":{"type":"object","required":["id","state"],
+ "properties":{"id":{"type":"string"},
+ "state":{"type":"string","enum":["armed","fired","delivered","abandoned"]}},"additionalProperties":false},
 				"goal":{"type":"object"}
 			},
 			"additionalProperties":false
@@ -393,6 +434,7 @@ const sessionInputPayloadSchema = `{
 	"properties":{
 		"id":{"type":"string","minLength":1},
 		"session_id":{"type":"string","minLength":1},
+		"origin":` + sessionPromptOriginSchema + `,
 		"owner_kind":{"type":"string"},
 		"owner_id":{"type":"string"},
 		"message_id":{"type":"string"},

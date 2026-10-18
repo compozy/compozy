@@ -9,7 +9,7 @@ export interface AgentCreateRuntimeDetailsSectionProps {
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
 }
 
-/** Advanced tier: overrides for how the provider subprocess launches. */
+/** Advanced tier: a custom command for starting this agent's provider. */
 export function AgentCreateRuntimeDetailsSection({
   draft,
   onDraftChange,
@@ -17,16 +17,16 @@ export function AgentCreateRuntimeDetailsSection({
   return (
     <FormSection
       data-testid="agent-create-runtime-details"
-      help="Applies only to this agent. Everything here falls back to the provider's own configuration when left empty."
+      help="Applies only to this agent. Leave it empty to use the provider's own command."
       icon={Terminal}
-      title="Launch overrides"
+      title="Advanced: custom command"
     >
       <Field>
         <FieldHeader>
-          <FieldLabel htmlFor="agent-create-command">Runtime command</FieldLabel>
-          <HelpTip label="About runtime command">
-            Overrides the executable this agent's provider launches. Leave it empty and the
-            provider's own command is used.
+          <FieldLabel htmlFor="agent-create-command">Command</FieldLabel>
+          <HelpTip label="About command">
+            The program CompozyOS starts for this agent's provider. Leave it empty to use the
+            default.
           </HelpTip>
         </FieldHeader>
         <Input

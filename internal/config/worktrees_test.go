@@ -132,8 +132,8 @@ func TestWorktreesConfig(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), test.key) {
 					t.Fatalf("Validate() error = %v, want key %q", err, test.key)
 				}
-				var validationErr ValidationError
-				if !errors.As(err, &validationErr) || validationErr.Code != worktreeConfigInvalidCode ||
+				validationErr, validationErrOK := errors.AsType[ValidationError](err)
+				if !validationErrOK || validationErr.Code != worktreeConfigInvalidCode ||
 					validationErr.Path != test.key {
 					t.Fatalf("Validate() error = %#v, want structured worktree config error for %q", err, test.key)
 				}

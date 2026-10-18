@@ -58,7 +58,6 @@ func renderSoulPromptSection(snapshot *soul.Snapshot, profile *soul.SnapshotProf
 	writeSoulPromptList(&builder, "Principles", profile.Profile.Principles)
 	writeSoulPromptList(&builder, "Constraints", profile.Profile.Constraints)
 	writeSoulPromptList(&builder, "Collaboration", profile.Profile.Collaboration)
-	writeSoulPromptList(&builder, "Memory policy", profile.Profile.MemoryPolicy)
 	writeSoulPromptList(&builder, "Tags", profile.Profile.Tags)
 	if strings.TrimSpace(profile.Profile.Body) != "" {
 		builder.WriteString("\n## Body\n")

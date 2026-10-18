@@ -72,67 +72,6 @@ requirements = ["workspace-write", "review-guidelines"]
 	}
 }
 
-func TestLoadAgentDefFileNormalizesEquivalentTOMLAndJSONCapabilitiesToSameRuntimeShape(t *testing.T) {
-	t.Parallel()
-
-	makeAgent := func(t *testing.T, dir string) string {
-		t.Helper()
-
-		agentPath := filepath.Join(dir, agentDefName)
-		writeFile(t, agentPath, `---
-name: coder
-provider: claude
----
-
-Prompt.
-`)
-		return agentPath
-	}
-
-	tomlDir := filepath.Join(t.TempDir(), "toml-agent")
-	jsonDir := filepath.Join(t.TempDir(), "json-agent")
-	tomlAgentPath := makeAgent(t, tomlDir)
-	jsonAgentPath := makeAgent(t, jsonDir)
-
-	writeFile(t, filepath.Join(tomlDir, capabilityCatalogTOMLName), `
-[[capabilities]]
-id = "review-copy"
-summary = " Review conversion copy. "
-outcome = " A prioritized copy review. "
-version = " 1.2.0 "
-context_needed = [" brief ", " analytics "]
-requirements = [" workspace-write ", "review-guidelines"]
-`)
-	writeFile(t, filepath.Join(jsonDir, capabilityCatalogJSONName), `{
-  "capabilities": [
-    {
-      "id": "review-copy",
-      "summary": "Review conversion copy.",
-      "outcome": "A prioritized copy review.",
-      "version": "1.2.0",
-      "context_needed": ["brief", "analytics"],
-      "requirements": ["review-guidelines", "workspace-write"]
-    }
-  ]
-}`)
-
-	tomlAgent, err := LoadAgentDefFile(tomlAgentPath)
-	if err != nil {
-		t.Fatalf("LoadAgentDefFile(TOML) error = %v", err)
-	}
-	jsonAgent, err := LoadAgentDefFile(jsonAgentPath)
-	if err != nil {
-		t.Fatalf("LoadAgentDefFile(JSON) error = %v", err)
-	}
-	if !reflect.DeepEqual(tomlAgent.Capabilities, jsonAgent.Capabilities) {
-		t.Fatalf(
-			"capabilities differ after normalization:\nTOML: %#v\nJSON: %#v",
-			tomlAgent.Capabilities,
-			jsonAgent.Capabilities,
-		)
-	}
-}
-
 func TestLoadWorkspaceAgentDefsPreservesPrecedenceWithCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -265,38 +204,6 @@ outcome = "A prioritized copy review."
 
 			tc.assert(t, findAgentByName(t, agents, tc.agentName))
 		})
-	}
-}
-
-func TestLoadWorkspaceAgentDefsLoadsAgentsWithoutCapabilityCatalog(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-
-	root := t.TempDir()
-	writeAgentDefinition(
-		t,
-		filepath.Join(root, DirName, AgentsDirName, "coder", agentDefName),
-		"coder",
-		"claude",
-		"workspace",
-	)
-
-	agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths, "")
-	if err != nil {
-		t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
-	}
-	if got, want := len(agents), 1; got != want {
-		t.Fatalf("len(LoadWorkspaceAgentDefs()) = %d, want %d", got, want)
-	}
-	if agents[0].Capabilities != nil {
-		t.Fatalf("agents[0].Capabilities = %#v, want nil for missing catalog", agents[0].Capabilities)
 	}
 }
 

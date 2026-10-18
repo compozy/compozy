@@ -30,7 +30,7 @@ type AppApplyResult struct {
 	Status      ApplyStatus `json:"status"`
 	OperationID string      `json:"operation_id,omitempty"`
 	Message     string      `json:"message"`
-	Holder      *Holder     `json:"holder,omitempty"`
+	Holder      *Holder     `json:"holder,omitzero"`
 }
 
 // RequestAppApply durably records a verified app asset and returns acceptance truth.

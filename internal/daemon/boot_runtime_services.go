@@ -3,10 +3,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"time"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 )
 
 func (d *Daemon) bootRuntimeServices(
@@ -14,20 +10,11 @@ func (d *Daemon) bootRuntimeServices(
 	state *bootState,
 	cleanup *bootCleanup,
 ) error {
-	if state.cfg.Memory.Enabled {
-		state.dreamSvc = d.newDreamService(
-			memory.WithMemoryStore(state.memoryStore),
-			memory.WithSessionsDir(d.homePaths.SessionsDir),
-			memory.WithMinHours(state.cfg.Memory.Dream.MinHours),
-			memory.WithMinSessions(state.cfg.Memory.Dream.MinSessions),
-			memory.WithDreamGateConfig(dreamGateConfigFromConfig(state.cfg.Memory.Dream)),
-			memory.WithLogger(state.logger),
-			memory.WithWorkspaceResolver(state.workspaceResolver),
-		)
-	}
-
 	state.notifier = newHooksNotifier(state.logger, d.now)
 	if err := d.bootRuntimeMemoryMonitor(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootHostLoadMonitor(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootProcessRegistry(ctx, state); err != nil {
@@ -36,11 +23,6 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootTerminal(ctx, state, cleanup); err != nil {
 		return err
 	}
-	sandboxRegistry, err := d.buildSandboxRegistry(state)
-	if err != nil {
-		return err
-	}
-	state.sandboxRegistry = sandboxRegistry
 	providerVault, err := d.buildProviderVault(state)
 	if err != nil {
 		return err
@@ -50,10 +32,6 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	if err := d.bootMarketplace(ctx, state, cleanup); err != nil {
-		return err
-	}
-	state.bridges = d.composeBridgeRuntime(state, cleanup)
-	if err := d.bootNotificationPresets(ctx, state); err != nil {
 		return err
 	}
 	hostedMCP, err := d.buildHostedMCPService(state)
@@ -66,20 +44,7 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	initializeRoleResolver(state)
-	return d.bootMemorySessionRuntime(ctx, state, cleanup)
-}
-
-func dreamGateConfigFromConfig(cfg compozyconfig.DreamConfig) memory.DreamGateConfig {
-	return memory.DreamGateConfig{
-		MinCandidates:   cfg.Gates.MinUnpromoted,
-		MinRecallCount:  cfg.Gates.MinRecallCount,
-		MinScore:        cfg.Gates.MinScore,
-		HalfLife:        time.Duration(cfg.Scoring.RecencyHalfLifeDays) * 24 * time.Hour,
-		FrequencyWeight: cfg.Scoring.Weights.Frequency,
-		RelevanceWeight: cfg.Scoring.Weights.Relevance,
-		RecencyWeight:   cfg.Scoring.Weights.Recency,
-		FreshnessWeight: cfg.Scoring.Weights.Freshness,
-	}
+	return d.bootSessionRuntime(ctx, state, cleanup)
 }
 
 func (d *Daemon) bootRuntimeMemoryMonitor(

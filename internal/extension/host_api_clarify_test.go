@@ -41,7 +41,6 @@ func TestHostAPIClarifyAskDerivesScopeFromActiveInvocation(t *testing.T) {
 		env.sessions,
 		nil,
 		nil,
-		nil,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIClarify(broker),
 		WithHostAPIRateLimit(1000, 1000),
@@ -82,7 +81,6 @@ func TestHostAPIClarifyAskRejectsForeignInvocationAndUndeclaredFields(t *testing
 		env.sessions,
 		nil,
 		nil,
-		nil,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIClarify(&hostAPIClarifyBrokerStub{}),
 		WithHostAPIRateLimit(1000, 1000),
@@ -120,7 +118,6 @@ func TestHostAPIClarifyAskCancelsWithOriginatingToolCall(t *testing.T) {
 		env.sessions,
 		nil,
 		nil,
-		nil,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIClarify(&hostAPIClarifyBrokerStub{askFn: func(
 			ctx context.Context,
@@ -153,7 +150,7 @@ func TestHostAPIClarifyAskCancelsWithOriginatingToolCall(t *testing.T) {
 	result := make(chan callResult, 1)
 	go func() {
 		value, callErr := handler.Handle(
-			context.Background(),
+			t.Context(),
 			"question-tool",
 			hostAPIClarifyAskPath,
 			raw,
@@ -198,7 +195,6 @@ func TestHostAPIClarifyAskClassifiesInputAndBrokerFailures(t *testing.T) {
 			env.sessions,
 			nil,
 			nil,
-			nil,
 			WithHostAPICapabilityChecker(env.checker),
 			WithHostAPIClarify(&hostAPIClarifyBrokerStub{}),
 			WithHostAPIRateLimit(1000, 1000),
@@ -220,7 +216,6 @@ func TestHostAPIClarifyAskClassifiesInputAndBrokerFailures(t *testing.T) {
 
 		handler := NewHostAPIHandler(
 			env.sessions,
-			nil,
 			nil,
 			nil,
 			WithHostAPICapabilityChecker(env.checker),
@@ -257,7 +252,7 @@ func callHostAPIClarify(
 	if err != nil {
 		return nil, err
 	}
-	return handler.Handle(context.Background(), extensionName, hostAPIClarifyAskPath, raw)
+	return handler.Handle(t.Context(), extensionName, hostAPIClarifyAskPath, raw)
 }
 
 type hostAPIClarifyBrokerStub struct {

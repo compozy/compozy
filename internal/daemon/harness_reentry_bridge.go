@@ -15,7 +15,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -66,13 +65,12 @@ type harnessReentrySessionManager interface {
 }
 
 type harnessWakeTargetSnapshot struct {
-	SessionID            string
-	AgentName            string
-	Type                 session.Type
-	State                session.State
-	WorkspaceID          string
-	NetworkParticipation participation.Spec
-	Missing              bool
+	SessionID   string
+	AgentName   string
+	Type        session.Type
+	State       session.State
+	WorkspaceID string
+	Missing     bool
 }
 
 type harnessReentryDecision struct {

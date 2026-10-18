@@ -10,6 +10,12 @@ import (
 
 // UIAgentEventPayload mirrors the prompt-stream data payload shape.
 type UIAgentEventPayload struct {
+	ParentToolCallID string                       `json:"parent_tool_call_id,omitempty"`
+	ProviderToolName string                       `json:"provider_tool_name,omitempty"`
+	CompactionID     string                       `json:"compaction_id,omitempty"`
+	Status           string                       `json:"status,omitempty"`
+	Summary          string                       `json:"summary,omitempty"`
+	Terminal         bool                         `json:"terminal,omitzero"`
 	Type             string                       `json:"type"`
 	SessionID        string                       `json:"session_id,omitempty"`
 	TurnID           string                       `json:"turn_id,omitempty"`
@@ -26,11 +32,11 @@ type UIAgentEventPayload struct {
 	ResolvedBy       string                       `json:"resolved_by,omitempty"`
 	Error            string                       `json:"error,omitempty"`
 	Failure          *store.SessionFailure        `json:"failure,omitempty"`
-	ProviderError    *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
+	ProviderError    *acp.ProviderErrorDiagnostic `json:"provider_error,omitzero"`
 	Goal             *acp.GoalPromptMeta          `json:"goal,omitempty"`
-	Delivery         *acp.DeliveryManifest        `json:"delivery,omitempty"`
-	Usage            *UITokenUsagePayload         `json:"usage,omitempty"`
-	Runtime          *acp.RuntimeActivity         `json:"runtime,omitempty"`
+	Delivery         *acp.DeliveryManifest        `json:"delivery,omitzero"`
+	Usage            *UITokenUsagePayload         `json:"usage,omitzero"`
+	Runtime          *acp.RuntimeActivity         `json:"runtime,omitzero"`
 	Raw              json.RawMessage              `json:"raw,omitempty"`
 }
 
@@ -39,16 +45,26 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 	event = RedactAgentEvent(event)
 	payload := UIAgentEventPayload{
 		Type: event.Type, SessionID: event.SessionID, TurnID: event.TurnID,
-		RequestID: event.RequestIDValue(),
-		Text:      event.Text, Title: event.Title, ToolCallID: event.ToolCallID, StopReason: event.StopReason,
+		RequestID:        event.RequestIDValue(),
+		ParentToolCallID: event.ParentToolCallID(),
+		ProviderToolName: event.ProviderToolName(),
+		Status:           event.ToolStatus(),
+		Text:             event.Text, Title: event.Title, ToolCallID: event.ToolCallID, StopReason: event.StopReason,
 		PromptStopReason: event.PromptStopReason, Action: event.Action, Resource: event.Resource,
 		Decision: event.Decision, ResolvedBy: event.ResolvedByValue(),
 		Error: event.Error, Failure: store.CloneSessionFailure(event.Failure),
 		ProviderError: acp.CloneProviderErrorDiagnostic(event.ProviderError),
-		Goal:          acp.CloneGoalPromptMeta(event.Goal),
+		Goal:          event.GoalPromptMeta(),
 		Delivery:      event.DeliveryManifest(),
 		Usage:         uiTokenUsagePayloadFromUsage(event.Usage), Runtime: cloneRuntimeActivity(event.Runtime),
 		Raw: payloadJSONBytes(event.Raw),
+	}
+	if event.Compaction != nil {
+		payload.CompactionID = event.Compaction.CompactionID
+		payload.Status = event.Compaction.Status
+		payload.Summary = boundedCompactionSummary(event.Compaction.Summary)
+		payload.Error = event.Compaction.Error
+		payload.Terminal = event.Compaction.Terminal
 	}
 	if !event.Timestamp.IsZero() {
 		payload.Timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)

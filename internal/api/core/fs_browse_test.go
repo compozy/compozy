@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -51,7 +50,7 @@ func browse(
 	if len(query) > 0 {
 		target += "?" + query.Encode()
 	}
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
 	engine.ServeHTTP(rec, req)
 	var resp contract.FSBrowseResponse
 	if rec.Code == http.StatusOK {

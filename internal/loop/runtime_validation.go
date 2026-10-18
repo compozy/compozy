@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -170,11 +171,7 @@ func validateRuntimeRules(ctx context.Context, catalog RuntimeCatalog, rules []R
 	for index, rule := range rules {
 		path := fmt.Sprintf("runtime_rules[%d]", index)
 		if len(rule.Match.Extra) > 0 {
-			keys := make([]string, 0, len(rule.Match.Extra))
-			for key := range rule.Match.Extra {
-				keys = append(keys, key)
-			}
-			slices.Sort(keys)
+			keys := slices.Sorted(maps.Keys(rule.Match.Extra))
 			key := keys[0]
 			return runtimeValidation(path+".match."+key, rule.Match.Extra[key], "unknown_field")
 		}
@@ -204,11 +201,7 @@ func validateRuntimeSpec(
 	runtime RuntimeSpec,
 ) error {
 	if len(runtime.Extra) > 0 {
-		keys := make([]string, 0, len(runtime.Extra))
-		for key := range runtime.Extra {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
+		keys := slices.Sorted(maps.Keys(runtime.Extra))
 		key := keys[0]
 		return runtimeValidation(path+"."+key, runtime.Extra[key], "unknown_field")
 	}

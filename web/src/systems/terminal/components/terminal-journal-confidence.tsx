@@ -20,7 +20,7 @@ export function TerminalJournalConfidence({
       size="xs"
       tone={confidence.estimated ? "warning" : "neutral"}
     >
-      {confidence.estimated ? <TriangleAlert aria-hidden="true" className="size-2.5" /> : null}
+      {confidence.estimated ? <TriangleAlert aria-hidden="true" className="size-3" /> : null}
       {confidence.label}
     </Pill>
   );

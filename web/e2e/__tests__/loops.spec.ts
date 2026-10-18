@@ -9,7 +9,7 @@ import type {
   LoopRunGenerationOutput,
   RunLoopResult,
 } from "@/systems/loops";
-import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { openAppWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";
@@ -588,6 +588,120 @@ function editorNode(appPage: Page, nodeId: string) {
   return appPage.locator(`[data-testid="loop-editor-node"][data-node-id="${nodeId}"]`);
 }
 
+// Invariant: a new server search keeps the input focused so typing can continue.
+// Owner: Loops catalog route/toolbar lifetime across the real query boundary.
+test.describe("Loop catalog", () => {
+  test.use({ runtimeOptions: {} });
+  test("Loop catalog search retains focus across daemon responses", async ({
+    appPage,
+    runtime,
+  }) => {
+    if (!runtime.paths) throw new Error("Loop search test requires launch-mode runtime paths");
+    await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+    await openAppWindow(appPage, "Loops", "loops");
+    const search = appPage.getByRole("searchbox", { name: "Search loops" });
+    await search.click();
+
+    for (const [text, query] of [
+      ["l", "l"],
+      ["oop", "loop"],
+    ]) {
+      const response = appPage.waitForResponse(candidate => {
+        const url = new URL(candidate.url());
+        return url.pathname.endsWith("/loops") && url.searchParams.get("q") === query;
+      });
+      await appPage.keyboard.type(text);
+      expect((await response).ok()).toBe(true);
+      await expect(appPage.getByTestId("loops-loading")).toHaveCount(0);
+      await expect(search).toHaveValue(query);
+      await expect(search).toBeFocused();
+    }
+  });
+});
+
+// Invariant: a session-id filter remains editable through real query transitions.
+// Owner: Runs route/toolbar and filter-draft lifetime.
+test("Loop Runs session filter retains its draft across daemon responses", async ({
+  appPage,
+  runtime,
+}) => {
+  if (!runtime.paths) throw new Error("Loop filter test requires launch-mode runtime paths");
+  await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+  await openAppWindow(appPage, "Loops", "loops");
+  await appPage.getByRole("link", { name: "Runs", exact: true }).click();
+  await appPage.getByRole("button", { name: "Add filter", exact: true }).click();
+  await appPage.getByRole("option", { name: "Session id", exact: true }).click();
+  const sessionId = appPage.getByRole("textbox", { name: "Session id value" });
+  await expect(sessionId).toBeVisible();
+  await expect(sessionId).toBeFocused();
+
+  const query = "session-review";
+  const response = appPage.waitForResponse(candidate => {
+    const url = new URL(candidate.url());
+    return url.pathname.endsWith("/loop-runs") && url.searchParams.get("origin_session") === query;
+  });
+  await appPage.keyboard.type(query);
+  expect((await response).ok()).toBe(true);
+  await expect(sessionId).toHaveValue(query);
+  await expect(sessionId).toBeFocused();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(sessionId).toHaveValue(query);
+  const addFilter = appPage.getByRole("button", { name: "Add filter", exact: true });
+  await addFilter.click();
+  await expect(appPage.getByRole("option", { name: "Origin", exact: true })).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(addFilter).toBeFocused();
+});
+
+// Invariant: a scoped Loop navigation may select its project, but retained Loop
+// windows cannot overwrite later shell choices. Owner: LoopsWindow route adoption.
+test("scoped Loop windows preserve later Global scope choices", async ({ appPage, runtime }) => {
+  if (!runtime.paths) throw new Error("Loop scope test requires launch-mode runtime paths");
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopWatchCursorSeedDefinition }),
+  });
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopWatchCursorSeedName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!started.run) throw new Error("Loop scope test did not create a run");
+
+  await setGlobalScope(appPage, true);
+  await appPage.goto(
+    runtime.url(
+      `/loop-runs/${encodeURIComponent(started.run.id)}?workspace=${encodeURIComponent(workspace.id)}`
+    ),
+    { waitUntil: "domcontentloaded" }
+  );
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+
+  await setGlobalScope(appPage, true);
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await openAppWindow(appPage, "Home", "dashboard");
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await openAppWindow(appPage, "Automations", "automations");
+  await expect(appPage).toHaveURL(runtime.url("/automations"));
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  // The Automations window renders after the reload under Global scope. With no
+  // automations it opens on the first-run state, which has no search toolbar (UT-051).
+  await expect(appPage.getByTestId("automations-shell")).toBeVisible();
+  await expect(appPage.getByTestId("automations-list-empty")).toContainText("No automations in");
+});
+
 test("CompozyOS migration E2E-015: run page lifecycle controls and node inventories", async ({
   appPage,
   browserArtifacts,
@@ -709,7 +823,7 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
     waitUntil: "domcontentloaded",
   });
   await expect(appPage.getByTestId("loop-node-inventory-empty")).toContainText(
-    "Nothing is quarantined"
+    "Nothing is set aside"
   );
   await browserArtifacts.captureScreenshot("loop-node-inventory-quarantined-empty", appPage);
 });
@@ -862,95 +976,103 @@ test("CompozyOS migration E2E-016: author retry + on_error in the editor, publis
   await browserArtifacts.captureScreenshot("loop-editor-authored-run-retrying", appPage);
 });
 
-test("E2E-031: editor rails collapse, filter, and persist", async ({ appPage, runtime }) => {
-  await openInteractionEditor(appPage, runtime);
-  await appPage.evaluate(key => window.localStorage.removeItem(key), loopEditorChromeStorageKey);
-  await appPage.reload({ waitUntil: "domcontentloaded" });
+test("E2E-031 / E2E-032: editor rails persist and quick-add places, guards, and reveals nodes", async ({
+  appPage,
+  runtime,
+}) => {
+  await test.step("E2E-031: editor rails collapse, filter, and persist", async () => {
+    await openInteractionEditor(appPage, runtime);
+    await appPage.evaluate(key => window.localStorage.removeItem(key), loopEditorChromeStorageKey);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  const paletteToggle = appPage.getByTestId("loop-editor-palette-toggle");
-  const inspectorToggle = appPage.getByTestId("loop-editor-inspector-toggle");
-  await expect(paletteToggle).toHaveAttribute("aria-pressed", "false");
-  await expect(inspectorToggle).toHaveAttribute("aria-pressed", "false");
+    const paletteToggle = appPage.getByTestId("loop-editor-palette-toggle");
+    const inspectorToggle = appPage.getByTestId("loop-editor-inspector-toggle");
+    await expect(paletteToggle).toHaveAttribute("aria-pressed", "false");
+    await expect(inspectorToggle).toHaveAttribute("aria-pressed", "false");
+    await expect(appPage.getByTestId("loop-editor-palette")).toHaveCount(0);
+    await expect(appPage.getByTestId("loop-editor-sidebar")).toHaveCount(0);
+
+    await paletteToggle.click();
+    await expect(appPage.getByTestId("loop-editor-palette")).toBeVisible();
+    await paletteToggle.click();
+    await editorNode(appPage, "prepare").dispatchEvent("keydown", {
+      bubbles: true,
+      code: "BracketLeft",
+      key: "[",
+    });
+    const palette = appPage.getByTestId("loop-editor-palette");
+    await expect(palette).toBeVisible();
+    await palette.getByTestId("loop-palette-search").fill("route");
+    await expect(palette.getByTestId("loop-palette-item-route")).toBeVisible();
+    await expect(palette.getByTestId("loop-palette-item-ask")).toHaveCount(0);
+
+    await editorNode(appPage, "prepare").click();
+    await expect(inspectorToggle).toHaveAttribute("aria-pressed", "true");
+    await expect(appPage.getByTestId("loop-editor-tab-node")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await editorNode(appPage, "prepare").dispatchEvent("keydown", {
+      bubbles: true,
+      code: "BracketRight",
+      key: "]",
+    });
+    await expect(inspectorToggle).toHaveAttribute("aria-pressed", "false");
+
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId("loop-editor-palette")).toBeVisible();
+    await expect(appPage.getByTestId("loop-editor-sidebar")).toHaveCount(0);
+  });
+
+  // Restore the default rail geometry before measuring quick-add placement.
+  await appPage.getByTestId("loop-editor-palette-toggle").click();
   await expect(appPage.getByTestId("loop-editor-palette")).toHaveCount(0);
-  await expect(appPage.getByTestId("loop-editor-sidebar")).toHaveCount(0);
 
-  await paletteToggle.click();
-  await expect(appPage.getByTestId("loop-editor-palette")).toBeVisible();
-  await paletteToggle.click();
-  await editorNode(appPage, "prepare").dispatchEvent("keydown", {
-    bubbles: true,
-    code: "BracketLeft",
-    key: "[",
+  await test.step("E2E-032: quick-add places, guards, and reveals nodes", async () => {
+    const canvas = appPage.getByTestId("loop-editor-canvas");
+    const prepare = editorNode(appPage, "prepare");
+    await prepare.click();
+    const expected = await canvas.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const viewport = element.querySelector<HTMLElement>(".react-flow__viewport");
+      if (!viewport) throw new Error("React Flow viewport not found");
+      const matrix = new DOMMatrix(getComputedStyle(viewport).transform);
+      return {
+        x: (rect.width / 2 - matrix.e) / matrix.a - 188 / 2,
+        y: (rect.height / 2 - matrix.f) / matrix.d - 96 / 2,
+      };
+    });
+    await prepare.press("a");
+    await expect(appPage.getByTestId("loop-editor-quick-add")).toBeVisible();
+    await appPage.getByTestId("loop-quick-add-item-transform").click();
+
+    const added = appPage.locator('.react-flow__node[data-id="transform"]');
+    await expect(added).toBeVisible();
+    const actual = await added.evaluate(element => {
+      const matrix = new DOMMatrix(getComputedStyle(element).transform);
+      return { x: matrix.e, y: matrix.f };
+    });
+    expect(actual.x).toBeCloseTo(expected.x, 0);
+    expect(actual.y).toBeCloseTo(expected.y, 0);
+    await expect(appPage.getByTestId("loop-editor-save")).toBeEnabled();
+
+    const idInput = appPage.getByTestId("loop-field-id");
+    await idInput.focus();
+    await idInput.dispatchEvent("keydown", { key: "a", bubbles: true });
+    await expect(appPage.getByTestId("loop-editor-quick-add")).toHaveCount(0);
+
+    const nodeCount = await appPage.getByTestId("loop-editor-node").count();
+    await appPage.locator(".react-flow__pane").dblclick({ position: { x: 24, y: 24 } });
+    await expect(appPage.getByTestId("loop-editor-quick-add")).toBeVisible();
+    await appPage.getByTestId("loop-quick-add-input").press("Escape");
+    await expect(appPage.getByTestId("loop-editor-node")).toHaveCount(nodeCount);
+
+    await prepare.click();
+    await prepare.press("a");
+    await appPage.getByTestId("loop-quick-add-input").fill("finish");
+    await appPage.getByTestId("loop-quick-add-node-finish").click();
+    await expect(editorNode(appPage, "finish")).toHaveAttribute("data-node-focused", "true");
   });
-  const palette = appPage.getByTestId("loop-editor-palette");
-  await expect(palette).toBeVisible();
-  await palette.getByTestId("loop-palette-search").fill("route");
-  await expect(palette.getByTestId("loop-palette-item-route")).toBeVisible();
-  await expect(palette.getByTestId("loop-palette-item-ask")).toHaveCount(0);
-
-  await editorNode(appPage, "prepare").click();
-  await expect(inspectorToggle).toHaveAttribute("aria-pressed", "true");
-  await expect(appPage.getByTestId("loop-editor-tab-node")).toHaveAttribute(
-    "aria-selected",
-    "true"
-  );
-  await editorNode(appPage, "prepare").dispatchEvent("keydown", {
-    bubbles: true,
-    code: "BracketRight",
-    key: "]",
-  });
-  await expect(inspectorToggle).toHaveAttribute("aria-pressed", "false");
-
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("loop-editor-palette")).toBeVisible();
-  await expect(appPage.getByTestId("loop-editor-sidebar")).toHaveCount(0);
-});
-
-test("E2E-032: quick-add places, guards, and reveals nodes", async ({ appPage, runtime }) => {
-  await openInteractionEditor(appPage, runtime);
-  const canvas = appPage.getByTestId("loop-editor-canvas");
-  const prepare = editorNode(appPage, "prepare");
-  await prepare.click();
-  const expected = await canvas.evaluate(element => {
-    const rect = element.getBoundingClientRect();
-    const viewport = element.querySelector<HTMLElement>(".react-flow__viewport");
-    if (!viewport) throw new Error("React Flow viewport not found");
-    const matrix = new DOMMatrix(getComputedStyle(viewport).transform);
-    return {
-      x: (rect.width / 2 - matrix.e) / matrix.a - 188 / 2,
-      y: (rect.height / 2 - matrix.f) / matrix.d - 96 / 2,
-    };
-  });
-  await prepare.press("a");
-  await expect(appPage.getByTestId("loop-editor-quick-add")).toBeVisible();
-  await appPage.getByTestId("loop-quick-add-item-transform").click();
-
-  const added = appPage.locator('.react-flow__node[data-id="transform"]');
-  await expect(added).toBeVisible();
-  const actual = await added.evaluate(element => {
-    const matrix = new DOMMatrix(getComputedStyle(element).transform);
-    return { x: matrix.e, y: matrix.f };
-  });
-  expect(actual.x).toBeCloseTo(expected.x, 0);
-  expect(actual.y).toBeCloseTo(expected.y, 0);
-  await expect(appPage.getByTestId("loop-editor-save")).toBeEnabled();
-
-  const idInput = appPage.getByTestId("loop-field-id");
-  await idInput.focus();
-  await idInput.dispatchEvent("keydown", { key: "a", bubbles: true });
-  await expect(appPage.getByTestId("loop-editor-quick-add")).toHaveCount(0);
-
-  const nodeCount = await appPage.getByTestId("loop-editor-node").count();
-  await appPage.locator(".react-flow__pane").dblclick({ position: { x: 24, y: 24 } });
-  await expect(appPage.getByTestId("loop-editor-quick-add")).toBeVisible();
-  await appPage.getByTestId("loop-quick-add-input").press("Escape");
-  await expect(appPage.getByTestId("loop-editor-node")).toHaveCount(nodeCount);
-
-  await prepare.click();
-  await prepare.press("a");
-  await appPage.getByTestId("loop-quick-add-input").fill("finish");
-  await appPage.getByTestId("loop-quick-add-node-finish").click();
-  await expect(editorNode(appPage, "finish")).toHaveAttribute("data-node-focused", "true");
 });
 
 test("E2E-033: connection drop adds one wired node or no mutation", async ({
@@ -1054,110 +1176,179 @@ test("E2E-034: node menus and graph deletion preserve structural integrity", asy
   }
 });
 
-test("CompozyOS migration E2E-004: loop run renders API runtime provenance without controls", async ({
+test("CompozyOS migration E2E-004 / E2E-006: run provenance and exhausted feedback survive daemon reads", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  if (!runtime.paths) {
-    throw new Error("Loop runtime browser test requires launch-mode runtime paths");
-  }
+  // Preserve the combined budget of the two original journeys.
+  test.setTimeout(180_000);
+  await test.step("E2E-004: loop run renders API runtime provenance without controls", async () => {
+    if (!runtime.paths) {
+      throw new Error("Loop runtime browser test requires launch-mode runtime paths");
+    }
 
-  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+    const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
 
-  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
-  await runtime.requestJSON(`${workspacePath}/loops`, {
-    method: "POST",
-    body: JSON.stringify({ definition: loopRuntimeDefinition }),
+    const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+    await runtime.requestJSON(`${workspacePath}/loops`, {
+      method: "POST",
+      body: JSON.stringify({ definition: loopRuntimeDefinition }),
+    });
+
+    const started = await runtime.requestJSON<RunLoopResult>(
+      `${workspacePath}/loops/${encodeURIComponent(loopRuntimeName)}/run`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          config_overrides: {
+            runtime_rules: [
+              {
+                match: { type: "frontend" },
+                runtime: { model: "frontend-model", reasoning: "high" },
+              },
+            ],
+          },
+        }),
+      }
+    );
+    if (!started.run) throw new Error("Loop runtime browser seed did not create a run");
+
+    const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(started.run.id)}`;
+    try {
+      await expect
+        .poll(async () => (await runtime.requestJSON<LoopRunDetail>(runPath)).run.status, {
+          timeout: 30_000,
+        })
+        .toMatch(/^(done|no-op|blocked|failed|exhausted|stalled)$/);
+    } catch (error) {
+      const [stalledDetail, daemonLog] = await Promise.all([
+        runtime.requestJSON<LoopRunDetail>(runPath),
+        readFile(runtime.paths.daemonLog, "utf8").catch(
+          readError => `Could not read daemon log: ${String(readError)}`
+        ),
+      ]);
+      throw new Error(
+        `Loop runtime did not settle:\n${JSON.stringify(stalledDetail, null, 2)}\n\nDaemon log tail:\n${daemonLog
+          .split("\n")
+          .slice(-120)
+          .join("\n")}`,
+        { cause: error }
+      );
+    }
+
+    const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+    if (detail.run.status !== "done") {
+      const daemonLog = await readFile(runtime.paths.daemonLog, "utf8").catch(
+        error => `Could not read daemon log: ${String(error)}`
+      );
+      throw new Error(
+        `${JSON.stringify(detail, null, 2)}\n\nDaemon log tail:\n${daemonLog.split("\n").slice(-80).join("\n")}`
+      );
+    }
+    const outputs = resolvedRuntimeOutputs(detail);
+    expect(outputs.map(entry => entry.runtime)).toEqual([
+      {
+        provider: "acpmock",
+        model: "frontend-model",
+        reasoning: "high",
+        source: { provider: "default", model: "run", reasoning: "run", speed: "agent" },
+        speed: "normal",
+        speed_resolution: { requested: "normal", status: "applied" },
+      },
+      {
+        provider: "acpmock",
+        model: "docs-model",
+        reasoning: "low",
+        source: {
+          provider: "default",
+          model: "frontmatter",
+          reasoning: "default",
+          speed: "agent",
+        },
+        speed: "normal",
+        speed_resolution: { requested: "normal", status: "applied" },
+      },
+    ]);
+
+    await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(started.run.id)}`), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+    // The resolved-runtime rail was demoted in the two-register redesign and
+    // deleted with the rest of the cockpit; the provenance it showed is no longer
+    // a web surface. What still holds is that the run renders without offering a
+    // control over runtime selection.
+    await openRunRoster(appPage);
+    await expect(appPage.getByTestId("loop-node-roster")).toBeVisible();
+
+    await browserArtifacts.captureScreenshot("loop-run-runtime-provenance", appPage);
   });
 
-  const started = await runtime.requestJSON<RunLoopResult>(
-    `${workspacePath}/loops/${encodeURIComponent(loopRuntimeName)}/run`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        config_overrides: {
-          runtime_rules: [
-            {
-              match: { type: "frontend" },
-              runtime: { model: "frontend-model", reasoning: "high" },
-            },
-          ],
-        },
-      }),
+  await test.step("E2E-006: exhausted run renders score, best, restore, and best link", async () => {
+    if (!runtime.paths) {
+      throw new Error("Loop feedback browser test requires launch-mode runtime paths");
     }
-  );
-  if (!started.run) throw new Error("Loop runtime browser seed did not create a run");
 
-  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(started.run.id)}`;
-  try {
+    const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+    const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+    await runtime.requestJSON(`${workspacePath}/loops`, {
+      method: "POST",
+      body: JSON.stringify({ definition: loopFeedbackDefinition }),
+    });
+
+    const started = await runtime.requestJSON<RunLoopResult>(
+      `${workspacePath}/loops/${encodeURIComponent(loopFeedbackName)}/run`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          config_overrides: {
+            iteration_cap: 3,
+            no_progress_window: 10,
+            gate_max_revisions: 10,
+          },
+        }),
+      }
+    );
+    if (!started.run) throw new Error("Loop feedback browser seed did not create a run");
+
+    const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(started.run.id)}`;
     await expect
       .poll(async () => (await runtime.requestJSON<LoopRunDetail>(runPath)).run.status, {
         timeout: 30_000,
       })
-      .toMatch(/^(done|no-op|blocked|failed|exhausted|stalled)$/);
-  } catch (error) {
-    const [stalledDetail, daemonLog] = await Promise.all([
-      runtime.requestJSON<LoopRunDetail>(runPath),
-      readFile(runtime.paths.daemonLog, "utf8").catch(
-        readError => `Could not read daemon log: ${String(readError)}`
-      ),
-    ]);
-    throw new Error(
-      `Loop runtime did not settle:\n${JSON.stringify(stalledDetail, null, 2)}\n\nDaemon log tail:\n${daemonLog
-        .split("\n")
-        .slice(-120)
-        .join("\n")}`,
-      { cause: error }
-    );
-  }
+      .toBe("exhausted");
 
-  const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
-  if (detail.run.status !== "done") {
-    const daemonLog = await readFile(runtime.paths.daemonLog, "utf8").catch(
-      error => `Could not read daemon log: ${String(error)}`
-    );
-    throw new Error(
-      `${JSON.stringify(detail, null, 2)}\n\nDaemon log tail:\n${daemonLog.split("\n").slice(-80).join("\n")}`
-    );
-  }
-  const outputs = resolvedRuntimeOutputs(detail);
-  expect(outputs.map(entry => entry.runtime)).toEqual([
-    {
-      provider: "acpmock",
-      model: "frontend-model",
-      reasoning: "high",
-      source: { provider: "default", model: "run", reasoning: "run", speed: "agent" },
-      speed: "normal",
-      speed_resolution: { requested: "normal", status: "applied" },
-    },
-    {
-      provider: "acpmock",
-      model: "docs-model",
-      reasoning: "low",
-      source: {
-        provider: "default",
-        model: "frontmatter",
-        reasoning: "default",
-        speed: "agent",
-      },
-      speed: "normal",
-      speed_resolution: { requested: "normal", status: "applied" },
-    },
-  ]);
+    const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+    expect(detail.run.best_generation).toBe(1);
+    expect(detail.run.best_score).toBe(0.7);
+    expect(detail.generations?.[2]).toMatchObject({
+      generation: 3,
+      parent_generation: 1,
+      origin: "ratchet_restore",
+    });
 
-  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(started.run.id)}`), {
-    waitUntil: "domcontentloaded",
+    await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(started.run.id)}`), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+
+    const bestLink = appPage.getByRole("link", { name: "Best result · Round 1 · 0.70" });
+    await expect(bestLink).toHaveAttribute("href", "#loop-generation-1");
+    await bestLink.click();
+
+    const bestGeneration = appPage.locator("#loop-generation-1");
+    await expect(bestGeneration).toContainText("score 0.70");
+    await expect(bestGeneration.getByText("Best", { exact: true })).toBeVisible();
+
+    const restoredGeneration = appPage.locator("#loop-generation-3");
+    await expect(
+      restoredGeneration.getByText("Restored from round 1", { exact: true })
+    ).toBeVisible();
+    await expect(restoredGeneration).toContainText("score 0.50");
+
+    await browserArtifacts.captureScreenshot("loop-run-best-on-exhaustion", appPage);
   });
-  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
-  // The resolved-runtime rail was demoted in the two-register redesign and
-  // deleted with the rest of the cockpit; the provenance it showed is no longer
-  // a web surface. What still holds is that the run renders without offering a
-  // control over runtime selection.
-  await openRunRoster(appPage);
-  await expect(appPage.getByTestId("loop-node-roster")).toBeVisible();
-
-  await browserArtifacts.captureScreenshot("loop-run-runtime-provenance", appPage);
 });
 
 test("Parked watch-events run renders its durable cursor from the real daemon", async ({
@@ -1234,73 +1425,6 @@ test("Parked watch-events run renders its durable cursor from the real daemon", 
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
   await appPage.getByTestId("loop-run-open-inspect").click();
   await expect(appPage.getByTestId("loop-run-inspect-watch")).toHaveCount(0);
-});
-
-test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, and best link", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  if (!runtime.paths) {
-    throw new Error("Loop feedback browser test requires launch-mode runtime paths");
-  }
-
-  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
-  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
-  await runtime.requestJSON(`${workspacePath}/loops`, {
-    method: "POST",
-    body: JSON.stringify({ definition: loopFeedbackDefinition }),
-  });
-
-  const started = await runtime.requestJSON<RunLoopResult>(
-    `${workspacePath}/loops/${encodeURIComponent(loopFeedbackName)}/run`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        config_overrides: {
-          iteration_cap: 3,
-          no_progress_window: 10,
-          gate_max_revisions: 10,
-        },
-      }),
-    }
-  );
-  if (!started.run) throw new Error("Loop feedback browser seed did not create a run");
-
-  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(started.run.id)}`;
-  await expect
-    .poll(async () => (await runtime.requestJSON<LoopRunDetail>(runPath)).run.status, {
-      timeout: 30_000,
-    })
-    .toBe("exhausted");
-
-  const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
-  expect(detail.run.best_generation).toBe(1);
-  expect(detail.run.best_score).toBe(0.7);
-  expect(detail.generations?.[2]).toMatchObject({
-    generation: 3,
-    parent_generation: 1,
-    origin: "ratchet_restore",
-  });
-
-  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(started.run.id)}`), {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
-
-  const bestLink = appPage.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
-  await expect(bestLink).toHaveAttribute("href", "#loop-generation-1");
-  await bestLink.click();
-
-  const bestGeneration = appPage.locator("#loop-generation-1");
-  await expect(bestGeneration).toContainText("score 0.70");
-  await expect(bestGeneration.getByText("Best", { exact: true })).toBeVisible();
-
-  const restoredGeneration = appPage.locator("#loop-generation-3");
-  await expect(restoredGeneration.getByText("Restored from gen 1", { exact: true })).toBeVisible();
-  await expect(restoredGeneration).toContainText("score 0.50");
-
-  await browserArtifacts.captureScreenshot("loop-run-best-on-exhaustion", appPage);
 });
 
 // E2E-013: one Environment control per agent-executing node, a loop-level

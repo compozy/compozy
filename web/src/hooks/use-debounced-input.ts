@@ -34,3 +34,16 @@ export function useDebouncedInput({
       store.trigger.valueChanged({ commit: onCommit, delayMs, value }),
   };
 }
+
+/** Debounces a controlled value through the shared input scheduler. */
+export function useDebouncedValue(value: string, delayMs = 180) {
+  const store = useStore(debouncedInputLogic, { value });
+  const committedValue = useSelector(store, snapshot => snapshot.context.committedValue);
+
+  useEffect(() => {
+    store.trigger.valueChanged({ value, delayMs, commit: () => undefined });
+  }, [value, delayMs, store]);
+  useEffect(() => () => store.trigger.disposed(), [store]);
+
+  return committedValue;
+}

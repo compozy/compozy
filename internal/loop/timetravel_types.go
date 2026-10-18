@@ -44,12 +44,12 @@ type DiffEndpoint struct {
 	RunID      RunID  `json:"run_id"`
 	Generation int64  `json:"generation"`
 	Status     Status `json:"status"`
-	AsOf       bool   `json:"as_of,omitempty"`
+	AsOf       bool   `json:"as_of,omitzero"`
 }
 
 type DiffValue struct {
 	Inline json.RawMessage `json:"inline,omitempty"`
-	Size   int             `json:"size,omitempty"`
+	Size   int             `json:"size,omitzero"`
 	Hash   string          `json:"hash,omitempty"`
 }
 
@@ -61,7 +61,7 @@ type DiffInputRow struct {
 
 type DiffNodeRow struct {
 	NodeID    string    `json:"node_id"`
-	ItemIndex int       `json:"item_index,omitempty"`
+	ItemIndex int       `json:"item_index,omitzero"`
 	Change    string    `json:"change"`
 	Base      DiffValue `json:"base,omitzero"`
 	Against   DiffValue `json:"against,omitzero"`
@@ -79,8 +79,8 @@ type DiffResult struct {
 	Against              DiffEndpoint     `json:"against"`
 	Inputs               []DiffInputRow   `json:"inputs"`
 	Nodes                []DiffNodeRow    `json:"nodes"`
-	Terminal             *DiffTerminalRow `json:"terminal,omitempty"`
-	DefinitionDivergence bool             `json:"definition_divergence,omitempty"`
+	Terminal             *DiffTerminalRow `json:"terminal,omitzero"`
+	DefinitionDivergence bool             `json:"definition_divergence,omitzero"`
 }
 
 type RerunInput struct {
@@ -99,7 +99,7 @@ type RerunResult struct {
 	ParentGeneration int64    `json:"parent_generation"`
 	RerunNodes       []string `json:"rerun_nodes"`
 	Carried          int      `json:"carried"`
-	Replayed         bool     `json:"replayed,omitempty"`
+	Replayed         bool     `json:"replayed,omitzero"`
 }
 
 type ForkInput struct {
@@ -114,7 +114,7 @@ type ForkInput struct {
 
 type StartResult struct {
 	Run      Run  `json:"run"`
-	Replayed bool `json:"replayed,omitempty"`
+	Replayed bool `json:"replayed,omitzero"`
 }
 
 type TimeTravelOp struct {

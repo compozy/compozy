@@ -137,6 +137,7 @@ const windowManagerWindowOpenInputSchema = `{
 		"route":` + windowManagerRouteSchema + `,
 		"floating_rect":` + windowManagerRectSchema + `,
 		"insert_tiled":{"type":"boolean"},
+		"floating":{"type":"boolean"},
 		"stack_target_window_id":{"type":"string","minLength":1},
 		"restore_window_id":{"type":"string","minLength":1},
 		"rebase":` + windowManagerRebaseSchema + `,
@@ -315,10 +316,11 @@ const windowManagerLayoutArrangeInputSchema = `{
 		` + windowManagerRevisionSchema + `,
 		"desktop_id":{"type":"string","minLength":1},
 		"window_ids":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
-		"arrangement":{"type":"string","enum":["horizontal","vertical","grid","stack"]},
+		"arrangement":{"type":"string","enum":["horizontal","vertical","grid","stack","main_stack"]},
 		"frame":` + windowManagerRectSchema + `,
 		"group_id":{"type":"string","minLength":1},
 		"resource_id":{"type":"string","minLength":1},
+		"keep_frames":{"type":"boolean"},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
@@ -393,7 +395,7 @@ const windowManagerLayoutHistoryInputSchema = `{
 const windowManagerLayoutDocumentSchema = `{
 	"type":"object",
 	"properties":{
-		"version":{"type":"integer","const":4},
+		"version":{"type":"integer","const":5},
 		"workspace_id":{"type":"string","minLength":1},
 		"desktops":{"type":"array","minItems":1,"items":{"type":"object"}},
 		"windows":{"type":"object"},

@@ -6,7 +6,7 @@ func (h *Hooks) DispatchWorktreePreCreate(
 	ctx context.Context,
 	payload WorktreePreCreatePayload,
 ) (WorktreePreCreatePayload, error) {
-	return executeDispatch(ctx, h, HookWorktreePreCreate, payload,
+	return h.executeDispatch(ctx, HookWorktreePreCreate, payload,
 		dispatchConfig[WorktreePreCreatePayload, WorktreeControlPatch]{
 			match: matchWorktreePreCreate, apply: applyWorktreePreCreatePatch,
 			denied: worktreeControlPatchDenied,
@@ -20,7 +20,7 @@ func (h *Hooks) DispatchWorktreePreRemove(
 	ctx context.Context,
 	payload WorktreePreRemovePayload,
 ) (WorktreePreRemovePayload, error) {
-	return executeDispatch(ctx, h, HookWorktreePreRemove, payload,
+	return h.executeDispatch(ctx, HookWorktreePreRemove, payload,
 		dispatchConfig[WorktreePreRemovePayload, WorktreeControlPatch]{
 			match: matchWorktreePreRemove, apply: applyWorktreePreRemovePatch,
 			denied: worktreeControlPatchDenied,
@@ -34,7 +34,7 @@ func (h *Hooks) DispatchWorktreeCreated(
 	ctx context.Context,
 	payload WorktreeObservationPayload,
 ) (WorktreeObservationPayload, error) {
-	return executeDispatch(ctx, h, HookWorktreeCreated, payload,
+	return h.executeDispatch(ctx, HookWorktreeCreated, payload,
 		dispatchConfig[WorktreeObservationPayload, WorktreeObservationPatch]{
 			match: matchWorktreeObservation, apply: applyNoop[WorktreeObservationPayload, WorktreeObservationPatch],
 		})
@@ -44,7 +44,7 @@ func (h *Hooks) DispatchWorktreeAdopted(
 	ctx context.Context,
 	payload WorktreeObservationPayload,
 ) (WorktreeObservationPayload, error) {
-	return executeDispatch(ctx, h, HookWorktreeAdopted, payload,
+	return h.executeDispatch(ctx, HookWorktreeAdopted, payload,
 		dispatchConfig[WorktreeObservationPayload, WorktreeObservationPatch]{
 			match: matchWorktreeObservation, apply: applyNoop[WorktreeObservationPayload, WorktreeObservationPatch],
 		})
@@ -54,7 +54,7 @@ func (h *Hooks) DispatchWorktreeRemoved(
 	ctx context.Context,
 	payload WorktreeObservationPayload,
 ) (WorktreeObservationPayload, error) {
-	return executeDispatch(ctx, h, HookWorktreeRemoved, payload,
+	return h.executeDispatch(ctx, HookWorktreeRemoved, payload,
 		dispatchConfig[WorktreeObservationPayload, WorktreeObservationPatch]{
 			match: matchWorktreeObservation, apply: applyNoop[WorktreeObservationPayload, WorktreeObservationPatch],
 		})

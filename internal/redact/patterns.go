@@ -99,7 +99,7 @@ func IsSensitiveKey(key string) bool {
 	}
 	compact := compactSensitiveKey(normalized)
 	switch compact {
-	case "tokenpresent", "maxinputtokens", "maxoutputtokens":
+	case "tokenpresent", "maxinputtokens", "maxoutputtokens", "credentialrequirements":
 		return false
 	}
 	if strings.HasSuffix(compact, "hash") || strings.HasSuffix(compact, "digest") ||

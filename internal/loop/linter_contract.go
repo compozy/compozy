@@ -1,7 +1,8 @@
 package loop
 
 import (
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
@@ -9,11 +10,7 @@ import (
 func (c *lintContext) lintContractShape() {
 	c.lintMetrics()
 	if len(c.def.Contract.NoProgress.Extra) > 0 {
-		keys := make([]string, 0, len(c.def.Contract.NoProgress.Extra))
-		for key := range c.def.Contract.NoProgress.Extra {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(c.def.Contract.NoProgress.Extra))
 		for _, key := range keys {
 			c.add("", CodeUnknownParameter, "contract.no_progress.%s is not supported", key)
 		}

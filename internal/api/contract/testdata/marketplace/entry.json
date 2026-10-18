@@ -31,10 +31,7 @@
                 "prompt": "Access token",
                 "type": "secret",
                 "required": true,
-                "binding": {
-                    "type": "header",
-                    "name": "Authorization"
-                }
+                "binding": { "type": "header", "name": "Authorization" }
             }
         ],
         "mcp_servers": [
@@ -46,19 +43,10 @@
                 "launch": "remote",
                 "status": "ready",
                 "runtime_name": "tool--tools",
-                "auth": {
-                    "method": "none"
-                }
+                "auth": { "method": "none" }
             }
         ],
-        "contents": {
-            "skills": 1,
-            "mcp_servers": 1,
-            "hooks": 0,
-            "loops": 0,
-            "agents": 0,
-            "bridges": 0
-        },
+        "contents": { "skills": 1, "mcp_servers": 1, "hooks": 0, "loops": 0, "agents": 0 },
         "install_slug": "team/tool",
         "digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "repository": "https://github.com/acme/plugins"

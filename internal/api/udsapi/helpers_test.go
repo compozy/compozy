@@ -25,13 +25,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var errStubWorkspaceServiceNotImplemented = testutil.ErrStubWorkspaceServiceNotImplemented
-
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
 type stubTaskManager = testutil.StubTaskManager
-type stubBridgeService = testutil.StubBridgeService
-type stubNetworkService = testutil.StubNetworkService
 type stubResourceService = testutil.StubResourceService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type stubSkillsRegistry = testutil.StubSkillsRegistry
@@ -328,18 +324,18 @@ func newTestHandlers(
 		observer,
 		nil,
 		&stubTaskManager{},
-		nil,
+
 		stubWorkspaceService{},
 		nil,
 		homePaths,
 	)
 }
 
-func newTestHandlersWithBridges(
+func newTestHandlersWithServices(
 	t *testing.T,
 	manager core.SessionManager,
 	observer core.Observer,
-	bridges core.BridgeService,
+
 	workspaces core.WorkspaceService,
 	homePaths compozyconfig.HomePaths,
 ) *Handlers {
@@ -350,7 +346,7 @@ func newTestHandlersWithBridges(
 		observer,
 		nil,
 		&stubTaskManager{},
-		bridges,
+
 		workspaces,
 		nil,
 		homePaths,
@@ -371,7 +367,7 @@ func newTestHandlersWithExtensions(
 		observer,
 		nil,
 		&stubTaskManager{},
-		nil,
+
 		stubWorkspaceService{},
 		extensions,
 		homePaths,
@@ -387,7 +383,7 @@ func newTestHandlersWithSettingsAndExtensions(
 ) *Handlers {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	return newHandlers(&handlerConfig{
 		sessions:        stubSessionManager{},
 		tasks:           &stubTaskManager{},
@@ -412,14 +408,14 @@ func newTestHandlersWithRuntime(
 	observer core.Observer,
 	automation core.AutomationManager,
 	tasks core.TaskService,
-	bridges core.BridgeService,
+
 	workspaces core.WorkspaceService,
 	extensions ExtensionService,
 	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	manager = defaultTestSessionManager(manager)
 	workspaces = defaultTestWorkspaceService(workspaces)
 	return newHandlers(&handlerConfig{
@@ -428,7 +424,6 @@ func newTestHandlersWithRuntime(
 		tasks:          tasks,
 		observer:       observer,
 		automation:     automation,
-		bridges:        bridges,
 		workspaces:     workspaces,
 		homePaths:      homePaths,
 		config:         cfg,
@@ -487,7 +482,7 @@ func defaultTestWorkspaceService(workspaces core.WorkspaceService) core.Workspac
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 		}
 		return workspacepkg.ResolvedWorkspace{
-			Workspace:   workspacepkg.Workspace{ID: "ws-workspace", RootDir: "/workspace", Name: "Workspace"},
+			ID: "ws-workspace", RootDir: "/workspace", Name: "Workspace",
 			WorkspaceID: "ws-workspace",
 		}, nil
 	}
@@ -503,7 +498,7 @@ func newTestHandlersWithWorkspace(
 ) *Handlers {
 	t.Helper()
 
-	return newTestHandlersWithBridges(t, manager, observer, nil, workspaces, homePaths)
+	return newTestHandlersWithServices(t, manager, observer, workspaces, homePaths)
 }
 
 func newTestHandlersWithResources(
@@ -515,7 +510,7 @@ func newTestHandlersWithResources(
 ) *Handlers {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	return newHandlers(&handlerConfig{
 		sessions:     manager,
 		tasks:        &stubTaskManager{},
@@ -547,8 +542,8 @@ func newTestHomePaths(t *testing.T) compozyconfig.HomePaths {
 	return testutil.NewTestHomePaths(t)
 }
 
-func testConfigWithDisabledNetwork(homePaths compozyconfig.HomePaths) compozyconfig.Config {
-	return testutil.ConfigWithDisabledNetwork(homePaths)
+func testConfigForTest(homePaths compozyconfig.HomePaths) compozyconfig.Config {
+	return testutil.ConfigForTest(homePaths)
 }
 
 func shortSocketPath(t *testing.T) string {
@@ -602,35 +597,6 @@ func parseSSE(t *testing.T, body string) []sseRecord {
 	return testutil.ParseSSE(t, body)
 }
 
-func TestStubWorkspaceServiceDefaultsReportUnconfiguredMethods(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should report unconfigured workspace methods", func(t *testing.T) {
-		t.Parallel()
-
-		service := stubWorkspaceService{}
-
-		if _, err := service.Register(
-			context.Background(),
-			workspacepkg.RegisterOptions{},
-		); !errors.Is(
-			err,
-			errStubWorkspaceServiceNotImplemented,
-		) {
-			t.Fatalf("Register() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
-		}
-		if _, err := service.ResolveOrRegister(
-			context.Background(),
-			"/workspace",
-		); !errors.Is(
-			err,
-			errStubWorkspaceServiceNotImplemented,
-		) {
-			t.Fatalf("ResolveOrRegister() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
-		}
-	})
-}
-
 func newUnixClient(t *testing.T, socketPath string) *http.Client {
 	t.Helper()
 
@@ -666,14 +632,10 @@ func settingsTestSectionEnvelope(
 	switch section {
 	case settingspkg.SectionGeneral:
 		envelope.General = &settingspkg.GeneralSection{}
-	case settingspkg.SectionMemory:
-		envelope.Memory = &settingspkg.MemorySection{}
 	case settingspkg.SectionSkills:
 		envelope.Skills = &settingspkg.SkillsSection{}
 	case settingspkg.SectionAutomation:
 		envelope.Automation = &settingspkg.AutomationSection{}
-	case settingspkg.SectionNetwork:
-		envelope.Network = &settingspkg.NetworkSection{}
 	case settingspkg.SectionObservability:
 		envelope.Observability = &settingspkg.ObservabilitySection{}
 	case settingspkg.SectionHooksExtensions:
@@ -704,11 +666,6 @@ func settingsTestCollectionEnvelope(
 			Name:    "server-a",
 			Command: "mcpd",
 			Scope:   scope,
-		}}
-	case settingspkg.CollectionSandboxes:
-		envelope.Sandboxes = []settingspkg.SandboxItem{{
-			Name:    "demo",
-			Profile: compozyconfig.SandboxProfile{Backend: "local"},
 		}}
 	case settingspkg.CollectionHooks:
 		envelope.Hooks = []settingspkg.HookItem{}

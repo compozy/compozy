@@ -7,120 +7,178 @@ import (
 	"time"
 )
 
-type BridgeCheckResponse struct {
-	Checks []BridgeCheckRecord `json:"checks"`
+type ClarifyAskParams struct {
+	InvocationID string   `json:"invocation_id"`
+	Question     string   `json:"question"`
+	Choices      []string `json:"choices,omitempty"`
 }
 
-type BridgeCheckStatus string
+type ClientID string
 
-type BridgeDMPolicy string
-
-type BridgeDegradation struct {
-	Reason  BridgeDegradationReason `json:"reason"`
-	Message string                  `json:"message,omitempty"`
+type CmdPaletteAction struct {
+	Kind string         `json:"kind"`
+	Tool string         `json:"tool,omitempty"`
+	View string         `json:"view,omitempty"`
+	App  string         `json:"app,omitempty"`
+	URL  string         `json:"url,omitempty"`
+	Args map[string]any `json:"args,omitempty"`
 }
 
-type BridgeDegradationReason string
-
-type BridgeInstance struct {
-	ID                   string               `json:"id"`
-	ProfileID            string               `json:"profile_id"`
-	ProfileName          string               `json:"profile_name,omitempty"`
-	ProfileColor         string               `json:"profile_color,omitempty"`
-	ProfileIcon          string               `json:"profile_icon,omitempty"`
-	ProfileEmoji         string               `json:"profile_emoji,omitempty"`
-	ProfileArchived      bool                 `json:"profile_archived,omitempty"`
-	Scope                BridgeScope          `json:"scope"`
-	WorkspaceID          string               `json:"workspace_id,omitempty"`
-	Platform             string               `json:"platform"`
-	ExtensionName        string               `json:"extension_name"`
-	DisplayName          string               `json:"display_name"`
-	Source               BridgeInstanceSource `json:"source,omitempty"`
-	Enabled              bool                 `json:"enabled"`
-	Status               BridgeStatus         `json:"status"`
-	DMPolicy             BridgeDMPolicy       `json:"dm_policy,omitempty"`
-	RoutingPolicy        RoutingPolicy        `json:"routing_policy"`
-	ProviderConfig       json.RawMessage      `json:"provider_config,omitempty"`
-	DeliveryDefaults     json.RawMessage      `json:"delivery_defaults,omitempty"`
-	NotificationSuppress bool                 `json:"notification_suppress"`
-	Degradation          *BridgeDegradation   `json:"degradation,omitempty"`
-	CreatedAt            time.Time            `json:"created_at"`
-	UpdatedAt            time.Time            `json:"updated_at"`
+type CmdPaletteArgument struct {
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Placeholder string   `json:"placeholder,omitempty"`
+	Required    bool     `json:"required,omitempty"`
+	Options     []string `json:"options,omitempty"`
 }
 
-type BridgeInstanceSource string
-
-type BridgeInstanceTargetParams struct {
-	BridgeInstanceID string `json:"bridge_instance_id"`
+type CmdPaletteCommand struct {
+	ID              string                     `json:"id"`
+	Title           string                     `json:"title"`
+	Section         string                     `json:"section,omitempty"`
+	Icon            string                     `json:"icon"`
+	Profile         string                     `json:"profile,omitempty"`
+	Keywords        []string                   `json:"keywords,omitempty"`
+	Arguments       []CmdPaletteArgument       `json:"arguments,omitempty"`
+	Action          CmdPaletteAction           `json:"action"`
+	Destructive     bool                       `json:"destructive,omitempty"`
+	Confirmation    *CmdPaletteConfirmation    `json:"confirmation,omitempty"`
+	DefaultShortcut string                     `json:"default_shortcut,omitempty"`
+	Execution       *CmdPaletteExecutionPolicy `json:"execution,omitempty"`
 }
 
-type BridgeRuntimePurpose string
-
-type BridgeScope string
-
-type BridgeStatus string
-
-type BridgeStatusCounts struct {
-	Disabled     int `json:"disabled"`
-	Starting     int `json:"starting"`
-	Ready        int `json:"ready"`
-	Degraded     int `json:"degraded"`
-	AuthRequired int `json:"auth_required"`
-	Error        int `json:"error"`
+type CmdPaletteConfig struct {
+	Commands []CmdPaletteCommand `json:"commands,omitempty"`
+	Views    []CmdPaletteView    `json:"views,omitempty"`
 }
 
-type BridgeTargetSnapshot struct {
-	CanonicalRoute string           `json:"canonical_route"`
-	DisplayName    string           `json:"display_name"`
-	TargetType     BridgeTargetType `json:"target_type"`
-	Qualifier      string           `json:"qualifier,omitempty"`
-	Capabilities   []string         `json:"capabilities,omitempty"`
-	LastSeenAt     time.Time        `json:"last_seen_at,omitzero"`
+type CmdPaletteConfirmation struct {
+	Title   string `json:"title"`
+	Body    string `json:"body,omitempty"`
+	Confirm string `json:"confirm"`
 }
 
-type BridgeTargetSnapshotRequest struct {
-	BridgeInstanceID string `json:"bridge_instance_id"`
+type CmdPaletteExecutionPolicy struct {
+	SingleFlight *bool `json:"single_flight,omitempty"`
+	RetrySafe    *bool `json:"retry_safe,omitempty"`
 }
 
-type BridgeTargetSnapshotResponse struct {
-	Targets []BridgeTargetSnapshot `json:"targets"`
+type CmdPaletteView struct {
+	ID      string                `json:"id"`
+	Title   string                `json:"title"`
+	Kind    string                `json:"kind"`
+	Profile string                `json:"profile,omitempty"`
+	Source  *CmdPaletteViewSource `json:"source,omitempty"`
+	Program bool                  `json:"program,omitempty"`
 }
 
-type BridgeTargetType string
-
-type BridgeWebhookRegistrationRequest struct {
-	BridgeInstanceID string `json:"bridge_instance_id"`
-	PublicURL        string `json:"public_url,omitempty"`
+type CmdPaletteViewSource struct {
+	Tool string `json:"tool"`
 }
 
-type BridgeWebhookRegistrationResponse struct {
-	Status      BridgeCheckStatus `json:"status"`
-	Remediation string            `json:"remediation"`
+type CommandFlag struct {
+	Name       string          `json:"name"`
+	Field      string          `json:"field"`
+	Type       CommandFlagType `json:"type"`
+	Repeatable bool            `json:"repeatable"`
+	Required   bool            `json:"required"`
+	Nullable   bool            `json:"nullable"`
+	Enum       []string        `json:"enum,omitempty"`
+	Default    json.RawMessage `json:"default,omitempty"`
+	Minimum    *float64        `json:"minimum,omitempty"`
+	Maximum    *float64        `json:"maximum,omitempty"`
 }
 
-type BridgesInstancesReportStateParams struct {
-	BridgeInstanceID string             `json:"bridge_instance_id"`
-	Status           BridgeStatus       `json:"status"`
-	Degradation      *BridgeDegradation `json:"degradation,omitempty"`
-	ClearDegradation bool               `json:"clear_degradation,omitempty"`
+type CommandFlagType string
+
+const (
+	CommandFlagTypeString  CommandFlagType = "string"
+	CommandFlagTypeBoolean CommandFlagType = "boolean"
+	CommandFlagTypeInteger CommandFlagType = "integer"
+	CommandFlagTypeNumber  CommandFlagType = "number"
+)
+
+type CompactionMatcher struct {
+	Trigger string `json:"compaction_trigger,omitempty"`
 }
 
-type BridgesMessagesIngestResult struct {
-	SessionID    string     `json:"session_id"`
-	RouteCreated bool       `json:"route_created"`
-	RoutingKey   RoutingKey `json:"routing_key"`
+type Confirmation struct {
+	Title   string `json:"title"`
+	Body    string `json:"body,omitempty"`
+	Confirm string `json:"confirm"`
 }
 
-type CatalogScope string
+type ConnectivityAdvertisedEndpoint struct {
+	URL                 string `json:"url"`
+	Scheme              string `json:"scheme"`
+	SchemePolicy        string `json:"scheme_policy,omitempty"`
+	Stability           string `json:"stability"`
+	VerificationAddress string `json:"verification_address,omitempty"`
+}
 
-type CatalogSort string
+type ConnectivityEstablishRequest struct {
+	Tier          string    `json:"tier"`
+	ForwardTarget string    `json:"forward_target"`
+	ChallengePath string    `json:"challenge_path"`
+	Deadline      time.Time `json:"deadline"`
+}
 
-type ChannelStrategy string
+type ConnectivityReachability struct {
+	Tier      string                           `json:"tier"`
+	Endpoints []ConnectivityAdvertisedEndpoint `json:"endpoints"`
+	Health    string                           `json:"health"`
+	Reason    string                           `json:"reason,omitempty"`
+}
 
-type Chip struct {
-	ID       string            `json:"id"`
-	Label    string            `json:"label"`
-	Count    *int              `json:"count,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
+type ConnectivityStatusRequest struct {
+	Tier string `json:"tier"`
+}
+
+type ConnectivityTeardownRequest struct {
+	Tier     string    `json:"tier"`
+	Deadline time.Time `json:"deadline"`
+}
+
+type ConnectivityTeardownResponse struct {
+	Stopped bool `json:"stopped"`
+}
+
+type ConsentArea struct {
+	Area   string `json:"area"`
+	Access string `json:"access"`
+}
+
+type ContextBlock struct {
+	Kind     string            `json:"kind,omitempty"`
+	Text     string            `json:"text,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+type ContextCompactionPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type ContextCompactionPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	CompactionID   string    `json:"compaction_id"`
+	Trigger        string    `json:"trigger"`
+	Status         string    `json:"status,omitempty"`
+	Summary        string    `json:"summary,omitempty"`
+	Error          string    `json:"error,omitempty"`
 }

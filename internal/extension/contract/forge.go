@@ -35,6 +35,8 @@ type ForgeCapabilitiesResponse struct {
 type ForgeStatusRequest struct {
 	RemoteURLs []string `json:"remote_urls"`
 	Branch     string   `json:"branch"`
+	Base       string   `json:"base,omitempty"`
+	HeadSHA    string   `json:"head_sha,omitempty"`
 }
 
 type ForgeStatusResponse struct {
@@ -42,6 +44,10 @@ type ForgeStatusResponse struct {
 	PRNumber  *int      `json:"pr_number,omitempty"`
 	PRState   *string   `json:"pr_state,omitempty"`
 	PRURL     string    `json:"pr_url,omitempty"`
+	Head      string    `json:"head,omitempty"`
+	Base      string    `json:"base,omitempty"`
+	HeadSHA   string    `json:"head_sha,omitempty"`
+	Draft     *bool     `json:"draft,omitempty"`
 	Merged    *bool     `json:"merged,omitempty"`
 	FetchedAt time.Time `json:"fetched_at"`
 	Cause     string    `json:"cause,omitempty"`
@@ -50,6 +56,7 @@ type ForgeStatusResponse struct {
 type ForgePRCreateRequest struct {
 	RemoteURLs []string `json:"remote_urls"`
 	Head       string   `json:"head"`
+	HeadSHA    string   `json:"head_sha,omitempty"`
 	Base       string   `json:"base"`
 	Title      string   `json:"title"`
 	Body       string   `json:"body,omitempty"`

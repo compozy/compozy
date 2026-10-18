@@ -17,7 +17,7 @@ func (m *Manager) resolveLayoutResourceCommand(
 		return payload, nil
 	}
 	if command.DesktopID != "" || len(command.WindowIDs) != 0 || command.Arrangement != "" ||
-		command.Frame != (NormalizedRect{}) || command.GroupID != "" {
+		command.Frame != (NormalizedRect{}) || command.GroupID != "" || command.KeepFrames {
 		return nil, fmt.Errorf(
 			"layout resource cannot be combined with inline arrangement fields: %w",
 			ErrInvalidCommand,

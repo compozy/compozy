@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"strconv"
+
 	"strings"
 	"testing"
 	"time"
@@ -135,8 +135,8 @@ custom_sources = ["./relative-user-source"]
 `)
 
 		_, err = LoadForHome(homePaths)
-		var validation *SkillSourceValidationError
-		if !errors.As(err, &validation) || validation.Code != "invalid_source_path" ||
+		validation, validationOK := errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK || validation.Code != "invalid_source_path" ||
 			!strings.Contains(err.Error(), "workspace-relative paths require workspace scope") {
 			t.Fatalf("LoadForHome(relative user source) error = %#v, want invalid_source_path", err)
 		}
@@ -157,7 +157,8 @@ func TestApplyConfigOverlayFileAppliesDaemonRuntimeHealthSettings(t *testing.T) 
 		writeFile(
 			t,
 			overlayPath,
-			"[daemon]\nmemory_report_interval = \"0s\"\nsubprocess_health_escalation_threshold = 7\n",
+			"[daemon]\nmemory_report_interval = \"0s\"\nsubprocess_health_escalation_threshold = 7\n"+
+				"[daemon.load]\nagent_niceness = 0\nadmission_threshold = 2.5\nadmission_max_wait = \"45s\"\n",
 		)
 		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
@@ -167,6 +168,10 @@ func TestApplyConfigOverlayFileAppliesDaemonRuntimeHealthSettings(t *testing.T) 
 		}
 		if got, want := cfg.Daemon.SubprocessHealthEscalationThreshold, 7; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() threshold = %d, want %d", got, want)
+		}
+		wantLoad := DaemonLoadConfig{AgentNiceness: 0, AdmissionThreshold: 2.5, AdmissionMaxWait: 45 * time.Second}
+		if got := cfg.Daemon.Load; got != wantLoad {
+			t.Fatalf("ApplyConfigOverlayFile() Daemon.Load = %#v, want %#v", got, wantLoad)
 		}
 	})
 }
@@ -293,168 +298,6 @@ enabled = false
 	})
 }
 
-func TestApplyConfigOverlayFileAppliesNetworkOverlay(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldApplyNetworkOverlay", func(t *testing.T) {
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		cfg := DefaultWithHome(homePaths)
-
-		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
-		writeFile(t, overlayPath, `
-[network]
-enabled = true
-max_replay_age = 90
-
-[network.live.defaults]
-max_wakes = 10
-coalesce_window = "750ms"
-
-[network.live.limits]
-max_wakes = 72
-max_coalesce_window = "6s"
-`)
-
-		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
-			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
-		}
-
-		if !cfg.Network.Enabled {
-			t.Fatal("ApplyConfigOverlayFile() Network.Enabled = false, want true")
-		}
-		if got, want := cfg.Network.MaxReplayAge, 90; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.MaxReplayAge = %d, want %d", got, want)
-		}
-		if got, want := cfg.Network.Live.Defaults.MaxWakes, 10; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
-		}
-		if got, want := cfg.Network.Live.Limits.MaxWakes, 72; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
-		}
-		if got, want := cfg.Network.Live.Defaults.CoalesceWindow, "750ms"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Defaults.CoalesceWindow = %s, want %s", got, want)
-		}
-		if got, want := cfg.Network.Live.Limits.MaxCoalesceWindow, "6s"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Limits.MaxCoalesceWindow = %s, want %s", got, want)
-		}
-	})
-}
-
-func TestApplyConfigOverlayFileRejectsRemovedNetworkFields(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		field string
-		value string
-	}{
-		{name: "ShouldRejectRemovedGreetInterval", field: "greet_interval", value: "15"},
-		{name: "ShouldRejectRemovedMaxQueueDepth", field: "max_queue_depth", value: "12"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-			if err != nil {
-				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-			}
-			cfg := DefaultWithHome(homePaths)
-			overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
-			writeFile(t, overlayPath, "[network]\n"+tc.field+" = "+tc.value+"\n")
-
-			err = ApplyConfigOverlayFile(overlayPath, &cfg)
-			if err == nil {
-				t.Fatalf("ApplyConfigOverlayFile() error = nil, want %s rejection", tc.field)
-			}
-			if !strings.Contains(err.Error(), tc.field) {
-				t.Fatalf("ApplyConfigOverlayFile() error = %q, want %q", err, tc.field)
-			}
-		})
-	}
-}
-
-func TestApplyConfigOverlayFileMergesSandboxProfiles(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	cfg := DefaultWithHome(homePaths)
-	cfg.Sandboxes["daytona-dev"] = SandboxProfile{
-		Backend:     "daytona",
-		SyncMode:    "session-bidirectional",
-		Persistence: "reuse",
-		RuntimeRoot: "/workspace",
-		Env: map[string]string{
-			"GLOBAL_ONLY": "true",
-			"SHARED":      "global",
-		},
-		Network: NetworkProfile{
-			AllowOutbound: true,
-			AllowList:     []string{"api.example.test"},
-		},
-		Daytona: DaytonaProfile{
-			APIURL: "https://app.daytona.io/api",
-			Target: "team-default",
-			Image:  "ubuntu:24.04",
-			Class:  "cpu-2",
-		},
-	}
-
-	overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
-	writeFile(t, overlayPath, `
-[defaults]
-sandbox = "daytona-dev"
-
-[sandboxes.daytona-dev]
-sync_mode = "none"
-
-[sandboxes.daytona-dev.env]
-SHARED = "workspace"
-WORKSPACE_ONLY = "true"
-
-[sandboxes.daytona-dev.daytona]
-snapshot = "snap-workspace"
-`)
-
-	if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
-		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
-	}
-
-	profile := cfg.Sandboxes["daytona-dev"]
-	if got, want := cfg.Defaults.Sandbox, "daytona-dev"; got != want {
-		t.Fatalf("Defaults.Sandbox = %q, want %q", got, want)
-	}
-	if profile.Backend != "daytona" || profile.Persistence != "reuse" || profile.RuntimeRoot != "/workspace" {
-		t.Fatalf("sandbox profile base fields not preserved: %#v", profile)
-	}
-	if profile.SyncMode != "none" {
-		t.Fatalf("sandbox SyncMode = %q, want none", profile.SyncMode)
-	}
-	if profile.Daytona.APIURL != "https://app.daytona.io/api" ||
-		profile.Daytona.Image != "ubuntu:24.04" ||
-		profile.Daytona.Snapshot != "snap-workspace" {
-		t.Fatalf("Daytona overlay did not preserve provider fields: %#v", profile.Daytona)
-	}
-	if got, want := profile.Env["GLOBAL_ONLY"], "true"; got != want {
-		t.Fatalf("Env[GLOBAL_ONLY] = %q, want %q", got, want)
-	}
-	if got, want := profile.Env["SHARED"], "workspace"; got != want {
-		t.Fatalf("Env[SHARED] = %q, want %q", got, want)
-	}
-	if got, want := profile.Env["WORKSPACE_ONLY"], "true"; got != want {
-		t.Fatalf("Env[WORKSPACE_ONLY] = %q, want %q", got, want)
-	}
-}
-
 func TestApplyConfigOverlayFileAppliesExtensionsResourceOverlay(t *testing.T) {
 	t.Parallel()
 
@@ -510,71 +353,6 @@ queue = 1
 	}
 }
 
-func TestValidateWrapsNetworkErrorsWithConfigContext(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldWrapNetworkValidationErrorsWithConfigContext", func(t *testing.T) {
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		cfg := DefaultWithHome(homePaths)
-		cfg.Network.Live.Defaults.MaxWakes = cfg.Network.Live.Limits.MaxWakes + 1
-
-		err = cfg.Validate()
-		if err == nil {
-			t.Fatal("Validate() error = nil, want non-nil")
-		}
-		if !strings.Contains(err.Error(), "validate network config") ||
-			!strings.Contains(err.Error(), networkLiveLimitsMaxWakesPath) {
-			t.Fatalf("Validate() error = %q, want config and network context", err)
-		}
-	})
-}
-
-func TestValidateRejectsOverflowingNetworkDurations(t *testing.T) {
-	t.Parallel()
-
-	if strconv.IntSize < 64 {
-		t.Skip("overflow validation requires 64-bit int")
-	}
-
-	tests := []struct {
-		name   string
-		mutate func(*Config)
-		field  string
-	}{
-		{
-			name: "ShouldRejectOverflowingReplayAge",
-			mutate: func(cfg *Config) {
-				cfg.Network.MaxReplayAge = int(maxNetworkDurationSeconds + 1)
-			},
-			field: "network.max_replay_age",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-			if err != nil {
-				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-			}
-
-			cfg := DefaultWithHome(homePaths)
-			tc.mutate(&cfg)
-
-			err = cfg.Validate()
-			if err == nil {
-				t.Fatalf("Validate() error = nil, want non-nil for %s", tc.field)
-			}
-			if !strings.Contains(err.Error(), tc.field) {
-				t.Fatalf("Validate() error = %q, want field %q", err, tc.field)
-			}
-		})
-	}
-}
-
 func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 	t.Parallel()
 
@@ -583,15 +361,12 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 
 		cfg := DefaultWithHome(HomePaths{})
 		path := filepath.Join(t.TempDir(), "roles.toml")
-		writeFile(t, path, "[roles.dream]\nmodel = \"model-x\"\n")
+		writeFile(t, path, "[roles.auto_title]\nmodel = \"model-x\"\n")
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Model != "model-x" || cfg.Roles.Dream.Enabled {
-			t.Fatalf("Roles.Dream = %#v, want model override with disabled default", cfg.Roles.Dream)
-		}
-		if !reflect.DeepEqual(cfg.Roles.CheckpointSummary, DefaultRolesConfig().CheckpointSummary) {
-			t.Fatalf("Roles.CheckpointSummary = %#v, want defaults", cfg.Roles.CheckpointSummary)
+		if cfg.Roles.AutoTitle.Model != "model-x" || !cfg.Roles.AutoTitle.Enabled {
+			t.Fatalf("Roles.AutoTitle = %#v, want model override with disabled default", cfg.Roles.AutoTitle)
 		}
 	})
 
@@ -600,12 +375,12 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 
 		cfg := DefaultWithHome(HomePaths{})
 		path := filepath.Join(t.TempDir(), "roles.toml")
-		writeFile(t, path, "[roles.dream]\n")
+		writeFile(t, path, "[roles.auto_title]\n")
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Enabled {
-			t.Fatal("Roles.Dream.Enabled = true, want default false")
+		if !cfg.Roles.AutoTitle.Enabled {
+			t.Fatal("Roles.AutoTitle.Enabled = true, want default false")
 		}
 	})
 
@@ -613,23 +388,61 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultWithHome(HomePaths{})
-		cfg.Roles.Dream.FallbackChain = []RoleFallback{
+		cfg.Roles.AutoTitle.FallbackChain = []RoleFallback{
 			{Provider: "a", Model: "one"},
 			{Provider: "b", Model: "two"},
 		}
 		path := filepath.Join(t.TempDir(), "roles.toml")
 		writeFile(t, path, `
-[[roles.dream.fallback_chain]]
+[[roles.auto_title.fallback_chain]]
 provider = "c"
 model = "three"
 `)
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		got := cfg.Roles.Dream.FallbackChain
+		got := cfg.Roles.AutoTitle.FallbackChain
 		want := []RoleFallback{{Provider: "c", Model: "three"}}
 		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("Roles.Dream.FallbackChain = %#v, want %#v", got, want)
+			t.Fatalf("Roles.AutoTitle.FallbackChain = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should replace a route command with a workspace overlay chain", func(t *testing.T) { // UT-004
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		globalPath := filepath.Join(t.TempDir(), "config.toml")
+		writeFile(t, globalPath, `
+[[roles.auto_title.fallback_chain]]
+provider = "claude"
+model = "haiku-4-5"
+command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+`)
+		if err := ApplyConfigOverlayFile(globalPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile(global) error = %v", err)
+		}
+		if got := cfg.Roles.AutoTitle.FallbackChain; len(got) != 1 ||
+			got[0].Command != "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp" {
+			t.Fatalf("global Roles.AutoTitle.FallbackChain = %#v, want the route command", got)
+		}
+		overlay, err := loadConfigOverlayBytes([]byte(`
+[[roles.auto_title.fallback_chain]]
+provider = "codex"
+model = "gpt-5.6-terra"
+`), "workspace.toml")
+		if err != nil {
+			t.Fatalf("loadConfigOverlayBytes(workspace) error = %v", err)
+		}
+		if err := applyConfigOverlay(&cfg, &overlay, RoleFieldSourceWorkspace); err != nil {
+			t.Fatalf("applyConfigOverlay(workspace) error = %v", err)
+		}
+		want := []RoleFallback{{Provider: "codex", Model: "gpt-5.6-terra"}}
+		if got := cfg.Roles.AutoTitle.FallbackChain; !reflect.DeepEqual(got, want) {
+			t.Fatalf("effective Roles.AutoTitle.FallbackChain = %#v, want %#v", got, want)
+		}
+		if got := cfg.RoleFieldSource(RoleAutoTitle, RoleFieldFallbacks); got != RoleFieldSourceWorkspace {
+			t.Fatalf("RoleFieldSource(fallback_chain) = %q, want %q", got, RoleFieldSourceWorkspace)
 		}
 	})
 
@@ -639,24 +452,24 @@ model = "three"
 		cfg := DefaultWithHome(HomePaths{})
 		path := filepath.Join(t.TempDir(), "roles.toml")
 		writeFile(t, path, `
-[roles.dream]
+[roles.auto_title]
 speed = "fast"
 acp_options = [{ id = "thinking", bool_value = true }]
 `)
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Speed != "fast" || len(cfg.Roles.Dream.ACPOptions) != 1 {
-			t.Fatalf("Roles.Dream runtime = %#v, want speed and one ACP option", cfg.Roles.Dream)
+		if cfg.Roles.AutoTitle.Speed != "fast" || len(cfg.Roles.AutoTitle.ACPOptions) != 1 {
+			t.Fatalf("Roles.AutoTitle runtime = %#v, want speed and one ACP option", cfg.Roles.AutoTitle)
 		}
-		option := cfg.Roles.Dream.ACPOptions[0]
+		option := cfg.Roles.AutoTitle.ACPOptions[0]
 		if option.ID != "thinking" || option.BoolValue == nil || !*option.BoolValue {
-			t.Fatalf("Roles.Dream.ACPOptions = %#v, want thinking=true", cfg.Roles.Dream.ACPOptions)
+			t.Fatalf("Roles.AutoTitle.ACPOptions = %#v, want thinking=true", cfg.Roles.AutoTitle.ACPOptions)
 		}
-		if got := cfg.RoleFieldSource(RoleDream, RoleFieldSpeed); got != RoleFieldSourceGlobal {
+		if got := cfg.RoleFieldSource(RoleAutoTitle, RoleFieldSpeed); got != RoleFieldSourceGlobal {
 			t.Fatalf("RoleFieldSource(speed) = %q, want %q", got, RoleFieldSourceGlobal)
 		}
-		if got := cfg.RoleFieldSource(RoleDream, RoleFieldACPOptions); got != RoleFieldSourceGlobal {
+		if got := cfg.RoleFieldSource(RoleAutoTitle, RoleFieldACPOptions); got != RoleFieldSourceGlobal {
 			t.Fatalf("RoleFieldSource(acp_options) = %q, want %q", got, RoleFieldSourceGlobal)
 		}
 	})
@@ -665,19 +478,19 @@ acp_options = [{ id = "thinking", bool_value = true }]
 		t.Parallel()
 
 		cfg := DefaultWithHome(HomePaths{})
-		cfg.Roles.Dream.Model = "default-model"
+		cfg.Roles.AutoTitle.Model = "default-model"
 		globalPath := filepath.Join(t.TempDir(), "global.toml")
 		workspacePath := filepath.Join(t.TempDir(), "workspace.toml")
-		writeFile(t, globalPath, "[roles.dream]\nmodel = \"global-model\"\n")
-		writeFile(t, workspacePath, "[roles.dream]\nmodel = \"workspace-model\"\n")
+		writeFile(t, globalPath, "[roles.auto_title]\nmodel = \"global-model\"\n")
+		writeFile(t, workspacePath, "[roles.auto_title]\nmodel = \"workspace-model\"\n")
 		if err := ApplyConfigOverlayFile(globalPath, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile(global) error = %v", err)
 		}
 		if err := applyWorkspaceConfigOverlayFile(workspacePath, &cfg); err != nil {
 			t.Fatalf("applyWorkspaceConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Model != "workspace-model" {
-			t.Fatalf("Roles.Dream.Model = %q, want workspace-model", cfg.Roles.Dream.Model)
+		if cfg.Roles.AutoTitle.Model != "workspace-model" {
+			t.Fatalf("Roles.AutoTitle.Model = %q, want workspace-model", cfg.Roles.AutoTitle.Model)
 		}
 	})
 
@@ -712,10 +525,10 @@ acp_options = [{ id = "thinking", bool_value = true }]
 
 				cfg := DefaultWithHome(HomePaths{})
 				first := rolesOverlay{
-					Coordinator: coordinatorRoleOverlay{roleOverlay: roleOverlay{Enabled: tc.first}},
+					Coordinator: coordinatorRoleOverlay{Enabled: tc.first},
 				}
 				last := rolesOverlay{
-					Coordinator: coordinatorRoleOverlay{roleOverlay: roleOverlay{Enabled: tc.last}},
+					Coordinator: coordinatorRoleOverlay{Enabled: tc.last},
 				}
 				first.Apply(&cfg.Roles)
 				last.Apply(&cfg.Roles)
@@ -743,6 +556,7 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 		{name: "current disable both", body: "quiet_after = '0s'\nstop_grace = '1m'", want: QuietPolicy{}},
 		{name: "current warning only", body: "quiet_after = '5m'\nstop_grace = '0s'", want: QuietPolicy{WarningAfter: 5 * time.Minute}},
 		{name: "current keys win", body: "inactivity_warning_after = '1m'\ninactivity_timeout = '2m'\nquiet_after = '3m'\nstop_grace = '4m'", want: QuietPolicy{WarningAfter: 3 * time.Minute, StopGrace: 4 * time.Minute}},
+		{name: "idle release independent of quiet", body: "quiet_after = '5m'\nstop_grace = '0s'\nidle_release_after = '0s'", want: QuietPolicy{WarningAfter: 5 * time.Minute}},
 		{name: "legacy invalid order", body: "inactivity_warning_after = '2m'\ninactivity_timeout = '1m'", invalid: true},
 		{name: "legacy negative cutoff", body: "inactivity_timeout = '-1s'", invalid: true},
 	} {
@@ -769,7 +583,16 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 				t.Fatalf("policy = %+v, want %+v", got, tc.want)
 			}
 			entries := FlattenConfigEntries(RedactedConfigMap(&cfg))
-			for _, key := range []string{"quiet_after", "stop_grace", "inactivity_warning_after", "inactivity_timeout"} {
+			wantIdle := 30 * time.Minute
+			if strings.Contains(tc.body, "idle_release_after") {
+				wantIdle = 0
+			}
+			if got := cfg.Session.Supervision.IdleReleaseAfter; got != wantIdle {
+				t.Fatalf("idle_release_after = %s, want %s independent of the watchdog keys", got, wantIdle)
+			}
+			for _, key := range []string{
+				"quiet_after", "stop_grace", "idle_release_after", "inactivity_warning_after", "inactivity_timeout",
+			} {
 				path := "session.supervision." + key
 				if _, ok := EntryByPath(entries, path); !ok {
 					t.Fatalf("config read missing %s", path)

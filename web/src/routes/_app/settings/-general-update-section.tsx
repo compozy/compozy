@@ -1,25 +1,26 @@
-import { RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button, Pill, Spinner } from "@compozy/ui";
 import {
   SettingRow,
   SettingValue,
   SettingsGroup,
-  settingsUpdateApplicableTargets,
-  SettingsUpdateTrackRow,
-  settingsUpdateTracks,
+  settingsProductUpdate,
+  settingsUpdateHolderLabel,
   settingsUpdateView,
 } from "@/systems/settings";
 import type {
+  SettingsProductUpdateView,
   SettingsUpdateApplyResult,
   SettingsUpdateCancelResult,
   SettingsUpdateHolder,
   SettingsUpdateStatus,
-  SettingsUpdateTargetSet,
 } from "@/systems/settings";
 
 export interface GeneralUpdateActions {
-  apply: (targets: SettingsUpdateTargetSet) => void;
+  /** Updates every part of CompozyOS this surface may update, in one operation. */
+  apply: () => void;
   cancel: () => void;
   isApplying: boolean;
   isCanceling: boolean;
@@ -50,180 +51,331 @@ function RetryButton({ isFetching, onRetry }: { isFetching: boolean; onRetry: ()
       type="button"
       variant="ghost"
     >
-      <RefreshCw aria-hidden="true" className={isFetching ? "size-3 animate-spin" : "size-3"} />
+      {isFetching ? (
+        <Spinner aria-hidden="true" className="size-3.5" />
+      ) : (
+        <RefreshCw aria-hidden="true" />
+      )}
       Retry
     </Button>
   );
 }
 
+/** Who holds the update channel, in plain words; the process id stays in the tooltip. */
 function UpdateHolderValue({ holder }: { holder: SettingsUpdateHolder }) {
-  return <SettingValue mono>{`${holder.surface} · PID ${holder.pid}`}</SettingValue>;
+  return (
+    <span title={`${holder.surface} · PID ${holder.pid}`}>
+      <SettingValue>{`In use by ${settingsUpdateHolderLabel(holder)}`}</SettingValue>
+    </span>
+  );
+}
+
+function UpdatesGroup({
+  description,
+  action,
+  children,
+}: {
+  description?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <SettingsGroup
+      action={action}
+      data-testid="settings-page-general-updates"
+      description={description}
+      title="Updates"
+    >
+      {children}
+    </SettingsGroup>
+  );
+}
+
+function UpdateCheckingGroup() {
+  return (
+    <UpdatesGroup>
+      <SettingRow
+        data-testid="settings-page-general-update-status"
+        description="Checking for a new version."
+        label="CompozyOS"
+        control={
+          <>
+            <Spinner className="size-3.5 text-info" />
+            <SettingValue>Checking…</SettingValue>
+          </>
+        }
+      />
+    </UpdatesGroup>
+  );
+}
+
+function UpdateFailureGroup({
+  failed,
+  message,
+  isFetching,
+  onRetry,
+}: {
+  failed: boolean;
+  message: string;
+  isFetching: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <UpdatesGroup>
+      <SettingRow
+        data-testid="settings-page-general-update-status"
+        description={message}
+        label="CompozyOS"
+        control={
+          <>
+            <Pill form="plain" tone={failed ? "danger" : "warning"}>
+              <Pill.Dot />
+              {failed ? "Check failed" : "Unavailable"}
+            </Pill>
+            <RetryButton isFetching={isFetching} onRetry={onRetry} />
+          </>
+        }
+      />
+    </UpdatesGroup>
+  );
+}
+
+/** `current → latest` while a newer build is pending, else the bare version. */
+function ProductVersion({ product }: { product: SettingsProductUpdateView }) {
+  return (
+    <SettingValue mono>
+      {product.currentVersion}
+      {product.latestVersion ? (
+        <>
+          <span aria-hidden="true" className="text-faint">
+            {" → "}
+          </span>
+          <span className="sr-only"> to </span>
+          <span className="text-fg">{product.latestVersion}</span>
+        </>
+      ) : null}
+    </SettingValue>
+  );
+}
+
+/** Live work reads as one word; percent qualifies it only when something measures it. */
+function ProductProgress({ product }: { product: SettingsProductUpdateView }) {
+  return (
+    <span
+      aria-atomic="true"
+      aria-live="polite"
+      className="flex items-center gap-1.5"
+      data-phase={product.phase ?? undefined}
+      data-testid="settings-page-general-update-progress"
+      role="status"
+    >
+      <Spinner aria-hidden="true" className="size-3.5 text-info" role="presentation" />
+      <SettingValue>
+        <span className="text-fg">Updating</span>
+        {product.percent === null ? null : (
+          <>
+            <span aria-hidden="true" className="text-faint">
+              {" · "}
+            </span>
+            <span className="tabular-nums">{product.percent}%</span>
+          </>
+        )}
+      </SettingValue>
+    </span>
+  );
+}
+
+function productDescription(product: SettingsProductUpdateView): ReactNode {
+  if (!product.description && !product.recommendation) return undefined;
+  return (
+    <>
+      {product.description}
+      {product.recommendation ? (
+        <code
+          className="mt-1 block w-fit font-mono whitespace-nowrap text-fg"
+          data-testid="settings-page-general-update-recommendation"
+        >
+          {product.recommendation}
+        </code>
+      ) : null}
+    </>
+  );
+}
+
+function ProductUpdateRow({
+  product,
+  actions,
+  canApply,
+}: {
+  product: SettingsProductUpdateView;
+  actions: GeneralUpdateActions;
+  canApply: boolean;
+}) {
+  const updating = product.updating || actions.isApplying;
+  return (
+    <SettingRow
+      data-testid="settings-page-general-update-status"
+      description={productDescription(product)}
+      label="CompozyOS"
+      control={
+        <>
+          <ProductVersion product={product} />
+          {updating ? (
+            <ProductProgress product={product} />
+          ) : (
+            <Pill form="plain" tone={product.tone}>
+              <Pill.Dot />
+              {product.statusLabel}
+            </Pill>
+          )}
+          {canApply && !updating ? (
+            <Button
+              data-testid="settings-page-general-update-apply"
+              onClick={actions.apply}
+              size="sm"
+              type="button"
+              variant="primary"
+            >
+              Update
+            </Button>
+          ) : null}
+          {product.canCancel ? (
+            <Button
+              data-testid="settings-page-general-update-cancel"
+              disabled={actions.isCanceling}
+              onClick={actions.cancel}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {actions.isCanceling ? <Spinner className="size-3.5" /> : null}
+              Cancel update
+            </Button>
+          ) : null}
+          {product.releaseUrl && product.latestVersion ? (
+            <Button
+              nativeButton={false}
+              render={
+                <a
+                  aria-label="Open release notes"
+                  data-testid="settings-page-general-update-release"
+                  href={product.releaseUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                />
+              }
+              size="sm"
+              variant="ghost"
+            >
+              <ExternalLink aria-hidden="true" className="text-subtle" />
+            </Button>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+function UpdateBlockedRow({ result }: { result: SettingsUpdateApplyResult | null }) {
+  // A blocked apply is a 200 whose body refuses; it never reads as success.
+  if (result?.status !== "blocked") return null;
+  return (
+    <SettingRow
+      data-testid="settings-page-general-update-blocked"
+      description={result.message}
+      label="Update channel busy"
+      control={result.holder ? <UpdateHolderValue holder={result.holder} /> : undefined}
+    />
+  );
+}
+
+function UpdateCancelResultRow({ result }: { result: SettingsUpdateCancelResult | null }) {
+  if (!result) return null;
+  const canceled = result.status === "canceled";
+  return (
+    <SettingRow
+      data-testid="settings-page-general-update-cancel-result"
+      description={result.message}
+      label={canceled ? "Update canceled" : "Cancel declined"}
+      control={
+        result.holder ? (
+          <UpdateHolderValue holder={result.holder} />
+        ) : (
+          <Pill form="plain" tone={canceled ? "neutral" : "warning"}>
+            <Pill.Dot />
+            {canceled ? "Canceled" : "Declined"}
+          </Pill>
+        )
+      }
+    />
+  );
 }
 
 /**
- * Settings → General → Updates: one durable action applies every eligible track,
- * while each row keeps the track state the daemon reports (ADR-006). The section holds no shell
- * awareness — it reads the daemon like any browser client, so it renders
+ * Settings → General → Updates: CompozyOS is one product with one version and one
+ * Update button. The daemon still applies the runtime and the desktop app as one
+ * durable operation (ADR-006); that split never surfaces here. The section holds
+ * no shell awareness — it reads the daemon like any browser client, so it renders
  * identically in the desktop app and in a plain browser.
  */
 export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
+  const { actions, isFetching, onRetry } = props;
   const view = settingsUpdateView(props);
-  if (view.kind === "checking") {
+  if (view.kind === "checking") return <UpdateCheckingGroup />;
+  if (view.kind !== "snapshot") {
     return (
-      <SettingsGroup data-testid="settings-page-general-updates" title="Updates">
-        <SettingRow
-          data-testid="settings-page-general-update-status"
-          description="Checking the install method and latest stable release."
-          label="CompozyOS version"
-          control={
-            <>
-              <Spinner className="size-3.5 text-info" />
-              <SettingValue>Checking…</SettingValue>
-            </>
-          }
-        />
-      </SettingsGroup>
+      <UpdateFailureGroup
+        failed={view.kind === "error"}
+        isFetching={isFetching}
+        message={view.message}
+        onRetry={onRetry}
+      />
     );
   }
 
-  if (view.kind === "error" || view.kind === "unavailable") {
-    return (
-      <SettingsGroup data-testid="settings-page-general-updates" title="Updates">
-        <SettingRow
-          data-testid="settings-page-general-update-status"
-          description={view.message}
-          label="CompozyOS version"
-          control={
-            <>
-              <Pill tone={view.kind === "error" ? "danger" : "warning"}>
-                {view.kind === "error" ? "Check failed" : "Unavailable"}
-              </Pill>
-              <RetryButton isFetching={props.isFetching} onRetry={props.onRetry} />
-            </>
-          }
-        />
-        {view.kind === "error" ? (
-          <SettingRow
-            data-testid="settings-page-general-update-last-error"
-            description={<span className="text-danger">{view.message}</span>}
-            label="Last error"
-          />
-        ) : null}
-      </SettingsGroup>
-    );
-  }
-
-  const snapshot = view.snapshot;
-  const tracks = settingsUpdateTracks(snapshot);
-  const applicableTargets = view.refreshError ? null : settingsUpdateApplicableTargets(tracks);
-  const runtime = tracks[0];
-  // A blocked apply is a 200 whose body refuses; it never reads as success.
-  const blocked = props.actions.result?.status === "blocked" ? props.actions.result : null;
-  const cancelResult = props.actions.cancelResult;
+  const { refreshError } = view;
+  const product = settingsProductUpdate(view.snapshot);
 
   return (
-    <SettingsGroup
-      data-testid="settings-page-general-updates"
-      title="Updates"
+    <UpdatesGroup
       // A failed refresh is one event for the whole section, so it lives once in
-      // the header while every row keeps its last known truth.
+      // the header while the row keeps its last known truth.
       description={
-        view.refreshError
-          ? `Showing the last known status. Refresh failed: ${view.refreshError}`
-          : undefined
+        refreshError ? `Showing the last known status. Refresh failed: ${refreshError}` : undefined
       }
       action={
-        view.refreshError || applicableTargets ? (
+        refreshError ? (
           <>
-            {applicableTargets ? (
-              <Button
-                data-testid="settings-page-general-update-apply"
-                disabled={props.actions.isApplying}
-                onClick={() => props.actions.apply(applicableTargets)}
-                size="sm"
-                type="button"
-                variant="neutral"
-              >
-                {props.actions.isApplying ? <Spinner className="size-3" /> : null}
-                Update CompozyOS
-              </Button>
-            ) : null}
-            {view.refreshError ? (
-              <>
-                <Pill tone="danger">Refresh failed</Pill>
-                <RetryButton isFetching={props.isFetching} onRetry={props.onRetry} />
-              </>
-            ) : null}
+            <Pill form="plain" tone="danger">
+              <Pill.Dot />
+              Refresh failed
+            </Pill>
+            <RetryButton isFetching={isFetching} onRetry={onRetry} />
           </>
         ) : null
       }
     >
-      {tracks.map(track => (
-        <SettingsUpdateTrackRow
-          key={track.id}
-          isCanceling={props.actions.isCanceling}
-          onCancel={props.actions.cancel}
-          track={track}
-        />
-      ))}
-      {runtime.recommendation ? (
-        <SettingRow
-          data-testid="settings-page-general-update-recommendation"
-          label="Upgrade command"
-          control={<SettingValue mono>{runtime.recommendation}</SettingValue>}
-        />
-      ) : null}
-      {blocked ? (
-        <SettingRow
-          data-testid="settings-page-general-update-blocked"
-          description={blocked.message}
-          label="Update channel busy"
-          control={blocked.holder ? <UpdateHolderValue holder={blocked.holder} /> : undefined}
-        />
-      ) : null}
-      {cancelResult ? (
-        <SettingRow
-          data-testid="settings-page-general-update-cancel-result"
-          description={cancelResult.message}
-          label={cancelResult.status === "canceled" ? "Update canceled" : "Cancel declined"}
-          control={
-            cancelResult.holder ? (
-              <UpdateHolderValue holder={cancelResult.holder} />
-            ) : (
-              <Pill tone={cancelResult.status === "canceled" ? "neutral" : "warning"}>
-                {cancelResult.status === "canceled" ? "Canceled" : "Declined"}
-              </Pill>
-            )
-          }
-        />
-      ) : null}
-      {props.actions.error ? (
+      <ProductUpdateRow
+        actions={actions}
+        canApply={!refreshError && product.targets !== null}
+        product={product}
+      />
+      <UpdateBlockedRow result={actions.result} />
+      <UpdateCancelResultRow result={actions.cancelResult} />
+      {actions.error ? (
         <SettingRow
           data-testid="settings-page-general-update-action-error"
-          description={<span className="text-danger">{props.actions.error}</span>}
-          label="Update request failed"
+          description={<span className="text-danger">{actions.error}</span>}
+          label="The update couldn't start"
         />
       ) : null}
-      {tracks.map(track =>
-        track.restoredVersion ? (
-          <SettingRow
-            key={`${track.id}-rollback`}
-            data-testid="settings-page-general-update-rollback"
-            label={`${track.label} restored version`}
-            control={<SettingValue mono>{track.restoredVersion}</SettingValue>}
-          />
-        ) : null
-      )}
-      {tracks.map(track =>
-        track.lastError ? (
-          <SettingRow
-            key={`${track.id}-error`}
-            data-testid="settings-page-general-update-last-error"
-            description={<span className="text-danger">{track.lastError}</span>}
-            label={`${track.label} last error`}
-          />
-        ) : null
-      )}
-    </SettingsGroup>
+      {product.lastError ? (
+        <SettingRow
+          data-testid="settings-page-general-update-last-error"
+          description={<span className="text-danger">{product.lastError}</span>}
+          label="What went wrong"
+        />
+      ) : null}
+    </UpdatesGroup>
   );
 }

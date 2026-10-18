@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -79,7 +79,7 @@ func (g *typeGenerator) renderAll() error {
 		if len(names) == 0 {
 			return nil
 		}
-		sort.Strings(names)
+		slices.Sort(names)
 		for _, name := range names {
 			block, err := g.renderDeclaration(name, g.declarations[name])
 			if err != nil {

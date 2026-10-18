@@ -20,12 +20,13 @@ func NewModelCatalogValidationError(err error) error {
 
 // StatusForModelCatalogError maps model catalog failures to transport statuses.
 func StatusForModelCatalogError(err error) int {
-	var maxBytesErr *http.MaxBytesError
-	switch {
-	case err == nil:
+	if err == nil {
 		return http.StatusOK
-	case errors.As(err, &maxBytesErr):
+	}
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		return http.StatusRequestEntityTooLarge
+	}
+	switch {
 	case errors.Is(err, ErrModelCatalogValidation),
 		errors.Is(err, modelcatalog.ErrSourceNotRegistered):
 		return http.StatusBadRequest

@@ -178,6 +178,21 @@ extension, and MCP tool is a Loop action for free.
 | `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`, `runtime?`; see the [Goal node reference](/docs/loops/goal-node) |
 | any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                                              |
 
+A detached `run-loop` returns `{loop_run_id}`. An awaited `run-loop` without `produces` keeps
+the existing scalar terminal output (`child_loop_status:done` or `child_loop_status:no-op`). To
+use the child identity in a downstream node, declare its complete terminal result:
+
+```yaml
+produces:
+  loop_run_id: string
+  status: string
+```
+
+After the child ends successfully, `nodes.<id>.output.loop_run_id` is its exact Run ID and
+`nodes.<id>.output.status` is `done` or `no-op`. A detached node may declare only
+`loop_run_id: string`. Validation rejects other `run-loop` output declarations before execution.
+Existing runs keep their pinned definitions and stored results.
+
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
 The daemon validates the agent's exact structured result against that schema before it settles the
@@ -252,10 +267,14 @@ types fail validation before the child starts.
 
 An exact reference keeps the source JSON type: the token budget remains a number and runtime rules
 remain an array. See [Reference grammar](/docs/loops/reference-grammar#typed-direct-references).
-`run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
+`run-agent` sessions use the target agent definition plus workspace defaults for
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
 rejects the node run deterministically before an ungated session can start.
+The restriction is pinned with the managed session's creation profile. Reusing a binding with
+a different explicit tool list fails with a binding mismatch; an equivalent list reuses the session.
+Policy refusals publish `allowed_tools_policy_violation` with the rejected tool and recovery
+guidance in the Loop's action failure.
 
 ### Control nodes
 
@@ -347,19 +366,16 @@ classification, and delivery guarantees.
 ### Durable wait control
 
 ```yaml
-- id: wait_for_approval
+- id: wait_for_completion
   class: control
   kind: wait
   params:
-    event: { kind: approval.received }
-    expect: { type: object, required: [approved] }
+    event: { kind: task.run.completed }
     ahead_arrival: consume_on_entry
-    expires:
-      after: 72h
-      escalate:
-        - emit: { kind: approval.overdue }
-      route: timed_out
 ```
+
+Event kinds must belong to the [hook event catalog](/docs/hooks/event-catalog). Run
+`compozy hooks events` to inspect the daemon's active catalog before authoring a subscription.
 
 Choose exactly one wait source: `for` (duration), `until` (timestamp), or `event` (subscription).
 `expect` is the JSON schema for a manual or event resume payload. `ahead_arrival` is
@@ -424,15 +440,14 @@ kind outside the supported set fails lint (`watch_events_kind_unsupported`). Onl
 observation** hooks are subscribable — sync-eligible `pre_*` hooks are rejected (you watch committed
 state, you do not intercept it).
 
-| Family        | Kinds                                                                                                                                                         | Replay ledger                 |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `task`        | `task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered`                                                             | `task_events`                 |
-| `task.run`    | `task.run.completed`, `task.run.failed`                                                                                                                       | `task_events`                 |
-| `loop`        | `loop.terminal`, `loop.node.terminal`                                                                                                                         | `loop_run_events`             |
-| `automation`  | `automation.run.completed`, `automation.run.failed`                                                                                                           | `automation_runs`             |
-| `network`     | `network.message.persisted`, `network.thread.opened`, `network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`, `network.work.closed` | `network_timeline_log`        |
-| `coordinator` | `coordinator.spawned`, `coordinator.decision`, `coordinator.stopped`, `coordinator.failed`                                                                    | `event_summaries`             |
-| `event`       | `event.post_record`                                                                                                                                           | `session_events:<session_id>` |
+| Family        | Kinds                                                                                             | Replay ledger                 |
+| ------------- | ------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `task`        | `task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered` | `task_events`                 |
+| `task.run`    | `task.run.completed`, `task.run.failed`                                                           | `task_events`                 |
+| `loop`        | `loop.terminal`, `loop.node.terminal`                                                             | `loop_run_events`             |
+| `automation`  | `automation.run.completed`, `automation.run.failed`                                               | `automation_runs`             |
+| `coordinator` | `coordinator.spawned`, `coordinator.decision`, `coordinator.stopped`, `coordinator.failed`        | `event_summaries`             |
+| `event`       | `event.post_record`                                                                               | `session_events:<session_id>` |
 
 `event.post_record` subscriptions must constrain `event.session_id` with equality; otherwise lint
 returns `watch_events_filter_too_broad`. Its output includes metadata such as `record_type`,
@@ -552,7 +567,7 @@ start:
 ```
 
 Available kinds: `manual`, `cli`, `http`, `uds`, `native_tool`, `schedule`, `trigger`, `webhook`,
-`network`, `extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride CompozyOS's existing
+`extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride CompozyOS's existing
 [automation](/docs/automation) primitives — a `Trigger` or `Job` targets the Loop with
 typed inputs. A watch-source is a body-node concept, **never** a start binding.
 
@@ -578,3 +593,16 @@ ceiling. Effective config resolves field by field from built-ins, the definition
 overrides. `effective_config.sources` identifies the winning logical source for each JSON Pointer.
 Other bounded fields remain clamped to their documented ceilings. See
 [configure](/docs/loops/configure).
+
+For a review child that may be adopted after recovery, reserve an optional JSON string input
+`reviewed_worktree` containing a JSON object with exactly `worktree_id`, `include_paths`, and `fingerprint`.
+Capture its canonical ID, complete selected file list and SHA-256 fingerprint from a scoped
+`compozy worktree exit --include` plan before the original review. Pass the JSON string through
+`run-loop.params.inputs.reviewed_worktree`; an exact template reference preserves its value.
+The child definition must declare this optional JSON string input, as bundled `review-and-fix` does.
+
+Adoption requires the original persisted child inputs to equal the rematerialized parent inputs,
+then an independent check of the registered worktree's repository, branch, HEAD, selected bytes
+and index. A mutable task slug or path is insufficient. Absent or stale proof preserves normal
+review execution; recovery never replaces the reviewed fingerprint with a newly calculated one.
+The proof permits 1–4096 exact selected file paths and rejects unknown object fields.

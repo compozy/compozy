@@ -33,7 +33,7 @@ type LifecycleRegistry interface {
 	Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error
 	Disable(name string) error
 	Uninstall(name string) error
-	RestoreNetworkConfirmation(InstanceKey, NetworkConfirmation) error
+	RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error
 }
 
 var _ LifecycleRegistry = (*Registry)(nil)
@@ -116,7 +116,7 @@ type MarketplaceUpdateResult struct {
 	Path           string                              `json:"path"`
 	Status         string                              `json:"status"`
 	Warnings       []diagnosticcontract.DiagnosticItem `json:"warnings,omitempty"`
-	Error          *diagnosticcontract.DiagnosticItem  `json:"error,omitempty"`
+	Error          *diagnosticcontract.DiagnosticItem  `json:"error,omitzero"`
 }
 
 type stagedExtensionDirChange struct {
@@ -184,11 +184,9 @@ func prepareMarketplacePackage(ctx context.Context, homePaths compozyconfig.Home
 	case req.Plugin != nil:
 		downloader = &pluginMarketplaceDownloader{acquisition: req.Plugin}
 		detail = &registrypkg.Detail{
-			Listing: registrypkg.Listing{
-				Slug:    slug,
-				Source:  req.Plugin.SourceName,
-				Version: req.Plugin.Record.Version,
-			},
+			Slug:       slug,
+			Source:     req.Plugin.SourceName,
+			Version:    req.Plugin.Record.Version,
 			Repository: req.Plugin.Record.SourceRef,
 		}
 	case hasCuratedMarketplaceArtifact(req.Trust):

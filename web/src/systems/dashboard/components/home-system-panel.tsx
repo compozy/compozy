@@ -1,7 +1,6 @@
 import { ChevronDown } from "lucide-react";
 
 import {
-  CodeBlock,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -10,7 +9,7 @@ import {
   Pill,
 } from "@compozy/ui";
 
-import type { HomeSystemModel } from "../hooks/use-home-system";
+import type { HomeSystemModel } from "../lib/home-system";
 
 export interface HomeSystemPanelProps {
   system: HomeSystemModel;
@@ -20,7 +19,7 @@ export interface HomeSystemPanelProps {
 
 /**
  * Zone 7 — the operator depth, folded by default. One truthful summary line;
- * the expanded tiles and the CLI echo carry the full system state.
+ * the expanded tiles carry the full system state.
  */
 export function HomeSystemPanel({ system, open, onOpenChange }: HomeSystemPanelProps) {
   if (system.tiles.length === 0) {
@@ -30,12 +29,12 @@ export function HomeSystemPanel({ system, open, onOpenChange }: HomeSystemPanelP
   return (
     <Panel bodyClassName="p-0" data-slot="home-system">
       <Collapsible onOpenChange={onOpenChange} open={open}>
-        <CollapsibleTrigger className="group flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors duration-base hover:bg-row-hover focus-visible:shadow-focus-inset focus-visible:outline-none">
+        <CollapsibleTrigger className="group flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none">
           <Pill.Dot tone={system.allNormal ? "success" : "warning"} />
           <span className="shrink-0 text-small-body font-medium text-fg-strong">
             {system.allNormal ? "All systems normal" : "Needs a look"}
           </span>
-          <span className="min-w-0 flex-1 truncate font-mono text-mono-id tabular-nums text-subtle">
+          <span className="min-w-0 flex-1 truncate text-small-body text-muted">
             {system.summary}
           </span>
           <ChevronDown
@@ -60,11 +59,6 @@ export function HomeSystemPanel({ system, open, onOpenChange }: HomeSystemPanelP
                 />
               ))}
             </div>
-            <CodeBlock
-              className="mt-3"
-              code={"# same view from the CLI\ncompozy observe overview -o json"}
-              language="bash"
-            />
           </div>
         </CollapsibleContent>
       </Collapsible>

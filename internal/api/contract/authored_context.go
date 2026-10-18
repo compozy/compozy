@@ -182,7 +182,6 @@ type AgentSoulFrontmatterPayload struct {
 	Principles    []string `json:"principles,omitempty"`
 	Constraints   []string `json:"constraints,omitempty"`
 	Collaboration []string `json:"collaboration,omitempty"`
-	MemoryPolicy  []string `json:"memory_policy,omitempty"`
 	Tags          []string `json:"tags,omitempty"`
 }
 

@@ -19,6 +19,7 @@ const (
 	cliSourceKey      = "source"
 	cliSourcesKey     = "sources"
 	cliNameHeader     = "NAME"
+	cliKindHeader     = "KIND"
 	cliOriginHeader   = "ORIGIN"
 	cliSourceHeader   = "SOURCE"
 	cliKindValue      = "Kind"
@@ -47,4 +48,21 @@ const (
 	cliClientsUse     = "clients"
 	agentOutputLabel  = automationAgentValue
 	roleOutputLabel   = "Role"
+)
+
+const (
+	cliOutputModeKey                  = "mode"
+	cliOutputModeValue                = "Mode"
+	cliOutputListKey                  = "list"
+	cliOutputMessageKey               = "message"
+	cliOutputScopeKey                 = "scope"
+	cliOutputSessionIDKey             = "session_id"
+	cliOutputUpdatedAtKey             = "updated_at"
+	cliOutputSetupWebhookPathKey      = "webhook_path"
+	cliOutputToolOperatorPreviewValue = "Preview"
+	cliOutputStateValue               = "State"
+	cliOutputDeliveredKey             = "delivered"
+	cliOutputKindKey                  = "kind"
+	cliOutputMessageIDKey             = "message_id"
+	cliOutputTitleKey                 = "title"
 )

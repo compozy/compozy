@@ -8,28 +8,6 @@ import (
 	"time"
 )
 
-func TestProcessIntegrationLifecycle(t *testing.T) {
-	process := launchHelperProcess(t, "default", LaunchConfig{})
-	defer shutdownProcess(t, process)
-
-	initializeProcess(t, process, InitializeRuntime{
-		HealthCheckIntervalMS: 100,
-		HealthCheckTimeoutMS:  25,
-		ShutdownTimeoutMS:     250,
-		DefaultHookTimeoutMS:  100,
-	})
-
-	var response struct {
-		Message string `json:"message"`
-	}
-	if err := process.Call(testContext(t), "echo", map[string]string{"message": "integration"}, &response); err != nil {
-		t.Fatalf("Call(echo) error = %v", err)
-	}
-	if response.Message != "integration" {
-		t.Fatalf("Call(echo) response = %#v, want integration", response)
-	}
-}
-
 func TestProcessIntegrationCrashRecovery(t *testing.T) {
 	process := launchHelperProcess(t, "crash_after_init", LaunchConfig{})
 
@@ -71,9 +49,7 @@ func TestProcessIntegrationConcurrentRequests(t *testing.T) {
 	results := make(chan result, 3)
 	var wg sync.WaitGroup
 	for index, delay := range []int64{80, 10, 40} {
-		wg.Add(1)
-		go func(index int, delay int64) {
-			defer wg.Done()
+		wg.Go(func() {
 			var response struct {
 				Message string `json:"message"`
 			}
@@ -82,7 +58,7 @@ func TestProcessIntegrationConcurrentRequests(t *testing.T) {
 				"message":  "req-" + string(rune('A'+index)),
 			}, &response)
 			results <- result{index: index, message: response.Message, err: err}
-		}(index, delay)
+		})
 	}
 
 	wg.Wait()

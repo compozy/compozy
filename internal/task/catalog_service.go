@@ -22,6 +22,15 @@ func (m *Service) ListTaskCatalog(
 	}
 	if !isTaskOperator(actor) {
 		workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
+		if target := strings.TrimSpace(
+			query.WorkspaceID,
+		); target != "" &&
+			query.Scope.Normalize() != CatalogScopeGlobal {
+			if err := m.authorizeTaskScope(ctx, actor, ScopeWorkspace, target); err != nil {
+				return CatalogPage{}, err
+			}
+			workspaceID = target
+		}
 		if actor.Actor.Kind.Normalize() == ActorKindAgentSession || workspaceID != "" {
 			switch query.Scope.Normalize() {
 			case CatalogScopeGlobal:

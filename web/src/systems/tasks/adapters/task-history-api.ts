@@ -17,6 +17,7 @@ import type {
   TaskTriageState,
 } from "../types";
 import { normalizeOptionalText, TasksApiError } from "./tasks-api-errors";
+import type { ProfileScopeParams } from "@/systems/profiles";
 
 export async function listTaskRuns(
   id: string,
@@ -27,6 +28,8 @@ export async function listTaskRuns(
     params: {
       path: { id },
       query: {
+        profile: filters.profile,
+        all_profiles: filters.all_profiles,
         status: filters.status,
         session_id: normalizeOptionalText(filters.session_id),
         limit: filters.limit,
@@ -92,7 +95,12 @@ export async function getTaskTimeline(
   const { data, error, response } = await apiClient.GET("/api/tasks/{id}/timeline", {
     params: {
       path: { id },
-      query: { after_sequence: filters.after_sequence, limit: filters.limit },
+      query: {
+        after_sequence: filters.after_sequence,
+        limit: filters.limit,
+        profile: filters.profile,
+        all_profiles: filters.all_profiles,
+      },
     },
     signal,
   });
@@ -106,9 +114,13 @@ export async function getTaskTimeline(
   return requireResponseData(data, response, `Failed to fetch timeline for task "${id}"`).timeline;
 }
 
-export async function getTaskTree(id: string, signal?: AbortSignal): Promise<TaskTreeView> {
+export async function getTaskTree(
+  id: string,
+  scope: ProfileScopeParams,
+  signal?: AbortSignal
+): Promise<TaskTreeView> {
   const { data, error, response } = await apiClient.GET("/api/tasks/{id}/tree", {
-    params: { path: { id } },
+    params: { path: { id }, query: scope },
     signal,
   });
   if (apiRequestFailed(response, error)) {

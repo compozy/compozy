@@ -60,12 +60,10 @@ func CloneSessionAttention(attention *SessionAttention) *SessionAttention {
 	}
 	cloned := *attention
 	if attention.LastSeenAt != nil {
-		lastSeenAt := *attention.LastSeenAt
-		cloned.LastSeenAt = &lastSeenAt
+		cloned.LastSeenAt = new(*attention.LastSeenAt)
 	}
 	if attention.AttentionChangedAt != nil {
-		attentionChangedAt := *attention.AttentionChangedAt
-		cloned.AttentionChangedAt = &attentionChangedAt
+		cloned.AttentionChangedAt = new(*attention.AttentionChangedAt)
 	}
 	return &cloned
 }
@@ -136,8 +134,7 @@ func SanitizePendingInteraction(interaction PendingInteraction) PendingInteracti
 	interaction.Resolution = resolution.Resolution
 	interaction.ResolvedBy = resolution.ResolvedBy
 	if interaction.ResolvedAt != nil {
-		resolvedAt := interaction.ResolvedAt.UTC()
-		interaction.ResolvedAt = &resolvedAt
+		interaction.ResolvedAt = new(interaction.ResolvedAt.UTC())
 	}
 	return interaction
 }
@@ -215,8 +212,7 @@ func (r PendingInteractionTransition) Normalize() PendingInteractionTransition {
 		r.At = r.At.UTC()
 	}
 	if r.OrphanInput != nil {
-		normalizedInput := r.OrphanInput.Normalize()
-		r.OrphanInput = &normalizedInput
+		r.OrphanInput = new(r.OrphanInput.Normalize())
 	}
 	return r
 }

@@ -12,6 +12,8 @@ interface SessionTimelineBasePart {
   state?: string;
   /** Position in the daemon's projected `message.parts`; search results name it (`part_index`). */
   partIndex?: number;
+  /** The provider-native subagent call this part belongs to (S8); absent for the parent's own work. */
+  parentToolCallId?: string;
 }
 
 export interface SessionTimelineTextPart extends SessionTimelineBasePart {

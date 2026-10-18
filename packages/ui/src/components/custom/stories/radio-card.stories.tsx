@@ -13,7 +13,7 @@ const meta: Meta<typeof RadioCard> = {
     docs: {
       description: {
         component:
-          "Single radio choice rendered as a card. Resting state is flat on `--canvas-soft`; selected state lifts to `--surface-glaze` with a 1 px inset `--line-strong` ring (no accent).",
+          "Single radio choice rendered as a card. Resting state is a `--canvas` card with `shadow-card`; selected state fills with `--selected` and a 1 px inset `--line-strong` ring (no accent).",
       },
     },
   },
@@ -88,14 +88,14 @@ export const SelectedVsRest: Story = {
     <div role="radiogroup" aria-label="Sample" className="flex flex-col gap-2">
       <RadioCard
         title="Selected option"
-        description="`--surface-glaze` background + 1 px inset `--line-strong` ring."
+        description="`--selected` background + 1 px inset `--line-strong` ring."
         icon={CpuIcon}
         selected
         onSelect={() => undefined}
       />
       <RadioCard
         title="Resting option"
-        description="Hover lifts the surface to `--elevated`."
+        description="Hover steps the surface to `--surface-2`."
         icon={ZapIcon}
         selected={false}
         onSelect={() => undefined}

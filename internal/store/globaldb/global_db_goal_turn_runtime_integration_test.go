@@ -1110,6 +1110,53 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept native completion without waiting for baseline telemetry", func(t *testing.T) {
+		t.Parallel()
+		db, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-native-compact")
+		seq := int64(52)
+		if _, err := db.RecordContextUsage(
+			t.Context(),
+			goal.RecordContextUsageRequest{
+				Key:                  key,
+				ExpectedControlEpoch: 1,
+				ExpectedBindingEpoch: 1,
+				ExpectedPhase:        "idle",
+				SessionID:            "session-goal-runtime",
+				BindingHandle:        "goal:runtime",
+				Usage:                goal.ContextUsage{Known: true, Used: 9, Size: 10, Sequence: seq, ReportedAt: now},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		ticket, terminal := finalizeGoalRuntimeCompaction(t, db, key, taskRunID, "goal-native-compact", seq, now)
+		terminal.Compaction = &looppkg.ActionCompactionOutcome{CompactionID: "c1", Status: "completed"}
+		checkpoint, err := db.CompleteCompaction(
+			t.Context(),
+			goal.CompleteCompactionRequest{
+				Key:                  key,
+				ExpectedControlEpoch: 1,
+				ExpectedBindingEpoch: 1,
+				TaskRunID:            taskRunID,
+				QueueEntryID:         ticket.QueueEntryID,
+				PromptID:             ticket.PromptID,
+				Result: goal.CompactionResult{
+					PromptResult:      terminal,
+					Outcome:           goal.CompactionSucceeded,
+					UsageSequence:     &seq,
+					UsageBaselineUsed: new(int64(9)),
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if checkpoint.ContextState != "unknown" || checkpoint.CompactionBaselineUsed != nil ||
+			checkpoint.UsagePendingAfterSequence != nil ||
+			checkpoint.CompactionRecoveryRequired {
+			t.Fatalf("native checkpoint=%#v", checkpoint)
+		}
+	})
+
 	t.Run("Should preserve known context after an ineffective compaction", func(t *testing.T) {
 		t.Parallel()
 
@@ -1467,14 +1514,12 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			replayErrors := make(chan error, replayCount)
 			var replayWG sync.WaitGroup
 			for range replayCount {
-				replayWG.Add(1)
-				go func() {
-					defer replayWG.Done()
+				replayWG.Go(func() {
 					replay := mutation
 					replay.RequestedAt = canceledAt.Add(2 * time.Second)
 					_, replayErr := globalDB.RequestRunCancellation(ctx, replay)
 					replayErrors <- replayErr
-				}()
+				})
 			}
 			replayWG.Wait()
 			close(replayErrors)
@@ -1545,7 +1590,11 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 					t.Fatalf("set cancellation origin identity: %v", err)
 				}
 			}
-			if _, err := db.db.ExecContext(ctx, "UPDATE loop_runs SET generation = 1 WHERE id = ?", "run-cancel"); err != nil {
+			if _, err := db.db.ExecContext(
+				ctx,
+				"UPDATE loop_runs SET generation = 1 WHERE id = ?",
+				"run-cancel",
+			); err != nil {
 				t.Fatalf("set active cancellation generation: %v", err)
 			}
 			key := goal.TurnKey{WorkspaceID: "ws-cancel", LoopRunID: "run-cancel", Generation: 1, NodeID: "goal"}
@@ -2293,20 +2342,20 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 				defer wait.Done()
 				<-start
 				err := globalDB.SetLoopRunPauseRequested(
-					context.Background(), key.WorkspaceID, key.LoopRunID, true, pauseActor,
+					t.Context(), key.WorkspaceID, key.LoopRunID, true, pauseActor,
 				)
 				results <- boundaryRaceResult{kind: "pause", err: err}
 			}()
 			go func() {
 				defer wait.Done()
 				<-start
-				_, err := globalDB.RecordReportIntent(context.Background(), reportReq)
+				_, err := globalDB.RecordReportIntent(t.Context(), reportReq)
 				results <- boundaryRaceResult{kind: "report", err: err}
 			}()
 			go func() {
 				defer wait.Done()
 				<-start
-				err := globalDB.FinalizeGoalPrompt(context.Background(), goal.FinalizePromptRequest{
+				err := globalDB.FinalizeGoalPrompt(t.Context(), goal.FinalizePromptRequest{
 					Key:                  key,
 					ExpectedControlEpoch: 1,
 					ExpectedBindingEpoch: 1,
@@ -2324,7 +2373,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			go func() {
 				defer wait.Done()
 				<-start
-				decision, err := globalDB.FlushAndCheck(context.Background(), budgetSnapshot)
+				decision, err := globalDB.FlushAndCheck(t.Context(), budgetSnapshot)
 				results <- boundaryRaceResult{kind: "budget", decision: decision, err: err}
 			}()
 		}
@@ -2371,7 +2420,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		for range settlementContenders {
 			go func() {
 				defer wait.Done()
-				_, err := globalDB.CompleteTurn(context.Background(), settleReq)
+				_, err := globalDB.CompleteTurn(t.Context(), settleReq)
 				settlementErrors <- err
 			}()
 		}
@@ -2436,10 +2485,8 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		var mu sync.Mutex
 		successes := 0
 		for range workers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				_, err := globalDB.ClaimPreparedWorkPrompt(context.Background(), goal.ClaimPreparedWorkPromptRequest{
+			wg.Go(func() {
+				_, err := globalDB.ClaimPreparedWorkPrompt(t.Context(), goal.ClaimPreparedWorkPromptRequest{
 					Key:                  key,
 					ExpectedControlEpoch: 1,
 					TaskRunID:            taskRunID,
@@ -2457,7 +2504,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 					successes++
 					mu.Unlock()
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		if successes != 1 {

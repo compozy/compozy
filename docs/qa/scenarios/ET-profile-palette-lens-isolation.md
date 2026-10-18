@@ -6,13 +6,13 @@ persona: Ada
 journey: J-command-profiles-from-palette
 expected: Catalog, search, providers, domain views, view sessions, invoke, events, and web caches all carry one real profile lens or the explicit labeled aggregate; omitting the lens at a public boundary resolves default rather than everything; a session-bound caller cannot select a different profile; ranking, recents, query hits, and pins are partitioned per lens with the aggregate keeping its own history and never reading or mutating a real profile's.
 entry_points: Command-K in two profiles; compozy cmd-palette list|inspect|pin|unpin|personalization show|reset; palette catalog, search, views, view-sessions, invoke, and SSE routes over HTTP and UDS; compozy__cmd_palette_list|invoke inside a session
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-palette-view; ET-palette-personalization-lifecycle; ET-agent-palette-config-parity; ET-profile-scoped-work-reads
 ---
 
@@ -47,3 +47,7 @@ Expected evidence: paired palette screenshots per profile and for the aggregate;
 `cmd-palette list` and `personalization show` output per lens; the no-parameter and conflict
 responses on both transports; the native-tool refusal payload; before-and-after cache captures
 across a switch and a reload; and the personalization row counts before and after the delete.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -26,3 +26,12 @@ path may carry a timeout failure, timeout marker, or failed parent wake.
 Automated lifecycle evidence covers both classifications and exact-once in-process effects. A
 provider-backed CLI/HTTP/UDS walk remains blocked until a human supplies an isolated ACP provider
 and confirms the settled and genuinely in-flight prompt paths through public surfaces.
+
+QA impact 2026-10-09 — Subagents service slice: delegate a `spawn_role=subagent` child without TTL,
+then verify that TTL reaping never selects it and that stopping its parent still stops it. A
+`spawn.pre_create` rewrite adding TTL must deny delegation. Plain governed spawn retains its existing
+TTL requirement. Automated evidence: `TestSubagentSpawn` (`internal/session/spawn_test.go`) and
+`TestSubagentReaper` (`internal/daemon/spawn_reaper_test.go`). `TestSubagentDaemonIntegration`
+sweeps real sessions with a clock advanced by one year; `TestSubagentStopDaemonIntegration` checks
+synchronous root/child/grandchild teardown with real ACP subprocesses. Integrated public-surface
+execution is owned by the subagents controller QA pass.

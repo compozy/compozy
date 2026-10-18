@@ -25,27 +25,31 @@ const secrets: VaultSecret[] = [
 ];
 
 describe("VaultSecretsList", () => {
-  it("Should render ready rows with namespace tones", () => {
-    render(<VaultSecretsList secrets={secrets} />);
+  it("Should title rows by the friendly name and keep the full ref reachable", () => {
+    render(<VaultSecretsList onSelect={vi.fn()} secrets={secrets} />);
 
     expect(screen.getByTestId("vault-secrets-list")).toHaveAttribute(
       "data-slot",
       "data-surface-content"
     );
-    expect(screen.getByText("sessions")).toHaveAttribute("data-tone", "info");
-    expect(screen.getByText("providers")).toHaveAttribute("data-tone", "neutral");
-    expect(screen.getAllByTestId("vault-secrets-row")).toHaveLength(2);
+    const rows = screen.getAllByTestId("vault-secrets-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("api_key");
+    expect(rows[0]).toHaveTextContent("sessions/session_01");
+    expect(rows[0]).not.toHaveTextContent(secrets[0].ref);
+    expect(screen.getByTestId(`vault-secrets-select-${secrets[0].ref}`)).toHaveAttribute(
+      "title",
+      secrets[0].ref
+    );
   });
 
-  it("Should render the secret kind as a neutral pill (— no tone until enum lands)", () => {
+  it("Should render the secret kind as a neutral pill and nothing when it is empty", () => {
     render(<VaultSecretsList secrets={secrets} />);
     const kindPill = screen.getByTestId(`vault-secrets-kind-${secrets[0].ref}`);
     expect(kindPill).toHaveAttribute("data-tone", "neutral");
     expect(kindPill).toHaveTextContent("api_key");
-    // Empty kind falls back to "--" instead of a pill so absent kinds don't render colour.
-    expect(screen.getByTestId(`vault-secrets-kind-empty-${secrets[1].ref}`)).toHaveTextContent(
-      "--"
-    );
+    expect(screen.queryByTestId(`vault-secrets-kind-${secrets[1].ref}`)).toBeNull();
+    expect(screen.getAllByTestId("vault-secrets-row")[1]).not.toHaveTextContent("--");
   });
 
   it("Should render updated timestamps via <Time>", () => {
@@ -114,7 +118,7 @@ describe("VaultSecretsList", () => {
 describe("VaultSecretSheet", () => {
   const secret = secrets[0];
 
-  it("Should render redacted metadata tiles without plaintext values", () => {
+  it("Should render the saved state and facts without plaintext values", () => {
     const { container } = render(
       <VaultSecretSheet
         deleteIsDisabled={false}
@@ -133,10 +137,9 @@ describe("VaultSecretSheet", () => {
 
     expect(screen.getByTestId("vault-secret-sheet-title")).toHaveTextContent("api_key");
     expect(screen.getByTestId("vault-secret-sheet-ref")).toHaveTextContent(secret.ref);
-    expect(screen.getByTestId("vault-secret-sheet-value")).toHaveTextContent("write-only");
-    expect(screen.getByTestId("vault-secret-sheet-foot")).toHaveTextContent(
-      `compozy vault put ${secret.ref} --value-stdin`
-    );
+    expect(screen.getByTestId("vault-secret-sheet-value")).toHaveTextContent("Saved");
+    expect(screen.getByTestId("vault-secret-sheet-facts")).toHaveTextContent("Created");
+    expect(container.textContent).not.toContain("compozy vault put");
     expect(container.textContent).not.toContain("plaintext-secret");
   });
 
@@ -173,7 +176,7 @@ describe("VaultSecretSheet", () => {
     expect(onRequestDelete).toHaveBeenCalledWith(secret);
   });
 
-  it("Should handle clipboard rejection and report that the reference was not copied", async () => {
+  it("Should handle clipboard rejection and report that the name was not copied", async () => {
     const writeText = vi.fn().mockRejectedValue(new Error("Clipboard blocked"));
     vi.stubGlobal("navigator", { clipboard: { writeText } });
 
@@ -196,8 +199,9 @@ describe("VaultSecretSheet", () => {
     fireEvent.click(screen.getByTestId("vault-secret-sheet-copy"));
 
     await waitFor(() =>
-      expect(screen.getByTestId("vault-secret-sheet-copy-error")).toHaveTextContent(
-        "Vault reference could not be copied."
+      expect(screen.getByTestId("vault-secret-sheet-copy")).toHaveAttribute(
+        "aria-label",
+        "Couldn't copy name"
       )
     );
     expect(writeText).toHaveBeenCalledWith(secret.ref);

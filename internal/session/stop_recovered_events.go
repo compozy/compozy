@@ -68,6 +68,6 @@ func (m *Manager) recordRecoveredStopEvent(
 		return err
 	}
 	m.publishSessionEventByID(ctx, id, persisted)
-	m.notifyAgentEventFromInfo(ctx, sessionInfoFromMeta(meta), event)
+	m.notifyAgentEventFromInfo(ctx, sessionInfoFromMeta(&meta), event)
 	return nil
 }

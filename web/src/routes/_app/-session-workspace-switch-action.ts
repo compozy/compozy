@@ -6,8 +6,8 @@ export function confirmSessionWorkspaceSwitch(
   options: { isGlobal: boolean },
   reenterDeepLink: () => void
 ): void {
-  // The home row is never a selectable workspace — writing its id into the
-  // store would poison the remembered project selection.
+  // Global history has no project id. Preserve the remembered project while
+  // changing only the data scope.
   if (options.isGlobal) {
     enableGlobalScope();
   } else {

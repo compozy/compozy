@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -14,6 +15,29 @@ import (
 )
 
 const EventTypeClarify = acp.EventTypeClarify
+
+// clarifyPendingWire mirrors toolspkg.ClarifyPending with a nullable Deadline
+// so unbounded waits render null instead of the year-1 epoch.
+type clarifyPendingWire struct {
+	toolspkg.ClarifyPending
+	Deadline *time.Time `json:"deadline"`
+}
+
+// clarifyEventWire mirrors toolspkg.ClarifyEvent with the nullable-deadline request.
+type clarifyEventWire struct {
+	toolspkg.ClarifyEvent
+	Request clarifyPendingWire `json:"request"`
+}
+
+func clarifyEventWirePayload(event toolspkg.ClarifyEvent) clarifyEventWire {
+	wire := clarifyEventWire{ClarifyEvent: event}
+	wire.Request = clarifyPendingWire{ClarifyPending: event.Request}
+	if !event.Request.Deadline.IsZero() {
+		deadline := event.Request.Deadline
+		wire.Request.Deadline = &deadline
+	}
+	return wire
+}
 
 // PublishClarifyEvent durably records one typed clarification transition before SSE publication.
 func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.ClarifyEvent) error {
@@ -43,7 +67,7 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 	if err != nil {
 		return fmt.Errorf("session: persist canonical clarification attention: %w", err)
 	}
-	payload, err := json.Marshal(event)
+	payload, err := json.Marshal(clarifyEventWirePayload(event))
 	if err != nil {
 		return m.handleClarifyTranscriptFailure(ctx, active, event, attentionCommitted, err)
 	}

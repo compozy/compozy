@@ -71,7 +71,7 @@ func drainStatusBundle(result DrainStatusRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Daemon admission", []keyValue{
-				{Label: networkStateValue, Value: string(result.State)},
+				{Label: cliOutputStateValue, Value: string(result.State)},
 				{Label: "Active session executions", Value: strconv.Itoa(result.ActiveSessionExecutions)},
 				{Label: "Active task claims", Value: strconv.Itoa(result.ActiveTaskClaims)},
 				{Label: "Safe to stop", Value: strconv.FormatBool(result.SafeToStop)},

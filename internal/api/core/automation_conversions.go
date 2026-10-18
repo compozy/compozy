@@ -6,7 +6,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // AutomationSchedulerStatePayloadFromState converts durable scheduler metadata
@@ -110,8 +109,7 @@ func schedulerNextRun(state *contract.AutomationSchedulerStatePayload) *time.Tim
 	if state == nil || state.NextRunAt == nil {
 		return nil
 	}
-	nextRun := state.NextRunAt.UTC()
-	return &nextRun
+	return new(state.NextRunAt.UTC())
 }
 
 // TriggerPayloadFromTrigger converts an automation trigger into the shared response payload.
@@ -127,25 +125,24 @@ func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.Tr
 // RunPayloadFromRun converts an automation run into the shared response payload.
 func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
 	return contract.RunPayload{
-		ID:                   run.ID,
-		ProfileID:            run.ProfileID,
-		JobID:                run.JobID,
-		TriggerID:            run.TriggerID,
-		SessionID:            run.SessionID,
-		TaskID:               run.TaskID,
-		TaskRunID:            run.TaskRunID,
-		LoopRunID:            run.LoopRunID,
-		FireID:               run.FireID,
-		Status:               run.Status,
-		Attempt:              run.Attempt,
-		NetworkParticipation: participation.CloneRequest(run.NetworkParticipation),
-		ScheduledAt:          run.ScheduledAt,
-		StartedAt:            run.StartedAt,
-		EndedAt:              run.EndedAt,
-		Error:                run.Error,
-		DeliveryError:        run.DeliveryError,
-		DeliveryErrorAt:      run.DeliveryErrorAt,
-		Metadata:             maps.Clone(run.Metadata),
+		ID:              run.ID,
+		ProfileID:       run.ProfileID,
+		JobID:           run.JobID,
+		TriggerID:       run.TriggerID,
+		SessionID:       run.SessionID,
+		TaskID:          run.TaskID,
+		TaskRunID:       run.TaskRunID,
+		LoopRunID:       run.LoopRunID,
+		FireID:          run.FireID,
+		Status:          run.Status,
+		Attempt:         run.Attempt,
+		ScheduledAt:     run.ScheduledAt,
+		StartedAt:       run.StartedAt,
+		EndedAt:         run.EndedAt,
+		Error:           run.Error,
+		DeliveryError:   run.DeliveryError,
+		DeliveryErrorAt: run.DeliveryErrorAt,
+		Metadata:        maps.Clone(run.Metadata),
 	}
 }
 
@@ -172,4 +169,16 @@ func cloneAutomationLoopTarget(source *automationpkg.LoopTarget) *automationpkg.
 		maps.Copy(cloned.InputMapping, source.InputMapping)
 	}
 	return &cloned
+}
+
+func AutomationLastRunPayloadFromRun(run automationpkg.Run) *contract.AutomationLastRunPayload {
+	payload := &contract.AutomationLastRunPayload{
+		ID: run.ID, Status: run.Status, StartedAt: run.StartedAt, EndedAt: run.EndedAt,
+	}
+	if run.Status == automationpkg.RunCancelled {
+		if reason, ok := run.Metadata[automationpkg.SchedulerSkipReasonMetadataKey].(string); ok {
+			payload.SkipReason = automationpkg.SchedulerSkipReason(reason)
+		}
+	}
+	return payload
 }

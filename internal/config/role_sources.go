@@ -58,14 +58,9 @@ func defaultRoleFieldSources() RoleFieldSources {
 			RoleFieldACPOptions,
 			RoleFieldFallbacks,
 		}
-		if role != RoleMemoryController {
-			fields = append(fields, RoleFieldAgent)
-		}
-		switch role {
-		case RoleCoordinator:
+		fields = append(fields, RoleFieldAgent)
+		if role == RoleCoordinator {
 			fields = append(fields, "ttl", "max_children", "max_active_sessions_per_workspace")
-		case RoleMemoryController:
-			fields = append(fields, "timeout", "top_k", "prompt_version", "max_tokens_out")
 		}
 		sources[role] = make(map[string]string, len(fields))
 		for _, field := range fields {
@@ -83,11 +78,7 @@ func (o rolesOverlay) recordSources(dst *Config, source string) {
 		dst.RoleSources = defaultRoleFieldSources()
 	}
 	recordRoleOverlaySources(dst.RoleSources, RoleCoordinator, o.Coordinator.roleOverlay, source)
-	recordRoleOverlaySources(dst.RoleSources, RoleDream, o.Dream, source)
-	recordRoleOverlaySources(dst.RoleSources, RoleCheckpointSummary, o.CheckpointSummary, source)
-	recordRoleOverlaySources(dst.RoleSources, RoleMemoryExtractor, o.MemoryExtractor, source)
 	recordRoleOverlaySources(dst.RoleSources, RoleAutoTitle, o.AutoTitle, source)
-	recordMemoryControllerSources(dst.RoleSources, o.MemoryController, source)
 	recordSource(dst.RoleSources, RoleCoordinator, "ttl", source, o.Coordinator.TTL != nil)
 	recordSource(dst.RoleSources, RoleCoordinator, "max_children", source, o.Coordinator.MaxChildren != nil)
 	recordSource(
@@ -108,24 +99,6 @@ func recordRoleOverlaySources(sources RoleFieldSources, role RoleName, overlay r
 	recordSource(sources, role, RoleFieldSpeed, source, overlay.Speed != nil)
 	recordSource(sources, role, RoleFieldACPOptions, source, overlay.ACPOptions != nil)
 	recordSource(sources, role, RoleFieldFallbacks, source, overlay.FallbackChain != nil)
-}
-
-func recordMemoryControllerSources(
-	sources RoleFieldSources,
-	overlay memoryControllerRoleOverlay,
-	source string,
-) {
-	recordSource(sources, RoleMemoryController, RoleFieldEnabled, source, overlay.Enabled != nil)
-	recordSource(sources, RoleMemoryController, RoleFieldProvider, source, overlay.Provider != nil)
-	recordSource(sources, RoleMemoryController, RoleFieldModel, source, overlay.Model != nil)
-	recordSource(sources, RoleMemoryController, RoleFieldReasoning, source, overlay.ReasoningEffort != nil)
-	recordSource(sources, RoleMemoryController, RoleFieldSpeed, source, overlay.Speed != nil)
-	recordSource(sources, RoleMemoryController, RoleFieldACPOptions, source, overlay.ACPOptions != nil)
-	recordSource(sources, RoleMemoryController, "timeout", source, overlay.Timeout != nil)
-	recordSource(sources, RoleMemoryController, "top_k", source, overlay.TopK != nil)
-	recordSource(sources, RoleMemoryController, "prompt_version", source, overlay.PromptVersion != nil)
-	recordSource(sources, RoleMemoryController, "max_tokens_out", source, overlay.MaxTokensOut != nil)
-	recordSource(sources, RoleMemoryController, RoleFieldFallbacks, source, overlay.FallbackChain != nil)
 }
 
 func recordSource(

@@ -91,3 +91,10 @@ QA 2026-09-05 (loop-stability): a canceled run with cursor 3 and persisted round
 round 4 into round 5 without a uniqueness conflict; quarantine remains protected. A fresh
 completed run emits one initial-round start despite pre/post-reservation snapshots. Evidence:
 `docs/qa/reports/2026-09-04-loop-stability.md`, cycle 4.
+
+QA impact 2026-10-06: the two-attempt roster fixture blocks until real cancellation, then
+recovers on retry. Its action budget allows session preparation; the original 45-second journey
+deadline and complete attempt-history assertions remain. The separate lifecycle suite retains
+its two-second timeout coverage. The real-daemon roster journey passed three race-enabled
+repetitions (50.927s). The final official runtime lane passed all 313 tests, including the complete
+Loop read journey and the unchanged timeout lifecycle scenario. See the dependency-upgrade report.

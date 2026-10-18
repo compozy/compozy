@@ -68,13 +68,6 @@ func TestLoadMCPWholeFileFailures(t *testing.T) {
 		name string
 		doc  any
 	}{
-		{
-			name: "Should disable MCP for an unsupported schema",
-			doc: map[string]any{
-				"$schema":    "https://agent-plugins.org/schemas/2.0.0/mcp.schema.json",
-				"mcpServers": map[string]any{},
-			},
-		},
 		{name: "Should disable MCP for a non-object root", doc: []any{"not", "an", "object"}},
 		{name: "Should disable MCP when mcpServers is missing", doc: map[string]any{"$schema": MCPSchemaID}},
 	}

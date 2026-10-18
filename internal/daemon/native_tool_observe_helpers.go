@@ -209,3 +209,62 @@ func limitSkills(skillList []*skills.Skill, limit int) []*skills.Skill {
 	}
 	return skillList[:limit]
 }
+
+type logQueryInput struct {
+	WorkspaceID   string `json:"workspace"`
+	SessionID     string `json:"session_id,omitempty"`
+	AgentName     string `json:"agent_name,omitempty"`
+	Type          string `json:"type,omitempty"`
+	RunID         string `json:"run,omitempty"`
+	ActorKind     string `json:"actor_kind,omitempty"`
+	ActorID       string `json:"actor_id,omitempty"`
+	Provider      string `json:"provider,omitempty"`
+	Outcome       string `json:"outcome,omitempty"`
+	Component     string `json:"component,omitempty"`
+	ErrorOnly     bool   `json:"error_only,omitzero"`
+	AfterSequence int64  `json:"after_seq,omitzero"`
+	Since         string `json:"since,omitempty"`
+	Limit         int    `json:"limit,omitzero"`
+}
+
+func (i logQueryInput) eventSummaryQuery(
+	id toolspkg.ToolID,
+	readScope store.ReadScope,
+) (store.EventSummaryQuery, error) {
+	since, err := parseNativeOptionalRFC3339(id, "since", i.Since)
+	if err != nil {
+		return store.EventSummaryQuery{}, err
+	}
+	query := store.EventSummaryQuery{
+		ReadScope:     readScope,
+		WorkspaceID:   strings.TrimSpace(i.WorkspaceID),
+		SessionID:     strings.TrimSpace(i.SessionID),
+		AgentName:     strings.TrimSpace(i.AgentName),
+		Type:          strings.TrimSpace(i.Type),
+		RunID:         strings.TrimSpace(i.RunID),
+		ActorKind:     strings.TrimSpace(i.ActorKind),
+		ActorID:       strings.TrimSpace(i.ActorID),
+		Provider:      strings.TrimSpace(i.Provider),
+		Outcome:       strings.TrimSpace(i.Outcome),
+		Component:     strings.TrimSpace(i.Component),
+		ErrorOnly:     i.ErrorOnly,
+		AfterSequence: i.AfterSequence,
+		Since:         since,
+		Limit:         i.Limit,
+	}
+	if err := query.Validate(); err != nil {
+		return store.EventSummaryQuery{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"logs query is invalid",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return query, nil
+}
+
+type observeSearchInput struct {
+	Query string `json:"query"`
+	logQueryInput
+}

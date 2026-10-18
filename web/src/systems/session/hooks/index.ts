@@ -30,7 +30,6 @@ export { useSessionComposerDraft, useSessionGoalFeedback } from "./use-session-s
 export {
   useSession,
   useSessionById,
-  useSessionLedger,
   useSessionGoal,
   useSessionRecap,
   useSessionUsage,
@@ -85,7 +84,6 @@ export {
   useDeleteSession,
   useRepairSession,
   useRenameSession,
-  useResumeSession,
   useSendSessionPrompt,
   useStopSession,
   useUnarchiveSession,
@@ -96,6 +94,7 @@ export {
   type SendSessionPromptParams,
   type SessionPromptActionParams,
 } from "./use-session-actions";
+export { useCompactSession } from "./use-compact-session";
 export { useSessionRewind, type SessionRewindVariables } from "./use-session-rewind";
 export {
   useSessionLifecycleActions,
@@ -103,7 +102,6 @@ export {
   type SessionLifecycleAction,
   type SessionLifecycleActionHandlers,
   type SessionRenameConfirmation,
-  type UseSessionLifecycleActionsOptions,
   type UseSessionLifecycleActionsResult,
 } from "./use-session-lifecycle-actions";
 export {

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -55,6 +54,10 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 	}
 	result := make([]session.WorkSignal, 0)
 	for _, row := range rows {
+		// A session continued or forked from this one is not its child and keeps no work.
+		if store.HierarchyParentSessionID(row.Lineage) != id {
+			continue
+		}
 		info, err := s.manager.Status(ctx, row.ID)
 		if err != nil {
 			return nil, err
@@ -119,17 +122,11 @@ func (s sessionWorkSources) loopWork(ctx context.Context, id string) ([]looppkg.
 	if err != nil {
 		return nil, err
 	}
-	var ownerRunID looppkg.RunID
-	if info.NetworkOwnerKey != "" {
-		owner, err := participation.OwnerRefFromKey(info.WorkspaceID, info.NetworkOwnerKey)
-		if err != nil {
-			return nil, err
-		}
-		if owner.Kind == participation.OwnerKindLoopRun {
-			ownerRunID = looppkg.RunID(owner.ID)
-		}
+	var judgeRunID looppkg.RunID
+	if s.state.tasks != nil && s.state.tasks.loopJudges != nil {
+		judgeRunID = s.state.tasks.loopJudges.executions.loopRunForSession(id)
 	}
-	return reader.ListSessionLoopWork(ctx, store.ReadScope{ProfileID: info.ProfileID}, info.WorkspaceID, id, ownerRunID)
+	return reader.ListSessionLoopWork(ctx, store.ReadScope{ProfileID: info.ProfileID}, info.WorkspaceID, id, judgeRunID)
 }
 
 // loops projects durable Loop work, omitting quiet paused or watching Runs that require no attention.
@@ -208,4 +205,13 @@ func (s sessionWorkSources) waits(ctx context.Context, id string) ([]session.Wor
 		}
 	}
 	return result, nil
+}
+
+// replies delegates to the reply-watch service, which owns the watch states and the target liveness rule.
+func (s sessionWorkSources) replies(ctx context.Context, id string) ([]session.WorkSignal, error) {
+	service := s.manager.ReplyWatches()
+	if service == nil {
+		return nil, errors.New("reply watch service is unavailable")
+	}
+	return service.AwaitingReplySignals(ctx, id, s.now().Add(2*toolruntime.SweepInterval))
 }

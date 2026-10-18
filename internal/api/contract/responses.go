@@ -75,21 +75,6 @@ type AgentContextResponse struct {
 	Context AgentContextPayload `json:"context"`
 }
 
-// AgentChannelsResponse wraps discoverable coordination channels for the caller.
-type AgentChannelsResponse struct {
-	Channels []CoordinationChannelPayload `json:"channels"`
-}
-
-// AgentChannelMessagesResponse wraps channel inbox messages.
-type AgentChannelMessagesResponse struct {
-	Messages []AgentChannelMessagePayload `json:"messages"`
-}
-
-// AgentChannelMessageResponse wraps one sent channel message.
-type AgentChannelMessageResponse struct {
-	Message AgentChannelMessagePayload `json:"message"`
-}
-
 // AgentTaskClaimResponse wraps the synchronous task claim response.
 type AgentTaskClaimResponse struct {
 	Claim AgentTaskClaimPayload `json:"claim"`
@@ -231,8 +216,8 @@ type TaskRunReviewsResponse struct {
 // TaskRunReviewVerdictResponse wraps one recorded review verdict result.
 type TaskRunReviewVerdictResponse struct {
 	Review          TaskRunReviewPayload `json:"review"`
-	ContinuationRun *TaskRunPayload      `json:"continuation_run,omitempty"`
-	CircuitOpened   bool                 `json:"circuit_opened,omitempty"`
+	ContinuationRun *TaskRunPayload      `json:"continuation_run,omitzero"`
+	CircuitOpened   bool                 `json:"circuit_opened,omitzero"`
 }
 
 // TaskRunDetailResponse wraps one shared task-run detail payload.
@@ -370,7 +355,7 @@ type ManagedExtensionUpdatePayload struct {
 	Path           string           `json:"path"`
 	Status         string           `json:"status"`
 	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
-	Error          *DiagnosticItem  `json:"error,omitempty"`
+	Error          *DiagnosticItem  `json:"error,omitzero"`
 }
 
 // ManagedExtensionRemovePayload describes one daemon-owned extension removal.

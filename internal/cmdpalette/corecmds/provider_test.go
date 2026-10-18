@@ -3,7 +3,6 @@ package corecmds
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"testing"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -48,6 +47,33 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should open the Automations editor with each start preselected [UT-112]", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		expected := map[cmdpalette.CommandID][2]string{
+			"automation.create.schedule": {"New scheduled automation", "schedule"},
+			"automation.create.event":    {"New automation on an event", "event"},
+		}
+		for id, want := range expected {
+			command, found := byID[id]
+			if !found {
+				t.Errorf("command %q is missing", id)
+				continue
+			}
+			action := command.Action
+			if command.Title != want[0] || action.Kind != cmdpalette.ActionKindNavigate ||
+				action.App != "automations" || action.Args["pathname"] != "/automations" ||
+				action.Args["create"] != "1" || action.Args["start"] != want[1] {
+				t.Errorf("command %q = %#v, want %q opening /automations?create=1&start=%s",
+					id, command, want[0], want[1])
+			}
+		}
+	})
+
 	t.Run("Should give every shell-only palette row a bindable id [UT-002]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
@@ -84,6 +110,72 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose the arrange presets under the Window menu copy", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		expected := map[cmdpalette.CommandID]struct{ title, icon string }{
+			"layout.arrange.main-stack": {"Main and stack", "layout-panel-left"},
+			"layout.arrange.columns":    {"Columns", "columns-3"},
+			"layout.arrange.grid":       {"Grid", "layout-grid"},
+			"layout.balance":            {"Balance sizes", "scale"},
+		}
+		for id, want := range expected {
+			command, ok := byID[id]
+			if !ok {
+				t.Errorf("command %q missing from the core catalog", id)
+				continue
+			}
+			if command.Title != want.title || command.Icon != want.icon {
+				t.Errorf("command %q = %q/%q, want %q/%q", id, command.Title, command.Icon, want.title, want.icon)
+			}
+			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
+				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
+			}
+			// A preset has nothing to lay out without a peer: it reads disabled
+			// with the reason instead of running as a no-op.
+			if len(command.When) != 2 || command.When[0].Key != cmdpalette.ContextWindowFocused ||
+				command.When[1].Key != cmdpalette.ContextDesktopWindowCount ||
+				command.When[1].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
+				command.When[1].Value != 2 || command.When[1].Reason != "needs two windows on this desktop" {
+				t.Errorf("command %q when = %#v, want focused window + two windows on this desktop", id, command.When)
+			}
+		}
+	})
+
+	t.Run("Should give every desktop slot a focus-gated move-window command", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		keymap := windowmanager.DefaultKeymap()
+		for slot := 1; slot <= 9; slot++ {
+			id := cmdpalette.CommandID(fmt.Sprintf("window.move_to_desktop.%d", slot))
+			command, ok := byID[id]
+			if !ok {
+				t.Errorf("command %q missing from the core catalog", id)
+				continue
+			}
+			if command.Title != fmt.Sprintf("Move window to desktop %d", slot) {
+				t.Errorf("command %q title = %q", id, command.Title)
+			}
+			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
+				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
+			}
+			if len(command.When) != 1 || command.When[0].Key != cmdpalette.ContextWindowFocused {
+				t.Errorf("command %q when = %#v, want the focused-window requirement", id, command.When)
+			}
+			if binding, bindable := keymap[string(id)]; !bindable || len(binding) != 0 {
+				t.Errorf("DefaultKeymap()[%q] = %v (bindable %t), want unbound", id, binding, bindable)
+			}
+		}
+	})
+
 	t.Run("Should navigate to every settings route [UT-012]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
@@ -107,8 +199,6 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.general=/settings/general",
 			"settings.hooks=/settings/hooks",
 			"settings.layouts=/settings/layouts",
-			"settings.memory=/settings/memory",
-			"settings.network=/settings/network",
 			"settings.observability=/settings/observability",
 			"settings.palette=/settings/palette",
 			"settings.profiles=/settings/profiles",
@@ -116,7 +206,7 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.roles=/settings/roles",
 			"settings.skills=/settings/skills",
 		}
-		sort.Strings(actual)
+		slices.Sort(actual)
 		if !slices.Equal(actual, expected) {
 			t.Fatalf("settings destinations = %#v, want %#v", actual, expected)
 		}
@@ -126,8 +216,8 @@ func TestProviderAbsorption(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
 		want := []string{
-			"agents", "bridges", "extensions", "jobs", "knowledge", "loops", "marketplace",
-			"network-channels", "profiles", "sessions", "tasks", "triggers", "vault", "worktrees",
+			"agents", "automations", "extensions", "loops", "marketplace",
+			"profiles", "sessions", "tasks", "vault", "worktrees",
 		}
 		actual := make([]string, 0, len(want))
 		seen := make(map[string]int, len(want))
@@ -138,7 +228,7 @@ func TestProviderAbsorption(t *testing.T) {
 			actual = append(actual, command.Action.View)
 			seen[command.Action.View]++
 		}
-		sort.Strings(actual)
+		slices.Sort(actual)
 		if !slices.Equal(actual, want) {
 			t.Fatalf("view ids = %#v, want %#v", actual, want)
 		}
@@ -230,4 +320,33 @@ func mustCommands(t *testing.T) []cmdpalette.Descriptor {
 		t.Fatalf("ProvideCommands() error = %v", err)
 	}
 	return commands
+}
+
+// Invariant: the built-in registry hard-cuts retired app commands; provider suite owns registry identity.
+func TestAutomationsCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should register one automations app and view with searchable legacy words [IT-020]", func(t *testing.T) {
+		t.Parallel()
+		count := 0
+		for _, command := range mustCommands(t) {
+			if _, retired := RetiredCommandID(command.ID); retired {
+				t.Fatalf("retired command registered: %s", command.ID)
+			}
+			if command.ID != "app.open.automations" && command.ID != "palette.view.automations" {
+				continue
+			}
+			count++
+			if command.Action.App != "automations" && command.Action.View != "automations" {
+				t.Fatalf("action = %+v", command.Action)
+			}
+			for _, keyword := range []string{"jobs", "triggers", "schedule", "webhook", "event"} {
+				if !slices.Contains(command.Keywords, keyword) {
+					t.Errorf("%s missing %s", command.ID, keyword)
+				}
+			}
+		}
+		if count != 2 {
+			t.Fatalf("automations commands = %d", count)
+		}
+	})
 }

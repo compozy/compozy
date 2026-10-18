@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +30,7 @@ func (s *CatalogService) storedSourceIDsForProvider(
 			owned[sourceID] = struct{}{}
 		}
 	}
-	rows, err := s.store.ListRows(ctx, ListOptions{
+	owners, err := s.store.ListRowOwners(ctx, ListOptions{
 		ProviderID:       providerID,
 		ExecutionContext: opts.ExecutionContext,
 		SourceContexts:   cloneSourceExecutionContexts(opts.SourceContexts),
@@ -39,10 +39,10 @@ func (s *CatalogService) storedSourceIDsForProvider(
 		Now:              now,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("model catalog: list stored rows for provider %q: %w", providerID, err)
+		return nil, fmt.Errorf("model catalog: list stored row owners for provider %q: %w", providerID, err)
 	}
-	for _, row := range rows {
-		if sourceID := strings.TrimSpace(row.SourceID); sourceID != "" {
+	for _, owner := range owners {
+		if sourceID := strings.TrimSpace(owner.SourceID); sourceID != "" {
 			owned[sourceID] = struct{}{}
 		}
 	}
@@ -114,6 +114,13 @@ func (s *CatalogService) refreshAllProviders(
 			executionContext, contextErr := sourceExecutionContext(opts.SourceContexts, source.ID())
 			if contextErr != nil {
 				return statuses, contextErr
+			}
+			if !opts.Force {
+				if fresh, ok := freshSourceStatuses(ctx, s.store, source, "", executionContext, now); ok {
+					statuses = append(statuses, fresh...)
+					successes++
+					continue
+				}
 			}
 			storedProviders, err := s.storedProvidersForSource(ctx, source, executionContext, now)
 			if err != nil {
@@ -218,20 +225,10 @@ func (s *CatalogService) refreshSource(
 	if err != nil {
 		return nil, refreshOutcomeEmpty, err
 	}
-	if !opts.Force &&
-		strings.TrimSpace(opts.ProviderID) != "" &&
-		sourceHasFreshStatus(ctx, s.store, source, opts.ProviderID, executionContext, now) {
-		statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
-			ProviderID:       opts.ProviderID,
-			ExecutionContext: executionContext,
-			SourceContexts: map[string]CatalogExecutionContext{
-				source.ID(): executionContext,
-			},
-		})
-		if err != nil {
-			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: load fresh source status: %w", err)
+	if !opts.Force {
+		if statuses, fresh := freshSourceStatuses(ctx, s.store, source, opts.ProviderID, executionContext, now); fresh {
+			return statuses, refreshOutcomeSuccess, nil
 		}
-		return filterStatusesBySource(statuses, source.ID()), refreshOutcomeSuccess, nil
 	}
 
 	rows, err := source.ListModels(ctx, ListOptions{
@@ -383,7 +380,7 @@ func refreshFlightScopeKey(providerKey string, opts RefreshOptions) string {
 	for sourceID, executionContext := range opts.SourceContexts {
 		contextParts = append(contextParts, sourceID+"="+executionContext.CommandFingerprint)
 	}
-	sort.Strings(contextParts)
+	slices.Sort(contextParts)
 	return fmt.Sprintf(
 		"%s\x00%s\x00%s\x00%s\x00%t\x00%s",
 		providerKey,
@@ -393,52 +390,4 @@ func refreshFlightScopeKey(providerKey string, opts RefreshOptions) string {
 		opts.Force,
 		strings.Join(contextParts, "\x1e"),
 	)
-}
-
-func sourceHasFreshStatus(
-	ctx context.Context,
-	store Store,
-	source Source,
-	providerID string,
-	executionContext CatalogExecutionContext,
-	now time.Time,
-) bool {
-	if ttlProvider, ok := source.(sourceTTLProvider); !ok || ttlProvider.TTL() <= 0 {
-		return false
-	}
-	statuses, err := store.ListSourceStatus(ctx, StatusOptions{
-		ProviderID:       providerID,
-		ExecutionContext: executionContext,
-		SourceContexts: map[string]CatalogExecutionContext{
-			source.ID(): executionContext,
-		},
-	})
-	if err != nil {
-		return false
-	}
-	for _, status := range statuses {
-		if status.SourceID != source.ID() {
-			continue
-		}
-		if status.NextRefresh.IsZero() || !status.NextRefresh.After(now) {
-			return false
-		}
-		switch status.RefreshState {
-		case RefreshStateSucceeded, RefreshStateFailed, RefreshStateDisabled:
-			return true
-		default:
-			return false
-		}
-	}
-	return false
-}
-
-func filterStatusesBySource(statuses []SourceStatus, sourceID string) []SourceStatus {
-	filtered := make([]SourceStatus, 0, len(statuses))
-	for _, status := range statuses {
-		if status.SourceID == sourceID {
-			filtered = append(filtered, status)
-		}
-	}
-	return filtered
 }

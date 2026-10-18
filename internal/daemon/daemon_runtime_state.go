@@ -4,16 +4,15 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/compozy/internal/session"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
+
 	"github.com/compozy/compozy/internal/situation"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -26,49 +25,40 @@ import (
 // daemonRuntimeState is one published daemon generation. Assigning or clearing
 // this value moves every runtime-owned handle through the same transition.
 type daemonRuntimeState struct {
-	lock                   *Lock
-	harnessResolver        *HarnessContextResolver
-	registry               Registry
-	profiles               *profile.Manager
-	memoryStore            *memory.Store
-	memoryCatalogStore     *memory.Store
-	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
-	memoryExtractor        *daemonMemoryExtractor
-	runtimeWorkers         daemonRuntimeWorkers
-	terminals              *terminalpkg.Service
-	localMemoryProvider    memoryProviderShutdowner
-	situationContext       *situation.Service
-	sessions               SessionManager
-	sessionWakeBridge      *sessionWakeBridge
-	tasks                  *taskRuntime
-	coordinator            *coordinatorRuntime
-	spawnReaper            *spawnReaper
-	scheduler              *schedulerRuntime
-	network                networkRuntime
-	gateway                gateway.Policy
-	networkWakeRunner      *networkWakeRunner
-	toolRegistry           toolspkg.Registry
-	clarify                *clarifyBridge
-	hooks                  hookRuntime
-	extensions             extensionRuntime
-	observer               Observer
-	resourceReconcile      resources.ReconcileDriver
-	supportBundles         supportBundleShutdowner
-	backgroundUpdates      *backgroundUpdateRuntime
-	agentCatalog           *resourceCatalog[compozyconfig.AgentDef]
-	soulCatalog            *resourceCatalog[soul.ResourceSpec]
-	heartbeatCatalog       *resourceCatalog[heartbeat.ResourceSpec]
-	toolCatalog            *resourceCatalog[toolspkg.Tool]
-	mcpServerCatalog       *resourceCatalog[compozyconfig.MCPServer]
-	loopCatalog            *resourceCatalog[looppkg.ResourceSpec]
-	automation             automationRuntime
-	bridges                *bridgeRuntime
-	httpServer             Server
-	udsServer              Server
-	dreamRuntime           *consolidation.Runtime
+	subagents         session.SubagentService
+	lock              *Lock
+	harnessResolver   *HarnessContextResolver
+	registry          Registry
+	profiles          *profile.Manager
+	runtimeWorkers    daemonRuntimeWorkers
+	terminals         *terminalpkg.Service
+	situationContext  *situation.Service
+	sessions          SessionManager
+	sessionWakeBridge *sessionWakeBridge
+	tasks             *taskRuntime
+	coordinator       *coordinatorRuntime
+	spawnReaper       *spawnReaper
+	scheduler         *schedulerRuntime
+	gateway           gateway.Policy
+	toolRegistry      toolspkg.Registry
+	clarify           *clarifyBridge
+	hooks             hookRuntime
+	extensions        extensionRuntime
+	observer          Observer
+	resourceReconcile resources.ReconcileDriver
+	supportBundles    supportBundleShutdowner
+	backgroundUpdates *backgroundUpdateRuntime
+	agentCatalog      *resourceCatalog[compozyconfig.AgentDef]
+	soulCatalog       *resourceCatalog[soul.ResourceSpec]
+	heartbeatCatalog  *resourceCatalog[heartbeat.ResourceSpec]
+	toolCatalog       *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog  *resourceCatalog[compozyconfig.MCPServer]
+	loopCatalog       *resourceCatalog[looppkg.ResourceSpec]
+	automation        automationRuntime
+	httpServer        Server
+	udsServer         Server
 	workspaceRuntimeState
-	worktrees       *worktree.Service
-	sandboxRegistry *sandbox.Registry
+	worktrees *worktree.Service
 	windowManagerRuntime
 	skillsRegistry    *skills.Registry
 	modelCatalog      *modelCatalogRuntime

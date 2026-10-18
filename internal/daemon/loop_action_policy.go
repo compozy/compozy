@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
@@ -74,8 +75,7 @@ func (g *loopSessionPolicyGate) applyResolved(
 			err,
 		)
 	}
-	policy := sessionPolicyFromResolvedAgentWorkspace(resolvedAgent, &resolved)
-	applySessionSandboxPolicy(opts, policy)
+	policy := sessionPolicyFromResolvedAgent(resolvedAgent)
 	applySessionPermissionPolicy(opts, policy)
 	if err := applyAllowedToolsNarrowing(opts, allowedTools); err != nil {
 		return loopSessionPolicyResolution{}, err
@@ -95,7 +95,10 @@ func (g *loopSessionPolicyGate) applyResolved(
 	if opts.Speed == "" {
 		opts.Speed = resolvedAgent.SpeedValue()
 	}
-	agentOptions := session.ACPOptionSelectionsFromConfig(resolvedAgent.ACPOptionsValue())
+	agentOptions := allowedLoopAgentACPOptions(
+		opts.Permissions,
+		session.ACPOptionSelectionsFromConfig(resolvedAgent.ACPOptionsValue()),
+	)
 	mergedACPOptions, err := session.MergeRuntimeACPOptions(agentOptions, opts.ACPOptions)
 	if err != nil {
 		return loopSessionPolicyResolution{}, fmt.Errorf(
@@ -117,6 +120,18 @@ func (g *loopSessionPolicyGate) applyResolved(
 		resolvedAgent.Toolsets = nil
 	}
 	return loopSessionPolicyResolution{workspace: resolved, agent: resolvedAgent}, nil
+}
+
+func allowedLoopAgentACPOptions(
+	permissions compozyconfig.PermissionMode,
+	options []acp.SessionConfigOptionSelection,
+) []acp.SessionConfigOptionSelection {
+	if permissions == compozyconfig.PermissionModeApproveAll {
+		return options
+	}
+	return slices.DeleteFunc(options, func(option acp.SessionConfigOptionSelection) bool {
+		return option.ID == "mode" && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+	})
 }
 
 func loopActionTerminalTools() []string {
@@ -210,33 +225,13 @@ func (g *loopSessionPolicyGate) resolveAgent(
 	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
-func sessionPolicyFromResolvedAgentWorkspace(
+func sessionPolicyFromResolvedAgent(
 	agent compozyconfig.ResolvedAgent,
-	resolved *workspacepkg.ResolvedWorkspace,
 ) SessionPolicy {
 	policy := SessionPolicy{
 		Runtime: SessionRuntimePolicy{
 			Permissions: compozyconfig.PermissionMode(strings.TrimSpace(agent.Permissions)),
 		},
 	}
-	if sandboxRef := resolvedWorkspaceSandboxRef(resolved); sandboxRef != "" {
-		policy.Sandbox = SessionSandboxPolicy{
-			Mode:       SessionSandboxModeRef,
-			SandboxRef: sandboxRef,
-		}
-	}
 	return policy
-}
-
-func resolvedWorkspaceSandboxRef(resolved *workspacepkg.ResolvedWorkspace) string {
-	if resolved == nil {
-		return ""
-	}
-	if sandboxRef := strings.TrimSpace(resolved.SandboxRef); sandboxRef != "" {
-		return sandboxRef
-	}
-	if sandboxRef := strings.TrimSpace(resolved.Config.Defaults.Sandbox); sandboxRef != "" {
-		return sandboxRef
-	}
-	return strings.TrimSpace(resolved.Sandbox.Profile)
 }

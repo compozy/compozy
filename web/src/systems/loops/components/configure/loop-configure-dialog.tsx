@@ -2,6 +2,7 @@ import { RotateCcw, Save, SlidersHorizontal } from "lucide-react";
 
 import {
   Alert,
+  AlertActions,
   AlertDescription,
   Button,
   Dialog,
@@ -71,22 +72,22 @@ export function LoopConfigureDialog({
 
         <EntityDialogBody className="flex flex-col" data-testid="loop-configure-body">
           <Alert data-testid="loop-configure-structural-note" variant="neutral">
-            <AlertDescription>
-              Steps, inputs, node kinds and the goal stay fixed here. To change those,{" "}
-              <button
-                className="font-medium text-accent-strong underline-offset-2 hover:underline disabled:no-underline disabled:opacity-70"
+            <AlertDescription>Steps, inputs, and the goal stay fixed here.</AlertDescription>
+            <AlertActions>
+              <Button
                 data-testid="loop-configure-edit-link"
                 disabled={!onOpenEditor || model.busy}
                 onClick={onOpenEditor}
+                size="sm"
                 type="button"
+                variant="link"
               >
-                {loop.source === "workspace" ? "Edit" : "Fork & edit"}
-              </button>{" "}
-              the definition in the builder.
-            </AlertDescription>
+                {loop.source === "workspace" ? "Edit" : "Copy and edit"} in the builder
+              </Button>
+            </AlertActions>
           </Alert>
 
-          <FormSection rightLabel="declared in the loop" title="Review gate">
+          <FormSection title="Checks">
             <LoopConfigureChecks
               descriptors={model.descriptors}
               disabled={model.busy}
@@ -96,21 +97,20 @@ export function LoopConfigureDialog({
             />
           </FormSection>
 
-          <FormSection title="Human approval gate">
-            <div className="overflow-hidden rounded-lg border border-line-soft bg-canvas-tint">
+          <FormSection title="Your approval">
+            <div className="overflow-hidden rounded-lg bg-sunken">
               <LoopConfigureSwitchRow
                 checked={model.draft.humanGateEnabled}
                 disabled={model.busy}
-                help="Pauses the run as needs-approval for a human decision before it completes. Off by default."
+                help="Pauses the run and asks you to approve before it finishes. Off by default."
                 onCheckedChange={model.setHumanGate}
                 testId="loop-configure-human-gate"
-                title="Pause for a human decision"
-                typeLabel="human"
+                title="Ask me before finishing"
               />
             </div>
           </FormSection>
 
-          <FormSection title="Re-attempt strategy">
+          <FormSection title="If a round fails">
             <LoopConfigureStrategy
               disabled={model.busy}
               onChange={model.setStrategy}
@@ -138,7 +138,7 @@ export function LoopConfigureDialog({
                 onClick={() => void worktrees.refetch()}
                 size="sm"
                 type="button"
-                variant="outline"
+                variant="secondary"
               >
                 Retry
               </Button>
@@ -153,7 +153,7 @@ export function LoopConfigureDialog({
             />
           ) : null}
 
-          <FormSection rightLabel="per-loop defaults" title="Stop limits">
+          <FormSection title="Limits">
             <LoopConfigureLimits
               disabled={model.busy}
               draft={model.draft.limits}

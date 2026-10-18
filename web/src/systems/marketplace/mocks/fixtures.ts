@@ -142,7 +142,7 @@ export function marketplaceCatalogDetailFixture(
     entry,
     extension: {
       artifact_url: `https://example.test/${encodeURIComponent(entry.entry_id)}.tar.gz`,
-      contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+      contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
       inputs: [],
       mcp_servers: [],
       digest_sha256: entry.digest_sha256,

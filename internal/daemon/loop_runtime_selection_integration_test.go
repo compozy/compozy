@@ -22,7 +22,7 @@ import (
 func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 	environment := newLoopRuntimeIntegrationEnvironment(t)
 	harness := environment.harness
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
 	definition := loopRuntimeMixedDefinition()
@@ -636,9 +636,15 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		return
 	}
 
+	if !t.Run("Should select matrix and exact-ID runtime rules", func(t *testing.T) {
+		testLoopRuntimeSelectionMatrixIntegration(t, harness)
+	}) {
+		return
+	}
+
 	t.Run("Should preserve one workspace runtime projection across restart and every read surface", func(t *testing.T) {
 		originalWorkspaceID := harness.WorkspaceID
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
 			stopCancel()
 			t.Fatalf("Stop runtime harness error = %v", err)
@@ -691,16 +697,9 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 	})
 }
 
-func TestLoopRuntimeSelectionMatrixIntegration(t *testing.T) {
-	t.Run("Should select matrix and exact-ID runtime rules", func(t *testing.T) {
-		testLoopRuntimeSelectionMatrixIntegration(t)
-	})
-}
-
-func testLoopRuntimeSelectionMatrixIntegration(t *testing.T) {
-	environment := newLoopRuntimeIntegrationEnvironment(t)
-	harness := environment.harness
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+func testLoopRuntimeSelectionMatrixIntegration(t *testing.T, harness *e2etest.RuntimeHarness) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
 	definition := loopRuntimeMixedDefinition()

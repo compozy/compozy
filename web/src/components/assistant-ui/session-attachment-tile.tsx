@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type RefObject } from "react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -7,6 +7,7 @@ import {
   isImageAttachmentMime,
 } from "@/systems/session/lib/attachment-kinds";
 import { Button, Eyebrow, Spinner } from "@compozy/ui";
+import { SessionAttachmentImagePreview } from "@/systems/session/components/session-attachment-image-preview";
 
 import type { SessionAttachmentTileModel } from "./session-attachment-tile-model";
 
@@ -21,6 +22,90 @@ export interface SessionAttachmentTileProps extends ComponentProps<"li"> {
   onRetry?: () => void;
 }
 
+interface AttachmentDimensions {
+  width: number;
+  height: number;
+}
+
+/** Seeds dimensions from persisted attachment metadata when available. */
+function initialDimensions(model: SessionAttachmentTileModel): AttachmentDimensions | null {
+  return model.width && model.height ? { width: model.width, height: model.height } : null;
+}
+
+/** Includes known image dimensions in the thumbnail filename tooltip. */
+function attachmentNameTitle(
+  model: SessionAttachmentTileModel,
+  isImage: boolean,
+  dimensions: AttachmentDimensions | null
+): string {
+  return isImage && dimensions
+    ? `${model.name} · ${dimensions.width}×${dimensions.height}`
+    : model.name;
+}
+
+/** Chooses the size label tone from the current upload outcome. */
+function attachmentSizeTone(state: SessionAttachmentTileModel["state"]): string {
+  return state === "error" || state === "rejected" ? "text-danger" : "text-faint";
+}
+
+interface AttachmentThumbProps {
+  model: SessionAttachmentTileModel;
+  isImage: boolean;
+  canPreview: boolean;
+  previewRef: RefObject<HTMLImageElement | null>;
+  onPreviewLoad: (dimensions: AttachmentDimensions) => void;
+}
+
+/** The square thumbnail: an image preview or the extension mark, dimmed while uploading. */
+function AttachmentThumb({
+  model,
+  isImage,
+  canPreview,
+  previewRef,
+  onPreviewLoad,
+}: AttachmentThumbProps) {
+  const uploading = model.state === "uploading";
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "relative size-9 shrink-0 overflow-hidden rounded-md bg-surface-2",
+        isImage ? null : "grid place-items-center"
+      )}
+    >
+      {canPreview ? (
+        <img
+          ref={previewRef}
+          alt=""
+          onLoad={event => {
+            onPreviewLoad({
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            });
+          }}
+          className={cn("size-full object-cover", uploading ? "opacity-45" : null)}
+        />
+      ) : (
+        <Eyebrow
+          className={cn(
+            "leading-none",
+            model.state === "rejected" ? "text-danger" : "text-subtle",
+            uploading ? "opacity-45" : null
+          )}
+        >
+          {attachmentExtensionMark(model.name, model.mimeType)}
+        </Eyebrow>
+      )}
+      {uploading ? (
+        <span className="absolute inset-0 grid place-items-center text-fg">
+          <Spinner className="size-3" />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** Presents an assistant-ui draft attachment with preview, removal and upload retry actions. */
 export function SessionAttachmentTile({
   model,
   onRemove,
@@ -29,8 +114,8 @@ export function SessionAttachmentTile({
   ...props
 }: SessionAttachmentTileProps) {
   const isImage = isImageAttachmentMime(model.mimeType) && Boolean(model.file);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
-    model.width && model.height ? { width: model.width, height: model.height } : null
+  const [dimensions, setDimensions] = useState<AttachmentDimensions | null>(() =>
+    initialDimensions(model)
   );
   const previewRef = useRef<HTMLImageElement>(null);
 
@@ -44,9 +129,6 @@ export function SessionAttachmentTile({
   }, [model.file]);
 
   const canPreview = isImage && typeof URL.createObjectURL === "function";
-
-  const nameTitle =
-    isImage && dimensions ? `${model.name} · ${dimensions.width}×${dimensions.height}` : model.name;
   const showRetry = model.retryable && Boolean(onRetry);
 
   return (
@@ -58,57 +140,51 @@ export function SessionAttachmentTile({
       className={cn(
         "flex max-w-60 min-h-9 shrink-0 items-center gap-2 rounded-md",
         "transition-colors duration-base ease-out",
-        "hover:bg-row-hover focus-within:bg-row-hover",
+        "hover:bg-surface-2 focus-within:bg-surface-2",
         className
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "relative size-9 shrink-0 overflow-hidden rounded-md border border-line bg-canvas-soft",
-          isImage ? null : "grid place-items-center"
-        )}
-      >
-        {canPreview ? (
-          <img
-            ref={previewRef}
-            alt=""
-            onLoad={event => {
-              setDimensions({
-                width: event.currentTarget.naturalWidth,
-                height: event.currentTarget.naturalHeight,
-              });
-            }}
-            className={cn(
-              "size-full object-cover",
-              model.state === "uploading" ? "opacity-45" : null
-            )}
-          />
-        ) : (
-          <Eyebrow
-            className={cn(
-              "leading-none",
-              model.state === "rejected" ? "text-danger" : "text-subtle",
-              model.state === "uploading" ? "opacity-45" : null
-            )}
-          >
-            {attachmentExtensionMark(model.name, model.mimeType)}
-          </Eyebrow>
-        )}
-        {model.state === "uploading" ? (
-          <span className="absolute inset-0 grid place-items-center text-fg">
-            <Spinner className="size-3" />
-          </span>
-        ) : null}
-      </span>
+      {canPreview && model.file ? (
+        <SessionAttachmentImagePreview
+          filename={model.name}
+          source={model.file}
+          trigger={
+            <Button
+              type="button"
+              variant="ghost"
+              className="size-9 rounded-md p-0"
+              aria-label={`Preview ${model.name}`}
+            >
+              <AttachmentThumb
+                canPreview={canPreview}
+                isImage={isImage}
+                model={model}
+                onPreviewLoad={setDimensions}
+                previewRef={previewRef}
+              />
+            </Button>
+          }
+        />
+      ) : (
+        <AttachmentThumb
+          canPreview={canPreview}
+          isImage={isImage}
+          model={model}
+          onPreviewLoad={setDimensions}
+          previewRef={previewRef}
+        />
+      )}
       <span className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className="truncate text-small-body font-medium text-fg" title={nameTitle}>
+        <span
+          className="truncate text-small-body font-medium text-fg"
+          title={attachmentNameTitle(model, isImage, dimensions)}
+        >
           {model.name}
         </span>
         <span
           className={cn(
-            "font-mono text-micro tabular-nums",
-            model.state === "error" || model.state === "rejected" ? "text-danger" : "text-faint",
+            "font-mono text-eyebrow tabular-nums",
+            attachmentSizeTone(model.state),
             model.state === "uploading" ? "text-subtle" : null
           )}
         >
@@ -116,7 +192,7 @@ export function SessionAttachmentTile({
         </span>
       </span>
       {showRetry ? (
-        <Button type="button" variant="ghost" size="sm" onClick={onRetry} className="text-micro">
+        <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
           Retry upload
         </Button>
       ) : null}

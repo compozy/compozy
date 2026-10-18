@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -52,10 +53,7 @@ func writeExtensionInstallPreview(cmd *cobra.Command, preview *ExtensionInstallP
 		return nil
 	}
 	var output strings.Builder
-	name := strings.TrimSpace(preview.Name)
-	if name == "" {
-		name = "Extension"
-	}
+	name := cmp.Or(strings.TrimSpace(preview.Name), "Extension")
 	if _, err := fmt.Fprintf(&output, "%s will:\n", name); err != nil {
 		return fmt.Errorf("cli: format extension install preview: %w", err)
 	}

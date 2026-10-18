@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -12,6 +13,7 @@ import (
 // PromptDispatch owns the delivery context for one accepted prompt response.
 // Its lifecycle ends when a response writer finishes or disconnects.
 type PromptDispatch struct {
+	sessionID      string
 	result         session.SendPromptResult
 	cancelDelivery context.CancelFunc
 }
@@ -55,6 +57,11 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 		h.respondError(c, http.StatusForbidden, err)
 		return nil, false
 	}
+	origin, err := h.sessionPromptOrigin(c, c.Param("workspace_id"), sessionID, request, input)
+	if err != nil {
+		h.respondPromptOriginError(c, err)
+		return nil, false
+	}
 
 	deliveryContext, cancelDelivery := context.WithCancel(c.Request.Context())
 	result, err := h.Sessions.SendPrompt(
@@ -70,7 +77,10 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 			Attachments:     contract.AttachmentMetaFromRefs(input.Attachments),
 			DeliveryContext: deliveryContext,
 			Caller:          caller,
-			AllowCommands:   true,
+			// Slash commands stay operator ingress; agent-session callers send their text verbatim.
+			AllowCommands: strings.EqualFold(strings.TrimSpace(caller.Kind), "human"),
+			Origin:        origin,
+			Supersede:     request.Supersede,
 		},
 	)
 	if err != nil {
@@ -78,7 +88,7 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 		h.respondError(c, StatusForSessionError(err), err)
 		return nil, false
 	}
-	return &PromptDispatch{result: result, cancelDelivery: cancelDelivery}, true
+	return &PromptDispatch{sessionID: sessionID, result: result, cancelDelivery: cancelDelivery}, true
 }
 
 // RespondPromptV1 writes an accepted prompt as the AI SDK v1 stream or its
@@ -102,6 +112,7 @@ func (h *BaseHandlers) RespondPromptV1(c *gin.Context, dispatch *PromptDispatch)
 		return
 	}
 	encoder := NewPromptStreamEncoder(h.Now)
+	encoder.SetSessionID(dispatch.sessionID)
 	if err := encoder.Start(writer, turnID); err != nil {
 		h.Logger.Debug("api: prompt stream start failed", "transport", h.transportName(), "error", err)
 		return

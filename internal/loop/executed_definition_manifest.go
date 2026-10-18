@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -43,11 +44,7 @@ func validateExecutedManifestRoundTrip(
 	for key := range hydrated {
 		keySet[key] = struct{}{}
 	}
-	keys := make([]string, 0, len(keySet))
-	for key := range keySet {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(keySet))
 	for _, key := range keys {
 		snapshotSource, inSnapshot := snapshot[key]
 		hydratedSource, inHydrated := hydrated[key]

@@ -258,7 +258,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot, Name: "Ad8 QA"},
+				ID: "ws-registry", RootDir: workspaceRoot, Name: "Ad8 QA",
 				WorkspaceID: "ws-stable",
 				Config: compozyconfig.Config{
 					Agents: compozyconfig.AgentsConfig{
@@ -278,7 +278,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 				AgentName:   "coder",
 			}, nil
 		},
-	}, testutil.StubObserver{}, workspaces, nil, nil)
+	}, testutil.StubObserver{}, workspaces)
 	soulAuthoring := &workspaceIDCaptureSoulAuthoring{}
 	statusSpy := &heartbeatStatusSpy{}
 	wakeSpy := &heartbeatWakeSpy{}
@@ -292,7 +292,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 	t.Run("Should pass registry workspace id to Soul authoring", func(t *testing.T) {
 		body := []byte("{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"body\":\"# Soul\"}")
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPut,
 			"/agents/coder/soul",
 			bytes.NewReader(body),
@@ -311,7 +311,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 
 	t.Run("Should pass registry workspace id to Heartbeat status", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/agents/coder/heartbeat/status?workspace_id=ws-stable",
 			nil,
@@ -332,7 +332,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\",\"dry_run\":true}",
 		)
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/agents/coder/heartbeat/wake",
 			bytes.NewReader(body),
@@ -382,10 +382,8 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						RootDir: workspaceRoot,
-						Name:    "Ad8 QA",
-					},
+					RootDir:     workspaceRoot,
+					Name:        "Ad8 QA",
 					WorkspaceID: "ws-stable",
 					Config: compozyconfig.Config{
 						Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
@@ -393,7 +391,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 				}, nil
 			},
 		}
-		stableFixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspacesWithStableOnly, nil, nil)
+		stableFixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspacesWithStableOnly)
 		stableStatusSpy := &heartbeatStatusSpy{}
 		stableWakeSpy := &heartbeatWakeSpy{}
 		stableFixture.Handlers.HeartbeatStatus = stableStatusSpy
@@ -402,7 +400,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 		stableFixture.Engine.POST("/agents/:name/heartbeat/wake", stableFixture.Handlers.WakeAgentHeartbeat)
 
 		statusReq := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/agents/coder/heartbeat/status?workspace_id=ws-stable&session_id=sess-owned",
 			nil,
@@ -423,7 +421,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\",\"dry_run\":true}",
 		)
 		wakeReq := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/agents/coder/heartbeat/wake",
 			bytes.NewReader(wakeBody),
@@ -594,11 +592,9 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-registry",
-							RootDir: workspaceRoot,
-							Name:    "Deleted agent session",
-						},
+						ID:          "ws-registry",
+						RootDir:     workspaceRoot,
+						Name:        "Deleted agent session",
 						WorkspaceID: "ws-stable",
 						Config: compozyconfig.Config{
 							Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
@@ -606,7 +602,7 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 					}, nil
 				},
 			}
-			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 			fixture.Handlers.SessionHealth = sessionHealthReaderStub{health: heartbeat.SessionHealth{
 				SessionID:       "sess-deleted-agent",
 				WorkspaceID:     "ws-registry",
@@ -621,7 +617,7 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 			fixture.Handlers.HeartbeatStatus = statusSpy
 			testCase.registerRoute(fixture)
 
-			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, testCase.path, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, testCase.path, nil)
 			recorder := httptest.NewRecorder()
 			fixture.Engine.ServeHTTP(recorder, req)
 
@@ -635,6 +631,100 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 			testCase.assertPayload(t, payload)
 			if got, want := statusSpy.calls, 1; got != want {
 				t.Fatalf("HeartbeatStatus.Status() calls = %d, want %d", got, want)
+			}
+		})
+	}
+}
+
+func TestSessionStatusCarriesLineage(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		lineage        *store.SessionLineage
+		derivation     *store.SessionDerivation
+		wantKind       any
+		wantDerivation bool
+	}{
+		{name: "Should omit lineage for a root session"},
+		{
+			name:     "Should carry provenance lineage without a derivation",
+			lineage:  &store.SessionLineage{ParentSessionID: "sess-parent", Kind: store.LineageKindProvenance},
+			wantKind: string(store.LineageKindProvenance),
+		},
+		{
+			name: "Should carry spawn lineage without a derivation",
+			lineage: &store.SessionLineage{
+				ParentSessionID: "sess-parent", SpawnDepth: 1, SpawnRole: "worker", Kind: store.LineageKindSpawn,
+			},
+			wantKind: string(store.LineageKindSpawn),
+		},
+		{
+			name: "Should carry continue lineage and its derivation",
+			lineage: &store.SessionLineage{
+				ParentSessionID: "sess-parent", SpawnDepth: 1, Kind: store.LineageKindContinue,
+				OriginAgentName: "codex",
+			},
+			derivation: &store.SessionDerivation{
+				Kind: store.LineageKindContinue, SourceSessionID: "sess-parent",
+				Seed: store.SessionDerivationSeedReplay,
+			},
+			wantKind:       string(store.LineageKindContinue),
+			wantDerivation: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID: id, WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID,
+						AgentName: "coder", State: session.StateActive,
+						Lineage: tc.lineage, Derivation: tc.derivation,
+					}, nil
+				},
+			}
+			workspaces := testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						ID: "ws-registry", RootDir: t.TempDir(),
+						WorkspaceID: "ws-stable",
+					}, nil
+				},
+			}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
+			fixture.Handlers.SessionHealth = sessionHealthReaderStub{health: heartbeat.SessionHealth{
+				SessionID: "sess-child", WorkspaceID: "ws-registry", AgentName: "coder",
+				State: heartbeat.SessionHealthStateIdle, Health: heartbeat.SessionHealthHealthy,
+			}}
+			fixture.Engine.GET(
+				"/workspaces/:workspace_id/sessions/:session_id/status",
+				fixture.Handlers.GetSessionStatus,
+			)
+
+			req := httptest.NewRequestWithContext(
+				t.Context(), http.MethodGet, "/workspaces/ws-stable/sessions/sess-child/status", nil,
+			)
+			recorder := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(recorder, req)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("response code = %d body=%s", recorder.Code, recorder.Body.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("Unmarshal(response) error = %v", err)
+			}
+			lineage, hasLineage := payload["lineage"].(map[string]any)
+			if tc.wantKind == nil {
+				if hasLineage {
+					t.Fatalf("lineage = %#v, want omitted for a root session", lineage)
+				}
+			} else if !hasLineage || lineage["kind"] != tc.wantKind {
+				t.Fatalf("lineage = %#v, want kind %v", payload["lineage"], tc.wantKind)
+			}
+			if _, hasDerivation := payload["derivation"]; hasDerivation != tc.wantDerivation {
+				t.Fatalf("derivation present = %t, want %t", hasDerivation, tc.wantDerivation)
 			}
 		})
 	}
@@ -657,12 +747,10 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 				testutil.StubWorkspaceService{
 					ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 						return workspacepkg.ResolvedWorkspace{
-							Workspace: workspacepkg.Workspace{ID: ref, RootDir: root},
+							ID: ref, RootDir: root,
 						}, nil
 					},
 				},
-				nil,
-				nil,
 			)
 			wake := &heartbeatWakeSpy{}
 			fixture.Handlers.HeartbeatWake = wake
@@ -706,7 +794,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot, Name: workspaceID},
+				ID: workspaceID, RootDir: workspaceRoot, Name: workspaceID,
 				WorkspaceID: workspaceID,
 				Config: compozyconfig.Config{
 					Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
@@ -714,7 +802,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 			}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 	statusSpy := &heartbeatStatusSpy{}
 	wakeSpy := &heartbeatWakeSpy{}
 	fixture.Handlers.HeartbeatStatus = statusSpy
@@ -724,7 +812,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 
 	t.Run("Should reject foreign workspace heartbeat status session", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/agents/coder/heartbeat/status?workspace_id=ws-foreign&session_id=sess-owned&include_session_health=true",
 			nil,
@@ -748,7 +836,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 			"{\"workspace_id\":\"ws-foreign\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\"}",
 		)
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/agents/coder/heartbeat/wake",
 			bytes.NewReader(body),
@@ -876,7 +964,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 							return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 						}
 						return workspacepkg.ResolvedWorkspace{
-							Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+							ID: "ws-1", RootDir: workspaceRoot,
 							ProfileName: profile,
 							Config: compozyconfig.Config{
 								Agents: compozyconfig.AgentsConfig{
@@ -887,8 +975,6 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 						}, nil
 					},
 				},
-				nil,
-				nil,
 			)
 			fixture.Handlers.Profiles = sessionProfileServiceStub{}
 			fixture.Handlers.SoulAuthoring = soulAuthoring
@@ -907,7 +993,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			tc.registerRoute(fixture)
 
 			req := httptest.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				tc.method,
 				tc.path+"?workspace_id=ws-1&profile=marketing",
 				bytes.NewReader(tc.body),
@@ -1046,15 +1132,13 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
-				nil,
-				nil,
 			)
 			fixture.Handlers.SoulAuthoring = authoring
 			fixture.Handlers.SoulRefresher = refresher
 			tc.registerRoute(fixture)
 
 			req := httptest.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				tc.method,
 				tc.path,
 				bytes.NewReader(tc.body),
@@ -1143,7 +1227,7 @@ func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 		}
 		agents, err := compozyconfig.LoadWorkspaceAgentDefs(root, nil, home, profileName)
 		return workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: ref, RootDir: root}, WorkspaceID: ref,
+			ID: ref, RootDir: root, WorkspaceID: ref,
 			ProfileName: profileName, Config: cfg, Agents: agents,
 		}, err
 	}
@@ -1211,6 +1295,21 @@ func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 
 func TestAuthoredContextProfileScope(t *testing.T) {
 	t.Parallel()
+
+	// Migrate once, then give each parallel isolation case its own database copy.
+	// Closing checkpoints the WAL before the immutable template is read.
+	templatePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	templateDB, err := globaldb.OpenGlobalDB(t.Context(), templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := templateDB.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, sidecar := range []string{"soul", "heartbeat"} {
 		for _, sourceKind := range []string{"workspace", "personal", "dot-compozy-home"} {
 			t.Run(
@@ -1245,7 +1344,11 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+					databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+					if err := os.WriteFile(databasePath, template, 0o600); err != nil {
+						t.Fatal(err)
+					}
+					db, err := globaldb.OpenGlobalDB(t.Context(), databasePath)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -1282,8 +1385,6 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 						testutil.StubSessionManager{},
 						testutil.StubObserver{},
 						workspaces,
-						nil,
-						nil,
 					)
 					fixture.Handlers.Profiles = sessionProfileServiceStub{}
 					fixture.Handlers.SoulAuthoring, err = soul.NewManagedSoulAuthoringService(db)
@@ -1490,7 +1591,7 @@ func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
 								t.Fatalf("workspace profile=%q, want marketing", profile)
 							}
 							return workspacepkg.ResolvedWorkspace{
-								Workspace: workspacepkg.Workspace{ID: ref, RootDir: root},
+								ID: ref, RootDir: root,
 								Config: compozyconfig.Config{
 									Agents: compozyconfig.AgentsConfig{
 										Heartbeat: compozyconfig.DefaultHeartbeatConfig(),
@@ -1499,7 +1600,7 @@ func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
 							}, nil
 						},
 					}
-					fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+					fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 					fixture.Handlers.Profiles = sessionProfileServiceStub{}
 					status, wake := &heartbeatStatusSpy{}, &heartbeatWakeSpy{}
 					fixture.Handlers.HeartbeatStatus, fixture.Handlers.HeartbeatWake = status, wake
@@ -1558,4 +1659,92 @@ func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
 			)
 		}
 	}
+}
+
+type replyWatchStatusManager struct {
+	testutil.StubSessionManager
+	watches session.ReplyWatchService
+}
+
+func (m replyWatchStatusManager) ReplyWatches() session.ReplyWatchService { return m.watches }
+
+type replyWatchStatusService struct {
+	session.ReplyWatchService
+	list func(context.Context, string, string) ([]store.ReplyWatch, error)
+}
+
+func (s replyWatchStatusService) ListForSender(
+	ctx context.Context,
+	workspace, sender string,
+) ([]store.ReplyWatch, error) {
+	return s.list(ctx, workspace, sender)
+}
+
+func TestSessionStatusReplyWatches(t *testing.T) {
+	t.Run("Should authorize the session before returning its reply watches UT-047", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-registry",
+				ProfileID:   store.DefaultProfileID,
+				AgentName:   "coder",
+				State:       session.StateActive,
+			}, nil
+		}}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					ID:          "ws-registry",
+					WorkspaceID: "ws-stable",
+					RootDir:     t.TempDir(),
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
+		fixture.Handlers.Sessions = replyWatchStatusManager{
+			StubSessionManager: manager,
+			watches: replyWatchStatusService{
+				list: func(_ context.Context, workspace, sender string) ([]store.ReplyWatch, error) {
+					if workspace != "ws-registry" || sender != "sender" {
+						t.Errorf("scope = %s/%s", workspace, sender)
+					}
+					return []store.ReplyWatch{
+						{
+							ID:              "rw-1",
+							TargetSessionID: "target",
+							MessageID:       "message",
+							State:           "armed",
+							CreatedAt:       time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC),
+						},
+					}, nil
+				},
+			},
+		}
+		fixture.Handlers.SessionHealth = sessionHealthReaderStub{
+			health: heartbeat.SessionHealth{
+				SessionID:   "sender",
+				WorkspaceID: "ws-registry",
+				AgentName:   "coder",
+				State:       heartbeat.SessionHealthStateIdle,
+				Health:      heartbeat.SessionHealthHealthy,
+			},
+		}
+		fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/status", fixture.Handlers.GetSessionStatus)
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/workspaces/ws-stable/sessions/sender/status",
+			nil,
+		)
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+		var payload contract.SessionStatusResponse
+		err := json.Unmarshal(recorder.Body.Bytes(), &payload)
+		if recorder.Code != http.StatusOK || err != nil || len(payload.ReplyWatches) != 1 ||
+			payload.ReplyWatches[0].ID != "rw-1" ||
+			payload.ReplyWatches[0].TargetSessionID != "target" {
+			t.Fatalf("status = %d, %+v, %v; %s", recorder.Code, payload, err, recorder.Body.String())
+		}
+	})
 }

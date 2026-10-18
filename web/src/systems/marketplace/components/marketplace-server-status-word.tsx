@@ -5,12 +5,6 @@ import type {
   MarketplaceServerStatusView,
 } from "./marketplace-server-status";
 
-const TONE_TEXT: Record<MarketplaceServerStatusTone, string> = {
-  success: "text-success",
-  warning: "text-warning",
-  neutral: "text-subtle",
-};
-
 const TONE_DOT: Record<MarketplaceServerStatusTone, StatusDotTone> = {
   success: "success",
   warning: "warning",
@@ -23,7 +17,10 @@ interface MarketplaceServerStatusWordProps {
   "data-testid"?: string;
 }
 
-/** Status word + 6px dot (hollow when neutral). Tone marks state only. */
+/**
+ * Status word + 6px dot (hollow when neutral): the tone rides the dot only, the word stays muted
+ * ink, so a state never reads as a control or a second accent.
+ */
 function MarketplaceServerStatusWord({
   view,
   className,
@@ -32,8 +29,7 @@ function MarketplaceServerStatusWord({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap",
-        TONE_TEXT[view.tone],
+        "inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-muted",
         className
       )}
       data-status={view.key}

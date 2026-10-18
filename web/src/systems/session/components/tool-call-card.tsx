@@ -6,16 +6,16 @@ import { DetailPayload } from "./tool-renderers/detail-payload";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
 import { isDeliberateTerminalTool, readSupervisedTerminalId } from "../lib/session-terminal-tools";
-import { fileDiffStatForTool } from "../lib/tool-diff-stat";
+import { fileDiffStatForTool, type ToolFileDiffStat } from "../lib/tool-diff-stat";
+import { resolveToolDisplay, type ToolDisplay } from "../lib/tool-display";
 import {
-  getToolCompactSummary,
-  getToolIcon,
   getToolLabel,
+  getToolSettledLabel,
   resolveRegisteredToolName,
   toolHeadingName,
 } from "../lib/tool-labels";
 import type { UIMessage } from "../types";
-import { isToolBodyField } from "../lib/tool-matched-field";
+import { isToolBodyField, type SessionToolBodyField } from "../lib/tool-matched-field";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 import { MatchedToolFieldContent } from "./tool-renderers/matched-field-content";
 import { ToolResultArtifact } from "./tool-result-artifact";
@@ -50,7 +50,12 @@ export interface SessionToolCallRowProps {
    * subtle × plus the word "failed" (ADR-009).
    */
   turnFailed?: boolean;
+  /** The row sits on a work group's rail: the rail's branch is its bullet, so no kind glyph. */
+  onRail?: boolean;
 }
+
+/** Tools whose opened body is a diff card that brings its own frame. */
+const DIFF_BODY_TOOLS = new Set(["Edit", "Write"]);
 
 /** Tools with specialized expanded renderers own input+output — no card-level JSON. */
 const SPECIALIZED_TOOLS = new Set(["Bash", "Read", "Write", "Edit", "Grep", "Glob", "TodoWrite"]);
@@ -74,13 +79,23 @@ function formatToolPayload(message: UIMessage): string {
   }
 }
 
-// The verb keeps its tense on failure — "Ran", never "Failed to run"; the
-// danger × glyph plus the error-first-line preview carry the failure.
-function progressLabelFor(toolName: string, status: ToolCallStatus): string {
-  if (status === "pending" || status === "running") {
-    return getToolLabel(toolName, "active");
-  }
-  return getToolLabel(toolName, "past");
+// The verb keeps its tense on failure — "Ran", never "Failed to run"; the ×
+// glyph plus the error-first-line preview carry the failure. Only a family whose copy
+// names the attempt ("Tried to …", subagent tools) differs.
+function rowDisplay(message: UIMessage, status: ToolCallStatus): ToolDisplay {
+  const live = status === "pending" || status === "running";
+  const display = resolveToolDisplay(
+    {
+      toolName: message.toolName ?? "tool",
+      ...(message.toolTitle ? { toolTitle: message.toolTitle } : {}),
+      ...(message.toolInput ? { args: message.toolInput } : {}),
+    },
+    live ? "active" : "past"
+  );
+  if (status !== "failed" && status !== "absorbed") return display;
+  const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
+  const tried = getToolSettledLabel(registryTool, true);
+  return tried === getToolLabel(registryTool, "past") ? display : { ...display, verb: tried };
 }
 
 function firstLine(text: string): string | undefined {
@@ -91,53 +106,26 @@ function firstLine(text: string): string | undefined {
   return undefined;
 }
 
+// A failed row's object is the error itself: the × glyph plus the error's
+// first line carry the failure (ADR-009); Bash stderr keeps only its lead line.
+function failurePreview(message: UIMessage, registryTool: string): string {
+  const error = message.toolResult?.error;
+  if (typeof error === "string" && error.trim().length > 0) {
+    return compactSessionSummary(firstLine(error) ?? error);
+  }
+  const stderr = message.toolResult?.stderr;
+  if (typeof stderr === "string" && stderr.trim().length > 0) {
+    return compactSessionSummary(registryTool === "Bash" ? (firstLine(stderr) ?? stderr) : stderr);
+  }
+  return "Tool call failed";
+}
+
 function failureText(message: UIMessage): string {
   const error = message.toolResult?.error;
   if (typeof error === "string" && error.trim().length > 0) return error;
   const stderr = message.toolResult?.stderr;
   if (typeof stderr === "string" && stderr.trim().length > 0) return stderr;
   return "Tool call failed";
-}
-
-function failurePreview(message: UIMessage, registryTool: string): string {
-  const error = message.toolResult?.error;
-  if (typeof error === "string" && error.trim().length > 0) {
-    return firstLine(error) ?? error;
-  }
-  const stderr = message.toolResult?.stderr;
-  if (typeof stderr === "string" && stderr.trim().length > 0) {
-    return registryTool === "Bash" ? (firstLine(stderr) ?? stderr) : stderr;
-  }
-  return "Tool call failed";
-}
-
-// Collapsed-row preview: failed rows lead with the error's first line; settled
-// Reads append their line count; everything else keeps the compact input summary.
-function previewFor(
-  message: UIMessage,
-  registryTool: string,
-  status: ToolCallStatus
-): string | undefined {
-  if (status === "failed") {
-    return compactSessionSummary(failurePreview(message, registryTool));
-  }
-  const description =
-    message.toolTitle && message.toolTitle !== registryTool
-      ? message.toolTitle
-      : message.toolName !== toolHeadingName(registryTool)
-        ? message.toolName
-        : undefined;
-  const summary = description
-    ? compactSessionSummary(description)
-    : getToolCompactSummary(registryTool, message.toolInput);
-  if (registryTool === "Read" && status === "success" && summary) {
-    const body = message.toolResult?.stdout ?? message.toolResult?.content;
-    if (typeof body === "string" && body.length > 0) {
-      const lineCount = body.split("\n").length;
-      return `${summary} · ${lineCount} ${lineCount === 1 ? "line" : "lines"}`;
-    }
-  }
-  return summary;
 }
 
 function diffStatLabel(additions: number, deletions: number): string {
@@ -171,12 +159,18 @@ function toolCallPresentation({
       ? "absorbed"
       : derived.status;
   const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
-  const progressLabel = progressLabelFor(registryTool, status);
-  const preview = previewFor(message, registryTool, status === "absorbed" ? "failed" : status);
-  const toolIcon = getToolIcon(registryTool, message.toolInput);
+  const display = rowDisplay(message, status);
+  const failed = status === "failed" || status === "absorbed";
+  const preview = failed ? failurePreview(message, registryTool) : display.target;
+  // A compacted object keeps its full text one hover away.
+  const previewTitle = failed ? preview : (display.fullTarget ?? display.target);
+  const previewVariant: "chip" | "text" = failed || display.targetKind === "text" ? "text" : "chip";
   const copyPayload = formatToolPayload(message);
   const hasOutput = !toolResultIsEmpty(message.toolResult);
   const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
+  const showArtifactResult = message.toolResult?.truncated === true;
+  const bodyVariant: "card" | "plain" =
+    DIFF_BODY_TOOLS.has(registryTool) && !showArtifactResult ? "plain" : "card";
   const errorMessage =
     status === "failed" || status === "absorbed" ? failureText(message) : undefined;
   // The word that carries a state the glyph does not: "failed" beside the
@@ -186,7 +180,6 @@ function toolCallPresentation({
     status === "success" && message.toolInput
       ? fileDiffStatForTool(registryTool, message.toolInput)
       : null;
-  const showArtifactResult = message.toolResult?.truncated === true;
   // A find jump names the field it matched: that payload renders in full beside
   // the tool's own display, so the searched text is on screen (not only the
   // specialized summary of it). Title/name matches open the original title below.
@@ -207,9 +200,11 @@ function toolCallPresentation({
     matchedField !== null;
 
   return {
-    progressLabel,
+    display,
+    bodyVariant,
     preview,
-    toolIcon,
+    previewTitle,
+    previewVariant,
     copyPayload,
     status,
     errorMessage,
@@ -223,10 +218,81 @@ function toolCallPresentation({
   };
 }
 
+type ToolCallDiffStat = ToolFileDiffStat | null;
+
+/** Accessible stat text: the state word, else the spelled-out diff stat. */
+function toolCallStatLabel(
+  stateWord: string | null,
+  diffStat: ToolCallDiffStat
+): string | undefined {
+  if (stateWord) return stateWord;
+  return diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined;
+}
+
+/** The row's trailing stat: a state word the glyph cannot carry, else the `+a −d` diff stat. */
+function ToolCallStat({
+  stateWord,
+  diffStat,
+}: {
+  stateWord: string | null;
+  diffStat: ToolCallDiffStat;
+}) {
+  if (stateWord) {
+    return (
+      <span className="text-subtle" data-testid="tool-call-state-word">
+        {stateWord}
+      </span>
+    );
+  }
+  if (!diffStat) return null;
+  return (
+    <>
+      {/* Per-call stats stay neutral; the sign carries the meaning. The turn's
+          changed-files row is the one place additions/deletions take color. */}
+      <span className="font-medium text-subtle">+{diffStat.additions}</span>
+      <span className="font-medium text-subtle">−{diffStat.deletions}</span>
+    </>
+  );
+}
+
+/** The expanded body: the original title, the matched field in full, then the tool's own display. */
+function ToolCallBody({
+  message,
+  titleDetail,
+  matchedField,
+  showArtifactResult,
+}: {
+  message: UIMessage;
+  titleDetail?: string;
+  matchedField: SessionToolBodyField | null;
+  showArtifactResult: boolean;
+}) {
+  return (
+    <>
+      {titleDetail ? (
+        <DetailPayload
+          aria-label="Tool title"
+          text={titleDetail}
+          defaultExpanded
+          downloadName="tool-title.txt"
+        />
+      ) : null}
+      {matchedField ? <MatchedToolFieldContent message={message} field={matchedField} /> : null}
+      {showArtifactResult && message.toolResult ? (
+        <ToolResultArtifact result={message.toolResult} />
+      ) : (
+        <ExpandedToolContent message={message} />
+      )}
+    </>
+  );
+}
+
 /**
  * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`: one
- * calm 24px line whose status lives in the trailing glyph. Failed rows stay
- * collapsed — failure reads from the × glyph and the error-first-line preview;
+ * calm 24px line — verb, then its object as a mono chip ("Read
+ * `session-thread.tsx`", "Ran `go test ./...`") — whose status lives in the
+ * trailing glyph. Failed rows stay collapsed — failure reads from the × glyph
+ * and the error-first-line preview;
  * successful Edit/Write rows carry their per-file `+a −d` stat.
  */
 export function SessionToolCallRow({
@@ -239,6 +305,7 @@ export function SessionToolCallRow({
   turnSettled = false,
   interrupted = false,
   turnFailed = false,
+  onRail = false,
 }: SessionToolCallRowProps) {
   const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
   if (
@@ -252,9 +319,11 @@ export function SessionToolCallRow({
     );
   }
   const {
-    progressLabel,
+    display,
+    bodyVariant,
     preview,
-    toolIcon,
+    previewTitle,
+    previewVariant,
     copyPayload,
     status,
     errorMessage,
@@ -273,12 +342,13 @@ export function SessionToolCallRow({
     revealOpen,
     revealField,
   });
+  const statLabel = toolCallStatLabel(stateWord, diffStat);
   const copyAction = (
     <CopyIconButton
       value={copyPayload}
-      copyLabel="Copy tool payload"
-      copiedLabel="Tool payload copied"
-      copyFailedLabel="Tool payload copy failed"
+      copyLabel="Copy tool details"
+      copiedLabel="Tool details copied"
+      copyFailedLabel="Couldn't copy tool details"
       className="text-subtle hover:text-fg"
     />
   );
@@ -286,9 +356,11 @@ export function SessionToolCallRow({
   return (
     <div data-testid="tool-call-row" data-part-index={partIndex}>
       <ToolCallRow
-        toolName={progressLabel}
-        icon={toolIcon}
-        preview={preview}
+        toolName={display.verb}
+        icon={onRail ? null : display.icon}
+        preview={preview ? <span title={previewTitle}>{preview}</span> : undefined}
+        bodyVariant={bodyVariant}
+        previewVariant={previewVariant}
         status={status}
         errorMessage={errorMessage}
         actions={copyAction}
@@ -297,42 +369,16 @@ export function SessionToolCallRow({
           if (!next && revealOpen) onRevealRelease?.();
           setOwnExpanded(next);
         }}
-        statLabel={
-          stateWord ??
-          (diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined)
-        }
-        stat={
-          stateWord ? (
-            <span className="text-subtle" data-testid="tool-call-state-word">
-              {stateWord}
-            </span>
-          ) : diffStat ? (
-            <>
-              <span className="font-medium text-success">+{diffStat.additions}</span>
-              <span className="font-medium text-danger">−{diffStat.deletions}</span>
-            </>
-          ) : undefined
-        }
+        statLabel={statLabel}
+        stat={statLabel ? <ToolCallStat stateWord={stateWord} diffStat={diffStat} /> : undefined}
       >
         {showExpandedBody ? (
-          <ToolCallRow.Output>
-            {showTitleDetail && titleDetail ? (
-              <DetailPayload
-                aria-label="Tool title"
-                text={titleDetail}
-                defaultExpanded
-                downloadName="tool-title.txt"
-              />
-            ) : null}
-            {matchedField ? (
-              <MatchedToolFieldContent message={message} field={matchedField} />
-            ) : null}
-            {showArtifactResult && message.toolResult ? (
-              <ToolResultArtifact result={message.toolResult} />
-            ) : (
-              <ExpandedToolContent message={message} />
-            )}
-          </ToolCallRow.Output>
+          <ToolCallBody
+            message={message}
+            titleDetail={showTitleDetail ? titleDetail : undefined}
+            matchedField={matchedField}
+            showArtifactResult={showArtifactResult}
+          />
         ) : null}
       </ToolCallRow>
     </div>

@@ -41,6 +41,9 @@ func (a AgentDef) Validate() error {
 		return err
 	}
 
+	if err := validateFallbackChain(AgentFallbackChainPath(a.Name), a.FallbackChain, nil, false); err != nil {
+		return err
+	}
 	for i, server := range a.MCPServers {
 		if err := server.Validate(fmt.Sprintf("agent.mcp_servers[%d]", i)); err != nil {
 			return err

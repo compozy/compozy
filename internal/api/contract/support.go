@@ -4,7 +4,7 @@ import "time"
 
 type CreateSupportBundleRequest struct {
 	Yes           bool  `json:"yes"`
-	IncludeStatus *bool `json:"include_status,omitempty"`
+	IncludeStatus *bool `json:"include_status,omitzero"`
 }
 
 type SupportBundleOperationResponse struct {
@@ -17,8 +17,8 @@ type SupportBundleOperationPayload struct {
 	StatusURL     string                        `json:"status_url"`
 	DownloadURL   string                        `json:"download_url,omitempty"`
 	FileName      string                        `json:"file_name,omitempty"`
-	SizeBytes     int64                         `json:"size_bytes,omitempty"`
-	Manifest      *SupportBundleManifestPayload `json:"manifest,omitempty"`
+	SizeBytes     int64                         `json:"size_bytes,omitzero"`
+	Manifest      *SupportBundleManifestPayload `json:"manifest,omitzero"`
 	FailureReason string                        `json:"failure_reason,omitempty"`
 	CreatedAt     time.Time                     `json:"created_at"`
 	UpdatedAt     time.Time                     `json:"updated_at"`

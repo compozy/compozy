@@ -19,7 +19,7 @@ describe("RestartBanner", () => {
   it("Should render the action button and invoke restartNow on click", () => {
     const restartNow = vi.fn();
     render(<RestartBanner restartNow={restartNow} />);
-    const action = screen.getByRole("button", { name: "Restart daemon" });
+    const action = screen.getByRole("button", { name: "Restart now" });
     expect(action).toBeEnabled();
     fireEvent.click(action);
     expect(restartNow).toHaveBeenCalledTimes(1);
@@ -39,7 +39,7 @@ describe("RestartBanner", () => {
   });
 
   it("Should swap to the info tone with a spinner when busy", () => {
-    const { container } = render(<RestartBanner tone="info" busy message="Restarting daemon" />);
+    const { container } = render(<RestartBanner tone="info" busy message="Restarting" />);
     const root = container.querySelector<HTMLElement>('[data-slot="restart-banner"]');
     expect(root?.dataset.tone).toBe("info");
     expect(root?.dataset.busy).toBe("true");
@@ -51,7 +51,7 @@ describe("RestartBanner", () => {
   it("Should render the danger tone with role=alert and a dismiss button when onDismiss is provided", () => {
     const onDismiss = vi.fn();
     const { container } = render(
-      <RestartBanner tone="danger" message="Daemon restart failed" onDismiss={onDismiss} />
+      <RestartBanner tone="danger" message="Restart failed" onDismiss={onDismiss} />
     );
     const root = container.querySelector<HTMLElement>('[data-slot="restart-banner"]');
     expect(root?.dataset.tone).toBe("danger");
@@ -68,5 +68,28 @@ describe("RestartBanner", () => {
     expect(screen.getByTestId("detail-chip")).toBeInTheDocument();
     const detail = container.querySelector<HTMLElement>('[data-slot="restart-banner-detail"]');
     expect(detail).not.toBeNull();
+  });
+
+  it("Should render a title and description, custom pending label, and forward button props", () => {
+    const { container } = render(
+      <RestartBanner
+        actionProps={{ "data-testid": "restart-action", variant: "neutral" }}
+        description="Some saved changes apply after a restart."
+        dismissProps={{ "data-testid": "restart-dismiss" }}
+        isPending
+        message="Restart needed"
+        onDismiss={vi.fn()}
+        pendingLabel="Retrying…"
+        restartNow={vi.fn()}
+      />
+    );
+    expect(container.querySelector('[data-slot="restart-banner-description"]')?.textContent).toBe(
+      "Some saved changes apply after a restart."
+    );
+    const action = screen.getByTestId("restart-action");
+    expect(action).toHaveTextContent("Retrying…");
+    expect(action).toHaveAttribute("aria-busy", "true");
+    expect(action).toBeDisabled();
+    expect(screen.getByTestId("restart-dismiss")).toHaveTextContent("Dismiss");
   });
 });

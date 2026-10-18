@@ -5,6 +5,24 @@ at a generation boundary (`paused` — a live, resumable state distinct from sys
 it later, or immediately cancels it and its owned sessions. Pause is
 **intent-decoupled from status**: it never flips to `paused` while a node is still executing.
 
+An operator can also acknowledge a durable node wait after its Profile's extension catalog
+changes. The existing Run keeps its pinned definition: acknowledgement persists, while a
+later unavailable extension action reports its own node failure. The sibling Profile's
+catalog and work remain independent. Restore the extension before retrying that failed work,
+or cancel the owned Run if the handoff is abandoned.
+
+```mermaid
+flowchart LR
+    W[Parked handoff wait] --> X[Disable later extension in the Run Profile]
+    X --> Y[Resume wait with acknowledgement]
+    Y --> Z[Persist acknowledgement and expose later node outcome]
+    Z --> R{Continue handoff?}
+    R -->|Yes| S[Restore extension and recover failed work]
+    R -->|No| T[Cancel owned Run and restore extension]
+    S --> U[Verify final state and unchanged sibling Profile]
+    T --> U
+```
+
 ```mermaid
 flowchart TD
     A[Entry: run-detail of a Running loop] --> B{Pause available?}

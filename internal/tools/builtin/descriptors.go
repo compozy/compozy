@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"encoding/json"
+	"slices"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -35,8 +36,8 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		toolApprovalDescriptors(),
 		clarifyDescriptors(),
 		skillDescriptors(),
-		networkDescriptors(),
 		sessionDescriptors(),
+		subagentDescriptors(),
 		sessionAttentionDescriptors(),
 		sessionOrchestrationDescriptors(),
 		authoredContextDescriptors(),
@@ -45,10 +46,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		vaultDescriptors(),
 		worktreeDescriptors(),
 		providerModelsDescriptors(),
-		memoryDescriptors(),
-		memoryAdminDescriptors(),
 		observeDescriptors(),
-		bridgeDescriptors(),
 		gatewayDescriptors(),
 		taskDescriptors(),
 		autonomyDescriptors(),
@@ -119,6 +117,7 @@ func nativeDescriptor(
 func cloneDescriptor(src toolspkg.Descriptor) toolspkg.Descriptor {
 	cloned := src
 	cloned.ToolPresentation = toolspkg.CloneToolPresentation(src.ToolPresentation)
+	cloned.ToolExecutionMetadata = toolspkg.CloneToolExecutionMetadata(src.ToolExecutionMetadata)
 	cloned.InputSchema = cloneRawMessage(src.InputSchema)
 	cloned.OutputSchema = cloneRawMessage(src.OutputSchema)
 	cloned.Toolsets = cloneToolsets(src.Toolsets)
@@ -131,19 +130,19 @@ func cloneRawMessage(src json.RawMessage) json.RawMessage {
 	if len(src) == 0 {
 		return nil
 	}
-	return append(json.RawMessage(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneToolsets(src []toolspkg.ToolsetID) []toolspkg.ToolsetID {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]toolspkg.ToolsetID(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneStrings(src []string) []string {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]string(nil), src...)
+	return slices.Clone(src)
 }

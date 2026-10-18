@@ -182,6 +182,9 @@ describe("runtime helpers", () => {
         "[daemon]",
         'socket = "/tmp/compozy.sock"',
         "",
+        "[daemon.load]",
+        "admission_threshold = 0",
+        "",
         "[http]",
         'host = "127.0.0.1"',
         "port = 4321",
@@ -191,17 +194,6 @@ describe("runtime helpers", () => {
         "",
       ].join("\n")
     );
-  });
-
-  it("renders network enablement when requested by the browser runtime", () => {
-    expect(
-      renderRuntimeConfig({
-        host: "127.0.0.1",
-        networkEnabled: true,
-        port: 4321,
-        socketPath: "/tmp/compozy.sock",
-      })
-    ).toContain("[network]\nenabled = true\n");
   });
 
   it("renders models.dev disablement when a browser scenario requires offline catalog refresh", () => {
@@ -215,15 +207,15 @@ describe("runtime helpers", () => {
     ).toContain("[model_catalog.sources.models_dev]\nenabled = false\n");
   });
 
-  it("renders network disablement when requested by the browser runtime", () => {
+  it("Should pin the new-window policy for specs whose invariants need one placement", () => {
     expect(
       renderRuntimeConfig({
         host: "127.0.0.1",
-        networkEnabled: false,
+        newWindowPolicy: "floating",
         port: 4321,
         socketPath: "/tmp/compozy.sock",
       })
-    ).toContain("[network]\nenabled = false\n");
+    ).toContain('[window_manager]\nnew_window_policy = "floating"\n');
   });
 
   it("Should render unverified extension policy only when explicitly requested", () => {

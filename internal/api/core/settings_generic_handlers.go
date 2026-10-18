@@ -5,8 +5,6 @@ import (
 
 	"net/http"
 
-	"strings"
-
 	"github.com/compozy/compozy/internal/api/contract"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -27,7 +25,11 @@ func (h *BaseHandlers) getSettingsSection(c *gin.Context, section settingspkg.Se
 
 	envelope, err := h.Settings.GetSection(c.Request.Context(), req)
 	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
+		status := StatusForSettingsError(err)
+		if status >= http.StatusInternalServerError && h.Logger != nil {
+			h.Logger.Error("settings section read failed", "section", section, "error", err)
+		}
+		h.respondError(c, status, err)
 		return
 	}
 
@@ -151,21 +153,6 @@ func (h *BaseHandlers) getSettingsCollectionItem(c *gin.Context, collection sett
 			return
 		}
 		c.JSON(http.StatusOK, contract.SettingsProviderResponse{Provider: settingsProviderItemPayload(&item)})
-	case settingspkg.CollectionSandboxes:
-		item, found := findSettingsSandbox(envelope.Sandboxes, name)
-		if !found {
-			notFound := NewSettingsNotFoundError(fmt.Errorf("sandbox %q not found", name))
-			h.respondError(c, StatusForSettingsError(notFound), notFound)
-			return
-		}
-		c.JSON(http.StatusOK, contract.SettingsSandboxResponse{
-			Sandbox: contract.SettingsSandboxItemPayload{
-				Name:                strings.TrimSpace(item.Name),
-				Profile:             settingsSandboxProfilePayload(item.Profile),
-				WorkspaceUsageCount: item.WorkspaceUsageCount,
-				SourceMetadata:      settingsSourceMetadataPayload(item.SourceMetadata),
-			},
-		})
 	default:
 		h.respondError(
 			c,

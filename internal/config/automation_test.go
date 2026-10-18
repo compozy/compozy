@@ -27,7 +27,7 @@ workspace = "/repo"
 schedule = { mode = "every", interval = "30m" }
 agent = "monitor"
 prompt = "Check system health"
-task = { title = "Check health", network_participation = { mode = "live", channel_strategy = "named", channel_id = "ops", bounds = { max_wakes = 2, max_input_tokens = 4096, max_output_tokens = 2048 } } }
+task = { title = "Check health" }
 
 [[automation.triggers]]
 scope = "workspace"
@@ -77,18 +77,6 @@ prompt = "Summarize {{ index .Data \"session_id\" }}"
 	}
 	if got, want := job.FireLimit.Window, "30m"; got != want {
 		t.Fatalf("job.FireLimit.Window = %q, want %q", got, want)
-	}
-	if job.Task == nil || job.Task.NetworkParticipation == nil {
-		t.Fatalf("job.Task.NetworkParticipation = %#v, want TOML-authored participation", job.Task)
-	}
-	request := job.Task.NetworkParticipation
-	if request.Mode == nil || *request.Mode != "live" ||
-		request.ChannelStrategy == nil || *request.ChannelStrategy != "named" ||
-		request.ChannelID == nil || *request.ChannelID != "ops" ||
-		request.Bounds == nil || request.Bounds.MaxWakes == nil || *request.Bounds.MaxWakes != 2 ||
-		request.Bounds.MaxInputTokens == nil || *request.Bounds.MaxInputTokens != 4096 ||
-		request.Bounds.MaxOutputTokens == nil || *request.Bounds.MaxOutputTokens != 2048 {
-		t.Fatalf("job participation = %#v, want complete TOML field mapping", request)
 	}
 
 	trigger := cfg.Automation.Triggers[0]
@@ -140,24 +128,11 @@ prompt = "Summarize {{ .Kind }}"
 `,
 			wantErr: "automation.triggers[0].workspace",
 		},
-		{
-			name: "global direct task with live participation",
-			contents: `
-[[automation.jobs]]
-scope = "global"
-name = "network-health-check"
-schedule = { mode = "every", interval = "30m" }
-agent = "monitor"
-prompt = "Check network health"
-task = { title = "Check network health", network_participation = { mode = "live", channel_strategy = "named", channel_id = "ops" } }
-`,
-			wantErr: "automation.jobs[0].task.network_participation cannot be live",
-		},
 	}
 
+	workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 			writeFile(t, homePaths.ConfigFile, tc.contents)
 
 			_, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -247,9 +222,9 @@ event = "webhook"
 		},
 	}
 
+	workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 			writeFile(t, homePaths.ConfigFile, tc.contents)
 
 			_, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -329,9 +304,9 @@ prompt = "Review {{ .Kind }}"
 		},
 	}
 
+	workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 			writeFile(t, homePaths.ConfigFile, tc.contents)
 
 			_, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -396,8 +371,8 @@ func TestConfigAutomationAgentReferencesValidateAtTheirOwningBoundary(t *testing
 			t.Parallel()
 
 			err := tc.validate()
-			var validationErr ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, validationErrOK := errors.AsType[ValidationError](err)
+			if !validationErrOK {
 				t.Fatalf("validation error = %T, want ValidationError", err)
 			}
 			if got := validationErr.Path; got != tc.wantPath {

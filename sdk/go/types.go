@@ -128,18 +128,18 @@ const (
 
 // ExtensionDefinition describes one extension process implementation.
 type ExtensionDefinition struct {
-	Name                 string                           `json:"name"`
-	Version              string                           `json:"version"`
-	Description          string                           `json:"description,omitempty"`
-	RequiresEnv          []string                         `json:"requires_env,omitempty"`
-	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
-	Resources            DescribeResources                `json:"resources,omitempty"`
-	Subprocess           DescribeSubprocess               `json:"subprocess"`
-	Capabilities         CapabilitiesConfig               `json:"capabilities"`
-	Permissions          PermissionsConfig                `json:"permissions"`
-	SupportedHookEvents  []DescribeHookEvent              `json:"supported_hook_events,omitempty"`
-	NetworkParticipation *NetworkParticipationRequirement `json:"network_participation,omitempty"`
-	Metadata             map[string]string                `json:"metadata,omitempty"`
+	Name                string              `json:"name"`
+	Version             string              `json:"version"`
+	Description         string              `json:"description,omitempty"`
+	RequiresEnv         []string            `json:"requires_env,omitempty"`
+	Profiles            []DescribeProfile   `json:"profiles,omitempty"`
+	Resources           DescribeResources   `json:"resources,omitempty"` //nolint:modernize // omitempty is a no-op on this struct; omitzero would drop the zero DescribeResources object from the wire.
+	Subprocess          DescribeSubprocess  `json:"subprocess"`
+	Capabilities        CapabilitiesConfig  `json:"capabilities"`
+	Permissions         PermissionsConfig   `json:"permissions"`
+	SupportedHookEvents []DescribeHookEvent `json:"supported_hook_events,omitempty"`
+	Gateway             *GatewayRequirement `json:"gateway,omitzero"`
+	Metadata            map[string]string   `json:"metadata,omitempty"`
 }
 
 // DescribeResources declares source-relative static resource paths shipped by an extension.
@@ -160,8 +160,8 @@ type DescribeResourcePath = contracts.DescribeResourcePath
 // DescribeHookEvent binds a supported hook event to an optional profile.
 type DescribeHookEvent = contracts.DescribeHookEvent
 
-// NetworkParticipationRequirement declares live network control for digest consent.
-type NetworkParticipationRequirement = contracts.DescribeNetworkParticipation
+// GatewayRequirement declares Gateway provider permissions for digest consent.
+type GatewayRequirement = contracts.DescribeGatewayRequirement
 
 // CapabilitiesConfig lists extension-provided capability surfaces.
 type CapabilitiesConfig struct {
@@ -208,12 +208,11 @@ type InitializeMethods struct {
 
 // InitializeRuntime carries runtime intervals and deadlines.
 type InitializeRuntime struct {
-	HealthCheckIntervalMS int64           `json:"health_check_interval_ms"`
-	HealthCheckTimeoutMS  int64           `json:"health_check_timeout_ms"`
-	ShutdownTimeoutMS     int64           `json:"shutdown_timeout_ms"`
-	DefaultHookTimeoutMS  int64           `json:"default_hook_timeout_ms"`
-	DefaultViewTimeoutMS  int64           `json:"default_view_timeout_ms,omitempty"`
-	Bridge                json.RawMessage `json:"bridge,omitempty"`
+	HealthCheckIntervalMS int64 `json:"health_check_interval_ms"`
+	HealthCheckTimeoutMS  int64 `json:"health_check_timeout_ms"`
+	ShutdownTimeoutMS     int64 `json:"shutdown_timeout_ms"`
+	DefaultHookTimeoutMS  int64 `json:"default_hook_timeout_ms"`
+	DefaultViewTimeoutMS  int64 `json:"default_view_timeout_ms,omitzero"`
 }
 
 // InitializeResponse is the extension -> CompozyOS initialize acknowledgment.
@@ -309,7 +308,7 @@ type ExtensionToolRuntimeDescriptor struct {
 	Risk                RiskClass             `json:"risk"`
 	RequiresInteraction bool                  `json:"requires_interaction"`
 	Capabilities        []string              `json:"capabilities,omitempty"`
-	Command             *ExtensionCommandSpec `json:"command,omitempty"`
+	Command             *ExtensionCommandSpec `json:"command,omitzero"`
 }
 
 // DescribeSubprocess declares the generated bundle's process entrypoint.
@@ -326,7 +325,7 @@ type ExtensionToolCallRequest struct {
 	Handler          string                       `json:"handler"`
 	SessionID        string                       `json:"session_id,omitempty"`
 	InvocationID     string                       `json:"invocation_id,omitempty"`
-	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitzero"`
 	Input            json.RawMessage              `json:"input"`
 }
 
@@ -399,14 +398,14 @@ type ArtifactRef struct {
 	URI      string `json:"uri"`
 	Name     string `json:"name,omitempty"`
 	MIMEType string `json:"mime_type,omitempty"`
-	Bytes    int64  `json:"bytes,omitempty"`
+	Bytes    int64  `json:"bytes,omitzero"`
 }
 
 // Redaction records a redaction applied to a result.
 type Redaction struct {
 	Path   string `json:"path"`
 	Reason string `json:"reason"`
-	Bytes  int64  `json:"bytes,omitempty"`
+	Bytes  int64  `json:"bytes,omitzero"`
 }
 
 // ToolResult is the canonical result envelope for tool handlers.

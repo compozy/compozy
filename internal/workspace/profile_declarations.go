@@ -1,12 +1,13 @@
 package workspace
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
@@ -46,6 +47,8 @@ func scanWorkspaceProfileDeclarations(
 		}
 		declarations = append(declarations, ProfileDeclaration{Name: entry.Name(), Path: path})
 	}
-	sort.Slice(declarations, func(i, j int) bool { return declarations[i].Name < declarations[j].Name })
+	slices.SortFunc(declarations, func(a, b ProfileDeclaration) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return declarations, nil
 }

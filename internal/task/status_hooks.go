@@ -17,10 +17,8 @@ func (m *Service) dispatchTaskStatusChanged(
 		return
 	}
 	payload := hookspkg.TaskStatusChangedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskStatusChanged,
-			Timestamp: m.now().UTC(),
-		},
+		Event:       hookspkg.HookTaskStatusChanged,
+		Timestamp:   m.now().UTC(),
 		TaskContext: m.taskHookContext(taskRecord, actor, nil),
 		FromStatus:  string(from.Normalize()),
 		ToStatus:    string(to.Normalize()),

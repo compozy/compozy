@@ -23,6 +23,7 @@ import {
 
 export { fetchSessions } from "./session-catalog-api";
 export { archiveSession, unarchiveSession } from "./session-archive-api";
+export { compactSession } from "./session-compaction-api";
 export { fetchSessionCommands } from "./session-command-api";
 export { fetchSessionGoal, mutateSessionGoal } from "./session-goal-api";
 export {
@@ -53,11 +54,9 @@ export {
 export {
   fetchSessionEvents,
   fetchSessionHistory,
-  fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
   fetchSessionUsageTurns,
-  SessionLedgerUnavailableError,
 } from "./session-history-api";
 
 export type {
@@ -98,7 +97,7 @@ export async function fetchSession(
     {
       params: {
         path: { workspace_id: workspaceId, session_id: id },
-        query: { include_health: true },
+        query: { include_health: true, all_profiles: true },
       },
       signal,
     }
@@ -128,16 +127,18 @@ export async function deleteSession(
   }
 }
 
+/** Renames a session within its captured workspace and owning profile. */
 export async function renameSession(
   workspaceId: string,
   id: string,
+  profile: string,
   request: RenameSessionRequest,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.PATCH(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       body: request,
       signal,
     }
@@ -168,12 +169,13 @@ export interface StopSessionOptions {
 export async function stopSession(
   workspaceId: string,
   id: string,
+  profile: string,
   options: StopSessionOptions = {}
 ): Promise<SessionStopResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       body: { wait: options.wait === true },
       signal: options.signal,
     }
@@ -270,24 +272,6 @@ export async function sendSessionPrompt(
     );
   }
   return result.prompt.goal ?? result.prompt;
-}
-
-export async function resumeSession(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to resume session "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
 }
 
 export async function setSessionRuntime(

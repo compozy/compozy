@@ -31,7 +31,7 @@ journey:
   entry_points:
     - url: "real provider-backed operator session"
       origin: direct
-    - url: "Task scheduler, Network channels, CLI/API/Web runtime views"
+    - url: "Task scheduler, CLI/API/Web runtime views"
       origin: direct
   actions:
     - step: 1
@@ -56,5 +56,5 @@ journey:
     - at_step: 2
       how: "A provider is unreachable or an agent becomes silent beyond the stall threshold."
       resume: "The run records a blocked or failed verdict with the exact owner/task and evidence; no prompt is injected to wake the agent."
-  crosses: [provider-session, tasks, scheduler, network-channels, reviews, web, cli, api, runtime-observer]
+  crosses: [provider-session, tasks, scheduler, reviews, web, cli, api, runtime-observer]
 ```

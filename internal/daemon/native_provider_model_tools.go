@@ -21,13 +21,13 @@ type providerModelsListInput struct {
 	ProviderID   string `json:"provider_id,omitempty"`
 	SourceID     string `json:"source_id,omitempty"`
 	View         string `json:"view,omitempty"`
-	IncludeStale bool   `json:"include_stale,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitzero"`
 }
 
 type providerModelsRefreshInput struct {
 	ProviderID string `json:"provider_id,omitempty"`
 	SourceID   string `json:"source_id,omitempty"`
-	Force      bool   `json:"force,omitempty"`
+	Force      bool   `json:"force,omitzero"`
 	RequestID  string `json:"request_id,omitempty"`
 }
 
@@ -38,11 +38,11 @@ type providerModelsStatusInput struct {
 type providerModelsCurateInput struct {
 	ProviderID    string                        `json:"provider_id"`
 	ModelID       string                        `json:"model_id"`
-	Hidden        *bool                         `json:"hidden,omitempty"`
-	Featured      *bool                         `json:"featured,omitempty"`
-	Deprecated    *bool                         `json:"deprecated,omitempty"`
-	DefaultEffort *modelcatalog.ReasoningEffort `json:"default_effort,omitempty"`
-	DefaultSpeed  *contract.Speed               `json:"default_speed,omitempty"`
+	Hidden        *bool                         `json:"hidden,omitzero"`
+	Featured      *bool                         `json:"featured,omitzero"`
+	Deprecated    *bool                         `json:"deprecated,omitzero"`
+	DefaultEffort *modelcatalog.ReasoningEffort `json:"default_effort,omitzero"`
+	DefaultSpeed  *contract.Speed               `json:"default_speed,omitzero"`
 }
 
 func (n *daemonNativeTools) providerModelToolBindings(

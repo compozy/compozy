@@ -25,7 +25,6 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -375,55 +374,9 @@ func applyResultFromMutation(result settingspkg.MutationResult) settingspkg.Appl
 	}
 }
 
-type unavailableSettingsMemoryProviderService struct {
-	err error
-}
-
-func (s unavailableSettingsMemoryProviderService) List(
-	context.Context,
-	string,
-) ([]contract.MemoryProviderPayload, error) {
-	return nil, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Get(
-	context.Context,
-	string,
-	string,
-) (contract.MemoryProviderPayload, error) {
-	return contract.MemoryProviderPayload{}, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Select(
-	context.Context,
-	string,
-	string,
-) (contract.MemoryProviderPayload, error) {
-	return contract.MemoryProviderPayload{}, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Enable(
-	context.Context,
-	string,
-	string,
-	string,
-) (contract.MemoryProviderLifecycleResponse, error) {
-	return contract.MemoryProviderLifecycleResponse{}, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Disable(
-	context.Context,
-	string,
-	string,
-	string,
-) (contract.MemoryProviderLifecycleResponse, error) {
-	return contract.MemoryProviderLifecycleResponse{}, s.err
-}
-
 type stubSettingsRestartController struct {
-	RequestFn func(context.Context) (core.SettingsRestartOperation, error)
-	StatusFn  func(context.Context, string) (core.SettingsRestartOperation, error)
-
+	RequestFn       func(context.Context) (core.SettingsRestartOperation, error)
+	StatusFn        func(context.Context, string) (core.SettingsRestartOperation, error)
 	LastOperationID string
 	RequestCalls    int
 	StatusCalls     int
@@ -563,8 +516,6 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.GET("/persona", handlers.GetSettingsPersona)
 	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
-	settings.GET("/memory", handlers.GetSettingsMemory)
-	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
 	settings.GET("/marketplace", handlers.GetSettingsMarketplace)
 	settings.PATCH("/marketplace", handlers.UpdateSettingsMarketplace)
 	settings.GET("/roles", handlers.GetSettingsRoles)
@@ -573,8 +524,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/skills", handlers.UpdateSettingsSkills)
 	settings.GET("/automation", handlers.GetSettingsAutomation)
 	settings.PATCH("/automation", handlers.UpdateSettingsAutomation)
-	settings.GET("/network", handlers.GetSettingsNetwork)
-	settings.PATCH("/network", handlers.UpdateSettingsNetwork)
+
 	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
 	settings.PATCH("/window-manager", handlers.UpdateSettingsWindowManager)
 	settings.GET("/cmd-palette", handlers.GetSettingsCmdPalette)
@@ -597,10 +547,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.POST("/mcp-servers/:name/auth/logout", handlers.LogoutSettingsMCPAuth)
 	settings.PUT("/mcp-servers/:name", handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", handlers.DeleteSettingsMCPServer)
-	settings.GET("/sandboxes", handlers.ListSettingsSandboxes)
-	settings.GET("/sandboxes/:name", handlers.GetSettingsSandbox)
-	settings.PUT("/sandboxes/:name", handlers.PutSettingsSandbox)
-	settings.DELETE("/sandboxes/:name", handlers.DeleteSettingsSandbox)
+
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", handlers.PutSettingsHook)
 	settings.DELETE("/hooks/:name", handlers.DeleteSettingsHook)
@@ -1017,92 +964,6 @@ func TestSettingsMCPAuthHandlersRejectInvalidTargetsAndBodies(t *testing.T) {
 	}
 }
 
-func TestSettingsMCPAuthHandlersMatchAcrossHTTPAndUDSTransportShims(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should match MCP auth responses across HTTP and UDS shims", func(t *testing.T) {
-		t.Parallel()
-
-		expiresAt := time.Date(2026, 7, 13, 16, 5, 0, 0, time.UTC)
-		serviceFactory := func() *stubSettingsService {
-			return &stubSettingsService{
-				GetMCPAuthStatusFn: func(
-					context.Context,
-					settingspkg.MCPAuthTargetRequest,
-				) (mcpauth.Status, error) {
-					return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
-				},
-				BeginMCPAuthFn: func(
-					_ context.Context,
-					req settingspkg.MCPAuthBeginRequest,
-				) (mcpauth.BeginResult, error) {
-					return mcpauth.BeginResult{
-						AuthorizationURL: "https://auth.example/authorize?state=public",
-						State:            "public",
-						ExpiresAt:        expiresAt,
-						CallbackURL:      req.CallbackURL,
-						ManualSupported:  true,
-					}, nil
-				},
-				ExchangeMCPAuthFn: func(
-					context.Context,
-					settingspkg.MCPAuthExchangeRequest,
-				) (mcpauth.Status, error) {
-					return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
-				},
-				LogoutMCPAuthFn: func(
-					context.Context,
-					settingspkg.MCPAuthTargetRequest,
-				) (mcpauth.Status, error) {
-					status := confirmedWorkspaceMCPAuthStatus(expiresAt)
-					status.Status = mcpauth.StatusNeedsLogin
-					status.TokenPresent = false
-					return status, nil
-				},
-			}
-		}
-		httpFixture := newSettingsHandlerFixture(t, "httpapi", serviceFactory(), nil)
-		udsFixture := newSettingsHandlerFixture(t, "udsapi", serviceFactory(), nil)
-		for _, request := range []struct {
-			method string
-			path   string
-			body   []byte
-		}{
-			{
-				method: http.MethodGet,
-				path:   "/api/settings/mcp-servers/linear/auth/status?scope=workspace&workspace_id=workspace-a",
-			},
-			{
-				method: http.MethodPost,
-				path:   "/api/settings/mcp-servers/linear/auth/begin?scope=workspace&workspace_id=workspace-a",
-				body:   []byte(`{"mode":"automatic"}`),
-			},
-			{
-				method: http.MethodPost,
-				path:   "/api/settings/mcp-servers/linear/auth/exchange?scope=workspace&workspace_id=workspace-a",
-				body:   []byte(`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=opaque-code&state=public"}`),
-			},
-			{
-				method: http.MethodPost,
-				path:   "/api/settings/mcp-servers/linear/auth/logout?scope=workspace&workspace_id=workspace-a",
-			},
-		} {
-			httpResponse := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)
-			udsResponse := performRequest(t, udsFixture.Engine, request.method, request.path, request.body)
-			if httpResponse.Code != udsResponse.Code || httpResponse.Body.String() != udsResponse.Body.String() {
-				t.Fatalf(
-					"transport mismatch for %s: http=%d %s uds=%d %s",
-					request.path,
-					httpResponse.Code,
-					httpResponse.Body.String(),
-					udsResponse.Code,
-					udsResponse.Body.String(),
-				)
-			}
-		}
-	})
-}
-
 func confirmedWorkspaceMCPAuthStatus(expiresAt time.Time) mcpauth.Status {
 	return mcpauth.Status{
 		ServerName:   "linear",
@@ -1158,7 +1019,7 @@ func TestStatusForSettingsError(t *testing.T) {
 			err: fmt.Errorf(
 				"%w: %s",
 				settingspkg.ErrValidation,
-				"settings: decode network settings request: bad json",
+				"settings: decode automation settings request: bad json",
 			),
 			want: http.StatusBadRequest,
 		},
@@ -1406,7 +1267,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	t.Parallel()
 
 	startedAt := time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC)
-	lastConsolidatedAt := time.Date(2026, 4, 17, 17, 0, 0, 0, time.UTC)
 	nextFire := time.Date(2026, 4, 17, 19, 0, 0, 0, time.UTC)
 	lastSyncedAt := time.Date(2026, 4, 17, 18, 30, 0, 0, time.UTC)
 	readOnly := true
@@ -1443,9 +1303,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Permissions: compozyconfig.PermissionsConfig{
 						Mode: compozyconfig.PermissionModeApproveReads,
 					},
-					SessionTimeout: 30 * time.Minute,
-					HTTP:           compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 2123},
-					Daemon:         compozyconfig.DaemonConfig{Socket: "/tmp/compozy.sock"},
+					SessionTimeout:   30 * time.Minute,
+					IdleReleaseAfter: new(45 * time.Minute),
+					HTTP:             compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 2123},
+					Daemon:           compozyconfig.DaemonConfig{Socket: "/tmp/compozy.sock"},
 				},
 				Actions: settingspkg.GeneralActions{
 					Restart: settingspkg.ActionMetadata{
@@ -1466,36 +1327,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				settingspkg.ScopeWorkspace,
 			},
 			Persona: &settingspkg.PersonaSection{
-				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
-			},
-		},
-		{
-			Section:         settingspkg.SectionMemory,
-			Scope:           settingspkg.ScopeUser,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			Memory: &settingspkg.MemorySection{
-				Config: compozyconfig.MemoryConfig{
-					Enabled:   true,
-					GlobalDir: "/tmp/home/memory",
-					Dream: compozyconfig.DreamConfig{
-						MinHours:      1.5,
-						MinSessions:   2,
-						CheckInterval: time.Hour,
-					},
-				},
-				Health: settingspkg.MemoryHealthStatus{
-					Available:          true,
-					FileCount:          4,
-					DreamEnabled:       true,
-					LastConsolidatedAt: &lastConsolidatedAt,
-				},
-				Actions: settingspkg.MemoryActions{
-					Consolidate: settingspkg.ActionMetadata{
-						Name:      "consolidate",
-						Available: true,
-						Behavior:  settingspkg.MutationBehaviorActionTrigger,
-					},
-				},
+				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai"},
 			},
 		},
 		{
@@ -1539,29 +1371,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					LastSyncedAt:     &lastSyncedAt,
 				},
 				Links: []settingspkg.OperationalLink{{Label: "automation", Path: "/automation"}},
-			},
-		},
-		{
-			Section:         settingspkg.SectionNetwork,
-			Scope:           settingspkg.ScopeUser,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			Network: &settingspkg.NetworkSection{
-				Config: compozyconfig.NetworkConfig{
-					Enabled:      true,
-					MaxReplayAge: 10,
-					Live:         compozyconfig.DefaultNetworkConfig().Live,
-				},
-				Runtime: settingspkg.NetworkRuntimeStatus{
-					Available:         true,
-					Enabled:           true,
-					Status:            "active",
-					LocalPeers:        1,
-					Channels:          3,
-					MessagesReceived:  4,
-					MessagesDelivered: 2,
-					MessagesRejected:  1,
-				},
-				Links: []settingspkg.OperationalLink{{Label: "network", Path: "/network"}},
 			},
 		},
 		{
@@ -1731,6 +1540,18 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				t.Fatalf("SettingsSectionResponseFromEnvelope(%s) error = %v", envelope.Section, err)
 			}
 			switch envelope.Section {
+			case settingspkg.SectionGeneral:
+				payload, ok := response.(contract.SettingsGeneralResponse)
+				if !ok {
+					t.Fatalf("general response = %T, want SettingsGeneralResponse", response)
+				}
+				if payload.Config.IdleReleaseAfter != "45m0s" || payload.Config.SessionTimeout != "30m0s" {
+					t.Fatalf(
+						"general config idle_release_after=%q session_timeout=%q, want 45m0s and the deprecated 30m0s",
+						payload.Config.IdleReleaseAfter, payload.Config.SessionTimeout,
+					)
+				}
+				return
 			case settingspkg.SectionAttention:
 				payload, ok := response.(contract.SettingsAttentionResponse)
 				if !ok {
@@ -1931,30 +1752,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			}},
 		},
 		{
-			Collection:      settingspkg.CollectionSandboxes,
-			Scope:           settingspkg.ScopeUser,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			Sandboxes: []settingspkg.SandboxItem{{
-				Name: "local",
-				Profile: compozyconfig.SandboxProfile{
-					Backend:     "local",
-					SyncMode:    "session-bidirectional",
-					Persistence: "reuse",
-					RuntimeRoot: "/workspace",
-				},
-				WorkspaceUsageCount: 2,
-				SourceMetadata: settingspkg.SourceMetadata{
-					EffectiveSource: settingspkg.SourceRef{
-						Kind:  settingspkg.SourceKindGlobalConfig,
-						Scope: settingspkg.ScopeUser,
-					},
-					AvailableTargets: []settingspkg.WriteTargetKind{
-						settingspkg.WriteTargetGlobalConfig,
-					},
-				},
-			}},
-		},
-		{
 			Collection:      settingspkg.CollectionHooks,
 			Scope:           settingspkg.ScopeUser,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
@@ -2037,6 +1834,110 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 	decodeJSON(t, resp.Body.Bytes(), &payload)
 	if !strings.Contains(payload.Error, "general.config.session_timeout") {
 		t.Fatalf("payload.Error = %q, want section-specific context", payload.Error)
+	}
+}
+
+func TestUpdateSettingsGeneralIdleReleaseAfter(t *testing.T) {
+	t.Parallel()
+
+	generalBody := func(sessionTimeout string, idleReleaseAfter *string) []byte {
+		config := map[string]any{
+			"limits":          map[string]any{"max_concurrent_agents": 2},
+			"permissions":     map[string]any{"mode": "approve-reads"},
+			"session_timeout": sessionTimeout,
+			"http":            map[string]any{"host": "127.0.0.1", "port": 2123},
+			"daemon":          map[string]any{"socket": "/tmp/compozy.sock"},
+			"redact":          map[string]any{"enabled": true},
+		}
+		if idleReleaseAfter != nil {
+			config["idle_release_after"] = *idleReleaseAfter
+		}
+		return mustJSON(t, map[string]any{"config": config})
+	}
+
+	t.Run("Should forward idle_release_after including the disabled value", func(t *testing.T) {
+		t.Parallel()
+
+		for raw, want := range map[string]time.Duration{"45m": 45 * time.Minute, "0s": 0} {
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPatch,
+				"/api/settings/general",
+				generalBody("0s", &raw),
+			)
+			if resp.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+			}
+			got := service.LastUpdateSectionRequest.General
+			if got == nil || got.IdleReleaseAfter == nil || *got.IdleReleaseAfter != want {
+				t.Fatalf("idle_release_after %q forwarded as %#v, want %s", raw, got, want)
+			}
+			if warning := resp.Header().Get("Warning"); warning != "" {
+				t.Fatalf("Warning = %q, want none without a deprecated session_timeout value", warning)
+			}
+		}
+	})
+
+	t.Run("Should keep the current value when idle_release_after is omitted", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", generalBody("0s", nil))
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		if got := service.LastUpdateSectionRequest.General; got == nil || got.IdleReleaseAfter != nil {
+			t.Fatalf("General = %#v, want nil IdleReleaseAfter for an omitted field", got)
+		}
+	})
+
+	t.Run("Should accept and warn on the deprecated session_timeout", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", generalBody("30m", nil))
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		if got := service.LastUpdateSectionRequest.General; got == nil || got.SessionTimeout != 30*time.Minute {
+			t.Fatalf("General = %#v, want the deprecated session_timeout forwarded unchanged", got)
+		}
+		warning := resp.Header().Get("Warning")
+		if !strings.Contains(warning, "session_timeout is deprecated") ||
+			!strings.Contains(warning, "idle_release_after") ||
+			!strings.Contains(warning, "v0.5.0") {
+			t.Fatalf("Warning = %q, want deprecation naming the replacement and removal release", warning)
+		}
+	})
+
+	for _, raw := range []string{"soon", "-1m", "", "   "} {
+		t.Run(fmt.Sprintf("Should reject idle_release_after %q", raw), func(t *testing.T) {
+			t.Parallel()
+
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPatch,
+				"/api/settings/general",
+				generalBody("0s", &raw),
+			)
+			if resp.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 {
+				t.Fatalf("idle_release_after %q: status = %d calls = %d, want 400 and no update",
+					raw, resp.Code, service.UpdateSectionCalls)
+			}
+			var payload contract.ErrorPayload
+			decodeJSON(t, resp.Body.Bytes(), &payload)
+			if !strings.Contains(payload.Error, "general.config.idle_release_after") {
+				t.Fatalf("payload.Error = %q, want idle_release_after context", payload.Error)
+			}
+		})
 	}
 }
 
@@ -2126,11 +2027,10 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		want string
 	}{
 		{name: "general", path: "/api/settings/general", want: "general.config is required"},
-		{name: "memory", path: "/api/settings/memory", want: "memory.config is required"},
 		{name: "Should require roles config", path: "/api/settings/roles", want: "roles.config is required"},
 		{name: "skills", path: "/api/settings/skills", want: "skills.config is required"},
 		{name: "automation", path: "/api/settings/automation", want: "automation.config is required"},
-		{name: "network", path: "/api/settings/network", want: "network.config is required"},
+
 		{
 			name: "Should require window-manager config",
 			path: "/api/settings/window-manager",
@@ -2187,50 +2087,6 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 				payload,
 				service.UpdateSectionCalls,
 			)
-		}
-	})
-	for _, field := range []string{"default_channel", "port"} {
-		t.Run("Should reject removed network field "+field, func(t *testing.T) {
-			t.Parallel()
-
-			service := &stubSettingsService{}
-			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-			body := fmt.Appendf(nil, `{"config":{%q:"removed"}}`, field)
-
-			resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/network", body)
-			if got, want := resp.Code, http.StatusBadRequest; got != want {
-				t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-			}
-			if service.UpdateSectionCalls != 0 {
-				t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-			}
-			var payload contract.ErrorPayload
-			decodeJSON(t, resp.Body.Bytes(), &payload)
-			if !strings.Contains(payload.Error, "unknown_field") || !strings.Contains(payload.Error, field) {
-				t.Fatalf("payload.Error = %q, want unknown_field naming %q", payload.Error, field)
-			}
-		})
-	}
-
-	t.Run("Should reject removed memory signal metrics field", func(t *testing.T) {
-		t.Parallel()
-
-		service := &stubSettingsService{}
-		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		body := []byte(`{"config":{"recall":{"signals":{"metrics_enabled":true}}}}`)
-
-		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", body)
-		if got, want := resp.Code, http.StatusBadRequest; got != want {
-			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-		}
-		if service.UpdateSectionCalls != 0 {
-			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-		}
-		var payload contract.ErrorPayload
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "unknown_field") ||
-			!strings.Contains(payload.Error, "metrics_enabled") {
-			t.Fatalf("payload.Error = %q, want unknown_field naming metrics_enabled", payload.Error)
 		}
 	})
 
@@ -2609,90 +2465,22 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a non-list override identically over HTTP and UDS", func(t *testing.T) {
+	t.Run("Should reject a non-list override", func(t *testing.T) {
 		t.Parallel()
 
-		var bodies []string
-		for _, transport := range []string{"api-core-http", "api-core-uds"} {
-			service := &stubSettingsService{}
-			fixture := newSettingsHandlerFixture(t, transport, service, nil)
-			response := performRequest(
-				t, fixture.Engine, http.MethodPatch,
-				"/api/settings/skills?scope=workspace&workspace_id=ws-alpha",
-				[]byte(`{"override":{"sources":"agents"}}`),
-			)
-			if response.Code != http.StatusBadRequest {
-				t.Fatalf("%s status = %d, want 400; body=%s", transport, response.Code, response.Body.String())
-			}
-			bodies = append(bodies, response.Body.String())
-		}
-		if bodies[0] != bodies[1] {
-			t.Fatalf("HTTP/UDS bodies differ: %q != %q", bodies[0], bodies[1])
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+		response := performRequest(
+			t, fixture.Engine, http.MethodPatch,
+			"/api/settings/skills?scope=workspace&workspace_id=ws-alpha",
+			[]byte(`{"override":{"sources":"agents"}}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
 		}
 	})
 }
 
-func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject unknown provider names as validation errors", func(t *testing.T) {
-		t.Parallel()
-
-		service := &stubSettingsService{}
-		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
-			err: extensionpkg.ErrMemoryProviderNotFound,
-		}
-
-		memoryPayload := validSettingsMemoryConfigPayload()
-		memoryPayload.Provider.Name = "qa-missing-provider"
-		body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
-
-		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
-		if got, want := resp.Code, http.StatusBadRequest; got != want {
-			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-		}
-		if service.UpdateSectionCalls != 0 {
-			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-		}
-
-		var payload contract.ErrorPayload
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "qa-missing-provider") {
-			t.Fatalf("payload.Error = %q, want provider name", payload.Error)
-		}
-	})
-
-	t.Run("Should preserve provider lookup infrastructure failures as server errors", func(t *testing.T) {
-		t.Parallel()
-
-		service := &stubSettingsService{}
-		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
-			err: errors.New("catalog backend offline"),
-		}
-
-		memoryPayload := validSettingsMemoryConfigPayload()
-		memoryPayload.Provider.Name = "qa-provider"
-		body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
-
-		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
-		if got, want := resp.Code, http.StatusInternalServerError; got != want {
-			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-		}
-		if service.UpdateSectionCalls != 0 {
-			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-		}
-
-		var payload contract.ErrorPayload
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "catalog backend offline") {
-			t.Fatalf("payload.Error = %q, want backend failure", payload.Error)
-		}
-	})
-}
-
-// TestUpdateSettingsSectionHandlersDelegateValidPayloads verifies decoded writes and echoed application outcomes.
 func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 	t.Parallel()
 
@@ -2745,33 +2533,26 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				}, nil
 			},
 		}
-		for _, transport := range []string{"api-core-http", "api-core-uds"} {
-			fixture := newSettingsHandlerFixture(t, transport, service, nil)
-			config := validSettingsWindowManagerConfigPayload()
-			config.Gaps.Inner = 0
-			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/window-manager",
-				mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config, PreserveShortcuts: true}))
-			if response.Code != http.StatusOK {
-				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
-			}
-			var result contract.SettingsWindowManagerMutationResponse
-			decodeJSON(t, response.Body.Bytes(), &result)
-			if result.Section != contract.SettingsSectionName(settingspkg.SectionWindowManager) ||
-				result.Config.HistoryLimit == 0 ||
-				result.Apply.Applied ||
-				result.Apply.ApplyRecordID != "apply-layout" ||
-				result.Apply.NextAction != contract.SettingsApplyNextActionRetry ||
-				len(result.Apply.Warnings) != 1 {
-				t.Fatalf("mutation response lost section or receipt: %#v", result)
-			}
+		fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+		config := validSettingsWindowManagerConfigPayload()
+		config.Gaps.Inner = 0
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config, PreserveShortcuts: true}))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+		}
+		var result contract.SettingsWindowManagerMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &result)
+		if result.Section != contract.SettingsSectionName(settingspkg.SectionWindowManager) ||
+			result.Config.HistoryLimit == 0 ||
+			result.Apply.Applied ||
+			result.Apply.ApplyRecordID != "apply-layout" ||
+			result.Apply.NextAction != contract.SettingsApplyNextActionRetry ||
+			len(result.Apply.Warnings) != 1 {
+			t.Fatalf("mutation response lost section or receipt: %#v", result)
 		}
 	})
 
-	memoryPayload := validSettingsMemoryConfigPayload()
-	memoryPayload.GlobalDir = "/tmp/memory"
-	memoryPayload.Dream.MinHours = 1.5
-	memoryPayload.Dream.MinSessions = 2
-	memoryPayload.Dream.CheckInterval = "1h"
 	emptyMutedWorkspaces := []string{}
 
 	tests := []struct {
@@ -2806,25 +2587,12 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			name: "Should forward a profile-scoped persona request",
 			path: "/api/settings/persona?scope=profile&profile=marketing",
 			body: contract.UpdateSettingsPersonaRequest{Config: contract.SettingsDefaultsPayload{
-				Agent: "coder", Provider: "openai", Sandbox: "local",
+				Agent: "coder", Provider: "openai",
 			}},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
 				if req.Persona == nil || req.Persona.Agent != "coder" || req.ProfileName != "marketing" {
 					t.Fatalf("req = %#v, want profile persona payload", req)
-				}
-			},
-		},
-		{
-			name: "memory",
-			path: "/api/settings/memory",
-			body: contract.UpdateSettingsMemoryRequest{
-				Config: memoryPayload,
-			},
-			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
-				t.Helper()
-				if req.Memory == nil || req.Memory.Dream.MinHours != 1.5 {
-					t.Fatalf("req.Memory = %#v, want populated memory config", req.Memory)
 				}
 			},
 		},
@@ -2836,7 +2604,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Roles == nil || req.Roles.Dream.Model != "claude-opus" ||
+				if req.Roles == nil || req.Roles.Coordinator.Model != "claude-sonnet" ||
 					req.Roles.Coordinator.TTL != 2*time.Hour ||
 					len(req.Roles.AutoTitle.FallbackChain) != 1 ||
 					req.Roles.AutoTitle.FallbackChain[0].Model != "gpt-5-mini" {
@@ -2878,43 +2646,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "network",
-			path: "/api/settings/network",
-			body: contract.UpdateSettingsNetworkRequest{
-				Config: contract.SettingsNetworkConfigPayload{
-					Enabled:      true,
-					MaxReplayAge: 10,
-					Live: contract.SettingsNetworkLiveConfigPayload{
-						Defaults: contract.SettingsNetworkLiveDefaultsPayload{
-							MaxWakes:         8,
-							MaxWakeWallTime:  "5m",
-							MaxTotalWallTime: "30m",
-							MaxInputTokens:   200_000,
-							MaxOutputTokens:  50_000,
-							MaxWakeDepth:     3,
-							CoalesceWindow:   "500ms",
-						},
-						Limits: contract.SettingsNetworkLiveLimitsPayload{
-							MaxWakes:          64,
-							MaxWakeWallTime:   "15m",
-							MaxTotalWallTime:  "2h",
-							MaxInputTokens:    1_000_000,
-							MaxOutputTokens:   200_000,
-							MaxWakeDepth:      5,
-							MinCoalesceWindow: "100ms",
-							MaxCoalesceWindow: "5s",
-						},
-					},
-				},
-			},
-			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
-				t.Helper()
-				if req.Network == nil || req.Network.MaxReplayAge != 10 {
-					t.Fatalf("req.Network = %#v, want populated network config", req.Network)
-				}
-			},
-		},
+
 		{
 			name: "Should delegate window-manager config",
 			path: "/api/settings/window-manager",
@@ -3189,136 +2921,7 @@ func validSettingsRolesConfigPayload() contract.SettingsRolesConfigPayload {
 			MaxChildren:                   5,
 			MaxActiveSessionsPerWorkspace: 3,
 		},
-		Dream:             role("claude-opus"),
-		CheckpointSummary: role("claude-haiku"),
-		MemoryExtractor:   role("claude-haiku"),
-		AutoTitle:         role("claude-haiku"),
-		MemoryController: contract.SettingsMemoryControllerRoleConfigPayload{
-			Enabled:         true,
-			Provider:        "anthropic",
-			Model:           "claude-haiku",
-			ReasoningEffort: "low",
-			Timeout:         "250ms",
-			TopK:            5,
-			PromptVersion:   "v1",
-			MaxTokensOut:    256,
-			FallbackChain: []contract.SettingsRoleFallbackPayload{{
-				Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
-			}},
-		},
-	}
-}
-
-func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
-	return contract.SettingsMemoryConfigPayload{
-		Enabled:   true,
-		GlobalDir: "/tmp/compozy-memory",
-		Controller: contract.SettingsMemoryControllerPayload{
-			Mode:            "hybrid",
-			MaxLatency:      "300ms",
-			DefaultOpOnFail: "noop",
-			Policy: contract.SettingsMemoryControllerPolicyPayload{
-				MaxContentChars: 4096,
-				MaxWritesPerMin: 60,
-				AllowOrigins: []string{
-					"cli",
-					"http",
-					"uds",
-					"tool",
-					"extractor",
-					"dreaming",
-					"file",
-					"provider",
-				},
-			},
-		},
-		Recall: contract.SettingsMemoryRecallPayload{
-			TopK:          5,
-			RawCandidates: 50,
-			Fusion:        "weighted",
-			Weights: contract.SettingsMemoryRecallWeightsPayload{
-				BM25Unicode:  0.55,
-				BM25Trigram:  0.20,
-				Recency:      0.15,
-				RecallSignal: 0.10,
-			},
-			Freshness: contract.SettingsMemoryRecallFreshnessPayload{
-				BannerAfterDays: 1,
-			},
-			Signals: contract.SettingsMemoryRecallSignalsPayload{
-				QueueCapacity:  256,
-				WorkerRetryMax: 3,
-			},
-		},
-		Decisions: contract.SettingsMemoryDecisionsPayload{
-			PruneAfterAppliedDays: 90,
-			KeepAuditSummary:      true,
-			MaxPostContentBytes:   65536,
-		},
-		Extractor: contract.SettingsMemoryExtractorPayload{
-			Mode:             "post_message",
-			ThrottleTurns:    1,
-			Deadline:         "60s",
-			SandboxInboxOnly: true,
-			InboxPath:        "/tmp/compozy-memory/_inbox",
-			DLQPath:          "/tmp/compozy-memory/_system/extractor/failures",
-			Queue: contract.SettingsMemoryExtractorQueuePayload{
-				Capacity:    1,
-				CoalesceMax: 16,
-			},
-		},
-		Dream: contract.SettingsMemoryDreamPayload{
-			MinHours:      24,
-			MinSessions:   3,
-			Debounce:      "10m",
-			PromptVersion: "v1",
-			CheckInterval: "30m",
-			Gates: contract.SettingsMemoryDreamGatesPayload{
-				MinUnpromoted:  5,
-				MinRecallCount: 2,
-				MinScore:       0.75,
-			},
-			Scoring: contract.SettingsMemoryDreamScoringPayload{
-				RecencyHalfLifeDays: 14,
-				Weights: contract.SettingsMemoryDreamScoringWeightsPayload{
-					Frequency: 0.30,
-					Relevance: 0.35,
-					Recency:   0.20,
-					Freshness: 0.15,
-				},
-			},
-		},
-		Session: contract.SettingsMemorySessionPayload{
-			LedgerFormat:     "jsonl",
-			LedgerRoot:       "/tmp/compozy-sessions",
-			EventsPurgeGrace: "24h",
-			ColdArchiveDays:  30,
-			MaxArchiveBytes:  10737418240,
-			UnboundPartition: "_unbound",
-		},
-		Daily: contract.SettingsMemoryDailyPayload{
-			MaxBytes:        1048576,
-			MaxLines:        5000,
-			RotateFormat:    "{date}.{seq}.md",
-			DreamingWindow:  7,
-			ColdArchiveDays: 30,
-			MaxArchiveBytes: 1073741824,
-			SweepHour:       3,
-			ArchivePath:     "_system/archive",
-		},
-		File: contract.SettingsMemoryFilePayload{
-			MaxLines: 200,
-			MaxBytes: 25600,
-		},
-		Provider: contract.SettingsMemoryProviderPayload{
-			Timeout:          "2s",
-			FailureThreshold: 5,
-			Cooldown:         "30s",
-		},
-		Workspace: contract.SettingsMemoryWorkspacePayload{
-			TOMLPath:   "<workspace>/.compozy/workspace.toml",
-			AutoCreate: true,
-		},
+		AutoTitle: role("claude-haiku"),
 	}
 }
 
@@ -3387,25 +2990,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				}
 			},
 		},
-		{
-			name:   "get sandbox",
-			method: http.MethodGet,
-			path:   "/api/settings/sandboxes/local",
-			assert: func(t *testing.T, service *stubSettingsService) {
-				t.Helper()
-				if service.LastListCollectionRequest.Collection != settingspkg.CollectionSandboxes {
-					t.Fatalf("Collection = %q, want sandboxes", service.LastListCollectionRequest.Collection)
-				}
-			},
-			assertResponse: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				t.Helper()
-				var payload contract.SettingsSandboxResponse
-				testutil.DecodeJSONResponse(t, resp, &payload)
-				if payload.Sandbox.Name != "local" || payload.Sandbox.Profile.Backend != "local" {
-					t.Fatalf("sandbox payload = %#v, want local sandbox profile", payload)
-				}
-			},
-		},
+
 		{
 			name:   "list hooks",
 			method: http.MethodGet,
@@ -3516,27 +3101,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assertResponse: assertAppliedSettingsMutation,
 		},
-		{
-			name:   "put sandbox",
-			method: http.MethodPut,
-			path:   "/api/settings/sandboxes/local",
-			body: contract.PutSettingsSandboxRequest{
-				Profile: contract.SettingsSandboxProfilePayload{
-					Backend:     "local",
-					SyncMode:    "session-bidirectional",
-					Persistence: "reuse",
-					RuntimeRoot: "/workspace",
-				},
-			},
-			assert: func(t *testing.T, service *stubSettingsService) {
-				t.Helper()
-				if service.LastPutCollectionRequest.Sandbox == nil ||
-					service.LastPutCollectionRequest.Sandbox.Backend != "local" {
-					t.Fatalf("LastPutCollectionRequest.Sandbox = %#v", service.LastPutCollectionRequest.Sandbox)
-				}
-			},
-			assertResponse: assertAppliedSettingsMutation,
-		},
+
 		{
 			name:   "put hook",
 			method: http.MethodPut,
@@ -3631,22 +3196,6 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								},
 								AvailableTargets: []settingspkg.WriteTargetKind{
 									settingspkg.WriteTargetWorkspaceMCPSidecar,
-								},
-							},
-						}}
-					case settingspkg.CollectionSandboxes:
-						envelope.Sandboxes = []settingspkg.SandboxItem{{
-							Name: "local",
-							Profile: compozyconfig.SandboxProfile{
-								Backend: "local",
-							},
-							SourceMetadata: settingspkg.SourceMetadata{
-								EffectiveSource: settingspkg.SourceRef{
-									Kind:  settingspkg.SourceKindGlobalConfig,
-									Scope: settingspkg.ScopeUser,
-								},
-								AvailableTargets: []settingspkg.WriteTargetKind{
-									settingspkg.WriteTargetGlobalConfig,
 								},
 							},
 						}}
@@ -3796,13 +3345,7 @@ func TestSettingsCollectionMutationHandlersRejectInvalidPayloads(t *testing.T) {
 			body:   []byte(`{}`),
 			want:   "mcp-servers.server is required",
 		},
-		{
-			name:   "sandbox missing profile",
-			method: http.MethodPut,
-			path:   "/api/settings/sandboxes/local",
-			body:   []byte(`{}`),
-			want:   "sandboxes.profile is required",
-		},
+
 		{
 			name:   "hook missing declaration",
 			method: http.MethodPut,
@@ -3949,18 +3492,8 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			}
 			switch req.Section {
-			case settingspkg.SectionMemory:
-				envelope.Memory = &settingspkg.MemorySection{
-					Config: compozyconfig.MemoryConfig{
-						Enabled: true,
-						Dream: compozyconfig.DreamConfig{
-							CheckInterval: time.Hour,
-						},
-					},
-				}
 			case settingspkg.SectionRoles:
 				roles := compozyconfig.DefaultRolesConfig()
-				roles.Dream.Model = "claude-opus"
 				roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 					Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
 				}}
@@ -3981,12 +3514,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 						DefaultFireLimit:  automationmodel.FireLimitConfig{Max: 1, Window: "1m"},
 					},
 				}
-			case settingspkg.SectionNetwork:
-				envelope.Network = &settingspkg.NetworkSection{
-					Config: compozyconfig.NetworkConfig{
-						Enabled: true,
-					},
-				}
 			case settingspkg.SectionHooksExtensions:
 				envelope.HooksExtensions = &settingspkg.HooksExtensionsSection{
 					Extensions: compozyconfig.ExtensionsConfig{
@@ -4004,34 +3531,8 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			}
 			return envelope, nil
 		},
-		ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
-			envelope := settingspkg.CollectionEnvelope{
-				Collection:      req.Collection,
-				Scope:           req.Scope,
-				WorkspaceID:     req.WorkspaceID,
-				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			}
-			switch req.Collection {
-			case settingspkg.CollectionSandboxes:
-				envelope.Sandboxes = []settingspkg.SandboxItem{{
-					Name: "local",
-					Profile: compozyconfig.SandboxProfile{
-						Backend: "local",
-					},
-					SourceMetadata: settingspkg.SourceMetadata{
-						EffectiveSource: settingspkg.SourceRef{
-							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeUser,
-						},
-						AvailableTargets: []settingspkg.WriteTargetKind{
-							settingspkg.WriteTargetGlobalConfig,
-						},
-					},
-				}}
-			default:
-				return settingspkg.CollectionEnvelope{}, errors.New("unexpected collection")
-			}
-			return envelope, nil
+		ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+			return settingspkg.CollectionEnvelope{}, errors.New("unexpected collection")
 		},
 		DeleteItemFn: func(_ context.Context, req settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
@@ -4042,16 +3543,14 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			}, nil
 		},
 	}
+
 	fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 
 	for _, path := range []string{
-		"/api/settings/memory",
 		"/api/settings/roles",
 		"/api/settings/skills",
 		"/api/settings/automation",
-		"/api/settings/network",
 		"/api/settings/hooks-extensions",
-		"/api/settings/sandboxes",
 	} {
 		resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
 		if got, want := resp.Code, http.StatusOK; got != want {
@@ -4063,7 +3562,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 	var roles contract.SettingsRolesResponse
 	decodeJSON(t, rolesResp.Body.Bytes(), &roles)
 	if rolesResp.Code != http.StatusOK || roles.Section != contract.SettingsSectionRoles ||
-		roles.Config.Dream.Model != "claude-opus" ||
 		len(roles.Config.AutoTitle.FallbackChain) != 1 ||
 		roles.Config.AutoTitle.FallbackChain[0].Model != "gpt-5-mini" {
 		t.Fatalf("GET settings roles = status %d payload %#v", rolesResp.Code, roles)
@@ -4071,7 +3569,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 
 	for _, path := range []string{
 		"/api/settings/providers/openai",
-		"/api/settings/sandboxes/local",
 		"/api/settings/hooks/capture",
 	} {
 		resp := performRequest(t, fixture.Engine, http.MethodDelete, path, nil)
@@ -4678,7 +4175,7 @@ func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
 	})
 }
 
-func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
+func TestSettingsObservabilityAdvertisesLogTail(t *testing.T) {
 	t.Parallel()
 
 	observabilityEnvelope := settingspkg.SectionEnvelope{
@@ -4718,88 +4215,12 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 			},
 		}
 	}
-	restartFactory := func() *stubSettingsRestartController {
-		return &stubSettingsRestartController{
-			RequestFn: func(context.Context) (core.SettingsRestartOperation, error) {
-				return core.SettingsRestartOperation{
-					OperationID:        "op-shared",
-					Status:             "stopping",
-					ActiveSessionCount: 2,
-				}, nil
-			},
-			StatusFn: func(_ context.Context, operationID string) (core.SettingsRestartOperation, error) {
-				return core.SettingsRestartOperation{
-					OperationID:        operationID,
-					Status:             "starting",
-					OldPID:             100,
-					OldStartedAt:       time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC),
-					OldSocketPath:      "/tmp/compozy.sock",
-					ActiveSessionCount: 2,
-					StartedAt:          time.Date(2026, 4, 17, 18, 44, 0, 0, time.UTC),
-					UpdatedAt:          time.Date(2026, 4, 17, 18, 44, 30, 0, time.UTC),
-				}, nil
-			},
-		}
-	}
-
-	httpFixture := newSettingsHandlerFixture(t, "httpapi", serviceFactory(), restartFactory())
-	udsFixture := newSettingsHandlerFixture(t, "udsapi", serviceFactory(), restartFactory())
-	for _, fixture := range []*settingsHandlerFixture{&httpFixture, &udsFixture} {
-		fixture.Update.GetFn = func(context.Context) (compozyupdate.MultiState, error) {
-			return compozyupdate.MultiState{
-				Aggregate: compozyupdate.StatusAvailable,
-				Runtime: compozyupdate.RuntimeTrackState{
-					Status: compozyupdate.StatusAvailable, CurrentVersion: "v1.0.0", LatestVersion: "v1.1.0",
-				},
-			}, nil
-		}
-		fixture.Update.ApplyFn = func(
-			_ context.Context,
-			targets []compozyupdate.Target,
-		) (core.SettingsUpdateApply, error) {
-			return core.SettingsUpdateApply{
-				Targets: targets, Status: compozyupdate.ApplyStatusAccepted,
-				OperationID: "update-op", Message: "Update accepted.",
-			}, nil
-		}
-		fixture.Update.CancelFn = func(context.Context) (core.SettingsUpdateCancel, error) {
-			return core.SettingsUpdateCancel{
-				Status: compozyupdate.StatusCanceled, OperationID: "update-op", Message: "Canceled.",
-			}, nil
-		}
-	}
-
-	for _, request := range []struct {
-		method string
-		path   string
-		body   []byte
-	}{
-		{method: http.MethodGet, path: "/api/settings/observability"},
-		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
-		{method: http.MethodGet, path: "/api/settings/actions/restart/op-shared"},
-		{method: http.MethodGet, path: "/api/settings/update"},
-		{method: http.MethodPost, path: "/api/settings/update/apply", body: []byte(`{"targets":["runtime"]}`)},
-		{method: http.MethodPost, path: "/api/settings/update/cancel", body: []byte(`{}`)},
-	} {
-		httpResp := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)
-		udsResp := performRequest(t, udsFixture.Engine, request.method, request.path, request.body)
-		if httpResp.Code != udsResp.Code {
-			t.Fatalf("%s status mismatch: http=%d uds=%d", request.path, httpResp.Code, udsResp.Code)
-		}
-		if httpResp.Body.String() != udsResp.Body.String() {
-			t.Fatalf(
-				"%s body mismatch:\nhttp=%s\nuds=%s",
-				request.path,
-				httpResp.Body.String(),
-				udsResp.Body.String(),
-			)
-		}
-	}
+	fixture := newSettingsHandlerFixture(t, "api-core", serviceFactory(), nil)
 
 	var observability contract.SettingsObservabilityResponse
 	decodeJSON(
 		t,
-		performRequest(t, httpFixture.Engine, http.MethodGet, "/api/settings/observability", nil).Body.Bytes(),
+		performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/observability", nil).Body.Bytes(),
 		&observability,
 	)
 	if !observability.LogTail.Available || observability.LogTail.StreamURL != "/api/settings/observability/log-tail" {
@@ -4825,7 +4246,7 @@ func TestStreamSettingsObservabilityLogTailEmitsSSEEvent(t *testing.T) {
 	server := httptest.NewServer(fixture.Engine)
 	defer server.Close()
 
-	reqCtx, cancel := context.WithCancel(context.Background())
+	reqCtx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
@@ -4926,5 +4347,48 @@ func readStreamLine(t *testing.T, reader *bufio.Reader) string {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for SSE line")
 		return ""
+	}
+}
+
+func TestUpdateSettingsRolesRejectsRetiredFieldsWithoutWriting(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"dream", "checkpoint_summary", "memory_extractor", "memory_controller"} {
+		t.Run("Should reject "+field+" before writing config", func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			original := []byte("[roles.auto_title]\nenabled = true\n")
+			if err := os.WriteFile(fixture.HomePaths.ConfigFile, original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, body := range [][]byte{
+				[]byte(fmt.Sprintf(`{%q:{"enabled":true}}`, field)),
+				[]byte(fmt.Sprintf(`{"config":{%q:{"enabled":true}}}`, field)),
+			} {
+				response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/roles", body)
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+				}
+				var payload contract.ErrorPayload
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if !strings.Contains(payload.Error, "unknown_field") || !strings.Contains(payload.Error, field) {
+					t.Fatalf("error = %q, want unknown field %s", payload.Error, field)
+				}
+				if service.UpdateSectionCalls != 0 || service.ApplySectionCalls != 0 {
+					t.Fatalf(
+						"settings writes = %d/%d, want zero",
+						service.UpdateSectionCalls,
+						service.ApplySectionCalls,
+					)
+				}
+				persisted, err := os.ReadFile(fixture.HomePaths.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(persisted, original) {
+					t.Fatalf("config changed: %s", persisted)
+				}
+			}
+		})
 	}
 }

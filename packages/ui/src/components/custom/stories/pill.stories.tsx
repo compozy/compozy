@@ -11,7 +11,7 @@ const meta: Meta<typeof Pill> = {
     docs: {
       description: {
         component:
-          "Unified semantic pill — fully rounded across every size, sans sentence-case label at 12.5px / 510 by default. `mono` is the opt-in variant for raw identifiers and renders at 11px / 600. Compose with `Pill.Dot` for leading status dots.",
+          "Unified semantic pill — fully rounded across every size, sans sentence-case label at 12px / 500 by default. `mono` is the opt-in variant for raw identifiers and renders at 11px / 600. Compose with `Pill.Dot` for leading status dots.",
       },
     },
   },
@@ -22,16 +22,6 @@ type Story = StoryObj<typeof meta>;
 
 const TONES: PillTone[] = ["neutral", "accent", "success", "warning", "danger", "info"];
 const SIZES: PillSize[] = ["xs", "sm", "md"];
-
-const KIND_DOT_COLORS: Record<string, string> = {
-  say: "var(--color-kind-say)",
-  greet: "var(--color-kind-greet)",
-  direct: "var(--color-kind-direct)",
-  receipt: "var(--color-kind-receipt)",
-  capability: "var(--color-kind-capability)",
-  trace: "var(--color-kind-trace)",
-  whois: "var(--color-kind-whois)",
-};
 
 export const Default: Story = {
   args: { children: "label" },
@@ -51,7 +41,7 @@ export const SansAndMono: Story = {
       <Pill tone="success">Completed</Pill>
       <Pill tone="info">Running</Pill>
       <Pill mono tone="neutral">
-        compozy-network/v0
+        task-102
       </Pill>
     </div>
   ),
@@ -101,6 +91,35 @@ export const HollowForm: Story = {
     docs: {
       description: {
         story: "`form=hollow` is a transparent outline plate with an inset rim.",
+      },
+    },
+  },
+};
+
+/** Status indicator — dot + text, no plate, so a state never reads as a button. */
+export const PlainStatus: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-wrap items-center gap-4">
+      <Pill form="plain" tone="neutral">
+        <Pill.Dot />
+        Idle
+      </Pill>
+      <Pill form="plain" tone="success" pulse>
+        <Pill.Dot />
+        Running
+      </Pill>
+      <Pill form="plain" tone="accent">
+        <Pill.Dot />
+        Needs you
+      </Pill>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`form=plain` drops the plate and padding: `muted` 12px ink, the tone rides only the dot.",
       },
     },
   },
@@ -174,7 +193,7 @@ export const TonesBySizeMatrix: Story = {
 
 export const MonoIdentifier: Story = {
   args: {},
-  render: () => <Pill mono>compozy-network/v0</Pill>,
+  render: () => <Pill mono>task-102</Pill>,
   parameters: {
     docs: {
       description: {
@@ -205,27 +224,6 @@ export const WithDot: Story = {
   ),
 };
 
-export const KindChipReplacement: Story = {
-  args: {},
-  render: () => (
-    <div className="flex flex-wrap items-center gap-2">
-      {Object.keys(KIND_DOT_COLORS).map(kind => (
-        <Pill key={kind} mono size="sm" tone="neutral">
-          <Pill.Dot color={KIND_DOT_COLORS[kind]} size="sm" />
-          {kind}
-        </Pill>
-      ))}
-    </div>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story: "Protocol kind markers, leading dot keyed off the kind, label preserved.",
-      },
-    },
-  },
-};
-
 export const ToggleInteractive: Story = {
   args: {},
   render: () => (
@@ -234,18 +232,17 @@ export const ToggleInteractive: Story = {
         all
       </Pill>
       <Pill mono active={false} render={<button type="button" />}>
-        say
+        running
       </Pill>
       <Pill mono active={false} render={<button type="button" />}>
-        direct
+        completed
       </Pill>
     </div>
   ),
   parameters: {
     docs: {
       description: {
-        story:
-          "Pass `render={<button />}` and `active` to render a stand-alone toggle chip (replaces `WireChip`).",
+        story: "Pass `render={<button />}` and `active` to render a stand-alone toggle chip.",
       },
     },
   },
@@ -338,4 +335,27 @@ export const PulseAnimation: Story = {
       {args.children}
     </Pill>
   ),
+};
+
+export const Count: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`Pill.Count` is the compact numeric badge for unread and needs-you counts: solid accent orange, semibold (600) digits, capped at `9+`, and absent at zero.",
+      },
+    },
+  },
+  render: () => (
+    <div className="flex items-center gap-3">
+      <Pill.Count count={1} />
+      <Pill.Count count={7} />
+      <Pill.Count count={42} />
+      <Pill.Count count={3} tone="neutral" />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("9+")).toBeInTheDocument();
+  },
 };

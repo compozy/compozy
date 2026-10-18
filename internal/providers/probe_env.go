@@ -79,13 +79,9 @@ type authStatusCommandResolution struct {
 // other CommandEnv value, command text, credential, or secret reference belongs
 // in this scope.
 type PreStartScope struct {
-	WorkspaceID       string
-	ProfileID         string
-	HomeIdentity      string
-	SandboxID         string
-	SandboxBackend    string
-	SandboxProfile    string
-	SandboxInstanceID string
+	WorkspaceID  string
+	ProfileID    string
+	HomeIdentity string
 }
 
 // CredentialStatus reports one provider launch credential slot readiness.
@@ -151,8 +147,7 @@ func cloneExecutableResolution(
 	if resolution == nil {
 		return nil
 	}
-	clone := resolution.Clone()
-	return &clone
+	return new(resolution.Clone())
 }
 
 func (e *ProbeEnv) launchResolution() subprocess.ExecutableResolution {

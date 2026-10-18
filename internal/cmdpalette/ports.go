@@ -31,6 +31,7 @@ type ApprovalPreflight interface {
 }
 
 type ClientDirectory interface {
+	AttachedClients(context.Context, WorkspaceID) ([]Client, error)
 	Clients(context.Context, WorkspaceID) ([]Client, error)
 	Context(context.Context, WorkspaceID, ClientID) (ContextSnapshot, error)
 	Authorize(context.Context, WorkspaceID, ClientID, string) error

@@ -4,14 +4,14 @@ description: Optional SOUL.md authored persona artifact that CompozyOS resolves,
 ---
 
 `SOUL.md` is an optional authored persona file beside an agent's `AGENT.md`. It tells CompozyOS how an
-agent should think, communicate, collaborate, apply principles, and relate to memory. CompozyOS resolves
+agent should think, communicate, collaborate, and apply principles. CompozyOS resolves
 the file at session start, snapshots the result, and includes a bounded persona block in the agent
 prompt and a compact projection in `/agent/context`.
 
 <OperatorNote>
   `SOUL.md` is persona only. It cannot define provider, command, model, tools, capabilities, MCP
-  servers, hooks, permissions, tasks, leases, scheduler behavior, or Compozy Network presence —
-  those authorities belong to `AGENT.md`, capabilities, `config.toml`, and the runtime.
+  servers, hooks, permissions, tasks, leases, or scheduler behavior — those authorities belong to
+  `AGENT.md`, capabilities, `config.toml`, and the runtime.
 </OperatorNote>
 
 ## Where SOUL.md lives
@@ -44,8 +44,6 @@ constraints:
   - "Do not propose silent rewrites."
 collaboration:
   - "Ask before expanding scope."
-memory_policy:
-  - "Prefer durable lessons over per-session notes."
 tags:
   - reviewer
 ---
@@ -62,12 +60,18 @@ Surface blocking findings first, then suggestions, then nits.
 | `principles`    | string array | optional | Authored values the agent should bias toward.                                             |
 | `constraints`   | string array | optional | Boundaries the agent should respect.                                                      |
 | `collaboration` | string array | optional | How this agent works with humans and other agents.                                        |
-| `memory_policy` | string array | optional | Posture toward memory, lessons, and notes.                                                |
 | `tags`          | string array | optional | Free-form labels.                                                                         |
 | Body            | Markdown     | optional | Bounded narrative persona prose. Truncated at `[agents.soul].max_body_bytes` for prompts. |
 
 The parser is strict. Any unknown frontmatter key fails validation with a typed
 `SoulDiagnostic`. Forbidden operational fields are listed below.
+
+A retired memory frontmatter key is the one exception the parser still recognizes. A `SOUL.md` that
+declares it stays valid whatever value it holds: the key raises no diagnostic and is ignored, so it
+is not rendered into the `Agent Soul` prompt block, does not change the snapshot digest, and is not
+returned in the parsed frontmatter. CompozyOS does not rewrite the file; saving the Soul from the
+Web editor writes it back without the key. The exception is removed in v0.6.0. See
+[Memory removal](/docs/migration#memory-removal).
 
 ## Forbidden fields and sections
 
@@ -82,8 +86,7 @@ the correct surface.
 | `capabilities`                                                           | `capabilities.toml` or `capabilities/*` |
 | `tasks`, `task_runs`, `scheduler`, `lease`                               | Runtime task APIs                       |
 | `heartbeat`                                                              | `HEARTBEAT.md` and `[agents.heartbeat]` |
-| `network`, `channels`                                                    | Compozy Network protocol                |
-| `spawn`, `env`, `config`, operational memory-store fields                | Runtime config                          |
+| `spawn`, `env`, `config`                                                 | Runtime config                          |
 
 A `SOUL.md` that contains any of these fields is invalid; new sessions for the affected agent fail
 to start until the file is fixed or removed.
@@ -113,7 +116,7 @@ new claims see the latest valid resolved persona.
 ## Managed authoring
 
 Mutating `SOUL.md` always goes through the managed authoring service. Direct file writes from
-hooks, extensions, tools, resources, MCP sidecars, bridge adapters, or web code are
+hooks, extensions, tools, resources, MCP sidecars, or web code are
 explicitly forbidden. Every write/delete/rollback against an existing file requires
 `expected_digest`; stale writes fail without persistence and never partially replace the file.
 
@@ -196,8 +199,6 @@ expansions are stripped before logging.
 - `SOUL.md` is **not** liveness or session health. Session presence is metadata-only and lives in
   the runtime; see [Sessions](/docs/sessions/lifecycle) and the session health/inspect
   CLI commands.
-- `SOUL.md` is **not** Compozy Network identity. Peer presence, peer cards, and `greet` interval are
-  governed by the [protocol model](/docs/network/protocol-model) and remain independent.
 - `SOUL.md` does **not** appear in capability catalogs, registry metadata, or extension manifests
   as an authority surface; extensions can manage `SOUL.md` only through Host API grants.
 

@@ -11,7 +11,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-adopt-extension-profiles
-  scenarios: [ET-declared-profile-install, ET-extension-profile-enablement, ET-dormant-extension-placement, ET-ext-kit-enable, ET-web-extensions-manage, NB-notification-preset-profile-enablement]
+  scenarios: [ET-declared-profile-install, ET-extension-profile-enablement, ET-dormant-extension-placement, ET-ext-kit-enable, ET-web-extensions-manage]
   tour: Feature Tour
   time_box_minutes: 60
   guidance:

@@ -17,8 +17,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -34,10 +32,8 @@ func TestCmdPalettePayloadJSONShape(t *testing.T) {
 
 		payload := contract.CmdPaletteCommandsFromDomain(cmdpalette.Catalog{
 			Commands: []cmdpalette.ResolvedCommand{{
-				Descriptor: cmdpalette.Descriptor{
-					ID:     "core.test",
-					Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-				},
+				ID:     "core.test",
+				Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
 			}},
 		})
 		var got map[string]any
@@ -624,10 +620,8 @@ func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
 				DefinitionOfDone: "The release is healthy",
 				ContractLifecycleState: &dsl.ContractLifecycleState{
 					TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalCanceled},
-					TerminalEffects: dsl.TerminalEffects{
-						OnDone:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "release_done"}}},
-						OnCanceled: []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "canceled"}}},
-					},
+					OnDone:         []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "release_done"}}},
+					OnCanceled:     []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "canceled"}}},
 				},
 			},
 			Graph: dsl.Graph{Nodes: []dsl.Node{{
@@ -646,14 +640,12 @@ func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
 						Route:   "recover",
 						Effects: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_failed"}}},
 					},
-					TriggerEffects: dsl.TriggerEffects{
-						OnRetry:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_retrying"}}},
-						OnSuccess:    []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "done"}}},
-						OnPause:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_paused"}}},
-						OnTimeout:    []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_timed_out"}}},
-						OnCancel:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_canceled"}}},
-						OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_quarantined"}}},
-					},
+					OnRetry:       []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_retrying"}}},
+					OnSuccess:     []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "done"}}},
+					OnPause:       []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_paused"}}},
+					OnTimeout:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_timed_out"}}},
+					OnCancel:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_canceled"}}},
+					OnQuarantine:  []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_quarantined"}}},
 					OnParentClose: dsl.ParentCloseTerminate,
 				},
 			}, {
@@ -698,75 +690,6 @@ func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
 				decoded.Graph.Nodes[1].Expires,
 				definition.Graph.Nodes[1].Expires,
 			)
-		}
-	})
-}
-
-func TestLoopDefinitionDocumentPreservesNetworkParticipation(t *testing.T) {
-	t.Run("Should preserve definition participation across the public DTO boundary", func(t *testing.T) {
-		t.Parallel()
-
-		mode := participation.ModeLive
-		strategy := participation.StrategyNamed
-		channelID := "release-room"
-		definition := dsl.Definition{
-			APIVersion: dsl.APIVersion,
-			Kind:       dsl.KindLoop,
-			Meta:       dsl.Meta{Name: "network-contract"},
-			DefinitionExtensionState: &dsl.DefinitionExtensionState{
-				NetworkParticipation: &participation.Request{
-					Mode:            &mode,
-					ChannelStrategy: &strategy,
-					ChannelID:       &channelID,
-				},
-			},
-		}
-
-		document, err := contract.NewLoopDefinitionDocument(definition)
-		if err != nil {
-			t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
-		}
-		if document.NetworkParticipation == nil {
-			t.Fatal("document.NetworkParticipation = nil, want authored Live request")
-		}
-		if document.NetworkParticipation.Mode == nil || *document.NetworkParticipation.Mode != mode {
-			t.Fatalf("document.NetworkParticipation.Mode = %v, want %q", document.NetworkParticipation.Mode, mode)
-		}
-		if document.NetworkParticipation.ChannelStrategy == nil ||
-			*document.NetworkParticipation.ChannelStrategy != strategy {
-			t.Fatalf(
-				"document.NetworkParticipation.ChannelStrategy = %v, want %q",
-				document.NetworkParticipation.ChannelStrategy,
-				strategy,
-			)
-		}
-		if document.NetworkParticipation.ChannelID == nil || *document.NetworkParticipation.ChannelID != channelID {
-			t.Fatalf(
-				"document.NetworkParticipation.ChannelID = %v, want %q",
-				document.NetworkParticipation.ChannelID,
-				channelID,
-			)
-		}
-
-		var decoded dsl.Definition
-		if err := document.Decode(&decoded); err != nil {
-			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
-		}
-		if decoded.NetworkParticipation == nil || decoded.NetworkParticipation.ChannelID == nil ||
-			*decoded.NetworkParticipation.ChannelID != channelID {
-			t.Fatalf("decoded.NetworkParticipation = %#v, want channel %q", decoded.NetworkParticipation, channelID)
-		}
-
-		encoded, err := json.Marshal(document)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
-		}
-		var publicShape map[string]json.RawMessage
-		if err := json.Unmarshal(encoded, &publicShape); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if _, ok := publicShape["network_participation"]; !ok {
-			t.Fatalf("encoded document keys = %v, want network_participation", publicShape)
 		}
 	})
 }
@@ -901,13 +824,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				SpawnBudget:      store.SessionSpawnBudget{TTLSeconds: 3600},
 				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"read"}},
 			},
-			Sandbox: &store.SessionSandboxMeta{
-				SandboxID:  "env-json",
-				Backend:    "local",
-				Profile:    "local",
-				State:      "prepared",
-				InstanceID: "instance-json",
-			},
+
 			CreatedAt:    now,
 			UpdatedAt:    now,
 			ACPCapsKnown: true,
@@ -1011,14 +928,48 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		if firstValue["value"] != "gpt-test" || firstValue["label"] != "GPT Test" {
 			t.Fatalf("config option value JSON = %#v", firstValue)
 		}
-		sandboxPayload, ok := got["sandbox"].(map[string]any)
-		if !ok {
-			t.Fatalf("sandbox type = %T, want object", got["sandbox"])
+	})
+
+	t.Run("Should project lineage kind and origin only when the session carries them", func(t *testing.T) {
+		t.Parallel()
+
+		var forked map[string]any
+		marshalJSON(t, contract.SessionPayload{
+			Lineage: contract.SessionLineagePayloadFromStore(&store.SessionLineage{
+				ParentSessionID: "sess-source", RootSessionID: "sess-source", SpawnDepth: 1,
+				Kind: store.LineageKindFork, OriginMessageID: "msg_1", OriginAgentName: "codex",
+			}),
+			Derivation: &contract.SessionDerivationPayload{
+				Kind: store.LineageKindFork, SourceSessionID: "sess-source",
+				Seed: store.SessionDerivationSeedReplay, FirstPrompt: store.SessionDerivationFirstPromptStaged,
+			},
+		}, &forked)
+		lineage, ok := forked["lineage"].(map[string]any)
+		if !ok || lineage["kind"] != "fork" || lineage["origin_message_id"] != "msg_1" ||
+			lineage["origin_agent_name"] != "codex" {
+			t.Fatalf("fork lineage JSON = %#v, want kind and origin fields", forked["lineage"])
 		}
-		if sandboxPayload["sandbox_id"] != "env-json" ||
-			sandboxPayload["backend"] != "local" ||
-			sandboxPayload["instance_id"] != "instance-json" {
-			t.Fatalf("sandbox JSON = %#v", sandboxPayload)
+		derivation, ok := forked["derivation"].(map[string]any)
+		if !ok || derivation["kind"] != "fork" || derivation["source_session_id"] != "sess-source" ||
+			derivation["seed"] != "replay" || derivation["first_prompt"] != "staged" {
+			t.Fatalf("fork derivation JSON = %#v, want the derivation summary", forked["derivation"])
+		}
+
+		var root map[string]any
+		marshalJSON(t, contract.SessionPayload{
+			Lineage: contract.SessionLineagePayloadFromStore(&store.SessionLineage{RootSessionID: "sess-root"}),
+		}, &root)
+		rootLineage, ok := root["lineage"].(map[string]any)
+		if !ok {
+			t.Fatalf("root lineage type = %T, want object", root["lineage"])
+		}
+		for _, field := range []string{"kind", "origin_message_id", "origin_agent_name"} {
+			if _, exists := rootLineage[field]; exists {
+				t.Fatalf("root lineage JSON = %#v, want %q omitted", rootLineage, field)
+			}
+		}
+		if _, exists := root["derivation"]; exists {
+			t.Fatalf("root session JSON = %#v, want derivation omitted", root)
 		}
 	})
 }
@@ -1052,6 +1003,18 @@ func TestACPCapsPayloadFromACP(t *testing.T) {
 				PromptEmbeddedContext: true,
 			},
 		},
+		{
+			name:  "Should project the fork and resume session capabilities independently",
+			known: true,
+			caps:  acp.Caps{SupportsForkSession: true},
+			want:  &contract.ACPCapsPayload{SupportsForkSession: true},
+		},
+		{
+			name:  "Should project the resume session capability without fork",
+			known: true,
+			caps:  acp.Caps{SupportsResumeSession: true},
+			want:  &contract.ACPCapsPayload{SupportsResumeSession: true},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1063,96 +1026,23 @@ func TestACPCapsPayloadFromACP(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
-	t.Parallel()
+	t.Run("Should encode the fork and resume capabilities as snake_case wire fields", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name string
-		raw  string
-		want string
-	}{
-		{
-			name: "Should reject unknown fields",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"legacy":true,
-				"body":{"text":"hello"}
-			}`,
-			want: "unknown field",
-		},
-		{
-			name: "Should reject interaction id",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"interaction_id":"legacy",
-				"body":{"text":"hello"}
-			}`,
-			want: "interaction_id",
-		},
-		{
-			name: "Should reject direct kind",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"direct",
-				"direct_id":"direct_99401d24bee62651d189e5a561785466",
-				"kind":"direct",
-				"body":{"text":"hello"}
-			}`,
-			want: "kind direct",
-		},
-		{
-			name: "Should reject caller supplied verified-format identity",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"from":"alice@39f713d0a644253f04529421b9f51b9b",
-				"body":{"text":"hello"}
-			}`,
-			want: "sender identity and proof are daemon-derived",
-		},
-		{
-			name: "Should reject caller supplied proof",
-			raw: `{
-				"session_id":"sess-a",
-				"channel":"builders",
-				"surface":"thread",
-				"thread_id":"thread_launch_db",
-				"kind":"say",
-				"proof":{"profile":"compozy-network.trust.ed25519-jcs/v1"},
-				"body":{"text":"hello"}
-			}`,
-			want: "sender identity and proof are daemon-derived",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var req contract.NetworkSendRequest
-			err := json.Unmarshal([]byte(tt.raw), &req)
-			if err == nil {
-				t.Fatalf("json.Unmarshal() error = nil, want rejection containing %q", tt.want)
-			}
-			if !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("json.Unmarshal() error = %v, want %q", err, tt.want)
-			}
-		})
-	}
+		payload := contract.ACPCapsPayloadFromACP(acp.Caps{SupportsForkSession: true}, true)
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(encoded, &fields); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if fields["supports_fork_session"] != true || fields["supports_resume_session"] != false {
+			t.Fatalf("ACPCapsPayload JSON = %s, want supports_fork_session=true supports_resume_session=false", encoded)
+		}
+	})
 }
 
 func TestRuntimeActivityJSONPreservesZeroMetrics(t *testing.T) {
@@ -1432,88 +1322,6 @@ func TestPromptRuntimeSelectionFromPayload(t *testing.T) {
 	})
 }
 
-func TestMemoryV2PublicContractJSONShape(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should expose scope and agent tier without legacy workspace field", func(t *testing.T) {
-		t.Parallel()
-
-		req := contract.MemoryCreateRequest{
-			Scope:       memcontract.ScopeAgent,
-			WorkspaceID: "ws_01HXYZ",
-			AgentName:   "reviewer",
-			AgentTier:   memcontract.AgentTierWorkspace,
-			Origin:      memcontract.OriginHTTP,
-			Type:        memcontract.TypeFeedback,
-			Name:        "Reviewer preference",
-			Content:     "Prefer terse PR feedback.",
-		}
-
-		var got map[string]any
-		marshalJSON(t, req, &got)
-
-		if got["scope"] != "agent" || got["agent_tier"] != "workspace" || got["workspace_id"] != "ws_01HXYZ" {
-			t.Fatalf("memory create JSON = %#v", got)
-		}
-		assertJSONFieldAbsent(t, got, "workspace")
-	})
-
-	t.Run("Should not leak replay material or raw LLM response in decisions", func(t *testing.T) {
-		t.Parallel()
-
-		decision := contract.MemoryDecisionPayload{
-			ID:              "dec_01",
-			CandidateHash:   "sha256:candidate",
-			Op:              contract.MemoryDecisionOpUpdate,
-			Scope:           memcontract.ScopeWorkspace,
-			WorkspaceID:     "ws_01HXYZ",
-			TargetFilename:  "feedback_reviewer.md",
-			Frontmatter:     memcontract.Header{Name: "Reviewer preference", Type: memcontract.TypeFeedback},
-			PostContentHash: "sha256:post",
-			Confidence:      0.93,
-			Source:          memcontract.SourceLLM,
-			LLMTrace: &contract.MemoryLLMTracePayload{
-				Model:         "haiku",
-				PromptVersion: "v1",
-				LatencyMs:     37,
-			},
-			DecidedAt: time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC),
-		}
-
-		var got map[string]any
-		marshalJSON(t, decision, &got)
-
-		assertJSONFieldAbsent(t, got, "post_content")
-		assertJSONFieldAbsent(t, got, "prior_content")
-		llmTrace, ok := got["llm_trace"].(map[string]any)
-		if !ok {
-			t.Fatalf("llm_trace = %#v, want object", got["llm_trace"])
-		}
-		assertJSONFieldAbsent(t, llmTrace, "raw_response")
-		if llmTrace["latency_ms"] != float64(37) {
-			t.Fatalf("llm_trace latency_ms = %#v, want 37", llmTrace["latency_ms"])
-		}
-	})
-
-	t.Run("Should expose deterministic memory error envelope", func(t *testing.T) {
-		t.Parallel()
-
-		var got map[string]any
-		marshalJSON(t, contract.MemoryErrorPayload{
-			Code:    "memory.scope.workspace_required",
-			Message: "workspace_id is required for workspace scope",
-			Details: map[string]any{
-				"scope": "workspace",
-			},
-		}, &got)
-
-		if got["code"] != "memory.scope.workspace_required" || got["message"] == "" {
-			t.Fatalf("memory error JSON = %#v", got)
-		}
-		assertJSONFieldAbsent(t, got, "error")
-	})
-}
-
 func TestSessionPayloadJSONIncludesSessionStopFields(t *testing.T) {
 	t.Run("Should include session stop fields in JSON", func(t *testing.T) {
 		t.Parallel()
@@ -1584,43 +1392,55 @@ func TestWorkspacePayloadPreservesOmitEmptyBehavior(t *testing.T) {
 	})
 }
 
-func TestWorkspaceSandboxRefJSONFields(t *testing.T) {
+func TestFallbackRoutePayloadsJSONShape(t *testing.T) { // UT-018
 	t.Parallel()
 
-	t.Run("Should serialize create workspace sandbox_ref", func(t *testing.T) {
+	t.Run("Should omit an empty role route command and its fingerprint", func(t *testing.T) {
 		t.Parallel()
 
-		payload := contract.CreateWorkspaceRequest{
-			RootDir:    "/workspace",
-			SandboxRef: "daytona-dev",
-		}
-
 		var got map[string]any
-		marshalJSON(t, payload, &got)
-
-		if got["sandbox_ref"] != "daytona-dev" {
-			t.Fatalf("sandbox_ref = %#v, want daytona-dev", got["sandbox_ref"])
+		marshalJSON(t, contract.RoleFallbackStatus{Provider: "cursor", Model: "grok-4.6"}, &got)
+		for _, key := range []string{"command", "command_fingerprint"} {
+			if _, exists := got[key]; exists {
+				t.Fatalf("%s should be omitted for an inherit route: %#v", key, got)
+			}
+		}
+		got = map[string]any{}
+		marshalJSON(t, contract.RoleFallbackStatus{
+			Provider: "claude", Model: "haiku-4-5",
+			Command: "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp", CommandFingerprint: "sha256:abc",
+		}, &got)
+		if got["command"] != "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp" ||
+			got["command_fingerprint"] != "sha256:abc" {
+			t.Fatalf("role route = %#v, want command and command_fingerprint", got)
 		}
 	})
 
-	t.Run("Should include workspace payload sandbox_ref", func(t *testing.T) {
+	t.Run("Should always marshal the settings route command", func(t *testing.T) {
 		t.Parallel()
 
-		payload := contract.WorkspacePayload{
-			ID:         "ws_alpha",
-			RootDir:    "/workspace",
-			AddDirs:    []string{},
-			Name:       "alpha",
-			SandboxRef: "daytona-dev",
-			CreatedAt:  time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
-			UpdatedAt:  time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC),
+		var got map[string]any
+		marshalJSON(t, contract.SettingsRoleFallbackPayload{Provider: "claude", Model: "haiku-4-5"}, &got)
+		if command, exists := got["command"]; !exists || command != "" {
+			t.Fatalf("settings route command = %#v (present %t), want empty string", command, exists)
 		}
+	})
+
+	t.Run("Should marshal the agent fallback chain", func(t *testing.T) {
+		t.Parallel()
 
 		var got map[string]any
-		marshalJSON(t, payload, &got)
-
-		if got["sandbox_ref"] != "daytona-dev" {
-			t.Fatalf("sandbox_ref = %#v, want daytona-dev", got["sandbox_ref"])
+		marshalJSON(t, contract.AgentPayload{
+			Name: "reviewer", FallbackChain: []contract.RoleFallbackStatus{{Provider: "cursor", Model: "grok-4.6"}},
+		}, &got)
+		chain, ok := got["fallback_chain"].([]any)
+		if !ok || len(chain) != 1 {
+			t.Fatalf("agent fallback_chain = %#v, want one route", got["fallback_chain"])
+		}
+		got = map[string]any{}
+		marshalJSON(t, contract.AgentPayload{Name: "reviewer"}, &got)
+		if _, exists := got["fallback_chain"]; exists {
+			t.Fatalf("agent fallback_chain should be omitted without routes: %#v", got)
 		}
 	})
 }
@@ -1684,9 +1504,6 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		nextRun := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
-		liveMode := participation.ModeLive
-		namedStrategy := participation.StrategyNamed
-		channelID := "ops-automation"
 		payload := contract.JobPayload{
 			ID:          "job-1",
 			Scope:       automationpkg.AutomationScopeWorkspace,
@@ -1705,11 +1522,6 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "rule:nightly-review",
-				},
-				NetworkParticipation: &participation.Request{
-					Mode:            &liveMode,
-					ChannelStrategy: &namedStrategy,
-					ChannelID:       &channelID,
 				},
 			},
 			Enabled: true,
@@ -1749,16 +1561,6 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		taskValue, ok := got["task"].(map[string]any)
 		if !ok || taskValue["title"] != "Review findings" {
 			t.Fatalf("task = %#v, want populated task config", got["task"])
-		}
-		participationValue, ok := taskValue["network_participation"].(map[string]any)
-		if !ok ||
-			participationValue["mode"] != string(participation.ModeLive) ||
-			participationValue["channel_strategy"] != string(participation.StrategyNamed) ||
-			participationValue["channel_id"] != channelID {
-			t.Fatalf("task.network_participation = %#v, want live named channel %q", participationValue, channelID)
-		}
-		if _, exists := taskValue["network_channel"]; exists {
-			t.Fatalf("task contains removed network_channel: %#v", taskValue)
 		}
 		if _, exists := got["next_run"]; !exists {
 			t.Fatalf("job payload missing next_run: %#v", got)
@@ -2031,12 +1833,7 @@ func TestTaskPayloadJSONShape(t *testing.T) {
 			Scope:        taskpkg.ScopeWorkspace,
 			WorkspaceID:  "ws-alpha",
 			ParentTaskID: "task-root",
-			ResolvedNetworkParticipation: &participation.Spec{
-				Version:   participation.SpecVersion,
-				Mode:      participation.ModeLive,
-				ChannelID: "builders",
-				Source:    participation.SourceExplicitRequest,
-			},
+
 			Title:       "Review task",
 			Description: "Check the API layer",
 			Status:      taskpkg.TaskStatusInProgress,
@@ -2051,7 +1848,7 @@ func TestTaskPayloadJSONShape(t *testing.T) {
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["workspace_id"] != "ws-alpha" || resolvedChannelFromJSON(got) != "builders" {
+		if got["workspace_id"] != "ws-alpha" {
 			t.Fatalf("task JSON = %#v", got)
 		}
 		createdBy, ok := got["created_by"].(map[string]any)
@@ -2112,12 +1909,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 			ResolvedWorktreeMode: contract.ResolvedWorktreeModePerRun,
 			Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
 			IdempotencyKey:       "key-1",
-			ResolvedNetworkParticipation: &participation.Spec{
-				Version:   participation.SpecVersion,
-				Mode:      participation.ModeLive,
-				ChannelID: "builders",
-				Source:    participation.SourceExplicitRequest,
-			},
+
 			QueuedAt:  time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
 			StartedAt: &startedAt,
 			Result:    json.RawMessage(`{"ok":true}`),
@@ -2132,7 +1924,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 		if got["worktree_id"] != "wt-run-1" || got["resolved_worktree_mode"] != "per_run" {
 			t.Fatalf("task run worktree JSON = %#v", got)
 		}
-		if resolvedChannelFromJSON(got) != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
+		if got["status"] != taskpkg.TaskRunStatusRunning.String() {
 			t.Fatalf("task run JSON = %#v", got)
 		}
 	})
@@ -2164,7 +1956,6 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 	t.Parallel()
 
 	title := "updated"
-	channel := "builders"
 	owner := &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"}
 	metadata := json.RawMessage(`{"priority":"high"}`)
 
@@ -2175,15 +1966,7 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 	}{
 		{name: "Should return false when no task changes are set", req: contract.UpdateTaskRequest{}, want: false},
 		{name: "Should return true when title is set", req: contract.UpdateTaskRequest{Title: &title}, want: true},
-		{
-			name: "Should return true when network participation is set",
-			req: contract.UpdateTaskRequest{
-				NetworkParticipation: &participation.Request{
-					ChannelID: &channel,
-				},
-			},
-			want: true,
-		},
+
 		{name: "Should return true when owner is set", req: contract.UpdateTaskRequest{Owner: owner}, want: true},
 		{
 			name: "Should return true when metadata is set",
@@ -2206,128 +1989,6 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestNetworkPeerPayloadJSONShape(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize peer-card capabilities as typed brief objects", func(t *testing.T) {
-		t.Parallel()
-
-		payload := contract.NetworkPeerPayload{
-			PeerID:        "reviewer.sess-a",
-			DisplayName:   "Reviewer",
-			Channel:       "builders",
-			Local:         true,
-			PresenceState: contract.NetworkPresenceLocal,
-			PeerCard: contract.NetworkPeerCardPayload{
-				PeerID: "reviewer.sess-a",
-				Capabilities: []contract.NetworkCapabilityBriefPayload{{
-					ID:      "review-pr",
-					Summary: "Review pull requests",
-				}},
-				ProfilesSupported:   []string{"compozy-network/v0"},
-				ArtifactsSupported:  []string{"capability"},
-				TrustModesSupported: []string{"untrusted"},
-				Ext: map[string]json.RawMessage{
-					"compozy.workflow_id": json.RawMessage(`"wf-1"`),
-				},
-			},
-		}
-
-		var got map[string]any
-		marshalJSON(t, payload, &got)
-		if got["presence_state"] != contract.NetworkPresenceLocal {
-			t.Fatalf("presence_state = %#v, want local", got["presence_state"])
-		}
-
-		peerCard, ok := got["peer_card"].(map[string]any)
-		if !ok {
-			t.Fatalf("peer_card type = %T, want object", got["peer_card"])
-		}
-		capabilities, ok := peerCard["capabilities"].([]any)
-		if !ok || len(capabilities) != 1 {
-			t.Fatalf("peer_card.capabilities = %#v, want one object entry", peerCard["capabilities"])
-		}
-		firstCapability, ok := capabilities[0].(map[string]any)
-		if !ok {
-			t.Fatalf("capability entry type = %T, want object", capabilities[0])
-		}
-		if firstCapability["id"] != "review-pr" || firstCapability["summary"] != "Review pull requests" {
-			t.Fatalf("capability brief JSON = %#v", firstCapability)
-		}
-		if _, isString := capabilities[0].(string); isString {
-			t.Fatalf("capability brief JSON should be object, got string: %#v", capabilities[0])
-		}
-	})
-}
-
-func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize rich capability catalogs as structured payloads", func(t *testing.T) {
-		t.Parallel()
-
-		payload := contract.NetworkPeerDetailPayload{
-			PeerID:        "reviewer.sess-a",
-			DisplayName:   "Reviewer",
-			Channel:       "builders",
-			Local:         true,
-			PresenceState: contract.NetworkPresenceLocal,
-			PeerCard: contract.NetworkPeerCardPayload{
-				PeerID: "reviewer.sess-a",
-				Capabilities: []contract.NetworkCapabilityBriefPayload{{
-					ID:      "review-pr",
-					Summary: "Review pull requests",
-				}},
-				ProfilesSupported:   []string{"compozy-network/v0"},
-				ArtifactsSupported:  []string{"capability"},
-				TrustModesSupported: []string{"untrusted"},
-			},
-			CapabilityCatalog: &contract.NetworkCapabilityCatalogPayload{
-				Capabilities: []contract.NetworkCapabilityPayload{{
-					ID:                "review-pr",
-					Summary:           "Review pull requests",
-					Outcome:           "Actionable review findings",
-					Version:           "1.0.0",
-					Digest:            "sha256:review-pr-v1",
-					ContextNeeded:     []string{"pull request link"},
-					ArtifactsExpected: []string{"review summary"},
-					Requirements:      []string{"workspace-read"},
-				}},
-			},
-		}
-
-		var got map[string]any
-		marshalJSON(t, payload, &got)
-		if got["presence_state"] != contract.NetworkPresenceLocal {
-			t.Fatalf("detail presence_state = %#v, want local", got["presence_state"])
-		}
-		if _, exists := got["last_seen_age_seconds"]; exists {
-			t.Fatalf("detail should omit local last_seen_age_seconds: %#v", got)
-		}
-
-		catalog, ok := got["capability_catalog"].(map[string]any)
-		if !ok {
-			t.Fatalf("capability_catalog type = %T, want object", got["capability_catalog"])
-		}
-		capabilities, ok := catalog["capabilities"].([]any)
-		if !ok || len(capabilities) != 1 {
-			t.Fatalf("capability_catalog.capabilities = %#v, want one object entry", catalog["capabilities"])
-		}
-		firstCapability, ok := capabilities[0].(map[string]any)
-		if !ok {
-			t.Fatalf("rich capability entry type = %T, want object", capabilities[0])
-		}
-		if firstCapability["digest"] != "sha256:review-pr-v1" ||
-			firstCapability["outcome"] != "Actionable review findings" {
-			t.Fatalf("rich capability JSON = %#v", firstCapability)
-		}
-		requirements, ok := firstCapability["requirements"].([]any)
-		if !ok || len(requirements) != 1 || requirements[0] != "workspace-read" {
-			t.Fatalf("requirements JSON = %#v, want workspace-read", firstCapability["requirements"])
-		}
-	})
 }
 
 func TestSessionGoalCommandRequestValidationShouldKeepOperationsClosed(t *testing.T) {
@@ -2418,14 +2079,6 @@ func assertZeroMetricField(t *testing.T, payload map[string]any, field string) {
 	}
 }
 
-func assertJSONFieldAbsent(t *testing.T, payload map[string]any, field string) {
-	t.Helper()
-
-	if _, exists := payload[field]; exists {
-		t.Fatalf("payload should not include %q: %#v", field, payload)
-	}
-}
-
 // Invariant: complete public Marketplace wire fixtures survive strict decoding and encoding byte-for-byte after JSON whitespace normalization.
 // Owner: API contract; canonical contract suite. Retired MCP acquisition has no success contract.
 func TestMarketplaceWireFixtures(t *testing.T) {
@@ -2467,4 +2120,116 @@ func TestMarketplaceWireFixtures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: the public continue/derive wire fixtures from _dx.md survive strict decoding and
+// encoding byte-for-byte. Owner: API contract; canonical contract suite (UT-042 and UT-043
+// goldens, including the native fork pending and failed shapes).
+func TestSessionDeriveWireFixtures(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		payload any
+	}{
+		{"continue-runtime.json", &contract.ContinueSessionRequest{}},
+		{"continue-route.json", &contract.ContinueSessionRequest{}},
+		{"continue-replay-child-deleted.json", &contract.SessionDeriveResponse{}},
+		{"preview.json", &contract.SessionDerivePreviewResponse{}},
+		{"fork-message.json", &contract.ForkSessionRequest{}},
+		{"fork-native-pending.json", &contract.SessionDeriveResponse{}},
+		{"fork-native-attempt-failed.json", &contract.SessionDeriveResponse{}},
+		{"derivation-native-failed.json", &contract.SessionDerivationPayload{}},
+	} {
+		t.Run("Should preserve "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := os.ReadFile(filepath.Join("testdata", "session-derive", tc.name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoder := json.NewDecoder(bytes.NewReader(raw))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(tc.payload); err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var expected bytes.Buffer
+			if err := json.Compact(&expected, raw); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(encoded, expected.Bytes()) {
+				t.Fatalf("wire fixture changed: %s\n%s", tc.name, encoded)
+			}
+		})
+	}
+}
+
+// Invariant: unknown worktree numbers stay absent while known zero stays zero (UT-034).
+// Owner: public payload mapping; canonical contract suite.
+func TestSubagentWorktreePayload(t *testing.T) {
+	t.Parallel()
+	// Invariant: unobserved settlement facts remain absent on the public wire (UT-034).
+	// Owner: contract projection; this canonical suite also owns known-zero preservation.
+	t.Run("Should omit all settlement facts while the isolated child is running", func(t *testing.T) {
+		t.Parallel()
+		row := session.Subagent{
+			Isolation: "worktree",
+			Status:    "running",
+			Worktree: &store.SubagentWorktreeState{
+				ID:      "wt",
+				Name:    "name",
+				Branch:  "run/name",
+				BaseRef: "main",
+				Path:    "/checkout",
+			},
+		}
+		raw, err := json.Marshal(contract.SubagentFromDomain(&row).Worktree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"base_sha", "head_sha", "commits_ahead", "dirty_files", "observed_at", "pull_request_status", "pull_request"} {
+			if _, present := decoded[key]; present {
+				t.Fatalf("unobserved %s was emitted: %s", key, raw)
+			}
+		}
+	})
+	t.Run("Should map static and observed facts without fabricating unknown integers", func(t *testing.T) {
+		t.Parallel()
+		row := session.Subagent{Isolation: "worktree", Worktree: &store.SubagentWorktreeState{
+			ID: "wt", Name: "name", Branch: "run/name", BaseRef: "main", BaseSHA: "base", Path: "/checkout",
+			Facts: store.SubagentWorktreeFacts{HeadSHA: "head", DirtyFiles: new(0), PRStatus: "unknown"},
+		}}
+		payload := contract.SubagentFromDomain(&row)
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		var wt map[string]any
+		if err := json.Unmarshal(decoded["worktree"], &wt); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := wt["commits_ahead"]; ok {
+			t.Fatal(wt)
+		}
+		if _, ok := wt["pull_request"]; ok {
+			t.Fatal(wt)
+		}
+		if wt["dirty_files"] != float64(0) || wt["base_sha"] != "base" || wt["branch"] != "run/name" {
+			t.Fatal(wt)
+		}
+		row.Isolation = "shared"
+		if contract.SubagentFromDomain(&row).Worktree != nil {
+			t.Fatal("shared checkout exposed worktree facts")
+		}
+	})
 }

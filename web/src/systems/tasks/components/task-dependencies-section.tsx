@@ -45,7 +45,7 @@ export function TaskDependenciesSection({
       data-testid="tasks-detail-dependencies"
       label="Blocked by"
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         {open.map(dep => (
           <TaskLinkedRow
             key={dep.depends_on.id}
@@ -62,14 +62,14 @@ export function TaskDependenciesSection({
               className={cn(
                 "flex w-full items-center gap-2 px-4 py-2.5 text-left text-small-body text-muted",
                 "border-t border-line-soft transition-colors duration-fast first:border-t-0",
-                "hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+                "hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
               )}
               data-testid="tasks-detail-resolved-toggle"
             >
               <ChevronRight
                 aria-hidden="true"
                 className={cn(
-                  "size-3 text-faint",
+                  "size-3.5 text-faint",
                   !reduceMotion && "transition-transform duration-fast",
                   showResolved && "rotate-90"
                 )}

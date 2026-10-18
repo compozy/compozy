@@ -2,7 +2,7 @@ import { FileText } from "lucide-react";
 
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";
-import { TranscriptDisclosure } from "./transcript-disclosure";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 // Signal palette as information, never decoration: additions read `--success`,
 // deletions `--danger`. The +/− sign carries the meaning too, so the stat never
@@ -32,7 +32,7 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
       data-testid="changed-file-row"
       className="flex min-h-transcript-row min-w-0 items-center gap-2 text-transcript-body"
     >
-      <FileText aria-hidden="true" className="size-3 shrink-0 text-faint" strokeWidth={1.75} />
+      <FileText aria-hidden="true" className="size-3 shrink-0 text-faint" />
       <span
         className="flex min-w-0 flex-1 items-baseline font-mono text-transcript-caption"
         title={file.path}
@@ -68,9 +68,7 @@ export function SessionChangedFilesRowView({
         expanded={row.expanded}
         onToggle={onToggle}
         aria-controls={detailsId}
-        icon={
-          <FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
-        }
+        icon={<FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" />}
         label={
           <>
             Edited {fileCount} {fileCount === 1 ? "file" : "files"}

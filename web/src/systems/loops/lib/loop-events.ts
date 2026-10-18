@@ -26,6 +26,7 @@ export interface LoopApprovalFact {
 
 export interface LoopApprovalRequest {
   gateId: string;
+  generation?: number;
   title: string;
   prompt?: string;
   facts: LoopApprovalFact[];
@@ -99,9 +100,8 @@ export interface LoopRunLiveState {
   /**
    * Retained structural frames in arrival (seq) order — the single source for
    * the story timeline and the Inspect drawer's raw Events section. The
-   * high-frequency display kinds (`token_tick`, `channel_msg`) are excluded so
-   * they can never evict structural history; their data lands in `tokensUsed`
-   * and the network surface respectively.
+   * high-frequency `token_tick` frames are excluded so they cannot evict
+   * structural history; their data lands in `tokensUsed`.
    */
   frames: LoopRunEventFrame[];
   /** Latest gate verdict keyed by `nodeId` (a re-run overwrites the prior verdict). */
@@ -166,7 +166,6 @@ const MAX_EFFECT_RESULTS = 200;
  */
 const UNRETAINED_KINDS: ReadonlySet<LoopRunEventKind> = new Set<LoopRunEventKind>([
   "token_tick",
-  "channel_msg",
   "goal_turn_started",
   "goal_turn_completed",
 ]);
@@ -234,6 +233,7 @@ function parseApproval(payload: Record<string, unknown>): LoopApprovalRequest {
   const rawFacts = Array.isArray(payload.facts) ? payload.facts : [];
   return {
     gateId: str(payload.gate_id, "approve"),
+    generation: num(payload.generation),
     title: str(payload.title, "Approve to resume"),
     prompt: str(payload.prompt) || undefined,
     facts: rawFacts.map(item => {

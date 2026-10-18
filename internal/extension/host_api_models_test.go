@@ -74,7 +74,6 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
 			WithHostAPIModelCatalogService(service),
 			WithHostAPICapabilityChecker(newTestCapabilityChecker(
 				"ext",
@@ -175,7 +174,6 @@ func TestHostAPIModelsRefreshShouldReturnStatusPayloadOnSourceFailure(t *testing
 			nil,
 			nil,
 			nil,
-			nil,
 			WithHostAPIModelCatalogService(service),
 			WithHostAPICapabilityChecker(newTestCapabilityChecker(
 				"ext",
@@ -240,7 +238,6 @@ func TestHostAPIModelsRefreshShouldReturnSuccessfulSourceStatus(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
 			WithHostAPIModelCatalogService(service),
 			WithHostAPICapabilityChecker(newTestCapabilityChecker(
 				"ext",
@@ -295,7 +292,6 @@ func TestHostAPIModelsStatusShouldReturnDaemonSourceStatus(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
 			WithHostAPIModelCatalogService(service),
 			WithHostAPICapabilityChecker(newTestCapabilityChecker(
 				"ext",
@@ -340,7 +336,6 @@ func TestHostAPIModelsListShouldRequirePermission(t *testing.T) {
 		t.Parallel()
 
 		handler := NewHostAPIHandler(
-			nil,
 			nil,
 			nil,
 			nil,
@@ -437,7 +432,7 @@ func TestHostAPIModelsShouldMapValidationAndAvailabilityErrors(t *testing.T) {
 			if tt.service != nil {
 				opts = append(opts, WithHostAPIModelCatalogService(tt.service))
 			}
-			handler := NewHostAPIHandler(nil, nil, nil, nil, opts...)
+			handler := NewHostAPIHandler(nil, nil, nil, opts...)
 			_, err := handler.Handle(testutil.Context(t), "ext", tt.method, tt.params)
 			if err == nil {
 				t.Fatal("Handle() error = nil, want RPC error")
@@ -462,7 +457,6 @@ func TestHostAPIModelsShouldRedactUnavailableRPCErrorData(t *testing.T) {
 
 		secret := "oauth-rpc-secret-token"
 		handler := NewHostAPIHandler(
-			nil,
 			nil,
 			nil,
 			nil,

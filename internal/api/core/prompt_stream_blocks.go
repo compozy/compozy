@@ -27,9 +27,13 @@ func (e *PromptStreamEncoder) ensureMessageStarted(writer FlushWriter, event acp
 	})
 }
 
-func (e *PromptStreamEncoder) ensureTextStarted(writer FlushWriter) error {
-	if e.textStarted {
+func (e *PromptStreamEncoder) ensureTextStarted(writer FlushWriter, parentToolCallID string) error {
+	if e.textStarted && e.textParent == parentToolCallID {
 		return nil
+	}
+	// A subagent's text never joins the parent's block (or another subagent's).
+	if err := e.closeTextBlock(writer); err != nil {
+		return err
 	}
 	if err := e.closeReasoningBlock(writer); err != nil {
 		return err
@@ -37,8 +41,13 @@ func (e *PromptStreamEncoder) ensureTextStarted(writer FlushWriter) error {
 	e.textBlockSeq++
 	e.textBlockID = e.messageID + "-text-" + strconv.Itoa(e.textBlockSeq)
 	e.textStarted = true
+	e.textParent = parentToolCallID
 	return WriteSSE(writer, SSEMessage{
-		Data: promptBlockPayload{Type: "text-start", ID: e.textBlockID},
+		Data: promptBlockPayload{
+			Type:             "text-start",
+			ID:               e.textBlockID,
+			ProviderMetadata: promptAttribution(parentToolCallID),
+		},
 	})
 }
 

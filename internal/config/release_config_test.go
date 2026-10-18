@@ -564,6 +564,70 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 			"RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}")
 	})
 
+	t.Run("Should build fresh assets before checking their pin and stop on build failure", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := parseYAMLMap(t, []byte(workflow), "release workflow")
+		steps := sliceAt(t, mapAt(t, mapAt(t, cfg, "jobs"), "release-plan"), "steps")
+		var script string
+		for _, raw := range steps {
+			step := asMap(t, raw, "release-plan step")
+			if step["name"] == "Synchronize explicit release web assets" {
+				script = stringAt(t, step, "run")
+			}
+		}
+		if script == "" {
+			t.Fatal("explicit release asset synchronization script is missing")
+		}
+		for _, tc := range []struct {
+			name      string
+			failBuild bool
+		}{
+			{name: "Should check generated assets on a fresh checkout"},
+			{name: "Should stop before checking assets when the build fails", failBuild: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				repo := t.TempDir()
+				binDir := t.TempDir()
+				goStub := `#!/bin/sh
+case "$3" in
+  webBuild)
+    [ "$FAIL_BUILD" != "true" ] || exit 23
+    mkdir -p web/dist
+    printf '<html>built</html>' > web/dist/index.html
+    ;;
+  webAssetsCheck)
+    echo 'checking generated assets'
+    test -s web/dist/index.html
+    ;;
+  *) exit 24 ;;
+esac
+`
+				if err := os.WriteFile(filepath.Join(binDir, "go"), []byte(goStub), 0o755); err != nil {
+					t.Fatalf("write go command fixture: %v", err)
+				}
+				cmd := exec.CommandContext(t.Context(), "bash", "-c", script)
+				cmd.Dir = repo
+				cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+					"RELEASE_REF_INPUT=main", "FAIL_BUILD="+strconv.FormatBool(tc.failBuild))
+				output, err := cmd.CombinedOutput()
+				if (err != nil) != tc.failBuild {
+					t.Fatalf("asset synchronization error = %v, want failure %t; output: %s", err, tc.failBuild, output)
+				}
+				if tc.failBuild {
+					exitErr, ok := err.(*exec.ExitError)
+					if !ok || exitErr.ExitCode() != 23 {
+						t.Fatalf("asset synchronization error = %v, want build exit code 23; output: %s", err, output)
+					}
+				}
+				if checked := strings.Contains(string(output), "checking generated assets"); checked == tc.failBuild {
+					t.Fatalf("asset check ran = %t, want %t; output: %s", checked, !tc.failBuild, output)
+				}
+			})
+		}
+	})
+
 	t.Run("Should derive the next beta from immutable Git and npm versions", func(t *testing.T) {
 		t.Parallel()
 
@@ -1146,11 +1210,16 @@ func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
 			},
 		},
 	}
+	fixtureRepo, _ := newReleasePreflightFixture(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo, pathDir := newReleasePreflightFixture(t)
+			repo := t.TempDir()
+			if err := os.CopyFS(repo, os.DirFS(fixtureRepo)); err != nil {
+				t.Fatalf("copy release preflight fixture: %v", err)
+			}
+			pathDir := filepath.Join(repo, "test-bin")
 			switch tt.contamination {
 			case "untracked":
 				contamination := filepath.Join(repo, "release-workflow-tools", "tool.sh")
@@ -1346,8 +1415,8 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	t.Run("Should run the same preflight before dry-run and tag publication", func(t *testing.T) {
 		t.Parallel()
 		releasePRTrigger := "startsWith(github.event.pull_request.title, 'build: release ')"
-		if got := strings.Count(workflow, releasePRTrigger); got != 5 {
-			t.Fatalf("semantic release PR trigger count = %d, want 5", got)
+		if got := strings.Count(workflow, releasePRTrigger); got != 6 {
+			t.Fatalf("semantic release PR trigger count = %d, want 6", got)
 		}
 		assertContainsText(
 			t,

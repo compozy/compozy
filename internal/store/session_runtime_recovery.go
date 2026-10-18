@@ -24,8 +24,7 @@ func CloneSessionRuntimeRecovery(recovery *SessionRuntimeRecovery) *SessionRunti
 	}
 	cloned := *recovery
 	if recovery.NextAttemptAt != nil {
-		next := recovery.NextAttemptAt.UTC()
-		cloned.NextAttemptAt = &next
+		cloned.NextAttemptAt = new(recovery.NextAttemptAt.UTC())
 	}
 	return &cloned
 }

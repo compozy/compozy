@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-command-profiles-from-palette
 expected: The Profiles view opens from the Views group and from root search, lists every profile with glyph, name, and state — current, archived, needs-setup — disables an unavailable row with the runtime's own reason instead of hiding it, switches through the canonical selection route, and hands every lifecycle action to the existing Profiles dialog carrying its plan revision rather than mutating through a palette-only path.
 entry_points: Command-K root search; Views group; palette.view.profiles; profile.use|create|update|rename|archive|unarchive|delete actions; compozy cmd-palette list|inspect; GET /api/cmd-palette/catalog and views routes over HTTP and UDS
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: skipped
+bug_ids: BUG-20261004-profile-palette-drops-arguments; BUG-20261004-profile-palette-navigation-stall; BUG-20261004-profile-switch-loses-command-result
+fix_status: fixed
+retest_status: pass
+fix_commits: 34028edad; 259d7142c
+evidence: docs/qa/evidence/2026-10-02-untested/profile-palette-lifecycle-fixed-ended.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-palette-lens-isolation; ET-profile-web-settings-lifecycle-dialogs; ET-palette-registry-driven-root; ET-palette-domain-views
 ---
 
@@ -47,3 +47,18 @@ Expected evidence: screenshots of the Views entry, the populated view with the c
 needs-setup, and disabled rows, and the destructive confirmation; the selection request and response
 pair for the switch; the plan read beside the mutation quoting its revision; the stale-plan refusal;
 and matching `cmd-palette list` and native-tool output for the reason and descriptor parity.
+
+The 2026-10-04 adjacent handoff replay verifies all seven descriptors, canonical plans and
+confirmation, plus current/archived rows in the Profiles view. Needs-setup/unavailable rows,
+stale-plan behavior in this view, and hosted native discovery still require the full charter.
+This scenario remains untested as a whole; the linked argument and result repairs do not close
+the separate navigation stall or those remaining legs.
+
+
+The linked argument, result and navigation defects are verified in the local handoff replay.
+The complete Profiles-view charter remains untested for its remaining state/native-discovery
+legs; those successful shared repairs do not settle the entire scenario.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

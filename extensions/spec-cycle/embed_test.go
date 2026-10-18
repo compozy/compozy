@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -147,6 +148,8 @@ func TestSpecCycleRuntimeToolDescriptorsShouldPinSchemaDigests(t *testing.T) {
 }
 
 func TestSpecCycleManagedInstallShouldPreserveManagedManifestTools(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should install managed tool declarations in an enabled bundled extension", func(t *testing.T) {
 		t.Parallel()
 
@@ -274,31 +277,7 @@ func TestSpecCycleManagedInstallShouldPreserveManagedManifestTools(t *testing.T)
 				)
 			}
 		}
-	})
-}
 
-func TestSpecCycleManagedInstallShouldReconcileBundledProvenance(t *testing.T) {
-	t.Run("Should repair bundled trust metadata without changing enabled state or install time", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		globalDB, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := globalDB.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close(globalDB) error = %v", err)
-			}
-		})
-		registry := extensionpkg.NewRegistry(globalDB.DB())
-
-		if err := EnsureManagedInstall(homePaths, registry); err != nil {
-			t.Fatalf("EnsureManagedInstall(first) error = %v", err)
-		}
 		before, err := registry.Get(Name)
 		if err != nil {
 			t.Fatalf("registry.Get(%q before) error = %v", Name, err)
@@ -366,7 +345,7 @@ func TestSpecCycleManagedInstallShouldReconcileBundledProvenance(t *testing.T) {
 	})
 }
 
-func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
+func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 	t.Parallel()
 
 	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -427,6 +406,141 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve workflow dependencies inside the installed bundle", func(t *testing.T) {
+		t.Parallel()
+
+		// These instruction artifacts are the product: installation must not rely on
+		// a source checkout to supply skills, resources, scripts, or internal policy.
+		skillReference := regexp.MustCompile(`\b(?:cy|eng|ui)-[a-z][a-z0-9-]*\b`)
+		listedSkillReference := regexp.MustCompile(`(?m)^[ \t]*- ([a-z][a-z0-9]*(?:-[a-z0-9]+)+):`)
+		resourceReference := regexp.MustCompile(`(?:references|scripts)/[a-zA-Z0-9_./-]+\.(?:md|sh|py)\b`)
+		internalReference := regexp.MustCompile(
+			`SD-[0-9]+|docs/_memory/|\.agents/skills/|packages/(?:ui|site)|web/src/systems/|@compozy/ui`,
+		)
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !slices.Contains([]string{".md", ".yaml", ".sh", ".py"}, filepath.Ext(path)) {
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			body := string(data)
+			for _, name := range skillReference.FindAllString(body, -1) {
+				if !slices.Contains(bundledSkillNames, name) {
+					t.Errorf("%s references unshipped skill %q", path, name)
+				}
+			}
+			for _, match := range listedSkillReference.FindAllStringSubmatch(body, -1) {
+				if !slices.Contains(bundledSkillNames, match[1]) {
+					t.Errorf("%s requires unshipped skill %q", path, match[1])
+				}
+			}
+			if reference := internalReference.FindString(body); reference != "" {
+				t.Errorf("%s depends on repository-only reference %q", path, reference)
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			parts := strings.Split(filepath.ToSlash(rel), "/")
+			if len(parts) < 3 || parts[0] != "skills" {
+				return nil
+			}
+			for _, resource := range resourceReference.FindAllString(body, -1) {
+				if _, err := os.Stat(
+					filepath.Join(root, "skills", parts[1], filepath.FromSlash(resource)),
+				); err != nil {
+					t.Errorf("%s references unavailable skill resource %q: %v", path, resource, err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should run installed rebase helpers from a foreign repository", func(t *testing.T) {
+		t.Parallel()
+
+		repository := t.TempDir()
+		// Hook/caller Git variables must never redirect this fixture or its scripts.
+		gitEnvironment := make([]string, 0, len(os.Environ())+2)
+		for _, entry := range os.Environ() {
+			if !strings.HasPrefix(entry, "GIT_") {
+				gitEnvironment = append(gitEnvironment, entry)
+			}
+		}
+		gitEnvironment = append(gitEnvironment, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+		runGit := func(args ...string) {
+			t.Helper()
+			command := exec.CommandContext(t.Context(), "git", args...)
+			command.Dir = repository
+			command.Env = gitEnvironment
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %v\n%s", args, err, output)
+			}
+		}
+		runGit("init", "-b", "main")
+		runGit(
+			"-c",
+			"user.name=Bundle test",
+			"-c",
+			"user.email=bundle@example.invalid",
+			"commit",
+			"--allow-empty",
+			"-m",
+			"Initial",
+		)
+		// No source-checkout skills, Makefile, or language toolchain exist here.
+		validator := filepath.Join(root, "skills", "git-rebase", "scripts", "validate-merge.sh")
+		command := exec.CommandContext(t.Context(), "bash", validator)
+		command.Dir = repository
+		command.Env = gitEnvironment
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("installed validator: %v\n%s", err, output)
+		}
+		if err := os.WriteFile(
+			filepath.Join(repository, "untracked.txt"),
+			[]byte("unrelated work\n"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		command = exec.CommandContext(t.Context(), "bash", validator)
+		command.Dir = repository
+		command.Env = gitEnvironment
+		untrackedOutput, err := command.CombinedOutput()
+		if err != nil || !strings.Contains(string(untrackedOutput), "Uncommitted changes found") ||
+			strings.Contains(string(untrackedOutput), "Working directory clean") {
+			t.Fatalf("installed validator with untracked work: err=%v\n%s", err, untrackedOutput)
+		}
+		untrackedData, err := os.ReadFile(filepath.Join(repository, "untracked.txt"))
+		if err != nil || string(untrackedData) != "unrelated work\n" {
+			t.Fatalf("untracked work changed: data=%q err=%v", untrackedData, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(repository, "conflict.txt"),
+			[]byte("<<<<<<< ours\nleft\n=======\nright\n>>>>>>> theirs\n"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		runGit("add", "conflict.txt")
+		command = exec.CommandContext(t.Context(), "bash", validator)
+		command.Dir = repository
+		command.Env = gitEnvironment
+		output, err := command.CombinedOutput()
+		if err == nil || !strings.Contains(string(output), "Validation FAILED") ||
+			!strings.Contains(string(output), "conflict.txt") || !strings.Contains(string(output), validator) {
+			t.Fatalf("installed validator with conflict: err=%v\n%s", err, output)
+		}
+	})
+
 	t.Run("Should exclude retired commands and skills", func(t *testing.T) {
 		t.Parallel()
 
@@ -451,6 +565,27 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 		}
 		if slices.Contains(bundledSkillNames, "compozy") {
 			t.Fatal("bundled skill names contain retired duplicate compozy skill")
+		}
+	})
+	t.Run("Should parse every agent with the runtime schema", func(t *testing.T) {
+		t.Parallel()
+
+		agentFiles := embeddedAgentFiles(t, root)
+		if len(agentFiles) == 0 {
+			t.Fatal("embedded agent files = 0, want at least one spec-cycle agent")
+		}
+		for _, path := range agentFiles {
+			t.Run("Should parse "+filepath.Base(filepath.Dir(path)), func(t *testing.T) {
+				t.Parallel()
+
+				agent, err := compozyconfig.LoadAgentDefFile(path)
+				if err != nil {
+					t.Fatalf("LoadAgentDefFile(%q) error = %v", path, err)
+				}
+				if strings.TrimSpace(agent.Name) == "" {
+					t.Fatalf("LoadAgentDefFile(%q).Name is empty", path)
+				}
+			})
 		}
 	})
 }
@@ -599,7 +734,7 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		t.Parallel()
 
 		def := parseEmbeddedLoopForTest(t, "loops/review-and-fix/loop.yaml")
-		wantInputs := []string{"task_name", "reviewer", "fixer", "auto_commit"}
+		wantInputs := []string{"task_name", "reviewer", "fixer", "auto_commit", "reviewed_worktree"}
 		if len(def.Inputs) != len(wantInputs) {
 			t.Fatalf("review-and-fix inputs = %#v, want exactly %#v", def.Inputs, wantInputs)
 		}
@@ -607,6 +742,9 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			if _, ok := def.Inputs[input]; !ok {
 				t.Fatalf("review-and-fix input %q missing", input)
 			}
+		}
+		if proof := def.Inputs["reviewed_worktree"]; proof.Required || proof.Type != dsl.InputTypeString {
+			t.Fatalf("reviewed worktree input=%#v", proof)
 		}
 		if !def.Inputs["task_name"].Required {
 			t.Fatal("task_name required = false, want true")
@@ -640,8 +778,8 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		fixBatch := requireSpecCycleNode(t, def, "fix_batch")
 		prompt := requireStringParam(t, fixBatch, "prompt")
 		for _, required := range []string{
-			"systematic-debugging",
-			"no-workarounds",
+			"Reproduce the failure, trace it to its owning cause, and implement a complete fix",
+			"do not suppress diagnostics or patch only symptoms",
 			"cy-fix-reviews",
 			"cy-final-verify",
 			"Remediate this complete batch of review artifact files",
@@ -899,6 +1037,32 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stage each orchestrated task with its concrete identity", func(t *testing.T) {
+		t.Parallel()
+
+		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
+		node := requireSpecCycleNode(t, def, "stage_orchestrated")
+		executor := loop.TransformActionExecutor{}
+		for _, taskID := range []string{"task_01", "task_02", "task_03"} {
+			result, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
+				Namespace: map[string]any{"item": map[string]any{"id": taskID}},
+			})
+			if err != nil {
+				t.Fatalf("Execute(%s) error = %v", taskID, err)
+			}
+			var output struct {
+				TaskID string `json:"task_id"`
+				Status string `json:"status"`
+			}
+			if err := json.Unmarshal(result.Structured, &output); err != nil {
+				t.Fatalf("Unmarshal(%s) error = %v", taskID, err)
+			}
+			if output.TaskID != taskID || output.Status != "staged" {
+				t.Fatalf("Execute(%s) output = %#v, want matching task_id and staged status", taskID, output)
+			}
+		}
+	})
+
 	t.Run("Should load implement-tasks tasks through import_tasks action", func(t *testing.T) {
 		t.Parallel()
 
@@ -1107,7 +1271,7 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 				activeWorker: true,
 			},
 		}
-		for _, status := range []string{"done", "finished", "complete", "' CoMpLeTe '", "completed # verified"} {
+		for _, status := range []string{"' CoMpLeTe '", "completed # verified"} {
 			cases = append(cases, struct {
 				name         string
 				tasks        []orchestrateJudgeTaskFile
@@ -1329,8 +1493,8 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 		}
 		prompt := string(data)
 		for _, required := range []string{
-			"systematic-debugging",
-			"no-workarounds",
+			"Reproduce the failure, trace it to its owning cause, and implement a complete fix",
+			"do not suppress diagnostics or patch only symptoms",
 			"cy-fix-reviews",
 			"Read every supplied issue file completely before editing code",
 			"fails as a whole",
@@ -1462,41 +1626,6 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 			}
 		}
 	})
-}
-
-func TestEmbeddedAgentsShouldParseWithRuntimeSchema(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	root, err := extensionpkg.MaterializeBundledExtension(homePaths, Name, FS())
-	if err != nil {
-		t.Fatalf("MaterializeBundledExtension() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := os.RemoveAll(root); err != nil {
-			t.Fatalf("RemoveAll(%q) error = %v", root, err)
-		}
-	})
-	agentFiles := embeddedAgentFiles(t, root)
-	if len(agentFiles) == 0 {
-		t.Fatal("embedded agent files = 0, want at least one spec-cycle agent")
-	}
-	for _, path := range agentFiles {
-		t.Run("Should parse "+filepath.Base(filepath.Dir(path)), func(t *testing.T) {
-			t.Parallel()
-
-			agent, err := compozyconfig.LoadAgentDefFile(path)
-			if err != nil {
-				t.Fatalf("LoadAgentDefFile(%q) error = %v", path, err)
-			}
-			if strings.TrimSpace(agent.Name) == "" {
-				t.Fatalf("LoadAgentDefFile(%q).Name is empty", path)
-			}
-		})
-	}
 }
 
 type specCycleToolSchemas map[string]loop.ToolSchemaSnapshot

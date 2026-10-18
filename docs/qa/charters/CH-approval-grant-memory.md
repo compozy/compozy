@@ -21,7 +21,7 @@ charter:
       - "Cross checks: workspace-B never matches, a non-matching agent still prompts, deny-all denies despite a stored allow, and a grant-store read error falls to the prompt."
       - "Revoke each row through a different surface than the one that created it; the next matching call must prompt."
     must_avoid:
-      - "Conflating this plane with ACP subprocess fs-approvals or sandbox PermissionDecisionAllowAlways — both are out of scope and must stay unchanged."
+      - "Conflating this plane with ACP subprocess fs-approvals or provider PermissionDecisionAllowAlways — both are out of scope and must stay unchanged."
 ```
 
 <!-- The charter is durable and immutable: re-run it in later cycles; each run's debrief goes in that run's report (Session Debriefs), never here. -->

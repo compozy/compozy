@@ -11,10 +11,6 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 	agent.GET("/coordinator/config", handlers.AgentCoordinatorRole)
 	agent.POST("/spawn", handlers.AgentSpawn)
 	agent.POST("/notify", handlers.AgentNotify)
-	agent.GET("/channels", handlers.AgentChannels)
-	agent.GET("/channels/:channel/recv", handlers.AgentChannelRecv)
-	agent.POST("/channels/:channel/send", handlers.AgentChannelSend)
-	agent.POST("/channels/reply", handlers.AgentChannelReply)
 
 	agentTasks := agent.Group("/tasks")
 	agentTasks.POST("/claim-next", handlers.AgentTaskClaimNext)

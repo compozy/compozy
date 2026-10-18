@@ -3,6 +3,7 @@ package task
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -313,10 +314,7 @@ func inspectHasRecoveryDiagnostic(items []diagnosticcontract.DiagnosticItem) boo
 }
 
 func inspectHasDiagnostic(items []diagnosticcontract.DiagnosticItem, code string) bool {
-	for _, item := range items {
-		if strings.TrimSpace(item.Code) == code {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(items, func(item diagnosticcontract.DiagnosticItem) bool {
+		return strings.TrimSpace(item.Code) == code
+	})
 }

@@ -37,7 +37,16 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/systems/onboarding/hooks/use-directory-browser", () => ({
-  useDirectoryBrowser: () => mockBrowseState,
+  useDirectoryBrowser: () => ({
+    ...mockBrowseState,
+    currentPath: (mockBrowseState.data as { path?: string })?.path ?? "",
+    parent: (mockBrowseState.data as { parent?: string })?.parent ?? null,
+    home: (mockBrowseState.data as { home?: string })?.home ?? null,
+    roots: (mockBrowseState.data as { roots?: string[] })?.roots ?? [],
+    navigateTo: vi.fn(),
+    goToParent: vi.fn(),
+    goHome: vi.fn(),
+  }),
 }));
 
 vi.mock("../../hooks/use-workspaces", () => ({
@@ -88,7 +97,7 @@ function renderDialog(
   const open = props.open ?? true;
 
   const utils = render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <WorkspaceSetupDialogHarness
         defaults={props.defaults ?? mockDefaults}
         open={open}
@@ -104,7 +113,6 @@ function renderDialog(
 function resetMocks() {
   mockDefaults = {
     agents: { state: "ready", entries: [] },
-    sandboxes: { state: "ready", entries: [] },
   };
   mockBrowseState.isLoading = false;
   mockBrowseState.isFetching = false;
@@ -140,13 +148,18 @@ describe("WorkspaceSetupDialog", () => {
     expect(host).toBeInTheDocument();
     expect(host.closest("body")).toBe(document.body);
     expect(screen.getByTestId("workspace-setup-dialog-body")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Add workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add project" })).toBeInTheDocument();
   });
 
-  it("keeps the root browser and optional defaults in their separate panes", () => {
+  it("keeps optional defaults behind Advanced, in their own pane", async () => {
+    const user = userEvent.setup();
     renderDialog({ open: true });
 
     const body = screen.getByTestId("workspace-setup-dialog-body");
+    expect(within(body).getByTestId("workspace-setup-browser")).toBeInTheDocument();
+    expect(within(body).queryByTestId("workspace-setup-add-dir-input")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
     expect(within(body).getByTestId("workspace-setup-browser")).toBeInTheDocument();
     expect(within(body).getByTestId("workspace-setup-add-dir-input")).toBeInTheDocument();
   });
@@ -164,7 +177,7 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.getByTestId("workspace-setup-submit")).toBeDisabled();
 
     await user.click(
-      screen.getByRole("button", { name: "Use checkout-platform as the workspace root" })
+      screen.getByRole("button", { name: "Use checkout-platform as the project folder" })
     );
 
     // Picking a root must not write anything — registration waits for submit.
@@ -183,6 +196,7 @@ describe("WorkspaceSetupDialog", () => {
     mockCreateMutateAsync.mockResolvedValue(createdWorkspace);
     const { onOpenChange, onWorkspaceResolved } = renderDialog({ open: true });
 
+    await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
     await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
     await user.clear(screen.getByTestId("workspace-setup-name-input"));
     await user.type(screen.getByTestId("workspace-setup-name-input"), "Checkout platform");
@@ -206,20 +220,18 @@ describe("WorkspaceSetupDialog", () => {
     });
   });
 
-  it("submits the selected default agent and sandbox profile", async () => {
+  it("submits the selected default agent", async () => {
     const user = userEvent.setup();
     mockCreateMutateAsync.mockResolvedValue(createdWorkspace);
     mockDefaults = {
       agents: { state: "ready", entries: [primaryAgentFixture] },
-      sandboxes: { state: "ready", entries: [{ name: "isolated", backend: "docker" }] },
     };
     renderDialog({ open: true });
 
+    await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
     await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
     await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
     await user.click(screen.getByTestId(`agent-command-item-${primaryAgentFixture.name}`));
-    await user.click(screen.getByTestId("workspace-setup-sandbox-select"));
-    await user.click(screen.getByTestId("workspace-setup-sandbox-isolated"));
     await user.click(screen.getByTestId("workspace-setup-submit"));
 
     await waitFor(() => {
@@ -227,7 +239,6 @@ describe("WorkspaceSetupDialog", () => {
         root_dir: "/Users/pedro/Dev",
         name: "Dev",
         default_agent: primaryAgentFixture.name,
-        sandbox_ref: "isolated",
       });
     });
   });
@@ -237,19 +248,15 @@ describe("WorkspaceSetupDialog", () => {
     mockCreateMutateAsync.mockResolvedValue(createdWorkspace);
     mockDefaults = {
       agents: { state: "ready", entries: [primaryAgentFixture] },
-      sandboxes: { state: "ready", entries: [{ name: "isolated" }] },
     };
     renderDialog({ open: true });
 
+    await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
     await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
     await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
     await user.click(screen.getByTestId(`agent-command-item-${primaryAgentFixture.name}`));
     await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
     await user.click(screen.getByTestId("agent-command-item-clear"));
-    await user.click(screen.getByTestId("workspace-setup-sandbox-select"));
-    await user.click(screen.getByTestId("workspace-setup-sandbox-isolated"));
-    await user.click(screen.getByTestId("workspace-setup-sandbox-select"));
-    await user.click(screen.getByTestId("workspace-setup-sandbox-none"));
     await user.click(screen.getByTestId("workspace-setup-submit"));
 
     await waitFor(() => {
@@ -260,23 +267,20 @@ describe("WorkspaceSetupDialog", () => {
     });
   });
 
-  it("keeps independent collection loading and failure states visible", () => {
+  it("keeps the agent collection loading state visible", async () => {
+    const user = userEvent.setup();
     renderDialog({
       defaults: {
         agents: { state: "loading" },
-        sandboxes: { state: "error", message: "settings endpoint unavailable" },
       },
       open: true,
     });
+    await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
 
     expect(screen.getByTestId("workspace-setup-default-agent-loading")).toHaveTextContent(
       "Loading agents"
     );
     expect(screen.getByTestId("workspace-setup-default-agent-select")).toBeDisabled();
-    expect(screen.getByTestId("workspace-setup-sandbox-error")).toHaveTextContent(
-      "settings endpoint unavailable"
-    );
-    expect(screen.getByTestId("workspace-setup-sandbox-select")).toBeDisabled();
   });
 
   it("derives a display name from POSIX and Windows path separators", async () => {

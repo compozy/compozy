@@ -3,7 +3,8 @@ package loop
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -176,11 +177,7 @@ func selectInputValue(
 }
 
 func firstUnknownInput(declared map[string]dsl.Input, values map[string]any) string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(values))
 	for _, key := range keys {
 		if _, ok := declared[key]; !ok {
 			return key
@@ -190,10 +187,7 @@ func firstUnknownInput(declared map[string]dsl.Input, values map[string]any) str
 }
 
 func sortedInputKeys(inputs map[string]dsl.Input) []string {
-	keys := make([]string, 0, len(inputs))
-	for key := range inputs {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(inputs)), maps.Keys(inputs))
+	slices.Sort(keys)
 	return keys
 }

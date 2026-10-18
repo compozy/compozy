@@ -14,6 +14,65 @@ import (
 func TestDaemonToolEventSink(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a completed tool's event survives transient writer admission deadlines; daemon event sink owns persistence.
+	t.Run("Should retain a completed tool event until the SQLite writer is available", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		locked, release, writerDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		go func() {
+			writerDone <- store.ExecuteWriteOperation(t.Context(), db.DB(), "hold tool event writer", func(ctx context.Context, _ *store.WriteTx) error {
+				close(locked)
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+		}()
+		<-locked
+		t.Cleanup(func() {
+			if err := <-writerDone; err != nil {
+				t.Error(err)
+			}
+		})
+		sink := &daemonToolEventSink{
+			writer:                    db,
+			lifetime:                  t.Context(),
+			persistenceAttemptTimeout: 20 * time.Millisecond,
+		}
+		done := make(chan error, 1)
+		go func() {
+			done <- sink.EmitToolEvent(t.Context(), toolspkg.ToolCallEvent{
+				Kind: toolspkg.ToolCallCompleted, ToolID: toolspkg.ToolIDConfigSet, SourceKind: toolspkg.SourceBuiltin,
+			})
+		}()
+		select {
+		case err := <-done:
+			close(release)
+			t.Fatalf("event persistence abandoned while writer was held: %v", err)
+		case <-time.After(250 * time.Millisecond):
+		}
+		close(release)
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("event did not persist after unlock")
+		}
+		var count int
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM event_summaries WHERE type = ?", eventspkg.ToolCallCompleted).
+			Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("completed tool events = %d, want one", count)
+		}
+	})
+
 	t.Run("Should persist tool dispatch events as registered global summaries", func(t *testing.T) {
 		t.Parallel()
 

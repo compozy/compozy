@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -54,14 +54,21 @@ function PolicyHarness() {
 
 describe("Settings route split", () => {
   it("Should normalize the profile lifecycle search contract", () => {
+    // Invariant: names declared by profile commands survive the owning route decoder.
+    // Owner: Profiles search normalization; canonical suite: this existing route case.
     const search = validateProfilesSettingsSearch({
       flow: " rename ",
       profile: " marketing ",
+      new_name: " growth ",
       ignored: "value",
     });
 
-    expect(search).toEqual({ flow: "rename", profile: "marketing" });
-    expect(profileFlowFromSearch(search)).toEqual({ flow: "rename", profile: "marketing" });
+    expect(search).toEqual({ flow: "rename", profile: "marketing", new_name: "growth" });
+    expect(profileFlowFromSearch(search)).toEqual(search);
+    expect(profileFlowFromSearch({ flow: "create", name: " dispatch-palette " })).toEqual({
+      flow: "create",
+      name: "dispatch-palette",
+    });
   });
 
   it("Should omit invalid profile lifecycle search values", () => {
@@ -123,6 +130,8 @@ describe("Settings route split", () => {
 
   it("Should render exactly the four supported extension source and trust policy fields", () => {
     render(<PolicyHarness />);
+    // The GitHub API URL sits behind the page's Advanced fold.
+    fireEvent.click(screen.getByTestId("settings-advanced-toggle"));
 
     expect(
       screen.getByTestId("settings-page-extensions-policy-github-enabled")

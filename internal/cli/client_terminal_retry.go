@@ -38,16 +38,16 @@ func terminalReconnectableError(err error) bool {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	if errors.As(err, new(*terminalClientPermanentError)) {
+	if _, ok := errors.AsType[*terminalClientPermanentError](err); ok {
 		return false
 	}
-	if errors.As(err, new(*profileCommandError)) {
+	if _, ok := errors.AsType[*profileCommandError](err); ok {
 		return false
 	}
 	if apiErr, ok := errors.AsType[*daemonAPIError](err); ok {
 		return apiErr.statusCode >= http.StatusInternalServerError
 	}
-	if errors.As(err, new(*gatewayClientError)) {
+	if _, ok := errors.AsType[*gatewayClientError](err); ok {
 		return true
 	}
 	if closeErr, ok := errors.AsType[*websocket.CloseError](err); ok {

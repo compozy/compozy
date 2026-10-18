@@ -4,7 +4,7 @@
 // Boundary IN: OnboardingSetupFrame and its step strip/footer composition.
 // Boundary OUT: wizard orchestration, provider/workspace transports, the desktop shell.
 import { TooltipProvider, UIProvider } from "@compozy/ui";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -21,6 +21,10 @@ describe("OnboardingSetupFrame", () => {
     expect(first).toHaveAttribute("aria-current", "step");
     expect(second).toHaveAttribute("data-state", "upcoming");
     expect(second).toBeDisabled();
+    expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent(
+      "Claude Code · Claude Opus 4.8 · High · Existing sign-in"
+    );
+    expect(screen.getByTestId("onboarding-continue")).toHaveTextContent("Continue");
   });
 
   it("Should mark a passed step done and let the operator step back to it", async () => {
@@ -38,15 +42,6 @@ describe("OnboardingSetupFrame", () => {
     await user.click(first);
 
     expect(goToStep).toHaveBeenCalledWith(1);
-  });
-
-  it("Should summarise what the runtime step will save", () => {
-    render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
-
-    expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent(
-      "Claude Code · Claude Opus 4.8 · High · CLI sign-in"
-    );
-    expect(screen.getByTestId("onboarding-continue")).toHaveTextContent("Continue");
   });
 
   it("Should replace the summary with the configuration error and block Continue", () => {
@@ -105,10 +100,23 @@ describe("OnboardingSetupFrame", () => {
     expect(goToStep).not.toHaveBeenCalled();
   });
 
+  it("Should open with focus on the step title, not the progress strip", async () => {
+    render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Choose the model your agents run on" })
+      ).toHaveFocus()
+    );
+    expect(screen.getByTestId("onboarding-step-1")).not.toHaveFocus();
+  });
+
   it("Should not close on Escape or an outside press", async () => {
     const user = userEvent.setup();
     render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
 
+    expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
+    expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
 
@@ -116,15 +124,7 @@ describe("OnboardingSetupFrame", () => {
     expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
   });
 
-  it("Should render no window controls — the panel cannot be closed, minimised or zoomed", () => {
-    render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
-
-    expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
-    expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
-  });
-
-  it("Should mention Global and Network on the workspace step without a Network link", async () => {
-    const user = userEvent.setup();
+  it("Should explain the project step and the home-folder skip in plain text", () => {
     render(
       <UIProvider reducedMotion="always">
         <TooltipProvider delay={0}>
@@ -139,11 +139,13 @@ describe("OnboardingSetupFrame", () => {
     );
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.getByTestId("onboarding-skip-global")).toHaveTextContent(/^Skip$/);
+    expect(screen.getByTestId("onboarding-skip-global")).toHaveTextContent(
+      /^Skip — use my home folder$/
+    );
     expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent("None yet");
 
-    await user.click(screen.getByRole("button", { name: "About workspace" }));
-    expect(await screen.findByText(/Skip starts in Global/)).toBeInTheDocument();
-    expect(await screen.findByText(/does not enable Network/)).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-workspace-help")).toHaveTextContent(
+      "Agents can read and change files in the folders you add."
+    );
   });
 });

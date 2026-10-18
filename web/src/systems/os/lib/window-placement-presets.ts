@@ -30,8 +30,10 @@ export const WINDOW_PLACEMENT_PRESETS: readonly WindowPlacementPreset[] = [
   { placement: "bottom-right" },
 ];
 
+/** The zoom menu's arrange row mirrors Window › Arrange (two-up stays a palette command). */
 export const WINDOW_ARRANGE_PRESETS: readonly WindowArrangePreset[] = [
-  { preset: "two-up" },
+  { preset: "main-stack" },
+  { preset: "columns" },
   { preset: "grid" },
 ];
 

@@ -51,9 +51,6 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if err := m.supervision.Validate(); err != nil {
 		return fmt.Errorf("session: %w", err)
 	}
-	if err := m.compaction.Validate(); err != nil {
-		return fmt.Errorf("session: %w", err)
-	}
 	if err := m.applyInputQueueDefaults(); err != nil {
 		return err
 	}
@@ -74,9 +71,6 @@ func (m *Manager) applyRuntimeGeneratorDefaults() {
 	}
 	if m.newSessionID == nil {
 		m.newSessionID = newIDGenerator("sess")
-	}
-	if m.newSandboxID == nil {
-		m.newSandboxID = newIDGenerator("env")
 	}
 	if m.newTurnID == nil {
 		m.newTurnID = newIDGenerator("turn")

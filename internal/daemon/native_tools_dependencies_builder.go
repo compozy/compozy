@@ -3,6 +3,7 @@ package daemon
 import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -13,6 +14,7 @@ func (d *Daemon) nativeToolsDeps(
 ) daemonNativeToolsDeps {
 	agentCatalog := nativeAgentCatalogDependency(state)
 	deps := daemonNativeToolsDeps{
+		Subagents:           func() session.SubagentService { return state.subagents },
 		Logger:              state.logger,
 		Registry:            registryRef,
 		CmdPalette:          func() cmdpalette.Registry { return state.cmdPalette },
@@ -31,19 +33,12 @@ func (d *Daemon) nativeToolsDeps(
 		ModelCatalog:        state.deps.ModelCatalog,
 		MarketplaceCatalog:  state.deps.MarketplaceCatalog,
 		Settings:            func() core.SettingsService { return state.deps.Settings },
-		Network:             state.deps.Network,
-		NetworkStore:        state.registry,
-		NetworkUsage:        state.registry,
-		Tasks:               state.deps.Tasks,
-		TaskClaimHandoff:    taskClaimHandoffForState(state),
-		MemoryStore:         state.memoryStore,
-		MemoryToolWrites:    state.memoryExtractor,
-		DreamTrigger:        state.deps.DreamTrigger,
-		Roles:               roleResolverForState(state),
-		MemoryExtractor:     state.deps.MemoryExtractor,
-		MemoryProviders:     state.deps.MemoryProviders,
-		MemorySessionLedger: state.deps.MemorySessionLedger,
-		Bridges:             state.deps.Bridges,
+
+		Tasks:            state.deps.Tasks,
+		TaskDesignations: state.registry,
+		TaskClaimHandoff: taskClaimHandoffForState(state),
+		Roles:            roleResolverForState(state),
+
 		Gateway: func() core.GatewayService {
 			if state.deps.Gateway == nil {
 				return nil
@@ -90,6 +85,9 @@ func (d *Daemon) populateNativeExtensionDeps(deps *daemonNativeToolsDeps, state 
 	deps.Clarify = func() toolspkg.ClarifyBroker { return state.clarify }
 	deps.LoopResources = state.loopResources
 	deps.Loops = func() core.LoopService { return state.deps.Loops }
+	if state.toolProjectionEpoch != nil {
+		deps.ProjectionEpoch = state.toolProjectionEpoch.Current
+	}
 	deps.Resources = state.deps.Resources
 	deps.WindowManagers = state.windowManagers
 }

@@ -50,6 +50,9 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 		closeLogger = func() error { return nil }
 	}
 
+	compozyconfig.RouteRetiredProviderWarnings(logger)
+	cfg.WarnRetiredProviderReferences()
+
 	state.cfg = cfg
 	state.logger = logger
 	state.closeLogger = closeLogger

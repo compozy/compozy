@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -40,35 +40,31 @@ func (h *BaseHandlers) bellNotificationItems(
 	if err != nil {
 		return nil, err
 	}
-	query := observe.OverviewQuery{ReadScope: store.ReadScope{AllProfiles: true}, Actor: actor.Actor}
-	workspaceIDs := []string{""}
-	for _, workspace := range workspaces {
-		workspaceIDs = append(workspaceIDs, workspace.ID)
+	// One all-population read replaces a global plus per-workspace fan-out: each inbox
+	// query re-prepares the catalog CTE, so the cost scaled with registered workspaces.
+	// Identity and workspace come from the task row, and unregistered workspaces stay out.
+	tasks, err := observer.TaskAttentionItems(ctx, observe.OverviewQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, Actor: actor.Actor, TaskScope: taskpkg.CatalogScopeAll,
+	})
+	if err != nil {
+		return nil, err
 	}
-	for _, workspaceID := range workspaceIDs {
-		query.WorkspaceID, query.TaskScope = workspaceID, taskpkg.CatalogScopeWorkspace
-		if workspaceID == "" {
-			query.TaskScope = taskpkg.CatalogScopeGlobal
-		}
-		tasks, err := observer.TaskAttentionItems(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range tasks {
-			items = append(items, contract.AttentionNotificationPayload{
-				ID: item.NotificationID, Kind: "task", SourceID: item.TaskID, WorkspaceID: workspaceID,
-				Title: item.Title, Detail: item.Kind, OccurredAt: item.OccurredAt,
-			})
-		}
-		if workspaceID == "" {
+	for _, item := range tasks {
+		if _, registered := labels[item.WorkspaceID]; item.WorkspaceID != "" && !registered {
 			continue
 		}
-		loops, err := h.loopNotificationItems(ctx, workspaceID)
+		items = append(items, contract.AttentionNotificationPayload{
+			ID: item.NotificationID, Kind: "task", SourceID: item.TaskID, WorkspaceID: item.WorkspaceID,
+			Title: item.Title, Detail: item.Kind, OccurredAt: item.OccurredAt,
+		})
+	}
+	for _, workspace := range workspaces {
+		loops, err := h.loopNotificationItems(ctx, workspace.ID)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, loops...)
-		terminal, err := h.terminalNotificationItems(ctx, workspaceID)
+		terminal, err := h.terminalNotificationItems(ctx, workspace.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +144,7 @@ func sessionNotificationQueryItems(
 				}
 			}
 			items = append(items, contract.AttentionNotificationPayload{
-				ID: notifications.AttentionIdentity(
+				ID: attention.Identity(
 					"session", info.ProfileID, info.WorkspaceID, info.ID, string(badge),
 					strconv.FormatInt(sessionNotificationRevision(info), 10),
 				),
@@ -168,7 +164,7 @@ func sessionNotificationQueryItems(
 }
 
 func loopNotificationKey(workspace, run, node string, generation, item int) string {
-	return notifications.AttentionIdentity(workspace, run, node, strconv.Itoa(generation), strconv.Itoa(item))
+	return attention.Identity(workspace, run, node, strconv.Itoa(generation), strconv.Itoa(item))
 }
 
 func (h *BaseHandlers) loopNotificationItems(
@@ -192,7 +188,7 @@ func (h *BaseHandlers) loopNotificationItems(
 			)
 			requests[key] = true
 			items = append(items, contract.AttentionNotificationPayload{
-				ID: notifications.AttentionIdentity(
+				ID: attention.Identity(
 					"loop-request",
 					key,
 					request.OpenedAt.UTC().Format(time.RFC3339Nano),
@@ -242,7 +238,7 @@ func (h *BaseHandlers) terminalNotificationItems(
 			title = "Private terminal input requested"
 		}
 		items = append(items, contract.AttentionNotificationPayload{
-			ID: notifications.AttentionIdentity(
+			ID: attention.Identity(
 				"terminal-input",
 				request.ProfileID,
 				workspace,
@@ -280,7 +276,7 @@ func (h *BaseHandlers) loopNodeNotificationItems(
 					continue
 				}
 				items = append(items, contract.AttentionNotificationPayload{
-					ID: notifications.AttentionIdentity(
+					ID: attention.Identity(
 						"loop-node",
 						key,
 						state,

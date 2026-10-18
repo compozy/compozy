@@ -197,8 +197,9 @@ test("Home reports an overview failure without misreporting daemon connectivity"
   await expect(home.locator('[data-slot="home-kpi-strip"]')).toHaveCount(0);
 });
 
-test("Home preserves its loaded overview and recovers when health requests resume", async ({
+test("Home preserves its overview through health loss and recovers after a daemon restart", async ({
   page,
+  browserArtifacts,
   runtime,
 }) => {
   await prepareHomeRuntime(runtime);
@@ -211,64 +212,58 @@ test("Home preserves its loaded overview and recovers when health requests resum
     "connected"
   );
 
-  await page.route("**/api/status", async route => {
-    await route.abort("failed");
+  await test.step("Home preserves its loaded overview and recovers when health requests resume", async () => {
+    await page.route("**/api/status", async route => {
+      await route.abort("failed");
+    });
+
+    await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
+      "data-status",
+      /reconnecting|disconnected|error/,
+      { timeout: 15_000 }
+    );
+    await expect(home.getByTestId("home-body")).toBeVisible();
+    await expect(home.locator('[data-slot="home-kpi-strip"] [data-slot="metric"]')).toHaveCount(4);
+
+    await page.unroute("**/api/status");
+    await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
+      "data-status",
+      "connected",
+      { timeout: 20_000 }
+    );
+    await expect(home.getByTestId("home-body")).toBeVisible();
   });
+  await test.step("Home recovers after a daemon restart without retaining a stale overview", async () => {
+    const beforeRestart = await requestOverview(runtime);
 
-  await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
-    "data-status",
-    /reconnecting|disconnected|error/,
-    { timeout: 15_000 }
-  );
-  await expect(home.getByTestId("home-body")).toBeVisible();
-  await expect(home.locator('[data-slot="home-kpi-strip"] [data-slot="metric"]')).toHaveCount(4);
+    await expect(homeMetricValue(home, "Needs you")).toHaveText(
+      String(beforeRestart.attention.total)
+    );
+    const restart = await runtime.requestJSON<SettingsRestartAction>(
+      "/api/settings/actions/restart",
+      { method: "POST", body: "{}" }
+    );
+    expect(restart.operation_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
 
-  await page.unroute("**/api/status");
-  await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
-    "data-status",
-    "connected",
-    { timeout: 20_000 }
-  );
-  await expect(home.getByTestId("home-body")).toBeVisible();
-});
+    await expect
+      .poll(async () => await pollRestartStatus(runtime, restart.status_url), { timeout: 45_000 })
+      .toBe("ready");
+    await reloadDaemonServedPage(page, runtime, "/", { readyTestId: "home-body" });
+    const afterRestart = await requestOverview(runtime);
 
-test("Home recovers after a daemon restart without retaining a stale overview", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  await prepareHomeRuntime(runtime);
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(workspaceShell(appPage));
-  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  const home = await ensureAppWindow(appPage, "Home", "dashboard");
-  const beforeRestart = await requestOverview(runtime);
-
-  await expect(homeMetricValue(home, "Needs you")).toHaveText(
-    String(beforeRestart.attention.total)
-  );
-  const restart = await runtime.requestJSON<SettingsRestartAction>(
-    "/api/settings/actions/restart",
-    { method: "POST", body: "{}" }
-  );
-  expect(restart.operation_id).toMatch(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  );
-
-  await expect
-    .poll(async () => await pollRestartStatus(runtime, restart.status_url), { timeout: 45_000 })
-    .toBe("ready");
-  await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "home-body" });
-  const afterRestart = await requestOverview(runtime);
-
-  await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
-    "data-status",
-    "connected"
-  );
-  await expect(homeMetricValue(home, "Needs you")).toHaveText(String(afterRestart.attention.total));
-  expect(afterRestart.schema_version).toBe(beforeRestart.schema_version);
-  expect(afterRestart.generated_at).not.toBe(beforeRestart.generated_at);
-  await browserArtifacts.captureScreenshot("home-restart-ready", appPage);
+    await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
+      "data-status",
+      "connected"
+    );
+    await expect(homeMetricValue(home, "Needs you")).toHaveText(
+      String(afterRestart.attention.total)
+    );
+    expect(afterRestart.schema_version).toBe(beforeRestart.schema_version);
+    expect(afterRestart.generated_at).not.toBe(beforeRestart.generated_at);
+    await browserArtifacts.captureScreenshot("home-restart-ready", page);
+  });
 });
 
 test("Home scope follows the active workspace", async ({ appPage, runtime }) => {
@@ -287,14 +282,17 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
   await switchWorkspace(appPage, beta.id, beta.name);
   home = await ensureAppWindow(appPage, "Home", "dashboard");
 
-  await expect(home.locator('[data-slot="home-page-meta"]')).toContainText(
-    `workspace ${beta.name}`
+  await expect(home.locator('[data-slot="home-page-meta"]')).toContainText(`project ${beta.name}`);
+  // An empty project gets the first-run state instead of an all-zero KPI strip.
+  await expect(home.getByTestId("home-first-run")).toContainText(
+    `No agent work yet in ${beta.name}`
   );
-  await expect(homeMetricValue(home, "Working now")).toHaveText("0");
+  await expect(home.locator('[data-slot="home-kpi-strip"]')).toHaveCount(0);
 
   await setGlobalScope(appPage, true);
   home = await ensureAppWindow(appPage, "Home", "dashboard");
-  await expect(home.locator('[data-slot="home-page-meta"]')).not.toContainText("workspace");
+  await expect(home.locator('[data-slot="home-page-meta"]')).not.toContainText("project");
+  await expect(home.getByTestId("home-first-run")).toHaveCount(0);
   await expect
     .poll(async () => Number(await homeMetricValue(home, "Working now").textContent()))
     .toBeGreaterThan(0);
@@ -406,7 +404,6 @@ function comparableOverview(overview: HomeOverview) {
           }
         : longestSession,
     },
-    network: overview.network,
     system: overview.system,
   };
 }

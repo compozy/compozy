@@ -90,9 +90,7 @@ func (m *Manager) validateDeletePlan(
 	if plan.Revision != planRevision {
 		return stalePlanError("delete")
 	}
-	if err := validateNoDeliveryPermits(ctx, exec, profile.ID, name); err != nil {
-		return err
-	}
+
 	if len(plan.ApprovalBlockers) > 0 {
 		return approvalsPendingError(plan.ApprovalBlockers)
 	}

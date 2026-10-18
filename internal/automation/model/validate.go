@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -362,11 +361,6 @@ func (c SchedulerClaim) Validate(path string) error {
 	if c.ClaimedAt.IsZero() {
 		return errors.New(nestedPath(path, "claimed_at") + " is required")
 	}
-	if c.NetworkParticipation != nil {
-		if _, err := participation.NormalizeIntent(*c.NetworkParticipation); err != nil {
-			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "network_participation"), err)
-		}
-	}
 	if c.CatchUpPolicy != "" {
 		if err := c.CatchUpPolicy.Validate(nestedPath(path, "catch_up_policy")); err != nil {
 			return err
@@ -389,9 +383,6 @@ func (c SchedulerClaim) Validate(path string) error {
 
 // Validate ensures the direct task materialization configuration is internally consistent.
 func (c JobTaskConfig) Validate(path string) error {
-	if _, err := NormalizeDirectTaskParticipation(c.NetworkParticipation); err != nil {
-		return fmt.Errorf("%s is invalid: %w", nestedPath(path, "network_participation"), err)
-	}
 	if c.Owner != nil {
 		if err := c.Owner.Validate(nestedPath(path, "owner")); err != nil {
 			return err

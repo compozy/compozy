@@ -2,9 +2,7 @@ import { queryOptions, useQueries, useQuery } from "@tanstack/react-query";
 
 import { agentsListOptions, type AgentPayload } from "@/systems/agent";
 import { extensionsListOptions, type ExtensionEntry } from "@/systems/extensions";
-import { listMemories, memoriesListOptions, type MemoryHeader } from "@/systems/knowledge";
 import { listLoops, loopsCatalogOptions, type LoopCatalogEntry } from "@/systems/loops";
-import { networkChannelsOptions, type NetworkChannelSummary } from "@/systems/network";
 import type { ProfileOwnerLabel } from "@/systems/profiles";
 import { worktreesListOptions } from "@/systems/workspace";
 
@@ -25,10 +23,6 @@ export interface PaletteWorkspaceExtension {
   readonly workspaceId: string;
 }
 
-export interface PaletteWorkspaceChannel extends NetworkChannelSummary {
-  readonly workspace_id: string;
-}
-
 export interface PaletteWorkspaceWorktree extends ProfileOwnerLabel {
   readonly id: string;
   readonly name: string;
@@ -41,12 +35,6 @@ export interface OsPaletteWorkspaceCatalogs {
   readonly loops: readonly PaletteWorkspaceLoop[];
   readonly loopTotal: number;
   readonly loopState: QueryState;
-  readonly channels: readonly PaletteWorkspaceChannel[];
-  readonly channelTotal: number;
-  readonly channelState: QueryState;
-  readonly workspaceMemories: readonly MemoryHeader[];
-  readonly workspaceMemoryTotal: number;
-  readonly workspaceMemoryState: QueryState;
   readonly workspaceAgents: readonly PaletteWorkspaceAgent[];
   readonly workspaceAgentState: QueryState;
   readonly publishedExtensions: readonly ExtensionEntry[];
@@ -61,8 +49,6 @@ export interface UseOsPaletteWorkspaceCatalogsOptions {
   readonly profile: string;
   readonly workspaceIds: readonly string[];
   readonly loopsEnabled: boolean;
-  readonly networkEnabled: boolean;
-  readonly knowledgeEnabled: boolean;
   readonly agentsEnabled: boolean;
   readonly extensionsEnabled: boolean;
   readonly worktreesEnabled: boolean;
@@ -78,45 +64,19 @@ function queryState(
   };
 }
 
-async function fetchAllWorkspaceLoops(workspaceId: string, signal: AbortSignal) {
+async function fetchAllWorkspaceLoops(profile: string, workspaceId: string, signal: AbortSignal) {
   const loops: LoopCatalogEntry[] = [];
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
   let total = 0;
   for (;;) {
-    const page = await listLoops(workspaceId, { cursor }, signal);
+    const page = await listLoops(workspaceId, { cursor, profile }, signal);
     loops.push(...page.loops);
     total = page.page.total;
     if (!page.page.has_more) return { loops, total };
     const nextCursor = page.page.next_cursor?.trim();
     if (!nextCursor || seenCursors.has(nextCursor)) {
       throw new Error(`Loop catalog returned an invalid continuation for ${workspaceId}`);
-    }
-    seenCursors.add(nextCursor);
-    cursor = nextCursor;
-  }
-}
-
-async function fetchAllWorkspaceMemories(
-  profile: string,
-  workspaceId: string,
-  signal: AbortSignal
-) {
-  const memories: MemoryHeader[] = [];
-  const seenCursors = new Set<string>();
-  let cursor: string | undefined;
-  let total = 0;
-  for (;;) {
-    const page = await listMemories(
-      { profile, scope: "workspace", workspaceId, includeSystem: false, cursor },
-      signal
-    );
-    memories.push(...page.memories);
-    total = page.page.total;
-    if (!page.page.has_more) return { memories, total };
-    const nextCursor = page.page.next_cursor?.trim();
-    if (!nextCursor || seenCursors.has(nextCursor)) {
-      throw new Error(`Memory catalog returned an invalid continuation for ${workspaceId}`);
     }
     seenCursors.add(nextCursor);
     cursor = nextCursor;
@@ -131,8 +91,6 @@ export function useOsPaletteWorkspaceCatalogs({
   profile,
   workspaceIds,
   loopsEnabled,
-  networkEnabled,
-  knowledgeEnabled,
   agentsEnabled,
   extensionsEnabled,
   worktreesEnabled,
@@ -140,33 +98,13 @@ export function useOsPaletteWorkspaceCatalogs({
   const ids = workspaceIds.filter(id => id.trim() !== "");
   const loopQueries = useQueries({
     queries: ids.map(workspaceId => {
-      const base = loopsCatalogOptions(workspaceId, {});
+      const base = loopsCatalogOptions(workspaceId, { profile });
       const queryKey: readonly unknown[] = [...base.queryKey, "palette-all-pages"];
       return queryOptions({
         queryKey,
-        queryFn: ({ signal }) => fetchAllWorkspaceLoops(workspaceId, signal),
+        queryFn: ({ signal }) => fetchAllWorkspaceLoops(profile, workspaceId, signal),
         enabled: loopsEnabled,
         staleTime: 15_000,
-      });
-    }),
-  });
-  const channelQueries = useQueries({
-    queries: ids.map(workspaceId => networkChannelsOptions(workspaceId, {}, networkEnabled)),
-  });
-  const memoryQueries = useQueries({
-    queries: ids.map(workspaceId => {
-      const base = memoriesListOptions({
-        profile,
-        scope: "workspace",
-        workspaceId,
-        includeSystem: false,
-      });
-      const queryKey: readonly unknown[] = [...base.queryKey, "palette-all-pages"];
-      return queryOptions({
-        queryKey,
-        queryFn: ({ signal }) => fetchAllWorkspaceMemories(profile, workspaceId, signal),
-        enabled: knowledgeEnabled,
-        staleTime: 30_000,
       });
     }),
   });
@@ -193,20 +131,6 @@ export function useOsPaletteWorkspaceCatalogs({
       loops.push({ loop, workspaceId });
     }
   });
-
-  const channels: PaletteWorkspaceChannel[] = [];
-  ids.forEach((workspaceId, index) => {
-    for (const channel of channelQueries[index]?.data?.channels ?? []) {
-      channels.push({ ...channel, workspace_id: channel.workspace_id ?? workspaceId });
-    }
-  });
-
-  const workspaceMemories: MemoryHeader[] = [];
-  let workspaceMemoryTotal = 0;
-  for (const result of memoryQueries) {
-    workspaceMemoryTotal += result.data?.total ?? 0;
-    workspaceMemories.push(...(result.data?.memories ?? []));
-  }
 
   const workspaceAgents: PaletteWorkspaceAgent[] = [];
   ids.forEach((workspaceId, index) => {
@@ -245,12 +169,6 @@ export function useOsPaletteWorkspaceCatalogs({
     loops,
     loopTotal,
     loopState: queryState(loopQueries),
-    channels,
-    channelTotal: channels.length,
-    channelState: queryState(channelQueries),
-    workspaceMemories,
-    workspaceMemoryTotal,
-    workspaceMemoryState: queryState(memoryQueries),
     workspaceAgents,
     workspaceAgentState: queryState(agentQueries),
     publishedExtensions: publishedExtensions.data ?? [],

@@ -62,7 +62,7 @@ export function WorktreeStateChip({
         "inline-flex shrink-0 items-center rounded-xs leading-none",
         size === "sm"
           ? "h-4 gap-1 px-1.5 text-micro font-medium"
-          : "h-[19px] gap-[5px] px-2 text-badge font-semibold",
+          : "h-5 gap-1 px-2 text-badge font-medium",
         CHIP_TONE[state],
         className
       )}

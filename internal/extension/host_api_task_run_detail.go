@@ -2,15 +2,8 @@ package extensionpkg
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net/url"
-	"strings"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/network/participation"
-	networkusage "github.com/compozy/compozy/internal/network/usage"
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -24,13 +17,7 @@ func (h *HostAPIHandler) taskRunDetailPayloadFromView(
 
 	var task *apicontract.TaskReferencePayload
 	if view.Task != nil {
-		payload := taskReferencePayloadFromReference(*view.Task)
-		task = &payload
-	}
-
-	networkPayload, err := h.taskRunNetworkPayload(ctx, view.Run)
-	if err != nil {
-		return apicontract.TaskRunDetailPayload{}, err
+		task = new(taskReferencePayloadFromReference(*view.Task))
 	}
 
 	payload := apicontract.TaskRunDetailPayload{
@@ -38,7 +25,6 @@ func (h *HostAPIHandler) taskRunDetailPayloadFromView(
 		Task:    task,
 		Session: taskRunSessionPayloadFromSession(view.Session),
 		Summary: taskRunOperationalSummaryPayloadFromSummary(view.Summary),
-		Network: networkPayload,
 	}
 	runs := []apicontract.TaskRunPayload{payload.Run}
 	if err := h.decorateTaskRuns(ctx, runs); err != nil {
@@ -46,45 +32,4 @@ func (h *HostAPIHandler) taskRunDetailPayloadFromView(
 	}
 	payload.Run = runs[0]
 	return payload, nil
-}
-
-func (h *HostAPIHandler) taskRunNetworkPayload(
-	ctx context.Context,
-	run taskpkg.Run,
-) (*apicontract.TaskRunNetworkPayload, error) {
-	spec := run.NetworkSpecSnapshot()
-	if spec.Mode != participation.ModeLive {
-		return nil, nil
-	}
-	workspaceID := strings.TrimSpace(spec.WorkspaceID)
-	channelID := strings.TrimSpace(spec.ChannelID)
-	if workspaceID == "" || channelID == "" {
-		return nil, errors.New("extension: live task run requires workspace and channel identity")
-	}
-	usageStore, err := h.requireHostAPINetworkUsageStore()
-	if err != nil {
-		return nil, err
-	}
-	report, err := usageStore.GetNetworkUsage(ctx, store.NetworkUsageQuery{
-		WorkspaceID: workspaceID,
-		RunID:       strings.TrimSpace(run.ID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("extension: load task run network usage: %w", err)
-	}
-	usage, err := networkusage.ResponseFromReport(workspaceID, report)
-	if err != nil {
-		return nil, fmt.Errorf("extension: convert task run network usage: %w", err)
-	}
-	return &apicontract.TaskRunNetworkPayload{
-		Conversation: apicontract.TaskRunConversationRefPayload{
-			WorkspaceID: workspaceID,
-			Channel:     channelID,
-			Surface:     store.NetworkSurfaceThread,
-			ThreadID:    apicontract.TaskRunConversationThreadID,
-			StreamURL: "/api/task-runs/" + url.PathEscape(strings.TrimSpace(run.ID)) +
-				"/conversation/stream",
-		},
-		Usage: usage,
-	}, nil
 }

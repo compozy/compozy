@@ -1,6 +1,6 @@
 import { shallowEqual } from "@xstate/store";
 
-import { getOsAppDescriptor } from "../lib/app-catalog";
+import { getOsAppDescriptor, osAppId } from "../lib/app-catalog";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import {
@@ -43,11 +43,17 @@ export function useDesktopManagerSurfaces() {
       name: desktop.name,
       projection: projection.projections[desktop.id],
       windowRecords,
-      windows: windowRecords.map(window => ({
-        id: window.id,
-        title: getOsAppDescriptor(window.app).title,
-        detail: window.instanceKey ?? undefined,
-      })),
+      windows: windowRecords.flatMap(window => {
+        const app = osAppId(window.app);
+        if (app === null) return [];
+        return [
+          {
+            id: window.id,
+            title: getOsAppDescriptor(app).title,
+            detail: window.instanceKey ?? undefined,
+          },
+        ];
+      }),
     };
   });
 

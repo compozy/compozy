@@ -33,8 +33,6 @@ func applyCollectionLifecycle(
 		if operation == collectionMutationDelete {
 			configLifecycle = lifecycle.LiveRemoveIfUnused
 		}
-	case CollectionSandboxes:
-		configLifecycle = lifecycle.SessionRebind
 	case CollectionHooks:
 		configLifecycle = lifecycle.RestartRequired
 	}

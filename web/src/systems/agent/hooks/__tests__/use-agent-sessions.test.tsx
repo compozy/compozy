@@ -36,38 +36,45 @@ describe("useAgentSessions", () => {
     );
   });
 
-  it("Should query the agent's complete visible session population after workspace resolution", async () => {
-    const initialProps: { workspaceId: string | null } = { workspaceId: null };
-    const { result, rerender } = renderHook(
-      ({ workspaceId }) => useAgentSessions(workspaceId, "claude-agent"),
-      {
-        initialProps,
-        wrapper: createWrapper(),
+  it.each(["ws_alpha", null])(
+    "Should query the agent's complete visible session population after scope %s resolves",
+    async workspaceId => {
+      const initialProps: { workspaceId: string | null; enabled: boolean } = {
+        workspaceId: null,
+        enabled: false,
+      };
+      const { result, rerender } = renderHook(
+        ({ workspaceId, enabled }) => useAgentSessions(workspaceId, "claude-agent", { enabled }),
+        {
+          initialProps,
+          wrapper: createWrapper(),
+        }
+      );
+
+      expect(fetchSessions).not.toHaveBeenCalled();
+
+      rerender({ workspaceId, enabled: true });
+
+      await waitFor(() => {
+        expect(fetchSessions).toHaveBeenCalledTimes(2);
+      });
+      await waitFor(() => {
+        expect(result.current.archivedTotal).toBe(4);
+      });
+      for (const [filters] of vi.mocked(fetchSessions).mock.calls) {
+        expect(filters?.workspace_id).toBe(workspaceId ?? undefined);
+        expect(filters?.all_workspaces).toBe(workspaceId ? undefined : true);
+        expect(filters?.agent).toBe("claude-agent");
+        expect(filters?.sort).toBe("last_activity");
+        expect(filters?.type).toBeUndefined();
       }
-    );
-
-    expect(fetchSessions).not.toHaveBeenCalled();
-
-    rerender({ workspaceId: "ws_alpha" });
-
-    await waitFor(() => {
-      expect(fetchSessions).toHaveBeenCalledTimes(2);
-    });
-    await waitFor(() => {
-      expect(result.current.archivedTotal).toBe(4);
-    });
-    for (const [filters] of vi.mocked(fetchSessions).mock.calls) {
-      expect(filters?.workspace_id).toBe("ws_alpha");
-      expect(filters?.agent).toBe("claude-agent");
-      expect(filters?.sort).toBe("last_activity");
-      expect(filters?.type).toBeUndefined();
+      expect(vi.mocked(fetchSessions).mock.calls.map(([filters]) => filters?.archive)).toEqual([
+        undefined,
+        "only",
+      ]);
+      expect(result.current.hasMoreArchived).toBe(true);
     }
-    expect(vi.mocked(fetchSessions).mock.calls.map(([filters]) => filters?.archive)).toEqual([
-      undefined,
-      "only",
-    ]);
-    expect(result.current.hasMoreArchived).toBe(true);
-  });
+  );
 
   it("Should surface an archived-catalog failure instead of presenting an empty archive", async () => {
     vi.mocked(fetchSessions).mockImplementation(filters => {

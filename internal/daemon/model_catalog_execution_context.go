@@ -3,7 +3,8 @@ package daemon
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -62,11 +63,7 @@ func (r *modelCatalogRuntime) catalogExecutionContexts() []modelcatalog.CatalogE
 	}
 	r.executionContextMu.RLock()
 	defer r.executionContextMu.RUnlock()
-	keys := make([]string, 0, len(r.executionContexts))
-	for key := range r.executionContexts {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(r.executionContexts))
 	contexts := make([]modelcatalog.CatalogExecutionContext, 0, len(keys))
 	for _, key := range keys {
 		contexts = append(contexts, r.executionContexts[key])

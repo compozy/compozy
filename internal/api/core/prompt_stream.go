@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 const (
@@ -40,27 +41,27 @@ type promptAgentEventPayload struct {
 	Resource      string                           `json:"resource,omitempty"`
 	Decision      string                           `json:"decision,omitempty"`
 	Error         string                           `json:"error,omitempty"`
-	ProviderError *acp.ProviderErrorDiagnostic     `json:"provider_error,omitempty"`
-	Delivery      *acp.DeliveryManifest            `json:"delivery,omitempty"`
-	Usage         *promptTokenUsagePayload         `json:"usage,omitempty"`
-	Runtime       *contract.RuntimeActivityPayload `json:"runtime,omitempty"`
+	ProviderError *acp.ProviderErrorDiagnostic     `json:"provider_error,omitzero"`
+	Delivery      *acp.DeliveryManifest            `json:"delivery,omitzero"`
+	Usage         *promptTokenUsagePayload         `json:"usage,omitzero"`
+	Runtime       *contract.RuntimeActivityPayload `json:"runtime,omitzero"`
 	Raw           json.RawMessage                  `json:"raw,omitempty"`
 }
 
 type promptTokenUsagePayload struct {
 	Meta             map[string]any `json:"meta,omitempty"`
-	Sequence         *int64         `json:"sequence,omitempty"`
+	Sequence         *int64         `json:"sequence,omitzero"`
 	TurnID           string         `json:"turn_id,omitempty"`
-	InputTokens      *int64         `json:"input_tokens,omitempty"`
-	OutputTokens     *int64         `json:"output_tokens,omitempty"`
-	TotalTokens      *int64         `json:"total_tokens,omitempty"`
-	ThoughtTokens    *int64         `json:"thought_tokens,omitempty"`
-	CacheReadTokens  *int64         `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int64         `json:"cache_write_tokens,omitempty"`
-	ContextUsed      *int64         `json:"context_used,omitempty"`
-	ContextSize      *int64         `json:"context_size,omitempty"`
-	CostAmount       *float64       `json:"cost_amount,omitempty"`
-	CostCurrency     *string        `json:"cost_currency,omitempty"`
+	InputTokens      *int64         `json:"input_tokens,omitzero"`
+	OutputTokens     *int64         `json:"output_tokens,omitzero"`
+	TotalTokens      *int64         `json:"total_tokens,omitzero"`
+	ThoughtTokens    *int64         `json:"thought_tokens,omitzero"`
+	CacheReadTokens  *int64         `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int64         `json:"cache_write_tokens,omitzero"`
+	ContextUsed      *int64         `json:"context_used,omitzero"`
+	ContextSize      *int64         `json:"context_size,omitzero"`
+	CostAmount       *float64       `json:"cost_amount,omitzero"`
+	CostCurrency     *string        `json:"cost_currency,omitzero"`
 	Timestamp        string         `json:"timestamp,omitempty"`
 }
 
@@ -75,8 +76,27 @@ type promptStartPayload struct {
 }
 
 type promptBlockPayload struct {
-	Type string `json:"type"`
-	ID   string `json:"id"`
+	Type             string                  `json:"type"`
+	ID               string                  `json:"id"`
+	ProviderMetadata *promptProviderMetadata `json:"providerMetadata,omitempty"`
+}
+
+// promptProviderMetadata carries Compozy's part attribution through the AI SDK
+// stream: a text or tool part produced inside a provider-native subagent names
+// that subagent's tool call, as the transcript projection's parentToolCallId does.
+type promptProviderMetadata struct {
+	Compozy promptCompozyPartMetadata `json:"compozy"`
+}
+
+type promptCompozyPartMetadata struct {
+	ParentToolCallID string `json:"parentToolCallId"`
+}
+
+func promptAttribution(parentToolCallID string) *promptProviderMetadata {
+	if parentToolCallID == "" {
+		return nil
+	}
+	return &promptProviderMetadata{Compozy: promptCompozyPartMetadata{ParentToolCallID: parentToolCallID}}
 }
 
 type promptDeltaPayload struct {
@@ -86,9 +106,10 @@ type promptDeltaPayload struct {
 }
 
 type promptToolInputStartPayload struct {
-	Type       string `json:"type"`
-	ToolCallID string `json:"toolCallId"`
-	ToolName   string `json:"toolName"`
+	Type             string                  `json:"type"`
+	ToolCallID       string                  `json:"toolCallId"`
+	ToolName         string                  `json:"toolName"`
+	ProviderMetadata *promptProviderMetadata `json:"providerMetadata,omitempty"`
 }
 
 type promptToolInputAvailablePayload struct {
@@ -104,6 +125,14 @@ type promptDataEventEnvelope struct {
 	Data promptAgentEventPayload `json:"data"`
 }
 
+// promptSubagentDataPayload is the subagent card the transcript projection
+// persists for the same event (`data-compozy-subagent`), upserted by id.
+type promptSubagentDataPayload struct {
+	Type string                       `json:"type"`
+	ID   string                       `json:"id"`
+	Data transcript.UISubagentPayload `json:"data"`
+}
+
 type promptToolOutputAvailablePayload struct {
 	Type       string                  `json:"type"`
 	ToolCallID string                  `json:"toolCallId"`
@@ -113,27 +142,30 @@ type promptToolOutputAvailablePayload struct {
 type promptErrorPayload struct {
 	Type      string                          `json:"type"`
 	ErrorText string                          `json:"errorText"`
-	Failure   *contract.SessionFailurePayload `json:"failure,omitempty"`
+	Failure   *contract.SessionFailurePayload `json:"failure,omitzero"`
 }
 
 // PromptStreamEncoder converts raw ACP agent events into the typed public
 // prompt stream envelope used by HTTP, UDS, and CLI streaming surfaces.
 type PromptStreamEncoder struct {
-	now               func() string
-	messageID         string
-	textBlockID       string
-	reasoningBlockID  string
-	textBlockSeq      int
-	reasoningBlockSeq int
-	messageStarted    bool
-	textStarted       bool
-	reasoningStarted  bool
-	toolStarted       map[string]struct{}
-	toolCompleted     map[string]struct{}
-	toolInputsReady   map[string]struct{}
-	toolInputPending  map[string]struct{}
-	toolNames         map[string]string
-	finished          bool
+	sessionMessageCards map[string]transcript.UISessionMessagePayload
+	now                 func() string
+	sessionID           string
+	messageID           string
+	textParent          string
+	textBlockID         string
+	reasoningBlockID    string
+	textBlockSeq        int
+	reasoningBlockSeq   int
+	messageStarted      bool
+	textStarted         bool
+	reasoningStarted    bool
+	toolStarted         map[string]struct{}
+	toolCompleted       map[string]struct{}
+	toolInputsReady     map[string]struct{}
+	toolInputPending    map[string]struct{}
+	toolNames           map[string]string
+	finished            bool
 }
 
 // NewPromptStreamEncoder constructs a prompt-stream encoder with deterministic
@@ -156,6 +188,12 @@ func NewPromptStreamEncoder(now func() time.Time) *PromptStreamEncoder {
 		toolInputPending: make(map[string]struct{}),
 		toolNames:        make(map[string]string),
 	}
+}
+
+// SetSessionID names the durable session the stream belongs to, so subagent
+// cards derive the same ids the transcript projection does.
+func (e *PromptStreamEncoder) SetSessionID(sessionID string) {
+	e.sessionID = sessionID
 }
 
 // Emit writes one public prompt-stream frame for the supplied raw agent event.

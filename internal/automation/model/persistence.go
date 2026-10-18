@@ -36,6 +36,14 @@ var (
 	ErrTriggerOverlayNotFound = errors.New("automation: trigger enabled overlay not found")
 )
 
+// RunOwnerKind selects the independent automation run owner namespace.
+type RunOwnerKind string
+
+const (
+	RunOwnerJob     RunOwnerKind = "job"
+	RunOwnerTrigger RunOwnerKind = "trigger"
+)
+
 // JobListQuery filters persisted automation job listings.
 type JobListQuery struct {
 	ReadScope   store.ReadScope `json:"read_scope"`
@@ -43,10 +51,11 @@ type JobListQuery struct {
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 	Source      JobSource       `json:"source,omitempty"`
 	LoopName    string          `json:"loop_name,omitempty"`
-	Enabled     *bool           `json:"enabled,omitempty"`
+	Target      string          `json:"target,omitempty"`
+	Enabled     *bool           `json:"enabled,omitzero"`
 	Search      string          `json:"q,omitempty"`
 	Cursor      string          `json:"cursor,omitempty"`
-	Limit       int             `json:"limit,omitempty"`
+	Limit       int             `json:"limit,omitzero"`
 }
 
 // TriggerListQuery filters persisted automation trigger listings.
@@ -57,10 +66,11 @@ type TriggerListQuery struct {
 	Event       string          `json:"event,omitempty"`
 	Source      JobSource       `json:"source,omitempty"`
 	LoopName    string          `json:"loop_name,omitempty"`
-	Enabled     *bool           `json:"enabled,omitempty"`
+	Target      string          `json:"target,omitempty"`
+	Enabled     *bool           `json:"enabled,omitzero"`
 	Search      string          `json:"q,omitempty"`
 	Cursor      string          `json:"cursor,omitempty"`
-	Limit       int             `json:"limit,omitempty"`
+	Limit       int             `json:"limit,omitzero"`
 }
 
 // RunQuery filters automation run history and fire-limit window lookups.
@@ -72,7 +82,7 @@ type RunQuery struct {
 	ExcludeID string          `json:"exclude_id,omitempty"`
 	Since     time.Time       `json:"since"`
 	Until     time.Time       `json:"until"`
-	Limit     int             `json:"limit,omitempty"`
+	Limit     int             `json:"limit,omitzero"`
 }
 
 // RunReservation atomically evaluates one rolling fire-limit window and, when

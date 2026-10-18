@@ -226,7 +226,7 @@ func TestClientInfoFetchesLatestAndVersions(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
-	detail, err := client.Info(context.Background(), "acme/demo")
+	detail, err := client.Info(t.Context(), "acme/demo")
 	if err != nil {
 		t.Fatalf("Info() error = %v", err)
 	}
@@ -269,7 +269,7 @@ func TestClientDownloadSingleTarballAsset(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	result, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	result, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
@@ -325,7 +325,7 @@ func testClientDownloadUsesReleaseDigestSidecar(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	result, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	result, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
@@ -362,7 +362,7 @@ func TestClientDownloadMultipleAssetsRequiresSelection(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	_, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	_, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err == nil {
 		t.Fatal("Download() error = nil, want asset disambiguation failure")
 	}
@@ -399,7 +399,7 @@ func TestClientDownloadSelectsRequestedAsset(t *testing.T) {
 
 	client := NewClient(server.URL)
 	result, err := client.Download(
-		context.Background(),
+		t.Context(),
 		"acme/demo",
 		registry.DownloadOpts{Asset: "demo-darwin.tar.gz"},
 	)
@@ -449,7 +449,7 @@ func TestClientDownloadFallsBackToSourceArchive(t *testing.T) {
 		defer server.Close()
 
 		client := NewClient(server.URL)
-		result, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+		result, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 		if err != nil {
 			t.Fatalf("Download() error = %v", err)
 		}
@@ -487,7 +487,7 @@ func TestClientDownloadRejectsUnexpectedContentType(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	_, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	_, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err == nil {
 		t.Fatal("Download() error = nil, want content-type failure")
 	}
@@ -537,7 +537,7 @@ func TestClientDownloadJoinsCloseErrorOnContentTypeValidationFailure(t *testing.
 		}),
 	)
 
-	_, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	_, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err == nil {
 		t.Fatal("Download() error = nil, want content-type + close failure")
 	}
@@ -572,7 +572,7 @@ func TestClientDownloadSurfacesHTTPFailuresBeforeContentTypeValidation(t *testin
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	_, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	_, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err == nil {
 		t.Fatal("Download() error = nil, want HTTP failure")
 	}
@@ -594,7 +594,7 @@ func TestClientRateLimitExceeded(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	_, err := client.Info(context.Background(), "acme/demo")
+	_, err := client.Info(t.Context(), "acme/demo")
 	if err == nil {
 		t.Fatal("Info() error = nil, want rate-limit failure")
 	}
@@ -612,7 +612,7 @@ func TestClientPrivateRepositoryRequiresToken(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, WithToken(""))
-	_, err := client.Info(context.Background(), "acme/private")
+	_, err := client.Info(t.Context(), "acme/private")
 	if err == nil {
 		t.Fatal("Info() error = nil, want authentication failure")
 	}
@@ -637,7 +637,7 @@ func TestClientRepositoryWithoutReleases(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	_, err := client.Info(context.Background(), "acme/demo")
+	_, err := client.Info(t.Context(), "acme/demo")
 	if err == nil {
 		t.Fatal("Info() error = nil, want no releases failure")
 	}
@@ -666,7 +666,7 @@ func TestClientFallsBackToFirstPublishedReleaseWhenLatestEndpointIsMissing(t *te
 
 	client := NewClient(server.URL)
 	release, err := client.fetchLatestRelease(
-		context.Background(),
+		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
 	)
 	if err != nil {
@@ -733,7 +733,7 @@ func TestClientUsesGitHubToken(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	_, err := client.fetchLatestRelease(context.Background(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
+	_, err := client.fetchLatestRelease(t.Context(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
 	if err != nil {
 		t.Fatalf("fetchLatestRelease() error = %v", err)
 	}
@@ -765,7 +765,7 @@ func TestClientRetriesHTTP500(t *testing.T) {
 		WithRetryPolicy(time.Millisecond, time.Millisecond, 2),
 		WithSleep(func(context.Context, time.Duration) error { return nil }),
 	)
-	_, err := client.fetchLatestRelease(context.Background(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
+	_, err := client.fetchLatestRelease(t.Context(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
 	if err != nil {
 		t.Fatalf("fetchLatestRelease() error = %v", err)
 	}
@@ -815,7 +815,7 @@ func TestClientRetriesHTTP500(t *testing.T) {
 		}),
 	)
 	_, err = policyClient.fetchLatestRelease(
-		context.Background(),
+		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
 	)
 	if err != nil {
@@ -875,7 +875,7 @@ func TestClientRetriesHTTP500LogsCloseErrorBeforeRetry(t *testing.T) {
 		WithLogger(slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{Level: slog.LevelDebug}))),
 	)
 
-	_, err := client.fetchLatestRelease(context.Background(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
+	_, err := client.fetchLatestRelease(t.Context(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
 	if err != nil {
 		t.Fatalf("fetchLatestRelease() error = %v", err)
 	}
@@ -962,7 +962,7 @@ func TestClientFetchRequestedReleaseByTag(t *testing.T) {
 	client := NewClient(server.URL)
 	for _, version := range []string{"v1.2.3", "1.2.3"} {
 		release, err := client.fetchRequestedRelease(
-			context.Background(),
+			t.Context(),
 			repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
 			version,
 		)
@@ -985,7 +985,7 @@ func TestClientFetchRequestedReleaseNotFound(t *testing.T) {
 
 	client := NewClient(server.URL)
 	_, err := client.fetchRequestedRelease(
-		context.Background(),
+		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
 		"v9.9.9",
 	)
@@ -1010,7 +1010,7 @@ func TestClientFetchRequestedReleaseRejectsPrerelease(t *testing.T) {
 
 	client := NewClient(server.URL)
 	_, err := client.fetchRequestedRelease(
-		context.Background(),
+		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
 		"v1.2.3-rc1",
 	)
@@ -1035,7 +1035,7 @@ func TestClientFetchReleasePageErrors(t *testing.T) {
 
 		client := NewClient(server.URL)
 		_, err := client.fetchReleasePage(
-			context.Background(),
+			t.Context(),
 			repoSlug{owner: "acme", name: "missing", full: "acme/missing"},
 		)
 		if err == nil {
@@ -1056,7 +1056,7 @@ func TestClientFetchReleasePageErrors(t *testing.T) {
 
 		client := NewClient(server.URL)
 		_, err := client.fetchReleasePage(
-			context.Background(),
+			t.Context(),
 			repoSlug{owner: "acme", name: "private", full: "acme/private"},
 		)
 		if err == nil {
@@ -1078,7 +1078,7 @@ func TestClientFetchLatestReleaseUnauthorized(t *testing.T) {
 
 	client := NewClient(server.URL)
 	_, err := client.fetchLatestRelease(
-		context.Background(),
+		t.Context(),
 		repoSlug{owner: "acme", name: "private", full: "acme/private"},
 	)
 	if err == nil {
@@ -1151,7 +1151,7 @@ func TestDoRequestRejectsEmptyURL(t *testing.T) {
 	t.Parallel()
 
 	client := NewClient("")
-	err := doRequestErrorForTest(context.Background(), client, "", acceptJSON)
+	err := doRequestErrorForTest(t.Context(), client, "", acceptJSON)
 	if err == nil {
 		t.Fatal("doRequest() error = nil, want empty URL failure")
 	}
@@ -1161,7 +1161,7 @@ func TestDoRequestRejectsInvalidURL(t *testing.T) {
 	t.Parallel()
 
 	client := NewClient("")
-	err := doRequestErrorForTest(context.Background(), client, "://bad", acceptJSON)
+	err := doRequestErrorForTest(t.Context(), client, "://bad", acceptJSON)
 	if err == nil {
 		t.Fatal("doRequest() error = nil, want invalid URL failure")
 	}

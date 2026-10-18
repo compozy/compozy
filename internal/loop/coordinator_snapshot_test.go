@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -98,7 +97,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewCoordinatorRunner() error = %v", err)
 		}
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -416,6 +415,102 @@ start: [{ kind: manual }]
 		}
 		if _, err := LoadExecutedDefinitionSnapshot(raw, digest); err != nil {
 			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+	})
+}
+
+func TestExecutedDefinitionSnapshotShouldHydrateLegacyRunLoopOutputReference(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name   string
+		nested bool
+	}{
+		{name: "Should hydrate a top-level loop", nested: false},
+		{name: "Should hydrate a nested sub-loop", nested: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			legacyBody := dsl.Graph{
+				Nodes: []dsl.Node{
+					{
+						ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+						Params:   dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopAwait)},
+						Produces: dsl.Schema{"loop_run_id": "string", "status": "string"},
+					},
+					{
+						ID:    "inspect",
+						Class: dsl.NodeClassAction,
+						Kind:  string(dsl.ActionRunAgent),
+						Params: dsl.NodeParams{
+							"agent":  "qa",
+							"prompt": "{{ if false }}{{ .nodes.child.output.status }}{{ end }}ok",
+						},
+					},
+				},
+				Edges: []dsl.Edge{{From: "child", To: "inspect"}},
+			}
+			definition := pinnedSnapshotDefinition()
+			if testCase.nested {
+				body := legacyBody
+				definition.Graph = dsl.Graph{Nodes: []dsl.Node{{
+					ID: "nested", Class: dsl.NodeClassControl, Kind: string(dsl.ControlSubLoop), Body: &body,
+				}}}
+			} else {
+				definition.Graph = legacyBody
+			}
+			resolved, err := NewCompiler().Compile(definition)
+			if err != nil {
+				t.Fatalf("Compile() error = %v", err)
+			}
+			raw, _, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig())
+			if err != nil {
+				t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+			}
+			var persisted executedDefinitionSnapshot
+			if err := json.Unmarshal(raw, &persisted); err != nil {
+				t.Fatalf("json.Unmarshal(snapshot) error = %v", err)
+			}
+			// Existing Runs stored this reference without a produces declaration.
+			if testCase.nested {
+				persisted.Definition.Graph.Nodes[0].Body.Nodes[0].Produces = nil
+			} else {
+				persisted.Definition.Graph.Nodes[0].Produces = nil
+			}
+			legacyRaw, err := json.Marshal(persisted)
+			if err != nil {
+				t.Fatalf("json.Marshal(legacy snapshot) error = %v", err)
+			}
+			if _, err := LoadExecutedDefinitionSnapshot(legacyRaw, executedDefinitionDigest(legacyRaw)); err != nil {
+				t.Fatalf("LoadExecutedDefinitionSnapshot(legacy run-loop reference) error = %v", err)
+			}
+		})
+	}
+}
+
+func TestExecutedDefinitionSnapshotShouldHydrateDetachedRunLoopID(t *testing.T) {
+	t.Parallel()
+	t.Run("Should hydrate a detached run-loop ID", func(t *testing.T) {
+		t.Parallel()
+		definition := pinnedSnapshotDefinition()
+		definition.Graph = dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{"loop": "nested", "mode": string(dsl.RunLoopDetach)},
+				},
+				{
+					ID: "inspect", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+					Params: dsl.NodeParams{"agent": "qa", "prompt": "{{ .nodes.child.output.loop_run_id }}"},
+				},
+			},
+			Edges: []dsl.Edge{{From: "child", To: "inspect"}},
+		}
+		resolved, err := NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		if _, _, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig()); err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot(detached run-loop id) error = %v", err)
 		}
 	})
 }

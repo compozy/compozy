@@ -109,8 +109,10 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 			}
 		}
 		run.settlePublication()
-		id := run.item.Info().ID
-		return &ExecResult{StillRunning: true, TerminalID: &id, Untrusted: true, CommandID: run.commandID}, nil
+		return &ExecResult{
+			StillRunning: true, TerminalID: new(run.item.Info().ID),
+			Untrusted: true, CommandID: run.commandID,
+		}, nil
 	case <-ctx.Done():
 		run.settlePublication()
 		return nil, cleanupExecRun(ctx, run, context.Cause(ctx))

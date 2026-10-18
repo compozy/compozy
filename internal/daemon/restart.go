@@ -50,7 +50,7 @@ type RestartOperation struct {
 	OldPID             int           `json:"old_pid"`
 	OldStartedAt       time.Time     `json:"old_started_at"`
 	OldSocketPath      string        `json:"old_socket_path"`
-	NewPID             int           `json:"new_pid,omitempty"`
+	NewPID             int           `json:"new_pid,omitzero"`
 	ActiveSessionCount int           `json:"active_session_count"`
 	FailureReason      string        `json:"failure_reason,omitempty"`
 	StartedAt          time.Time     `json:"started_at"`

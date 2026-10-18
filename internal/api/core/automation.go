@@ -37,12 +37,11 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	query, err := ParseAutomationJobListQuery(c)
+	query, err := ParseAutomationJobListQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
-	query.ReadScope = readScope
 
 	page, err := manager.ListJobs(c.Request.Context(), query)
 	if err != nil {
@@ -56,7 +55,21 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		return
 	}
 
+	ids := make([]string, len(page.Jobs))
+	for i, item := range page.Jobs {
+		ids[i] = item.ID
+	}
+	latest, err := manager.LatestRunsByOwner(c.Request.Context(), automationpkg.RunOwnerJob, ids)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	jobPayloads := JobPayloadsFromJobs(page.Jobs, schedulerStateByID)
+	for i := range jobPayloads {
+		if run, ok := latest[jobPayloads[i].ID]; ok {
+			jobPayloads[i].LastRun = AutomationLastRunPayloadFromRun(run)
+		}
+	}
 	if err := h.decorateAutomationJobOwners(c.Request.Context(), jobPayloads); err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
@@ -96,11 +109,7 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	job, err := jobFromCreateRequest(req)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
-		return
-	}
+	job := jobFromCreateRequest(req)
 	job.ProfileID = mutationScope.ProfileID
 	if err := job.Validate("job"); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
@@ -164,6 +173,14 @@ func (h *BaseHandlers) GetAutomationJob(c *gin.Context) {
 		schedulerNextRunFromMap(schedulerStateByID, job.ID),
 		schedulerStatePointerFromMap(schedulerStateByID, job.ID),
 	)
+	latest, err := manager.LatestRunsByOwner(c.Request.Context(), automationpkg.RunOwnerJob, []string{job.ID})
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	if run, ok := latest[job.ID]; ok {
+		payload.LastRun = AutomationLastRunPayloadFromRun(run)
+	}
 	if err := h.decorateAutomationJobOwner(c.Request.Context(), &payload); err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return

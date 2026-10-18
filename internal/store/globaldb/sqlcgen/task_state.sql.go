@@ -127,9 +127,9 @@ LIMIT 1
 `
 
 type FindActiveDesignationProjectionCandidateParams struct {
-	TaskID             sql.NullString `json:"task_id"`
-	DesignationGroupID string         `json:"designation_group_id"`
-	ExcludedRunID      string         `json:"excluded_run_id"`
+	TaskID             string `json:"task_id"`
+	DesignationGroupID string `json:"designation_group_id"`
+	ExcludedRunID      string `json:"excluded_run_id"`
 }
 
 func (q *Queries) FindActiveDesignationProjectionCandidate(ctx context.Context, arg FindActiveDesignationProjectionCandidateParams) (string, error) {
@@ -184,8 +184,8 @@ WHERE id = ?1
 `
 
 type GetTaskRunProjectionIdentityRow struct {
-	TaskID             sql.NullString `json:"task_id"`
-	DesignationGroupID string         `json:"designation_group_id"`
+	TaskID             string `json:"task_id"`
+	DesignationGroupID string `json:"designation_group_id"`
 }
 
 func (q *Queries) GetTaskRunProjectionIdentity(ctx context.Context, runID string) (GetTaskRunProjectionIdentityRow, error) {

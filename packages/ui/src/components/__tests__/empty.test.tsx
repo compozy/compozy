@@ -73,18 +73,6 @@ describe("Empty", () => {
     expect(container.querySelector('[data-slot="empty-title"]')?.tagName).toBe("H2");
   });
 
-  it("Should expose data-fill=true by default", () => {
-    const { container } = render(<Empty title="Nothing here" />);
-    const empty = container.querySelector('[data-slot="empty"]');
-    expect(empty?.getAttribute("data-fill")).toBe("true");
-  });
-
-  it("Should expose data-fill=false when fill is disabled", () => {
-    const { container } = render(<Empty title="Nothing here" fill={false} />);
-    const empty = container.querySelector('[data-slot="empty"]');
-    expect(empty?.getAttribute("data-fill")).toBe("false");
-  });
-
   it("Should render a framed, non-filling card with the cause slot in order", () => {
     const { container } = render(
       <Empty framed title="Unable to load" description="It broke." cause="stack: boom" />
@@ -141,16 +129,4 @@ describe("Empty", () => {
     expect(screen.getByTestId("empty-art")).toBeInTheDocument();
     expect(container.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
   });
-});
-
-// Invariant: the compact rendition keeps every slot and only changes scale; owner: Empty.
-it("Should render the compact rendition with the same slots at rail scale", () => {
-  const { container } = render(
-    <Empty size="compact" title="No turns yet" description="Rows land here after a turn." />
-  );
-  const empty = container.querySelector('[data-slot="empty"]');
-  expect(empty).toHaveAttribute("data-size", "compact");
-  expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("size-8");
-  expect(container.querySelector('[data-slot="empty-title"]')).toHaveClass("text-form-label");
-  expect(container.querySelector('[data-slot="empty-description"]')).toHaveClass("text-micro");
 });

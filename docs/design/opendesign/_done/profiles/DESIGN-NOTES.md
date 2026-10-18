@@ -48,7 +48,7 @@ With only `default`, the switcher is a neutral icon button — no name, no glyph
 
 ### Truthful UI
 
-- No per-profile controls for machine facts. Sandboxes, scheduler budgets, native provider logins say "machine-level" plainly (US-021.EC-3).
+- No per-profile controls for machine facts. scheduler budgets, native provider logins say "machine-level" plainly (US-021.EC-3).
 - Remote surfaces render management **absent, not disabled** (US-032.AC-2): the list is readable, create/edit/archive simply aren't in the DOM.
 - Delete appears only on an archived profile with no work (US-006.AC-2); otherwise the flow routes to archive. Worktree rows always carry the owner tag, even scoped (US-009.EC-1).
 - Owner tags appear **only in aggregate mode** — scoped views stay tag-free (calm default, SD-012).

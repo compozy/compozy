@@ -30,13 +30,6 @@ type PersonaSection struct {
 	Config compozyconfig.DefaultsConfig
 }
 
-// MemorySection is the memory section read model.
-type MemorySection struct {
-	Config  compozyconfig.MemoryConfig
-	Health  MemoryHealthStatus
-	Actions MemoryActions
-}
-
 // RolesSection is the background-role routing read model.
 type RolesSection struct {
 	Config compozyconfig.RolesConfig
@@ -93,13 +86,6 @@ type SkillSourceRootItem struct {
 type AutomationSection struct {
 	Config  AutomationSettings
 	Runtime AutomationRuntimeStatus
-	Links   []OperationalLink
-}
-
-// NetworkSection is the network section read model.
-type NetworkSection struct {
-	Config  compozyconfig.NetworkConfig
-	Runtime NetworkRuntimeStatus
 	Links   []OperationalLink
 }
 
@@ -209,14 +195,6 @@ type DaemonRuntimeStatus struct {
 	Version        string
 }
 
-// MemoryHealthStatus summarizes memory runtime state.
-type MemoryHealthStatus struct {
-	Available          bool
-	FileCount          int
-	DreamEnabled       bool
-	LastConsolidatedAt *time.Time
-}
-
 // AutomationRuntimeStatus summarizes automation runtime state.
 type AutomationRuntimeStatus struct {
 	Available        bool
@@ -228,18 +206,6 @@ type AutomationRuntimeStatus struct {
 	TriggerEnabled   int
 	NextFire         *time.Time
 	LastSyncedAt     *time.Time
-}
-
-// NetworkRuntimeStatus summarizes network runtime state.
-type NetworkRuntimeStatus struct {
-	Available         bool
-	Enabled           bool
-	Status            string
-	LocalPeers        int
-	Channels          int
-	MessagesReceived  int64
-	MessagesDelivered int64
-	MessagesRejected  int64
 }
 
 // ObservabilityRuntimeStatus summarizes observability runtime state.
@@ -261,11 +227,6 @@ type CapabilityStatus struct {
 // GeneralActions reports general-section action metadata.
 type GeneralActions struct {
 	Restart ActionMetadata
-}
-
-// MemoryActions reports memory-section action metadata.
-type MemoryActions struct {
-	Consolidate ActionMetadata
 }
 
 // ActionMetadata reports one action trigger's semantic behavior.

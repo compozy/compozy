@@ -153,7 +153,7 @@ func TestHandleInboundReadWriteFile(t *testing.T) {
 	target := filepath.Join(proc.Cwd, "notes.txt")
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodFsWriteTextFile,
 		mustMarshalJSON(acpsdk.WriteTextFileRequest{
 			SessionId: "sess-direct",
@@ -165,7 +165,7 @@ func TestHandleInboundReadWriteFile(t *testing.T) {
 	}
 
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodFsReadTextFile,
 		mustMarshalJSON(acpsdk.ReadTextFileRequest{
 			SessionId: "sess-direct",
@@ -193,7 +193,7 @@ func TestHandleInboundWriteDenied(t *testing.T) {
 	target := filepath.Join(proc.Cwd, "notes.txt")
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodFsWriteTextFile,
 		mustMarshalJSON(acpsdk.WriteTextFileRequest{
 			SessionId: "sess-direct",
@@ -202,79 +202,6 @@ func TestHandleInboundWriteDenied(t *testing.T) {
 		}),
 	); reqErr == nil {
 		t.Fatal("handleInbound(write denied) error = nil, want non-nil")
-	}
-}
-
-func TestHandleWriteTextFileBlockedForNetworkTurn(t *testing.T) {
-	t.Parallel()
-
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.SetTurnSourceProvider(func() string { return "network" })
-
-	active, err := proc.beginPrompt("turn-network-write", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
-
-	target := filepath.Join(proc.Cwd, "network.txt")
-	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
-		SessionId: "sess-direct",
-		Path:      target,
-		Content:   "blocked",
-	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-		t.Fatalf("handleWriteTextFile(network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
-	}
-}
-
-func assertTerminalNetworkTurnRejectsNonAllowlistedCommands(t *testing.T) {
-	t.Parallel()
-
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.SetTurnSourceProvider(func() string { return "network" })
-
-	active, err := proc.beginPrompt("turn-network-create", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
-
-	tests := []struct {
-		name    string
-		request acpsdk.CreateTerminalRequest
-	}{
-		{
-			name: "shell wrapper",
-			request: acpsdk.CreateTerminalRequest{
-				SessionId: "sess-direct",
-				Command:   "sh",
-				Args:      []string{"-c", "printf nope"},
-				Cwd:       new(proc.Cwd),
-			},
-		},
-		{
-			name: "non-network compozy subcommand",
-			request: acpsdk.CreateTerminalRequest{
-				SessionId: "sess-direct",
-				Command:   "compozy",
-				Args:      []string{"version"},
-				Cwd:       new(proc.Cwd),
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := proc.handleCreateTerminal(
-				context.Background(),
-				tt.request,
-			); !errors.Is(
-				err,
-				ErrToolBlockedForNetworkTurn,
-			) {
-				t.Fatalf("handleCreateTerminal(%s) error = %v, want ErrToolBlockedForNetworkTurn", tt.name, err)
-			}
-		})
 	}
 }
 
@@ -289,7 +216,7 @@ func TestHandleWriteTextFileDeniedByToolGatewayPreventsSideEffect(t *testing.T) 
 	)
 
 	target := filepath.Join(proc.Cwd, "denied.txt")
-	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
+	if _, err := proc.handleWriteTextFile(t.Context(), acpsdk.WriteTextFileRequest{
 		SessionId: "sess-direct",
 		Path:      target,
 		Content:   "blocked",
@@ -317,7 +244,7 @@ func TestHandleWriteTextFileAppliesToolGatewayPatch(t *testing.T) {
 	)
 
 	originalPath := filepath.Join(proc.Cwd, "original.txt")
-	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
+	if _, err := proc.handleWriteTextFile(t.Context(), acpsdk.WriteTextFileRequest{
 		SessionId: "sess-direct",
 		Path:      originalPath,
 		Content:   "original",
@@ -374,7 +301,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	errCh := make(chan *acpsdk.RequestError, 1)
 	go func() {
 		response, reqErr := proc.handleInbound(
-			context.Background(),
+			t.Context(),
 			acpsdk.ClientMethodSessionRequestPermission,
 			mustMarshalJSON(request),
 		)
@@ -576,7 +503,57 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 		if proc.HasPendingPermission() {
 			t.Fatal("connection death left pending permissions")
 		}
+		for _, event := range collectEventsUntilCount(t, active.events, 8) {
+			if event.Type != EventTypePermission || event.Decision != "canceled" ||
+				event.ResolvedByValue() != "system" || event.RequestIDValue() == "" {
+				t.Fatalf("connection death event = %#v, want attributed terminal cancellation", event)
+			}
+		}
 	})
+	for _, test := range []struct {
+		name  string
+		cause error
+	}{
+		{name: "Should close the permission event when the caller cancels", cause: context.Canceled},
+		{name: "Should close the permission event when the caller deadline expires", cause: context.DeadlineExceeded},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			active, err := proc.beginPrompt("turn-canceled", 2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			ctx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(context.Canceled)
+			result := make(chan error, 1)
+			go func() {
+				response, err := proc.handleRequestPermission(ctx, request)
+				if err == nil &&
+					response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+					err = errors.New("permission did not return a canceled outcome")
+				}
+				result <- err
+			}()
+			pending := collectEventsUntilCount(t, active.events, 1)[0]
+			if pending.Decision != "" {
+				t.Fatalf("initial permission = %#v, want pending", pending)
+			}
+			cancel(test.cause)
+			if err := <-result; err != nil {
+				t.Fatal(err)
+			}
+			terminal := collectEventsUntilCount(t, active.events, 1)[0]
+			if terminal.Decision != "canceled" || terminal.ResolvedByValue() != "system" ||
+				terminal.RequestIDValue() != pending.RequestIDValue() {
+				t.Fatalf("terminal permission = %#v, want cancellation of %q", terminal, pending.RequestIDValue())
+			}
+			if proc.HasPendingPermission() {
+				t.Fatal("caller cancellation left an actionable permission")
+			}
+		})
+	}
 }
 
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
@@ -653,7 +630,7 @@ func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T
 	title := "Write"
 	kind := acpsdk.ToolKindEdit
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodSessionRequestPermission,
 		mustMarshalJSON(acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
@@ -709,7 +686,7 @@ func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testin
 	title := "Write"
 	kind := acpsdk.ToolKindEdit
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodSessionRequestPermission,
 		mustMarshalJSON(acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
@@ -914,7 +891,7 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	title := "read file"
 	kind := acpsdk.ToolKindRead
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodSessionRequestPermission,
 		mustMarshalJSON(acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
@@ -961,7 +938,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	t.Cleanup(func() { proc.endPrompt(active) })
 
 	createResult, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalCreate,
 		mustMarshalJSON(acpsdk.CreateTerminalRequest{
 			SessionId: "sess-direct",
@@ -988,7 +965,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	waitResult, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalWaitForExit,
 		mustMarshalJSON(acpsdk.WaitForTerminalExitRequest{
 			SessionId:  "sess-direct",
@@ -1007,7 +984,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	outputResult, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalOutput,
 		mustMarshalJSON(acpsdk.TerminalOutputRequest{
 			SessionId:  "sess-direct",
@@ -1026,7 +1003,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalKill,
 		mustMarshalJSON(acpsdk.KillTerminalRequest{
 			SessionId:  "sess-direct",
@@ -1037,7 +1014,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalRelease,
 		mustMarshalJSON(acpsdk.ReleaseTerminalRequest{
 			SessionId:  "sess-direct",
@@ -1049,180 +1026,6 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 
 	if _, _, _, err := proc.terminals.output(t.Context(), createResponse.TerminalId); err == nil {
 		t.Fatal("output(released terminal) error = nil, want terminal not found")
-	}
-}
-
-func assertNetworkTurnTerminalOwnershipGuards(t *testing.T) {
-	// This test mutates PATH with t.Setenv, so it must stay process-serial.
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	turnSource := ""
-	proc.SetTurnSourceProvider(func() string { return turnSource })
-
-	compozyDir := t.TempDir()
-	writeFakeCompozyBinary(t, compozyDir, `
-if [ -n "${OPENAI_API_KEY-}" ]; then printf leaked-provider-secret; exit 41; fi
-if [ "${COMPOZY_HOME-}" = "/tmp/redirected" ]; then printf leaked-request-home; exit 42; fi
-if [ -n "${SAFE_NETWORK_OVERRIDE-}" ]; then printf leaked-request-env; exit 43; fi
-printf network-ok`)
-	t.Setenv("PATH", compozyDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("OPENAI_API_KEY", "sk-network-secret")
-
-	turnSource = "network"
-	firstTurn, err := proc.beginPromptForRun("turn-network-1", "run-network-1", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt(first network) error = %v", err)
-	}
-
-	networkCreate, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
-		SessionId: "sess-direct",
-		Command:   "compozy",
-		Args:      []string{"network", "status"},
-		Cwd:       new(proc.Cwd),
-		Env: []acpsdk.EnvVariable{
-			{Name: "COMPOZY_HOME", Value: "/tmp/redirected"},
-			{Name: "SAFE_NETWORK_OVERRIDE", Value: "blocked"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("handleCreateTerminal(allowlisted network command) error = %v", err)
-	}
-
-	networkTerm, err := proc.terminals.lookup(networkCreate.TerminalId)
-	if err != nil {
-		t.Fatalf("lookup(network terminal) error = %v", err)
-	}
-	if !networkTerm.ownership.networkOwned {
-		t.Fatal("network terminal networkOwned = false, want true")
-	}
-	if networkTerm.ownership.ownerTurnID != "turn-network-1" {
-		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownership.ownerTurnID, "turn-network-1")
-	}
-
-	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); err != nil {
-		t.Fatalf("handleWaitForTerminalExit(same network turn) error = %v", err)
-	}
-
-	networkOutput, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	})
-	if err != nil {
-		t.Fatalf("handleTerminalOutput(same network turn) error = %v", err)
-	}
-	if networkOutput.Output != "network-ok" {
-		t.Fatalf("network terminal output = %q, want %q", networkOutput.Output, "network-ok")
-	}
-
-	proc.endPrompt(firstTurn)
-
-	turnSource = "user"
-	userTurn, err := proc.beginPromptForRun("turn-user-1", "run-user-1", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt(user) error = %v", err)
-	}
-
-	userCreate, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
-		SessionId: "sess-direct",
-		Command:   "sh",
-		Args:      []string{"-c", "sleep 5"},
-		Cwd:       new(proc.Cwd),
-	})
-	if err != nil {
-		t.Fatalf("handleCreateTerminal(user shell) error = %v", err)
-	}
-
-	proc.endPrompt(userTurn)
-
-	turnSource = "network"
-	secondTurn, err := proc.beginPromptForRun("turn-network-2", "run-network-2", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt(second network) error = %v", err)
-	}
-	defer proc.endPrompt(secondTurn)
-
-	if _, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-		t.Fatalf("handleTerminalOutput(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
-	}
-
-	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-		t.Fatalf("handleWaitForTerminalExit(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
-	}
-
-	if _, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); err != nil {
-		t.Fatalf("handleKillTerminal(network-owned) error = %v", err)
-	}
-
-	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
-		SessionId:  "sess-direct",
-		TerminalId: networkCreate.TerminalId,
-	}); err != nil {
-		t.Fatalf("handleReleaseTerminal(network-owned) error = %v", err)
-	}
-
-	checks := []struct {
-		name string
-		run  func() error
-	}{
-		{
-			name: "output user terminal",
-			run: func() error {
-				_, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-		{
-			name: "wait user terminal",
-			run: func() error {
-				_, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-		{
-			name: "kill user terminal",
-			run: func() error {
-				_, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-		{
-			name: "release user terminal",
-			run: func() error {
-				_, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
-					SessionId:  "sess-direct",
-					TerminalId: userCreate.TerminalId,
-				})
-				return err
-			},
-		},
-	}
-
-	for _, check := range checks {
-		t.Run(check.name, func(t *testing.T) {
-			if err := check.run(); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
-				t.Fatalf("%s error = %v, want ErrToolBlockedForNetworkTurn", check.name, err)
-			}
-		})
 	}
 }
 
@@ -1318,115 +1121,77 @@ func TestHelperUtilities(t *testing.T) {
 	}
 }
 
-func TestWithoutCancelPreservingDeadline(t *testing.T) {
+func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 	t.Parallel()
+	t.Run("Should stop the terminal when process registration fails", func(t *testing.T) {
+		t.Parallel()
 
-	parent, cancelParent := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
-	child, cancelChild := withoutCancelPreservingDeadline(parent)
-	defer cancelParent()
-	defer cancelChild()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		proc.processRegistry = toolruntime.NewRegistry(failingProcessStore{upsertErr: errors.New("boom")})
 
-	parentDeadline, ok := parent.Deadline()
-	if !ok {
-		t.Fatal("parent.Deadline() = missing, want deadline")
-	}
-	childDeadline, ok := child.Deadline()
-	if !ok {
-		t.Fatal("child.Deadline() = missing, want preserved deadline")
-	}
-	if !childDeadline.Equal(parentDeadline) {
-		t.Fatalf("child deadline = %v, want %v", childDeadline, parentDeadline)
-	}
+		var killedTerminalID string
+		proc.toolHost = contextAwareToolHost{
+			createTerminalFn: func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
+				return acpsdk.CreateTerminalResponse{TerminalId: "term-external"}, nil
+			},
+			killTerminalFn: func(id string) error {
+				killedTerminalID = id
+				return nil
+			},
+		}
 
-	cancelParent()
+		active, err := proc.beginPromptForRun("turn-terminal-create-failure", "run-terminal-create-failure", 1, 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
 
-	select {
-	case <-child.Done():
-		t.Fatalf("child context canceled by parent: %v", child.Err())
-	default:
-	}
+		if _, err := proc.handleCreateTerminal(t.Context(), acpsdk.CreateTerminalRequest{
+			SessionId: "sess-direct",
+			Command:   "printf",
+			Args:      []string{"ready"},
+		}); err == nil {
+			t.Fatal("handleCreateTerminal() error = nil, want registration failure")
+		}
+
+		if killedTerminalID != "term-external" {
+			t.Fatalf("cleanup killed terminal = %q, want %q", killedTerminalID, "term-external")
+		}
+	})
 }
 
-func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T) {
+func TestHandleReleaseTerminalReleasesExternalTerminal(t *testing.T) {
 	t.Parallel()
+	t.Run("Should release the external terminal through its tool host", func(t *testing.T) {
+		t.Parallel()
 
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.processRegistry = toolruntime.NewRegistry(failingProcessStore{upsertErr: errors.New("boom")})
-	proc.SetTurnSourceProvider(func() string { return "network" })
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 
-	var killedTerminalID string
-	proc.toolHost = contextAwareToolHost{
-		createTerminalFn: func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
-			return acpsdk.CreateTerminalResponse{TerminalId: "term-external"}, nil
-		},
-		killTerminalFn: func(id string) error {
-			killedTerminalID = id
-			return nil
-		},
-	}
+		var releasedTerminalID string
+		proc.toolHost = contextAwareToolHost{
+			releaseTerminalFn: func(id string) error {
+				releasedTerminalID = id
+				return nil
+			},
+		}
 
-	active, err := proc.beginPromptForRun("turn-network-create-failure", "run-network-create-failure", 1, 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
+		active, err := proc.beginPrompt("turn-terminal-release", 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
 
-	if _, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
-		SessionId: "sess-direct",
-		Command:   "compozy",
-		Args:      []string{"network", "status"},
-	}); err == nil {
-		t.Fatal("handleCreateTerminal() error = nil, want registration failure")
-	}
+		if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
+			SessionId:  "sess-direct",
+			TerminalId: "term-external",
+		}); err != nil {
+			t.Fatalf("handleReleaseTerminal() error = %v", err)
+		}
 
-	if killedTerminalID != "term-external" {
-		t.Fatalf("cleanup killed terminal = %q, want %q", killedTerminalID, "term-external")
-	}
-	if _, ok := proc.terminalOwnership["term-external"]; ok {
-		t.Fatalf("terminalOwnership = %#v, want failed terminal removed", proc.terminalOwnership)
-	}
-}
-
-func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
-	t.Parallel()
-
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	proc.SetTurnSourceProvider(func() string { return "network" })
-	proc.terminalOwnership = map[string]terminalOwnership{
-		"term-external": {
-			networkOwned:   true,
-			ownerSessionID: "sess-direct",
-			ownerTurnID:    "turn-network-release",
-		},
-	}
-
-	var releasedTerminalID string
-	proc.toolHost = contextAwareToolHost{
-		releaseTerminalFn: func(id string) error {
-			releasedTerminalID = id
-			return nil
-		},
-	}
-
-	active, err := proc.beginPrompt("turn-network-release", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
-
-	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
-		SessionId:  "sess-direct",
-		TerminalId: "term-external",
-	}); err != nil {
-		t.Fatalf("handleReleaseTerminal() error = %v", err)
-	}
-
-	if releasedTerminalID != "term-external" {
-		t.Fatalf("released terminal = %q, want %q", releasedTerminalID, "term-external")
-	}
-	if _, ok := proc.terminalOwnership["term-external"]; ok {
-		t.Fatalf("terminalOwnership = %#v, want released terminal removed", proc.terminalOwnership)
-	}
+		if releasedTerminalID != "term-external" {
+			t.Fatalf("released terminal = %q, want %q", releasedTerminalID, "term-external")
+		}
+	})
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
@@ -1766,6 +1531,29 @@ func TestAccessorsAndValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate Goal metadata across event copies and preserve unrelated payloads", func(t *testing.T) {
+		t.Parallel()
+		source := &GoalPromptMeta{Kind: GoalPromptKindWork, RunID: "run-goal", NodeID: "node-goal",
+			Generation: 1, Turn: new(2), PromptID: "prompt-goal"}
+		original := (AgentEvent{}).WithGoalPromptMeta(source)
+		source.RunID = "changed"
+		*source.Turn = 3
+		copied := original.WithResolvedBy("owner")
+		goal := copied.GoalPromptMeta()
+		if goal == nil || goal.RunID != "run-goal" || *goal.Turn != 2 {
+			t.Fatalf("copied Goal metadata = %#v", goal)
+		}
+		goal.RunID = "reader-change"
+		*goal.Turn = 4
+		if retained := original.GoalPromptMeta(); retained.RunID != "run-goal" || *retained.Turn != 2 {
+			t.Fatalf("original Goal metadata = %#v", retained)
+		}
+		cleared := copied.WithGoalPromptMeta(nil)
+		if cleared.GoalPromptMeta() != nil || cleared.ResolvedByValue() != "owner" || original.GoalPromptMeta() == nil {
+			t.Fatal("clearing one event changed its unrelated payload or the original Goal")
+		}
+	})
+
 	proc := &AgentProcess{stderr: &lockedBuffer{}}
 	if _, err := proc.stderr.Write([]byte("boom")); err != nil {
 		t.Fatalf("stderr.Write() error = %v", err)
@@ -1901,7 +1689,7 @@ func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), ctxKey, "present")
+	ctx := context.WithValue(t.Context(), ctxKey, "present")
 	result, reqErr := proc.handleInbound(
 		ctx,
 		acpsdk.ClientMethodTerminalCreate,
@@ -2092,16 +1880,6 @@ func (failingProcessStore) ListProcessRecords(
 	return nil, nil
 }
 
-func writeFakeCompozyBinary(t *testing.T, dir string, body string) {
-	t.Helper()
-
-	path := filepath.Join(dir, "compozy")
-	script := "#!/bin/sh\n" + body + "\n"
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
-	}
-}
-
 func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {
 	RequestID string                  `json:"request_id"`
 	ToolID    string                  `json:"tool_id"`
@@ -2138,4 +1916,498 @@ func collectEventsUntilCount(t *testing.T, eventsCh <-chan AgentEvent, want int)
 		}
 	}
 	return events
+}
+
+func TestInitializeCompactionCapability(t *testing.T) {
+	t.Run("Should advertise compaction alongside filesystem and terminal capabilities", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		capture := filepath.Join(t.TempDir(), "initialize.jsonl")
+		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
+			Env: helperEnvWithCapture("initialize_contract", "", capture),
+		})
+		defer stopProcess(t, driver, proc)
+		params := captureRequestParams(t, capture, acpsdk.AgentMethodInitialize)
+		var caps struct {
+			Fs struct {
+				Read  bool `json:"readTextFile"`
+				Write bool `json:"writeTextFile"`
+			} `json:"fs"`
+			Terminal bool `json:"terminal"`
+			Session  struct {
+				Compaction json.RawMessage `json:"compaction"`
+			} `json:"session"`
+		}
+		if err := json.Unmarshal(params["clientCapabilities"], &caps); err != nil {
+			t.Fatal(err)
+		}
+		if string(caps.Session.Compaction) != "{}" || !caps.Terminal || !caps.Fs.Read || !caps.Fs.Write {
+			t.Fatalf("initialize capabilities = %s", params["clientCapabilities"])
+		}
+	})
+}
+
+func TestCompactionAdapterFixtures(t *testing.T) {
+	for _, tc := range []struct{ name, fixture, summary string }{
+		{"Should materialize Claude cleaned summary", "claude-compaction.json", "Clean user-visible summary"},
+		{"Should retain Codex lifecycle without summary", "codex-compaction.json", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := os.ReadFile(filepath.Join("testdata", tc.fixture))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var frames []json.RawMessage
+			if err := json.Unmarshal(data, &frames); err != nil {
+				t.Fatal(err)
+			}
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+			active, err := proc.beginPrompt("turn-fixture", 16)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			for _, frame := range frames {
+				if err := proc.handleSessionUpdate(frame); err != nil {
+					t.Fatal(err)
+				}
+			}
+			events := drainCompactionTestEvents(t, proc, active)
+			if len(events) != 2 {
+				t.Fatalf("snapshots = %#v, want exactly two", events)
+			}
+			for _, event := range events {
+				if event.Type != EventTypeCompaction || event.Compaction == nil {
+					t.Fatalf("event = %#v", event)
+				}
+			}
+			final := events[1].Compaction
+			if final.Status != "completed" || final.Summary != tc.summary || !final.Terminal {
+				t.Fatalf("final snapshot = %#v", final)
+			}
+		})
+	}
+}
+
+//nolint:misspell // ACP fixes the spelling of terminal status values.
+func TestCompactionAssembler(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		updates []string
+		want    []CompactionObservation
+	}{
+		{"Should use buffered chunks on terminal omission", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"chunk":"B"}`, `{"status":"completed"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Summary: "AB", Terminal: true}}},
+		{"Should replace chunks with a terminal summary", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"chunk":"B"}`, `{"status":"completed","summary":[{"type":"text","text":"clean"}]}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Summary: "clean", Terminal: true}}},
+		{"Should clear chunks with an empty terminal summary", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"status":"completed","summary":[]}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Terminal: true}}},
+		{"Should drop late chunks and identical terminal repeats", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"status":"completed"}`, `{"chunk":"late"}`, `{"status":"completed"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Summary: "A", Terminal: true}}},
+		{"Should carry failure and preserve omitted error until explicit clear", []string{
+			`{"status":"in_progress"}`, `{"status":"failed","error":"x"}`, `{"status":"failed","summary":[{"type":"text","text":"correction"}]}`, `{"status":"failed","summary":null,"error":null}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "failed", Error: "x", Terminal: true}, {CompactionID: "c1", Status: "failed", Summary: "correction", Error: "x"}, {CompactionID: "c1", Status: "failed"}}},
+		{"Should emit corrections without another terminal transition", []string{
+			`{"status":"completed"}`, `{"status":"completed","summary":[{"type":"text","text":"new"}]}`, `{"status":"failed","error":"failure"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "completed", Terminal: true}, {CompactionID: "c1", Status: "completed", Summary: "new"}, {CompactionID: "c1", Status: "failed", Summary: "new", Error: "failure"}}},
+		{"Should retain intermediate vendor status without treating it as terminal", []string{
+			`{"status":"in_progress"}`, `{"status":"_paused"}`, `{"status":"in_progress"}`, `{"status":"completed"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "_paused"}, {CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Terminal: true}}},
+		{"Should apply canceled terminal first", []string{`{"status":"cancelled"}`}, []CompactionObservation{{CompactionID: "c1", Status: "cancelled", Terminal: true}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+			active, err := proc.beginPrompt("turn-assembly", 32)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			for _, update := range tc.updates {
+				sendCompactionTestUpdate(t, proc, "c1", update)
+			}
+			events := drainCompactionTestEvents(t, proc, active)
+			if len(events) != len(tc.want) {
+				t.Fatalf("events = %#v, want %d snapshots", events, len(tc.want))
+			}
+			for i, want := range tc.want {
+				if events[i].Type != EventTypeCompaction || events[i].Compaction == nil ||
+					*events[i].Compaction != want {
+					t.Fatalf("snapshot %d = %#v, want %#v", i, events[i].Compaction, want)
+				}
+			}
+		})
+	}
+	t.Run("Should release terminal buffers and retire the oldest terminal compactions", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		total := compactionRetainedTerminalLimit + 1
+		active, err := proc.beginPrompt("turn-retention", 2*total+4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for i := range total {
+			id := fmt.Sprintf("c%d", i)
+			sendCompactionTestUpdate(t, proc, id, `{"chunk":"summary text"}`)
+			sendCompactionTestUpdate(t, proc, id, `{"status":"completed"}`)
+		}
+		proc.compactionMu.Lock()
+		retained := len(proc.compactions)
+		buffered := 0
+		for _, state := range proc.compactions {
+			buffered += len(state.buffer)
+		}
+		proc.compactionMu.Unlock()
+		if retained != compactionRetainedTerminalLimit || buffered != 0 {
+			t.Fatalf("retained = %d, buffered bytes = %d", retained, buffered)
+		}
+		sendCompactionTestUpdate(t, proc, "c0", `{"status":"failed","error":"late"}`)
+		sendCompactionTestUpdate(t, proc, fmt.Sprintf("c%d", total-1), `{"status":"failed","error":"correction"}`)
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 2*total+1 {
+			t.Fatalf("snapshots = %d, want %d", len(events), 2*total+1)
+		}
+		last := events[len(events)-1].Compaction
+		if last.CompactionID != fmt.Sprintf("c%d", total-1) || last.Status != "failed" || last.Terminal ||
+			last.Summary != "summary text" {
+			t.Fatalf("retained correction = %#v", last)
+		}
+	})
+	t.Run("Should cap assembled summaries and scrub split claim tokens before emission", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-scrub", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"in_progress"}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"COMPOZY_CLAIM_sec"}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"ret-value"}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"failed","error":"COMPOZY_CLAIM_secret-value"}`)
+		large := mustMarshalJSON(
+			map[string]any{
+				"status":  "completed",
+				"summary": []map[string]any{{"type": "text", "text": strings.Repeat("x", 20*1024)}},
+			},
+		)
+		sendCompactionTestUpdate(t, proc, "c2", string(large))
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 3 {
+			t.Fatalf("snapshots = %d, want 3", len(events))
+		}
+		if got := events[1].Compaction; got.Summary != "compozy_claim_[REDACTED]" ||
+			got.Error != "compozy_claim_[REDACTED]" {
+			t.Fatalf("scrubbed snapshot = %#v", got)
+		}
+		if got := events[2].Compaction.Summary; len(got) > 16*1024 || !strings.HasSuffix(got, " [summary truncated]") {
+			t.Fatalf(
+				"capped summary length = %d, suffix missing = %v",
+				len(got),
+				!strings.HasSuffix(got, " [summary truncated]"),
+			)
+		}
+	})
+}
+
+func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
+	t.Run("Should classify chunk first as compaction and preserve unknown updates as system", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-discriminator", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"x"}`)
+		unknown := json.RawMessage(`{"sessionUpdate":"_vendor_thing","content":{"type":"text","text":"y"},"vendor":42}`)
+		err = proc.handleSessionUpdate(
+			mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: unknown}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 2 || events[0].Type != EventTypeCompaction || events[1].Type != EventTypeSystem {
+			t.Fatalf("discriminator events = %#v", events)
+		}
+		var got, want map[string]any
+		err = json.Unmarshal(events[1].Raw, &got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = json.Unmarshal(unknown, &want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Fatalf("unknown raw = %s, want %s", events[1].Raw, unknown)
+		}
+	})
+
+	t.Run("Should log each unknown kind once per process while retaining every event", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		var logs lockedBuffer
+		proc.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		active, err := proc.beginPrompt("turn-unknown", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for _, kind := range []string{"_vendor_one", "_vendor_one", "_vendor_two"} {
+			update := mustMarshalJSON(
+				map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": "payload"}},
+			)
+			err = proc.handleSessionUpdate(
+				mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: update}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 3 {
+			t.Fatalf("unknown events = %d, want 3", len(events))
+		}
+		for _, event := range events {
+			if event.Type != EventTypeSystem {
+				t.Fatalf("event = %#v, want system", event)
+			}
+		}
+		if got := strings.Count(logs.String(), "acp.session_update.unknown"); got != 2 {
+			t.Fatalf("unknown warnings = %d, want 2; logs=%s", got, logs.String())
+		}
+	})
+	t.Run("Should tolerate vendor fields and malformed optional scalar fields", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-tolerant", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"_paused","vendor":{"data":1},"_meta":{"source":"vendor"}}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":42,"error":{"unexpected":true}}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"completed","summary":"vendor summary"}`)
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 2 || events[0].Compaction.Status != "_paused" || events[0].Compaction.Terminal ||
+			events[1].Compaction.Summary != "vendor summary" ||
+			!events[1].Compaction.Terminal {
+			t.Fatalf("tolerant snapshots = %#v", events)
+		}
+	})
+
+	t.Run("Should retain legacy Compact conversation as an ordinary tool event", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile(filepath.Join("testdata", "legacy-compaction-tool.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-legacy", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		err = proc.handleSessionUpdate(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 1 || events[0].Type != EventTypeToolCall || events[0].Title != "Compact conversation" ||
+			events[0].Compaction != nil {
+			t.Fatalf("legacy event = %#v", events)
+		}
+	})
+}
+
+func sendCompactionTestUpdate(t *testing.T, proc *AgentProcess, id, fields string) {
+	t.Helper()
+	var update map[string]any
+	err := json.Unmarshal([]byte(fields), &update)
+	if err != nil {
+		t.Fatal(err)
+	}
+	update["sessionUpdate"] = "compaction_update"
+	update["compactionId"] = id
+	if chunk, ok := update["chunk"]; ok {
+		delete(update, "chunk")
+		update["sessionUpdate"] = "compaction_summary_chunk"
+		update["content"] = map[string]any{"type": "text", "text": chunk}
+	}
+	err = proc.handleSessionUpdate(
+		mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: mustMarshalJSON(update)}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func drainCompactionTestEvents(t *testing.T, proc *AgentProcess, active *activePromptState) []AgentEvent {
+	t.Helper()
+	proc.endPrompt(active)
+	var result []AgentEvent
+	timeout := time.NewTimer(2 * time.Second)
+	defer timeout.Stop()
+	for {
+		select {
+		case event, ok := <-active.events:
+			if !ok {
+				return result
+			}
+			result = append(result, event)
+		case <-timeout.C:
+			t.Fatalf("timeout draining compaction events: %#v", result)
+		}
+	}
+}
+
+func TestClaudeAgentSubagentContract(t *testing.T) {
+	// UT-040; IT-020 ingest side: replay adapter-produced frames through the prompt pipeline.
+	t.Run("Should preserve native metadata on every adapter fixture frame", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile("testdata/claude_agent_subagent.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		wants := []struct{ parent, tool, kind, status string }{
+			{"", "Agent", EventTypeToolCall, "pending"},
+			{"toolu_agent", "", EventTypeAgentMessage, ""},
+			{"toolu_agent", "Read", EventTypeToolCall, "pending"},
+			{"toolu_agent", "Read", EventTypeToolResult, "completed"},
+			{"", "Agent", EventTypeToolResult, "completed"},
+		}
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if len(lines) != len(wants) {
+			t.Fatalf("frames = %d, want %d", len(lines), len(wants))
+		}
+		for i, line := range lines {
+			var frame struct {
+				Params json.RawMessage `json:"params"`
+			}
+			if err := json.Unmarshal([]byte(line), &frame); err != nil {
+				t.Fatal(err)
+			}
+			if err := proc.handleSessionUpdate(frame.Params); err != nil {
+				t.Fatal(err)
+			}
+			got := collectEventsUntilCount(t, active.events, 1)[0]
+			want := wants[i]
+			if got.ParentToolCallID() != want.parent || got.ProviderToolName() != want.tool || got.Type != want.kind ||
+				got.ToolStatus() != want.status {
+				t.Fatalf("frame %d = %#v, want %#v", i, got, want)
+			}
+		}
+	})
+	// Issue #766: a background launch result is the provider's receipt, not the subagent's outcome.
+	t.Run("Should mark a background launch result as an async receipt", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile("testdata/claude_agent_background_subagent.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+			var frame struct {
+				Params json.RawMessage `json:"params"`
+			}
+			if err := json.Unmarshal([]byte(line), &frame); err != nil {
+				t.Fatal(err)
+			}
+			if err := proc.handleSessionUpdate(frame.Params); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The PostToolUse marker refines nothing visible, so it rides on the result.
+		got := collectEventsUntilCount(t, active.events, 5)
+		wants := []struct {
+			parent, tool, kind string
+			async              bool
+		}{
+			{"", "Agent", EventTypeToolCall, false},
+			{"", "Agent", EventTypeToolCall, false},
+			{"", "Agent", EventTypeToolResult, true},
+			{"toolu_background", "Bash", EventTypeToolCall, false},
+			{"toolu_background", "Bash", EventTypeToolResult, false},
+		}
+		for i, want := range wants {
+			if got[i].ParentToolCallID() != want.parent || got[i].ProviderToolName() != want.tool ||
+				got[i].Type != want.kind || got[i].ProviderToolAsync() != want.async {
+				t.Fatalf("event %d = %#v, want %#v", i, got[i], want)
+			}
+		}
+	})
+	t.Run("Should keep attribution when a tool response is not a marker object", func(t *testing.T) {
+		t.Parallel()
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		raw := json.RawMessage(
+			`{"sessionId":"session-native","update":{"sessionUpdate":"tool_call","toolCallId":"inner","title":"ls","status":"pending","_meta":{"claudeCode":{"parentToolUseId":"toolu_agent","toolName":"Bash","toolResponse":"plain stdout"}}}}`,
+		)
+		if err := proc.handleSessionUpdate(raw); err != nil {
+			t.Fatal(err)
+		}
+		got := collectEventsUntilCount(t, active.events, 1)[0]
+		if got.ParentToolCallID() != "toolu_agent" || got.ProviderToolName() != "Bash" || got.ProviderToolAsync() {
+			t.Fatalf("event = %#v", got)
+		}
+	})
+	t.Run("Should fall back to ordinary rendering for an unknown metadata shape", func(t *testing.T) {
+		t.Parallel()
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		raw := json.RawMessage(
+			`{"sessionId":"session-native","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello"},"_meta":{"claudeCode":{"parentToolUseId":{"changed":true},"toolName":"Agent"}}}}`,
+		)
+		if err := proc.handleSessionUpdate(raw); err != nil {
+			t.Fatal(err)
+		}
+		got := collectEventsUntilCount(t, active.events, 1)[0]
+		if got.Text != "hello" || got.ParentToolCallID() != "" || got.ProviderToolName() != "" {
+			t.Fatalf("fallback = %#v", got)
+		}
+	})
+	t.Run("Should retain attribution-only tool refinements", func(t *testing.T) {
+		t.Parallel()
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		event := AgentEvent{Type: EventTypeToolCall, ToolCallID: "inner", Title: "Read"}
+		proc.emitPromptEvent(event)
+		proc.emitPromptEvent(event.WithProviderToolMetadata("toolu_agent", "Read", "in_progress"))
+		got := collectEventsUntilCount(t, active.events, 2)
+		if got[1].ParentToolCallID() != "toolu_agent" || got[1].ProviderToolName() != "Read" ||
+			got[1].ToolStatus() != "in_progress" {
+			t.Fatalf("refinement = %#v", got[1])
+		}
+	})
 }

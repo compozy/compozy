@@ -17,13 +17,17 @@ const (
 	windowLayoutMaxBytes                            = 4 * 1024 * 1024
 )
 
-type windowLayoutResourceCodec struct{}
+type windowLayoutResourceCodec struct{ observer AppDeprecationObserver }
 
 var _ resources.KindCodec[LayoutResource] = windowLayoutResourceCodec{}
 
 // NewLayoutResourceCodec constructs the strict declarative window-layout codec.
-func NewLayoutResourceCodec() (resources.KindCodec[LayoutResource], error) {
-	return windowLayoutResourceCodec{}, nil
+func NewLayoutResourceCodec(observers ...AppDeprecationObserver) (resources.KindCodec[LayoutResource], error) {
+	var observer AppDeprecationObserver
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
+	return windowLayoutResourceCodec{observer: observer}, nil
 }
 
 func (windowLayoutResourceCodec) Kind() resources.ResourceKind {
@@ -49,7 +53,7 @@ func (windowLayoutResourceCodec) Encode(resource LayoutResource) ([]byte, error)
 	return encoded, nil
 }
 
-func (windowLayoutResourceCodec) DecodeAndValidate(
+func (codec windowLayoutResourceCodec) DecodeAndValidate(
 	ctx context.Context,
 	scope resources.ResourceScope,
 	raw []byte,
@@ -88,6 +92,7 @@ func (windowLayoutResourceCodec) DecodeAndValidate(
 		}
 		return LayoutResource{}, fmt.Errorf("%w: trailing window_layout data: %w", resources.ErrValidation, err)
 	}
+	resource.Document = canonicalLayoutApps(ctx, resource.Document, codec.observer, "resource")
 	return validateLayoutResource(scope.Normalize(), resource)
 }
 

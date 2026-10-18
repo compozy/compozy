@@ -7,7 +7,6 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -16,10 +15,8 @@ func (s *service) dispatchLoopStarted(ctx context.Context, run Run, actor task.A
 		return
 	}
 	payload := hookspkg.LoopStartedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopStarted,
-			Timestamp: run.CreatedAt,
-		},
+		Event:       hookspkg.HookLoopStarted,
+		Timestamp:   run.CreatedAt,
 		LoopContext: serviceLoopContext(run, actor),
 		Status:      string(run.Status),
 		Cause:       string(TransitionCauseStart),
@@ -40,10 +37,8 @@ func (s *service) dispatchCoordinatorTerminal(
 		return
 	}
 	payload := hookspkg.LoopTerminalPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopTerminal,
-			Timestamp: at,
-		},
+		Event:       hookspkg.HookLoopTerminal,
+		Timestamp:   at,
 		LoopContext: serviceLoopContext(run, task.ActorContext{}),
 		Status:      string(run.Status),
 		Cause:       string(cause),
@@ -79,12 +74,9 @@ func serviceLoopContext(run Run, actor task.ActorContext) hookspkg.LoopContext {
 		WorkspaceID:     string(run.WorkspaceID),
 		LoopName:        run.LoopName,
 		Generation:      run.Generation,
-		ResolvedNetworkParticipation: participation.CloneSpec(
-			run.NetworkSpecSnapshot(),
-		),
-		ActorKind:  string(actor.Actor.Kind.Normalize()),
-		ActorID:    actor.Actor.Ref,
-		OriginKind: string(actor.Origin.Kind.Normalize()),
-		OriginRef:  actor.Origin.Ref,
+		ActorKind:       string(actor.Actor.Kind.Normalize()),
+		ActorID:         actor.Actor.Ref,
+		OriginKind:      string(actor.Origin.Kind.Normalize()),
+		OriginRef:       actor.Origin.Ref,
 	}
 }

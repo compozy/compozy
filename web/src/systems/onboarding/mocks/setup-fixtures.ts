@@ -119,8 +119,7 @@ export function onboardingWizardFixture(
         model =>
           model.provider === defaultModel.runtimeValue.provider &&
           model.id === defaultModel.runtimeValue.model
-      ),
-      defaultModel.harness
+      )
     );
   const workspaces = { ...onboardingWorkspacesFixture, ...overrides.workspaces };
   const step = overrides.wizard?.step ?? 1;
@@ -139,5 +138,6 @@ export function onboardingWizardFixture(
     goToStep: overrides.wizard?.goToStep ?? noop,
     back: overrides.wizard?.back ?? noop,
     next: overrides.wizard?.next ?? (async () => {}),
+    skipToGlobal: overrides.wizard?.skipToGlobal ?? (async () => {}),
   };
 }

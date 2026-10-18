@@ -1,8 +1,9 @@
 package doctor
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,8 +43,8 @@ func (p *SubprocessHealthProbe) Run(
 	}
 
 	snapshots := p.Source.SubprocessHealthSnapshots()
-	sort.Slice(snapshots, func(i int, j int) bool {
-		return snapshots[i].SessionID < snapshots[j].SessionID
+	slices.SortFunc(snapshots, func(left, right session.SubprocessHealthSnapshot) int {
+		return cmp.Compare(left.SessionID, right.SessionID)
 	})
 	failed := make([]session.SubprocessHealthSnapshot, 0, len(snapshots))
 	for _, snapshot := range snapshots {

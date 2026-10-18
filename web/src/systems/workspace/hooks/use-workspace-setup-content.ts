@@ -7,6 +7,7 @@ import { useDirectoryBrowser } from "@/systems/onboarding";
 type SubmissionMode = "create" | null;
 
 interface UseWorkspaceSetupContentOptions {
+  enabled?: boolean;
   onSuccessClose?: () => void;
   onWorkspaceResolved: (workspaceId: string) => void;
 }
@@ -16,11 +17,10 @@ export interface WorkspaceSetupDraft {
   name: string;
   addDirs: string[];
   defaultAgent: string;
-  sandboxRef: string;
 }
 
 function emptyDraft(): WorkspaceSetupDraft {
-  return { rootDir: "", name: "", addDirs: [], defaultAgent: "", sandboxRef: "" };
+  return { rootDir: "", name: "", addDirs: [], defaultAgent: "" };
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -39,16 +39,16 @@ function workspaceNameFromPath(path: string): string {
 }
 
 export function useWorkspaceSetupContent({
+  enabled = true,
   onWorkspaceResolved,
   onSuccessClose,
 }: UseWorkspaceSetupContentOptions) {
   const createWorkspace = useCreateWorkspace();
-  const [browsePath, setBrowsePath] = useState("");
   const [draft, setDraft] = useState<WorkspaceSetupDraft>(emptyDraft);
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const browse = useDirectoryBrowser({ path: browsePath || undefined, dirsOnly: true });
+  const browse = useDirectoryBrowser({ dirsOnly: true }, enabled);
   const browseData = browse.data;
 
   /**
@@ -73,7 +73,6 @@ export function useWorkspaceSetupContent({
   const setName = (name: string) => setDraft(current => ({ ...current, name }));
   const setDefaultAgent = (defaultAgent: string) =>
     setDraft(current => ({ ...current, defaultAgent }));
-  const setSandboxRef = (sandboxRef: string) => setDraft(current => ({ ...current, sandboxRef }));
 
   const addDir = (dir: string) => {
     const trimmed = dir.trim();
@@ -100,7 +99,7 @@ export function useWorkspaceSetupContent({
     event?.preventDefault();
     const rootDir = draft.rootDir.trim();
     if (rootDir === "") {
-      setCreateError("Pick the workspace root in the browser above.");
+      setCreateError("Pick the project folder in the browser above.");
       return;
     }
 
@@ -109,43 +108,37 @@ export function useWorkspaceSetupContent({
     try {
       const name = draft.name.trim();
       const defaultAgent = draft.defaultAgent.trim();
-      const sandboxRef = draft.sandboxRef.trim();
       const workspace = await createWorkspace.mutateAsync({
         root_dir: rootDir,
         ...(name !== "" ? { name } : {}),
         ...(draft.addDirs.length > 0 ? { add_dirs: draft.addDirs } : {}),
         ...(defaultAgent !== "" ? { default_agent: defaultAgent } : {}),
-        ...(sandboxRef !== "" ? { sandbox_ref: sandboxRef } : {}),
       });
       onWorkspaceResolved(workspace.id);
       resetDraft();
-      toast.success(`Workspace ready: ${workspace.name}`);
+      toast.success(`Project ready: ${workspace.name}`);
       onSuccessClose?.();
     } catch (error) {
       // The draft survives a failed write so nothing typed is lost.
-      setCreateError(getErrorMessage(error, "Failed to add workspace"));
+      setCreateError(getErrorMessage(error, "Couldn't add the project"));
     }
     setSubmissionMode(null);
   };
 
   return {
     browse: {
-      currentPath: browseData?.path ?? browsePath,
-      parentPath: browseData?.parent ?? null,
-      homePath: browseData?.home ?? null,
-      roots: browseData?.roots ?? [],
+      currentPath: browse.currentPath,
+      parentPath: browse.parent,
+      homePath: browse.home,
+      roots: browse.roots,
       entries: browseData?.entries ?? [],
       isBrowsing: browse.isLoading || browse.isFetching,
       browseError: browse.error
         ? getErrorMessage(browse.error, "Failed to browse directory.")
         : null,
-      navigateTo: setBrowsePath,
-      goToParent: () => {
-        if (browseData?.parent) setBrowsePath(browseData.parent);
-      },
-      goHome: () => {
-        if (browseData?.home) setBrowsePath(browseData.home);
-      },
+      navigateTo: browse.navigateTo,
+      goToParent: browse.goToParent,
+      goHome: browse.goHome,
     },
     canSubmit,
     createError,
@@ -157,7 +150,6 @@ export function useWorkspaceSetupContent({
     selectRoot,
     setDefaultAgent,
     setName,
-    setSandboxRef,
     submissionMode,
   };
 }

@@ -19,12 +19,18 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   const worktree = normalizedText(filters.worktree);
 
   if (worktree) normalized.worktree = worktree;
+  if (filters.search_fields !== undefined) normalized.search_fields = filters.search_fields;
+  if (filters.skip_total !== undefined) normalized.skip_total = filters.skip_total;
   if (filters.include_health !== undefined) {
     normalized.include_health = filters.include_health;
   }
   if (filters.state !== undefined) normalized.state = filters.state;
   if (filters.type !== undefined) normalized.type = filters.type;
   if (agent) normalized.agent = agent;
+  const parent = normalizedText(filters.parent);
+  const root = normalizedText(filters.root);
+  if (parent) normalized.parent = parent;
+  if (root) normalized.root = root;
   if (search) normalized.q = search;
   if (filters.resumable !== undefined) normalized.resumable = filters.resumable;
   // Attention scoping is server-side too: the daemon owns the needs-you class
@@ -34,6 +40,9 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   const badge = normalizedText(filters.badge);
   if (badge) normalized.badge = badge;
   if (filters.archive !== undefined) normalized.archive = filters.archive;
+  // Subagent visibility (ADR-005) is a server-side population filter, so it is
+  // part of the request and the key: `exclude` and `include` are two catalogs.
+  if (filters.subagents !== undefined) normalized.subagents = filters.subagents;
   if (filters.sort !== undefined) normalized.sort = filters.sort;
   if (filters.limit !== undefined) normalized.limit = filters.limit;
   // Profile scope is part of the request, so it is part of the key: two profiles

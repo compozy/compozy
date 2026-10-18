@@ -296,7 +296,7 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		Action:     "bash",
 		Resource:   "/tmp/b",
 		Decision:   "deny",
-		PolicyUsed: "sandbox",
+		PolicyUsed: "permissions",
 		Timestamp:  base.Add(-time.Hour),
 	}); err != nil {
 		t.Fatalf("WritePermissionLog(explicit timestamp) error = %v", err)
@@ -350,7 +350,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 			SessionID: "sess-harness",
 			Type:      "harness.context_resolved",
 			AgentName: "coder",
-			Summary:   "surface=startup sections=memory|skills|network",
+			Summary:   "surface=startup sections=memory|skills|tools",
 			Timestamp: base,
 		},
 		{
@@ -358,7 +358,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 			SessionID: "sess-harness",
 			Type:      "harness.section_selected",
 			AgentName: "coder",
-			Summary:   "selected=memory|skills|network count=3",
+			Summary:   "selected=memory|skills|tools count=3",
 			Timestamp: base.Add(time.Second),
 		},
 		{

@@ -42,19 +42,24 @@ const compozyEventDataSchema = z.looseObject({
       turn_id: z.string(),
       sent_at: z.string(),
       estimate: z.string(),
-      spans: z.array(
-        z.object({
-          key: z.string(),
-          kind: z.string(),
-          bytes: z.number(),
-          tokens: z.number().nullable().optional(),
-          delivery: z.string().optional(),
-          name: z.string().optional(),
-          unchanged: z.boolean().optional(),
-          startup_dedup: z.boolean().optional(),
-          hook_modified: z.boolean().optional(),
-        })
-      ),
+      // A delivery that sent no sections (a literal maintenance prompt such as `/compact`)
+      // arrives with `spans: null`. It is quiet telemetry: it must never reject the frame
+      // that carries the turn's reply.
+      spans: z
+        .array(
+          z.object({
+            key: z.string(),
+            kind: z.string(),
+            bytes: z.number(),
+            tokens: z.number().nullable().optional(),
+            delivery: z.string().optional(),
+            name: z.string().optional(),
+            unchanged: z.boolean().optional(),
+            startup_dedup: z.boolean().optional(),
+            hook_modified: z.boolean().optional(),
+          })
+        )
+        .nullable(),
     })
     .optional(),
   runtime: z
@@ -96,17 +101,32 @@ const compozyPermissionDataSchema = compozyEventDataSchema.extend({
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
+// `status` is a free string: the four known values or a vendor value passed through
+// verbatim, so an agent's own status never fails the whole transcript.
+const compozyCompactionDataSchema = z.looseObject({
+  kind: z.string(),
+  compaction_id: z.string(),
+  status: z.string(),
+  summary: z.string().optional(),
+  error: z.string().optional(),
+  started_at: z.string(),
+  ended_at: z.string().optional(),
+});
+
 const unknownDataSchema = z.unknown();
 
 const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
   "compozy-event": compozyEventDataSchema,
   "compozy-permission": compozyPermissionDataSchema,
+  "compozy-compaction": compozyCompactionDataSchema,
 };
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];
 
 interface PartMetadata {
   turnId?: string;
+  /** Provider-native subagent attribution (S8); text parts would otherwise join the parent flow. */
+  parentToolCallId?: string;
   timestamp?: string;
   bytes?: number;
   width?: number;
@@ -276,6 +296,10 @@ function capturePartMetadata(messages: unknown): PartMetadata[][] {
       if (timestamp) {
         metadata.timestamp = timestamp;
       }
+      const parentToolCallId = stringField(part, "parentToolCallId");
+      if (parentToolCallId) {
+        metadata.parentToolCallId = parentToolCallId;
+      }
       const bytes = numberField(part, "bytes");
       if (bytes !== undefined) {
         metadata.bytes = bytes;
@@ -310,6 +334,7 @@ function reattachPartMetadata(
         !meta ||
         (!meta.turnId &&
           !meta.timestamp &&
+          !meta.parentToolCallId &&
           meta.bytes === undefined &&
           meta.width === undefined &&
           meta.height === undefined)
@@ -321,6 +346,7 @@ function reattachPartMetadata(
         ...part,
         ...(meta.turnId ? { turnId: meta.turnId } : {}),
         ...(meta.timestamp ? { timestamp: meta.timestamp } : {}),
+        ...(meta.parentToolCallId ? { parentToolCallId: meta.parentToolCallId } : {}),
         ...(meta.bytes !== undefined ? { bytes: meta.bytes } : {}),
         ...(meta.width !== undefined ? { width: meta.width } : {}),
         ...(meta.height !== undefined ? { height: meta.height } : {}),

@@ -4,7 +4,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { VaultEditor } from "../vault-editor";
-import type { VaultDraft, VaultEditorState } from "../../hooks/use-vault-page";
+import {
+  normalizeVaultRef,
+  type VaultDraft,
+  type VaultEditorState,
+} from "../../hooks/use-vault-page";
 
 const meta: Meta<typeof VaultEditor> = {
   title: "systems/vault/components/VaultEditor",
@@ -14,7 +18,7 @@ const meta: Meta<typeof VaultEditor> = {
     docs: {
       description: {
         component:
-          "Vault create body on the shared settings editor shell: a reference section and a write-only value section. The overwrite notice appears only when the normalized ref already exists.",
+          "Vault create body on the shared settings editor shell: a Name field (the `vault:` prefix is added for you), a write-only value, and an optional label behind More options. The overwrite notice appears only when the normalized ref already exists.",
       },
     },
   },
@@ -25,7 +29,7 @@ type Story = StoryObj<typeof meta>;
 
 function draft(overrides: Partial<VaultDraft> = {}): VaultDraft {
   return {
-    ref: "vault:providers/openai/api-key",
+    ref: "providers/openai/api-key",
     kind: "api_key",
     secretValue: "",
     overwriteConfirmed: false,
@@ -44,7 +48,7 @@ function VaultEditorHarness({ initial, refExists = false, isSaving, error }: Har
   const [editor, setEditor] = useState<VaultEditorState>({ mode: "create", draft: initial });
   const current = editor.mode === "create" ? editor.draft : initial;
   const canSave =
-    current.ref.startsWith("vault:") &&
+    normalizeVaultRef(current.ref) !== "" &&
     current.secretValue.trim() !== "" &&
     (!refExists || current.overwriteConfirmed);
 
@@ -93,10 +97,14 @@ export const DuplicateRefConfirmed: Story = {
   ),
 };
 
-/** Invalid reference prefix surfaces the row error and the shell alert. */
-export const InvalidRef: Story = {
+/** A name typed with the full `vault:` prefix is kept as-is in the saved-as preview. */
+export const PrefixedName: Story = {
   args: {},
-  render: () => <VaultEditorHarness initial={draft({ ref: "providers/openai/api-key" })} />,
+  render: () => (
+    <VaultEditorHarness
+      initial={draft({ ref: "vault:providers/openai/api-key", secretValue: "sk-live-example" })}
+    />
+  ),
 };
 
 /** Saving: the write input disables and the primary blocks duplicate submits. */

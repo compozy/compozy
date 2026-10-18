@@ -104,7 +104,6 @@ function windowProps(overrides: Partial<TerminalWindowAppProps> = {}): TerminalW
   return {
     actions: ACTIONS,
     inputRequests: [],
-    interactiveAvailable: true,
     journal: null,
     limit: 8,
     profile: TERMINAL_FIXTURE_PROFILE,
@@ -157,12 +156,6 @@ export const AtLimit: Story = {
     await userEvent.click(await canvas.findByTestId("terminal-new"));
   },
   tags: ["play-fn"],
-};
-
-/** VC-06 — a remote environment that cannot host an interactive terminal. */
-export const ExecuteOnly: Story = {
-  name: "VC-06 · Execute-only remote environment",
-  render: () => stagedWindow({ interactiveAvailable: false, terminals: [] }),
 };
 
 /**

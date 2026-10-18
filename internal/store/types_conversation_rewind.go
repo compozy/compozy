@@ -27,6 +27,7 @@ type ConversationRewindState struct {
 	TargetMessageID        string
 	CoveredThroughSequence int64
 	MessagesJSON           string
+	BaselineStale          bool
 	UpdatedAt              time.Time
 }
 
@@ -88,4 +89,9 @@ type ConversationRewindReader interface {
 type ConversationRewinder interface {
 	ConversationRewindReader
 	RewindConversation(context.Context, ConversationRewindRequest) (ConversationRewindResult, error)
+}
+
+// ConversationRewindBaselineRefresher atomically refreshes the retained replay prefix.
+type ConversationRewindBaselineRefresher interface {
+	RefreshConversationRewindBaseline(context.Context, int64, string) error
 }

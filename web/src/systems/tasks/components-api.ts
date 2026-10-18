@@ -2,7 +2,6 @@ export {
   TaskActivityItem,
   TaskActivityPanel,
   TaskAutoEnqueueSwitch,
-  TaskBridgeSubscriptionsPane,
   TaskCard,
   TaskDeleteAction,
   TaskDependenciesSection,
@@ -57,7 +56,6 @@ export {
 } from "./components/public-api";
 export type {
   TaskActivityPanelProps,
-  TaskBridgeSubscriptionsPaneProps,
   TaskCardProps,
   TaskEditorModalMode,
   TaskEditorModalProps,

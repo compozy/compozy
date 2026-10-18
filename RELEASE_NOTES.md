@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-15
+## 0.3.0 - 2026-10-16
 
 ### ♻️ Refactoring
 
@@ -10,12 +10,15 @@
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
 - Quiet the Context rail and sessions row for everyday use (#649)
+- Retire Network, managed Sandbox, and Bridges (#681)
+- Complete Modern Go adoption across module boundaries (#706)
 
 ### ⚡ Performance Improvements
 
 - Delegate full gates to pull request CI (#476)
 - Reduce test and development feedback overhead (#556)
 - Avoid rendering unchanged windows during layout updates
+- Reduce SQLite contention and query costs (#723)
 
 ### 🎉 Features
 
@@ -76,6 +79,20 @@
 - Show session context and confirmed prompt deliveries (#635)
 - Unify marketplace catalog and plugin sources (#636)
 - Add release video workspace and production skill
+- Give rendered Markdown a readable visual hierarchy (#660)
+- Add safe bulk worktree cleanup to workspace lists (#656)
+- Add provider-neutral ACP full-access preference (#674)
+- Calmer, plain-language web UI for everyday users (#683)
+- Continue and fork sessions across agents, with fallback account routes (#684)
+- Shell rail v2 with light and dark themes (#687)
+- Show nested child runs and a distinct awaiting-child state (#708)
+- Merge Jobs and Triggers into one Automations area (#709)
+- Remove the memory feature family and adopt agent-native session compaction (#710)
+- Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
+- Render session tool calls as verb + object rows on a work rail (#716)
+- Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
+- One-click CompozyOS update from the menubar (#733)
+- Show the runtime provider mark on session rows (#758)
 
 ### 🐛 Bug Fixes
 
@@ -258,6 +275,46 @@
 - Recover marketplace sources and render catalog logos under CSP (#648)
 - Repair marketplace CI fixtures and evidence capture
 - Cancel unbound goals before deleting sessions (#647)
+- Preserve profile scope when deleting sessions (#652)
+- Discover Claude reasoning options for each exact model (#658)
+- Bootstrap pinned Bun with npm for Vercel builds
+- Honor workspace default in session launcher (#668)
+- Fixing clarify tool call timeout with keep-alive pings (#661)
+- Preserve declared awaited run-loop terminal output (#672)
+- Preserve whitespace in session transcripts (#670)
+- Wake creator on child turn completion (#685)
+- Resolve reported runtime, catalog and delivery failures (#686)
+- Restore release nightly coverage and package extension runtimes
+- Preserve loop results under SQLite contention (#690)
+- Repair profile isolation, runtime recovery, and loop results (#691)
+- Skills nested
+- Upgrade dependencies and repair CI compatibility (#692)
+- Repair release validation and desktop restoration (#694)
+- Preserve profile recovery guidance and repair browser validation (#695)
+- Preserve SQLite commit outcomes during cancellation (#696)
+- Preserve profile entry across query reconciliation (#697)
+- Apply the chosen runtime to continued sessions and keep continue/fork top-level (#702)
+- Keep live model catalogs current without releases (#701)
+- Classify teardown survivors by final process liveness (#713)
+- Fold transcript entries incrementally instead of replaying each turn (#715)
+- Resolve Windows runtime failures and desktop context menus (#725)
+- Reduce session startup and attention overhead (#731)
+- Bound scheduled claim attempts before contention backoff
+- Allocate run-agent binding epochs for reviewed actions (#735)
+- Keep session image previews dismissible (#744)
+- Preserve goal origin identity across provider changes (#749)
+- Preserve HTTPS origins through the Tailscale gateway (#743)
+- Make bundled spec-cycle workflows self-contained (#741)
+- Preserve daemon-owned Loop action claims (#748)
+- Keep session lists stable with created and name sorts (#752)
+- Attribute model catalog refresh failures to providers (#745)
+- Drain queued inputs before Goal continuation (#755)
+- Render session message cards for Claude and Codex sends (#757)
+- Hide daemon-owned verification sessions (#759)
+- Keep runtime models clickable during provider failures (#768)
+- Tolerate transient session stream reconnects (#769)
+- Stop false Goal attention and cut daemon idle cost (#770)
+- Keep background subagents running and show them in the composer (#771)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -284,6 +341,11 @@
 - Project escalation events in acknowledgement fixtures
 - Persist canonical escalation status in overview fixtures
 - Await completed automation run before daemon cleanup
+- Wait for terminal command output before detaching
+- Refresh credential assertions context after migration
+- Cover inactive loop routes with automatic approval (#703)
+- Cut duplicated and misplaced tests across the pyramid (#707)
+- Wait for subagent card navigation readiness (#753)
 
 ### Release Notes
 
@@ -341,6 +403,89 @@ auto_commit = false
 - `compozy spawn` now accepts provider, model, reasoning-effort, and speed overrides, so orchestrated workers preserve the complete runtime choice.
 - Goal output contracts now require the runtime's `complete|blocked` vocabulary, and Goal prompts receive the authored output schema.
 - The standalone `orchestrate-tasks` Loop and its docs/catalog entry are removed. Operator-side `[loops.inputs.orchestrate-tasks]` config blocks are now inert and should be deleted; move any desired values under `[loops.inputs.implement-tasks]` and set `mode = "orchestrated"`.
+
+##### Remove memory, Dream, and Knowledge; sessions use native agent compaction
+
+CompozyOS now centers on local agent sessions, Tasks, Loops, Goals, and explicit Gateway access.
+Agent memory, Dream consolidation, the Knowledge app, and the workspace `knowledge/` prompt injector
+are removed from all product surfaces with no compatibility aliases. CompozyOS also stops compacting
+sessions itself: the agent owns its context window, every rebuild of a session into a new agent
+session is bounded, and the agent's native compaction is observed and can be requested.
+
+### Migration
+
+Back up `compozy.db` and the daemon state before upgrading, and export any memory database state you
+need (index, decisions, Dream history) with the previous release first. Nothing needs editing by hand
+after the upgrade; the daemon starts normally:
+
+- Migration `00130_retire_memory.sql` permanently drops the memory tables and
+  `goose_db_version_memory`, deletes `memory.consolidated` automation triggers (run history stays),
+  and deletes legacy `dream`, `memory-extractor`, and `checkpoint-summary` sessions. Migration
+  `00009_unarchive_compaction_spans.sql` restores history that the removed CompozyOS compaction had
+  archived (including its transcript entries), so old compacted sessions show their full history again.
+- `config.toml` is archived on load: `[memory]`, `[roles.dream]`, `[roles.checkpoint_summary]`,
+  `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, `memory.consolidated`
+  trigger entries, and the hook-matcher keys `compaction_reason` / `compaction_strategy` move, commented
+  and lossless, to the end of the same file under `# Archived retired memory and compaction settings; these values are inactive.`
+  The daemon logs `config.retired_keys_archived` once. If the file cannot be rewritten (it changed
+  concurrently, or it is read-only), the daemon logs `config.retired_keys_archive_failed`, loads with
+  the retired values inactive, and retries on the next load; the start is never blocked.
+- `memory_policy` in `SOUL.md`, retired `compozy__memory*` tool and toolset IDs in tool policies, and
+  extension manifest entries `memory.backend`, `memory/*`, and `memory.read|write`, extension
+  automation resources triggered by `memory.consolidated`, and the hook-matcher keys
+  `compaction_reason` / `compaction_strategy` in `AGENT.md` and `SKILL.md` hooks are ignored with a
+  warning. Saved desktop layouts drop the Knowledge window.
+- Markdown memory files, `knowledge/` directories, and `ledger.jsonl` files stay on disk and are no
+  longer read. No file is deleted, and the session directories of the deleted legacy sessions are never
+  recataloged. The ignore and archive rules are removed in v0.6.0.
+
+Port scripts and extensions off `compozy memory`, `/api/memory*`, `compozy__memory_*`, the Host API
+`memory/*`, and the `memory.backend` capability; no replacement memory feature is provided. New and
+changed surfaces, all experimental: `compozy session compact`, `POST .../sessions/{session_id}/compact`,
+`compozy__session_compact`, the Compact now action, the `compaction` transcript item, the reshaped
+`session.compaction_fired` payload and usage markers, and observation-only `context.pre_compact` /
+`context.post_compact` hooks with a `compaction_trigger` matcher.
+
+There is no in-place downgrade. Restore a complete pre-upgrade backup before running an older binary.
+See the [migration guide](https://compozy.com/docs/migration#memory-removal) for the state disposition
+and integration changes.
+
+##### Remove Network, Bridges, and managed Sandbox products
+
+CompozyOS now centers on local agent sessions, Tasks, Loops, memory, and explicit Gateway access.
+Network, Bridges, and managed Sandbox capabilities are removed from all product surfaces with no
+compatibility aliases. HEARTBEAT, SOUL, Task autonomy, Goal nodes, session supervision, attention
+notifications, task status cursors, and provider-native execution policies remain supported.
+
+### Migration
+
+Back up the daemon state and workspace `.compozy/` directories before upgrading. Export any retired
+product history using the previous release first. Migration `00121_retire_network_bridges_sandbox.sql`
+permanently drops Network state and wake runs, Bridge instances/routes/deliveries and task subscriptions,
+notification presets/delivery permits, Network-actor triage state, and retired fields on retained records. It clears retained Task
+references to removed Network wake runs and removes Loop channel-message events. Retained local sessions,
+Tasks, ordinary runs, workspaces, memory, SOUL, and HEARTBEAT state are preserved.
+
+Remove Network, Bridges, and managed Sandbox configuration and request fields. Port scripts and extensions
+to the current CLI, routes, tools, and SDK; no replacement messaging or remote Sandbox feature is provided.
+Gateway requirements move to `[gateway]` with `gateway.private` / `gateway.public` permission atoms,
+`gateway_requirement_digest`, and `--confirm-gateway-requirement` / `confirm_gateway_digest` confirmation.
+The previous Gateway consent tuple remains recorded. Legacy `network_participation` manifests must
+be rebuilt with `[gateway]` and their new requirement digest confirmed; no legacy manifest conversion
+or implicit Gateway authorization is provided.
+
+There is no in-place downgrade. Restore a complete pre-upgrade backup before running an older binary.
+See the [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal) for the
+state disposition and integration changes.
+
+##### An agent can no longer send a session message to its own session
+
+`compozy__session_prompt` now refuses a call whose `session_id` is the calling session. The call fails with `invalid_request` ("session_prompt cannot target the calling session.") and nothing is admitted. A self-prompt could only queue into, steer into, or interrupt the caller's own turn, so it never did useful work. Now that every session message carries its sender and can request a reply, it would also make a session reply to itself.
+
+- Only calls made from an agent session to that same session are refused. Messages to other sessions, operator prompts from the CLI and HTTP, and `compozy session prompt` behave as before.
+- A send admitted before the upgrade and retried with the same `message_id` and `idempotency_key` still returns its original result.
+
+Migration notes: this ships without the usual one-release deprecation window. The exception is recorded in the agent-collaboration spec (Business Rule 18, ADR-002). To keep working in the same session, end the turn. To schedule work, use a subagent (`compozy__subagent_delegate`) or `compozy session prompt` from the operator.
 
 ##### The desktop app is now Electron
 
@@ -490,6 +635,11 @@ Cursor used to look curated in CompozyOS but was not truthful to the account tha
 Migration notes: the curated Cursor allowlist and its session preflight are deleted with no compatibility bridge. If a provider rejects an id, that provider's error is now the authority.
 
 ##### Every domain opens inside the palette
+
+> Historical note for #441: Network and Bridges were subsequently removed. Their views and
+> command IDs below are no longer available. See the
+> [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal)
+> for the current product boundaries and upgrade steps.
 
 The palette is not only a launcher — it browses. Sessions, Tasks, Loops, Jobs, Agents, Triggers, Marketplace, Bridges, Knowledge, Vault, Worktrees, Network channels, and Extensions each open as a view without leaving the overlay, and views stack so one selection can push the next. (#441)
 
@@ -678,6 +828,29 @@ Send identities make retries idempotent: retrying the same message returns its r
 
 PR: [#557](https://github.com/compozy/compozy/pull/557).
 
+##### One Automations window for schedules, events, and links
+
+The Web UI's separate Jobs and Triggers windows are now one **Automations** window. Every automation reads as one sentence — how it starts, optional conditions, what it does — with its last-run result and an On/Off switch on the row, so a failed run is visible without opening anything. One detail page and one "New automation" dialog serve schedules, events, and links; the start you pick decides whether CompozyOS stores a job or a trigger.
+
+- `last_run` (`id`, `status`, `started_at`, `ended_at`, `skip_reason`) is on every job and trigger from `compozy automation jobs|triggers`, `GET /api/automation/{jobs,triggers}` (HTTP and UDS), and `compozy__automation_{jobs,triggers}_{list,get}`. The CLI tables gain a **Last Run** column; `-o toon` adds `last_run_status` and `last_run_started_at`.
+- The list commands, routes, and tools accept `target=agent|loop|task` (`--target` on the CLI).
+- The dock has one Automations launcher; the command palette gains "New scheduled automation" and "New automation on an event"; Loop pages replace "Add trigger" and "Add schedule" with **Automate ▾**; Settings → Automation uses plainer labels and writes the same `config.toml` keys.
+- CLI verbs, HTTP/UDS routes, tool ids, and `[[automation.jobs]]` / `[[automation.triggers]]` are unchanged.
+
+```bash
+compozy automation jobs --workspace checkout-api -o json | jq '.jobs[] | {name, last_run}'
+compozy automation triggers --workspace checkout-api --target loop
+```
+
+Migration notes:
+
+- Saved desktops migrate permanently (window-manager snapshot v5): every Jobs or Triggers window, tab, and recently closed entry reopens as an Automations window on the matching `/automations/…` path, in the same place. No window is closed.
+- Exported layout documents and `window_layout` resources at version 4 keep loading: the daemon upgrades them to version 5 and rewrites their Jobs and Triggers windows the same way. Snapshots and layout documents are version 5 from now on.
+- Command palette pins, recents, and usage for the Jobs and Triggers commands merge into "Open Automations" and the Automations view; usage counts add up and no pin is dropped.
+- Old web links `/jobs`, `/jobs/<id>`, `/triggers`, and `/triggers/<id>` redirect to `/automations`, `/automations/jobs/<id>`, and `/automations/triggers/<id>`, carrying their filters. The redirects are removed in v0.5.0.
+- The app ids `jobs` and `triggers` (`compozy window open --app`, window commands, `window_layout` resources) and the palette ids `app.open.jobs`, `app.open.triggers`, `palette.view.jobs`, and `palette.view.triggers` are accepted as `automations` with a deprecation warning (CLI stderr; WARN logs `windowmanager.app_id_deprecated` and `cmdpalette.command_id_deprecated`). They are removed in v0.5.0 and then fail like any unknown id. Use `automations`, `app.open.automations`, and `palette.view.automations`.
+- Site docs: the Automation section is now **Automations**, with two tutorials. `/docs/automation/jobs` and `/docs/automation/triggers` moved to `/docs/automation/schedules` and `/docs/automation/events` and redirect permanently.
+
 ##### Pin, rename, and bind any command
 
 The palette learns your workspace. Pins float the commands you always want first, ranking signals push the ones you actually use, aliases give a command your own vocabulary, and any command can take a chord — including a system-wide one on the desktop app. (#441)
@@ -848,6 +1021,11 @@ compozy cmd-palette clients -o json                  # the targeting source of t
 
 ##### The interface speaks plain words at a legible size
 
+> Historical note for #440: Bridges and managed Sandbox were subsequently removed, including
+> the Connections and Permissions dock entries and `compozy bridge list` example below. These
+> are no longer current commands or UI labels. See the
+> [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal).
+
 Every end-user surface moved one step up the legibility ramp and one step toward ordinary language. Body text goes from 13.5px to 15px, item titles from 15 to 16, buttons and rows get real height, the radius ladder rebases on 8, and the canvas warms up — so the interface stops asking for a magnifying glass. (#440)
 
 - Home's first run tells the truth. Instead of seven zones filled with zeros, a fresh install shows one heading and the three starts that actually exist. A machine with an agent already running is never told nothing has happened.
@@ -966,6 +1144,18 @@ Loop-managed sessions also inherit configured ACP options and speed, with explic
 
 PRs: [#527](https://github.com/compozy/compozy/pull/527), [#531](https://github.com/compozy/compozy/pull/531), [#542](https://github.com/compozy/compozy/pull/542).
 
+##### Updated runtime dependencies and preserved profile icons
+
+Upgrade Go runtime dependencies and the web/desktop toolchain, including the native TypeScript
+checker, Bubble Tea installation wizard and CEL expression engine. Source builds require
+Go 1.27.1. Existing profile icons retain their appearance when Lucide renames their symbols.
+Restored desktop window frames appear before layout-heavy contents finish mounting.
+
+Migration notes: profile reads and writes translate `album`, `book-marked`, `building-2`,
+`flip-horizontal-2`, `flip-vertical-2` and `trash-2` to their canonical Lucide names without
+discarding profile state. The boundary decoder is scheduled for removal in v0.5.0 after the
+persisted names have been migrated. No operator action is required for this release.
+
 ##### Dry-run proves the run you are about to submit
 
 A Loop could validate, dry-run cleanly, and then fail at submission with `executed definition template manifest changed`. The compiler folded default values into the definition it stored, but compiled templates from the definition _before_ those defaults — so a persisted run carried more template keys than its own snapshot, and hydration rightly refused it. Compilation now uses one canonical definition throughout, and dry-run exercises the exact snapshot boundary a real submission uses. (#313, #317)
@@ -1054,6 +1244,11 @@ A short-lived terminal that exits while the browser is attaching now keeps its e
 Session stream closure drains the persisted stop marker. The pending-reply indicator also appears when a delayed React effect has already consumed its initial guard interval, instead of staying hidden indefinitely. Delayed Settings navigation and runtime-selector closing focus no longer override a newer operator action.
 
 PRs: [#547](https://github.com/compozy/compozy/pull/547), [#557](https://github.com/compozy/compozy/pull/557). CI follow-ups: [862e138](https://github.com/compozy/compozy/commit/862e138113f438e532777421ae3b85343162360e), [52d2c4a](https://github.com/compozy/compozy/commit/52d2c4a63f8dbaa429ff61f31671f52bee8a518b).
+
+##### Preserve terminal cleanup ownership when canceling a lane
+
+Canceling a run-agent lane now records terminal session cleanup before generic cancellation
+cleanup, preserving the exact session and binding epoch throughout settlement.
 
 ##### Live changelog and composer fixes
 
@@ -1148,6 +1343,14 @@ CompozyOS wrote a Pi credential slot's target environment name, such as `ZAI_API
 
 Migration notes: this covers the built-in `pi_acp` bound-secret providers — z.ai, OpenRouter, Moonshot/Kimi, xAI, MiniMax, Mistral, Groq, and Vercel AI Gateway.
 
+##### Recover profile entry during daemon reconnection
+
+Fixed a Web route error when daemon reconnection replaces an in-flight profile-selection read. Navigation now waits for the current workspace's profile before loading scoped work, including when the workspace changes during reconnection.
+
+##### Keep profile recovery guidance visible during retries
+
+Profile recovery details now remain visible while the browser retries its window-manager registration. A successful registration or an explicit context switch clears the previous failure.
+
 ##### Recover a Loop-owned task run without losing its place
 
 A Loop worker task run parked in `needs_attention` had no honest way back. Generic subprocess-health escalation swallowed Loop-owned crashes, and `task run recover` re-enqueued a run that no longer belonged to its Loop. (#447, fixes #437)
@@ -1186,6 +1389,19 @@ Changing an Agent's provider with `compozy agent update` clears the previous pro
 
 PRs: [#545](https://github.com/compozy/compozy/pull/545), [#546](https://github.com/compozy/compozy/pull/546).
 
+##### Resource-only extension manifests retain their declared paths
+
+Extension manifests using the published string-array syntax for skills, agents, Loops, automation,
+and layouts load again in TOML and JSON. The decoder translates each string into an unplaced path;
+explicit profile placements and strict unknown-field validation remain intact. Build output uses
+the current path/profile object form.
+
+Migration notes: string-array input is accepted through v0.3.0-beta.30 and removed in
+v0.3.0-beta.31. In handwritten sources, replace `agents = ["agents"]` with
+`agents = [{ path = "agents" }]`, or `[[resources.agents]]` followed by `path = "agents"`.
+Apply the same conversion to the other static resource families. Omit `profile` to preserve
+all-profile visibility. Existing source files and installed resource state are not rewritten.
+
 ##### Resource-only extensions need no toolchain
 
 An extension that ships only declared resources — agents, skills, Loops, automations, layouts — can now use `build`, `dev`, `reload`, and `dev --watch` without installing a Go or TypeScript toolchain. The passive build path validates and publishes those resources without running build or describe subprocesses, and active development links project them into the linked workspace while preserving deterministic generations, atomic reload, and last-good fallback. The Go and TypeScript paths are unchanged, and the resource-only path fails closed. (#423)
@@ -1216,6 +1432,10 @@ Linux AppImages now embed the static runtime, allowing distributions with FUSE 3
 
 PR: [#548](https://github.com/compozy/compozy/pull/548).
 
+##### Preserve successful SQLite commits during cancellation
+
+A request or persistence deadline arriving during a successful SQLite commit no longer reports that committed write as failed. This prevents persistence retries from duplicating completed tool events. Cancellation observed before commit still rolls back the write.
+
 ##### The daemon owns a managed worker's outcome
 
 A managed Loop worker session could call complete or fail and race the daemon's own validated action result, so what a generation recorded depended on which side got there first. The daemon is now the single terminal authority for managed workers. (#438)
@@ -1232,6 +1452,10 @@ Long-running sessions with a large internal session catalog put the macOS deskto
 - Built-in background agents, including `dreaming-curator`, resolve through effective workspace configuration instead of being reported as missing workspace-authored agents.
 - The identity contract ships in OpenAPI and the generated TypeScript types.
 
+##### Restore saved windows after layout configuration is ready
+
+Fixed desktop restoration briefly mounting an empty composer before saved window layout configuration was ready.
+
 ##### Zoom a window without covering its tiled neighbors
 
 Zoom now moves a window or its entire tab frame to a separate regular desktop when needed, preserving the other windows. Unzoom returns the unit through its saved layout anchors and removes an empty desktop created for zoom. Tiling another window ends zoom and gives the new neighbor its own space.
@@ -1243,6 +1467,71 @@ Moving one window no longer forces unchanged windows to render again, reducing w
 PR: [#525](https://github.com/compozy/compozy/pull/525).
 
 #### Highlights
+
+##### A calmer desktop shell with light and dark themes
+
+The CompozyOS desktop is redesigned around flat chrome and edge-to-edge windows, and it now comes in
+light and dark.
+
+- The dock moves to a slim rail on the left. Its foot holds your profile, the theme toggle, and
+  Settings. Below 960px it becomes a bottom tab bar with the same controls.
+- The top bar runs the full width. Desktop dots and an **All desktops** button sit in its tray, next
+  to the bell and the command palette.
+- Windows tile edge to edge with no gaps. A single hairline separates them: drag it, or focus it and
+  use the arrow keys (hold Shift for bigger steps), to resize the panes on both sides.
+- New windows open as a tab in the window you are working in instead of floating on top of it; on
+  an empty desktop they fill it. Option-click a rail icon to open it split beside your window,
+  Shift-click to open it on a new desktop, or right-click it for every destination, including a
+  floating window. `compozy window open --floating` and the `floating` input of
+  `compozy__window_open` ask for a floating window explicitly.
+- **Window › Arrange** offers Main and stack, Columns, Grid, and Balance sizes, and **Window › Move
+  window to** sends a window to another desktop by name. `compozy layout arrange` and the
+  `compozy__layout_arrange` tool accept the new `main_stack` arrangement, and an optional
+  `--keep-frames` / `keep_frames` that arranges each named tab deck whole. Without it, every named
+  window is still its own participant.
+- Tabs look and behave like browser tabs, and window controls are quiet icons at the end of the head.
+- An empty desktop asks "What should we work on?" above the session composer. Type a prompt and press
+  Enter to start a session right there, with your project's default agent already picked.
+- Sessions use the full width of their window again, tool calls read as quiet rows, and the list of
+  sessions is open by default.
+- Choose **Light**, **Dark**, or **System** in Settings › Appearance, or flip the theme from the dock.
+  Dark stays the default. The choice is saved in this browser and applied before the first frame,
+  and the terminal follows it.
+- The interface uses Inter for text and Geist Mono for code, with higher-contrast secondary text in
+  both themes.
+
+### Migration
+
+Three `[window_manager]` defaults change. Your saved layouts, profiles, and any value you set
+explicitly in `config.toml` are kept as they are; only unset values pick up the new defaults.
+
+| Setting                                            | Old default                   | New default |
+| -------------------------------------------------- | ----------------------------- | ----------- |
+| `gaps.inner` / `top` / `right` / `bottom` / `left` | `8` / `8` / `10` / `8` / `10` | `0`         |
+| `new_window_policy`                                | `floating`                    | `tab`       |
+| `bindings.bottom_center`                           | `reserved`                    | `zoom`      |
+
+`new_window_policy` now accepts `tab` (the new default) and `beside_focus` (tile new windows beside
+the focused one) alongside `floating`. To keep the previous behavior, set the old values explicitly:
+
+```toml
+[window_manager]
+new_window_policy = "floating"
+
+[window_manager.gaps]
+inner = 8
+top = 8
+right = 10
+bottom = 8
+left = 10
+
+[window_manager.bindings]
+bottom_center = "reserved"
+```
+
+Or apply them from the CLI, for example
+`compozy config set window_manager.new_window_policy floating`. Changes apply live. The theme is a
+per-browser preference, not a `config.toml` key, so there is nothing to migrate for it.
 
 ##### Gateway docs: zero to GitHub webhooks
 
@@ -1336,6 +1625,20 @@ are archived as inactive comments in the same config file on load. The archive
 and active configuration are written atomically, once; unrelated settings and
 extension configuration are preserved. Settings and `config set` reject new
 writes of these acquisition fields.
+
+`tools.clarify.timeout` now defaults to no automatic expiration. An omitted key
+or an explicit `timeout = "0s"` means a pending clarification waits until it is
+answered, explicitly canceled, or stopped with its owning context; explicit
+`1s`–`24h` values keep the existing deadline, fallback answer, and `timed_out`
+outcome. Installations that want the previous behavior set `timeout = "5m"`
+explicitly and restart the daemon (the key keeps its TOML duration shape, user
+scope, and restart-required lifecycle). An unbounded pending clarification
+reports `deadline: null` on every surface, and the daemon holds the agent's
+blocked call open with `_compozy/clarify_ping` keepalive notifications every
+30s until the request resolves. Out-of-range durations are rejected
+with `tools.clarify.timeout must be between 1s and 24h, or 0s for no
+expiration: <value>`; malformed durations fail at TOML parse. The last valid
+policy stays in both cases.
 
 ### Features
 

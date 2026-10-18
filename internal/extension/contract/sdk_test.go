@@ -84,16 +84,7 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 				payload: "SpawnPreCreatePayload",
 				patch:   "SpawnCreatePatch",
 			},
-			{
-				event:   hooks.HookNetworkMessagePersisted,
-				payload: "NetworkMessagePersistedPayload",
-				patch:   "NetworkObservationPatch",
-			},
-			{
-				event:   hooks.HookNetworkWorkClosed,
-				payload: "NetworkWorkClosedPayload",
-				patch:   "NetworkObservationPatch",
-			},
+
 			{
 				event:   hooks.HookSessionAttentionChanged,
 				payload: "SessionAttentionChangedPayload",

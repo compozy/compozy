@@ -41,14 +41,14 @@ const itemVariants = cva(
       variant: {
         default: "border-transparent",
         outline: "border-line",
-        muted: "border-transparent bg-canvas-tint",
+        muted: "border-transparent bg-surface-2",
       },
       selectable: {
         true: "relative text-left hover:bg-hover",
         false: "",
       },
       selected: {
-        true: "bg-elevated text-fg-strong",
+        true: "bg-selected text-fg",
         false: "",
       },
       size: {
@@ -333,7 +333,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="item-description"
       className={cn(
-        "line-clamp-2 text-left text-small-body leading-normal font-normal text-muted group-data-[size=xs]/item:text-form-label [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-accent",
+        "line-clamp-2 text-left text-small-body leading-normal font-normal text-muted group-data-[size=xs]/item:text-form-label [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-fg",
         className
       )}
       {...props}

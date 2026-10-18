@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // RunID identifies a durable task_run row without exposing raw lease credentials.
@@ -73,14 +71,13 @@ type CoordinatorDependencySpec struct {
 
 // EnqueueSpec describes one task_run reservation requested by the coordinator plan.
 type EnqueueSpec struct {
-	TaskID                       string              `json:"task_id"`
-	RunID                        string              `json:"run_id,omitempty"`
-	RunKind                      RunKind             `json:"run_kind,omitempty"`
-	LoopRunID                    string              `json:"loop_run_id,omitempty"`
-	IdempotencyKey               string              `json:"idempotency_key,omitempty"`
-	DesignationGroupID           string              `json:"designation_group_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
-	Metadata                     json.RawMessage     `json:"metadata,omitempty"`
+	TaskID             string          `json:"task_id"`
+	RunID              string          `json:"run_id,omitempty"`
+	RunKind            RunKind         `json:"run_kind,omitzero"`
+	LoopRunID          string          `json:"loop_run_id,omitempty"`
+	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
+	DesignationGroupID string          `json:"designation_group_id,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
 // CoordinatorStopSpec describes a child loop_run stop requested by a pure coordinator plan.
@@ -116,7 +113,7 @@ type CoordinatorWakeSpec struct {
 // GenerationSnapshot is opaque to internal/task; internal/loop owns its payload schema.
 type GenerationSnapshot struct {
 	LoopRunID  string `json:"loop_run_id,omitempty"`
-	Generation int    `json:"generation,omitempty"`
+	Generation int    `json:"generation,omitzero"`
 	Payload    any    `json:"-"`
 }
 
@@ -149,10 +146,10 @@ type CoordinatorCompletionResult struct {
 	EnqueuedRuns    []Run                   `json:"enqueued_runs,omitempty"`
 	LoopRunID       string                  `json:"loop_run_id,omitempty"`
 	Context         json.RawMessage         `json:"context,omitempty"`
-	Paused          bool                    `json:"paused,omitempty"`
-	Terminal        bool                    `json:"terminal,omitempty"`
-	PlanSuperseded  bool                    `json:"plan_superseded,omitempty"`
-	TokensUsed      int64                   `json:"tokens_used,omitempty"`
+	Paused          bool                    `json:"paused,omitzero"`
+	Terminal        bool                    `json:"terminal,omitzero"`
+	PlanSuperseded  bool                    `json:"plan_superseded,omitzero"`
+	TokensUsed      int64                   `json:"tokens_used,omitzero"`
 	Settlement      *CompletedRunSettlement `json:"-"`
 	CompletionEvent Event                   `json:"-"`
 }
@@ -338,12 +335,10 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 		normalized.PostCommitTimers[idx] = normalized.PostCommitTimers[idx].Normalize()
 	}
 	if normalized.NextCoordinator != nil {
-		next := normalized.NextCoordinator.Normalize()
-		normalized.NextCoordinator = &next
+		normalized.NextCoordinator = new(normalized.NextCoordinator.Normalize())
 	}
 	if normalized.Terminal != nil {
-		terminal := normalized.Terminal.Normalize()
-		normalized.Terminal = &terminal
+		normalized.Terminal = new(normalized.Terminal.Normalize())
 	}
 	return normalized
 }
@@ -447,11 +442,6 @@ func (s EnqueueSpec) Normalize() EnqueueSpec {
 	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
-	if normalized.ResolvedNetworkParticipation != nil {
-		normalized.ResolvedNetworkParticipation = participation.CloneSpec(
-			*normalized.ResolvedNetworkParticipation,
-		)
-	}
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	return normalized
 }
@@ -474,16 +464,6 @@ func (s EnqueueSpec) Validate(path string) error {
 			ErrValidation,
 			nestedPath(path, "loop_run_id"),
 		)
-	}
-	if s.ResolvedNetworkParticipation != nil {
-		if err := participation.ValidateSpec(*s.ResolvedNetworkParticipation); err != nil {
-			return fmt.Errorf(
-				"%w: %s: %v",
-				ErrValidation,
-				nestedPath(path, "resolved_network_participation"),
-				err,
-			)
-		}
 	}
 	if err := ValidateMetadataSize(s.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err

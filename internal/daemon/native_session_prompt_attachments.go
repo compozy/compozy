@@ -31,7 +31,7 @@ func (n *daemonNativeTools) resolveNativePromptAttachments(
 	}
 	maxFiles := n.deps.Config.Session.Attachments.MaxFilesPerPrompt
 	if len(values) > maxFiles {
-		return nil, nativeNetworkInputError(
+		return nil, nativeInputError(
 			toolID,
 			fmt.Errorf("attachments exceeds max_files_per_prompt %d", maxFiles),
 		)
@@ -44,7 +44,7 @@ func (n *daemonNativeTools) resolveNativePromptAttachments(
 	for index, raw := range values {
 		value := strings.TrimSpace(raw)
 		if value == "" {
-			return nil, nativeNetworkInputError(toolID, fmt.Errorf("attachments[%d] is required", index))
+			return nil, nativeInputError(toolID, fmt.Errorf("attachments[%d] is required", index))
 		}
 		ref, err := n.resolveNativePromptAttachment(
 			ctx,
@@ -54,7 +54,7 @@ func (n *daemonNativeTools) resolveNativePromptAttachments(
 			value,
 		)
 		if err != nil {
-			return nil, nativeNetworkInputError(
+			return nil, nativeInputError(
 				toolID,
 				fmt.Errorf("resolve attachments[%d]: %w", index, err),
 			)

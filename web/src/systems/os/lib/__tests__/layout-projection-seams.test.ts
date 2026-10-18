@@ -212,6 +212,45 @@ describe("projected frame seams", () => {
     expect(moved?.line).toBeGreaterThan(seam.line);
   });
 
+  it("Should let an island whose split no longer fits shrink to its adaptive stack floor", () => {
+    // Three 400px windows cannot tile in a 500px island, so it projects as a
+    // stack; its seam floor is one window's minimum, not the whole split's.
+    const wide: LayoutGroup = {
+      id: "group:left",
+      frame: { x: 0, y: 0, w: 0.5, h: 1 },
+      root: {
+        id: "split:wide",
+        kind: "split",
+        axis: "horizontal",
+        weights: [1 / 3, 1 / 3, 1 / 3],
+        children: ["window:a", "window:b", "window:c"].map(windowId => ({
+          id: `leaf:${windowId}`,
+          kind: "leaf" as const,
+          windowId,
+        })),
+      },
+    };
+    const input = islandProjectionInput([
+      wide,
+      islandGroup("group:right", "window:d", { x: 0.5, y: 0, w: 0.5, h: 1 }),
+    ]);
+    const projection = projectLayout({
+      ...input,
+      minimums: {
+        "window:a": { width: 400, height: 80 },
+        "window:b": { width: 400, height: 80 },
+        "window:c": { width: 400, height: 80 },
+        "window:d": { width: 100, height: 80 },
+      },
+    });
+
+    expect(projection.stacks).toEqual([expect.objectContaining({ kind: "adaptive" })]);
+    const seam = projection.frameSeams[0];
+    expect(seam?.minValue).toBe(404);
+    expect(seam?.minValue).toBeLessThan(seam?.value ?? 0);
+    expect(seam?.maxValue).toBe(896);
+  });
+
   it("Should not link islands that only corner-touch or sit apart", () => {
     const cornerTouch = projectLayout(
       islandProjectionInput([

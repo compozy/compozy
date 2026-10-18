@@ -8,40 +8,40 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (
-	loopEventIdentity                                 = "event"
-	watchEventsPayloadAttemptKey                      = "attempt"
-	watchEventsPayloadAgentNameKey                    = "agent_name"
-	watchEventsPayloadCausationIDKey                  = "causation_id"
-	watchEventsPayloadChannelKey                      = "channel"
-	watchEventsPayloadDetailsKey                      = "details"
-	watchEventsPayloadDirectIDKey                     = "direct_id"
-	watchEventsPayloadDirectionKey                    = "direction"
-	watchEventsPayloadDurationMSKey                   = "duration_ms"
-	watchEventsPayloadErrorKey                        = "error"
-	watchEventsPayloadGenerationKey                   = "generation"
-	watchEventsPayloadKindKey                         = "kind"
-	watchEventsPayloadMessageIDKey                    = "message_id"
-	watchEventsPayloadNodeIDKey                       = "node_id"
-	watchEventsPayloadParentTaskIDKey                 = "parent_task_id"
-	watchEventsPayloadPeerFromKey                     = "peer_from"
-	watchEventsPayloadPeerToKey                       = "peer_to"
-	watchEventsPayloadReasonKey                       = "reason"
-	watchEventsPayloadRecordTypeKey                   = "record_type"
-	watchEventsPayloadResolvedNetworkParticipationKey = "resolved_network_participation"
-	watchEventsPayloadSequenceKey                     = "sequence"
-	watchEventsPayloadSessionIDKey                    = "session_id"
-	watchEventsPayloadSurfaceKey                      = "surface"
-	watchEventsPayloadThreadIDKey                     = "thread_id"
-	watchEventsPayloadTraceIDKey                      = "trace_id"
-	watchEventsPayloadTurnIDKey                       = "turn_id"
-	watchEventsPayloadWillRetryKey                    = "will_retry"
-	watchEventsPayloadWorkIDKey                       = "work_id"
-	watchEventsPayloadWorkStateKey                    = "work_state"
+	loopEventIdentity                 = "event"
+	watchEventsPayloadAttemptKey      = "attempt"
+	watchEventsPayloadAgentNameKey    = "agent_name"
+	watchEventsPayloadCausationIDKey  = "causation_id"
+	watchEventsPayloadChannelKey      = "channel"
+	watchEventsPayloadDetailsKey      = "details"
+	watchEventsPayloadDirectIDKey     = "direct_id"
+	watchEventsPayloadDirectionKey    = "direction"
+	watchEventsPayloadDurationMSKey   = "duration_ms"
+	watchEventsPayloadErrorKey        = "error"
+	watchEventsPayloadGenerationKey   = "generation"
+	watchEventsPayloadKindKey         = "kind"
+	watchEventsPayloadMessageIDKey    = "message_id"
+	watchEventsPayloadNodeIDKey       = "node_id"
+	watchEventsPayloadParentTaskIDKey = "parent_task_id"
+	watchEventsPayloadPeerFromKey     = "peer_from"
+	watchEventsPayloadPeerToKey       = "peer_to"
+	watchEventsPayloadReasonKey       = "reason"
+	watchEventsPayloadRecordTypeKey   = "record_type"
+
+	watchEventsPayloadSequenceKey  = "sequence"
+	watchEventsPayloadSessionIDKey = "session_id"
+	watchEventsPayloadSurfaceKey   = "surface"
+	watchEventsPayloadThreadIDKey  = "thread_id"
+	watchEventsPayloadTraceIDKey   = "trace_id"
+	watchEventsPayloadTurnIDKey    = "turn_id"
+	watchEventsPayloadWillRetryKey = "will_retry"
+	watchEventsPayloadWorkIDKey    = "work_id"
+	watchEventsPayloadWorkStateKey = "work_state"
 
 	watchEventsPayloadCoordinatorSessionIDKey = "coordinator_session_id"
 	watchEventsPayloadDecisionKey             = "decision"
@@ -139,7 +139,6 @@ func watchEventsTaskRunTerminalEvent(
 		RunID:       strings.TrimSpace(payload.RunID),
 		LoopRunID:   strings.TrimSpace(payload.LoopRunID),
 		SessionID:   strings.TrimSpace(payload.SessionID),
-		Channel:     strings.TrimSpace(payload.NetworkSpecSnapshot().ChannelID),
 		Payload: map[string]any{
 			"previous_run_status":      strings.TrimSpace(payload.PreviousRunStatus),
 			"previous_session_id":      strings.TrimSpace(payload.PreviousSessionID),
@@ -198,39 +197,6 @@ func watchEventsAutomationRunFailedEvent(
 	}
 }
 
-func watchEventsNetworkEvent(
-	kind hookspkg.HookEvent,
-	payload hookspkg.NetworkPayload,
-	now func() time.Time,
-) looppkg.WatchEvent {
-	return looppkg.WatchEvent{
-		Kind:        string(kind),
-		Stream:      looppkg.WatchEventsNetworkStream,
-		At:          watchEventsHookAt(payload.Timestamp, now),
-		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
-		SessionID:   strings.TrimSpace(payload.SessionID),
-		Channel:     strings.TrimSpace(payload.Channel),
-		WorkID:      strings.TrimSpace(payload.WorkID),
-		Payload: map[string]any{
-			daemonPayloadSessionIDKey:        strings.TrimSpace(payload.SessionID),
-			watchEventsPayloadChannelKey:     strings.TrimSpace(payload.Channel),
-			watchEventsPayloadSurfaceKey:     strings.TrimSpace(payload.Surface),
-			watchEventsPayloadThreadIDKey:    strings.TrimSpace(payload.ThreadID),
-			watchEventsPayloadDirectIDKey:    strings.TrimSpace(payload.DirectID),
-			watchEventsPayloadMessageIDKey:   strings.TrimSpace(payload.MessageID),
-			watchEventsPayloadKindKey:        strings.TrimSpace(payload.Kind),
-			watchEventsPayloadDirectionKey:   strings.TrimSpace(payload.Direction),
-			watchEventsPayloadWorkIDKey:      strings.TrimSpace(payload.WorkID),
-			watchEventsPayloadWorkStateKey:   strings.TrimSpace(payload.WorkState),
-			watchEventsPayloadPeerFromKey:    strings.TrimSpace(payload.PeerFrom),
-			watchEventsPayloadPeerToKey:      strings.TrimSpace(payload.PeerTo),
-			watchEventsPayloadTraceIDKey:     strings.TrimSpace(payload.TraceID),
-			watchEventsPayloadCausationIDKey: strings.TrimSpace(payload.CausationID),
-		},
-		LedgerKind: string(kind),
-	}
-}
-
 func watchEventsCoordinatorLifecycleEvent(
 	kind hookspkg.HookEvent,
 	payload hookspkg.CoordinatorLifecyclePayload,
@@ -246,16 +212,15 @@ func watchEventsCoordinatorLifecycleEvent(
 		RunID:       strings.TrimSpace(payload.RunID),
 		SessionID:   coordinatorSessionID,
 		Payload: map[string]any{
-			watchEventsPayloadAgentNameKey:                    strings.TrimSpace(payload.AgentName),
-			watchEventsPayloadCoordinatorSessionIDKey:         coordinatorSessionID,
-			watchEventsPayloadResolvedNetworkParticipationKey: payload.ResolvedNetworkParticipation,
-			watchEventsPayloadWorkflowIDKey:                   strings.TrimSpace(payload.WorkflowID),
-			watchEventsPayloadProviderKey:                     strings.TrimSpace(payload.Provider),
-			watchEventsPayloadModelKey:                        strings.TrimSpace(payload.Model),
-			watchEventsPayloadDecisionKindKey:                 strings.TrimSpace(payload.DecisionKind),
-			watchEventsPayloadDecisionKey:                     strings.TrimSpace(payload.Decision),
-			watchEventsPayloadStopReasonKey:                   strings.TrimSpace(payload.StopReason),
-			watchEventsPayloadErrorKey:                        strings.TrimSpace(payload.Error),
+			watchEventsPayloadAgentNameKey:            strings.TrimSpace(payload.AgentName),
+			watchEventsPayloadCoordinatorSessionIDKey: coordinatorSessionID,
+			watchEventsPayloadWorkflowIDKey:           strings.TrimSpace(payload.WorkflowID),
+			watchEventsPayloadProviderKey:             strings.TrimSpace(payload.Provider),
+			watchEventsPayloadModelKey:                strings.TrimSpace(payload.Model),
+			watchEventsPayloadDecisionKindKey:         strings.TrimSpace(payload.DecisionKind),
+			watchEventsPayloadDecisionKey:             strings.TrimSpace(payload.Decision),
+			watchEventsPayloadStopReasonKey:           strings.TrimSpace(payload.StopReason),
+			watchEventsPayloadErrorKey:                strings.TrimSpace(payload.Error),
 		},
 		LedgerKind: string(kind),
 	}
@@ -299,7 +264,6 @@ func watchEventsLoopTerminalEvent(
 		LoopRunID:   strings.TrimSpace(payload.LoopRunID),
 		LoopName:    strings.TrimSpace(payload.LoopName),
 		SessionID:   strings.TrimSpace(payload.SessionID),
-		Channel:     watchEventsParticipationChannel(payload.ResolvedNetworkParticipation),
 		Payload: map[string]any{
 			daemonStatusField:            strings.TrimSpace(payload.Status),
 			"to":                         strings.TrimSpace(payload.Status),
@@ -325,7 +289,6 @@ func watchEventsLoopNodeTerminalEvent(
 		LoopRunID:   strings.TrimSpace(payload.LoopRunID),
 		LoopName:    strings.TrimSpace(payload.LoopName),
 		SessionID:   strings.TrimSpace(payload.SessionID),
-		Channel:     watchEventsParticipationChannel(payload.ResolvedNetworkParticipation),
 		Payload: map[string]any{
 			watchEventsPayloadNodeIDKey:     strings.TrimSpace(payload.NodeID),
 			watchEventsPayloadGenerationKey: payload.Generation,
@@ -338,13 +301,6 @@ func watchEventsLoopNodeTerminalEvent(
 		},
 		LedgerKind: watchEventsLoopNodeLedgerKind(payload),
 	}
-}
-
-func watchEventsParticipationChannel(spec *participation.Spec) string {
-	if spec == nil {
-		return ""
-	}
-	return strings.TrimSpace(spec.ChannelID)
 }
 
 func watchEventsLoopNodeLedgerKind(payload hookspkg.LoopNodeTerminalPayload) string {

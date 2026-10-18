@@ -54,7 +54,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		return status
 	}
 	switch code {
-	case toolspkg.ErrorCodeInvalidInput:
+	case toolspkg.ErrorCodeInvalidInput, toolspkg.ErrorCodeInvalidRequest:
 		return http.StatusBadRequest
 	case toolspkg.ErrorCodeNotFound:
 		return http.StatusNotFound
@@ -66,8 +66,13 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 			return http.StatusForbidden
 		}
 		return http.StatusAccepted
-	case toolspkg.ErrorCodeConflict:
+	case toolspkg.ErrorCodeConflict,
+		toolspkg.ErrorCodeSessionBusy,
+		toolspkg.ErrorCodeCompactionUnsupported,
+		toolspkg.ErrorCodeSessionMessageHopLimit:
 		return http.StatusConflict
+	case toolspkg.ErrorCodeSessionMessageRateLimited:
+		return http.StatusTooManyRequests
 	case toolspkg.ErrorCodeUnavailable,
 		toolspkg.ErrorCodeResultTooLarge,
 		toolspkg.ErrorCodeModelNotFound,
@@ -118,6 +123,11 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Message = safeToolErrorMessage(status, toolErr.Code, payload.ReasonCodes)
+		if toolErr.Code == toolspkg.ErrorCodeInvalidRequest ||
+			(toolErr.Code == toolspkg.ErrorCodeSessionMessageRateLimited && strings.TrimSpace(toolErr.Message) != "") {
+			// The daemon composes both messages; the rate limit names the budget and when to retry.
+			payload.Message = toolErr.Message
+		}
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
 		payload.Details = contract.ToolOperatorFailureDetails(toolErr.Operator)
 		if terminalErr, terminal := errors.AsType[*terminalpkg.Error](err); terminal &&
@@ -152,6 +162,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 }
 
 func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) string {
+	if message := safeSessionToolErrorMessage(code); message != "" {
+		return message
+	}
 	switch code {
 	case toolspkg.ErrorCodeNotFound:
 		if slices.Contains(reasons, toolspkg.ReasonConfigPathNotFound) {
@@ -169,7 +182,7 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspk
 		return "tool invocation denied"
 	case toolspkg.ErrorCodeApprovalRequired:
 		return "tool approval required"
-	case toolspkg.ErrorCodeInvalidInput:
+	case toolspkg.ErrorCodeInvalidInput, toolspkg.ErrorCodeInvalidRequest:
 		if slices.Contains(reasons, toolspkg.ReasonSkillDefinitionInvalid) {
 			return "skill definition is invalid"
 		}
@@ -249,6 +262,20 @@ func toolErrorLayer(reasons []toolspkg.ReasonCode) string {
 			toolspkg.ReasonConflictedSanitizedName:
 			return "availability"
 		}
+	}
+	return ""
+}
+
+func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
+	switch code {
+	case toolspkg.ErrorCodeSessionBusy:
+		return "session is busy"
+	case toolspkg.ErrorCodeSessionMessageHopLimit:
+		return "Message chain limit reached (8 hops). Ask the operator to continue."
+	case toolspkg.ErrorCodeSessionMessageRateLimited:
+		return "Message rate limit reached. Send fewer, milestone-level messages."
+	case toolspkg.ErrorCodeCompactionUnsupported:
+		return "session compaction is unsupported"
 	}
 	return ""
 }

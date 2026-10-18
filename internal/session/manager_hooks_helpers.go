@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -56,32 +55,6 @@ func cloneSessionRawMessage(raw json.RawMessage) json.RawMessage {
 	return append(json.RawMessage(nil), raw...)
 }
 
-func cloneSessionContextBlocks(blocks []hookspkg.ContextBlock) []hookspkg.ContextBlock {
-	if len(blocks) == 0 {
-		return nil
-	}
-
-	cloned := make([]hookspkg.ContextBlock, 0, len(blocks))
-	for _, block := range blocks {
-		cloned = append(cloned, hookspkg.ContextBlock{
-			Kind:     strings.TrimSpace(block.Kind),
-			Text:     block.Text,
-			Metadata: cloneStringMap(block.Metadata),
-		})
-	}
-	return cloned
-}
-
-func cloneStringMap(src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return nil
-	}
-
-	cloned := make(map[string]string, len(src))
-	maps.Copy(cloned, src)
-	return cloned
-}
-
 func hookDispatchContext(ctx context.Context, manager *Manager, session *Session) context.Context {
 	if ctx == nil || session == nil {
 		return ctx
@@ -100,4 +73,12 @@ func hookDispatchContext(ctx context.Context, manager *Manager, session *Session
 	}
 
 	return hookspkg.WithHookRunWriter(ctx, writer)
+}
+
+// ToolHookContext attaches the active session's canonical hook audit writers to registry calls.
+func (m *Manager) ToolHookContext(ctx context.Context, sessionID string) context.Context {
+	if active, ok := m.Get(sessionID); ok {
+		return hookDispatchContext(ctx, m, active)
+	}
+	return ctx
 }

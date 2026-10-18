@@ -15,7 +15,7 @@ import (
 	"github.com/BurntSushi/toml"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 )
 
 const (

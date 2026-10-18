@@ -4,16 +4,15 @@ import "github.com/compozy/compozy/internal/api/core"
 
 func (d *Daemon) supportBundleSnapshotHandlers(state *bootState) *core.BaseHandlers {
 	return core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:       "support",
-		Sessions:            state.deps.Sessions,
-		Tasks:               state.deps.Tasks,
-		Network:             state.deps.Network,
-		NetworkStore:        state.deps.Registry,
-		Observer:            state.deps.Observer,
-		SchemaStreams:       state.deps.SchemaStreams,
-		Resources:           state.deps.Resources,
-		Automation:          state.deps.Automation,
-		Bridges:             state.deps.Bridges,
+		TransportName: "support",
+		Sessions:      state.deps.Sessions,
+		Tasks:         state.deps.Tasks,
+
+		Observer:      state.deps.Observer,
+		SchemaStreams: state.deps.SchemaStreams,
+		Resources:     state.deps.Resources,
+		Automation:    state.deps.Automation,
+
 		Settings:            state.deps.Settings,
 		SettingsRestart:     state.deps.SettingsRestart,
 		SettingsUpdate:      state.deps.SettingsUpdate,
@@ -31,11 +30,6 @@ func (d *Daemon) supportBundleSnapshotHandlers(state *bootState) *core.BaseHandl
 		SessionHealth:       state.deps.SessionHealth,
 		HeartbeatWakeEvents: state.deps.WakeEvents,
 		SkillsRegistry:      state.deps.SkillsRegistry,
-		MemoryStore:         state.deps.MemoryStore,
-		DreamTrigger:        state.deps.DreamTrigger,
-		MemoryExtractor:     state.deps.MemoryExtractor,
-		MemoryProviders:     state.deps.MemoryProviders,
-		MemorySessionLedger: state.deps.MemorySessionLedger,
 		HomePaths:           d.homePaths,
 		Config:              state.cfg,
 		Logger:              state.logger,

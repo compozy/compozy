@@ -59,10 +59,9 @@ func (m *Manager) syncJobResourcesForSource(
 	actor resources.MutationActor,
 	desired []Job,
 ) (int, int, error) {
-	source := actor.Source
 	current, err := m.jobResources.List(ctx, actor, resources.ResourceFilter{
 		Kind:   JobResourceKind,
-		Source: &source,
+		Source: new(actor.Source),
 	})
 	if err != nil {
 		return 0, 0, err
@@ -124,10 +123,9 @@ func (m *Manager) syncTriggerResourcesForSource(
 	actor resources.MutationActor,
 	desired []Trigger,
 ) (int, int, error) {
-	source := actor.Source
 	current, err := m.triggerResources.List(ctx, actor, resources.ResourceFilter{
 		Kind:   TriggerResourceKind,
-		Source: &source,
+		Source: new(actor.Source),
 	})
 	if err != nil {
 		return 0, 0, err

@@ -5,19 +5,20 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/compozy/internal/soul"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network"
-	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
-	"github.com/compozy/compozy/internal/soul"
+
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/support"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -49,16 +50,6 @@ type AgentDefinitionSync interface {
 	Sync(ctx context.Context) error
 }
 
-// SoulHistoryPurger removes history owned by one effective definition.
-type SoulHistoryPurger interface {
-	PurgeAgentHistory(ctx context.Context, ref soul.WorkspaceRef, agentName string, sourcePath string) error
-}
-
-// HeartbeatHistoryPurger removes history owned by one effective definition.
-type HeartbeatHistoryPurger interface {
-	PurgeAgentHistory(ctx context.Context, ref heartbeat.WorkspaceRef, agentName string, sourcePath string) error
-}
-
 // ModelCatalogService exposes daemon-owned provider model catalog reads and refreshes.
 type ModelCatalogService interface {
 	modelcatalog.Service
@@ -71,7 +62,6 @@ type Observer interface {
 	QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
 	QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
 	QueryTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
-	QueryBridgeHealth(ctx context.Context) ([]observe.BridgeInstanceHealth, error)
 	Health(ctx context.Context) (observe.Health, error)
 	QueryTaskDashboard(ctx context.Context, query observe.TaskDashboardQuery) (observe.TaskDashboardView, error)
 	QueryTaskInbox(
@@ -82,66 +72,9 @@ type Observer interface {
 	QueryObserveOverview(ctx context.Context, query observe.OverviewQuery) (observe.OverviewView, error)
 }
 
-// NotificationPresetService is the daemon-owned notification preset runtime.
-type NotificationPresetService interface {
-	Get(ctx context.Context, name string) (presetspkg.Preset, error)
-	Create(ctx context.Context, req presetspkg.CreateRequest) (presetspkg.Preset, error)
-	Update(ctx context.Context, name string, req presetspkg.UpdateRequest) (presetspkg.Preset, error)
-	Delete(ctx context.Context, name string) error
-}
-
-// NotificationPresetEnablementService exposes profile-specific preset state.
-type NotificationPresetEnablementService interface {
-	ListForProfile(ctx context.Context, query presetspkg.Query, profileID string) ([]presetspkg.Preset, error)
-	GetForProfile(ctx context.Context, name string, profileID string) (presetspkg.Preset, error)
-	SetEnablement(
-		ctx context.Context,
-		change presetspkg.EnablementChange,
-	) (presetspkg.Preset, error)
-}
-
-// NetworkService is the runtime network surface exposed to daemon transports.
-type NetworkService interface {
-	Send(ctx context.Context, req network.SendRequest) (string, error)
-	ListPeers(ctx context.Context, workspaceID string, channel string) ([]network.PeerInfo, error)
-	ListChannels(ctx context.Context, workspaceID string) ([]network.ChannelInfo, error)
-	Status(ctx context.Context) (*network.Status, error)
-	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
-	WaitInbox(ctx context.Context, sessionID string, channel string) ([]network.Envelope, error)
-}
-
 // AgentContextService assembles the bounded situation payload for a validated agent session.
 type AgentContextService interface {
 	ContextForSession(ctx context.Context, info *session.Info) (contract.AgentContextPayload, error)
-}
-
-// SoulAuthoringService exposes managed SOUL.md authoring and read validation to API handlers.
-type SoulAuthoringService interface {
-	soul.AuthoringService
-}
-
-// SoulRefresher refreshes a session's resolved Soul snapshot through service-owned CAS.
-type SoulRefresher interface {
-	RefreshSoulWithExpectedDigest(
-		ctx context.Context,
-		id string,
-		expectedDigest string,
-	) (session.SoulRefreshResult, error)
-}
-
-// HeartbeatAuthoringService exposes managed HEARTBEAT.md authoring to API handlers.
-type HeartbeatAuthoringService interface {
-	heartbeat.AuthoringService
-}
-
-// HeartbeatStatusService composes read-only Heartbeat policy, wake state, and health.
-type HeartbeatStatusService interface {
-	heartbeat.StatusService
-}
-
-// HeartbeatWakeService evaluates one advisory manual Heartbeat wake.
-type HeartbeatWakeService interface {
-	Wake(ctx context.Context, req heartbeat.WakeRequest) (heartbeat.WakeDecision, error)
 }
 
 // SessionHealthReader reads metadata-only session health rows.
@@ -155,11 +88,6 @@ type SessionHealthPageReader interface {
 	SessionHealthForPage(ctx context.Context, infos []*session.Info) (map[string]heartbeat.SessionHealth, error)
 }
 
-// HeartbeatWakeEventReader lists retained Heartbeat wake audit rows.
-type HeartbeatWakeEventReader interface {
-	ListHeartbeatWakeEvents(ctx context.Context, query heartbeat.WakeEventListQuery) ([]heartbeat.WakeEvent, error)
-}
-
 // CoordinatorRoleResolver resolves safe coordinator policy for agent-facing reads.
 type CoordinatorRoleResolver interface {
 	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (compozyconfig.ResolvedCoordinatorRole, error)
@@ -171,64 +99,9 @@ type RolesStatusProvider interface {
 	RoleStatus(ctx context.Context, workspaceID, role string) (contract.RoleStatus, error)
 }
 
-// NetworkStore exposes persisted network audit, channel metadata CRUD, and timeline queries to the API layer.
-type NetworkStore interface {
-	store.NetworkConversationStore
-	store.NetworkAuditStore
-	store.NetworkChannelStore
-	store.NetworkMessageStore
-	store.NetworkPreferenceStore
-}
-
 // OnboardingStore persists the global first-run onboarding completion flag.
 type OnboardingStore interface {
 	store.OnboardingStore
-}
-
-// DreamTrigger exposes consolidation controls and state to the API layer.
-type DreamTrigger interface {
-	Trigger(ctx context.Context, workspace string) (bool, string, error)
-	LastConsolidatedAt() (time.Time, error)
-	Enabled() bool
-}
-
-// MemoryExtractorService exposes the daemon-owned Memory v2 extractor runtime.
-type MemoryExtractorService interface {
-	Status(ctx context.Context) (contract.MemoryExtractorStatusPayload, error)
-	ListFailures(ctx context.Context) ([]contract.MemoryExtractorFailurePayload, error)
-	Retry(ctx context.Context, req contract.MemoryExtractorRetryRequest) (contract.MemoryExtractorRetryResponse, error)
-	Drain(ctx context.Context) (contract.MemoryExtractorDrainResponse, error)
-}
-
-// MemoryProviderService exposes the active MemoryProvider registry.
-type MemoryProviderService interface {
-	List(ctx context.Context, workspaceID string) ([]contract.MemoryProviderPayload, error)
-	Get(ctx context.Context, workspaceID string, name string) (contract.MemoryProviderPayload, error)
-	Select(ctx context.Context, workspaceID string, name string) (contract.MemoryProviderPayload, error)
-	Enable(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		reason string,
-	) (contract.MemoryProviderLifecycleResponse, error)
-	Disable(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		reason string,
-	) (contract.MemoryProviderLifecycleResponse, error)
-}
-
-// MemorySessionLedgerService exposes materialized session ledgers and replay.
-type MemorySessionLedgerService interface {
-	Get(ctx context.Context, sessionID string) (contract.MemorySessionLedgerResponse, error)
-	Replay(
-		ctx context.Context,
-		sessionID string,
-		req contract.MemorySessionReplayRequest,
-	) (contract.MemorySessionReplayResponse, error)
-	Prune(ctx context.Context, req contract.MemorySessionsPruneRequest) (contract.MemorySessionsPruneResponse, error)
-	Repair(ctx context.Context) (contract.MemorySessionsRepairResponse, error)
 }
 
 // SupportBundleService exposes daemon-owned support bundle operations to transports.
@@ -342,6 +215,11 @@ type ToolApprovalGrantService interface {
 
 // AutomationManager exposes automation state and control surfaces to the API layer.
 type AutomationManager interface {
+	LatestRunsByOwner(
+		ctx context.Context,
+		owner automationpkg.RunOwnerKind,
+		ids []string,
+	) (map[string]automationpkg.Run, error)
 	ListSuggestions(
 		ctx context.Context,
 		readScope store.ReadScope,
@@ -405,4 +283,54 @@ type WorkspaceService interface {
 	Get(ctx context.Context, idOrNameOrPath string) (workspacepkg.Workspace, error)
 	Resolve(ctx context.Context, idOrNameOrPath string) (workspacepkg.ResolvedWorkspace, error)
 	ResolveOrRegister(ctx context.Context, path string) (workspacepkg.ResolvedWorkspace, error)
+}
+
+// TaskDesignationStore persists the summaries of designated sibling task runs.
+type TaskDesignationStore interface {
+	PutTaskDesignationRollup(context.Context, store.TaskDesignationRollup) error
+	ListTaskDesignationRollups(context.Context, store.TaskDesignationRollupQuery) ([]store.TaskDesignationRollup, error)
+}
+
+// SoulHistoryPurger removes history owned by one effective definition.
+type SoulHistoryPurger interface {
+	PurgeAgentHistory(ctx context.Context, ref soul.WorkspaceRef, agentName string, sourcePath string) error
+}
+
+// HeartbeatHistoryPurger removes history owned by one effective definition.
+type HeartbeatHistoryPurger interface {
+	PurgeAgentHistory(ctx context.Context, ref heartbeat.WorkspaceRef, agentName string, sourcePath string) error
+}
+
+// SoulAuthoringService exposes managed SOUL.md authoring and read validation to API handlers.
+type SoulAuthoringService interface {
+	soul.AuthoringService
+}
+
+// SoulRefresher refreshes a session's resolved Soul snapshot through service-owned CAS.
+type SoulRefresher interface {
+	RefreshSoulWithExpectedDigest(
+		ctx context.Context,
+		id string,
+		expectedDigest string,
+	) (session.SoulRefreshResult, error)
+}
+
+// HeartbeatAuthoringService exposes managed HEARTBEAT.md authoring to API handlers.
+type HeartbeatAuthoringService interface {
+	heartbeat.AuthoringService
+}
+
+// HeartbeatStatusService composes read-only Heartbeat policy, wake state, and health.
+type HeartbeatStatusService interface {
+	heartbeat.StatusService
+}
+
+// HeartbeatWakeService evaluates one advisory manual Heartbeat wake.
+type HeartbeatWakeService interface {
+	Wake(ctx context.Context, req heartbeat.WakeRequest) (heartbeat.WakeDecision, error)
+}
+
+// HeartbeatWakeEventReader lists retained Heartbeat wake audit rows.
+type HeartbeatWakeEventReader interface {
+	ListHeartbeatWakeEvents(ctx context.Context, query heartbeat.WakeEventListQuery) ([]heartbeat.WakeEvent, error)
 }

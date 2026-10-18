@@ -23,8 +23,6 @@ func (h SessionHealth) Validate() error {
 	switch {
 	case normalized.SessionID == "":
 		return fmt.Errorf("%w: session id is required", ErrInvalidSessionHealth)
-	case normalized.WorkspaceID == "":
-		return fmt.Errorf("%w: workspace id is required", ErrInvalidSessionHealth)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidSessionHealth)
 	case !ValidSessionHealthState(normalized.State):

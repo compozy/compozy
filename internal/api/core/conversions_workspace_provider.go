@@ -3,14 +3,14 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -27,7 +27,6 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.Wo
 		AddDirs:      addDirs,
 		Name:         workspace.Name,
 		DefaultAgent: workspace.DefaultAgent,
-		SandboxRef:   workspace.SandboxRef,
 		CreatedAt:    workspace.CreatedAt,
 		UpdatedAt:    workspace.UpdatedAt,
 	}
@@ -128,11 +127,7 @@ func sortSessionProviderOptionPayloads(
 	values map[string]contract.SessionProviderOptionPayload,
 	defaultProvider string,
 ) []contract.SessionProviderOptionPayload {
-	names := make([]string, 0, len(values))
-	for name := range values {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(values))
 	defaultProvider = compozyconfig.CanonicalProviderName(defaultProvider)
 	if defaultProvider != "" {
 		for i, name := range names {
@@ -182,12 +177,4 @@ func payloadJSONBytes(raw []byte) json.RawMessage {
 		return json.RawMessage("null")
 	}
 	return json.RawMessage(encoded)
-}
-
-func cloneBridgeDegradation(value *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }

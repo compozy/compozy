@@ -262,7 +262,12 @@ func (h *BaseHandlers) GetSchedulerBacklog(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SchedulerBacklogResponse{Backlog: SchedulerBacklogPayloadFromDomain(backlog)})
+	payload := SchedulerBacklogPayloadFromDomain(backlog)
+	if err := h.decorateSchedulerBacklogOwners(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SchedulerBacklogResponse{Backlog: payload})
 }
 
 // SchedulerStatusPayloadFromDomain keeps transports on one scheduler DTO shape.
@@ -317,6 +322,7 @@ func TaskSummaryPayloadFromTask(record *taskpkg.Task) contract.TaskSummaryPayloa
 	}
 	return contract.TaskSummaryPayload{
 		ID:                 record.ID,
+		ProfileID:          record.ProfileID,
 		Identifier:         record.Identifier,
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,

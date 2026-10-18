@@ -27,7 +27,6 @@ function emptyProfile(taskId: string): TaskExecutionProfileSetRequest {
     coordinator: { mode: "inherit" },
     worker: { mode: "inherit" },
     review: {},
-    sandbox: { mode: "inherit" },
     worktree: { mode: "inherit" },
     participants: {},
     runtime: { mode: "default" },

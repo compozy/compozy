@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -55,7 +54,7 @@ func BenchmarkHandleInboundReadTextFile(b *testing.B) {
 
 	for b.Loop() {
 		if _, reqErr := proc.handleInbound(
-			context.Background(),
+			b.Context(),
 			acpsdk.ClientMethodFsReadTextFile,
 			payload,
 		); reqErr != nil {

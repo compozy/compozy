@@ -21,7 +21,6 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -542,179 +541,6 @@ func TestGlobalDBDaemonClaimAndLeasedSessionBinding(t *testing.T) {
 	})
 }
 
-func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should target claim while hiding generic settlement authority", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 13, 22, 0, 0, 0, time.UTC)
-		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, "sess-target", "sess-active")
-		activeTask := workspaceTaskRecordForTest("task-wake-cap-active", "ws-wake")
-		activeTask.Status = taskpkg.TaskStatusReady
-		if err := globalDB.CreateTask(ctx, activeTask); err != nil {
-			t.Fatalf("CreateTask(active) error = %v", err)
-		}
-		activeRun := taskRunForTest("run-wake-cap-active", activeTask.ID)
-		if err := globalDB.CreateTaskRun(ctx, activeRun); err != nil {
-			t.Fatalf("CreateTaskRun(active) error = %v", err)
-		}
-		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			RunID: activeRun.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
-			ClaimerSessionID: "sess-active", LeaseDuration: time.Minute, Now: now,
-			WorkspaceActiveRunCap: 1,
-		}); err != nil {
-			t.Fatalf("ClaimNextRun(active workspace run) error = %v", err)
-		}
-		anchor := taskRecordForTest("task-wake-anchor")
-		anchor.Status = taskpkg.TaskStatusReady
-		if err := globalDB.CreateTask(ctx, anchor); err != nil {
-			t.Fatalf("CreateTask(anchor) error = %v", err)
-		}
-		wake := networkWakeRunForClaimTest("run-network-wake", "wake-1", "sess-target", "owner-1", now)
-		createNetworkWakeRunForClaimTest(t, globalDB, wake, now)
-		queued, err := globalDB.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
-		if err != nil {
-			t.Fatalf("ListTaskRunsByStatus(network wake) error = %v", err)
-		}
-		if len(queued) != 1 || queued[0].ID != wake.ID || !queued[0].IsNetworkWake() || queued[0].TaskID != "" {
-			t.Fatalf("queued wake projection = %#v, want one badged taskless wake", queued)
-		}
-
-		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
-			Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
-			TargetSessionID: "sess-foreign", ClaimerSessionID: "sess-foreign", Now: now,
-		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
-			t.Fatalf("ClaimNextRun(foreign wake) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
-		}
-		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
-			Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
-			TargetSessionID: "sess-target", ClaimerSessionID: "sess-target", Now: now,
-			WorkspaceActiveRunCap: 1,
-		})
-		if err != nil {
-			t.Fatalf("ClaimNextRun(target wake) error = %v", err)
-		}
-		if claim.Task != nil {
-			t.Fatalf("ClaimNextRun(target wake) task = %#v, want nil", claim.Task)
-		}
-		handles, err := globalDB.ListAutonomyLeaseHandles(ctx, "sess-target")
-		if err != nil {
-			t.Fatalf("ListAutonomyLeaseHandles(network wake) error = %v", err)
-		}
-		if len(handles) != 0 {
-			t.Fatalf("ListAutonomyLeaseHandles(network wake) = %#v, want no generic handle", handles)
-		}
-		if _, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
-			Actor: coordinatorActorContextForTest(),
-			RunID: wake.ID, ClaimToken: claim.ClaimToken, LeaseDuration: time.Minute,
-			Now: now.Add(time.Second), TokensUsed: 17,
-		}); err != nil {
-			t.Fatalf("HeartbeatRunLease(network wake) error = %v", err)
-		}
-		_, err = globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-			Actor: coordinatorActorContextForTest(), RunID: wake.ID, ClaimToken: claim.ClaimToken,
-			Result: taskpkg.RunResult{Value: json.RawMessage(`{"delivered":true}`)},
-			Now:    now.Add(2 * time.Second), TokensUsed: 23,
-		})
-		if !errors.Is(err, taskpkg.ErrValidation) {
-			t.Fatalf("CompleteRunLease(network wake) error = %v, want %v", err, taskpkg.ErrValidation)
-		}
-		storedAnchor, err := globalDB.GetTask(ctx, anchor.ID)
-		if err != nil {
-			t.Fatalf("GetTask(anchor) error = %v", err)
-		}
-		if storedAnchor.Status.Normalize() != taskpkg.TaskStatusReady || storedAnchor.CurrentRunID != "" {
-			t.Fatalf(
-				"anchor projection = status %s current_run %q, want ready/empty",
-				storedAnchor.Status,
-				storedAnchor.CurrentRunID,
-			)
-		}
-	})
-
-	t.Run("Should release fail and recover wakes through the standard token-fenced lifecycle", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 13, 22, 30, 0, 0, time.UTC)
-		registerNetworkWakeRunSessionsForClaimTest(
-			t,
-			globalDB,
-			now,
-			"sess-release",
-			"sess-fail",
-			"sess-expire",
-		)
-		for _, run := range []taskpkg.Run{
-			networkWakeRunForClaimTest("run-wake-release", "wake-release", "sess-release", "owner-release", now),
-			networkWakeRunForClaimTest("run-wake-fail", "wake-fail", "sess-fail", "owner-fail", now),
-			networkWakeRunForClaimTest("run-wake-expire", "wake-expire", "sess-expire", "owner-expire", now),
-		} {
-			createNetworkWakeRunForClaimTest(t, globalDB, run, now)
-		}
-		claimWake := func(runID, sessionID string, at time.Time) taskpkg.ClaimResult {
-			t.Helper()
-			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				RunID: runID, RunKind: taskpkg.RunKindNetworkWake,
-				Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
-				TargetSessionID: sessionID, ClaimerSessionID: sessionID,
-				LeaseDuration: time.Minute, Now: at,
-			})
-			if err != nil {
-				t.Fatalf("ClaimNextRun(%q) error = %v", runID, err)
-			}
-			return claim
-		}
-		releaseClaim := claimWake("run-wake-release", "sess-release", now)
-		released, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
-			Actor: coordinatorActorContextForTest(),
-			RunID: releaseClaim.Run.ID, ClaimToken: releaseClaim.ClaimToken,
-			Reason: "handoff", Now: now.Add(time.Second),
-		})
-		if err != nil || released.Status.Normalize() != taskpkg.TaskRunStatusQueued {
-			t.Fatalf("ReleaseRunLease(network wake) = %#v, %v, want queued", released, err)
-		}
-
-		failClaim := claimWake("run-wake-fail", "sess-fail", now)
-		_, err = globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
-			Actor: coordinatorActorContextForTest(), RunID: failClaim.Run.ID,
-			ClaimToken: failClaim.ClaimToken, Failure: taskpkg.RunFailure{Error: "provider failed"},
-			Now: now.Add(time.Second),
-		})
-		if !errors.Is(err, taskpkg.ErrValidation) {
-			t.Fatalf("FailRunLease(network wake) error = %v, want %v", err, taskpkg.ErrValidation)
-		}
-		if _, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
-			Actor: coordinatorActorContextForTest(), RunID: failClaim.Run.ID,
-			ClaimToken: failClaim.ClaimToken, Reason: "settlement handoff",
-			Now: now.Add(2 * time.Second),
-		}); err != nil {
-			t.Fatalf("ReleaseRunLease(after generic failure rejection) error = %v", err)
-		}
-
-		expiringClaim := claimWake("run-wake-expire", "sess-expire", now)
-		if expiringClaim.Run.ID != "run-wake-expire" || expiringClaim.ClaimToken == "" {
-			t.Fatalf("expiring wake claim = %#v, want exact run and raw token", expiringClaim)
-		}
-		recovered, err := globalDB.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
-			Now: now.Add(2 * time.Minute), Reason: "expired", Limit: 10,
-		})
-		if err != nil {
-			t.Fatalf("RecoverExpiredRunLeases(network wake) error = %v", err)
-		}
-		if len(recovered) != 1 || recovered[0].Run.ID != "run-wake-expire" ||
-			recovered[0].Run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
-			t.Fatalf("recovered wakes = %#v, want one queued expired wake", recovered)
-		}
-	})
-}
-
 func createExactRun(
 	ctx context.Context,
 	t *testing.T,
@@ -737,97 +563,6 @@ func createExactRun(
 		t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
 	}
 	return run
-}
-
-func networkWakeRunForClaimTest(
-	runID string,
-	wakeID string,
-	targetSessionID string,
-	ownerKey string,
-	queuedAt time.Time,
-) taskpkg.Run {
-	run := taskpkg.Run{
-		ID: runID, RunKind: taskpkg.RunKindNetworkWake, Status: taskpkg.TaskRunStatusQueued,
-		WorkspaceID: "ws-wake",
-		Attempt:     1, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
-		ProfileID: store.DefaultProfileID,
-		QueuedAt:  queuedAt,
-	}
-	run.SetNetworkState(participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     "ws-wake",
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       "wake-channel",
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
-	}, wakeID, targetSessionID, ownerKey)
-	return run
-}
-
-func createNetworkWakeRunForClaimTest(
-	t *testing.T,
-	globalDB *GlobalDB,
-	run taskpkg.Run,
-	now time.Time,
-) {
-	t.Helper()
-	ctx := testutil.Context(t)
-	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-		t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
-	}
-	wakeID, _, ownerKey := run.NetworkWakeCorrelation()
-	if _, err := globalDB.db.ExecContext(ctx, `
-INSERT INTO network_live_wakes (
-  wake_id, task_run_id, owner_key, workspace_id, channel, root_id, depth,
-  state, coalesce_until, reserved_wall_ms, reserved_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		wakeID,
-		run.ID,
-		ownerKey,
-		run.WorkspaceID,
-		run.NetworkSpecSnapshot().ChannelID,
-		wakeID,
-		0,
-		"open",
-		store.FormatTimestamp(now.Add(250*time.Millisecond)),
-		int64(30_000),
-		store.FormatTimestamp(now),
-	); err != nil {
-		t.Fatalf("insert network_live_wakes(%q) error = %v", wakeID, err)
-	}
-}
-
-func registerNetworkWakeRunSessionsForClaimTest(
-	t *testing.T,
-	globalDB *GlobalDB,
-	now time.Time,
-	sessionIDs ...string,
-) {
-	t.Helper()
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"wake",
-		filepath.Join(t.TempDir(), "wake"),
-	)
-	for _, sessionID := range sessionIDs {
-		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ProfileID: store.DefaultProfileID,
-			ID:        sessionID, AgentName: "coder", Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
-			WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
-		}); err != nil {
-			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
-		}
-	}
 }
 
 func TestGlobalDBClaimNextRunFiltersByCapabilitiesAndScope(t *testing.T) {
@@ -920,117 +655,6 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesAndScope(t *testing.T) {
 	if got, want := storedOther.Status, taskpkg.TaskRunStatusQueued; got != want {
 		t.Fatalf("other workspace run status = %q, want %q", got, want)
 	}
-}
-
-func TestGlobalDBClaimNextRunScopesCoordinationMetadataToRunWorkspace(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should scope coordination metadata to the claimed run workspace", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		workspaceA := registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			"claim-channel-scope-a",
-			filepath.Join(t.TempDir(), "claim-channel-scope-a"),
-		)
-		workspaceB := registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			"claim-channel-scope-b",
-			filepath.Join(t.TempDir(), "claim-channel-scope-b"),
-		)
-		now := time.Date(2026, 7, 13, 17, 0, 0, 0, time.UTC)
-		for _, channel := range []store.NetworkChannelEntry{
-			{
-				Channel:     "operations",
-				WorkspaceID: workspaceA,
-				Purpose:     "Workspace A operations",
-				CreatedBy:   "agent-a",
-				CreatedAt:   now,
-				ProfileID:   store.DefaultProfileID,
-				UpdatedAt:   now,
-			},
-			{
-				Channel:     "operations",
-				WorkspaceID: workspaceB,
-				Purpose:     "Workspace B operations",
-				CreatedBy:   "agent-b",
-				CreatedAt:   now,
-				ProfileID:   store.DefaultProfileID,
-				UpdatedAt:   now,
-			},
-		} {
-			if err := globalDB.WriteNetworkChannel(ctx, channel); err != nil {
-				t.Fatalf("WriteNetworkChannel(%q) error = %v", channel.WorkspaceID, err)
-			}
-		}
-
-		createRun := func(taskID, runID, workspaceID string) {
-			t.Helper()
-			taskRecord := taskRecordForTest(taskID)
-			taskRecord.Scope = taskpkg.ScopeWorkspace
-			taskRecord.WorkspaceID = workspaceID
-			taskRecord.Status = taskpkg.TaskStatusReady
-			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-				t.Fatalf("CreateTask(%q) error = %v", workspaceID, err)
-			}
-			run := taskRunForTest(runID, taskID)
-			run.SetNetworkState(participation.Spec{
-				Version:         participation.SpecVersion,
-				Mode:            participation.ModeLive,
-				WorkspaceID:     workspaceID,
-				ChannelStrategy: participation.StrategyNamed,
-				ChannelID:       "operations",
-				Source:          participation.SourceExplicitRequest,
-				Bounds: participation.Bounds{
-					MaxWakes:         4,
-					MaxWakeWallTime:  "30s",
-					MaxTotalWallTime: "2m",
-					MaxInputTokens:   4096,
-					MaxOutputTokens:  4096,
-					MaxWakeDepth:     4,
-					CoalesceWindow:   "250ms",
-				},
-			}, "", "", "")
-			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-				t.Fatalf("CreateTaskRun(%q) error = %v", workspaceID, err)
-			}
-		}
-		createRun("task-channel-scope-a", "run-channel-scope-a", workspaceA)
-		createRun("task-channel-scope-b", "run-channel-scope-b", workspaceB)
-
-		for index, expected := range []struct {
-			workspaceID string
-			purpose     string
-		}{
-			{workspaceID: workspaceA, purpose: "Workspace A operations"},
-			{workspaceID: workspaceB, purpose: "Workspace B operations"},
-		} {
-			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:                taskpkg.ScopeWorkspace,
-				WorkspaceID:          expected.workspaceID,
-				ClaimerSessionID:     fmt.Sprintf("sess-channel-scope-%d", index),
-				ParticipationChannel: "operations",
-				LeaseDuration:        time.Minute,
-				Now:                  now.Add(time.Duration(index) * time.Second),
-			})
-			if err != nil {
-				t.Fatalf("ClaimNextRun(%q) error = %v", expected.workspaceID, err)
-			}
-			if claim.CoordinationChannel == nil {
-				t.Fatalf("ClaimNextRun(%q) coordination metadata = nil", expected.workspaceID)
-			}
-			if got := claim.CoordinationChannel.WorkspaceID; got != expected.workspaceID {
-				t.Fatalf("coordination workspace = %q, want %q", got, expected.workspaceID)
-			}
-			if got := claim.CoordinationChannel.Purpose; got != expected.purpose {
-				t.Fatalf("coordination purpose = %q, want %q", got, expected.purpose)
-			}
-		}
-	})
 }
 
 func TestGlobalDBClaimNextRunRespectsSchedulerPause(t *testing.T) {
@@ -1555,6 +1179,7 @@ func TestGlobalDBClaimNextRunPersistsSoulProvenanceMetadata(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, dbPath)
 		globalDB, err := OpenGlobalDB(ctx, dbPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -1563,7 +1188,7 @@ func TestGlobalDBClaimNextRunPersistsSoulProvenanceMetadata(t *testing.T) {
 			if globalDB == nil {
 				return
 			}
-			if err := globalDB.Close(ctx); err != nil {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close() error = %v", err)
 			}
 		})
@@ -1865,81 +1490,6 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	if got, want := failed.Error, "worker failed"; got != want {
 		t.Fatalf("failed.Error = %q, want %q", got, want)
 	}
-
-	t.Run("Should reject generic terminalization and preserve the active lease", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
-		taskRecord := taskRecordForTest("task-generic-terminal-claim-token")
-		taskRecord.Status = taskpkg.TaskStatusReady
-		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
-		}
-		run := taskRunForTest("run-generic-terminal-claim-token", taskRecord.ID)
-		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-			t.Fatalf("CreateTaskRun() error = %v", err)
-		}
-		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:            taskpkg.ScopeGlobal,
-			ClaimerSessionID: "sess-generic-terminal-claim-token",
-			LeaseDuration:    time.Minute,
-			Now:              now,
-		})
-		if err != nil {
-			t.Fatalf("ClaimNextRun() error = %v", err)
-		}
-
-		starting, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(starting) error = %v", err)
-		}
-		starting.Status = taskpkg.TaskRunStatusStarting
-		if err := globalDB.UpdateNonTerminalTaskRun(ctx, starting); err != nil {
-			t.Fatalf("UpdateTaskRun(starting) error = %v", err)
-		}
-
-		terminal, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(terminal) error = %v", err)
-		}
-		terminal.Status = taskpkg.TaskRunStatusFailed
-		terminal.EndedAt = now.Add(time.Second)
-		terminal.Error = "worker exhausted"
-		if err := globalDB.UpdateNonTerminalTaskRun(ctx, terminal); !errors.Is(
-			err,
-			taskpkg.ErrInvalidStatusTransition,
-		) {
-			t.Fatalf(
-				"UpdateNonTerminalTaskRun(failed) error = %v, want %v",
-				err,
-				taskpkg.ErrInvalidStatusTransition,
-			)
-		}
-
-		var storedRaw sql.NullString
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
-			Scan(&storedRaw); err != nil {
-			t.Fatalf("query terminal claim_token error = %v", err)
-		}
-		if !storedRaw.Valid {
-			t.Fatal("rejected terminal update cleared the active raw claim token")
-		}
-		stored, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(after terminal update) error = %v", err)
-		}
-		if got, want := stored.ClaimTokenHash, claim.Run.ClaimTokenHash; got != want {
-			t.Fatalf("ClaimTokenHash = %q, want %q", got, want)
-		}
-		if got, want := stored.Status, taskpkg.TaskRunStatusStarting; got != want {
-			t.Fatalf("Status = %q, want rejected update to preserve %q", got, want)
-		}
-		if got, want := stored.SessionID, "sess-generic-terminal-claim-token"; got != want {
-			t.Fatalf("SessionID = %q, want %q", got, want)
-		}
-	})
 
 	t.Run("Should clear raw claim token when marking an active run needs attention", func(t *testing.T) {
 		t.Parallel()
@@ -4321,6 +3871,21 @@ func testGlobalDBLoopWorkerSettlementAuthority(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("HeartbeatRunLease(agent) error = %v", err)
 	}
+	if _, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Reason: "worker finished its prompt", Now: now.Add(3 * time.Second),
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("ReleaseRunLease(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
+	if _, err := globalDB.BlockTaskAndReleaseRun(ctx, taskpkg.BlockTaskAndReleaseRunMutation{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Now: now.Add(3 * time.Second),
+		Block: taskpkg.TaskBlock{
+			ID: "block-loop-worker", TaskID: taskRecord.ID, Kind: taskpkg.BlockKindNeedsInput,
+			Reason: "worker attempted release", CreatedBy: agent.Actor, CreatedAt: now,
+		},
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("BlockTaskAndReleaseRun(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
 	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 		Actor: coordinatorActorContextForTest(), RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
 		Result: taskpkg.RunResult{Value: json.RawMessage(`{"status":"done"}`)},
@@ -4628,7 +4193,7 @@ func successionLoopRunForTest(
 	return run
 }
 
-func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time) looppkg.Run {
+func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time, withGate bool) looppkg.Run {
 	t.Helper()
 
 	transform := func(nodeID dsl.NodeID) dsl.Node {
@@ -4675,6 +4240,21 @@ func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time) loop
 			},
 		},
 	}
+	if withGate {
+		definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+			ID: "approve_delivery", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+			Criteria:      []dsl.GateCriterion{{ID: "operator", Type: dsl.CriterionHuman}},
+			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+		})
+		for idx := range definition.Graph.Edges {
+			if definition.Graph.Edges[idx].To == "prepare_worktree" {
+				definition.Graph.Edges[idx].To = "approve_delivery"
+			}
+		}
+		definition.Graph.Edges = append(definition.Graph.Edges, dsl.Edge{
+			From: "approve_delivery", To: "prepare_worktree",
+		})
+	}
 	definition.Normalize()
 	resolved, err := looppkg.NewCompiler().Compile(definition)
 	if err != nil {
@@ -4684,7 +4264,7 @@ func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time) loop
 		resolved,
 		looppkg.DefaultLoopDefaults(),
 		nil,
-		looppkg.LoopConfig{},
+		looppkg.LoopConfig{HumanGateEnabled: new(false)},
 	)
 	if err != nil {
 		t.Fatalf("ResolveEffectiveConfig(route-not-taken definition) error = %v", err)
@@ -5514,20 +5094,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 5, 15, 39, 0, 0, time.UTC)
-	liveSpec := participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     "ws-1",
-		ChannelStrategy: participation.StrategyLoopRun,
-		ChannelID:       "looprun-coordinator-watch-ready",
-		Source:          participation.SourceLoopDefinition,
-		Bounds: participation.Bounds{
-			MaxWakes: 2, MaxWakeWallTime: "1s", MaxTotalWallTime: "2s",
-			MaxInputTokens: 100, MaxOutputTokens: 100, MaxWakeDepth: 2, CoalesceWindow: "100ms",
-		},
-	}
 	loopSeed := testLoopRun("looprun-coordinator-watch-ready", now, looppkg.StatusWatching)
-	loopSeed.SetNetworkSpec(liveSpec)
 	loopRun, err := globalDB.CreateLoopRunForStart(
 		ctx,
 		loopSeed,
@@ -5554,9 +5121,6 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 		"run-coordinator-watch-ready",
 		now,
 	)
-	if got := claim.Run.NetworkSpecSnapshot(); got != liveSpec {
-		t.Fatalf("coordinator participation = %#v, want %#v", got, liveSpec)
-	}
 	nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.fix_review.0"
 	nodeRunID := "run.loop." + string(loopRun.ID) + ".g1.node.fix_review.0"
 
@@ -5612,12 +5176,9 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 	if storedLoop.Status != looppkg.StatusRunning {
 		t.Fatalf("stored loop status = %q, want running", storedLoop.Status)
 	}
-	storedNodeRun, err := globalDB.GetTaskRun(ctx, nodeRunID)
+	_, err = globalDB.GetTaskRun(ctx, nodeRunID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(node) error = %v", err)
-	}
-	if got := storedNodeRun.NetworkSpecSnapshot(); got != liveSpec {
-		t.Fatalf("node participation = %#v, want inherited %#v", got, liveSpec)
 	}
 }
 
@@ -5944,10 +5505,12 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 	t.Parallel()
 
 	cases := []struct {
-		name   string
-		status looppkg.Status
-		cause  looppkg.TransitionCause
-		gateID string
+		name       string
+		status     looppkg.Status
+		cause      looppkg.TransitionCause
+		gateID     string
+		details    json.RawMessage
+		wantPrompt string
 	}{
 		{name: "terminal", status: looppkg.StatusDone, cause: looppkg.TransitionCauseContract},
 		{
@@ -5955,6 +5518,16 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 			status: looppkg.StatusNeedsApproval,
 			cause:  looppkg.TransitionCauseBudget,
 			gateID: string(looppkg.BudgetGateID),
+		},
+		{
+			name:   "human approval",
+			status: looppkg.StatusNeedsApproval,
+			cause:  looppkg.TransitionCauseContract,
+			gateID: "release_review",
+			details: json.RawMessage(
+				`{"criteria":[{"id":"reviewer","type":"human","outcome":"awaiting_approval","prompt":"Review release v2.4.1"}]}`,
+			),
+			wantPrompt: "Review release v2.4.1",
 		},
 	}
 	for _, tc := range cases {
@@ -6006,9 +5579,10 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 							Generation: 1,
 						},
 						Terminal: &taskpkg.CoordinatorTerminal{
-							Status: string(tc.status),
-							Cause:  string(tc.cause),
-							GateID: tc.gateID,
+							Status:  string(tc.status),
+							Cause:   string(tc.cause),
+							GateID:  tc.gateID,
+							Details: tc.details,
 						},
 					},
 					Now: now.Add(time.Second),
@@ -6033,6 +5607,24 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 			}
 			if storedLoop.PauseRequested {
 				t.Fatal("loop pause_requested = true, want cleared by truthful verdict")
+			}
+			if tc.wantPrompt != "" {
+				events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
+					WorkspaceID: loopRun.WorkspaceID,
+					RunID:       loopRun.ID,
+				})
+				if err != nil {
+					t.Fatalf("ListLoopRunEvents() error = %v", err)
+				}
+				payload := loopEventPayloadForKind(t, events, loopRunEventNeedsApproval)
+				if got := payload["prompt"]; got != tc.wantPrompt {
+					t.Fatalf("needs_approval.prompt = %#v, want %q", got, tc.wantPrompt)
+				}
+				facts := payload["facts"].([]any)
+				if got := facts[1].(map[string]any)["value"]; got != "1" {
+					t.Fatalf("needs_approval Criteria count = %#v, want 1", got)
+				}
 			}
 		})
 	}
@@ -6764,7 +6356,12 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 
 	t.Run("Should claim a join after an inactive route settles", func(t *testing.T) {
 		t.Parallel()
-		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t)
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t, false)
+	})
+
+	t.Run("Should claim downstream work after an inactive route and an auto-approved gate", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t, true)
 	})
 
 	t.Run("Should drain open descendants when the coordinator terminates", func(t *testing.T) {
@@ -7019,18 +6616,20 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	}
 }
 
-func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t *testing.T) {
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t *testing.T, withGate bool) {
 	t.Helper()
 
 	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 8, 25, 21, 0, 0, 0, time.UTC)
-	loopRun := routeNotTakenJoinLoopRunForTest(t, "looprun-route-not-taken-join", now)
+	loopRun := routeNotTakenJoinLoopRunForTest(t, "looprun-route-not-taken-join", now, withGate)
 	created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
-	runner, err := looppkg.NewCoordinatorRunner(globalDB, globalDB, globalDB, slog.Default())
+	runner, err := looppkg.NewCoordinatorRunner(globalDB, globalDB, globalDB, slog.Default(),
+		looppkg.WithCoordinatorGateEvaluator(gate.NewEvaluator()),
+	)
 	if err != nil {
 		t.Fatalf("NewCoordinatorRunner() error = %v", err)
 	}
@@ -7182,7 +6781,22 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 		t.Fatalf("claimed join run = %q, want %q", got, want)
 	}
 
-	for _, inactiveNodeID := range []string{"analyze_linear", "create_spec"} {
+	absentNodes := []string{"analyze_linear", "create_spec"}
+	if withGate {
+		absentNodes = append(absentNodes, "approve_delivery")
+		var status string
+		if err := globalDB.db.QueryRowContext(ctx,
+			`SELECT status FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'approve_delivery' AND item_index = 0`,
+			string(created.ID),
+		).Scan(&status); err != nil {
+			t.Fatalf("read persisted gate output: %v", err)
+		}
+		if status != "succeeded" {
+			t.Fatalf("gate status = %q, want succeeded", status)
+		}
+	}
+	for _, inactiveNodeID := range absentNodes {
 		inactiveTaskID := fmt.Sprintf("loop.%s.g1.node.%s.0", created.ID, inactiveNodeID)
 		if _, err := globalDB.GetTask(ctx, inactiveTaskID); !errors.Is(err, taskpkg.ErrTaskNotFound) {
 			t.Fatalf("GetTask(inactive %s) error = %v, want %v", inactiveNodeID, err, taskpkg.ErrTaskNotFound)
@@ -7191,6 +6805,15 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 	dependencies, err := globalDB.ListDependencies(ctx, joinTaskID)
 	if err != nil {
 		t.Fatalf("ListDependencies(join) error = %v", err)
+	}
+	if withGate {
+		if len(dependencies) != 0 {
+			t.Fatalf(
+				"downstream dependencies = %#v, want no generic dependency on coordinator-owned gate",
+				dependencies,
+			)
+		}
+		return
 	}
 	wantDependencyID := selectedTaskID
 	if got, want := len(dependencies), 1; got != want {
@@ -7307,6 +6930,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	cases := []struct {
 		name             string
 		complete         bool
+		forceStatus      taskpkg.RunStatus
 		result           json.RawMessage
 		failureMetadata  json.RawMessage
 		tokensUsed       int64
@@ -7318,6 +6942,23 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		wantEvents       []string
 	}{
 		{
+			name:             "operator fails queued worker",
+			forceStatus:      taskpkg.TaskRunStatusQueued,
+			wantOutputStatus: "failed",
+			wantEvents:       []string{loopRunEventStatusChanged, loopRunEventNodeFailed, loopRunEventTokenTick},
+		},
+		{
+			name:             "operator fails claimed worker",
+			forceStatus:      taskpkg.TaskRunStatusClaimed,
+			wantOutputStatus: "failed",
+			wantEvents: []string{
+				loopRunEventStatusChanged,
+				loopRunEventNodeRunning,
+				loopRunEventNodeFailed,
+				loopRunEventTokenTick,
+			},
+		},
+		{
 			name:             "success records terminal output",
 			complete:         true,
 			result:           json.RawMessage(`{"message":"approved compozy_claim_SECRET123"}`),
@@ -7328,7 +6969,6 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				loopRunEventStatusChanged,
 				loopRunEventNodeRunning,
 				loopRunEventNodeSucceeded,
-				loopRunEventChannelMsg,
 				loopRunEventTokenTick,
 			},
 		},
@@ -7413,20 +7053,41 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			); err != nil {
 				t.Fatalf("insert generation output error = %v", err)
 			}
-			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:            taskpkg.ScopeGlobal,
-				ClaimerSessionID: "worker-" + strings.ReplaceAll(tc.name, " ", "-"),
-				ClaimedBy: &taskpkg.ActorIdentity{
-					Kind: taskpkg.ActorKindDaemon,
-					Ref:  "loop",
-				},
-				LeaseDuration: time.Minute,
-				Now:           now,
-			})
-			if err != nil {
-				t.Fatalf("ClaimNextRun() error = %v", err)
+			var claim taskpkg.ClaimResult
+			if tc.forceStatus != taskpkg.TaskRunStatusQueued {
+				claim, err = globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+					Scope:            taskpkg.ScopeGlobal,
+					ClaimerSessionID: "worker-" + strings.ReplaceAll(tc.name, " ", "-"),
+					ClaimedBy: &taskpkg.ActorIdentity{
+						Kind: taskpkg.ActorKindDaemon,
+						Ref:  "loop",
+					},
+					LeaseDuration: time.Minute,
+					Now:           now,
+				})
+				if err != nil {
+					t.Fatalf("ClaimNextRun() error = %v", err)
+				}
 			}
-			if tc.complete {
+			switch {
+			case tc.forceStatus != taskpkg.TaskRunStatusUnknown:
+				manager, err := taskpkg.NewManager(
+					taskpkg.WithStore(globalDB),
+					taskpkg.WithManagerNow(func() time.Time { return terminalAt }),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := manager.ForceFailRun(
+					ctx,
+					runID,
+					taskpkg.ForceFailRun{Reason: "operator recovery"},
+					coordinatorActorContextForTest(),
+				); err != nil {
+					t.Fatal(err)
+				}
+				globalDB = testGlobalDBForcedLoopFailureReplay(t, globalDB, runID, terminalAt)
+			case tc.complete:
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
@@ -7437,7 +7098,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				}); err != nil {
 					t.Fatalf("CompleteRunLease() error = %v", err)
 				}
-			} else {
+			default:
 				metadata := tc.failureMetadata
 				if len(metadata) == 0 {
 					metadata = json.RawMessage(`{"reason_code":"credential_missing"}`)
@@ -7519,18 +7180,54 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			if got := int64(tick["tokens_used"].(float64)); got != tc.tokensUsed {
 				t.Fatalf("token_tick.tokens_used = %d, want %d", got, tc.tokensUsed)
 			}
-			if tc.complete {
-				channel := loopEventPayloadForKind(t, events, loopRunEventChannelMsg)
-				text := channel["text"].(string)
-				if strings.Contains(text, "compozy_claim_SECRET123") {
-					t.Fatalf("channel_msg.text leaked raw claim token: %q", text)
-				}
-				if !strings.Contains(text, "compozy_claim_[REDACTED]") {
-					t.Fatalf("channel_msg.text = %q, want redacted claim token marker", text)
-				}
-			}
 		})
 	}
+}
+
+// Invariant: replaying operator recovery after reopening durable state cannot duplicate
+// a Loop worker's canonical failure event. The existing terminal progress suite owns it.
+func testGlobalDBForcedLoopFailureReplay(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID string,
+	at time.Time,
+) *GlobalDB {
+	t.Helper()
+	ctx := testutil.Context(t)
+	query := taskpkg.EventQuery{RunID: runID, EventType: "task.run.failed"}
+	before, err := globalDB.ListTaskEvents(ctx, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 1 {
+		t.Fatalf("canonical failure events before restart = %d, want 1", len(before))
+	}
+	path := globalDB.Path()
+	if err := globalDB.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reopened := openGlobalDBForTest(t, path)
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(reopened),
+		taskpkg.WithManagerNow(func() time.Time { return at.Add(time.Second) }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = manager.ForceFailRun(
+		ctx, runID, taskpkg.ForceFailRun{Reason: "operator recovery"}, coordinatorActorContextForTest(),
+	)
+	if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		t.Fatalf("replayed recovery error = %v, want ErrInvalidStatusTransition", err)
+	}
+	after, err := reopened.ListTaskEvents(ctx, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 1 || after[0].ID != before[0].ID {
+		t.Fatalf("canonical failure events after restart = %#v, want original event %q", after, before[0].ID)
+	}
+	return reopened
 }
 
 func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSuccess(t *testing.T) {
@@ -8152,19 +7849,6 @@ func TestLoopGateVerdictEventPayloadShouldSurfaceCriterionDiagnostics(t *testing
 		}
 		if !strings.Contains(err.Error(), "decode sanitized gate verdict criteria") {
 			t.Fatalf("loopGateVerdictEventPayload() error = %v, want criteria decode error", err)
-		}
-	})
-}
-
-func TestLoopChannelMessageTextShouldSuppressMalformedPayload(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return empty text for malformed JSON", func(t *testing.T) {
-		t.Parallel()
-
-		text := channelMessageText(testutil.Context(t), "run-invalid-payload", json.RawMessage(`{"message":`))
-		if text != "" {
-			t.Fatalf("channelMessageText() = %q, want empty text for malformed payload", text)
 		}
 	})
 }
@@ -8907,7 +8591,7 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 			t.Fatal("stale terminal writer recorded = true, want dropped")
 		}
 		if err := recordLoopNodeTerminalWithExecutor(
-			ctx, globalDB.db, staleRun, "success", `{"stale":true}`, nil, now,
+			ctx, globalDB.db, staleRun, "success", `{"stale":true}`, now,
 		); err != nil {
 			t.Fatalf("recordLoopNodeTerminalWithExecutor(stale) error = %v", err)
 		}

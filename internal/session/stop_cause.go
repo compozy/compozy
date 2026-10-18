@@ -19,6 +19,9 @@ const (
 	// TTL decision.
 	CauseSpawnTTLExpired
 	CauseInactivity
+	// CauseOwnerReleased ends a managed session's ownership without asserting
+	// that its task succeeded or that an operator canceled it.
+	CauseOwnerReleased
 )
 
 const stopDetailInactivity = "inactivity"
@@ -28,6 +31,8 @@ func (cause StopCause) String() string {
 	switch cause {
 	case CauseCompleted:
 		return "completed"
+	case CauseOwnerReleased:
+		return "owner_released"
 	case CauseFailed:
 		return "failed"
 	case CauseUserRequested:

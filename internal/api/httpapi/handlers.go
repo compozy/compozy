@@ -10,10 +10,9 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
-	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
@@ -27,12 +26,12 @@ const (
 type handlerConfig struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
+	subagents             session.SubagentService
 	sessionCatalog        core.SessionCatalog
+	taskDesignations      core.TaskDesignationStore
+	skillExposureStore    store.SkillExposureRepository
+	skillExposureEvents   store.EventSummaryStore
 	tasks                 core.TaskService
-	network               core.NetworkService
-	networkStore          core.NetworkStore
-	networkUsage          store.NetworkUsageStore
-	coordination          workspacepkg.CoordinationCommands
 	observer              core.Observer
 	schemaStreams         core.SchemaStreamStatusReader
 	resources             core.ResourceService
@@ -40,8 +39,6 @@ type handlerConfig struct {
 	terminal              core.TerminalProvider
 	automation            core.AutomationManager
 	loops                 core.LoopService
-	bridges               core.BridgeService
-	notifications         core.NotificationPresetService
 	profiles              core.ProfileService
 	supportBundles        core.SupportBundleService
 	tools                 core.ToolRegistry
@@ -80,12 +77,8 @@ type handlerConfig struct {
 	wakeEvents            core.HeartbeatWakeEventReader
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
-	memoryStore           *memory.Store
-	dreamTrigger          core.DreamTrigger
-	memoryExtractor       core.MemoryExtractorService
-	memoryProviders       core.MemoryProviderService
-	memoryLedger          core.MemorySessionLedgerService
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
+	hostLoad              doctor.HostLoadSnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	gateway               core.GatewayService
 	gatewayAdmission      gateway.AdmissionController
@@ -181,14 +174,14 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 
 func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerConfig {
 	config := coreHandlerDependencies(cfg)
-	exposureDeps := core.ResolveSkillExposureDependencies(cfg.networkStore)
+
 	coreConfig := cfg.config
 	coreConfig.HTTP.Host = boundHost
 	config.TransportName = "httpapi"
 	config.MaskInternalErrors = true
 	config.IncludeSessionWorkspaceInSSE = true
-	config.SkillExposures = exposureDeps.Repository
-	config.SkillExposureEvents = exposureDeps.Events
+	config.SkillExposures = cfg.skillExposureStore
+	config.SkillExposureEvents = cfg.skillExposureEvents
 	config.GatewayPairingSource = gatewayPairingSource(cfg.surfaceSet)
 	config.Config = coreConfig
 	config.Logger = cfg.logger
@@ -201,15 +194,21 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 
 func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 	return &core.BaseHandlerConfig{
+		SoulAuthoring:          cfg.soulAuthoring,
+		SoulHistoryPurger:      cfg.soulHistoryPurger,
+		SoulRefresher:          cfg.soulRefresher,
+		HeartbeatAuthoring:     cfg.heartbeatAuthor,
+		HeartbeatHistoryPurger: cfg.heartbeatPurger,
+		HeartbeatStatus:        cfg.heartbeatStatus,
+		HeartbeatWake:          cfg.heartbeatWake,
+		HeartbeatWakeEvents:    cfg.wakeEvents,
 		Sessions:               cfg.sessions,
 		SessionAcceptance:      sessionAcceptanceManager(cfg.sessions),
 		DrainController:        cfg.drainController,
+		Subagents:              cfg.subagents,
 		SessionCatalog:         cfg.sessionCatalog,
+		TaskDesignations:       cfg.taskDesignations,
 		Tasks:                  cfg.tasks,
-		Network:                cfg.network,
-		NetworkStore:           cfg.networkStore,
-		NetworkUsage:           cfg.networkUsage,
-		Coordination:           cfg.coordination,
 		Observer:               cfg.observer,
 		SchemaStreams:          cfg.schemaStreams,
 		Resources:              cfg.resources,
@@ -218,8 +217,6 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Extensions:             cfg.extensions,
 		Automation:             cfg.automation,
 		Loops:                  cfg.loops,
-		Bridges:                cfg.bridges,
-		Notifications:          cfg.notifications,
 		Profiles:               cfg.profiles,
 		SupportBundles:         cfg.supportBundles,
 		Tools:                  cfg.tools,
@@ -248,23 +245,11 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AgentContextService:    cfg.agentContext,
 		CoordinatorRole:        cfg.coordinatorRole,
 		Roles:                  cfg.roles,
-		SoulAuthoring:          cfg.soulAuthoring,
-		SoulHistoryPurger:      cfg.soulHistoryPurger,
-		SoulRefresher:          cfg.soulRefresher,
-		HeartbeatAuthoring:     cfg.heartbeatAuthor,
-		HeartbeatHistoryPurger: cfg.heartbeatPurger,
-		HeartbeatStatus:        cfg.heartbeatStatus,
-		HeartbeatWake:          cfg.heartbeatWake,
 		SessionHealth:          cfg.sessionHealth,
-		HeartbeatWakeEvents:    cfg.wakeEvents,
 		SkillsRegistry:         cfg.skillsRegistry,
 		SkillResources:         cfg.skillResources,
-		MemoryStore:            cfg.memoryStore,
-		DreamTrigger:           cfg.dreamTrigger,
-		MemoryExtractor:        cfg.memoryExtractor,
-		MemoryProviders:        cfg.memoryProviders,
-		MemorySessionLedger:    cfg.memoryLedger,
 		RuntimeMemory:          cfg.runtimeMemory,
+		HostLoad:               cfg.hostLoad,
 		DeadEntities:           cfg.deadEntities,
 		Gateway:                cfg.gateway,
 		HomePaths:              cfg.homePaths,

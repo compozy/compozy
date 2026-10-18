@@ -47,7 +47,7 @@ func newConnectAddCommand(deps commandDeps) *cobra.Command {
 
 func newConnectListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   bridgeListKey,
+		Use:   cliOutputListKey,
 		Short: "List connection profiles without reading credentials",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) (returnErr error) {
@@ -102,7 +102,7 @@ func newConnectUseCommand(deps commandDeps) *cobra.Command {
 						Scheme: "unix",
 						Active: true,
 					},
-					Status: memoryActiveKey,
+					Status: cliActiveKey,
 				}))
 			}
 			profile, exists := findGatewayProfile(gatewayConfig.Connections, name)
@@ -122,7 +122,7 @@ func newConnectUseCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			return writeCommandOutput(cmd, gatewayProfileOutput(gatewayProfileMutationRecord{
-				Profile: gatewayProfileFromConfig(profile, name), Status: memoryActiveKey,
+				Profile: gatewayProfileFromConfig(profile, name), Status: cliActiveKey,
 			}))
 		},
 	}

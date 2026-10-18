@@ -31,12 +31,15 @@ function SkipToContentLink() {
     <a
       data-testid="skip-to-content"
       href="#app-content"
-      className="sr-only fixed top-2 left-2 z-50 rounded-md bg-accent px-3 py-2 font-mono text-form-label font-medium text-accent-ink shadow-highlight focus:not-sr-only focus-visible:outline-none focus-visible:shadow-focus-ring"
+      className="sr-only fixed top-2 left-2 z-50 rounded-pill bg-primary px-3 py-2 text-form-label font-medium text-primary-foreground focus:not-sr-only focus-visible:outline-none focus-visible:shadow-focus-ring"
     >
       Skip to content
     </a>
   );
 }
+
+const remoteHTTPAPIBlockedMessage =
+  "remote HTTP API access is disabled unless the daemon is bound to a loopback host";
 
 export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
   const router = useRouter();
@@ -50,17 +53,21 @@ export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
         <Empty
           className="max-w-xl"
           cause={routeErrorCause(error)}
-          description="This screen didn't load. Reload to try again."
+          description={
+            error instanceof Error && error.message === remoteHTTPAPIBlockedMessage
+              ? remoteHTTPAPIBlockedMessage
+              : "This screen didn't load. Reload to try again."
+          }
           icon={AlertTriangle}
           title="Something went wrong"
           titleAs="h1"
           action={
             <>
-              <Button onClick={handleRetry} size="sm" type="button" variant="outline">
+              <Button onClick={handleRetry} size="sm" type="button" variant="secondary">
                 <RefreshCw className="size-3" />
                 Retry
               </Button>
-              <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
+              <Link className={buttonVariants({ variant: "secondary", size: "sm" })} to="/">
                 <Compass className="size-3" />
                 Go home
               </Link>
@@ -83,7 +90,7 @@ export function RootRouteNotFoundBoundary({ routeId }: NotFoundRouteProps) {
           title="Page not found"
           titleAs="h1"
           action={
-            <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
+            <Link className={buttonVariants({ variant: "secondary", size: "sm" })} to="/">
               <Compass className="size-3" />
               Go home
             </Link>

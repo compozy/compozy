@@ -106,7 +106,8 @@ function buildSessionRuntimeConfig(
   promptRecovery: SessionPromptRecovery,
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null,
   idempotencyKeys?: Map<string, string>,
-  preparedUserMessages?: Map<string, UIMessage>
+  preparedUserMessages?: Map<string, UIMessage>,
+  readOnly = false
 ) {
   const recoveryScope = { workspaceId, sessionId };
   const goalAwareFetch = createGoalAwareFetch({
@@ -136,6 +137,7 @@ function buildSessionRuntimeConfig(
     },
   });
   const trackedFetch: typeof globalThis.fetch = async (input, init) => {
+    if (readOnly) throw new Error("This session history is read-only");
     const controller = new AbortController();
     const upstreamSignal = init?.signal;
     const abortFromUpstream = () => controller.abort(upstreamSignal?.reason);
@@ -206,11 +208,13 @@ export function useSessionChatRuntime({
   workspaceId,
   promptDispatch,
   promptRecovery,
+  readOnly = false,
 }: {
   sessionId: string;
   workspaceId: string;
   promptDispatch: SessionPromptDispatchStore;
   promptRecovery: SessionPromptRecovery;
+  readOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
@@ -226,7 +230,8 @@ export function useSessionChatRuntime({
     promptRecovery,
     promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined,
     idempotencyKeys,
-    preparedUserMessages
+    preparedUserMessages,
+    readOnly
   );
 
   return useChatRuntime({

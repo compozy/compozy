@@ -2,7 +2,6 @@ package extensionpkg
 
 import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func cloneAutomationTaskConfig(config *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
@@ -11,9 +10,7 @@ func cloneAutomationTaskConfig(config *automationpkg.JobTaskConfig) *automationp
 	}
 	cloned := *config
 	if config.Owner != nil {
-		owner := *config.Owner
-		cloned.Owner = &owner
+		cloned.Owner = new(*config.Owner)
 	}
-	cloned.NetworkParticipation = participation.CloneRequest(config.NetworkParticipation)
 	return &cloned
 }

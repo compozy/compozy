@@ -1,12 +1,13 @@
 package marketplace
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -49,13 +50,11 @@ func listCatalogRows(rows []storepkg.MarketplaceCatalogEntry, query string, offs
 			entries = append(entries, entry)
 		}
 	}
-	sort.SliceStable(entries, func(i, j int) bool {
-		left := foldMarketplaceText(entries[i].Name)
-		right := foldMarketplaceText(entries[j].Name)
-		if left == right {
-			return entries[i].EntryID < entries[j].EntryID
-		}
-		return left < right
+	slices.SortStableFunc(entries, func(left, right Entry) int {
+		return cmp.Or(
+			cmp.Compare(foldMarketplaceText(left.Name), foldMarketplaceText(right.Name)),
+			cmp.Compare(left.EntryID, right.EntryID),
+		)
 	})
 	total := len(entries)
 	if offset >= total {

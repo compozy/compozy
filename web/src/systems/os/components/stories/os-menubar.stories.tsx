@@ -4,10 +4,11 @@ import { fn, userEvent, within } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
 import type { SettingsUpdateStatus } from "@/systems/settings";
-import { settingsUpdateIndicatorAvailable } from "@/systems/settings";
+import { settingsUpdateIndicatorState } from "@/systems/settings";
 import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
+  settingsUpdateRolledBackFixture,
   settingsUpdateStatusFixture,
 } from "@/systems/settings/mocks";
 import type {
@@ -31,6 +32,8 @@ import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 import { DesktopMenubar } from "../desktop-menubar";
+import type { MenubarUpdateModel } from "../menubar/menubar-update-indicator";
+import { DesktopPager, type DesktopPagerItem } from "../desktop-pager";
 import { OsMenuBar } from "../os-menubar";
 import { OsHydrationStatus } from "../os-hydration-status";
 import { createLiveStoryShell, createStoryShell } from "./_shell-fixture";
@@ -45,7 +48,7 @@ const meta: Meta<typeof OsMenuBar> = {
     docs: {
       description: {
         component:
-          'The desktop menubar: the CompozyOS system menu, the Global scope globe, the workspace switcher, the static Session / Go / Window / Help set, the approvals bell, the ⌘K chip, and Settings. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
+          'The desktop menubar: the CompozyOS system menu, the Global scope globe, the workspace switcher, the static Session / Go / Window / Help set, then the tray: desktop pager dots, All desktops, the approvals bell, and the ⌘K button. Settings lives in the system menu on the mark. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
       },
     },
   },
@@ -85,6 +88,14 @@ const ATTENTION: OsAttentionModel = {
   loading: false,
 };
 
+/** Four desktops; Review holds a session that needs you (orange dot while off-screen). */
+const PAGER_DESKTOPS: DesktopPagerItem[] = [
+  { id: "control", name: "Control" },
+  { id: "build", name: "Build" },
+  { id: "review", name: "Review", needsYou: true },
+  { id: "research", name: "Research" },
+];
+
 function MenubarFixture({
   overlay = null,
   live = true,
@@ -94,7 +105,7 @@ function MenubarFixture({
   toggleLocked,
   worktreeSelection,
   listing = MENUBAR_WORKTREE_LISTING,
-  updateAvailable = false,
+  update = { state: "hidden" },
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
@@ -104,7 +115,7 @@ function MenubarFixture({
   toggleLocked?: boolean;
   worktreeSelection?: ActiveWorktreeSelection;
   listing?: WorktreesResponse;
-  updateAvailable?: boolean;
+  update?: MenubarUpdateModel;
 }) {
   const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
@@ -112,30 +123,42 @@ function MenubarFixture({
     <OsShellContext.Provider value={shell}>
       <CmdPaletteRegistryProvider registry={cmdPaletteStoryRegistry}>
         <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
-          <DesktopShell menubar={false} wallpaper="carbon" deskHint>
-            <DesktopMenubar
-              workspaces={WORKSPACES}
-              activeWorkspace={WORKSPACES[0]}
-              chip={chip}
-              scope={scope}
-              toggleLocked={toggleLocked}
-              onToggleGlobalScope={onToggleGlobalScope}
-              onSelectWorkspace={fn()}
-              onAddWorkspace={fn()}
-              onRunCommand={fn()}
-              activeOverlay={active}
-              onOverlayOpenChange={(id, open) =>
-                setActive(current => (open ? id : current === id ? null : current))
-              }
-              attention={ATTENTION}
-              updateAvailable={updateAvailable}
-              worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
-              userHomeDir="/Users/ada"
-              worktreeSelection={worktreeSelection}
-              onSelectWorktree={fn()}
-              onCreateWorktree={fn()}
-            />
-          </DesktopShell>
+          <DesktopShell
+            wallpaper="carbon"
+            deskHint
+            topbar={
+              <DesktopMenubar
+                workspaces={WORKSPACES}
+                activeWorkspace={WORKSPACES[0]}
+                chip={chip}
+                scope={scope}
+                toggleLocked={toggleLocked}
+                onToggleGlobalScope={onToggleGlobalScope}
+                onSelectWorkspace={fn()}
+                onAddWorkspace={fn()}
+                onRunCommand={fn()}
+                activeOverlay={active}
+                onOverlayOpenChange={(id, open) =>
+                  setActive(current => (open ? id : current === id ? null : current))
+                }
+                attention={ATTENTION}
+                update={update}
+                worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
+                userHomeDir="/Users/ada"
+                worktreeSelection={worktreeSelection}
+                onSelectWorktree={fn()}
+                onCreateWorktree={fn()}
+                pager={
+                  <DesktopPager
+                    desktops={PAGER_DESKTOPS}
+                    activeDesktopId="build"
+                    onSelectDesktop={fn()}
+                    onOpenOverview={fn()}
+                  />
+                }
+              />
+            }
+          />
         </AgentCreateHostProvider>
       </CmdPaletteRegistryProvider>
     </OsShellContext.Provider>
@@ -304,11 +327,22 @@ export const MissingWorktreeFallback: Story = {
 /** Presentation-only — no menu owners, so the bar renders as inert chrome. */
 export const PresentationOnly: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" }, notifications: 0 },
-  render: args => (
-    <DesktopShell menubar={false} wallpaper="carbon" deskHint>
-      <OsMenuBar {...args} />
-    </DesktopShell>
-  ),
+  render: args => <DesktopShell wallpaper="carbon" deskHint topbar={<OsMenuBar {...args} />} />,
+};
+
+/**
+ * macOS Electron — the frameless window's traffic lights own the bar's leading
+ * 84px (fallback when `env(titlebar-area-*)` is unavailable); the mark follows.
+ */
+export const TrafficLightsReserved: Story = {
+  args: {
+    workspace: { name: "compozy", monogram: "CO", worktree: "continue-fork" },
+    notifications: 3,
+    trafficLights: true,
+    onCommandClick: fn(),
+    onDesktopsClick: fn(),
+  },
+  render: args => <DesktopShell wallpaper="carbon" deskHint topbar={<OsMenuBar {...args} />} />,
 };
 
 /**
@@ -321,20 +355,20 @@ export const DegradedSync: Story = {
     status: <OsHydrationStatus hydration="degraded" />,
     notifications: 2,
     onCommandClick: fn(),
-    onSettingsClick: fn(),
+    onDesktopsClick: fn(),
   },
-  render: args => (
-    <DesktopShell menubar={false} wallpaper="carbon" deskHint>
-      <OsMenuBar {...args} />
-    </DesktopShell>
-  ),
+  render: args => <DesktopShell wallpaper="carbon" deskHint topbar={<OsMenuBar {...args} />} />,
 };
 
 /** Menubar update indicator (S2): one story per state the daemon can report. */
 function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
   return {
     args: { workspace: { name: "compozy", monogram: "CO" } },
-    render: () => <MenubarFixture updateAvailable={settingsUpdateIndicatorAvailable(snapshot)} />,
+    render: () => (
+      <MenubarFixture
+        update={{ state: settingsUpdateIndicatorState(snapshot, false), onUpdate: fn() }}
+      />
+    ),
   };
 }
 
@@ -349,8 +383,8 @@ function FocusUpdateIndicatorSetup() {
 }
 
 /**
- * An update is offered: a filled accent control joins the trailing cluster
- * before the approvals bell. No count, no dropdown — detail lives in Settings.
+ * An update is offered: an accent "Update" pill joins the trailing cluster before
+ * the approvals bell. One click updates CompozyOS and restarts it in place.
  */
 export const UpdateIndicatorAvailable: Story = updateIndicatorStory(
   settingsUpdateBothAvailableFixture
@@ -361,7 +395,7 @@ export const UpdateIndicatorFocused: Story = {
   ...updateIndicatorStory(settingsUpdateBothAvailableFixture),
   render: () => (
     <>
-      <MenubarFixture updateAvailable />
+      <MenubarFixture update={{ state: "available", onUpdate: fn() }} />
       <FocusUpdateIndicatorSetup />
     </>
   ),
@@ -370,8 +404,8 @@ export const UpdateIndicatorFocused: Story = {
 /** The calm default: nothing is offered, so the indicator is absent from the DOM. */
 export const UpdateIndicatorHidden: Story = updateIndicatorStory(settingsUpdateStatusFixture);
 
-/**
- * An operation is live. The offer is over, so the indicator disappears and stays
- * gone through applying, staged, and failed — progress belongs to Settings alone.
- */
-export const UpdateIndicatorSuppressed: Story = updateIndicatorStory(settingsUpdateApplyingFixture);
+/** An operation is live: the pill holds a spinner until the app restarts updated. */
+export const UpdateIndicatorUpdating: Story = updateIndicatorStory(settingsUpdateApplyingFixture);
+
+/** The last update failed: the pill turns danger and opens Settings for the detail. */
+export const UpdateIndicatorFailed: Story = updateIndicatorStory(settingsUpdateRolledBackFixture);

@@ -46,12 +46,12 @@ describe("DocPageMasthead", () => {
   it("renders page actions when action urls are provided", () => {
     render(
       <DocPageMasthead
-        product="Compozy Network"
+        product="Loops"
         audience="protocol implementers"
         crumbs={[{ name: "Overview" }]}
         title="Protocol"
-        markdownUrl="/llms.mdx/docs/network/protocol/"
-        pageUrl="https://compozy.com/docs/network/protocol/"
+        markdownUrl="/llms.mdx/docs/loops/reference/"
+        pageUrl="https://compozy.com/docs/loops/reference/"
         githubUrl="https://github.com/compozy/compozy"
       />
     );

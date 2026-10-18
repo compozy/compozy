@@ -11,14 +11,11 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	loggerpkg "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -33,28 +30,17 @@ type CreateOpts struct {
 	Speed            speedpkg.Speed
 	ACPOptions       []acp.SessionConfigOptionSelection
 	CWD              string
-	SandboxRef       string
-	DisableSandbox   bool
 	Permissions      compozyconfig.PermissionMode
 	Name             string
 	Workspace        string
 	WorkspacePath    string
 	// Worktree names an existing ready worktree within the resolved parent workspace.
-	Worktree             string
-	NetworkParticipation *participation.Request
-	// ResolvedNetworkParticipation binds an internal worker session to the immutable owner snapshot.
-	// Callers must not set it together with NetworkParticipation.
-	ResolvedNetworkParticipation *participation.Spec
-	// NetworkOwnerKey binds an internal worker session to its task or loop budget owner.
-	// Empty values default to the session's own identity.
-	NetworkOwnerKey string
-	// NetworkAuthority carries the concrete delegated channel scope for child-owned resolution.
-	NetworkAuthority *participation.AuthorityScope
-	PromptOverlay    string
-	ContractOverlay  string
-	RuntimeMode      string
-	Type             Type
-	Lineage          *store.SessionLineage
+	Worktree        string
+	PromptOverlay   string
+	ContractOverlay string
+	RuntimeMode     string
+	Type            Type
+	Lineage         *store.SessionLineage
 	// ProvenanceParentSessionID links an internal system session to its informational origin.
 	// It does not grant spawn governance and is unavailable on public create surfaces.
 	ProvenanceParentSessionID string
@@ -68,6 +54,19 @@ type CreateOpts struct {
 	// DiscardStartFailure prevents internal retry attempts from leaving durable
 	// session artifacts when provider startup fails before Create returns.
 	DiscardStartFailure bool
+	// Command is an explicit launch command for this attempt (a fallback route's
+	// account). Empty keeps the provider-aware resolution and spawn inheritance.
+	Command string
+	// ChainOwner declares who owns the fallback chain for this launch; role-owned
+	// launches pass ChainOwnerCaller so the session layer performs exactly one route.
+	ChainOwner ChainOwner
+	// Derivation and ImportedContext are set only by the continue/fork derive path.
+	Derivation      *store.SessionDerivation
+	ImportedContext *store.SessionImportedContext
+	// deriveReceipt commits the child together with its derive receipt.
+	deriveReceipt *store.SessionDerivationReceipt
+	// deriveSelectsRuntime records the explicit runtime fields as the child's selected runtime.
+	deriveSelectsRuntime bool
 }
 
 // CreateAcceptedOpts carries one logical user-session creation request.
@@ -133,11 +132,14 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	replyWatches               ReplyWatchService
+	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings
 	supervisionMu              sync.Mutex
 	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex
 	lifecycleMu                sync.Mutex
+	worktreeDeliveryFences     map[string]bool
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization
@@ -158,7 +160,6 @@ type Manager struct {
 	promptAdmissionLocks       map[string]*promptAdmissionLock
 	resumeReplayMu             sync.Mutex
 	resumeReplays              map[string]string
-	compactionLifecycle        sessionCompactionLifecycle
 	startLifecycle             sessionStartLifecycle
 	resumeLifecycle            sessionResumeLifecycle
 	processWatchLifecycle      sessionProcessWatchLifecycle
@@ -185,8 +186,6 @@ type Manager struct {
 	logger                       *slog.Logger
 	driver                       AgentDriver
 	notifier                     Notifier
-	networkPeers                 NetworkPeerLifecycle
-	participationResolver        participation.Resolver
 	sessionWindowReconciler      WindowReconciler
 	windowReconciliationCtx      context.Context
 	windowReconciliationCancel   context.CancelFunc
@@ -207,7 +206,6 @@ type Manager struct {
 	goalCommandHandler           GoalCommandHandler
 	startupOverlay               StartupPromptOverlay
 	hooks                        HookSet
-	sandbox                      *sandbox.Registry
 	agentResolver                AgentResolver
 	providerSecrets              ProviderSecretResolver
 	profileNames                 ProfileNameResolver
@@ -221,12 +219,12 @@ type Manager struct {
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
 	sessionCatalog               store.SessionCatalog
+	eventLedger                  store.EventSummaryStore
 	attentionStore               store.SessionAttentionStore
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
-	ledgerMaterializer           LedgerMaterializer
 	homePaths                    compozyconfig.HomePaths
-	workspace                    workspacepkg.RuntimeResolver
+	workspace                    WorkspaceResolver
 	worktreeResolver             WorktreeResolver
 	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader
@@ -239,13 +237,12 @@ type Manager struct {
 	stopConfig                   compozyconfig.SessionStopConfig
 	busyInput                    compozyconfig.SessionBusyInputConfig
 	busyInputMu                  sync.RWMutex
-	compaction                   compozyconfig.SessionCompactionConfig
-	compactionHandler            CompactionHandler
+	messaging                    compozyconfig.SessionMessagingConfig
+	deriveConfig                 compozyconfig.SessionDeriveConfig
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context
 	now                          func() time.Time
 	newSessionID                 IDGenerator
-	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
 	newRunID                     IDGenerator
 	newRepairEventID             IDGenerator

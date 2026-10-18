@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr error) error {
@@ -39,7 +38,17 @@ func (m *Manager) finalizeStoppedOwned(
 	if session == nil {
 		return nil
 	}
-	defer func() { m.finishFinalization(session.ID, err) }()
+	defer func() {
+		m.finishFinalization(session.ID, err)
+		if err == nil && session.Info().State == StateStopped {
+			if service := m.ReplyWatches(); service != nil {
+				service.OnTurnSettled(ctx, session.ID, "")
+			}
+			if service := m.subagentService(); service != nil {
+				m.logSubagentError(service.OnChildSettled(ctx, session.ID))
+			}
+		}
+	}()
 	if session.pendingStopState() {
 		return m.finishStoppedPersistence(ctx, session)
 	}
@@ -48,6 +57,15 @@ func (m *Manager) finalizeStoppedOwned(
 	errs = appendLifecycleErr(errs, m.beginStoppingSession(ctx, session))
 	if verifyErr := m.verifySessionProcessExit(session); verifyErr != nil {
 		return errors.Join(append(errs, verifyErr)...)
+	}
+	// A concurrent turn cancellation owns its quiescence receipt until done.
+	// Keep the recorder open through that receipt, as the process watcher does.
+	if pending := session.pendingTurnStop(session.processHandle()); pending != nil {
+		select {
+		case <-pending:
+		case <-ctx.Done():
+			return errors.Join(append(errs, ctx.Err())...)
+		}
 	}
 	classificationErr := m.persistStopClassification(ctx, session, waitErr)
 	errs = appendLifecycleErr(errs, classificationErr)
@@ -105,8 +123,6 @@ func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session
 		return errors.Join(session.stopFinalizationErr, err)
 	}
 	errs := appendLifecycleErr(nil, session.stopFinalizationErr)
-	errs = appendLifecycleErr(errs, m.materializeSessionLedger(ctx, session))
-	errs = appendLifecycleErr(errs, m.leaveSessionNetwork(ctx, session))
 	m.clearResumeReplay(session.ID)
 
 	m.removeActive(session.ID)
@@ -131,25 +147,8 @@ func (m *Manager) finalizeStoppedRuntimeResources(ctx context.Context, session *
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	m.dispatchAgentStopped(cleanupCtx, session, session.processHandle(), waitErr)
-	m.logSandboxTransport(session, sandboxEventTransportDisconnect, nil, 0)
-	err := m.finalizeSandbox(cleanupCtx, session, sandboxSyncReasonForStop(session))
-	m.cancelSessionCompaction(session.ID)
 	if notifier, ok := m.notifier.(FinalizationNotifier); ok {
 		notifier.OnSessionFinalizing(cleanupCtx, session)
-	}
-	return err
-}
-
-func (m *Manager) leaveSessionNetwork(ctx context.Context, session *Session) error {
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-	defer cancel()
-	if err := m.leaveNetworkPeer(cleanupCtx, session); err != nil {
-		diagnosticErr := m.recordStoppedCleanupFailure(ctx, session, "network", err)
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			m.sessionLogger(session).Warn("session: leave network channel canceled", "error", err)
-			return diagnosticErr
-		}
-		return errors.Join(fmt.Errorf("session: leave network channel for %q: %w", session.ID, err), diagnosticErr)
 	}
 	return nil
 }

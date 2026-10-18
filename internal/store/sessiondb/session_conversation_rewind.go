@@ -330,7 +330,7 @@ func conversationRewindState(
 	}
 	return store.ConversationRewindState{
 		TargetMessageID: row.TargetMessageID, CoveredThroughSequence: row.CoveredThroughSequence,
-		MessagesJSON: row.MessagesJson, UpdatedAt: updatedAt,
+		MessagesJSON: row.MessagesJson, UpdatedAt: updatedAt, BaselineStale: row.BaselineStale != 0,
 	}, true, nil
 }
 

@@ -43,7 +43,7 @@ func TestStdioTransportBidirectionalCalls(t *testing.T) {
 		return nil, compozysdk.NewInvalidParamsError("forced failure", nil)
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 2)
 	go func() { done <- client.Run(ctx) }()
@@ -84,10 +84,10 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	runtime := newRuntimeHarness(t)
 	extension := compozysdk.NewExtension(
 		compozysdk.ExtensionDefinition{
-			Name:    "Memory Extension",
+			Name:    "Model Extension",
 			Version: "0.1.0",
 			Capabilities: compozysdk.CapabilitiesConfig{
-				Provides: []string{"memory.backend"},
+				Provides: []string{"model.source"},
 			},
 			Permissions: compozysdk.PermissionsConfig{
 				Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
@@ -98,32 +98,14 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		compozysdk.WithSDKVersion("test-version"),
 		compozysdk.WithStderr(io.Discard),
 	)
-	if err := extension.Handle("memory/store", func(
+	if err := extension.Handle("models/list", func(
 		context.Context,
 		compozysdk.ExtensionContext,
 		json.RawMessage,
 	) (any, error) {
-		return map[string]bool{"stored": true}, nil
+		return map[string]bool{"listed": true}, nil
 	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-	if err := extension.Handle("memory/recall", func(
-		context.Context,
-		compozysdk.ExtensionContext,
-		json.RawMessage,
-	) (any, error) {
-		return map[string]any{"entries": []any{}}, nil
-	}); err != nil {
-		t.Fatalf("Handle(memory/recall) error = %v", err)
-	}
-	if err := extension.Handle("memory/forget", func(
-		context.Context,
-		compozysdk.ExtensionContext,
-		json.RawMessage,
-	) (any, error) {
-		return map[string]bool{"forgotten": true}, nil
-	}); err != nil {
-		t.Fatalf("Handle(memory/forget) error = %v", err)
+		t.Fatalf("Handle(models/list) error = %v", err)
 	}
 	if err := extension.Handle("health_check", func(
 		context.Context,
@@ -144,7 +126,7 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		t.Fatalf("Handle(shutdown) error = %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
@@ -163,8 +145,8 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	})
 
 	initialize := runtime.call(t, 1, "initialize", initializeParamsWithGrants(
-		"Memory Extension",
-		[]string{"memory.backend"},
+		"Model Extension",
+		[]string{"model.source"},
 		[]string{"sessions/list"},
 	))
 	if initialize.Error != nil {
@@ -179,14 +161,14 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		t.Fatalf("supported hook events = %#v, want session.started", initResult.SupportedHookEvents)
 	}
 
-	store := runtime.call(t, 2, "memory/store", map[string]string{"key": "alpha"})
-	if store.Error != nil {
-		t.Fatalf("memory/store error = %#v", store.Error)
+	list := runtime.call(t, 2, "models/list", map[string]string{"key": "alpha"})
+	if list.Error != nil {
+		t.Fatalf("models/list error = %#v", list.Error)
 	}
-	var stored map[string]bool
-	decodeResult(t, store.Result, &stored)
-	if !stored["stored"] {
-		t.Fatalf("memory/store result = %#v, want stored", stored)
+	var listed map[string]bool
+	decodeResult(t, list.Result, &listed)
+	if !listed["listed"] {
+		t.Fatalf("models/list result = %#v, want listed", listed)
 	}
 
 	health := runtime.call(t, 3, "health_check", map[string]any{})
@@ -209,7 +191,7 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		t.Fatalf("shutdown result = %#v, want acknowledged", shutdownResult)
 	}
 
-	blocked := runtime.call(t, 5, "memory/recall", map[string]any{})
+	blocked := runtime.call(t, 5, "models/list", map[string]any{})
 	if blocked.Error == nil || blocked.Error.Code != -32004 {
 		t.Fatalf("post-shutdown response error = %#v, want shutdown in progress", blocked.Error)
 	}
@@ -226,7 +208,7 @@ func testHostAPIRawRequestAndResultHelpers(t *testing.T) {
 	transport := &recordingTransport{rawResult: json.RawMessage(`{"ok":true}`)}
 	host := compozysdk.NewHostAPI(transport, func() bool { return true })
 	raw, err := host.RawRequest(
-		context.Background(),
+		t.Context(),
 		compozysdk.HostAPIMethodObserveHealth,
 		map[string]string{"scope": "unit"},
 	)
@@ -323,7 +305,7 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 			compozysdk.ExtensionDefinition{},
 			compozysdk.WithTransport(&recordingTransport{}),
 		)
-		if err := extension.Run(context.Background()); err == nil {
+		if err := extension.Run(t.Context()); err == nil {
 			t.Fatal("Run() error = nil, want definition validation error")
 		}
 	})
@@ -355,7 +337,7 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 			compozysdk.WithStderr(io.Discard),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
@@ -409,7 +391,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			_, err := host.RawRequest(ctx, compozysdk.HostAPIMethodSessionsList, map[string]any{"limit": 1})
 			return err
 		})
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
@@ -483,7 +465,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 		}
 		extension.OnReady(readyCallback(started, stopped))
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		inputClosed := false
@@ -563,7 +545,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			return errors.Join(ctx.Err(), sentinelErr)
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		inputClosed := false
@@ -632,7 +614,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			return lateCallbackErr
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		callbackStarted := false
@@ -728,7 +710,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			return nil
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		callbackStarted := false
@@ -811,7 +793,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 			compozysdk.WithStderr(io.Discard),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		inputClosed := false
@@ -881,7 +863,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			return callbackErr
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		inputClosed := false
@@ -942,7 +924,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			panic("ready callback panic")
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		inputClosed := false
@@ -1004,7 +986,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			return nil
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		inputClosed := false
@@ -1059,7 +1041,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 			compozysdk.WithStderr(io.Discard),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		inputClosed := false
@@ -1124,7 +1106,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 		if err := transport.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
-		if err := transport.Call(context.Background(), "echo", nil, &json.RawMessage{}); err == nil {
+		if err := transport.Call(t.Context(), "echo", nil, &json.RawMessage{}); err == nil {
 			t.Fatal("Call() error = nil, want closed transport error")
 		}
 	})
@@ -1136,7 +1118,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			Input:  strings.NewReader("{bad}\n"),
 			Output: &bytes.Buffer{},
 		})
-		err := transport.Run(context.Background())
+		err := transport.Run(t.Context())
 		if err == nil {
 			t.Fatal("Run() error = nil, want parse error")
 		}
@@ -1171,7 +1153,7 @@ func testRuntimeErrorBranches(t *testing.T) {
 		t.Fatalf("Tool() error = %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- extension.Run(ctx) }()
@@ -1242,7 +1224,7 @@ func TestTransportValidationBranches(t *testing.T) {
 		if err := transport.Call(nilContext, "echo", nil, nil); err == nil {
 			t.Fatal("Call(nil context) error = nil, want error")
 		}
-		if err := transport.Call(context.Background(), " ", nil, nil); err == nil {
+		if err := transport.Call(t.Context(), " ", nil, nil); err == nil {
 			t.Fatal("Call(blank method) error = nil, want error")
 		}
 	})
@@ -1263,7 +1245,7 @@ func TestTransportValidationBranches(t *testing.T) {
 				t.Fatalf("inputReader.Close() error = %v", err)
 			}
 		})
-		if err := transport.Call(context.Background(), "echo", map[string]any{}, &json.RawMessage{}); err == nil {
+		if err := transport.Call(t.Context(), "echo", map[string]any{}, &json.RawMessage{}); err == nil {
 			t.Fatal("Call() error = nil, want write failure")
 		}
 	})
@@ -1275,7 +1257,7 @@ func TestTransportValidationBranches(t *testing.T) {
 			Input:  strings.NewReader("[]\n"),
 			Output: &bytes.Buffer{},
 		})
-		err := transport.Run(context.Background())
+		err := transport.Run(t.Context())
 		if err == nil {
 			t.Fatal("Run() error = nil, want invalid request")
 		}
@@ -1302,7 +1284,7 @@ func TestTransportValidationBranches(t *testing.T) {
 				return nil, nil
 			},
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() { done <- transport.Run(ctx) }()
@@ -1362,7 +1344,7 @@ func TestTransportValidationBranches(t *testing.T) {
 			},
 		)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() { done <- transport.Run(ctx) }()
@@ -1431,7 +1413,7 @@ func TestTransportValidationBranches(t *testing.T) {
 			Input:  inputReader,
 			Output: outputWriter,
 		})
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() { done <- transport.Run(ctx) }()
@@ -1546,7 +1528,7 @@ func TestInitializeValidationBranches(t *testing.T) {
 				compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 				compozysdk.WithStderr(io.Discard),
 			)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			done := make(chan error, 1)
 			go func() { done <- extension.Run(ctx) }()
@@ -1581,7 +1563,10 @@ func initializeParamsWithGrants(
 	capabilities := params["capabilities"].(map[string]any)
 	capabilities["provides"] = provides
 	capabilities["granted_permissions"] = permissions
-	extensionServices := []string{"memory/store", "memory/recall", "memory/forget"}
+	extensionServices := []string{}
+	if contains(provides, "model.source") {
+		extensionServices = append(extensionServices, "models/list")
+	}
 	if contains(provides, "tool.provider") {
 		extensionServices = append(extensionServices, "provide_tools", "tools/call")
 	}

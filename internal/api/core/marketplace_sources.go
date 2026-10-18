@@ -220,32 +220,32 @@ func MarketplaceSourcePayloadFromState(state marketplace.SourceState) contract.M
 func (h *BaseHandlers) respondMarketplaceSourceError(c *gin.Context, err error) {
 	status := http.StatusInternalServerError
 	payload := contract.MarketplaceSourceErrorPayload{Error: err.Error(), Code: "marketplace_source_error"}
-	var exists *marketplace.SourceExistsError
-	var retained *marketplace.SourceNameRetainedError
-	switch {
-	case errors.As(err, &exists):
+	if exists, ok := errors.AsType[*marketplace.SourceExistsError](err); ok {
 		status, payload.Code = http.StatusConflict, marketplace.ErrSourceExists.Error()
 		payload.SuggestedName = exists.SuggestedName
-	case errors.As(err, &retained):
+	} else if retained, ok := errors.AsType[*marketplace.SourceNameRetainedError](err); ok {
 		status, payload.Code = http.StatusConflict, marketplace.ErrSourceNameRetained.Error()
 		payload.RetainedBy = retained.RetainedBy
-	case errors.Is(err, marketplace.ErrSourceNotFound):
-		status, payload.Code = http.StatusNotFound, marketplace.ErrSourceNotFound.Error()
-	case errors.Is(err, marketplace.ErrSourcePresetReadonly):
-		status, payload.Code = http.StatusForbidden, marketplace.ErrSourcePresetReadonly.Error()
-	case errors.Is(err, pluginsource.ErrSourceNameReserved):
-		status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrSourceNameReserved.Error()
-	case errors.Is(err, pluginsource.ErrSourceNameInvalid):
-		status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrSourceNameInvalid.Error()
-	case errors.Is(err, pluginsource.ErrInvalidRef):
-		status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrInvalidRef.Error()
-	case errors.Is(err, pluginsource.ErrDocumentTooLarge):
-		status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrDocumentTooLarge.Error()
-	case errors.Is(err, pluginsource.ErrNotMarketplace):
-		status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrNotMarketplace.Error()
-		payload.Checked = []string{"marketplace.json", ".claude-plugin/marketplace.json"}
-	case errors.Is(err, pluginsource.ErrSourceUnreachable):
-		status, payload.Code = http.StatusServiceUnavailable, "source_unreachable"
+	} else {
+		switch {
+		case errors.Is(err, marketplace.ErrSourceNotFound):
+			status, payload.Code = http.StatusNotFound, marketplace.ErrSourceNotFound.Error()
+		case errors.Is(err, marketplace.ErrSourcePresetReadonly):
+			status, payload.Code = http.StatusForbidden, marketplace.ErrSourcePresetReadonly.Error()
+		case errors.Is(err, pluginsource.ErrSourceNameReserved):
+			status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrSourceNameReserved.Error()
+		case errors.Is(err, pluginsource.ErrSourceNameInvalid):
+			status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrSourceNameInvalid.Error()
+		case errors.Is(err, pluginsource.ErrInvalidRef):
+			status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrInvalidRef.Error()
+		case errors.Is(err, pluginsource.ErrDocumentTooLarge):
+			status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrDocumentTooLarge.Error()
+		case errors.Is(err, pluginsource.ErrNotMarketplace):
+			status, payload.Code = http.StatusUnprocessableEntity, pluginsource.ErrNotMarketplace.Error()
+			payload.Checked = []string{"marketplace.json", ".claude-plugin/marketplace.json"}
+		case errors.Is(err, pluginsource.ErrSourceUnreachable):
+			status, payload.Code = http.StatusServiceUnavailable, "source_unreachable"
+		}
 	}
 	c.JSON(status, payload)
 }

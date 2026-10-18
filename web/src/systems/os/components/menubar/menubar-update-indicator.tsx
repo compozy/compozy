@@ -1,39 +1,89 @@
-import { Download } from "lucide-react";
+import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import type { ProductUpdateIndicatorState } from "@/systems/settings";
 
-import { Button, Icon } from "@compozy/ui";
-
-export interface MenubarUpdateIndicatorProps {
-  /** Daemon truth: at least one track offers an update and nothing is running. */
-  available: boolean;
-  /** Navigates to Settings → General, where the offer's detail lives. */
-  onActivate: () => void;
+/** What the shell hands the menubar: the indicator state and the in-place update. */
+export interface MenubarUpdateModel {
+  state: ProductUpdateIndicatorState;
+  /** Absent when this install cannot update itself in place. */
+  onUpdate?: () => void;
 }
 
+export interface MenubarUpdateIndicatorProps {
+  state: ProductUpdateIndicatorState;
+  /**
+   * Starts the whole-product update in place. Absent when this install cannot
+   * update itself (a package-manager install), so the control opens Settings,
+   * where the upgrade command lives.
+   */
+  onUpdate?: () => void;
+  /** Navigates to Settings → General, where the update's detail lives. */
+  onOpenUpdates: () => void;
+}
+
+const OFFER_CLASS = "rounded-pill bg-accent-tint px-3 text-accent hover:bg-accent-tint-strong";
+const FAILED_CLASS = "rounded-pill bg-danger-tint px-3 text-danger hover:opacity-90";
+
 /**
- * The menubar's update indicator (ADR-006 S2).
+ * The menubar's one-click update.
  *
- * It exists only while an update is genuinely on offer — and is removed from the
- * DOM, not hidden with CSS, the rest of the time, which is almost always. It
- * carries no count and opens no menu: the bar's job is to say something is
- * waiting, and which track, which versions, and what to do about it belong to
- * the Updates section. Progress, staging, and failure never reach here.
+ * It exists only while there is something to say — an offer, the update running,
+ * or a failure — and is removed from the DOM, not hidden with CSS, the rest of
+ * the time. Clicking the offer updates CompozyOS in place: the daemon runs one
+ * operation over every part of the product and the app restarts on the new
+ * version by itself. The runtime/app split never reaches this control.
  */
-export function MenubarUpdateIndicator({ available, onActivate }: MenubarUpdateIndicatorProps) {
-  if (!available) return null;
+export function MenubarUpdateIndicator({
+  state,
+  onUpdate,
+  onOpenUpdates,
+}: MenubarUpdateIndicatorProps) {
+  if (state === "hidden") return null;
+
+  if (state === "updating") {
+    return (
+      <Button
+        className={OFFER_CLASS}
+        data-slot="os-menubar-update"
+        data-state={state}
+        data-testid="os-menubar-update"
+        disabled
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Spinner aria-hidden="true" className="size-3.5" role="presentation" />
+        <span role="status">Updating…</span>
+      </Button>
+    );
+  }
+
+  const failed = state === "failed";
+  const onClick = !failed && onUpdate ? onUpdate : onOpenUpdates;
+  const hint = failed
+    ? "See what went wrong"
+    : onUpdate
+      ? "Install the new version and restart"
+      : "See how to update";
 
   return (
-    <Button
-      aria-label="Update available"
-      className="size-7"
-      data-slot="os-menubar-update"
-      data-testid="os-menubar-update"
-      onClick={onActivate}
-      size="icon"
-      title="Update available"
-      type="button"
-      variant="default"
-    >
-      <Icon as={Download} size="lg" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            className={failed ? FAILED_CLASS : OFFER_CLASS}
+            data-slot="os-menubar-update"
+            data-state={state}
+            data-testid="os-menubar-update"
+            onClick={onClick}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {failed ? "Update failed" : "Update"}
+          </Button>
+        }
+      />
+      <TooltipContent side="bottom">{hint}</TooltipContent>
+    </Tooltip>
   );
 }

@@ -28,14 +28,14 @@ func TestServiceLifecycleHooks(t *testing.T) {
 			}
 			return HookVerdict{}, nil
 		}})(fixture.service)
-		_, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		_, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "denied",
 		})
 		if !errors.Is(err, ErrDeniedByHook) || !strings.Contains(err.Error(), "protect-main") {
 			t.Fatalf("Create(denied) error = %v, want named hook denial", err)
 		}
 		if rows, listErr := fixture.store.List(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 		); listErr != nil ||
 			len(rows) != 0 {
@@ -55,7 +55,7 @@ func TestServiceLifecycleHooks(t *testing.T) {
 		WithHooks(hooks)(fixture.service)
 		fixture.service.events = nil
 		item, err := fixture.service.Create(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "hook-fail-open"},
 		)
@@ -81,11 +81,11 @@ func TestServiceLifecycleHooks(t *testing.T) {
 			return HookVerdict{Denied: true, HookName: "keep-worktree", Reason: "still needed"}, nil
 		}})(fixture.service)
 		if _, err := fixture.service.Remove(
-			context.Background(), fixture.workspace.ID, fixture.item.ID, false,
+			t.Context(), fixture.workspace.ID, fixture.item.ID, false,
 		); !errors.Is(err, ErrDeniedByHook) {
 			t.Fatalf("Remove(denied) error = %v, want ErrDeniedByHook", err)
 		}
-		stored, err := fixture.store.Get(context.Background(), fixture.workspace.ID, fixture.item.ID)
+		stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, fixture.item.ID)
 		if err != nil || stored.State != StateReady {
 			t.Fatalf("stored removal denial = %#v, %v, want ready", stored, err)
 		}
@@ -109,7 +109,7 @@ func TestServiceLifecycleHooks(t *testing.T) {
 			Name: "token=" + secret, Branch: "feature/" + secret,
 			Path: "/tmp/" + secret, Origin: OriginManual,
 		}
-		service.emit(context.Background(), EventCreated, item)
+		service.emit(t.Context(), EventCreated, item)
 		events.mu.Lock()
 		if len(events.events) != 1 {
 			events.mu.Unlock()

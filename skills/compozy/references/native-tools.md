@@ -10,12 +10,11 @@
 - Workspace boundary
 - Window management tools
 - Terminal tools
-- Skills and memory tools
-- Network tools
+- Command and skill tools
 - Task and autonomy tools
 - Loop tools
 - Config, hooks, automation, marketplace, extensions, resources, and MCP tools
-- Observability and bridge tools
+- Observability tools
 - CLI/HTTP-only management surfaces
 - Descriptor discipline
 
@@ -25,7 +24,7 @@ Inside CompozyOS, prefer callable daemon-native tools over shelling out. They ar
 
 Never guess a tool schema from this reference. Resolve canonical `compozy__tool_info` for the exact descriptor, input schema, risks, and availability diagnostics before the first call.
 
-Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, notification presets, config apply history, and some session repair/recap/approval flows.
+Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, config apply history, and some session repair/recap/approval flows.
 
 `workspace` is optional and defaults to the bound session's workspace. Naming another workspace is a cross-workspace request governed by the session permission mode; see Workspace Boundary below. Bound sessions still cannot use `global`/`all`; operators can.
 
@@ -48,8 +47,20 @@ Optional `source` filters one provider and optional `client` resolves client-con
 
 Use `compozy__cmd_palette_invoke` with `id`, optional `args`, and optional `client`. The command's own
 availability, targeting, single-flight, and approval rules still apply. An `approval_pending` result
-returns `approval_id`; operators inspect or cancel it with `compozy approvals show|cancel <id>`.
+returns `approval_id`. Operators inspect it with `compozy approvals show <id>`, decide with
+`compozy approvals resolve <id> --decision approved|denied`, or cancel with
+`compozy approvals cancel <id>`. These commands use the selected profile (flag, environment, then
+remembered selection). Pass `--profile <owner>` after switching away from the approval's owner.
+Approval admits asynchronous execution; inspect `execution_status` before claiming completion.
+The Web palette presents Approve/Deny for its pending invocation and reads the terminal result.
+HTTP/UDS clients use `POST /api/tools/approvals/{id}/resolve?profile=<owner>` with an explicit
+`decision`. The request rechecks profile availability and session binding; HTTP decisions require
+a loopback listener. Foreign-profile and already-terminal approvals remain refused.
 CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
+The clients list contains only currently connected command channels. Closing a tab removes it
+from targeting; reconnecting the tab restores eligibility. Refresh this list before choosing an
+explicit client. With one connected client, UI commands can select it automatically; with none,
+they return no_attached_shell.
 
 Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings` and aliases with
 `compozy cmd-palette alias set|clear`. Conflicts name the current owner; `--overwrite` transfers the
@@ -73,9 +84,9 @@ Observe cross-client changes through `cmd_palette.pin.changed`,
 ## Runtime And Workspace Tools
 
 Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__session_prompt`,
-`compozy__session_rewind`,
-`compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
-`compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
+`compozy__session_rewind`, `compozy__session_continue`, `compozy__session_fork`,
+`compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
+`compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
@@ -94,20 +105,65 @@ accept or send a prompt or runtime. A named Worktree must be ready; new creation
 session persistence.
 The calling session is recorded automatically as `lineage.parent_session_id` (provenance only, no
 governance) when the new session lands in the caller's workspace; the link is not a tool input.
+
+### Session message origin
+
+Use the native `compozy__session_prompt` tool when one agent messages another session. The daemon
+stamps `origin` from the calling session, including its session/workspace IDs, agent, title at send,
+and hop. Neither the message body nor a tool input can set or replace this identity. CLI, HTTP,
+and operator tool prompts remain operator input without an origin. Cross-workspace reach is
+unchanged; the sender workspace in origin identifies the correct session link.
+
+Origin survives queue, steer, interrupt and daemon restart. The receiving provider sees a sender
+header before the message. Stored text remains the authored message; queue and event JSON expose
+origin separately. Without `notify_on_complete`, the header tells the recipient to reply with
+`compozy__session_prompt` targeting the sender. `notify_on_complete: true` requests the reply-watch
+flow; it requires an agent session and is part of the admission identity.
+
+A finite batch of queued session messages and reply wakes precedes a prepared Goal prompt at an
+idle turn boundary; later admissions wait until after that Goal prompt. An active turn still runs
+to its boundary; queue mode does not interrupt it. See
+`references/loops.md#queued-inputs-and-goal-continuation` for ordering and Goal accounting.
+
+Keep the same `message_id` and `idempotency_key` when retrying. Another sender or a changed
+`notify_on_complete` conflicts. Renaming the sender does not change the admitted origin. Historical
+v4 receipts replay unchanged, without invented origin or reply watches; that replay shim is removed
+in v0.5.0.
+
+Agent-authored queue entries cannot be edited (`input_agent_authored`). Self-targeting returns
+`invalid_request`. Message other sessions with this tool, never the CLI. An agent `interrupt` becomes
+`steer`; prefer `steer` for a busy target. Send at milestones; `supersede: true` replaces your queued
+status in any mode; answer with `in_reply_to` (keeps the hop). On `message_hop_limit` or
+`message_rate_limited`, stop and batch. Queue order, promotion, hops and replies: `references/runtime-operations.md`.
+
 Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
 optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace
 root or configured `additional_dirs`, or existing workspace/session-scoped `att_...` IDs; at least
-`message` or one attachment is required. Paths are
-uploaded through the attachment store before submission. Use
-`compozy session attachments upload <session-id> <file> -o json` when the caller needs a durable ID.
-The store enforces `session.attachments.max_file_bytes`,
-`session.attachments.max_files_per_prompt`, and `session.attachments.allowed_mime`; inspect the
-attachment settings in `references/configuration.md` before submitting large or unsupported files.
-The first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, speed,
-and typed `acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
-`bool_value`. Read the runtime semantics, queued/interrupt snapshot behavior, and
-rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
-`runtime` object rather than deriving it from the session state.
+`message` or one attachment is required. Paths are uploaded through the attachment store before
+submission; use `compozy session attachments upload <session-id> <file> -o json` for a durable ID.
+The store enforces `session.attachments.max_file_bytes`, `session.attachments.max_files_per_prompt`,
+and `session.attachments.allowed_mime` (see `references/configuration.md`).
+The first prompt to a never-bound session requires `runtime.provider`; a session whose idle runtime
+was released keeps its selection and rebinds without it. Model, reasoning effort, speed, and typed
+`acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
+`bool_value`. Runtime semantics, queued/interrupt snapshot behavior, and the rollback rule live in
+`references/runtime-operations.md`; read the nested `runtime` object from `compozy__session_status`
+rather than deriving it from the session state.
+
+For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
+`notify_on_complete: true` and keep the returned `reply_watch.id`. End your turn after sending;
+the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
+history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
+`reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
+A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
+summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
+so inspect the target session. An offline sender receives its pending wake on resume.
+Archiving or deleting the sender abandons its watches. Canceling a queued reply wake does not cause
+redelivery. `notify_on_complete` is agent-only, not an HTTP operator prompt field; operator-scoped
+native calls requesting it return `invalid_request` with
+`notify_on_complete requires an agent session`. A same-key retry after a pre-dispatch send failure
+re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
+`abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
 
 `compozy__session_wait` blocks on one same-workspace session other than the caller. `until` accepts
 the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.
@@ -121,6 +177,73 @@ positive `ttl_seconds`; optional permission arrays can only narrow the parent. O
 that child. Optional `provider`, `model`, `reasoning_effort`, `speed`, and `acp_options` fields
 override the named agent's runtime for the child. The result returns the child session ID, role,
 depth, and TTL expiry.
+
+Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
+`compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a
+delegated child session owned by the caller's current turn. Every subagent tool requires the caller to
+have an active turn and otherwise returns `parent_not_active`. Use them instead of chaining
+`session_spawn` → `session_prompt` → `session_wait` → `session_history` when you want one task answered
+by another agent, provider, or model while you keep working:
+
+1. `compozy__subagent_capabilities {}` returns the caller's inherited runtime, permission mode, depth,
+   live subagent count, and per-agent and per-provider `can_delegate` with `constraints` and advertised
+   models. Pick a target whose `can_delegate` is true. Only delegable providers include models,
+   capped at 40 per provider with the caller's current model first, then the provider default.
+   `models_total` counts the full catalog; `models_truncated` indicates omitted entries (including
+   those hidden for unavailable providers). Any model id advertised by the provider is accepted
+   even if absent from this preview; delegation validates against the full catalog.
+2. `compozy__subagent_delegate` takes a required, self-contained `task` (≤ 120,000 characters). The
+   subagent sees only `task`: no conversation history and no attachments, so include every fact it
+   needs. Optional `title` (≤ 512), `role` (`general`, `implementation`, `research`, `review`, `design`,
+   `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
+   fields inherit from the caller, and the model is inherited only when the provider is unchanged),
+   `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode`, and
+   `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
+   inherit the caller's full budget, `[]` means none, and every value can only narrow
+   (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
+   `isolation` defaults to `shared`. Choose `worktree` for a separate branch; `base_ref` is valid only
+   with `worktree` and defaults to the caller checkout's current HEAD commit. Uncommitted changes
+   are not copied. Include "commit, then deliver with `compozy worktree deliver`" in a code task.
+   Reusing an idempotency key requires the same isolation and requested base ref. Worktree/setup
+   hook denial returns `capability_denied`; creation/setup failure returns `isolation_failed`.
+   The first prompt names the isolated branch and delivery command. `spawn.pre_create` exposes
+   read-only `subagent.isolation` and `subagent.worktree_id`.
+3. Prefer `mode: "async"` (default): the call returns `status: "running"` with `subagent_id` and
+   `child_session_id`. Keep working, then end your turn. Do not poll or wait in loops.
+4. When the subagent settles, CompozyOS wakes you once per batch with a pointer message:
+   `Subagent "<title>" (<subagent_id>) finished: <status>.` lines followed by
+   `Call compozy__subagent_status to read its result.` (one subagent) or `… to read each result.`
+   (several). The wake is steered into your running turn when your agent supports steering,
+   otherwise queued ahead of user prompts. An isolated wake also names its branch and PR URL,
+   or says that PR status is unknown. `subagent_status` includes `isolation` and optional `worktree`:
+   id, name, branch, path, requested `base_ref`, pinned `base_sha`, and settlement Git/PR facts.
+   Missing integers mean unknown, not zero. PR status `none` means the forge answered without a
+   PR; `unknown` means unavailable or failed lookup. Shared subagents omit worktree facts.
+5. `compozy__subagent_status {subagent_id}` returns the status, `work_state`, `result` (the child's last
+   assistant message, capped at `[subagents].result_max_chars`, with `result_truncated` and a hint to read
+   the rest through `compozy__session_history` on `child_session_id`), `error`, and `delivery`. Reading a
+   terminal result acknowledges it and removes it from a queued wake, so the tool is idempotent but not
+   read-only.
+
+`mode: "wait"` blocks until the result or `timeout_ms` (default 600,000, clamped to 1,000–3,600,000).
+A timeout returns `wait_timed_out: true`, never cancels the subagent, and switches it to a normal wake.
+Use wait only for short tasks; some providers abort long tool calls.
+
+Statuses are `queued`, `running`, `waiting` (the child needs approval or input), `completed`, `failed`,
+`canceled`, and `interrupted`. A clean daemon restart is not a cancel: the subagent resumes and wakes you
+when it settles, or settles `interrupted` (still waking you) when it cannot resume. A daemon crash
+settles a running subagent `failed`. A waiting subagent does not wake you: the operator approves it, or you
+call `compozy__session_approve` or `compozy__session_clarify_answer` on its `child_session_id` after
+status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
+for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents
+(`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
+its turn ends, then reads `completed` with `result: null`. For another review round, delegate again
+with the original brief, prior findings, and open objections instead of prompting the old child. A
+subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
+concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live
+subagent depth-first; interrupting a turn keeps its subagents running, but their results no longer wake
+you. CLI and HTTP/UDS fallback for reads and cancel: `compozy session subagents <session-id>`,
+`compozy session subagents show|cancel <subagent-id>`.
 
 `compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
@@ -137,8 +260,44 @@ post-restart interactions and can return `already-resolved`, `resolved-after-res
 `message_id`, an idempotency key, and the transcript epoch, generation, and maximum sequence returned
 by the read API. The tool cuts before that message, restarts a fresh ACP context under the same
 CompozyOS session ID, and returns the selected text as `draft_text`. It never rolls back files, tool or
-network effects, memory, or external provider actions. Resolve its descriptor and obtain approval
+network effects, or external provider actions. Resolve its descriptor and obtain approval
 before calling it.
+
+`compozy__session_continue` (risk `mutating`, same permission as `compozy__session_create`) starts a
+new user session for `agent` with the source conversation carried over; the source is never changed.
+Required: `session_id`, `agent`, `idempotency_key`. Optional: `workspace`, `message`, `name`, `runtime`
+`{provider, model, reasoning_effort, speed, acp_options}` **or** `route` (1-based declared route of the
+agent's `fallback_chain`), and the three transcript fences together. The result is `{session,
+derived}`; repeat the same call with the same key to read the recorded outcome (`derived.replayed`,
+`derived.child_deleted`) instead of creating a second session, even after the source was deleted. A
+source outside the resolved workspace is `session_not_found`. A failure carries the HTTP error payload
+(`code`, and `child_session_id` when the session was already created before the failure) as the tool
+error's partial result: open that session or retry with the same key.
+
+`compozy__session_fork` (risk `mutating`, same permission and result shape as
+`compozy__session_continue`) forks a user session with the **same** agent, runtime, and account.
+Required: `session_id`, `idempotency_key`. Optional: `workspace`, `message_id` (fork through that
+durable user message and its turn; the whole session when omitted), `name`, and the three transcript
+fences together. An unsettled cut turn fails with `session_turn_in_progress`; an unknown message with
+`message_not_found`. `derived.seed` is `native_fork` (with `native_state: pending` and the clone's
+`acp_session_id`) when the agent cloned its own session, otherwise `replay`; a failed clone request is
+reported in `derived.native_fork_error`.
+
+`compozy__session_compact` (toolset `compozy__sessions`, risk `mutating`, **experimental**) requests the
+agent's advertised native compaction on one idle session in the caller's workspace. Pass `session_id`
+(required; no other input); the result is `{session_id, prompt_id, command, status: "accepted"}`, where
+`command` is `compact` or `compress`, the command the agent advertises. The compaction turn is sent as
+`/<command>` in maintenance delivery mode, so it carries no skill expansion, augmenters, or startup
+instructions. The tool returns the receipt only and never waits. A running turn (the caller's own session
+is always mid-turn) or another in-flight request fails with the structural tool error code `session_busy`,
+and an agent advertising neither command fails with `compaction_unsupported`; each error carries that
+`code`, the tool ID, and the daemon message, the same codes the CLI, HTTP, and UDS error payloads use, and
+neither is the generic `tool_conflict`; over `POST /api/tools/{id}/invoke` both are `409` responses carrying
+those codes. A session that is not active fails as invalid input. Its
+`session.compaction.requested` event records `requested_by: "tool"`. Observe the outcome through the
+session's transcript Compaction item and `compactions[]` usage markers (`compozy session history` returns
+the raw ledger rows instead); the CLI form, `compozy session compact <session-id>`, waits and prints the
+outcome.
 
 `compozy__session_runtime_set` persists complete next-prompt intent without starting or
 reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept optional
@@ -168,7 +327,7 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session c
 session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
 archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
-daemon-managed dream, system, coordinator, or spawned sessions. Archive only stopped sessions;
+daemon-managed system, coordinator, or spawned sessions. Archive only stopped sessions;
 unarchive before prompting or resuming one. Archive and conversation clear preserve attachments;
 conversation clear preserves attachments. `compozy session remove` and `compozy workspace remove`
 remove their scoped attachment trees.
@@ -183,9 +342,14 @@ Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy_
 resolved workspace catalog. `compozy__agent_create` authors one public `AGENT.md` at `global` or
 `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider,
 model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the
-target project runtime defaults.
+target project runtime defaults. Optional `fallback_chain` is an ordered array of routes
+(`provider` and `model` required; `reasoning_effort`, `speed`, `acp_options`, and `command`
+optional). A route `command` selects the account with the same grammar as `providers.<name>.command`
+(leading `NAME=value` assignments are forwarded literally; use absolute paths, no `~`). An unknown
+route provider or a command without an executable is rejected as invalid input. The returned agent
+payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on routes that set `command`.
 
-Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `compozy__workspace_list` should return at least that workspace on a clean install.
+Fresh daemon boot does not register a workspace automatically, so `compozy__workspace_list` may return an empty catalog on a clean install. Register the intended project explicitly before starting workspace-bound work.
 
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
 
@@ -212,13 +376,12 @@ one-time secret must be issued.
 
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, `default_effort`, and `default_speed`. Speed accepts `normal` or `fast`; explicit model configurations that omit Fast reject it with `speed_rejected`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found`, `reasoning_effort_unsupported`, and `speed_rejected` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
-Claude, Codex, and Hermes catalog discovery starts a short-lived ACP inspection and stores its live
+Claude and Codex catalog discovery starts a short-lived ACP inspection and stores its live
 model and configuration options under `provider_live:<id>`. Cursor runs `cursor-agent models`, groups
 transport aliases into logical models, and keeps valid Reasoning, Fast, and Thinking combinations plus
 private launch bindings. Live sources refresh periodically and after their five-minute TTL; failed
 refreshes keep the last successful rows as stale data. An explicit curated set may keep a new live model
-out of the default view, so use `view=all` before concluding it is absent. OpenClaw is provider-managed
-and exposes no fabricated model controls. Refresh through `compozy__provider_models_refresh` or
+out of the default view, so use `view=all` before concluding it is absent. Refresh through `compozy__provider_models_refresh` or
 `compozy provider models refresh <provider>`.
 Changing `providers.<id>.models.discovery.*` refreshes that provider source; model metadata-only
 writes do not invoke the provider.
@@ -240,6 +403,10 @@ HTTP/UDS `/api/profiles` routes, the desktop, or the stable `profile.*` command-
 profile-state writes are forbidden. Read `references/profiles.md` before changing profile state.
 
 ## Workspace Boundary
+
+Registered IDs, durable workspace IDs, names and paths resolve to the same registered project before
+policy and dispatch. Naming the current project does not require cross-workspace approval, and
+native automation operations use the same project registration as CLI and HTTP/UDS reads.
 
 A call that names a workspace other than the bound session's is a cross-workspace request. The session's effective permission mode decides it, and there is no separate toggle, grant, or config key:
 
@@ -279,7 +446,8 @@ a `window_ids` array and an optional `insert_index`; `window_reorder` moves one 
 stack with a clamped `index`; `window_activate` sets the stack's durable active member and is the
 public name of the internal `window.stack.set_active` command; `window_pin` takes a required `pinned`
 boolean; `window_reopen` needs only the revision. Three existing tools carry tab inputs:
-`window_open` accepts `stack_target_window_id`, `window_navigate` accepts `mode`
+`window_open` accepts `stack_target_window_id` (plus `floating` for an explicit floating window;
+it rejects `insert_tiled` or `stack_target_window_id` alongside it), `window_navigate` accepts `mode`
 (`replace`/`push`/`pop`, and `pop` forbids `route`), and `window_close` accepts `scope`
 (`tab`/`group`/`others`/`right`, rejected together with `minimize`).
 
@@ -297,7 +465,7 @@ Toolset `compozy__terminal` contains `compozy__terminal_exec`, `compozy__termina
 and `compozy__terminal_request_input`. Resolve each descriptor before calling it. Read `terminal.md`
 for activation, approval, shared-input, generation, capability, error, and CLI-fallback rules.
 
-## Skills And Memory Tools
+## Command And Skill Tools
 
 Command catalog tool: `compozy__command_list`. Pass `session_id`; optional `workspace` defaults to the
 bound session workspace. The result is the daemon-owned command projection for that session.
@@ -309,38 +477,9 @@ to another skill source.
 
 Resolve canonical `compozy__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/compozy/references/*.md` from inside CompozyOS.
 
-Memory tools: `compozy__memory_list`, `compozy__memory_show`, `compozy__memory_search`, `compozy__memory_propose`, `compozy__memory_note`.
-
-Memory admin tools include health, scope, reindex, promote, reset, reload, decisions, recall traces, dreams, daily logs, extractor, provider, and session-ledger operations under the `compozy__memory_*` namespace. Inspect descriptors before using admin tools because they are broader than normal memory reads.
-
-## Network Tools
-
-Coordination tools: `compozy__network_status`, `compozy__network_channels`, `compozy__network_channel_create`, `compozy__network_channel_update`, `compozy__network_inbox`, `compozy__network_peers`, `compozy__network_send`, `compozy__network_threads`, `compozy__network_thread_messages`, `compozy__task_promote_from_thread`, `compozy__network_subscriptions`, `compozy__network_subscribe`, `compozy__network_mute`, `compozy__network_unmute`, `compozy__network_directs`, `compozy__network_direct_resolve`, `compozy__network_direct_messages`, `compozy__network_work`.
-
-Channel create/update are mutating. Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`;
-coordinator routing metadata requires `coordinator_peer_id`. Routing metadata never enrolls or wakes
-an execution.
-
-The coordination toolset is projected only when the caller's immutable participation snapshot is
-Live, then narrowed by policy and dependency gates. Daemon availability alone never exposes it. A
-Local caller receives `not_participating`; create a new explicitly Live execution instead of
-retrying.
-
-Read references/network.md before sending or interpreting messages. Direct/mention `say` is the
-only current model-wake path; other messages may persist without activation. Use `compozy network usage
--o json` through CLI/HTTP/UDS for usage because it is a management read, not a native coordination
-tool ID.
-
 ## Task And Autonomy Tools
 
-Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_result`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
-
-Task-notification cursor diagnostics expose an explicit `{kind, workspace_id}` scope, with `kind`
-closed to `global` or `workspace`. Subscribe and list currently use the `workspace_id` input; do not
-send the removed `workspace` field. Preserve task, subscription, bridge, workspace, peer, group,
-thread, and delivery IDs byte for byte as non-empty valid UTF-8 where required. Never trim,
-case-fold, prefix, split, or reconstruct them. A bridge terminal cursor's `consumer_id` is exactly
-its `subscription_id`, and a bridge acknowledgment must echo the exact `delivery_id`.
+Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_result`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`.
 
 Session-bound autonomy tools: `compozy__task_run_claim_next`, `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, `compozy__task_run_release`, `compozy__task_run_review_submit`.
 
@@ -359,19 +498,34 @@ binding semantics.
 
 Config tools live under `compozy__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `compozy__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
+Native `tool.pre_call` hooks run before the handler and may deny or amend input, but cannot change
+the tool identity, read-only classification or bound workspace. Patched input still passes schema,
+policy and approval checks. Native `tool.post_call` receives the canonical tool-result envelope
+(`content`, `structured`, `preview`, and result metadata) in `tool_result`; a replacement uses that
+same shape. `tool.post_error` may annotate the error while retaining its classification. Hosted
+native calls record hook runs and lifecycle events in the owning session.
+
 Background-role inspection has no `compozy__roles_*` native tool. Use `compozy roles list|show -o json` or
 the HTTP/UDS `GET /api/roles` reads. Scalar `roles.<role>.*` routing and role-policy keys are exposed
-through the live `compozy__config_set`/`compozy__config_unset` descriptors, including coordinator limits and
-memory-controller call bounds. Fallback chains are structured arrays and must be changed through
+through the live `compozy__config_set`/`compozy__config_unset` descriptors, including coordinator limits.
+Fallback chains are structured arrays and must be changed through
 `config.toml` or the Settings Roles API/UI, not guessed into a scalar config-tool call. Inspect the
 live descriptor before any mutation; successful role writes report the `live` lifecycle and affect
 later invocations.
 
+Automations (jobs and triggers): the Web UI shows both in one Automations window — a job is a
+scheduled automation, a trigger an automation on an event, a webhook trigger a link automation.
+Tools, CLI verbs, routes, and config keep `job`/`trigger`; never send `automations` to them.
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
-Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, search, and event;
-run history stays uncounted and must be bounded. Other `compozy__automation_*` tools cover detail,
+Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, `target`
+(`agent`|`loop`|`task`; `task` matches no trigger), search, and event;
+run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
+unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
-deleted; dynamic definitions are fully mutable.
+deleted; dynamic definitions are fully mutable. List and get items carry `last_run` (`id`, `status`,
+`started_at`, `ended_at`, `skip_reason` for a skipped fire stored as `canceled`), equal to the first
+run of the owner's history and absent when it never ran; read it to answer "did it work?" without a
+history call.
 
 `compozy__automation_suggestions_{list,accept,dismiss}` accepts optional `workspace`; list, accept, or
 dismiss; retry CAS conflicts.
@@ -408,24 +562,14 @@ Acquire Marketplace MCP capabilities through extension installation. Manage manu
 through Settings MCP APIs; extension-owned management and diagnostics require the explicit
 extension owner. Browser/OAuth login remains a management operation.
 
-## Observability And Bridge Tools
+## Observability Tools
 
 Runtime log inspection is available through `compozy__logs`. Metrics and redacted event search are available through `compozy__observe_metrics` and `compozy__observe_search`.
 
-Bridge list/status uses CLI, HTTP/UDS, and `compozy__bridges_list` / `compozy__bridges_status` for counted,
-filtered, redacted pages. The health stream accepts at most 200 current-page IDs in the same scope.
-Lifecycle, routes, secrets, `manifest`, `setup`, `verify`, real `send-test`, and webhooks stay on
-CLI/HTTP/UDS unless the live descriptor exposes a scoped native tool.
-
 ## CLI/HTTP-Only Management Surfaces
 
-CLI/HTTP/UDS owns diagnostics (`compozy status`, `compozy doctor`), session repair/recap/approval/inspect/soul
-refresh, task inspection/control, schedulers, config reload/history, notification presets, and support
-bundles. Task notification subscriptions are native; presets are not. Preset definitions are shared,
-while enablement is per profile and an absent profile row means enabled. Use
-`compozy --profile <profile> notifications preset enable|disable <name> -o json`,
-`GET /api/notifications/presets?profile=<profile>`, and
-`PUT /api/notifications/presets/{name}/enablement` over HTTP or UDS for profile control.
+CLI/HTTP/UDS owns diagnostics (`compozy status`, `compozy doctor`), session repair, recap, approval,
+inspection, SOUL refresh, task controls, schedulers, config reload/history, and support bundles.
 
 ## Descriptor Discipline
 
@@ -456,4 +600,4 @@ Acknowledgement never approves, rejects, retries, cancels, deletes or completes 
 requests remain reachable in their owning app. Session badges and attention-summary still represent
 runtime state; bell/title counts represent unread notifications. Task candidates honor existing inbox
 triage. An acknowledged occurrence stays hidden across reconnects; a new source revision/run/request
-can notify again. Notification presets, bridge fanout and delivery cursors are unchanged.
+can notify again.

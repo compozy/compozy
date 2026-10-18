@@ -10,6 +10,7 @@ func registrySessionOperations() []OperationSpec {
 		getSessionOperationSpec(),
 		renameSessionOperationSpec(),
 		getSessionCommandsOperationSpec(),
+		compactSessionOperationSpec(),
 		deleteSessionOperationSpec(),
 		stopSessionOperationSpec(),
 		archiveSessionOperationSpec(),
@@ -34,9 +35,13 @@ func registrySessionOperations() []OperationSpec {
 		repairSessionOperationSpec(),
 		listSessionEventsOperationSpec(),
 		getSessionHistoryOperationSpec(),
+		globalSessionHistoryOperation(listSessionEventsOperationSpec()),
+		globalSessionHistoryOperation(getSessionHistoryOperationSpec()),
 		approveSessionOperationSpec(),
 	}
 }
+
+// renameSessionOperationSpec describes renaming within the selected session owner profile.
 func renameSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
@@ -45,10 +50,10 @@ func renameSessionOperationSpec() OperationSpec {
 		Summary:     "Rename one user session",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		RequestBody: contract.RenameSessionRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
@@ -113,7 +118,7 @@ func getSessionOwnerOperationSpec() OperationSpec {
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/{session_id}/owner",
 		OperationID: "getSessionOwner",
-		Summary:     "Get a session workspace owner projection",
+		Summary:     "Get a session owner; Global history has an empty workspace id",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
@@ -192,10 +197,10 @@ func stopSessionOperationSpec() OperationSpec {
 		Summary:     "Stop a session without deleting persisted history",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		RequestBody:         contract.StopSessionRequest{},
 		RequestBodyOptional: true,
 		Responses: []ResponseSpec{
@@ -390,7 +395,7 @@ func getSessionUsageTurnsOperationSpec() OperationSpec {
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
 		OperationID: "getSessionUsageTurns",
-		Summary:     "Get per-turn session usage and replay compaction spans",
+		Summary:     "Get per-turn session usage and native compaction markers",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{

@@ -53,15 +53,7 @@ describe("settingsKeys", () => {
     expect(settingsKeys.providersList()).toEqual(["settings", "collection", "providers", "list"]);
   });
 
-  it("isolates sandboxes and layered hooks collection keys", () => {
-    expect(settingsKeys.sandboxesList()).toEqual(["settings", "collection", "sandboxes", "list"]);
-    expect(settingsKeys.sandboxDetail("prod")).toEqual([
-      "settings",
-      "collection",
-      "sandboxes",
-      "detail",
-      "prod",
-    ]);
+  it("isolates layered hooks collection keys", () => {
     expect(settingsKeys.hooksList()).toEqual([
       "settings",
       "collection",

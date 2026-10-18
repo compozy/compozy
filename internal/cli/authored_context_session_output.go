@@ -20,7 +20,7 @@ func sessionHealthBundle(record SessionHealthRecord) outputBundle {
 				stateKey,
 				authoredContextHealthKey,
 				"eligible_for_wake",
-				memoryReasonKey,
+				cliReasonKey,
 			}, []string{
 				record.SessionID,
 				record.WorkspaceID,
@@ -38,7 +38,7 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {
-			status := renderHumanSection("Session Status", []keyValue{
+			status := renderHumanSection("Session Status", append([]keyValue{
 				{Label: authoredContextSessionValue, Value: stringOrDash(record.SessionID)},
 				{Label: authoredContextWorkspaceValue, Value: stringOrDash(record.WorkspaceID)},
 				{Label: authoredContextAgentValue, Value: stringOrDash(record.AgentName)},
@@ -54,14 +54,15 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				{Label: "Eligible For Wake", Value: boolString(record.EligibleForWake)},
 				{Label: "Ineligibility Reason", Value: stringOrDash(string(record.IneligibilityReason))},
 				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(record.UpdatedAt))},
-			})
+			}, derivationLines(record.Lineage, record.Derivation)...))
+			status = renderHumanBlocks(status, sessionReplyWatchesHuman(record.ReplyWatches))
 			if record.WakeState == nil {
 				return status, nil
 			}
 			return renderHumanBlocks(status, wakeStateSection("Wake State", *record.WakeState)), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("session_status", []string{
+			base := renderToonObject("session_status", []string{
 				sessionSessionKey,
 				workspaceSkillSource,
 				agentAgentKey,
@@ -70,7 +71,7 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				"lifecycle_state", "verified", "escalated", "attention",
 				authoredContextHealthKey,
 				"eligible_for_wake",
-				memoryReasonKey,
+				cliReasonKey,
 			}, []string{
 				record.SessionID,
 				record.WorkspaceID,
@@ -86,7 +87,8 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				string(record.Health),
 				boolString(record.EligibleForWake),
 				string(record.IneligibilityReason),
-			}), nil
+			})
+			return renderHumanBlocks(base, sessionReplyWatchesToon(record.ReplyWatches)), nil
 		},
 	}
 }

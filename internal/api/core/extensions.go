@@ -248,8 +248,7 @@ func (h *BaseHandlers) UpdateExtensions(c *gin.Context) {
 	}
 	items, err := service.UpdateBatch(c.Request.Context(), req, actor)
 	if err != nil {
-		var batchErr *extensionpkg.MarketplaceUpdateBatchError
-		if !errors.As(err, &batchErr) || len(items) == 0 {
+		if _, ok := errors.AsType[*extensionpkg.MarketplaceUpdateBatchError](err); !ok || len(items) == 0 {
 			h.respondExtensionError(c, ExtensionStatusCode(err), err)
 			return
 		}
@@ -451,7 +450,7 @@ func normalizeInstallExtensionRequest(req *contract.InstallExtensionRequest) {
 	req.Ref = strings.TrimSpace(req.Ref)
 	req.Version = strings.TrimSpace(req.Version)
 	req.Asset = strings.TrimSpace(req.Asset)
-	req.ConfirmNetworkDigest = strings.TrimSpace(req.ConfirmNetworkDigest)
+	req.ConfirmGatewayDigest = strings.TrimSpace(req.ConfirmGatewayDigest)
 }
 
 func validateInstallExtensionRequest(req contract.InstallExtensionRequest) error {

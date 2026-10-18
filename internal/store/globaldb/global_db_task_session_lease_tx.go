@@ -63,27 +63,12 @@ func (s *taskLeaseSettlementTxStore) ReleaseSessionRunLease(
 	if err := requeueExpiredLease(ctx, s.exec, previous, snapshot, 0); err != nil {
 		return taskpkg.Run{}, fmt.Errorf("release session task-run lease %q: %w", previous.ID, err)
 	}
-	if previous.IsTaskAnchored() {
-		if err := clearTaskCurrentRunProjection(ctx, s.exec, previous.TaskID, previous.ID); err != nil {
-			return taskpkg.Run{}, err
-		}
+	if err := clearTaskCurrentRunProjection(ctx, s.exec, previous.TaskID, previous.ID); err != nil {
+		return taskpkg.Run{}, err
 	}
 
 	updated, err := s.tasks.getTaskRunWithExecutor(ctx, s.exec, previous.ID)
 	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	if !updated.IsNetworkWake() {
-		return updated, nil
-	}
-
-	wakeID, targetSessionID, ownerKey := updated.NetworkWakeCorrelation()
-	if err := appendNetworkWakeEventWithExecutor(ctx, s.exec, networkWakeEvent{
-		workspaceID: updated.WorkspaceID, wakeID: wakeID, taskRunID: updated.ID,
-		ownerKey: ownerKey, targetSessionID: targetSessionID,
-		eventType: networkWakeEventReleased, state: updated.Status.String(),
-		reason: release.Reason, actor: actor.Actor, at: release.Now,
-	}); err != nil {
 		return taskpkg.Run{}, err
 	}
 	return updated, nil

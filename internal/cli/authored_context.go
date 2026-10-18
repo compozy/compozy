@@ -28,7 +28,10 @@ const (
 
 const (
 	automationCreatedAtKey = "created_at"
-	memoryReasonKey        = "reason"
+	cliReasonKey           = "reason"
+	cliContentKey          = "content"
+	cliSummaryKey          = "summary"
+	cliActiveKey           = "active"
 	sessionSessionKey      = "session"
 )
 

@@ -19,11 +19,20 @@ import {
   transcriptStreamCursor,
   type SessionTranscriptData,
 } from "../lib/session-transcript-query";
+import {
+  applySubagentsSnapshot,
+  applySubagentUpdated,
+  EMPTY_SUBAGENT_ROSTER,
+  markSubagentRosterStale,
+  type SubagentRoster,
+} from "../lib/subagent-roster";
 import type {
   NormalizedSessionTranscriptEntry,
   SessionConsumerDegradedPayload,
   SessionEventPayload,
   SessionPayload,
+  SubagentsSnapshotPayload,
+  SubagentUpdatedPayload,
   TranscriptDeltaPayload,
   TranscriptSnapshotPayload,
 } from "../types";
@@ -34,7 +43,9 @@ import {
   terminalFailureMessage,
 } from "./session-live-tail-helpers";
 import type {
-  SessionLiveTailApplyResult,
+  SessionLiveTailAppliedFrame,
+  SessionLiveTailBatchResult,
+  SessionLiveTailBatchStop,
   SessionLiveTailFrame,
   SessionLiveTailRuntime,
   SessionLiveTailStreamHandlers,
@@ -56,6 +67,40 @@ async function normalizeEntries(
 ): Promise<NormalizedSessionTranscriptEntry[]> {
   const messages = await normalizeTranscriptMessages(entries.map(entry => entry.message));
   return entries.map((entry, index) => ({ ...entry, message: messages[index]! }));
+}
+
+interface NormalizedFrames {
+  /** Normalized entries for the in-order prefix of frames that normalized. */
+  entries: NormalizedSessionTranscriptEntry[][];
+  failure: { error: unknown; index: number } | null;
+}
+
+/**
+ * Normalizes every queued frame in one pass. A rejected batch is retried frame
+ * by frame so the frames before the failing one still apply, as they would
+ * have one at a time.
+ */
+async function normalizeFrames(frames: readonly SessionLiveTailFrame[]): Promise<NormalizedFrames> {
+  try {
+    const flat = await normalizeEntries(frames.flatMap(frame => frame.payload.entries));
+    let offset = 0;
+    const entries = frames.map(frame => {
+      const slice = flat.slice(offset, offset + frame.payload.entries.length);
+      offset += frame.payload.entries.length;
+      return slice;
+    });
+    return { entries, failure: null };
+  } catch {
+    const entries: NormalizedSessionTranscriptEntry[][] = [];
+    for (const frame of frames) {
+      try {
+        entries.push(await normalizeEntries(frame.payload.entries));
+      } catch (error) {
+        return { entries, failure: { error, index: entries.length } };
+      }
+    }
+    return { entries, failure: null };
+  }
 }
 
 function reportInvalidationFailure(surface: string, error: unknown): void {
@@ -90,6 +135,12 @@ export function createSessionLiveTailRuntime({
   const transcriptQueryKey = sessionKeys.transcript(workspaceId, sessionId);
   const readTranscript = () => queryClient.getQueryData<SessionTranscriptData>(transcriptQueryKey);
   const readCursor = () => transcriptStreamCursor(readTranscript()).afterSequence ?? 0;
+  const subagentRosterKey = sessionKeys.subagentRoster(workspaceId, sessionId);
+  const updateSubagentRoster = (update: (roster: SubagentRoster) => SubagentRoster) => {
+    queryClient.setQueryData<SubagentRoster>(subagentRosterKey, existing =>
+      update(existing ?? EMPTY_SUBAGENT_ROSTER)
+    );
+  };
 
   const invalidateSessionSurfaces = () => {
     void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId).catch(error =>
@@ -112,28 +163,53 @@ export function createSessionLiveTailRuntime({
     );
   };
 
-  const applyFrame = async (
-    frame: SessionLiveTailFrame,
+  const applyFrames = async (
+    frames: readonly SessionLiveTailFrame[],
     signal: AbortSignal
-  ): Promise<SessionLiveTailApplyResult> => {
-    if (!transcriptFrameCanApply(readTranscript(), frame)) return "mismatch";
+  ): Promise<SessionLiveTailBatchResult> => {
+    const [head] = frames;
+    if (!head || !transcriptFrameCanApply(readTranscript(), head)) {
+      return { applied: [], stop: "mismatch" };
+    }
 
-    const entries = await normalizeEntries(frame.payload.entries);
-    if (signal.aborted) return "cancelled";
-    let applied: SessionLiveTailApplyResult = "mismatch";
+    const normalized = await normalizeFrames(frames);
+    if (signal.aborted) return { applied: [], stop: "cancelled" };
+    const applied: SessionLiveTailAppliedFrame[] = [];
+    let stop: SessionLiveTailBatchStop | null = null;
+    // One cache write for the whole batch; each frame still checks the fences
+    // its predecessor left, so ordering and gap detection match per-frame writes.
     queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing => {
-      if (!transcriptFrameCanApply(existing, frame)) return existing;
-      // A reset snapshot over loaded history of another generation is a stated
-      // history rewrite (rewind, clear, retention), not a silent replacement.
-      applied =
-        frame.kind === "snapshot" && frame.payload.reset && replacesLoadedHistory(existing)
-          ? "reset"
-          : "applied";
-      return frame.kind === "snapshot"
-        ? applyTranscriptSnapshot(existing, { ...frame.payload, entries }, frame.cursor)
-        : applyTranscriptDelta(existing, { ...frame.payload, entries }, frame.cursor);
+      applied.length = 0;
+      stop = null;
+      let data = existing;
+      for (const [index, entries] of normalized.entries.entries()) {
+        const frame = frames[index]!;
+        if (!transcriptFrameCanApply(data, frame)) {
+          stop = "mismatch";
+          break;
+        }
+        // A reset snapshot over loaded history of another generation is a stated
+        // history rewrite (rewind, clear, retention), not a silent replacement.
+        const result =
+          frame.kind === "snapshot" && frame.payload.reset && replacesLoadedHistory(data)
+            ? "reset"
+            : "applied";
+        data =
+          frame.kind === "snapshot"
+            ? applyTranscriptSnapshot(data, { ...frame.payload, entries }, frame.cursor)
+            : applyTranscriptDelta(data, { ...frame.payload, entries }, frame.cursor);
+        applied.push({ frame, result });
+      }
+      return data;
     });
-    if (applied !== "mismatch" && frame.kind === "snapshot" && frame.payload.reset) {
+    if (stop === null && normalized.failure) {
+      stop = { error: normalized.failure.error, frame: frames[normalized.failure.index]! };
+    }
+
+    const resets = applied.filter(
+      ({ frame }) => frame.kind === "snapshot" && frame.payload.reset
+    ).length;
+    if (resets > 0) {
       void queryClient.resetQueries({
         queryKey: sessionKeys.usage(workspaceId, sessionId),
         exact: true,
@@ -144,10 +220,10 @@ export function createSessionLiveTailRuntime({
       });
       queryClient.setQueryData<number>(
         sessionKeys.contextReset(workspaceId, sessionId),
-        value => (value ?? 0) + 1
+        value => (value ?? 0) + resets
       );
     }
-    return applied;
+    return { applied, stop };
   };
 
   const applyTerminal = (payload: SessionEventPayload | null, sequence: number) => {
@@ -226,6 +302,17 @@ export function createSessionLiveTailRuntime({
       handlers.degraded(payload.through_sequence);
     };
 
+    const subagentsSnapshotListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SubagentsSnapshotPayload>(event as MessageEvent);
+      if (!payload) return;
+      updateSubagentRoster(() => applySubagentsSnapshot(payload));
+    };
+    const subagentUpdatedListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SubagentUpdatedPayload>(event as MessageEvent);
+      if (!payload?.subagent) return;
+      updateSubagentRoster(roster => applySubagentUpdated(roster, payload));
+    };
+
     let usageTimer: ReturnType<typeof setTimeout> | undefined;
     const flushUsageChanges = () => {
       usageTimer = undefined;
@@ -238,13 +325,22 @@ export function createSessionLiveTailRuntime({
     };
     let detach: () => void;
     try {
-      detach = attachSessionStreamSource(source, handlers.error, {
+      // The moment the stream drops, held roster rows are unconfirmed (no tick,
+      // no pulse) until the next subscription's snapshot confirms them.
+      const handleError = (event: Event) => {
+        if (queryClient.getQueryData(subagentRosterKey))
+          updateSubagentRoster(markSubagentRosterStale);
+        handlers.error(event);
+      };
+      detach = attachSessionStreamSource(source, handleError, {
         commandsChanged: commandsChangedListener,
         usageChanged: usageChangedListener,
         degraded: degradedListener,
         delta: deltaListener,
         goalSnapshot: goalSnapshotListener,
         snapshot: snapshotListener,
+        subagentsSnapshot: subagentsSnapshotListener,
+        subagentUpdated: subagentUpdatedListener,
         terminal: terminalListener,
       });
     } catch (error) {
@@ -279,7 +375,7 @@ export function createSessionLiveTailRuntime({
   };
 
   return {
-    applyFrame,
+    applyFrames,
     applyTerminal,
     invalidateClarifications: () =>
       invalidateExact(sessionKeys.clarifications(workspaceId, sessionId), "clarifications"),

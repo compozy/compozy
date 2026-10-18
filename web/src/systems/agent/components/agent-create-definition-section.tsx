@@ -39,9 +39,9 @@ export function AgentCreateDefinitionSection({
   return (
     <FormSection
       data-testid="agent-create-definition"
-      help="Name and instructions are the only fields that cannot be empty. Everything else falls back to the project defaults."
+      help="Name and instructions are required. Everything else uses the project defaults."
       icon={Bot}
-      title="The definition"
+      title="Basics"
     >
       <Field data-invalid={Boolean(errors.name)}>
         <FieldLabel htmlFor="agent-create-name">
@@ -68,8 +68,8 @@ export function AgentCreateDefinitionSection({
             <RequiredMark />
           </FieldLabel>
           <HelpTip label="About instructions">
-            The system prompt every session inherits — the agent's responsibility, its boundaries,
-            and when it should escalate to a person.
+            What the agent is responsible for, its limits, and when it should hand off to you. Every
+            session with this agent starts from these instructions.
           </HelpTip>
         </FieldHeader>
         <Textarea

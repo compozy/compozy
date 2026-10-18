@@ -23,7 +23,7 @@ its own switch, each off until you turn it on, each reversible with one command.
 | Switch                 | Who can reach it                      | What becomes reachable                                                                   |
 | ---------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Private overlay        | Devices on your own Tailscale network | The full product, to devices you have paired. Everything else sees a pairing gate.       |
-| Public delivery        | The internet                          | Signed webhook and bridge deliveries only. No UI, no API, no pairing.                    |
+| Public delivery        | The internet                          | Signed webhook deliveries only. No UI, no API, no pairing.                               |
 | Public operator access | The internet                          | The web UI and management API, still behind device pairing. Asks for consent every time. |
 
 Start private. Turn on public delivery only when a sender outside your network — a GitHub

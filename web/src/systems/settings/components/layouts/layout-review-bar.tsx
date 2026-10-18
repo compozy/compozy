@@ -25,7 +25,7 @@ export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
   const error = editor.importError ?? errorMessage(editor.mutationError);
 
   return (
-    <div className="border-t border-line bg-canvas-tint" data-testid="layout-review-bar">
+    <div className="border-t border-line" data-testid="layout-review-bar">
       {diagnostics.length > 0 ? (
         <div className="flex flex-col gap-1 bg-danger-tint px-3.5 py-2.5" role="status">
           <p className="text-form-label text-danger">CompozyOS refused this layout</p>
@@ -77,7 +77,7 @@ export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
           disabled={!editor.dirty || reviewing || applying}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={() => void editor.review.refetch()}
         >
           Review changes

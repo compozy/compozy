@@ -1,16 +1,51 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { CancelledError, type QueryClient } from "@tanstack/react-query";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { agentCatalogOptions, agentsListOptions } from "@/systems/agent";
 import { onboardingStatusOptions } from "@/systems/onboarding";
 import { sessionsListOptions } from "@/systems/session";
-import { workspaceDetailOptions } from "@/systems/workspace";
+import {
+  isActiveWorkspaceStoreHydrated,
+  rehydrateActiveWorkspaceStore,
+  workspaceDetailOptions,
+} from "@/systems/workspace";
 import {
   actingProfile,
+  localProfileView,
+  profileLensKey,
+  profileSelectionOptions,
   readProfileLens,
   readProfileView,
   readProfileScopeParams,
 } from "@/systems/profiles";
+
+/** Resolve identity before parallel loaders or mounted consumers can read work. */
+export async function prepareAppProfile(queryClient: QueryClient): Promise<void> {
+  if (!isActiveWorkspaceStoreHydrated()) {
+    await rehydrateActiveWorkspaceStore();
+  }
+  for (;;) {
+    const lens = readProfileLens();
+    if (localProfileView(lens)) return;
+    const options = profileSelectionOptions(lens);
+    try {
+      await queryClient.fetchQuery(options);
+      if (profileLensKey(readProfileLens()) !== profileLensKey(lens)) continue;
+      return;
+    } catch (error) {
+      // A joined TanStack fetch can expose the old promise's silent cancellation
+      // when reconciliation replaces it. Follow the replacement, never cached
+      // identity or a cancelled read without a live successor.
+      if (
+        !(error instanceof CancelledError) ||
+        !error.silent ||
+        queryClient.getQueryState(options.queryKey)?.fetchStatus !== "fetching"
+      ) {
+        throw error;
+      }
+    }
+  }
+}
 
 export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
   const [onboardingResult, workspaceResult] = await Promise.allSettled([

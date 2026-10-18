@@ -3,26 +3,33 @@ package session
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
+
+	atlasmigrate "ariga.io/atlas/sql/migrate"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/network/participation"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
@@ -90,7 +97,7 @@ func TestResumeRejectsTerminalProcessFailureBeforeStartingACP(t *testing.T) {
 			Kind:    store.FailureProcess,
 			Summary: "Codex exited before the response completed",
 		}
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta(%q) error = %v", metaPath, err)
 		}
 
@@ -101,296 +108,6 @@ func TestResumeRejectsTerminalProcessFailureBeforeStartingACP(t *testing.T) {
 			t.Fatalf("Resume(dead session) started ACP %d times, want 0", got)
 		}
 	})
-}
-
-func TestCreateAndResumePreserveNetworkParticipation(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-
-	wantSpec := testLiveParticipation(h.workspaceID, "builders")
-	wantOwnerKey := "session:" + session.ID
-	if got := session.Info().NetworkParticipation; got != wantSpec {
-		t.Fatalf("Create() participation = %#v, want %#v", got, wantSpec)
-	}
-	if got := session.Info().NetworkOwnerKey; got != wantOwnerKey {
-		t.Fatalf("Create() owner key = %q, want %q", got, wantOwnerKey)
-	}
-	if meta := readMeta(t, session.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec ||
-		meta.NetworkOwnerKeySnapshot() != wantOwnerKey {
-		t.Fatalf(
-			"meta network identity = (%#v, %q), want (%#v, %q)",
-			meta.NetworkSpecSnapshot(),
-			meta.NetworkOwnerKeySnapshot(),
-			wantSpec,
-			wantOwnerKey,
-		)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	stopped, err := h.manager.Status(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Status(stopped) error = %v", err)
-	}
-	if got := stopped.NetworkParticipation; got != wantSpec {
-		t.Fatalf("Status(stopped).NetworkParticipation = %#v, want %#v", got, wantSpec)
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, resumed.ID)
-	})
-
-	if got := resumed.Info().NetworkParticipation; got != wantSpec {
-		t.Fatalf("Resume() participation = %#v, want %#v", got, wantSpec)
-	}
-	if got := resumed.Info().NetworkOwnerKey; got != wantOwnerKey {
-		t.Fatalf("Resume() owner key = %q, want immutable %q", got, wantOwnerKey)
-	}
-	if meta := readMeta(t, resumed.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec ||
-		meta.NetworkOwnerKeySnapshot() != wantOwnerKey {
-		t.Fatalf(
-			"resumed meta network identity = (%#v, %q), want (%#v, %q)",
-			meta.NetworkSpecSnapshot(),
-			meta.NetworkOwnerKeySnapshot(),
-			wantSpec,
-			wantOwnerKey,
-		)
-	}
-}
-
-func TestCreateParticipationResolvesBeforeWritesAndResumeReusesSnapshot(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should resolve a live request once and reuse the persisted snapshot on resume", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		resolver := &recordingSessionParticipationResolver{
-			inner: newTestSessionParticipationResolver(t, true),
-		}
-		h.manager = newManagerWithHarness(t, h, WithParticipationResolver(resolver))
-		live := participation.ModeLive
-		named := participation.StrategyNamed
-		channelID := "builders"
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-			NetworkParticipation: &participation.Request{
-				Mode:            &live,
-				ChannelStrategy: &named,
-				ChannelID:       &channelID,
-			},
-		})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		if got, want := resolver.calls, 1; got != want {
-			t.Fatalf("resolver calls after create = %d, want %d", got, want)
-		}
-		createdSpec := session.Info().NetworkParticipation
-		if got, want := createdSpec.Source, participation.SourceExplicitRequest; got != want {
-			t.Fatalf("created source = %q, want %q", got, want)
-		}
-		if got, want := readMeta(t, session.MetaPath()).NetworkSpecSnapshot(), createdSpec; got != want {
-			t.Fatalf("persisted snapshot = %#v, want %#v", got, want)
-		}
-		if got, want := len(resolver.observations), 1; got != want {
-			t.Fatalf("resolved observations after create = %d, want %d", got, want)
-		}
-		observation := resolver.observations[0]
-		if observation.Owner.ID != session.ID || observation.Owner.WorkspaceID != h.workspaceID ||
-			observation.Spec != createdSpec {
-			t.Fatalf("resolved observation = %#v, want committed session snapshot", observation)
-		}
-
-		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-			t.Fatalf("Stop() error = %v", err)
-		}
-		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-		if err != nil {
-			t.Fatalf("Resume() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
-				t.Errorf("Stop(resumed) error = %v", err)
-			}
-		})
-		if got, want := resolver.calls, 1; got != want {
-			t.Fatalf("resolver calls after resume = %d, want %d", got, want)
-		}
-		if got, want := resumed.Info().NetworkParticipation, createdSpec; got != want {
-			t.Fatalf("resumed snapshot = %#v, want %#v", got, want)
-		}
-		if got, want := len(resolver.observations), 1; got != want {
-			t.Fatalf("resolved observations after resume = %d, want %d", got, want)
-		}
-	})
-
-	t.Run("Should not observe a resolved snapshot when session creation rolls back", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		resolver := &recordingSessionParticipationResolver{
-			inner: newTestSessionParticipationResolver(t, true),
-		}
-		h.manager = newManagerWithHarness(t, h, WithParticipationResolver(resolver))
-		startErr := errors.New("provider start failed after participation resolution")
-		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
-			return nil, startErr
-		}
-		live := participation.ModeLive
-		named := participation.StrategyNamed
-		channelID := "builders"
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-			NetworkParticipation: &participation.Request{
-				Mode:            &live,
-				ChannelStrategy: &named,
-				ChannelID:       &channelID,
-			},
-		})
-		if !errors.Is(err, startErr) {
-			t.Fatalf("Create() error = %v, want %v", err, startErr)
-		}
-		if got := len(resolver.observations); got != 0 {
-			t.Fatalf("resolved observations after rollback = %d, want 0", got)
-		}
-	})
-
-	t.Run("Should reject unavailable live participation before session state exists", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		h.manager = newManagerWithHarness(
-			t,
-			h,
-			WithParticipationResolver(newTestSessionParticipationResolver(t, false)),
-		)
-		live := participation.ModeLive
-		named := participation.StrategyNamed
-		channelID := "builders"
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-			NetworkParticipation: &participation.Request{
-				Mode:            &live,
-				ChannelStrategy: &named,
-				ChannelID:       &channelID,
-			},
-		})
-		if !errors.Is(err, participation.ErrUnavailable) {
-			t.Fatalf("Create() error = %v, want %v", err, participation.ErrUnavailable)
-		}
-		if got := len(h.driver.startCalls); got != 0 {
-			t.Fatalf("driver starts = %d, want 0", got)
-		}
-		entries, readErr := os.ReadDir(h.homePaths.SessionsDir)
-		if readErr != nil {
-			t.Fatalf("ReadDir(sessions) error = %v", readErr)
-		}
-		if len(entries) != 0 {
-			t.Fatalf("session artifacts = %#v, want none", entries)
-		}
-	})
-}
-
-func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	lifecycle := newFakeNetworkPeerLifecycle()
-	h.manager.SetNetworkPeerLifecycle(lifecycle)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-
-	if got := lifecycle.joinCount(); got != 1 {
-		t.Fatalf("join calls after Create() = %d, want 1", got)
-	}
-	firstJoin := lifecycle.joinCall(0)
-	if got, want := firstJoin.sessionID, session.ID; got != want {
-		t.Fatalf("first join session_id = %q, want %q", got, want)
-	}
-	if got, want := firstJoin.peerID, "coder."+session.ID; got != want {
-		t.Fatalf("first join peer_id = %q, want %q", got, want)
-	}
-	if got, want := firstJoin.channel, "builders"; got != want {
-		t.Fatalf("first join channel = %q, want %q", got, want)
-	}
-	if firstJoin.capabilities == nil {
-		t.Fatal("first join capabilities = nil, want deterministic empty projection")
-	}
-	if got := len(firstJoin.capabilities); got != 0 {
-		t.Fatalf("first join capabilities len = %d, want 0", got)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if got := lifecycle.leaveCount(); got != 1 {
-		t.Fatalf("leave calls after Stop() = %d, want 1", got)
-	}
-	if got, want := lifecycle.leaveCall(0), session.ID; got != want {
-		t.Fatalf("first leave session_id = %q, want %q", got, want)
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	if got := lifecycle.joinCount(); got != 2 {
-		t.Fatalf("join calls after Resume() = %d, want 2", got)
-	}
-	secondJoin := lifecycle.joinCall(1)
-	if got, want := secondJoin.sessionID, resumed.ID; got != want {
-		t.Fatalf("second join session_id = %q, want %q", got, want)
-	}
-	if got, want := secondJoin.peerID, "coder."+resumed.ID; got != want {
-		t.Fatalf("second join peer_id = %q, want %q", got, want)
-	}
-	if got, want := secondJoin.channel, "builders"; got != want {
-		t.Fatalf("second join channel = %q, want %q", got, want)
-	}
-	if secondJoin.capabilities == nil {
-		t.Fatal("second join capabilities = nil, want deterministic empty projection")
-	}
-	if got := len(secondJoin.capabilities); got != 0 {
-		t.Fatalf("second join capabilities len = %d, want 0", got)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
-		t.Fatalf("Stop(resumed) error = %v", err)
-	}
-	if got := lifecycle.leaveCount(); got != 2 {
-		t.Fatalf("leave calls after resumed Stop() = %d, want 2", got)
-	}
-	if got, want := lifecycle.leaveCall(1), resumed.ID; got != want {
-		t.Fatalf("second leave session_id = %q, want %q", got, want)
-	}
 }
 
 func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
@@ -409,7 +126,7 @@ func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
 	meta.StopReason = nil
 	meta.StopDetail = ""
 	meta.ACPSessionID = stringPointer(originalACP)
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -454,7 +171,7 @@ func TestResumePreservesCrashStopClassificationFromRepairedMetadata(t *testing.T
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -493,7 +210,8 @@ func TestResumePreservesCrashStopClassificationFromRepairedMetadata(t *testing.T
 func TestResumeFallsBackToFreshStartWhenStoredACPSessionIsMissing(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	logs := newCaptureLogHandler()
+	h := newHarness(t, WithLogger(slog.New(logs)))
 	session := createSession(t, h)
 	originalACP := session.Info().ACPSessionID
 
@@ -540,6 +258,19 @@ func TestResumeFallsBackToFreshStartWhenStoredACPSessionIsMissing(t *testing.T) 
 	if meta := readMeta(t, session.MetaPath()); meta.State != string(StateActive) {
 		t.Fatalf("meta state after fallback resume = %q, want %q", meta.State, StateActive)
 	}
+
+	record, ok := logs.FindByMessage("session.resume.context_replay_fallback")
+	if !ok {
+		t.Fatalf("missing context_replay_fallback log: %#v", logs.Records())
+	}
+	if got, want := record.Level, slog.LevelInfo; got != want {
+		t.Fatalf("fallback log level = %v, want %v", got, want)
+	}
+	assertCapturedLogAttr(t, record, "session_id", session.ID)
+	assertCapturedLogAttr(t, record, "agent_name", "coder")
+	assertCapturedLogAttr(t, record, "provider", "claude")
+	assertCapturedLogAttr(t, record, "phase", "resume")
+	assertCapturedLogAttr(t, record, "fallback_reason", "load_session_resource_missing")
 }
 
 func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *testing.T) {
@@ -557,7 +288,7 @@ func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *t
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -599,60 +330,6 @@ func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *t
 	if got := resumed.Info().StopDetail; got != resumeStopDetailAgentCrashed {
 		t.Fatalf("resumed StopDetail = %q, want %q", got, resumeStopDetailAgentCrashed)
 	}
-}
-
-func TestResumeMissingACPStateFallbackLogsAtInfoLevel(t *testing.T) {
-	t.Parallel()
-
-	logs := newCaptureLogHandler()
-	h := newHarness(t, WithLogger(slog.New(logs)))
-	session := createSession(t, h)
-	originalACP := session.Info().ACPSessionID
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
-		if opts.ResumeSessionID != "" {
-			return nil, fmt.Errorf(
-				"%w: load session %q for %q: %w",
-				acp.ErrLoadSessionFailed,
-				opts.ResumeSessionID,
-				opts.AgentName,
-				&acpsdk.RequestError{
-					Code:    -32002,
-					Message: "Resource not found: " + opts.ResumeSessionID,
-				},
-			)
-		}
-		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, resumed.ID)
-	})
-
-	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
-		t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
-	}
-
-	record, ok := logs.FindByMessage("session.resume.context_replay_fallback")
-	if !ok {
-		t.Fatalf("missing context_replay_fallback log: %#v", logs.Records())
-	}
-	if got, want := record.Level, slog.LevelInfo; got != want {
-		t.Fatalf("fallback log level = %v, want %v", got, want)
-	}
-	assertCapturedLogAttr(t, record, "session_id", session.ID)
-	assertCapturedLogAttr(t, record, "agent_name", "coder")
-	assertCapturedLogAttr(t, record, "provider", "claude")
-	assertCapturedLogAttr(t, record, "phase", "resume")
-	assertCapturedLogAttr(t, record, "fallback_reason", "load_session_resource_missing")
 }
 
 func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
@@ -737,47 +414,87 @@ func TestResumeRejectsMissingWorktreeWithoutMutatingMetadata(t *testing.T) {
 func TestResumeReplayFallback(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should inject the checkpoint summary before the persisted transcript", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		checkpoint := "<compozy_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</compozy_checkpoint_summary>"
-		h.manager = newManagerWithHarness(
-			t,
-			h,
-			WithPromptAssembler(&resumeContextPromptAssembler{checkpoint: checkpoint}),
+	for _, historyAvailable := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should bound resume history with tool availability %t", historyAvailable),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				session := createSession(t, h)
+				for index := range 300 {
+					role := acp.EventTypeUserMessage
+					if index%2 == 1 {
+						role = acp.EventTypeAgentMessage
+					}
+					if err := h.manager.recordEvent(t.Context(), session, acp.AgentEvent{
+						Type: role, TurnID: fmt.Sprintf("bounded-%d", index/2),
+						Text:      fmt.Sprintf("message-%d ", index) + strings.Repeat("x", 1024),
+						Timestamp: time.Now().UTC().Add(time.Duration(index) * time.Second),
+					}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				workspace.Config.Session.Derive = compozyconfig.SessionDeriveConfig{
+					MaxReplayBytes:  8192,
+					MaxMessageBytes: 16384,
+				}
+				h.resolver.upsert(&workspace)
+				block, _, err := h.manager.buildResumeReplay(t.Context(), session, rebuildReplayContext{
+					workspace: &workspace, historyAvailable: historyAvailable, reason: "test",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				messages := resumeReplayMessagesFromPrompt(t, block)
+				if replayArrayBytes(messages) > 8192 || !strings.HasPrefix(messages[0].Content, "message-0 ") ||
+					messages[1].ID != deriveOmittedMessageID {
+					t.Fatalf("bounded replay is invalid: bytes=%d messages=%+v", replayArrayBytes(messages), messages)
+				}
+				if !strings.Contains(block, deriveWorkspaceLine) ||
+					strings.Contains(block, "compozy__session_history tool") != historyAvailable {
+					t.Fatalf("header tool availability or workspace authority invalid: %s", block)
+				}
+				if historyAvailable && !strings.Contains(block, "session_id: "+session.ID) {
+					t.Fatal("history pointer does not name the session")
+				}
+			},
 		)
-		session := createSession(t, h)
-		recordResumeReplayFixture(t, h.manager, session, "local-only-context")
-		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-			t.Fatalf("Stop() error = %v", err)
-		}
-		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
-			if opts.ResumeSessionID != "" {
-				return nil, fmt.Errorf("%w: unsupported", acp.ErrAgentDoesNotSupportSession)
-			}
-			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
-		}
+	}
 
-		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	t.Run("Should bound the rewound baseline before replay", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		baseline := deriveTestMessages(300, 1024)
+		encoded, err := json.Marshal(baseline)
 		if err != nil {
-			t.Fatalf("Resume() error = %v", err)
+			t.Fatal(err)
 		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
-				t.Fatalf("Stop(resumed) error = %v", err)
-			}
-		})
-		events, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue")
+		recorder := &rewindBaselineRecorder{fakeEventRecorder: &fakeEventRecorder{},
+			state: store.ConversationRewindState{MessagesJSON: string(encoded), CoveredThroughSequence: 600}}
+		session.mu.Lock()
+		original := session.recorder
+		session.recorder = recorder
+		session.mu.Unlock()
+		defer func() { session.mu.Lock(); session.recorder = original; session.mu.Unlock() }()
+		block, _, err := h.manager.buildResumeReplay(t.Context(), session)
 		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
+			t.Fatal(err)
 		}
-		collectEvents(t, events)
-		got := h.driver.promptCalls[0].Message
-		checkpointIndex := strings.Index(got, "<compozy_checkpoint_summary>")
-		replayIndex := strings.Index(got, resumeReplayOpenTag)
-		if checkpointIndex < 0 || replayIndex < 0 || checkpointIndex >= replayIndex {
-			t.Fatalf("resume prompt checkpoint/replay order invalid:\n%s", got)
+		messages := resumeReplayMessagesFromPrompt(t, block)
+		if replayArrayBytes(messages) > compozyconfig.DefaultSessionDeriveMaxReplayBytes ||
+			messages[0].ID != baseline[0].ID ||
+			messages[1].ID != deriveOmittedMessageID ||
+			messages[len(messages)-1].ID != baseline[len(baseline)-1].ID {
+			t.Fatalf(
+				"rewound replay lost bound, pin, or tail: bytes=%d messages=%d",
+				replayArrayBytes(messages),
+				len(messages),
+			)
 		}
 	})
 
@@ -949,7 +666,7 @@ func TestResumeReplayFallback(t *testing.T) {
 		prepareErr := errors.New("delivery preparation failed")
 		if _, err := h.manager.PromptWithOpts(testutil.Context(t), resumed.ID, PromptOpts{
 			Message: "delivery attempt",
-			PrepareDelivery: func(context.Context, PromptDelivery) error {
+			PrepareDelivery: func(context.Context, PromptDeliveryInfo) error {
 				return prepareErr
 			},
 		}); !errors.Is(err, prepareErr) {
@@ -968,6 +685,104 @@ func TestResumeReplayFallback(t *testing.T) {
 		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[2].Message, eventsBeforeResume)
 		if replay := h.manager.pendingResumeReplay(resumed.ID); replay != "" {
 			t.Fatalf("pending resume replay = %q, want consumed after accepted dispatch", replay)
+		}
+	})
+
+	t.Run("Should keep accepted replay consumed after a transient acknowledgment write failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		target := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, target, "accepted-replay-history")
+		block, _, err := h.manager.buildResumeReplay(t.Context(), target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.stageResumeReplay(target.ID, block)
+		if err := h.manager.persistSessionMetadataOnly(target); err != nil {
+			t.Fatal(err)
+		}
+		target.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		_, maintenance, err := h.manager.RequestCompaction(t.Context(), target.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, maintenance)
+
+		metaPath := target.MetaPath()
+		backup := metaPath + ".before-consumption"
+		blocked := false
+		restore := func() error {
+			if !blocked {
+				return nil
+			}
+			if err := os.Remove(metaPath); err != nil {
+				return err
+			}
+			if err := os.Rename(backup, metaPath); err != nil {
+				return err
+			}
+			blocked = false
+			return nil
+		}
+		t.Cleanup(func() {
+			if err := restore(); err != nil {
+				t.Errorf("restore metadata: %v", err)
+			}
+		})
+		source := make(chan acp.AgentEvent, 1)
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return source, nil
+		}
+		delivered, err := h.manager.PromptWithOpts(t.Context(), target.ID, PromptOpts{
+			Message: "accepted ordinary prompt",
+			PrepareDelivery: func(context.Context, PromptDeliveryInfo) error {
+				if err := os.Rename(metaPath, backup); err != nil {
+					return err
+				}
+				if err := os.Mkdir(metaPath, 0o700); err != nil {
+					return errors.Join(err, os.Rename(backup, metaPath))
+				}
+				blocked = true
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		durablePending := readMeta(t, backup)
+		if durablePending.PendingResumeReplayValue() != block {
+			t.Fatal("failed acknowledgment unexpectedly changed durable pending replay")
+		}
+		effective := target.Meta()
+		if h.manager.pendingResumeReplay(target.ID) != "" || effective.PendingResumeReplayValue() != "" {
+			t.Fatal("accepted replay became deliverable again after metadata failure")
+		}
+		if err := restore(); err != nil {
+			t.Fatal(err)
+		}
+		source <- acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: h.manager.now(), PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(source)
+		collectEvents(t, delivered)
+		h.driver.promptHook = nil
+		next, err := h.manager.Prompt(t.Context(), target.ID, "next ordinary prompt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, next)
+		h.driver.mu.Lock()
+		requests := slices.Clone(h.driver.promptCalls)
+		h.driver.mu.Unlock()
+		if requests[0].Message != "/compact" || !strings.Contains(requests[1].Message, "accepted-replay-history") ||
+			strings.Contains(requests[2].Message, resumeReplayOpenTag) {
+			t.Fatalf("maintenance and ordinary deliveries=%#v", requests)
+		}
+		if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+			t.Fatal(err)
+		}
+		acknowledged := readMeta(t, metaPath)
+		if acknowledged.PendingResumeReplayValue() != "" {
+			t.Fatal("later lifecycle write did not persist accepted replay consumption")
 		}
 	})
 
@@ -1169,94 +984,6 @@ func TestResumePassesMergedSkillMCPServers(t *testing.T) {
 	}
 }
 
-func TestResumeWithChannelReinjectsBundledNetworkSkillOnce(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	if got := strings.Count(h.driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("create prompt network skill occurrences = %d, want 1", got)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, resumed.ID)
-	})
-
-	wantPrompt := "You are a coding assistant.\n\n" + networkSkill
-	if got := h.driver.startCalls[1].SystemPrompt; got != wantPrompt {
-		t.Fatalf("resume system prompt = %q, want %q", got, wantPrompt)
-	}
-	if got := strings.Count(h.driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
-	}
-}
-
-func TestResumeWithChannelReinjectsNetworkSessionEnv(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, resumed.ID)
-	})
-
-	env := h.driver.startCalls[1].Env
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_ID"); !ok || got != resumed.ID {
-		t.Fatalf("COMPOZY_SESSION_ID = %q, %v, want %q", got, ok, resumed.ID)
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_AGENT_NAME"); !ok || got != "coder" {
-		t.Fatalf("COMPOZY_AGENT_NAME = %q, %v, want %q", got, ok, "coder")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_SESSION_CHANNEL"); !ok || got != "builders" {
-		t.Fatalf("COMPOZY_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
-	}
-	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); !ok || got != "coder."+resumed.ID {
-		t.Fatalf("COMPOZY_PEER_ID = %q, %v, want %q", got, ok, "coder."+resumed.ID)
-	}
-}
-
 // prepareExitedResumeRecovery supplies real identity proof and the boot boundary
 // for tests whose invariant is resuming a definitively ended runtime.
 func prepareExitedResumeRecovery(t *testing.T, h *harness, session *Session) {
@@ -1268,12 +995,744 @@ func prepareExitedResumeRecovery(t *testing.T, h *harness, session *Session) {
 	previousIdentity := started.Add(-time.Hour)
 	meta := readMeta(t, session.MetaPath())
 	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: os.Getpid(), SubprocessStartedAt: &previousIdentity}
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatal(err)
 	}
 	h.manager = newManagerWithHarness(t, h)
 	cleanupTestManager(t, h.manager)
 	if err := h.manager.RecoverPendingStops(testutil.Context(t)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestResumeUpgradesPreFeatureLineageMetadata owns IT-019: session directories whose
+// metadata predates lineage kinds resume with the kind the catalog backfill writes,
+// keep their history, and persist the kind only on the next lifecycle write.
+func TestResumeUpgradesPreFeatureLineageMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		lineage func(parentID string) *store.SessionLineage
+		want    store.LineageKind
+	}{
+		{
+			name:    "Should resume a parented session as provenance",
+			lineage: func(parentID string) *store.SessionLineage { return &store.SessionLineage{ParentSessionID: parentID} },
+			want:    store.LineageKindProvenance,
+		},
+		{
+			name:    "Should resume a spawn-role session as spawn",
+			lineage: func(string) *store.SessionLineage { return &store.SessionLineage{SpawnRole: "worker"} },
+			want:    store.LineageKindSpawn,
+		},
+		{
+			name:    "Should resume a root session without a kind",
+			lineage: func(string) *store.SessionLineage { return nil },
+			want:    store.LineageKindRoot,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			parent := createSession(t, h)
+			child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder", Name: "pre-feature", Workspace: h.workspaceID, Lineage: tt.lineage(parent.ID),
+			})
+			if err != nil {
+				t.Fatalf("Create(child) error = %v", err)
+			}
+			events, err := h.manager.Prompt(testutil.Context(t), child.ID, "history survives the upgrade")
+			if err != nil {
+				t.Fatalf("Prompt(child) error = %v", err)
+			}
+			collectEvents(t, events)
+			if err := h.manager.Stop(testutil.Context(t), child.ID); err != nil {
+				t.Fatalf("Stop(child) error = %v", err)
+			}
+			metaPath := child.MetaPath()
+			stripLineageKind(t, metaPath)
+
+			resumed, err := h.manager.Resume(testutil.Context(t), child.ID)
+			if err != nil {
+				t.Fatalf("Resume(pre-feature child) error = %v", err)
+			}
+			if got := resumed.Info().Lineage; got == nil || got.Kind != tt.want {
+				t.Fatalf("resumed lineage = %#v, want kind %q", got, tt.want)
+			}
+			page, err := h.manager.TranscriptPage(testutil.Context(t), child.ID, transcript.PageQuery{Limit: 20})
+			if err != nil {
+				t.Fatalf("TranscriptPage(resumed) error = %v", err)
+			}
+			if !slices.ContainsFunc(page.Entries, func(entry transcript.Entry) bool {
+				return transcript.UIMessageText(entry.Message) == "history survives the upgrade"
+			}) {
+				t.Fatalf("resumed transcript = %#v, want the pre-upgrade user message", page.Entries)
+			}
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+			if got := readRawLineageKind(t, metaPath); got != string(tt.want) {
+				t.Fatalf("persisted lineage kind after lifecycle write = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func stripLineageKind(t *testing.T, metaPath string) {
+	t.Helper()
+
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(meta) error = %v", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatalf("json.Unmarshal(meta) error = %v", err)
+	}
+	if lineage, ok := document["lineage"].(map[string]any); ok {
+		delete(lineage, "kind")
+	}
+	stripped, err := json.MarshalIndent(document, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent(meta) error = %v", err)
+	}
+	if err := os.WriteFile(metaPath, stripped, 0o644); err != nil {
+		t.Fatalf("WriteFile(meta) error = %v", err)
+	}
+	if got := readRawLineageKind(t, metaPath); got != "" {
+		t.Fatalf("stripped lineage kind = %q, want absent", got)
+	}
+}
+
+func readRawLineageKind(t *testing.T, metaPath string) string {
+	t.Helper()
+
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(meta) error = %v", err)
+	}
+	var document struct {
+		Lineage *struct {
+			Kind string `json:"kind"`
+		} `json:"lineage"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatalf("json.Unmarshal(meta) error = %v", err)
+	}
+	if document.Lineage == nil {
+		return ""
+	}
+	return document.Lineage.Kind
+}
+
+func setReviewerChain(t *testing.T, h *harness, chain ...compozyconfig.RoleFallback) {
+	t.Helper()
+	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	for index := range workspace.Agents {
+		if workspace.Agents[index].Name == "reviewer" {
+			workspace.Agents[index].FallbackChain = chain
+		}
+	}
+	h.resolver.upsert(&workspace)
+}
+
+func lastStartCall(h *harness) acp.StartOpts {
+	h.driver.mu.Lock()
+	defer h.driver.mu.Unlock()
+	return h.driver.startCalls[len(h.driver.startCalls)-1]
+}
+
+// Invariant: resume loads the native id only on a configured route that matches the
+// accepted binding record; otherwise the id is cleared and context replay runs on the
+// primary route (IT-005, UT-026, UT-027, UT-029).
+func TestResumeAcceptedRouteAffinity(t *testing.T) {
+	t.Parallel()
+
+	createOnSeatOne := func(t *testing.T, h *harness) *Session {
+		t.Helper()
+		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v", err)
+		}
+		meta := readMeta(t, created.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 1 || derefString(meta.ACPSessionID) != "acp-2" {
+			t.Fatalf(
+				"accepted route = %#v acp=%v, want seat one (attempt 1) with acp-2",
+				meta.AcceptedRoute,
+				meta.ACPSessionID,
+			)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		return created
+	}
+
+	t.Run("Should resume on the matching route by record even when the chain is reordered", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createOnSeatOne(t, h)
+		setReviewerChain(t, h, codexRoute(h), claudeSeatOneRoute(h))
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != fallbackSeatOne || call.ResumeSessionID != "acp-2" {
+			t.Fatalf("resume start = %q/%q, want seat one loading acp-2", call.Command, call.ResumeSessionID)
+		}
+		meta := readMeta(t, resumed.MetaPath())
+		if meta.AcceptedRoute == nil ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
+			t.Fatalf("accepted route after resume = %#v, want seat one", meta.AcceptedRoute)
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		chain func(*harness) []compozyconfig.RoleFallback
+	}{
+		{name: "Should replay context on the primary route when the accepted route was removed", chain: func(h *harness) []compozyconfig.RoleFallback {
+			return []compozyconfig.RoleFallback{codexRoute(h)}
+		}},
+		{name: "Should replay context on the primary route when the accepted route command changed", chain: func(h *harness) []compozyconfig.RoleFallback {
+			edited := claudeSeatOneRoute(h)
+			edited.Command = "SEAT=9 claude --acp"
+			return []compozyconfig.RoleFallback{edited, codexRoute(h)}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			logs := newCaptureLogHandler()
+			h := newHarness(t, WithLogger(slog.New(logs)))
+			created := createOnSeatOne(t, h)
+			setReviewerChain(t, h, tc.chain(h)...)
+			refuseStartCommands(h, nil)
+			resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+			if err != nil {
+				t.Fatalf("Resume() error = %v", err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+			call := lastStartCall(h)
+			if call.Command != fallbackSeatZero || call.ResumeSessionID != "" {
+				t.Fatalf(
+					"resume start = %q/%q, want the primary route without a native id",
+					call.Command,
+					call.ResumeSessionID,
+				)
+			}
+			record, ok := logs.FindByMessage("session.fallback.route_missing")
+			if !ok || record.Level != slog.LevelInfo {
+				t.Fatalf("route_missing log = %#v (found %t), want one info record", record, ok)
+			}
+			assertCapturedLogAttr(
+				t,
+				record,
+				"accepted_route.command_fingerprint",
+				providerCommandFingerprint(fallbackSeatOne),
+			)
+			marker := requireTranscriptMarker(t, h.manager, created.ID, transcript.MarkerSessionRecovered)
+			if got := marker.Evidence["fallback_reason"]; got != acceptedRouteMissingReason {
+				t.Fatalf("context rebuilt reason = %v, want %s", got, acceptedRouteMissingReason)
+			}
+			if _, found := logs.FindByMessage("session.resume.context_replay_fallback"); found {
+				t.Fatal("recoverFailedResumeStart ran for an affinity mismatch")
+			}
+		})
+	}
+
+	t.Run("Should reset the removed route's speed and ACP options when resuming on the primary route",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			seatOne := claudeSeatOneRoute(h)
+			seatOne.Speed = speedpkg.SpeedFast
+			seatOne.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "route_mode", ValueID: "seat_one"}}
+			installFallbackAgent(t, h, seatOne, codexRoute(h))
+			refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+			created, err := h.manager.Create(
+				testutil.Context(t),
+				CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			)
+			if err != nil {
+				t.Fatalf("Create(reviewer) error = %v", err)
+			}
+			if call := lastStartCall(h); call.Command != fallbackSeatOne || call.Speed != speedpkg.SpeedFast ||
+				!hasACPOption(call.ACPOptions, "route_mode") {
+				t.Fatalf("accepted start = %q speed=%q options=%+v, want seat one fast with its option",
+					call.Command, call.Speed, call.ACPOptions)
+			}
+			if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			setReviewerChain(t, h, codexRoute(h))
+			refuseStartCommands(h, nil)
+			resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+			if err != nil {
+				t.Fatalf("Resume() error = %v", err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+			call := lastStartCall(h)
+			if call.Command != fallbackSeatZero || call.ResumeSessionID != "" {
+				t.Fatalf("resume start = %q/%q, want the primary route without a native id",
+					call.Command, call.ResumeSessionID)
+			}
+			if call.Speed == speedpkg.SpeedFast || hasACPOption(call.ACPOptions, "route_mode") {
+				t.Fatalf("primary resume speed=%q options=%+v, want the primary runtime without the removed route's",
+					call.Speed, call.ACPOptions)
+			}
+		})
+
+	t.Run("Should resume old metadata without an accepted route unchanged", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		meta := readMeta(t, session.MetaPath())
+		meta.AcceptedRoute = nil
+		if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		raw, err := os.ReadFile(session.MetaPath())
+		if err != nil || strings.Contains(string(raw), "accepted_route") {
+			t.Fatalf("previous-release meta fixture = %s (error %v), want no accepted_route", raw, err)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if got := lastStartCall(h).ResumeSessionID; got != originalACP || originalACP == "" {
+			t.Fatalf("resume ResumeSessionID = %q, want stored %q", got, originalACP)
+		}
+	})
+}
+
+func hasACPOption(options []acp.SessionConfigOptionSelection, id string) bool {
+	for _, option := range options {
+		if option.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func TestResumeFailsWhenWorkspaceDirectoryMissing(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if err := os.RemoveAll(h.workspace); err != nil {
+		t.Fatalf("os.RemoveAll(%q) error = %v", h.workspace, err)
+	}
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(missing workspace dir) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), h.workspace) {
+		t.Fatalf("Resume(missing workspace dir) error = %v, want workspace path %q", err, h.workspace)
+	}
+}
+
+func TestResumeFailsWhenAgentRemoved(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
+		Agents: []compozyconfig.AgentDef{{
+			Name:     compozyconfig.DefaultAgentName,
+			Provider: "claude",
+			Prompt:   "You are a coding assistant.",
+		}},
+	})
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(missing agent) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "coder") {
+		t.Fatalf("Resume(missing agent) error = %v, want agent name", err)
+	}
+}
+
+func TestResumeFailsWhenEventStoreIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if err := os.WriteFile(session.DBPath(), nil, 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", session.DBPath(), err)
+	}
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(empty event store) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), session.DBPath()) || !strings.Contains(err.Error(), "file is empty") {
+		t.Fatalf("Resume(empty event store) error = %v, want db path and empty-file detail", err)
+	}
+}
+
+// Invariant: session events remain authoritative across provider restarts and
+// failed resume attempts. The session-manager resume suite owns this boundary.
+func TestSessionEventHistoryAcrossResume(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve durable event history across resume and stop", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		first, err := h.manager.Prompt(testutil.Context(t), active.ID, "before resume")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, first)
+		if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		before := readStoredEvents(t, active)
+		resumed, err := h.manager.Resume(testutil.Context(t), active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "after resume")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, second)
+		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Fatal(err)
+		}
+		after := readStoredEvents(t, resumed)
+		for _, original := range before {
+			found := false
+			for _, event := range after {
+				if event.ID == original.ID && event.Content == original.Content {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("resume lost durable event %q", original.ID)
+			}
+		}
+		foundPrompt := false
+		for _, event := range after {
+			if strings.Contains(event.Content, "after resume") {
+				foundPrompt = true
+			}
+		}
+		if !foundPrompt || countEventType(after, EventTypeSessionStopped) != 2 {
+			t.Fatalf("resumed history lost its new prompt or terminal event: %#v", after)
+		}
+	})
+	t.Run("Should preserve stopped history when provider resume fails", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		events, err := h.manager.Prompt(testutil.Context(t), active.ID, "before failed resume")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		before := readStoredEvents(t, active)
+		startErr := errors.New("provider resume unavailable")
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) { return nil, startErr }
+		if _, err := h.manager.Resume(testutil.Context(t), active.ID); !errors.Is(err, startErr) {
+			t.Fatalf("Resume() error = %v, want %v", err, startErr)
+		}
+		after := readStoredEvents(t, active)
+		for _, original := range before {
+			found := false
+			for _, event := range after {
+				if event.ID == original.ID && event.Content == original.Content {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("failed resume lost durable event %q", original.ID)
+			}
+		}
+		if meta := readMeta(t, active.MetaPath()); meta.State != string(StateStopped) {
+			t.Fatalf("meta state after failed resume = %q, want %q", meta.State, StateStopped)
+		}
+	})
+}
+
+// Invariant: boot and lazy replay refresh a restored prefix once and retain the rewind exclusion.
+// Owner: session replay; canonical suite: manager_resume_test.go.
+func TestResumeReplayRefreshesMigratedRewindBaseline(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"boot", "lazy", "already-migrated"} {
+		boot := mode != "lazy"
+		name := "Should refresh a stale rewind baseline before lazy replay"
+		if boot {
+			name = "Should refresh a stale rewind baseline during retained database upgrade"
+		}
+		if mode == "already-migrated" {
+			name = "Should refresh an already migrated stale baseline during retained database upgrade"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			accepted, err := h.manager.CreateAccepted(
+				t.Context(),
+				CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.Stop(t.Context(), accepted.ID); err != nil {
+				t.Fatal(err)
+			}
+			owner, err := h.manager.SessionOwner(t.Context(), accepted.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := store.SessionDBFile(filepath.Join(h.manager.homePaths.SessionsDir, accepted.ID))
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				t.Fatal(err)
+			}
+			for _, suffix := range []string{"", "-wal", "-shm"} {
+				if err := os.Remove(path + suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+					t.Fatal(err)
+				}
+			}
+			dbOwner := store.SessionDBOwner{SessionID: owner.SessionID, WorkspaceID: owner.WorkspaceID}
+			seedLegacyRewindDatabase(t, path, dbOwner)
+			if mode == "already-migrated" {
+				migrated, err := sessiondb.OpenSessionDB(t.Context(), dbOwner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := migrated.Close(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if boot {
+				if err := h.manager.UpgradeSessionDatabase(t.Context(), accepted.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			db, err := sessiondb.OpenSessionDB(t.Context(), dbOwner, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			initial, found, err := db.ConversationRewindState(t.Context())
+			if err != nil || !found || initial.BaselineStale == boot {
+				t.Fatalf("before replay state=%+v found=%v boot=%v err=%v", initial, found, boot, err)
+			}
+			replaySession := &Session{
+				ID:          accepted.ID,
+				WorkspaceID: accepted.WorkspaceID,
+				Workspace:   accepted.Workspace,
+				AgentName:   accepted.AgentName,
+				recorder:    db,
+			}
+			for range 2 {
+				block, _, err := h.manager.buildResumeReplay(t.Context(), replaySession)
+				if err != nil {
+					t.Fatal(err)
+				}
+				messages := resumeReplayMessagesFromPrompt(t, block)
+				if len(messages) != 149 {
+					t.Fatalf("replay messages=%d want=149", len(messages))
+				}
+				for index, message := range messages {
+					if got, want := message.Content, fmt.Sprintf("message-%03d", index+1); got != want {
+						t.Fatalf("replay %d=%q want=%q", index, got, want)
+					}
+				}
+				state, found, err := db.ConversationRewindState(t.Context())
+				if err != nil || !found || state.BaselineStale {
+					t.Fatalf("state=%+v found=%v err=%v", state, found, err)
+				}
+				rows, err := db.Query(
+					t.Context(),
+					store.EventQuery{BeforeSequence: 150, Archive: store.EventArchiveUnarchived},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expected, err := transcript.Assemble(rows)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expected = transcript.Prune(expected, transcript.PruneOptions{Dedup: true})
+				encoded, err := json.Marshal(expected)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if state.MessagesJSON != string(encoded) {
+					t.Fatalf("refreshed baseline differs from retained-prefix commit formula")
+				}
+			}
+		})
+	}
+}
+
+func seedLegacyRewindDatabase(t *testing.T, path string, owner store.SessionDBOwner) {
+	t.Helper()
+	stream := sessiondb.MigrationStream()
+	files := fstest.MapFS{}
+	directory := &atlasmigrate.MemDir{}
+	entries, err := fs.ReadDir(stream.FS, stream.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".sql") || entry.Name() >= "00009" {
+			continue
+		}
+		data, err := fs.ReadFile(stream.FS, stream.Dir+"/"+entry.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[stream.Dir+"/"+entry.Name()] = &fstest.MapFile{Data: data}
+		if err := directory.WriteFile(entry.Name(), data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	checksum, err := directory.Checksum()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := checksum.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	files[stream.Dir+"/atlas.sum"] = &fstest.MapFile{Data: data}
+	stream.FS, stream.Bootstrap = files, nil
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := store.Apply(t.Context(), db, stream); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		t.Context(),
+		`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+		owner.SessionID,
+		owner.WorkspaceID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	at := "2026-09-01T00:00:00Z"
+	retained := make([]store.SessionEvent, 0, 149)
+	for seq := 1; seq <= 200; seq++ {
+		archived := 0
+		if seq >= 20 && seq <= 80 || seq >= 150 {
+			archived = 1
+		}
+		content := fmt.Sprintf(`{"type":"user_message","text":"message-%03d","turn_id":"turn-%03d"}`, seq, seq)
+		if archived == 0 && seq < 150 {
+			retained = append(
+				retained,
+				store.SessionEvent{
+					ID:        fmt.Sprintf("event-%d", seq),
+					Sequence:  int64(seq),
+					TurnID:    fmt.Sprintf("turn-%d", seq),
+					Type:      "user_message",
+					AgentName: "coder",
+					Content:   content,
+					Timestamp: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+				},
+			)
+		}
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp,archived) VALUES (?,?,?,?,?,?,?,?)`,
+			seq,
+			fmt.Sprintf("event-%d", seq),
+			fmt.Sprintf("turn-%d", seq),
+			"user_message",
+			"coder",
+			content,
+			at,
+			archived,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fixture, err := os.ReadFile("../store/sessiondb/testdata/legacy_compaction_fired.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		t.Context(),
+		`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp) VALUES (201,'legacy-fired','fixture-turn','session.compaction_fired','coder',?,?)`,
+		string(fixture),
+		at,
+	); err != nil {
+		t.Fatal(err)
+	}
+	messages, err := transcript.Assemble(retained)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages = transcript.Prune(messages, transcript.PruneOptions{Dedup: true})
+	baseline, err := json.Marshal(messages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		t.Context(),
+		`INSERT INTO conversation_rewind_state (singleton,target_message_id,covered_through_sequence,messages_json,updated_at) VALUES (1,'message-150',149,?,?)`,
+		string(baseline),
+		at,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		t.Context(),
+		`INSERT INTO conversation_rewind_receipts (idempotency_key,request_hash,target_message_id,archived_from_sequence,archived_to_sequence,archived_event_count,generation,max_sequence,transcript_epoch,draft_text,created_at) VALUES ('rewind','hash','message-150',150,200,51,1,149,1,'draft',?)`,
+		at,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

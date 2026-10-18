@@ -64,9 +64,9 @@ func seedEventSummaries(ctx context.Context, db *globaldb.GlobalDB, state *scena
 			SessionID: story.SessionID, Type: story.Type,
 			AgentName: story.AgentName, Outcome: story.Outcome,
 			Summary: story.Summary, Timestamp: story.At,
-		}
-		summary.HookEvent = story.HookEvent
-		summary.HookName = story.HookName
+
+			HookEvent: story.HookEvent,
+			HookName:  story.HookName}
 		summaries = append(summaries, summary)
 	}
 	if err := db.WriteEventSummaries(ctx, summaries); err != nil {

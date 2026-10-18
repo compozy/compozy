@@ -53,14 +53,14 @@ export const MultilineWithoutPrompt: Story = {
 
 export const LanguageLabel: Story = {
   args: {
-    caption: "compozy network",
+    caption: "compozy task",
     language: "bash",
     showPrompt: true,
-    code: `# discover peers, send one task
-compozy network status
-compozy network peers
-compozy network send reviewer --kind direct \\
-    --body '{"task":"review PR #482"}'`,
+    code: `# inspect status and start one task
+compozy status
+compozy task list
+compozy task start task-102 \\
+    --idempotency-key review-482`,
   },
   parameters: {
     docs: {
@@ -109,8 +109,8 @@ export const WrappedLongLine: Story = {
     language: "json",
     code: JSON.stringify(
       {
-        event: "receipt",
-        channel: "compozy-network/v0",
+        event: "task_completed",
+        task_id: "task-102",
         summary:
           "This deliberately long value wraps inside the block without forcing a horizontal scroll.",
       },
@@ -136,7 +136,7 @@ export const CopyDisabled: Story = {
 
 export const CopyInteraction: Story = {
   args: {
-    code: "compozy network status",
+    code: "compozy status",
   },
   parameters: {
     docs: {
@@ -163,7 +163,7 @@ export const CopyInteraction: Story = {
       await step("Clicking copy invokes navigator.clipboard.writeText", async () => {
         const button = await canvas.findByRole("button", { name: "Copy to clipboard" });
         await userEvent.click(button);
-        await waitFor(() => expect(writeText).toHaveBeenCalledWith("compozy network status"));
+        await waitFor(() => expect(writeText).toHaveBeenCalledWith("compozy status"));
       });
       await step("Button swaps to the check glyph", async () => {
         const success = await canvas.findByRole("button", { name: "Copied" });
@@ -199,7 +199,7 @@ export const Truncated: Story = {
 
 export const CopyFailure: Story = {
   args: {
-    code: "compozy network status",
+    code: "compozy status",
   },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
@@ -231,7 +231,7 @@ export const CopyFailure: Story = {
 
 export const StandaloneCopyButton: Story = {
   args: {
-    code: "compozy network status",
+    code: "compozy status",
   },
   render: args => (
     <div className="flex items-center gap-3 rounded-md border border-line bg-canvas-soft p-3">

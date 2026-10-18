@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-09-15
+## 0.3.0 - 2026-10-16
 
 ### ♻️ Refactoring
 
@@ -17,12 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
 - Quiet the Context rail and sessions row for everyday use (#649)
+- Retire Network, managed Sandbox, and Bridges (#681)
+- Complete Modern Go adoption across module boundaries (#706)
 
 ### ⚡ Performance Improvements
 
 - Delegate full gates to pull request CI (#476)
 - Reduce test and development feedback overhead (#556)
 - Avoid rendering unchanged windows during layout updates
+- Reduce SQLite contention and query costs (#723)
 
 ### 🎉 Features
 
@@ -83,6 +86,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show session context and confirmed prompt deliveries (#635)
 - Unify marketplace catalog and plugin sources (#636)
 - Add release video workspace and production skill
+- Give rendered Markdown a readable visual hierarchy (#660)
+- Add safe bulk worktree cleanup to workspace lists (#656)
+- Add provider-neutral ACP full-access preference (#674)
+- Calmer, plain-language web UI for everyday users (#683)
+- Continue and fork sessions across agents, with fallback account routes (#684)
+- Shell rail v2 with light and dark themes (#687)
+- Show nested child runs and a distinct awaiting-child state (#708)
+- Merge Jobs and Triggers into one Automations area (#709)
+- Remove the memory feature family and adopt agent-native session compaction (#710)
+- Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
+- Render session tool calls as verb + object rows on a work rail (#716)
+- Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
+- One-click CompozyOS update from the menubar (#733)
+- Show the runtime provider mark on session rows (#758)
 
 ### 🐛 Bug Fixes
 
@@ -265,6 +282,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recover marketplace sources and render catalog logos under CSP (#648)
 - Repair marketplace CI fixtures and evidence capture
 - Cancel unbound goals before deleting sessions (#647)
+- Preserve profile scope when deleting sessions (#652)
+- Discover Claude reasoning options for each exact model (#658)
+- Bootstrap pinned Bun with npm for Vercel builds
+- Honor workspace default in session launcher (#668)
+- Fixing clarify tool call timeout with keep-alive pings (#661)
+- Preserve declared awaited run-loop terminal output (#672)
+- Preserve whitespace in session transcripts (#670)
+- Wake creator on child turn completion (#685)
+- Resolve reported runtime, catalog and delivery failures (#686)
+- Restore release nightly coverage and package extension runtimes
+- Preserve loop results under SQLite contention (#690)
+- Repair profile isolation, runtime recovery, and loop results (#691)
+- Skills nested
+- Upgrade dependencies and repair CI compatibility (#692)
+- Repair release validation and desktop restoration (#694)
+- Preserve profile recovery guidance and repair browser validation (#695)
+- Preserve SQLite commit outcomes during cancellation (#696)
+- Preserve profile entry across query reconciliation (#697)
+- Apply the chosen runtime to continued sessions and keep continue/fork top-level (#702)
+- Keep live model catalogs current without releases (#701)
+- Classify teardown survivors by final process liveness (#713)
+- Fold transcript entries incrementally instead of replaying each turn (#715)
+- Resolve Windows runtime failures and desktop context menus (#725)
+- Reduce session startup and attention overhead (#731)
+- Bound scheduled claim attempts before contention backoff
+- Allocate run-agent binding epochs for reviewed actions (#735)
+- Keep session image previews dismissible (#744)
+- Preserve goal origin identity across provider changes (#749)
+- Preserve HTTPS origins through the Tailscale gateway (#743)
+- Make bundled spec-cycle workflows self-contained (#741)
+- Preserve daemon-owned Loop action claims (#748)
+- Keep session lists stable with created and name sorts (#752)
+- Attribute model catalog refresh failures to providers (#745)
+- Drain queued inputs before Goal continuation (#755)
+- Render session message cards for Claude and Codex sends (#757)
+- Hide daemon-owned verification sessions (#759)
+- Keep runtime models clickable during provider failures (#768)
+- Tolerate transient session stream reconnects (#769)
+- Stop false Goal attention and cut daemon idle cost (#770)
+- Keep background subagents running and show them in the composer (#771)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -291,6 +348,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project escalation events in acknowledgement fixtures
 - Persist canonical escalation status in overview fixtures
 - Await completed automation run before daemon cleanup
+- Wait for terminal command output before detaching
+- Refresh credential assertions context after migration
+- Cover inactive loop routes with automatic approval (#703)
+- Cut duplicated and misplaced tests across the pyramid (#707)
+- Wait for subagent card navigation readiness (#753)
 
 ## 0.2.15 - 2026-07-17
 

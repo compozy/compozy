@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -263,10 +264,7 @@ func normalizeToolUniverse(ids []ToolID) []ToolID {
 }
 
 func sortedToolIDsFromSet(set map[ToolID]struct{}) []ToolID {
-	ids := make([]ToolID, 0, len(set))
-	for id := range set {
-		ids = append(ids, id)
-	}
+	ids := slices.AppendSeq(make([]ToolID, 0, len(set)), maps.Keys(set))
 	slices.Sort(ids)
 	return ids
 }

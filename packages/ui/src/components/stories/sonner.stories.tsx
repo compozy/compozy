@@ -40,7 +40,7 @@ export const Variants: Story = {
         <Button variant="outline" onClick={() => toast("Event recorded.")}>
           Default
         </Button>
-        <Button variant="outline" onClick={() => toast.info("Dream consolidation scheduled.")}>
+        <Button variant="outline" onClick={() => toast.info("Retention sweep scheduled.")}>
           Info
         </Button>
         <Button variant="outline" onClick={() => toast.warning("Approaching token budget.")}>

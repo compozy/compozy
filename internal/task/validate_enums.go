@@ -89,7 +89,7 @@ func ParseRunStatus(value string) RunStatus {
 // Normalize returns the normalized representation of the task-run kind.
 func (k RunKind) Normalize() RunKind {
 	switch k {
-	case RunKindUnknown, RunKindWorker, RunKindCoordinator, RunKindNetworkWake:
+	case RunKindUnknown, RunKindWorker, RunKindCoordinator:
 		return k
 	default:
 		return runKindInvalid
@@ -99,18 +99,17 @@ func (k RunKind) Normalize() RunKind {
 // Validate reports whether the task-run kind is one of the supported executor kinds.
 func (k RunKind) Validate(path string) error {
 	switch k.Normalize() {
-	case RunKindWorker, RunKindCoordinator, RunKindNetworkWake:
+	case RunKindWorker, RunKindCoordinator:
 		return nil
 	case RunKindUnknown:
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
 	default:
 		return fmt.Errorf(
-			"%w: %s must be %q, %q, or %q: %q",
+			"%w: %s must be %q or %q: %q",
 			ErrValidation,
 			path,
 			RunKindWorker.String(),
 			RunKindCoordinator.String(),
-			RunKindNetworkWake.String(),
 			enumValidationValue(k),
 		)
 	}
@@ -125,8 +124,6 @@ func ParseRunKind(value string) RunKind {
 		return RunKindWorker
 	case RunKindCoordinator.String():
 		return RunKindCoordinator
-	case RunKindNetworkWake.String():
-		return RunKindNetworkWake
 	default:
 		return runKindInvalid
 	}

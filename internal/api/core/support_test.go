@@ -41,8 +41,6 @@ func TestSessionsSnapshotDecoratesProfileOwners(t *testing.T) {
 		}},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	payload, err := fixture.Handlers.SessionsSnapshot(t.Context())
 	if err != nil {
@@ -164,7 +162,7 @@ func TestBaseHandlersSupportBundles(t *testing.T) {
 				}, nil
 			},
 		})
-		reqCtx, cancel := context.WithDeadline(context.Background(), deadline)
+		reqCtx, cancel := context.WithDeadline(t.Context(), deadline)
 		defer cancel()
 		request := httptest.NewRequestWithContext(
 			reqCtx,
@@ -253,7 +251,7 @@ func newSupportBundleTestEngine(t *testing.T, service supportBundleServiceStub) 
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName:      "api-core-test",
 		MaskInternalErrors: false,

@@ -53,9 +53,8 @@ func (n *hooksNotifier) timestamp() time.Time {
 
 type runtimeDispatchFunc[P any] func(hookRuntime, context.Context, P) (P, error)
 
-func dispatchRuntime[P any](
+func (n *hooksNotifier) dispatchRuntime[P any](
 	ctx context.Context,
-	n *hooksNotifier,
 	event hookspkg.HookEvent,
 	payload P,
 	dispatch runtimeDispatchFunc[P],
@@ -67,7 +66,7 @@ func dispatchRuntime[P any](
 	if ctx == nil {
 		return payload, fmt.Errorf("daemon: dispatch %s requires a non-nil context", event)
 	}
-	ctx = withGlobalHookDispatchEventEmitter(ctx, n, payload)
+	ctx = n.withGlobalHookDispatchEventEmitter(ctx, payload)
 	return dispatch(hooks, ctx, payload)
 }
 
@@ -77,10 +76,8 @@ func hookSessionLifecyclePayload(
 	timestamp time.Time,
 ) hookspkg.SessionLifecyclePayload {
 	return hookspkg.SessionLifecyclePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     event,
-			Timestamp: timestamp,
-		},
+		Event:          event,
+		Timestamp:      timestamp,
 		SessionContext: hookSessionContext(sess),
 	}
 }
@@ -90,7 +87,10 @@ func hookSessionContext(sess *session.Session) hookspkg.SessionContext {
 		return hookspkg.SessionContext{}
 	}
 
-	info := sess.Info()
+	return hookSessionInfoContext(sess.Info())
+}
+
+func hookSessionInfoContext(info *session.Info) hookspkg.SessionContext {
 	if info == nil {
 		return hookspkg.SessionContext{}
 	}
@@ -162,24 +162,6 @@ func observeSessionStopExecutor(observer sessionLifecycleObserver) hookspkg.Exec
 			payload hookspkg.SessionLifecyclePayload,
 		) (hookspkg.SessionPostStopPatch, error) {
 			observer.OnSessionStopped(ctx, sessionFromHookPayload(payload))
-			return hookspkg.SessionPostStopPatch{}, nil
-		},
-	)
-}
-
-func dreamSessionStopExecutor(dreamRuntime dreamCheckEnqueuer) hookspkg.Executor {
-	return hookspkg.NewTypedNativeExecutor(
-		func(
-			_ context.Context,
-			_ hookspkg.RegisteredHook,
-			payload hookspkg.SessionLifecyclePayload,
-		) (hookspkg.SessionPostStopPatch, error) {
-			if strings.TrimSpace(payload.WorkspaceID) == "" ||
-				session.Type(strings.TrimSpace(payload.SessionType)) == session.SessionTypeDream {
-				return hookspkg.SessionPostStopPatch{}, nil
-			}
-
-			dreamRuntime.EnqueueCheck("session_stop", strings.TrimSpace(payload.WorkspaceID))
 			return hookspkg.SessionPostStopPatch{}, nil
 		},
 	)

@@ -69,9 +69,13 @@ func (m *Manager) applyAttentionAgentEvent(
 	if resolvedBy == "" {
 		resolvedBy = "provider"
 	}
+	status := store.PendingInteractionStatusResolved
+	if event.Decision == string(acp.PermissionDecisionCanceled) {
+		status = store.PendingInteractionStatusCanceled
+	}
 	_, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
 		InteractionID: interaction.InteractionID,
-		Status:        store.PendingInteractionStatusResolved,
+		Status:        status,
 		Resolution:    event.Decision,
 		ResolvedBy:    resolvedBy,
 		At:            event.Timestamp,
@@ -177,8 +181,7 @@ func pendingInteractionByProviderRequest(info *Info, kind string, requestID stri
 		if interaction.Kind == kind && interaction.ProviderRequestID == requestID &&
 			(interaction.Status == store.PendingInteractionStatusPending ||
 				interaction.Status == store.PendingInteractionStatusOrphaned) {
-			cloned := *interaction
-			return &cloned
+			return new(*interaction)
 		}
 	}
 	return nil

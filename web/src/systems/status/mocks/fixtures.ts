@@ -5,22 +5,6 @@ export const daemonHealthFixture: HealthPayload = {
   uptime_seconds: 7_200,
   active_sessions: 3,
   active_agents: 5,
-  bridges: {
-    total_instances: 2,
-    route_count: 4,
-    delivery_backlog: 1,
-    delivery_dropped_total: 0,
-    delivery_failures_total: 0,
-    auth_failures_total: 0,
-    status_counts: {
-      disabled: 0,
-      starting: 0,
-      ready: 2,
-      degraded: 0,
-      auth_required: 0,
-      error: 0,
-    },
-  },
   global_db_size_bytes: 1_048_576,
   session_db_size_bytes: 786_432,
   persistence: {
@@ -77,12 +61,6 @@ export const daemonStatusFixture: DaemonStatusPayload = {
       applied_count: 1,
       sum_digest: "sha256:global-schema",
     },
-    {
-      stream: "memory",
-      version: 1,
-      applied_count: 1,
-      sum_digest: "sha256:memory-schema",
-    },
   ],
 };
 
@@ -99,26 +77,6 @@ export const statusFixture: StatusPayload = {
     },
   },
   health: daemonHealthFixture,
-  memory: {
-    status: "ok",
-    enabled: true,
-    configured: true,
-    global_dir: "/Users/pedro/.compozy/memory",
-    dream_agent: "general",
-    dream_min_hours: 24,
-    dream_min_sessions: 3,
-    dream_check_interval: "1h0m0s",
-    dream_enabled: true,
-    global_files: 4,
-    workspace_files: 12,
-    workspace_count: 2,
-    indexed_files: 16,
-    orphaned_files: 0,
-    operation_count: 18,
-    last_consolidation: null,
-    last_operation_at: null,
-    last_reindex: null,
-  },
   automation: {
     enabled: true,
     jobs: {
@@ -137,8 +95,6 @@ export const statusFixture: StatusPayload = {
     oldest_queue_age_ms: 0,
     active_orphan_runs: 0,
     forced_stops_since_start: 0,
-    duplicate_ingress_since_start: 0,
-    channel_mismatch_since_start: 0,
     recovery_since_start: {
       requeued: 0,
       marked_running: 0,
@@ -151,7 +107,6 @@ export const statusFixture: StatusPayload = {
     healthy: 0,
     unhealthy: 0,
   },
-  bridges: daemonHealthFixture.bridges,
   skills: {
     runtime_available: true,
     discovered_count: 8,

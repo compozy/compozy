@@ -37,7 +37,6 @@ type httpOverlay struct {
 type defaultsOverlay struct {
 	Agent    *string `toml:"agent"`
 	Provider *string `toml:"provider"`
-	Sandbox  *string `toml:"sandbox"`
 }
 
 type agentsOverlay struct {
@@ -75,8 +74,9 @@ type sessionOverlay struct {
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
-	Compaction  sessionCompactionOverlay  `toml:"compaction"`
+	Messaging   sessionMessagingOverlay   `toml:"messaging"`
 	Attachments sessionAttachmentsOverlay `toml:"attachments"`
+	Derive      sessionDeriveOverlay      `toml:"derive"`
 }
 
 type sessionStopOverlay struct {
@@ -90,6 +90,8 @@ type sessionLimitsOverlay struct {
 type sessionSupervisionOverlay struct {
 	QuietAfter *time.Duration `toml:"quiet_after"`
 	StopGrace  *time.Duration `toml:"stop_grace"`
+	// IdleReleaseAfter is independent of the quiet watchdog keys.
+	IdleReleaseAfter *time.Duration `toml:"idle_release_after"`
 	// Released keys are translated only at load; remove in v0.5.0.
 	ActivityHeartbeatInterval *time.Duration `toml:"activity_heartbeat_interval"`
 	ProgressNotifyInterval    *time.Duration `toml:"progress_notify_interval"`
@@ -105,15 +107,9 @@ type sessionBusyInputOverlay struct {
 	MaxTextBytes *int    `toml:"max_text_bytes"`
 }
 
-type sessionCompactionOverlay struct {
-	Enabled            *bool          `toml:"enabled"`
-	PressureThreshold  *float64       `toml:"pressure_threshold"`
-	MaxAttemptsPerTurn *int           `toml:"max_attempts_per_turn"`
-	FailureCooldown    *time.Duration `toml:"failure_cooldown"`
-}
-
 type permissionsOverlay struct {
-	Mode *PermissionMode `toml:"mode"`
+	Mode               *PermissionMode `toml:"mode"`
+	ProviderFullAccess *bool           `toml:"provider_full_access"`
 }
 
 type providerOverlay struct {
@@ -166,35 +162,6 @@ type providerCredentialOverlay struct {
 	Required  *bool   `toml:"required"`
 }
 
-type sandboxOverlay struct {
-	Backend     *string               `toml:"backend"`
-	SyncMode    *string               `toml:"sync_mode"`
-	Persistence *string               `toml:"persistence"`
-	RuntimeRoot *string               `toml:"runtime_root"`
-	Env         *map[string]string    `toml:"env"`
-	SecretEnv   *map[string]string    `toml:"secret_env"`
-	Network     networkProfileOverlay `toml:"network"`
-	Daytona     daytonaProfileOverlay `toml:"daytona"`
-}
-
-type networkProfileOverlay struct {
-	AllowPublicIngress *bool     `toml:"allow_public_ingress"`
-	AllowOutbound      *bool     `toml:"allow_outbound"`
-	AllowList          *[]string `toml:"allow_list"`
-	DenyList           *[]string `toml:"deny_list"`
-	Required           *bool     `toml:"required"`
-}
-
-type daytonaProfileOverlay struct {
-	APIURL      *string `toml:"api_url"`
-	Target      *string `toml:"target"`
-	Image       *string `toml:"image"`
-	Snapshot    *string `toml:"snapshot"`
-	Class       *string `toml:"class"`
-	AutoStop    *string `toml:"auto_stop"`
-	AutoArchive *string `toml:"auto_archive"`
-}
-
 type observabilityOverlay struct {
 	Enabled           *bool                           `toml:"enabled"`
 	RetentionDays     *int                            `toml:"retention_days"`
@@ -207,149 +174,6 @@ type observabilityTranscriptsOverlay struct {
 	Enabled            *bool  `toml:"enabled"`
 	SegmentBytes       *int   `toml:"segment_bytes"`
 	MaxBytesPerSession *int64 `toml:"max_bytes_per_session"`
-}
-
-type memoryOverlay struct {
-	Enabled    *bool                   `toml:"enabled"`
-	GlobalDir  *string                 `toml:"global_dir"`
-	Controller memoryControllerOverlay `toml:"controller"`
-	Recall     memoryRecallOverlay     `toml:"recall"`
-	Decisions  memoryDecisionsOverlay  `toml:"decisions"`
-	Extractor  memoryExtractorOverlay  `toml:"extractor"`
-	Dream      dreamOverlay            `toml:"dream"`
-	Session    memorySessionOverlay    `toml:"session"`
-	Daily      memoryDailyOverlay      `toml:"daily"`
-	File       memoryFileOverlay       `toml:"file"`
-	Provider   memoryProviderOverlay   `toml:"provider"`
-	Workspace  memoryWorkspaceOverlay  `toml:"workspace"`
-}
-
-type memoryControllerOverlay struct {
-	Mode            *string                       `toml:"mode"`
-	MaxLatency      *time.Duration                `toml:"max_latency"`
-	DefaultOpOnFail *string                       `toml:"default_op_on_fail"`
-	Policy          memoryControllerPolicyOverlay `toml:"policy"`
-}
-
-type memoryControllerPolicyOverlay struct {
-	MaxContentChars *int      `toml:"max_content_chars"`
-	MaxWritesPerMin *int      `toml:"max_writes_per_min"`
-	AllowOrigins    *[]string `toml:"allow_origins"`
-}
-
-type memoryRecallOverlay struct {
-	TopK                   *int                         `toml:"top_k"`
-	RawCandidates          *int                         `toml:"raw_candidates"`
-	Fusion                 *string                      `toml:"fusion"`
-	IncludeAlreadySurfaced *bool                        `toml:"include_already_surfaced"`
-	IncludeSystem          *bool                        `toml:"include_system"`
-	Weights                memoryRecallWeightsOverlay   `toml:"weights"`
-	Freshness              memoryRecallFreshnessOverlay `toml:"freshness"`
-	Signals                memoryRecallSignalsOverlay   `toml:"signals"`
-}
-
-type memoryRecallWeightsOverlay struct {
-	BM25Unicode  *float64 `toml:"bm25_unicode"`
-	BM25Trigram  *float64 `toml:"bm25_trigram"`
-	Recency      *float64 `toml:"recency"`
-	RecallSignal *float64 `toml:"recall_signal"`
-}
-
-type memoryRecallFreshnessOverlay struct {
-	BannerAfterDays *int `toml:"banner_after_days"`
-}
-
-type memoryRecallSignalsOverlay struct {
-	QueueCapacity  *int `toml:"queue_capacity"`
-	WorkerRetryMax *int `toml:"worker_retry_max"`
-}
-
-type memoryDecisionsOverlay struct {
-	PruneAfterAppliedDays *int   `toml:"prune_after_applied_days"`
-	KeepAuditSummary      *bool  `toml:"keep_audit_summary"`
-	MaxPostContentBytes   *int64 `toml:"max_post_content_bytes"`
-}
-
-type memoryExtractorOverlay struct {
-	Mode             *string                     `toml:"mode"`
-	ThrottleTurns    *int                        `toml:"throttle_turns"`
-	Deadline         *time.Duration              `toml:"deadline"`
-	SandboxInboxOnly *bool                       `toml:"sandbox_inbox_only"`
-	InboxPath        *string                     `toml:"inbox_path"`
-	DLQPath          *string                     `toml:"dlq_path"`
-	Queue            memoryExtractorQueueOverlay `toml:"queue"`
-}
-
-type memoryExtractorQueueOverlay struct {
-	Capacity    *int `toml:"capacity"`
-	CoalesceMax *int `toml:"coalesce_max"`
-}
-
-type dreamOverlay struct {
-	MinHours      *float64                  `toml:"min_hours"`
-	MinSessions   *int                      `toml:"min_sessions"`
-	Debounce      *time.Duration            `toml:"debounce"`
-	PromptVersion *string                   `toml:"prompt_version"`
-	CheckInterval *time.Duration            `toml:"check_interval"`
-	Gates         memoryDreamGatesOverlay   `toml:"gates"`
-	Scoring       memoryDreamScoringOverlay `toml:"scoring"`
-}
-
-type memoryDreamGatesOverlay struct {
-	MinUnpromoted  *int     `toml:"min_unpromoted"`
-	MinRecallCount *int     `toml:"min_recall_count"`
-	MinScore       *float64 `toml:"min_score"`
-}
-
-type memoryDreamScoringOverlay struct {
-	RecencyHalfLifeDays *int                             `toml:"recency_half_life_days"`
-	Weights             memoryDreamScoringWeightsOverlay `toml:"weights"`
-}
-
-type memoryDreamScoringWeightsOverlay struct {
-	Frequency *float64 `toml:"frequency"`
-	Relevance *float64 `toml:"relevance"`
-	Recency   *float64 `toml:"recency"`
-	Freshness *float64 `toml:"freshness"`
-}
-
-type memorySessionOverlay struct {
-	LedgerFormat     *string        `toml:"ledger_format"`
-	LedgerRoot       *string        `toml:"ledger_root"`
-	EventsPurgeGrace *time.Duration `toml:"events_purge_grace"`
-	ColdArchiveDays  *int           `toml:"cold_archive_days"`
-	HardDeleteDays   *int           `toml:"hard_delete_days"`
-	MaxArchiveBytes  *int64         `toml:"max_archive_bytes"`
-	UnboundPartition *string        `toml:"unbound_partition"`
-}
-
-type memoryDailyOverlay struct {
-	MaxBytes        *int64  `toml:"max_bytes"`
-	MaxLines        *int    `toml:"max_lines"`
-	RotateFormat    *string `toml:"rotate_format"`
-	DreamingWindow  *int    `toml:"dreaming_window"`
-	ColdArchiveDays *int    `toml:"cold_archive_days"`
-	HardDeleteDays  *int    `toml:"hard_delete_days"`
-	MaxArchiveBytes *int64  `toml:"max_archive_bytes"`
-	SweepHour       *int    `toml:"sweep_hour"`
-	ArchivePath     *string `toml:"archive_path"`
-}
-
-type memoryFileOverlay struct {
-	MaxLines *int   `toml:"max_lines"`
-	MaxBytes *int64 `toml:"max_bytes"`
-}
-
-type memoryProviderOverlay struct {
-	Name             *string        `toml:"name"`
-	Timeout          *time.Duration `toml:"timeout"`
-	FailureThreshold *int           `toml:"failure_threshold"`
-	Cooldown         *time.Duration `toml:"cooldown"`
-}
-
-type memoryWorkspaceOverlay struct {
-	TOMLPath   *string `toml:"toml_path"`
-	AutoCreate *bool   `toml:"auto_create"`
 }
 
 type skillsOverlay struct {
@@ -404,4 +228,10 @@ type mcpAuthOverlay struct {
 	ClientID        *string              `toml:"client_id"`
 	ClientSecretRef *string              `toml:"client_secret_ref"`
 	Scopes          *[]string            `toml:"scopes"`
+}
+
+func applyOptional[T any](source *T, target *T) {
+	if source != nil {
+		*target = *source
+	}
 }

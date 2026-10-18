@@ -2,6 +2,7 @@ import { Wrench } from "lucide-react";
 
 import { FormSection } from "@compozy/ui";
 
+import { AGENT_ACCESS_COPY } from "../lib/agent-access-copy";
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import { TokenListField } from "./token-list-field";
 
@@ -27,43 +28,46 @@ export function AgentCreateToolsSection({
   return (
     <FormSection
       data-testid="agent-create-tools-section"
-      help="Empty lists mean the runtime defaults apply."
       icon={Wrench}
-      title="Tools & skills"
+      title={AGENT_ACCESS_COPY.title}
     >
       <div className="grid gap-3.5 md:grid-cols-2">
         <TokenListField
           error={errors.tools}
-          help="Canonical tool IDs or namespace wildcards."
-          label="Allowed tools"
+          description={AGENT_ACCESS_COPY.tools.description}
+          help={AGENT_ACCESS_COPY.tools.help}
+          label={AGENT_ACCESS_COPY.tools.label}
           onChange={tools => onDraftChange({ ...draft, tools })}
-          placeholder="compozy__skill_view, mcp__github__*"
+          placeholder={AGENT_ACCESS_COPY.tools.placeholder}
           testId="agent-create-tools"
           values={draft.tools}
         />
         <TokenListField
           error={errors.toolsets}
-          help="Tool groups enabled for the agent."
-          label="Allowed toolsets"
+          description={AGENT_ACCESS_COPY.toolsets.description}
+          help={AGENT_ACCESS_COPY.toolsets.help}
+          label={AGENT_ACCESS_COPY.toolsets.label}
           onChange={toolsets => onDraftChange({ ...draft, toolsets })}
-          placeholder="compozy__catalog"
+          placeholder={AGENT_ACCESS_COPY.toolsets.placeholder}
           testId="agent-create-toolsets"
           values={draft.toolsets}
         />
         <TokenListField
           error={errors.denyTools}
-          help="Canonical tools to deny after allow rules."
-          label="Denied tools"
+          description={AGENT_ACCESS_COPY.denyTools.description}
+          help={AGENT_ACCESS_COPY.denyTools.help}
+          label={AGENT_ACCESS_COPY.denyTools.label}
           onChange={denyTools => onDraftChange({ ...draft, denyTools })}
-          placeholder="compozy__task_*"
+          placeholder={AGENT_ACCESS_COPY.denyTools.placeholder}
           testId="agent-create-deny-tools"
           values={draft.denyTools}
         />
         <TokenListField
-          help="Skill names disabled only for this agent."
-          label="Disabled skills"
+          description={AGENT_ACCESS_COPY.disabledSkills.description}
+          help={AGENT_ACCESS_COPY.disabledSkills.help}
+          label={AGENT_ACCESS_COPY.disabledSkills.label}
           onChange={disabledSkills => onDraftChange({ ...draft, disabledSkills })}
-          placeholder="code-review, release-notes"
+          placeholder={AGENT_ACCESS_COPY.disabledSkills.placeholder}
           testId="agent-create-disabled-skills"
           values={draft.disabledSkills}
         />

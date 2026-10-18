@@ -25,7 +25,7 @@ const {
     error: null as Error | null,
   },
   mockSettingsPersona: {
-    data: { config: { agent: "general", provider: "", sandbox: "" } },
+    data: { config: { agent: "general", provider: "" } },
     error: null as Error | null,
     isSuccess: true,
   },
@@ -93,7 +93,7 @@ describe("useOnboardingDefaultModel", () => {
     mockUpdatePersona.mutateAsync.mockReset().mockResolvedValue(undefined);
     mockUseSettingsPersona.mockReset().mockReturnValue(mockSettingsPersona);
     mockCatalogRefresh.mockReset();
-    mockSettingsPersona.data = { config: { agent: "general", provider: "", sandbox: "" } };
+    mockSettingsPersona.data = { config: { agent: "general", provider: "" } };
     mockSettingsPersona.error = null;
     mockSettingsPersona.isSuccess = true;
     mockSettingsProvider.data = {
@@ -206,7 +206,7 @@ describe("useOnboardingDefaultModel", () => {
       default_speed: "fast",
     });
     expect(mockUpdatePersona.mutateAsync).toHaveBeenCalledWith({
-      body: { config: { agent: "general", provider: "claude", sandbox: "" } },
+      body: { config: { agent: "general", provider: "claude" } },
       filter: { scope: "user" },
     });
     expect(mockUseSettingsPersona).toHaveBeenCalledWith({ scope: "user" });
@@ -251,6 +251,39 @@ describe("useOnboardingDefaultModel", () => {
     // Nothing was written to the draft — the mode is derived, not synced.
     expect(onboardingDraftStore.getSnapshot().context.authMode).toBe("native_cli");
     expect(onboardingDraftStore.getSnapshot().context.authModeTouched).toBe(false);
+  });
+
+  it("Should block a key-bound provider until the credential target env is known", () => {
+    act(() =>
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "openrouter",
+        model: "",
+        reasoning: "",
+      })
+    );
+    mockSettingsProvider.data = {
+      settings: {
+        display_name: "OpenRouter",
+        harness: "pi_acp",
+        models: { default: "", curated: [] },
+        credential_slots: [],
+      },
+    };
+
+    const { result, rerender } = renderHook(() => useOnboardingDefaultModel());
+
+    expect(result.current.missingEnvVar).toBe(true);
+    expect(result.current.isValid).toBe(false);
+    expect(result.current.configurationError).toBe(
+      "Enter the environment variable the provider expects."
+    );
+
+    act(() => result.current.onEnvVarChange("OPENROUTER_API_KEY"));
+    rerender();
+
+    expect(result.current.missingEnvVar).toBe(false);
+    expect(result.current.isValid).toBe(true);
+    expect(result.current.configurationError).toBeNull();
   });
 
   it("Should keep the operator's auth choice over the harness default", () => {

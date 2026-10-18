@@ -52,10 +52,7 @@ func setTaskCurrentRunProjectionForRun(
 		}
 		return fmt.Errorf("store: load task id for current run projection %q: %w", trimmedRunID, err)
 	}
-	if !taskID.Valid {
-		return nil
-	}
-	return setTaskCurrentRunProjection(ctx, exec, taskID.String, trimmedRunID)
+	return setTaskCurrentRunProjection(ctx, exec, taskID, trimmedRunID)
 }
 
 func setTaskCurrentRunProjection(
@@ -194,9 +191,9 @@ func taskRunsShareDesignationGroup(
 	firstGroup := strings.TrimSpace(first.DesignationGroupID)
 	return firstGroup != "" && firstGroup == strings.TrimSpace(second.DesignationGroupID) &&
 		strings.TrimSpace(
-			taskNullStringValue(first.TaskID),
+			first.TaskID,
 		) == strings.TrimSpace(
-			taskNullStringValue(second.TaskID),
+			second.TaskID,
 		), nil
 }
 
@@ -217,7 +214,7 @@ func reprojectActiveDesignationSibling(
 	candidate, err := sqlcgen.New(exec).FindActiveDesignationProjectionCandidate(
 		ctx,
 		sqlcgen.FindActiveDesignationProjectionCandidateParams{
-			TaskID: nullableTaskString(taskID), DesignationGroupID: groupID, ExcludedRunID: terminalRunID,
+			TaskID: taskID, DesignationGroupID: groupID, ExcludedRunID: terminalRunID,
 		},
 	)
 	if errors.Is(err, sql.ErrNoRows) {

@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -256,7 +255,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionUsePublicSurface(t *
 
 	var seenEvents []SSEEvent
 	events, err := harness.PromptSessionHTTPWithEvents(
-		context.Background(),
+		t.Context(),
 		"sess-1",
 		"hello http",
 		func(event SSEEvent) error {
@@ -274,7 +273,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionUsePublicSurface(t *
 		t.Fatalf("len(seenEvents) = %d, want %d", got, want)
 	}
 
-	simpleEvents, err := harness.PromptSessionHTTP(context.Background(), "sess-1", "hello wrapper")
+	simpleEvents, err := harness.PromptSessionHTTP(t.Context(), "sess-1", "hello wrapper")
 	if err != nil {
 		t.Fatalf("PromptSessionHTTP() error = %v", err)
 	}
@@ -283,7 +282,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionUsePublicSurface(t *
 	}
 
 	if err := harness.ApproveSessionPermission(
-		context.Background(),
+		t.Context(),
 		"sess-1",
 		compozycontract.ApproveSessionRequest{},
 	); err != nil {
@@ -325,7 +324,7 @@ func TestRuntimeHarnessPromptSessionHTTPEscapesSessionIDs(t *testing.T) {
 		HTTPClient:  server.Client(),
 	}
 
-	events, err := harness.PromptSessionHTTP(context.Background(), sessionID, "hello http")
+	events, err := harness.PromptSessionHTTP(t.Context(), sessionID, "hello http")
 	if err != nil {
 		t.Fatalf("PromptSessionHTTP() error = %v", err)
 	}
@@ -334,7 +333,7 @@ func TestRuntimeHarnessPromptSessionHTTPEscapesSessionIDs(t *testing.T) {
 	}
 
 	if err := harness.ApproveSessionPermission(
-		context.Background(),
+		t.Context(),
 		sessionID,
 		compozycontract.ApproveSessionRequest{},
 	); err != nil {
@@ -364,7 +363,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionReportFailures(t *te
 	}
 
 	if _, err := harness.PromptSessionHTTP(
-		context.Background(),
+		t.Context(),
 		"sess-1",
 		"hello http",
 	); err == nil ||
@@ -372,7 +371,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionReportFailures(t *te
 		t.Fatalf("PromptSessionHTTP() error = %v, want 403 failure", err)
 	}
 	if err := harness.ApproveSessionPermission(
-		context.Background(),
+		t.Context(),
 		"sess-1",
 		compozycontract.ApproveSessionRequest{},
 	); err == nil ||

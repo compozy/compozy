@@ -41,7 +41,7 @@ func (c *daemonClient) AnswerSessionClarification(
 	requestID string,
 	request ClarificationAnswerRequest,
 ) (ClarificationAnswerRecord, error) {
-	target, err := requireNetworkPathValue("request_id", requestID)
+	target, err := requirePathValue("request_id", requestID)
 	if err != nil {
 		return ClarificationAnswerRecord{}, err
 	}

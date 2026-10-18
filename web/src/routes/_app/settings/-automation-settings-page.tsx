@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Zap } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "@tanstack/react-router";
 
@@ -11,20 +11,21 @@ import {
   SettingsHeroBoard,
   SettingsNumberInput,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsProvChip,
   SettingsSaveBar,
   useSettingsSaveBarState,
   useSettingsTopbar,
   type SettingsAutomationSection,
 } from "@/systems/settings";
-import { Button, Eyebrow, Input, Spinner, Switch, Time } from "@compozy/ui";
+import { Alert, AlertDescription, AlertTitle, Eyebrow, Input, Switch, Time } from "@compozy/ui";
 
 type AutomationConfig = SettingsAutomationSection["config"];
 type AutomationRuntime = SettingsAutomationSection["runtime"];
 
 export function AutomationSettingsPage() {
   const page = useSettingsAutomationPage();
-  useSettingsTopbar("automation");
+  useSettingsTopbar();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError = (key: string) => (message: string | null) => {
     setValidationErrors(current =>
@@ -43,32 +44,17 @@ export function AutomationSettingsPage() {
   const runtime = page.envelope?.runtime;
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-automation-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="automation" state="loading" />;
   }
 
   if (page.error || !page.envelope || !page.draft) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-automation-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">
-            {page.error?.message ?? "Failed to load automation settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error}
+        onRetry={page.handleRetry}
+        slug="automation"
+        state="error"
+      />
     );
   }
 
@@ -79,26 +65,6 @@ export function AutomationSettingsPage() {
 
   return (
     <SettingsPageFrame
-      meta={[
-        {
-          key: "jobs",
-          content: (
-            <span>
-              <span className="font-medium text-muted">{runtime.job_enabled}</span> of{" "}
-              {runtime.job_total} jobs active
-            </span>
-          ),
-        },
-        {
-          key: "triggers",
-          content: (
-            <span>
-              <span className="font-medium text-muted">{runtime.trigger_enabled}</span> of{" "}
-              {runtime.trigger_total} triggers active
-            </span>
-          ),
-        },
-      ]}
       restart={restart}
       saveBar={
         <SettingsSaveBar
@@ -135,82 +101,79 @@ function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime 
     !runtime.running ? "engine stopped" : null,
     !runtime.scheduler_running ? "scheduler stopped" : null,
   ].filter((part): part is string => part !== null);
-  const detail =
-    unavailableParts.length > 0 ? unavailableParts.join(" · ") : "automation runtime unavailable";
+  const detail = unavailableParts.length > 0 ? unavailableParts.join(" · ") : undefined;
 
   return (
-    <div
-      className="flex items-start gap-2 border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-fg"
+    <Alert
       data-testid="settings-page-automation-runtime-unavailable"
       role="alert"
+      title={detail}
+      variant="warning"
     >
-      <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
-      <div className="min-w-0">
-        <p className="font-medium">Automation runtime is unavailable</p>
-        <p className="mt-1 text-xs text-muted">
-          Jobs and triggers cannot run until automation is enabled and CompozyOS is restarted.
-        </p>
-        <p className="mt-1 font-mono text-mono-id text-muted">{detail}</p>
-      </div>
-    </div>
+      <AlertCircle aria-hidden="true" />
+      <AlertTitle>Automation is off</AlertTitle>
+      <AlertDescription>
+        Turn on Run automation and restart CompozyOS. Your automations wait until then.
+      </AlertDescription>
+    </Alert>
   );
 }
 
 function AutomationHero({ runtime }: { runtime: AutomationRuntime }) {
   const running = runtime.running;
+  const nextFire = runtime.next_fire;
+  const lastSynced = runtime.last_synced_at;
   return (
     <SettingsHeroBoard
       data-testid="settings-page-automation-hero"
-      state={running ? "Automation running" : "Automation stopped"}
+      state={running ? "Automation is running" : "Automation is stopped"}
       tone={running ? "success" : "neutral"}
       pulse={running}
-      pill={running ? "Running" : "Stopped"}
       sub={
-        runtime.next_fire ? (
+        nextFire || lastSynced ? (
           <span>
-            next fire <Time iso={runtime.next_fire} mode="relative" />
+            {nextFire ? (
+              <>
+                Next run <Time iso={nextFire} mode="relative" />
+              </>
+            ) : null}
+            {nextFire && lastSynced ? " · " : null}
+            {lastSynced ? (
+              <>
+                Synced <Time iso={lastSynced} mode="relative" />
+              </>
+            ) : null}
           </span>
         ) : undefined
       }
-      stats={[
-        {
-          key: "jobs",
-          value: `${runtime.job_enabled}/${runtime.job_total}`,
-          label: "Jobs enabled",
-        },
-        {
-          key: "triggers",
-          value: `${runtime.trigger_enabled}/${runtime.trigger_total}`,
-          label: "Triggers enabled",
-        },
-        {
-          key: "synced",
-          value: runtime.last_synced_at ? (
-            <Time iso={runtime.last_synced_at} mode="relative" />
-          ) : (
-            "—"
-          ),
-          label: "Last synced",
-        },
-      ]}
     />
   );
+}
+
+function countLabel(count: number, singular: string): string {
+  return `${count} ${count === 1 ? singular : `${singular}s`}`;
+}
+
+/** `7 automations, 6 on · 4 scheduled, 3 on events` — schedules are jobs, events are triggers. */
+function automationsSummary(runtime: AutomationRuntime): string {
+  const total = runtime.job_total + runtime.trigger_total;
+  const on = runtime.job_enabled + runtime.trigger_enabled;
+  return `${countLabel(total, "automation")}, ${on} on · ${runtime.job_total} scheduled, ${runtime.trigger_total} on events`;
 }
 
 function ManageSection({ runtime }: { runtime: AutomationRuntime }) {
   return (
     <SettingsGroup data-testid="settings-page-automation-operational-links" title="Manage">
       <SettingLinkRow
-        data-testid="settings-page-automation-link-jobs"
-        description={`${runtime.job_total} defined, ${runtime.job_enabled} enabled`}
-        label="Jobs"
-        render={<Link to="/jobs" />}
-      />
-      <SettingLinkRow
-        data-testid="settings-page-automation-link-triggers"
-        description={`${runtime.trigger_total} defined, ${runtime.trigger_enabled} enabled`}
-        label="Triggers"
-        render={<Link to="/triggers" />}
+        data-testid="settings-page-automation-link-automations"
+        description={automationsSummary(runtime)}
+        label={
+          <>
+            <Zap aria-hidden="true" className="size-3.5 text-muted" />
+            Automations
+          </>
+        }
+        render={<Link to="/automations" />}
       />
     </SettingsGroup>
   );
@@ -242,8 +205,8 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
       />
       <SettingsFieldRow
         data-testid="settings-page-automation-timezone"
-        label="Schedule timezone"
-        help="Used for cron schedule resolution"
+        label="Schedule time zone"
+        help="Scheduled automations use this time zone"
         control={
           <Input
             className="w-56 font-mono"
@@ -276,10 +239,10 @@ function LimitsSection({
     <SettingsGroup title="Limits">
       <SettingsFieldRow
         data-testid="settings-page-automation-max-concurrent"
-        label="Max jobs at once"
+        label="Scheduled automations at once"
         help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            Caps the number of jobs running simultaneously
+            How many scheduled automations can run at the same time
             <SettingsProvChip>automation.max_concurrent_jobs</SettingsProvChip>
           </span>
         }
@@ -305,10 +268,10 @@ function LimitsSection({
       />
       <SettingsFieldRow
         data-testid="settings-page-automation-fire-limit-max"
-        label="Default fire limit"
+        label="Default run limit"
         help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            Maximum invocations per window for new triggers
+            How often a new automation can start work
             <SettingsProvChip>automation.default_fire_limit</SettingsProvChip>
           </span>
         }
@@ -335,7 +298,7 @@ function LimitsSection({
               }
             />
             <Eyebrow className="text-muted">fires</Eyebrow>
-            <span className="text-xs text-subtle">per</span>
+            <span className="text-form-hint text-subtle">per</span>
             <Input
               className="w-24 font-mono"
               data-testid="settings-page-automation-fire-limit-window-input"

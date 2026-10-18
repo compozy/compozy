@@ -169,7 +169,7 @@ func relativeToWorkingDir(t testing.TB, target string) string {
 func commandFlagValue(t testing.TB, argv []string, flag string) string {
 	t.Helper()
 
-	for idx := 0; idx < len(argv)-1; idx++ {
+	for idx := range len(argv) - 1 {
 		if argv[idx] == flag {
 			return argv[idx+1]
 		}

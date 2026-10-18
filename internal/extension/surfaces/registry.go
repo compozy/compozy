@@ -21,7 +21,6 @@ const (
 	FamilyAutomationJobs     ManifestFamily = "automation_jobs"
 	FamilyAutomationTriggers ManifestFamily = "automation_triggers"
 	FamilyWindowLayouts      ManifestFamily = "window_layouts"
-	FamilyBridgeInstances    ManifestFamily = "bridge_instances"
 )
 
 // Surface declares the daemon-authoritative resource publication metadata for one kind.
@@ -88,12 +87,6 @@ var (
 			Kind:             resources.ResourceKind("window_layout"),
 			ManifestFamily:   FamilyWindowLayouts,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(allResourceScopes),
-		},
-		{
-			Kind:             resources.ResourceKind("bridge.instance"),
-			ManifestFamily:   FamilyBridgeInstances,
-			ExtensionPublish: false,
 			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 	}

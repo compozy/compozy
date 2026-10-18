@@ -15,8 +15,8 @@ flowchart TD
     I --> C[Compare exact unread/archive/lane totals with loaded groups]
     C --> T[Read/archive/dismiss one item]
     T --> R[Reload and confirm triage state]
-    R --> A[Open Jobs and Triggers]
-    A --> AF[Filter by q/source/enabled/event/loop/scope]
+    R --> A[Open Automations]
+    A --> AF[Filter by Start view + q/target/enabled/source/loop/scope]
     AF --> AP[Walk independent cursor pages]
     AP --> D[Open one automation detail]
     D --> M[Read Runs shown / Recent success as a bounded sample]
@@ -40,7 +40,7 @@ journey:
   entry_points:
     - url: "web /tasks"
       origin: in-app-nav
-    - url: "web /jobs or /triggers"
+    - url: "web /automations"
       origin: in-app-nav
   actions:
     - step: 1
@@ -53,8 +53,8 @@ journey:
       verb: "Triage the actor-scoped Inbox"
       expected_observable: "Lane/unread/archive totals remain exact while loaded groups append by cursor; read/archive/dismiss survives refresh"
     - step: 4
-      verb: "Find jobs and triggers across sources"
-      expected_observable: "Jobs and triggers expose counted pages and daemon-owned `q/source/enabled/event/loop/scope` filters, including config, package, and dynamic sources"
+      verb: "Find automations across sources in the Automations window"
+      expected_observable: "Scheduled and event automations expose counted pages and daemon-owned `q/target/enabled/source/loop/scope` filters behind All · Scheduled · On events Start views, including config, package, and dynamic sources"
     - step: 5
       verb: "Inspect run history and Loop bindings"
       expected_observable: "Recent metrics say `Runs shown` and `Recent success`; Loop detail pages jobs/triggers independently and never claims a sampled catalog badge is complete"

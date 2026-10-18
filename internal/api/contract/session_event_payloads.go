@@ -10,24 +10,25 @@ import (
 
 // SessionEventPayload is the shared session event response payload.
 type SessionEventPayload struct {
-	ID            string `json:"id"`
-	SessionID     string `json:"session_id"`
-	Sequence      int64  `json:"sequence"`
-	TurnID        string `json:"turn_id"`
-	Type          string `json:"type"`
-	AgentName     string `json:"agent_name"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
+	Origin        *PromptOriginMeta `json:"origin,omitzero"`
+	ID            string            `json:"id"`
+	SessionID     string            `json:"session_id"`
+	Sequence      int64             `json:"sequence"`
+	TurnID        string            `json:"turn_id"`
+	Type          string            `json:"type"`
+	AgentName     string            `json:"agent_name"`
+	WorkspaceID   string            `json:"workspace_id,omitempty"`
+	WorkspacePath string            `json:"workspace_path,omitempty"`
 	store.EventCorrelation
 	ParentSessionID string                       `json:"parent_session_id,omitempty"`
 	RootSessionID   string                       `json:"root_session_id,omitempty"`
 	SpawnDepth      int                          `json:"spawn_depth"`
 	Content         json.RawMessage              `json:"content"`
-	Goal            *GoalPromptMeta              `json:"goal,omitempty"`
+	Goal            *GoalPromptMeta              `json:"goal,omitzero"`
 	StopReason      store.StopReason             `json:"stop_reason,omitempty"`
 	StopDetail      string                       `json:"stop_detail,omitempty"`
-	Failure         *SessionFailurePayload       `json:"failure,omitempty"`
-	ProviderError   *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
+	Failure         *SessionFailurePayload       `json:"failure,omitzero"`
+	ProviderError   *acp.ProviderErrorDiagnostic `json:"provider_error,omitzero"`
 	Timestamp       time.Time                    `json:"timestamp"`
 }
 

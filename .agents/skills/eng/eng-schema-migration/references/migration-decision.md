@@ -18,7 +18,6 @@ Use the matrix below to decide what kind of artifact your change needs.
 | Change default value | YES | Existing rows are unaffected by SQLite default changes — explicit backfill if needed. |
 | Touch struct field that round-trips through SQLite | YES (column add/rename) | The Go struct change is just the front of the migration. |
 | In-memory cache shape change | NO | This skill does not apply. |
-| `internal/memory/MEMORY.md` schema | NO | Markdown is the source of truth; FTS5 catalog is derived (see `docs/_memory/analysis/analysis_codex_plans.md`). Reindex via `internal/memory/consolidation`. |
 
 ## Compatibility rule (SD-013)
 

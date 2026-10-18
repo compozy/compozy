@@ -10,6 +10,75 @@ interface WorktreeMergedEvidenceProps {
   staleLabel?: string;
 }
 
+type EvidenceTone = "success" | "info" | "warning" | "neutral";
+
+const ROW_TONE_CLASS: Record<EvidenceTone, string | undefined> = {
+  success: "text-fg",
+  info: "text-muted",
+  warning: "text-muted",
+  neutral: undefined,
+};
+
+const ICON_TONE_CLASS: Record<EvidenceTone, string | undefined> = {
+  success: "text-success",
+  info: "text-info",
+  warning: "text-warning",
+  neutral: undefined,
+};
+
+function evidenceTone(cleanup: WorktreeExitCleanupEvidence): EvidenceTone {
+  if (cleanup.blocker) return "warning";
+  if (cleanup.downgraded) return "info";
+  return cleanup.safe ? "success" : "neutral";
+}
+
+/** Presence-only data attribute: `""` when set, omitted otherwise. */
+function flagAttr(value: unknown): "" | undefined {
+  return value ? "" : undefined;
+}
+
+function evidenceDataAttrs(cleanup: WorktreeExitCleanupEvidence, tone: EvidenceTone) {
+  return {
+    "data-blocked": flagAttr(cleanup.blocker),
+    "data-downgraded": flagAttr(cleanup.downgraded),
+    "data-forge-state": cleanup.forge_state,
+    "data-safe": flagAttr(cleanup.safe),
+    "data-stale": flagAttr(cleanup.stale),
+    "data-slot": "worktree-merged-evidence",
+    "data-testid": "worktree-merged-evidence",
+    "data-source": cleanup.source,
+    "data-tone": tone,
+  };
+}
+
+function EvidenceIcon({ cleanup }: { cleanup: WorktreeExitCleanupEvidence }) {
+  if (cleanup.blocker) return <CircleAlertIcon aria-hidden="true" />;
+  if (cleanup.forge_state) return <GitMergeIcon aria-hidden="true" />;
+  return <ShieldCheckIcon aria-hidden="true" />;
+}
+
+function EvidenceText({
+  cleanup,
+  staleLabel,
+}: {
+  cleanup: WorktreeExitCleanupEvidence;
+  staleLabel?: string;
+}) {
+  return (
+    <span className="min-w-0 flex-1">
+      {cleanup.summary ?? cleanup.forge_state}
+      {cleanup.stale && staleLabel ? (
+        <span className="ml-1 text-micro text-faint">{`as of ${staleLabel}`}</span>
+      ) : null}
+      {cleanup.blocker ? (
+        <span className="mt-px block text-badge text-subtle" data-slot="worktree-cleanup-blocker">
+          {cleanup.blocker}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 /**
  * Why this worktree is — or is not — safe to clean up.
  *
@@ -26,61 +95,28 @@ export function WorktreeMergedEvidence({
 }: WorktreeMergedEvidenceProps) {
   if (!cleanup.summary && !cleanup.blocker && !cleanup.forge_state) return null;
 
-  const tone = cleanup.blocker
-    ? "warning"
-    : cleanup.downgraded
-      ? "info"
-      : cleanup.safe
-        ? "success"
-        : "neutral";
+  const tone = evidenceTone(cleanup);
+  const canCleanUp = cleanup.safe && !cleanup.blocker && onCleanUp;
 
   return (
     <div
       className={cn(
-        "flex items-center gap-2.5 rounded-lg border border-line bg-canvas-soft px-3.5 py-2.5 text-small-body",
-        tone === "success" && "text-fg",
-        tone === "info" && "text-muted",
-        tone === "warning" && "text-muted"
+        "flex items-center gap-2.5 rounded-lg bg-card px-3.5 py-2.5 text-small-body shadow-card",
+        ROW_TONE_CLASS[tone]
       )}
-      data-blocked={cleanup.blocker ? "" : undefined}
-      data-downgraded={cleanup.downgraded ? "" : undefined}
-      data-forge-state={cleanup.forge_state}
-      data-safe={cleanup.safe ? "" : undefined}
-      data-stale={cleanup.stale ? "" : undefined}
-      data-slot="worktree-merged-evidence"
-      data-testid="worktree-merged-evidence"
-      data-source={cleanup.source}
-      data-tone={tone}
+      {...evidenceDataAttrs(cleanup, tone)}
     >
       <span
         className={cn(
-          "grid size-4 shrink-0 place-items-center [&_svg]:size-3",
-          tone === "success" && "text-success",
-          tone === "info" && "text-info",
-          tone === "warning" && "text-warning"
+          "grid size-4 shrink-0 place-items-center [&_svg]:size-3.5",
+          ICON_TONE_CLASS[tone]
         )}
       >
-        {cleanup.blocker ? (
-          <CircleAlertIcon aria-hidden="true" />
-        ) : cleanup.forge_state ? (
-          <GitMergeIcon aria-hidden="true" />
-        ) : (
-          <ShieldCheckIcon aria-hidden="true" />
-        )}
+        <EvidenceIcon cleanup={cleanup} />
       </span>
-      <span className="min-w-0 flex-1">
-        {cleanup.summary ?? cleanup.forge_state}
-        {cleanup.stale && staleLabel ? (
-          <span className="ml-1 text-micro text-faint">{`as of ${staleLabel}`}</span>
-        ) : null}
-        {cleanup.blocker ? (
-          <span className="mt-px block text-badge text-subtle" data-slot="worktree-cleanup-blocker">
-            {cleanup.blocker}
-          </span>
-        ) : null}
-      </span>
-      {cleanup.safe && !cleanup.blocker && onCleanUp ? (
-        <Button onClick={onCleanUp} size="sm" type="button" variant="outline">
+      <EvidenceText cleanup={cleanup} staleLabel={staleLabel} />
+      {canCleanUp ? (
+        <Button onClick={onCleanUp} size="sm" type="button" variant="secondary">
           Clean up
         </Button>
       ) : null}

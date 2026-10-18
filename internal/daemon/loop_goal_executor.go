@@ -128,6 +128,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	usage := &loopGoalJudgeUsage{}
 	judgeGate := gate.GateFromGoalJudge(string(req.Key.NodeID), req.Criteria)
 	verdict, err := e.evaluator.Evaluate(ctx, judgeGate, gate.GateInput{
+		JudgeParentSessionID:   req.SessionID,
 		TrustedWorkspaceRoot:   trustedRoot,
 		LoopRunID:              string(run.ID),
 		Placement:              gate.PlacementInBody,
@@ -146,7 +147,6 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 			Text:       req.Result.Text,
 			Structured: append([]byte(nil), req.Result.Structured...),
 		},
-		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 	})
 	if err != nil {
 		return goalpkg.JudgeResult{}, err

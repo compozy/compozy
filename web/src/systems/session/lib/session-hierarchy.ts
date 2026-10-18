@@ -1,5 +1,7 @@
+import type { StateGlyphState } from "@compozy/ui";
+
 import { sessionBadgeSignal } from "./session-badge";
-import type { SessionListScope } from "./session-list-preferences";
+import { sessionOriginKind } from "./session-origin";
 import type { SessionPayload } from "../types";
 
 export interface SessionListTree {
@@ -9,54 +11,34 @@ export interface SessionListTree {
   childrenByParent: Map<string, SessionPayload[]>;
 }
 
-export interface VisibleSessionOrderOptions {
-  scope: SessionListScope;
-  collapsedThreadIds: ReadonlySet<string>;
-  collapsedWorkspaceIds: ReadonlySet<string>;
-  workspaceGroups: ReadonlyArray<{
-    workspaceId: string;
-    sessions: readonly SessionPayload[];
-  }>;
+/** A delegated subagent's own session (ADR-005): summarized on its parent, never a list row. */
+export function isSubagentSession(session: SessionPayload): boolean {
+  return session.lineage?.spawn_role === "subagent";
 }
 
 /**
- * Projects the same unfiltered row order the shared session catalog renders.
- * Closed groups and closed threads are excluded because the cycle shortcut
- * must never focus a row the operator cannot currently see.
+ * The parent a session nests under. Continued and forked sessions are new
+ * top-level sessions the operator started; their source is provenance (the
+ * origin pill and divider), not hierarchy. Spawned, provenance and recovery
+ * children nest.
  */
-export function visibleSessionOrder(
-  sessions: readonly SessionPayload[],
-  options: VisibleSessionOrderOptions
-): SessionPayload[] {
-  if (options.scope === "all-workspaces") {
-    return options.workspaceGroups.flatMap(group =>
-      options.collapsedWorkspaceIds.has(group.workspaceId) ? [] : group.sessions
-    );
-  }
-
-  const tree = buildSessionTree(sessions);
-  return tree.roots.flatMap(root => [
-    root,
-    ...(options.collapsedThreadIds.has(root.id)
-      ? []
-      : collectThreadSessions(root.id, tree.childrenByParent)),
-  ]);
+function sessionTreeParentId(session: SessionPayload): string {
+  if (sessionOriginKind(session) !== null) return "";
+  return session.lineage?.parent_session_id ?? "";
 }
 
 /**
- * Nest every session whose creation parent is present in the same page under
+ * Nest every session whose hierarchy parent is present in the same page under
  * that parent. Missing parents and cycle participants stay roots so nothing
  * silently vanishes behind pagination or malformed lineage.
  */
 export function buildSessionTree(sessions: readonly SessionPayload[]): SessionListTree {
-  const parentById = new Map(
-    sessions.map(session => [session.id, session.lineage?.parent_session_id ?? ""])
-  );
+  const parentById = new Map(sessions.map(session => [session.id, sessionTreeParentId(session)]));
   const cycleParticipants = findCycleParticipants(parentById);
   const roots: SessionPayload[] = [];
   const childrenByParent = new Map<string, SessionPayload[]>();
   for (const session of sessions) {
-    const parentId = session.lineage?.parent_session_id ?? "";
+    const parentId = parentById.get(session.id) ?? "";
     if (parentId !== "" && parentById.has(parentId) && !cycleParticipants.has(session.id)) {
       const siblings = childrenByParent.get(parentId);
       if (siblings) {
@@ -149,29 +131,30 @@ export function filterThreadSessions(
   return descendants.filter(session => visibleIds.has(session.id));
 }
 
-export type ChildSessionSignalTone = "danger" | "warning" | "accent";
+export type ChildSessionSignalState = Extract<StateGlyphState, "attention" | "failed" | "running">;
+
+const CHILD_SIGNAL_RANK: Record<ChildSessionSignalState, number> = {
+  attention: 3,
+  failed: 2,
+  running: 1,
+};
 
 /**
  * Most urgent child state, so a collapsed thread never hides an escalation.
- * Urgency is read from the one badge dictionary rather than a local badge list,
- * so every member of the needs-you class escalates and runtime-health warnings
- * stay a rank below it. The dictionary's tone decides the rank: a needs-you
- * badge inked warning (`needs-attention`, an unverified stop) escalates as a
- * warning, never as a failure of the operator's work. `done` deliberately
- * raises nothing: finished-unseen work is an inbox item, not an escalation.
+ * Urgency is read from the one badge dictionary rather than a local badge list:
+ * a child waiting on the operator (attention) outranks a failure or a stuck
+ * runtime (failed), which outranks work still in flight (running). `done`,
+ * `idle`, `stopped` and `unknown` deliberately raise nothing: finished-unseen
+ * work is an inbox item, not an escalation.
  */
-export function childSessionSignalTone(
+export function childSessionSignalState(
   children: readonly SessionPayload[]
-): ChildSessionSignalTone | null {
-  let tone: ChildSessionSignalTone | null = null;
+): ChildSessionSignalState | null {
+  let signal: ChildSessionSignalState | null = null;
   for (const child of children) {
-    const signal = sessionBadgeSignal(child.badge);
-    if (signal.attention === "needs-you" && signal.tone === "danger") return "danger";
-    if (signal.tone === "warning") {
-      tone = "warning";
-    } else if (signal.label === "running" && tone !== "warning") {
-      tone = "accent";
-    }
+    const { state } = sessionBadgeSignal(child.badge);
+    if (state !== "attention" && state !== "failed" && state !== "running") continue;
+    if (signal === null || CHILD_SIGNAL_RANK[state] > CHILD_SIGNAL_RANK[signal]) signal = state;
   }
-  return tone;
+  return signal;
 }

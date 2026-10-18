@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { AlertCircle } from "lucide-react";
 
-import { Alert, AlertDescription, Button, ConfirmDialog, Spinner, Switch } from "@compozy/ui";
+import { Alert, AlertDescription, Button, ConfirmDialog, Switch } from "@compozy/ui";
 
 import {
   SettingsGroup,
   SettingsPageFrame,
+  SettingsPageState,
   SettingRow,
   useSettingsPalettePage,
   useSettingsTopbar,
@@ -14,37 +14,20 @@ import {
 export function PaletteSettingsPage() {
   const page = useSettingsPalettePage();
   const [resetOpen, setResetOpen] = useState(false);
-  useSettingsTopbar("palette");
+  useSettingsTopbar();
 
   if (page.isLoading) {
-    return (
-      <div
-        aria-label="Loading command palette settings"
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-palette-loading"
-        role="status"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="palette" state="loading" />;
   }
 
   if (page.error || page.section === null) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-palette-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle aria-hidden="true" className="size-6 text-danger" />
-          <p className="text-small-body text-subtle">
-            {page.error?.message ?? "Failed to load command palette settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error}
+        onRetry={page.handleRetry}
+        slug="palette"
+        state="error"
+      />
     );
   }
 
@@ -88,7 +71,7 @@ export function PaletteSettingsPage() {
               disabled={!page.canResetPersonalization || page.isResetting}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => setResetOpen(true)}
             >
               Reset

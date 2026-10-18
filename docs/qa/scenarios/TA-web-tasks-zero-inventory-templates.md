@@ -4,7 +4,7 @@ area: TA
 title: Start a first task from the zero-inventory catalog
 persona: Bruno
 journey: J-start-from-empty-catalogs
-expected: The empty Tasks catalog explains the object, offers Blank task and four collapsed templates, and opens the existing editor with the chosen real template while filtered, loading, and error states stay distinct.
+expected: The empty Tasks catalog explains the object, offers Start from scratch and the collapsed templates (no CLI command), and opens the existing editor with the chosen real template while filtered, loading, and error states stay distinct.
 entry_points: web /tasks
 qa_status: pass
 bug_ids:

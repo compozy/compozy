@@ -12,7 +12,6 @@ vi.mock("@/systems/profiles", async importOriginal => ({
 }));
 
 import { createMswFetch } from "@/test/msw-fetch";
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { LoopRunForm } from "../run-form/loop-run-form";
 import { handlers } from "../../mocks";
@@ -98,11 +97,14 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByRole("button", { name }));
   }
 
-  it("Should auto-generate a typed field per declared input with a type badge", () => {
+  // Invariant: the initial scoped form offers typed inputs without unsupported controls.
+  // Owner: LoopRunForm; canonical suite: this file.
+  it("Should render typed inputs without stop, cost-cap, or aggregate-only controls", () => {
     renderForm();
     const slug = screen.getByTestId("loop-run-field-slug");
     expect(slug).toHaveAttribute("data-input-type", "string");
-    expect(slug).toHaveTextContent("string");
+    expect(slug).toHaveTextContent("Slug");
+    expect(slug).not.toHaveTextContent("string");
     expect(screen.getByTestId("loop-run-field-implementer")).toHaveAttribute(
       "data-input-type",
       "agent"
@@ -127,6 +129,12 @@ describe("LoopRunForm", () => {
         "runtime"
       );
     }
+    expect(screen.queryByRole("button", { name: /^stop/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/\bstop\b/i);
+    expect(screen.queryByTestId("loop-run-override-cost")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/cost cap/i);
+    // A scoped view already answers "where does this land" on screen.
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
   });
 
   it("Should keep Start run disabled until the required input is filled", () => {
@@ -147,7 +155,7 @@ describe("LoopRunForm", () => {
       expect(screen.getByTestId("loop-run-field-error-slug")).toBeInTheDocument()
     );
     expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
-      "slug is required to run this loop."
+      "Slug is required to run this Loop."
     );
     const runCalls = fetchMock.mock.calls.filter(([input]) => {
       const url = input instanceof Request ? input.url : String(input);
@@ -166,7 +174,7 @@ describe("LoopRunForm", () => {
       expect(screen.getByTestId("loop-run-field-error-slug")).toBeInTheDocument()
     );
     expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
-      "slug is required to run this loop."
+      "Slug is required to run this Loop."
     );
     expect(onRunStarted).not.toHaveBeenCalled();
     const runCalls = fetchMock.mock.calls.filter(([input]) => {
@@ -174,18 +182,6 @@ describe("LoopRunForm", () => {
       return url.includes("/loops/implement-tasks/run");
     });
     expect(runCalls).toHaveLength(0);
-  });
-
-  it("Should render NO stop control anywhere in the form", () => {
-    renderForm();
-    expect(screen.queryByRole("button", { name: /^stop/i })).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/\bstop\b/i);
-  });
-
-  it("Should render NO cost-cap input anywhere in the form", () => {
-    renderForm();
-    expect(screen.queryByTestId("loop-run-override-cost")).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/cost cap/i);
   });
 
   it("Should render the gen-1 plan on Dry run without navigating", async () => {
@@ -211,7 +207,6 @@ describe("LoopRunForm", () => {
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
-    await expect(runRequestBody()).resolves.not.toHaveProperty("network_participation");
     // A run is owned work: it is started as the acting profile, never left for
     // the daemon to resolve to `default`.
     expect(new URL(runRequestUrl()).searchParams.get("profile")).toBe("default");
@@ -234,106 +229,6 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalled());
     expect(new URL(runRequestUrl()).searchParams.get("profile")).toBe("default");
-  });
-
-  it("Should stay chip-free under a scoped view", () => {
-    renderForm();
-    // A scoped view already answers "where does this land" on screen.
-    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
-  });
-
-  it("Should return canonical immutable snapshots from dry-run and run mock responses", async () => {
-    const dryResponse = await fetch(
-      `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run?dry=true`,
-      {
-        body: JSON.stringify({
-          inputs: { slug: "snapshot-round-trip" },
-          network_participation: { mode: "local" },
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }
-    );
-    const dryBody = (await dryResponse.json()) as {
-      dry_run: {
-        resolved_network_participation: {
-          bounds: { max_wakes: number };
-          mode: string;
-          source: string;
-        };
-      };
-    };
-    expect(dryBody.dry_run.resolved_network_participation).toEqual(
-      buildLocalNetworkParticipationFixture()
-    );
-
-    const runResponse = await fetch(
-      `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run`,
-      {
-        body: JSON.stringify({
-          inputs: { slug: "snapshot-round-trip" },
-          network_participation: {
-            channel_id: " release-room ",
-            channel_strategy: "named",
-            mode: "live",
-          },
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }
-    );
-    const runBody = (await runResponse.json()) as {
-      run: {
-        resolved_network_participation: {
-          bounds: { max_wakes: number };
-          channel_id: string;
-          channel_strategy: string;
-          mode: string;
-          source: string;
-          workspace_id: string;
-        };
-      };
-    };
-    expect(runBody.run.resolved_network_participation).toMatchObject({
-      bounds: { max_wakes: 8 },
-      channel_id: "release-room",
-      channel_strategy: "named",
-      mode: "live",
-      source: "explicit_request",
-      workspace_id: WS,
-    });
-  });
-
-  it("Should serialize an explicit Live run without legacy participation fields", async () => {
-    renderForm();
-    openSection(/Participation/);
-    expect(screen.getByTestId("loop-run-participation-mode")).toHaveValue("local");
-    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
-      target: { value: "billing-webhooks" },
-    });
-    fireEvent.change(screen.getByTestId("loop-run-participation-mode"), {
-      target: { value: "live" },
-    });
-    fireEvent.change(screen.getByTestId("loop-run-participation-channel"), {
-      target: { value: "release-room" },
-    });
-    fireEvent.change(screen.getByTestId("loop-run-participation-strategy"), {
-      target: { value: "named" },
-    });
-    expect(screen.getByTestId("loop-run-participation-mode")).toHaveValue("live");
-    expect(screen.getByTestId("loop-run-participation-channel")).toHaveValue("release-room");
-
-    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    await expect(runRequestBody()).resolves.toEqual({
-      inputs: expect.any(Object),
-      config_overrides: null,
-      network_participation: {
-        mode: "live",
-        channel_id: "release-room",
-        channel_strategy: "named",
-      },
-    });
   });
 
   it("Should start a run for the selected Loop, not the fixture default", async () => {
@@ -388,7 +283,9 @@ describe("LoopRunForm", () => {
     expect(capInput).toHaveAttribute("placeholder", "3");
 
     fireEvent.change(capInput, { target: { value: "4" } });
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
+      "changed for this run"
+    );
     expect(capInput).toHaveAttribute("placeholder", "3");
 
     fireEvent.change(capInput, { target: { value: "" } });
@@ -419,7 +316,9 @@ describe("LoopRunForm", () => {
     fireEvent.click(
       await screen.findByRole("option", { name: new RegExp(worktreeBehindFixture.name) })
     );
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
+      "changed for this run"
+    );
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
       target: { value: "billing-webhooks" },
     });

@@ -38,8 +38,7 @@ func optionalPayloadTime(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	normalized := value.UTC()
-	return &normalized
+	return new(value.UTC())
 }
 
 type operatorForcedFailPayload struct {
@@ -51,8 +50,8 @@ type operatorForcedFailPayload struct {
 	TaskStatus           Status          `json:"task_status"`
 	Reason               string          `json:"reason"`
 	SessionID            string          `json:"session_id,omitempty"`
-	QueueGeneration      int64           `json:"queue_generation,omitempty"`
-	CanceledQueuedInputs int             `json:"canceled_queued_inputs,omitempty"`
+	QueueGeneration      int64           `json:"queue_generation,omitzero"`
+	CanceledQueuedInputs int             `json:"canceled_queued_inputs,omitzero"`
 	Metadata             json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -76,6 +75,6 @@ type recoveredFromAttentionPayload struct {
 	TaskStatus           Status    `json:"task_status"`
 	Reason               string    `json:"reason,omitempty"`
 	SessionID            string    `json:"session_id,omitempty"`
-	QueueGeneration      int64     `json:"queue_generation,omitempty"`
-	CanceledQueuedInputs int       `json:"canceled_queued_inputs,omitempty"`
+	QueueGeneration      int64     `json:"queue_generation,omitzero"`
+	CanceledQueuedInputs int       `json:"canceled_queued_inputs,omitzero"`
 }

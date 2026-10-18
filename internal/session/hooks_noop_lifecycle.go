@@ -73,43 +73,6 @@ func (noopRuntimeRecoveryHooks) DispatchSessionRuntimeRecoveryExhausted(
 	return payload, nil
 }
 
-type noopSandboxHooks struct{}
-
-func (noopSandboxHooks) DispatchSandboxPrepare(
-	_ context.Context,
-	payload *hookspkg.SandboxPreparePayload,
-) (*hookspkg.SandboxPreparePayload, error) {
-	return payload, nil
-}
-
-func (noopSandboxHooks) DispatchSandboxReady(
-	_ context.Context,
-	payload hookspkg.SandboxReadyPayload,
-) (hookspkg.SandboxReadyPayload, error) {
-	return payload, nil
-}
-
-func (noopSandboxHooks) DispatchSandboxSyncBefore(
-	_ context.Context,
-	payload hookspkg.SandboxSyncBeforePayload,
-) (hookspkg.SandboxSyncBeforePayload, error) {
-	return payload, nil
-}
-
-func (noopSandboxHooks) DispatchSandboxSyncAfter(
-	_ context.Context,
-	payload hookspkg.SandboxSyncAfterPayload,
-) (hookspkg.SandboxSyncAfterPayload, error) {
-	return payload, nil
-}
-
-func (noopSandboxHooks) DispatchSandboxStop(
-	_ context.Context,
-	payload hookspkg.SandboxStopPayload,
-) (hookspkg.SandboxStopPayload, error) {
-	return payload, nil
-}
-
 type noopPromptHooks struct{}
 
 func (noopPromptHooks) DispatchInputPreSubmit(

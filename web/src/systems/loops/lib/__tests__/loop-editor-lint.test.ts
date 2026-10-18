@@ -10,7 +10,6 @@ import {
   lintDockCounters,
 } from "../loop-editor-lint";
 import type { ValidateLoopResult } from "../../types";
-import { lintDefinition } from "../../mocks/lint-definition";
 
 const def = loopDetailByName.get("quality-gate-demo")!.definition;
 
@@ -177,73 +176,6 @@ describe("loop editor lint", () => {
     expect(classifyInvariant("some_new_daemon_code")).toBeNull();
   });
 
-  it("Should compare composite Go durations instead of silently skipping the rule", () => {
-    const issues = lintDefinition({
-      graph: {
-        nodes: [
-          {
-            id: "execute",
-            class: "action",
-            kind: "run-agent",
-            timeout: "1m30s",
-            deadline: "1m29s",
-          },
-        ],
-      },
-    });
-    expect(issues).toEqual([
-      expect.objectContaining({ code: "timeout_exceeds_deadline", node_id: "execute" }),
-    ]);
-
-    expect(
-      lintDefinition({
-        graph: {
-          nodes: [
-            {
-              id: "execute",
-              class: "action",
-              kind: "run-agent",
-              timeout: "1m29s",
-              deadline: "1m30s",
-            },
-          ],
-        },
-      })
-    ).toEqual([]);
-  });
-
-  it("Should mirror the daemon error when a route has no default target", () => {
-    expect(
-      lintDefinition({
-        graph: {
-          nodes: [{ id: "triage", class: "control", kind: "route", routes: [], default: "" }],
-        },
-      })
-    ).toEqual([
-      expect.objectContaining({
-        code: "route_default_missing",
-        node_id: "triage",
-        severity: "error",
-      }),
-    ]);
-
-    expect(
-      lintDefinition({
-        graph: {
-          nodes: [
-            {
-              id: "triage",
-              class: "control",
-              kind: "route",
-              routes: [],
-              default: "backlog",
-            },
-          ],
-        },
-      })
-    ).toEqual([]);
-  });
-
   it("Should light the Routing chip for every route and error-route failure", () => {
     for (const code of [
       "route_default_missing",
@@ -303,23 +235,5 @@ describe("loop editor lint", () => {
       expect(state.errorCount).toBe(1);
       expect(state.byNode.get("await_ack")).toHaveLength(1);
     }
-  });
-
-  it("Should reject an emit that declares with even when the value is null", () => {
-    const issues = lintDefinition({
-      graph: {
-        nodes: [
-          {
-            id: "execute",
-            class: "action",
-            kind: "run-agent",
-            on_retry: [{ emit: { kind: "task_retrying" }, with: null }],
-          },
-        ],
-      },
-    });
-    expect(issues).toEqual([
-      expect.objectContaining({ code: "effect_shape_invalid", node_id: "execute" }),
-    ]);
   });
 });

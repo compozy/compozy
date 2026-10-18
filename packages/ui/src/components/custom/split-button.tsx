@@ -8,6 +8,19 @@ import { cn } from "../../lib/utils";
 
 type ButtonVariant = React.ComponentProps<typeof Button>["variant"];
 type ButtonSize = React.ComponentProps<typeof Button>["size"];
+type DataAttributes = { [key: `data-${string}`]: string | number | boolean | undefined };
+
+/**
+ * Pass-through attributes for the action segment only: test ids and domain
+ * `data-*` facts, a `title`, extra `aria-*`, and `disabled` for a primary that
+ * cannot run while its alternatives in the menu still can.
+ */
+export type SplitButtonActionProps = Pick<
+  React.ComponentProps<"button">,
+  "title" | "disabled" | "id"
+> &
+  Omit<React.AriaAttributes, "aria-disabled"> &
+  DataAttributes;
 
 export interface SplitButtonProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   label: React.ReactNode;
@@ -30,11 +43,17 @@ export interface SplitButtonProps extends Omit<React.ComponentProps<"div">, "onS
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   menuProps?: Omit<React.ComponentProps<typeof DropdownMenuContent>, "children">;
+  /** Attributes for the action segment alone; the menu trigger is unaffected. */
+  actionProps?: SplitButtonActionProps;
   /** Menu rows. Empty children collapse the control to a single button. */
   children?: React.ReactNode;
 }
 
-const SEAM_CLASS = "border-l border-l-accent-ink/20";
+// Both segments paint their fill under the transparent border box
+// (`bg-clip-border`), so the pair keeps one height and the seam reads as a
+// hairline in the primary's own ink instead of the canvas showing through. The
+// width is `!` because ButtonGroup zeroes every later segment's left border.
+const SEAM_CLASS = "border-l! border-l-primary-foreground/20";
 
 /**
  * A primary action paired with a menu of its alternatives.
@@ -57,15 +76,24 @@ export function SplitButton({
   open,
   onOpenChange,
   menuProps,
+  actionProps,
   children,
   className,
   ...props
 }: SplitButtonProps) {
-  const { className: menuClassName, ...restMenuProps } = menuProps ?? {};
+  const {
+    disabled: actionDisabled = false,
+    "aria-describedby": actionDescribedBy,
+    ...restActionProps
+  } = actionProps ?? {};
   const reasonId = useId();
   const [internalOpen, setInternalOpen] = useState(false);
   const hasMenu = Boolean(children);
-  const describedBy = blocked && blockedReason ? reasonId : undefined;
+  const actionInert = disabled || actionDisabled;
+  const describedBy =
+    [actionDescribedBy, blocked && blockedReason ? reasonId : undefined]
+      .filter(Boolean)
+      .join(" ") || undefined;
   const menuOpen = open ?? internalOpen;
 
   function setMenuOpen(nextOpen: boolean) {
@@ -84,7 +112,7 @@ export function SplitButton({
       // environment. Owning it here keeps the split action keyboard-complete;
       // preventing the key default also prevents a second browser click.
       event.preventDefault();
-      if (!blocked && !disabled) onAction();
+      if (!blocked && !actionInert) onAction();
     }
   }
 
@@ -99,13 +127,14 @@ export function SplitButton({
       {...props}
     >
       <Button
+        {...restActionProps}
         aria-describedby={describedBy}
         aria-disabled={blocked || undefined}
-        className="gap-1.5 whitespace-nowrap aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 [&_svg]:size-3"
+        className="gap-1.5 whitespace-nowrap bg-clip-border aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:bg-surface-2 aria-disabled:text-subtle aria-disabled:shadow-none"
         data-size={size}
         data-slot="split-button-action"
         data-variant={variant}
-        disabled={disabled}
+        disabled={actionInert}
         onClick={blocked ? undefined : onAction}
         onKeyDown={handleActionKeyDown}
         size={size}
@@ -121,33 +150,67 @@ export function SplitButton({
         </span>
       ) : null}
       {hasMenu ? (
-        <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
-          <DropdownMenuTrigger
-            aria-label={menuLabel}
-            data-size={size}
-            data-slot="split-button-trigger"
-            data-variant={variant}
-            render={
-              <Button
-                className={cn("w-8 px-0 [&_svg]:size-3", variant === "default" && SEAM_CLASS)}
-                disabled={disabled}
-                size={size}
-                type="button"
-                variant={variant}
-              />
-            }
-          >
-            <ChevronDownIcon aria-hidden="true" className="size-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className={cn("w-max max-w-72 p-1", menuClassName)}
-            {...restMenuProps}
-          >
-            {children}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SplitButtonMenu
+          disabled={disabled}
+          menuLabel={menuLabel}
+          menuProps={menuProps}
+          onOpenChange={setMenuOpen}
+          open={menuOpen}
+          size={size}
+          variant={variant}
+        >
+          {children}
+        </SplitButtonMenu>
       ) : null}
     </ButtonGroup>
+  );
+}
+
+function SplitButtonMenu({
+  open,
+  onOpenChange,
+  menuLabel,
+  menuProps,
+  variant,
+  size,
+  disabled,
+  children,
+}: Pick<SplitButtonProps, "menuLabel" | "menuProps" | "variant" | "size" | "children"> & {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  disabled: boolean;
+}) {
+  const { className: menuClassName, ...restMenuProps } = menuProps ?? {};
+  return (
+    <DropdownMenu onOpenChange={onOpenChange} open={open}>
+      <DropdownMenuTrigger
+        aria-label={menuLabel}
+        data-size={size}
+        data-slot="split-button-trigger"
+        data-variant={variant}
+        render={
+          <Button
+            className={cn(
+              // Square on the size ladder; the chevron takes the ladder glyph.
+              "aspect-square bg-clip-border px-0",
+              (variant === "default" || variant === "primary") && SEAM_CLASS
+            )}
+            disabled={disabled}
+            size={size}
+            type="button"
+            variant={variant}
+          />
+        }
+      >
+        <ChevronDownIcon aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className={cn("w-max max-w-72 p-1", menuClassName)}
+        {...restMenuProps}
+      >
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

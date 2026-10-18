@@ -55,19 +55,18 @@ export function GlobalScopeToggle({
               aria-disabled={locked || undefined}
               aria-label={accessibleName}
               className={cn(
-                "size-7 min-w-7 p-0 text-muted hover:bg-btn-default-fill hover:text-fg-strong",
-                "aria-pressed:bg-elevated aria-pressed:text-accent aria-pressed:shadow-highlight",
-                "aria-pressed:hover:text-accent data-[state=on]:bg-elevated data-[state=on]:text-accent",
-                "data-[state=on]:shadow-highlight data-[state=on]:hover:text-accent",
+                // Tray icon button (shell-rail v2 `.ib`): chrome plates, pressed on
+                // the neutral rail-selected step — accent is reserved for needs-you.
+                "size-8.5 min-w-8.5 p-0 hover:bg-rail-hover aria-pressed:bg-rail-selected",
                 "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted",
-                "aria-disabled:aria-pressed:text-accent aria-disabled:aria-pressed:hover:text-accent",
+                "aria-disabled:aria-pressed:bg-rail-selected aria-disabled:aria-pressed:text-fg",
                 locked && "opacity-50"
               )}
               data-testid="os-global-scope-toggle"
               onPressedChange={handlePressedChange}
               pressed={checked}
             >
-              <Icon as={Globe} size="lg" />
+              <Icon as={Globe} className="size-4" />
             </Toggle>
           }
         />

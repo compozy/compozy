@@ -6,13 +6,13 @@ persona: Théo
 journey: J-14
 expected: One or multiple live tool rows appear above a calm completed-tools summary. Settled turns fold once; interrupted turns remain open with a truthful stop cause. Absorbed failures keep the group neutral and expose the individual failed row. Find searches the full retained projection, opens the exact field/fold, preserves focus through live updates and archive invalidation, and downloads complete payloads; the message trail supports previews and deliberate jumps.
 entry_points: web session window transcript; session transcript REST + SSE
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260906-injected-guidance-missing-history
 fix_status: pending
-retest_status: pass
+retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-09-06-sessions-stability.md
-last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-session-message-reload, ET-tool-result-artifact-recovery, ET-web-session-thread-full-bleed
 ---
 
@@ -34,6 +34,14 @@ changed: "Start a conversation. The assistant thread replays persisted history a
 over the daemon stream." → "Start the conversation. Everything you and the agent do here is saved.",
 and "Transcript unavailable" → "Couldn't load this conversation".
 
+QA impact 2026-09-28: reset by the session normie pass. Transcript markers no longer print raw kinds
+(`transcript_marker.*`, failure kinds, history-reset generations); they ride on `data-marker-kind`,
+`data-failure-kind`, and `data-reset-generation`. The empty thread now reads "Send {agent} a message
+to get started."; the error, starting, startup-failure, and sync-failed panes are `Empty` states
+("Couldn't load this conversation" + Try again, "Getting {agent} ready…", "{agent} couldn't start" +
+Check agent settings). The working row no longer repeats the running tool, and a stop/failure the
+turn fold already names adds no second status line.
+
 The calm grammar itself — summary collapse, the last-4 live tail, failures staying individually
 visible, "Worked for Ns" as the only border, interrupted turns never folding — is unchanged by the
 pass. What needs the walk is whether the transcript still reads as calm now that the system lines are
@@ -54,7 +62,7 @@ quiet transcript and long-history navigation walk. Find must search unloaded old
 history, load its context, open the containing fold and preserve query focus while
 new output streams. The full-history message trail must show one operator-message
 tick (compressed beyond its threshold), preview the message and final reply, and
-jump under user scroll ownership. Include no-matches, archive/compaction invalidation,
+jump under user scroll ownership. Include no-matches, rewind-archive invalidation,
 and return-to-bottom states. Backend search/outline parity and workspace denial pass
 in memory/task_08.md of the owning spec; these checks do not verify browser behavior.
 Historical evidence above remains scoped to the earlier grammar. New visual acceptance
@@ -115,3 +123,18 @@ QA 2026-09-17 (issue #653), Storybook only: `systems-session-components-messagem
 352 px column the table scrolled inside its frame (453 px of content) with no page overflow, and
 `message_bodies` stayed on one line. Not walked: a live-runtime transcript in the web session window. The
 frontmatter status is left as recorded because the last real-runtime walk predates this change.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.
+
+QA impact 2026-10-09 (session-transcript-ui): grouping, live-row, fold, and find semantics are unchanged; the presentation changed. Work-group headers show the dominant kind glyph, which hands its place to a chevron on hover or open (no trailing chevron, no grey check). Opened groups hang their steps off a curved rail. Tool rows read verb + mono object chip with copy and chevron on hover and no success glyph. The live row shimmers the verb beside the same chip. Group sentences count calls by the kind their rows show ("searched once"/"searched N times" replaces "searched N files"). The user message's actions surface on hover. Needs a fresh walk; no QA session ran.
+
+QA impact 2026-10-10 (session-transcript-ui, second MonoCode pass): the settled-turn fold loses its bottom rule. Its clock glyph hands its place to a chevron on hover or open, and an opened fold sets its rows beside one spine with interim prose a step quieter than the answer. Group and fold sentences join their clauses with " · " ("Worked for 4m 12s · Ran 6 commands · Edited 2 files"), and a one-file clause names the file ("Read app.ts"); directory listings count as "Listed N directories". Live reasoning rests as one pulsing line of its latest paragraph and opens only on toggle or inside a disclosed group. Edit and Write rows open a diff card: path, a colored +a −d stat, aligned removed/added/context lines collapsed to 12 with "Show full diff". The error detail turns danger only when the failure ended the turn. Needs a fresh walk; no QA session ran.
+
+
+QA impact 2026-10-09 (agent-collaboration tasks 03/05): the transcript gains three row shapes — the
+left-aligned session message card on agent-sent user turns, the "Reply from" card on
+`session_reply` wakes, and the "Sent to" card that replaces `compozy__session_prompt` tool rows
+outside work groups and stays visible when a settled turn folds. Re-walk the fold and work-group
+steps with a session message in the turn. Coverage for the new rows: `ET-web-session-message-card`.

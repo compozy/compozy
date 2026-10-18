@@ -4,7 +4,7 @@ area: MS
 title: Configure only attention channels the platform can deliver
 persona: Cora
 journey: J-respond-to-agent-attention
-expected: Settings → Attention applies toast, sound, system, and workspace-mute changes live; system notifications show Armed, Denied, or Unavailable from real platform capability and permission state, never claim success after refusal, and preserve the complete config after reload.
+expected: Settings → Attention applies toast, sound, system, and project-mute changes live; system notifications show Allowed, Blocked, or Unavailable from real platform capability and permission state, never claim success after refusal, and preserve the complete config after reload.
 entry_points: web Settings → Attention; browser notification permission prompt
 qa_status: pass
 bug_ids:

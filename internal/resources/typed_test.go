@@ -330,55 +330,78 @@ func TestTypedStoreDecodeFailureRejectsInvalidRawPayloads(t *testing.T) {
 func TestTypedStorePutRoundTripPreservesMetadata(t *testing.T) {
 	t.Parallel()
 
-	kernel, _ := openTestKernel(t)
-	ctx := testutil.Context(t)
-	codec := mustJSONCodec(t, testResourceKind, 1024, validateTestTypedSpec)
-	store, err := NewStore(kernel, codec)
-	if err != nil {
-		t.Fatalf("NewStore() error = %v", err)
-	}
+	t.Run("Should persist typed metadata and list the stored record", func(t *testing.T) {
+		t.Parallel()
 
-	record, err := store.Put(ctx, testDaemonActor(), Draft[testTypedSpec]{
-		ID:    "typed-round-trip",
-		Scope: ResourceScope{Kind: ResourceScopeKindWorkspace, ID: "ws-42"},
-		Spec:  testTypedSpec{Name: "  alpha  "},
+		kernel, _ := openTestKernel(t)
+		ctx := testutil.Context(t)
+		codec := mustJSONCodec(t, testResourceKind, 1024, validateTestTypedSpec)
+		store, err := NewStore(kernel, codec)
+		if err != nil {
+			t.Fatalf("NewStore() error = %v", err)
+		}
+
+		record, err := store.Put(ctx, testDaemonActor(), Draft[testTypedSpec]{
+			ID:    "typed-round-trip",
+			Scope: ResourceScope{Kind: ResourceScopeKindWorkspace, ID: "ws-42"},
+			Spec:  testTypedSpec{Name: "  alpha  "},
+		})
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+
+		if got, want := record.Kind, testResourceKind; got != want {
+			t.Fatalf("record.Kind = %q, want %q", got, want)
+		}
+		if got, want := record.Version, int64(1); got != want {
+			t.Fatalf("record.Version = %d, want %d", got, want)
+		}
+		if got, want := record.Scope, (ResourceScope{Kind: ResourceScopeKindWorkspace, ID: "ws-42"}); got != want {
+			t.Fatalf("record.Scope = %#v, want %#v", got, want)
+		}
+		if got, want := record.Owner, (ResourceOwner{Kind: ResourceOwnerKind("daemon"), ID: "daemon-control"}); got != want {
+			t.Fatalf("record.Owner = %#v, want %#v", got, want)
+		}
+		if got, want := record.Source, (ResourceSource{Kind: ResourceSourceKind("daemon"), ID: "system"}); got != want {
+			t.Fatalf("record.Source = %#v, want %#v", got, want)
+		}
+		if got, want := record.Spec.Name, "alpha"; got != want {
+			t.Fatalf("record.Spec.Name = %q, want %q", got, want)
+		}
+
+		loaded, err := store.Get(ctx, testDaemonActor(), record.ID)
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		if got, want := loaded.Version, record.Version; got != want {
+			t.Fatalf("loaded.Version = %d, want %d", got, want)
+		}
+		if got, want := loaded.Owner, record.Owner; got != want {
+			t.Fatalf("loaded.Owner = %#v, want %#v", got, want)
+		}
+		if got, want := loaded.Source, record.Source; got != want {
+			t.Fatalf("loaded.Source = %#v, want %#v", got, want)
+		}
+		if got, want := loaded.Spec.Name, record.Spec.Name; got != want {
+			t.Fatalf("loaded.Spec.Name = %q, want %q", got, want)
+		}
+
+		records, err := store.List(ctx, testDaemonActor(), ResourceFilter{Scope: &record.Scope})
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("len(List()) = %d, want %d", got, want)
+		}
+
+		rawRecords, err := kernel.ListRaw(ctx, testDaemonActor(), ResourceFilter{Kind: testResourceKind})
+		if err != nil {
+			t.Fatalf("ListRaw() error = %v", err)
+		}
+		if got, want := len(rawRecords), 1; got != want {
+			t.Fatalf("len(ListRaw()) = %d, want %d", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Put() error = %v", err)
-	}
-
-	if got, want := record.Kind, testResourceKind; got != want {
-		t.Fatalf("record.Kind = %q, want %q", got, want)
-	}
-	if got, want := record.Version, int64(1); got != want {
-		t.Fatalf("record.Version = %d, want %d", got, want)
-	}
-	if got, want := record.Scope, (ResourceScope{Kind: ResourceScopeKindWorkspace, ID: "ws-42"}); got != want {
-		t.Fatalf("record.Scope = %#v, want %#v", got, want)
-	}
-	if got, want := record.Owner, (ResourceOwner{Kind: ResourceOwnerKind("daemon"), ID: "daemon-control"}); got != want {
-		t.Fatalf("record.Owner = %#v, want %#v", got, want)
-	}
-	if got, want := record.Source, (ResourceSource{Kind: ResourceSourceKind("daemon"), ID: "system"}); got != want {
-		t.Fatalf("record.Source = %#v, want %#v", got, want)
-	}
-	if got, want := record.Spec.Name, "alpha"; got != want {
-		t.Fatalf("record.Spec.Name = %q, want %q", got, want)
-	}
-
-	loaded, err := store.Get(ctx, testDaemonActor(), record.ID)
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-	if got, want := loaded.Version, record.Version; got != want {
-		t.Fatalf("loaded.Version = %d, want %d", got, want)
-	}
-	if got, want := loaded.Owner, record.Owner; got != want {
-		t.Fatalf("loaded.Owner = %#v, want %#v", got, want)
-	}
-	if got, want := loaded.Source, record.Source; got != want {
-		t.Fatalf("loaded.Source = %#v, want %#v", got, want)
-	}
 }
 
 func TestTypedProjectorRegistrationDecodesPrimaryKindOnce(t *testing.T) {

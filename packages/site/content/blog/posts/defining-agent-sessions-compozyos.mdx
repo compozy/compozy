@@ -8,7 +8,6 @@ tags:
   - sessions
   - recovery
   - coding-agents
-  - memory
   - runtime
 author: pedronauck
 cover: ../covers/session-continuity.webp
@@ -204,32 +203,18 @@ It does not finish the command or undo its side effects. A repaired transcript s
 therefore leaves a real question: what happened to the file, job, or external system involved?
 Inspect that result directly before deciding whether to repeat the operation.
 
-## Keep history, memory, and the checkout separate
+## Keep history and the checkout separate
 
-Live session events are retained in `events.db`. On stop, CompozyOS materializes `ledger.jsonl` as
-an operator-readable projection. The ledger is forensic history, not a memory scope; the recall
-pipeline does not ingest it as reusable memory. The event store remains the source used to
-reconstruct the conversation. [Session storage](/docs/sessions) and the
-[memory system](/docs/memory/system) document those boundaries.
+CompozyOS retains live session events in its event store, and that store is the source used to
+reconstruct the conversation. Read it back with `compozy session events` and
+`compozy session history`. [Session storage](/docs/sessions) documents those boundaries.
 
 For the pagination task, those records answer different questions. History may say the agent
-changed the pagination link. The current diff shows whether the change is still present. Memory
-might supply the project's rule that URL state owns filters. None of those facts establishes
-that the browser scenario passed on the current patch.
-
-There is also a workspace checkpoint, `project_checkpoint_summary.md`, that can carry a generated
-summary of previous session work into a new session. You can inspect it from the original workspace:
-
-```bash
-compozy memory show project_checkpoint_summary.md --scope workspace
-```
-
-This helps with continuity, but it is historical context. A failed checkpoint update leaves the
-previous version intact, so its description of work may predate the interruption you are diagnosing.
-Compare it with the session history and current files. The checkpoint's own
-[injection contract](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/memory/checkpoint_summary.go#L32)
-treats historical asks as stale unless renewed by the current request. It cannot decide that an
-old task should resume or that an unverified patch is accepted.
+changed the pagination link. The current diff shows whether the change is still present. The
+project's own conventions, such as the rule that URL state owns filters, live in the repository
+and its instructions. None of those facts establishes that the browser scenario passed on the
+current patch, and a summary of earlier work cannot decide that an old task should resume or that
+an unverified patch is accepted.
 
 The same distinction applies to authority. A prior approval in a transcript is evidence of a
 decision at that time, not a universal grant for the next session. Pending interactions can survive

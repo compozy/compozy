@@ -11,7 +11,7 @@ const { mutation, query } = vi.hoisted(() => ({
   mutation: { isPending: false, mutate: vi.fn() },
   query: {
     data: {
-      config: { sessions: { sort: "last_activity", scope: "workspace" } },
+      config: { sessions: { sort: undefined as string | undefined, scope: "workspace" } },
     },
     isLoading: false,
   },
@@ -36,6 +36,17 @@ describe("useSessionListPreferences", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mutation.isPending = false;
+    query.data.config.sessions.sort = undefined;
+  });
+
+  it("Should default an unset sort to Created while retaining explicit previous choices", () => {
+    const { result, rerender } = renderHook(() => useSessionListPreferences(), { wrapper });
+    expect(result.current.sort).toBe("created");
+    for (const sort of ["created", "name", "last_activity", "attention", "manual"] as const) {
+      query.data.config.sessions.sort = sort;
+      rerender();
+      expect(result.current.sort).toBe(sort);
+    }
   });
 
   it("Should reject a second full-config write until the first settles", () => {

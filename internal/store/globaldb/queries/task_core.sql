@@ -80,20 +80,18 @@ SELECT id FROM tasks WHERE tasks.id = sqlc.arg(task_id);
 INSERT INTO task_runs (
   id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  designation_group_id,
   resolved_worktree_mode, resolved_worktree_ref,
   claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  continuation_reason, missing_work_json, next_round_guidance
 ) VALUES (
   sqlc.arg(id), sqlc.narg(task_id), sqlc.narg(workspace_id), sqlc.narg(worktree_id),
   sqlc.arg(run_kind), sqlc.narg(loop_run_id), sqlc.arg(status),
   sqlc.arg(attempt), sqlc.arg(recovery_count), sqlc.narg(previous_run_id), sqlc.arg(failure_kind), sqlc.narg(claimed_by_kind),
   sqlc.narg(claimed_by_ref), sqlc.narg(session_id), sqlc.arg(origin_kind), sqlc.arg(origin_ref),
-  sqlc.narg(idempotency_key), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
-  sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(designation_group_id),
+  sqlc.narg(idempotency_key), sqlc.arg(designation_group_id),
   sqlc.arg(resolved_worktree_mode), sqlc.arg(resolved_worktree_ref),
   NULL, sqlc.narg(claim_token_hash), sqlc.narg(lease_until), sqlc.narg(heartbeat_at),
   sqlc.arg(queued_at), sqlc.narg(claimed_at), sqlc.narg(started_at), sqlc.narg(ended_at),
@@ -101,8 +99,7 @@ INSERT INTO task_runs (
   sqlc.narg(metadata_json), sqlc.narg(result_json), sqlc.arg(review_required),
   sqlc.arg(review_request_round), sqlc.arg(review_policy_snapshot), sqlc.narg(review_request_id),
   sqlc.narg(parent_run_id), sqlc.narg(review_id), sqlc.arg(review_round),
-  sqlc.arg(continuation_reason), sqlc.arg(missing_work_json), sqlc.arg(next_round_guidance),
-  sqlc.narg(network_wake_id), sqlc.narg(network_target_session_id), sqlc.narg(network_owner_key)
+  sqlc.arg(continuation_reason), sqlc.arg(missing_work_json), sqlc.arg(next_round_guidance)
 );
 
 -- name: UpdateTaskRunMetadata :execrows
@@ -132,13 +129,12 @@ WHERE id = sqlc.arg(id)
 SELECT
   id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  designation_group_id,
   resolved_worktree_mode, resolved_worktree_ref,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  continuation_reason, missing_work_json, next_round_guidance
 FROM task_runs
 WHERE id = sqlc.arg(id);
 
@@ -152,13 +148,12 @@ WHERE session_id = sqlc.arg(session_id)
 SELECT
   id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  designation_group_id,
   resolved_worktree_mode, resolved_worktree_ref,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  continuation_reason, missing_work_json, next_round_guidance
 FROM task_runs
 WHERE status IN (sqlc.slice(statuses))
 ORDER BY queued_at ASC, id ASC;
@@ -188,3 +183,14 @@ SELECT run_id, capability_id
 FROM task_run_preferred_capabilities
 WHERE run_id IN (sqlc.slice(run_ids))
 ORDER BY run_id ASC, capability_id ASC;
+
+-- name: UpsertTaskDesignationRollup :exec
+INSERT INTO task_designation_rollups (
+  designation_group_id, task_id, summary_json, created_at
+) VALUES (
+  sqlc.arg(designation_group_id), sqlc.arg(task_id), sqlc.arg(summary_json), sqlc.arg(created_at)
+)
+ON CONFLICT(designation_group_id) DO UPDATE SET
+  task_id = excluded.task_id,
+  summary_json = excluded.summary_json,
+  created_at = excluded.created_at;

@@ -45,7 +45,8 @@ export function profileSelectionOptions(lens: ProfileLens, enabled = true) {
     queryKey: profileKeys.selection(lens),
     queryFn: ({ signal }) => fetchProfileSelection(lens, signal),
     enabled,
-    staleTime: 30_000,
+    // Re-entering a lens must see a choice changed before its stream event arrives.
+    staleTime: 0,
   });
 }
 

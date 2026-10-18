@@ -1,10 +1,10 @@
-import { CircleAlert, CircleStop } from "lucide-react";
+import { CircleAlert, CircleStop, Clock3 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
 import type { SessionTurnFoldRow } from "./session-timeline.logic";
-import { TranscriptDisclosure } from "./transcript-disclosure";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 export interface SessionTurnFoldRowViewProps {
   row: SessionTurnFoldRow;
@@ -17,8 +17,11 @@ export interface SessionTurnFoldRowViewProps {
 }
 
 /**
- * `SessionTurnFoldRow` (ADR-006 rule 2): a settled turn rests behind one line —
- * "Worked for 4m 12s · Ran 6 commands, edited 2 files" — closed by default,
+ * `SessionTurnFoldRow` (ADR-006 rule 2): a settled turn rests behind one line
+ * whose clock glyph hands its place to a chevron on hover or open — opened, the
+ * folded rows sit beside a spine dropping from that glyph, their interim prose
+ * one ink step quieter than the answer —
+ * "Worked for 4m 12s · Ran 6 commands · Edited 2 files" — closed by default,
  * expanding to the settled group rows. A turn a fallback steer interrupted
  * folds the same way and names its cause. The two open variants never
  * collapse: "You stopped after 1m 40s" in warning ink (you did this, nothing
@@ -60,18 +63,15 @@ export function SessionTurnFoldRowView({
     );
   }
   return (
-    <div
-      data-open={expanded}
-      data-cause={row.cause}
-      className="mb-2.5 min-w-0 border-b border-line pb-1.5"
-    >
+    <div data-open={expanded} data-cause={row.cause} className="mb-2.5 min-w-0">
       <TranscriptDisclosure
         data-testid="turn-fold-row"
+        className="min-w-0 max-w-full"
         expanded={expanded}
         onToggle={onToggle}
         aria-controls={detailsId}
-        icon={null}
-        label={row.label}
+        icon={<Clock3 aria-hidden="true" className="size-3.5 shrink-0 text-faint" />}
+        label={<span className="tabular-nums">{row.label}</span>}
         trailing={
           note ? (
             <span className="ml-1.5 font-mono text-micro text-faint" data-testid="turn-fold-note">
@@ -79,14 +79,13 @@ export function SessionTurnFoldRowView({
             </span>
           ) : null
         }
-        variant="turn"
       />
       <div
         id={detailsId}
         hidden={!expanded}
         aria-hidden={!expanded}
         inert={!expanded}
-        className={expanded ? "flex min-w-0 flex-col gap-0.5 pt-1" : undefined}
+        className={expanded ? "session-fold-body session-rail flex min-w-0 flex-col" : undefined}
       >
         {expanded ? children : null}
       </div>

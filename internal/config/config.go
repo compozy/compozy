@@ -1,25 +1,15 @@
 package config
 
 import (
-	"errors"
-
 	"strings"
 )
 
 const (
-	configCLIKey                             = "cli"
-	configDefaultsAgentPath                  = "defaults.agent"
-	configDreamingKey                        = "dreaming"
-	configExtractorKey                       = "extractor"
-	configExtractorModePostMessage           = "post_message"
-	configHybridKey                          = "hybrid"
-	configLLMKey                             = "llm"
-	configJsonlKey                           = "jsonl"
-	configExtractorQueueCoalesceMaxPath      = "memory.extractor.queue.coalesce_max"
-	configMemoryRecallWeightsBm25UnicodePath = "memory.recall.weights.bm25_unicode"
-	configProviderKey                        = "provider"
-	configToolKey                            = "tool"
-	configUDSKey                             = "uds"
+	configCLIKey            = "cli"
+	configDefaultsAgentPath = "defaults.agent"
+	configProviderKey       = "provider"
+	configToolKey           = "tool"
+	configUDSKey            = "uds"
 )
 
 const (
@@ -32,16 +22,10 @@ const (
 	urlSchemeHTTPS        = "https"
 )
 
-const defaultMemoryWorkspaceTOMLPath = "<workspace>/" + DirName + "/workspace.toml"
-
-// ErrSandboxProfileNotFound reports a sandbox profile reference that is not configured.
-var ErrSandboxProfileNotFound = errors.New("sandbox profile not found")
-
 // DefaultsConfig holds global runtime defaults.
 type DefaultsConfig struct {
 	Agent    string `toml:"agent"`
 	Provider string `toml:"provider,omitempty"`
-	Sandbox  string `toml:"sandbox,omitempty"`
 }
 
 // ValidationError preserves the config path for agent-parseable validation failures.

@@ -1,40 +1,18 @@
 package settings
 
 import (
+	"cmp"
 	"context"
 
 	"fmt"
 
-	"sort"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
-
-func (s *service) buildMemorySection(ctx context.Context, cfg *compozyconfig.Config) (MemorySection, error) {
-	health := MemoryHealthStatus{}
-	if s.memoryRuntime != nil {
-		status, err := s.memoryRuntime.MemoryHealthStatus(ctx)
-		if err != nil {
-			return MemorySection{}, fmt.Errorf("settings: memory health: %w", err)
-		}
-		health = status
-	}
-
-	return MemorySection{
-		Config: cfg.Memory,
-		Health: health,
-		Actions: MemoryActions{
-			Consolidate: ActionMetadata{
-				Name:      sectionsConsolidateKey,
-				Available: s.consolidateActionAvailable,
-				Behavior:  MutationBehaviorActionTrigger,
-			},
-		},
-	}, nil
-}
 
 func (s *service) buildSkillsSection(
 	ctx context.Context,
@@ -46,8 +24,8 @@ func (s *service) buildSkillsSection(
 ) (SkillsSection, error) {
 	section := SkillsSection{
 		Config: cfg.Skills,
+		Links:  buildSkillsOperationalLinks(),
 	}
-	section.Links = buildSkillsOperationalLinks()
 
 	if scope == ScopeAgent {
 		agent, _, err := s.resolveEffectiveAgent(resolved, agentName)
@@ -152,25 +130,6 @@ func (s *service) buildAutomationSection(
 	}, nil
 }
 
-func (s *service) buildNetworkSection(ctx context.Context, cfg *compozyconfig.Config) (NetworkSection, error) {
-	runtime := NetworkRuntimeStatus{}
-	if s.networkRuntime != nil {
-		status, err := s.networkRuntime.NetworkRuntimeStatus(ctx)
-		if err != nil {
-			return NetworkSection{}, fmt.Errorf("settings: network runtime: %w", err)
-		}
-		runtime = status
-	}
-
-	return NetworkSection{
-		Config:  cfg.Network,
-		Runtime: runtime,
-		Links: []OperationalLink{
-			{Label: string(SectionNetwork), Path: "/network"},
-		},
-	}, nil
-}
-
 func (s *service) buildObservabilitySection(
 	ctx context.Context,
 	cfg *compozyconfig.Config,
@@ -207,8 +166,8 @@ func (s *service) buildHooksExtensionsSection(
 			return HooksExtensionsSection{}, fmt.Errorf("settings: installed extensions: %w", err)
 		}
 		installed = append(installed, values...)
-		sort.Slice(installed, func(i, j int) bool {
-			return installed[i].Name < installed[j].Name
+		slices.SortFunc(installed, func(left, right InstalledExtension) int {
+			return cmp.Compare(left.Name, right.Name)
 		})
 	}
 

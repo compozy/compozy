@@ -32,7 +32,7 @@ func TestDaemonE2EExtensionViewProgramFixture(t *testing.T) {
 	t.Parallel()
 	t.Run("Should isolate programmable view sessions across clients and extension restarts", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 		defer cancel()
 		repoRoot := extensionAuthoringE2ERepoRoot(t)
 		binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)

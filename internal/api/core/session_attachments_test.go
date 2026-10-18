@@ -168,44 +168,6 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep duplicate content idempotent within one session", func(t *testing.T) {
-		t.Parallel()
-		fixture := newSessionAttachmentFixture(t)
-		data := []byte("same bytes")
-		path := "/api/workspaces/workspace/sessions/sess-1/attachments"
-
-		first := serveSessionAttachmentRequest(
-			t,
-			fixture.Engine,
-			newMultipartAttachmentRequest(t, http.MethodPost, path, "same.txt", data),
-		)
-		second := serveSessionAttachmentRequest(
-			t,
-			fixture.Engine,
-			newMultipartAttachmentRequest(t, http.MethodPost, path, "same.txt", data),
-		)
-		if first.Code != http.StatusCreated || second.Code != http.StatusCreated {
-			t.Fatalf(
-				"duplicate upload statuses = %d, %d, want %d; bodies=%s / %s",
-				first.Code,
-				second.Code,
-				http.StatusCreated,
-				first.Body.String(),
-				second.Body.String(),
-			)
-		}
-		var firstPayload, secondPayload contract.SessionAttachmentUploadResponse
-		testutil.DecodeJSONResponse(t, first, &firstPayload)
-		testutil.DecodeJSONResponse(t, second, &secondPayload)
-		if firstPayload.Attachment.ID != secondPayload.Attachment.ID {
-			t.Fatalf(
-				"duplicate IDs = %q, %q, want the same content identity",
-				firstPayload.Attachment.ID,
-				secondPayload.Attachment.ID,
-			)
-		}
-	})
-
 	t.Run("Should reject a foreign workspace before touching storage", func(t *testing.T) {
 		t.Parallel()
 		fixture := newSessionAttachmentFixture(t)
@@ -326,7 +288,7 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 	t.Helper()
 	const maxFileBytes int64 = 64
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	cfg.Session.Attachments.MaxFileBytes = maxFileBytes
 	store, err := attachmentspkg.OpenFilesystemAttachmentStore(
 		t.Context(),
@@ -361,12 +323,12 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 			switch strings.TrimSpace(ref) {
 			case "workspace":
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-workspace", Name: "workspace"},
+					ID: "registry-workspace", Name: "workspace",
 					WorkspaceID: "stable-workspace",
 				}, nil
 			case "other-workspace":
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-other-workspace", Name: "other-workspace"},
+					ID: "registry-other-workspace", Name: "other-workspace",
 					WorkspaceID: "stable-other-workspace",
 				}, nil
 			default:

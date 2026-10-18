@@ -179,8 +179,8 @@ func TestGitPorcelain(t *testing.T) {
 		for _, testCase := range cases {
 			t.Run("Should reject "+testCase.name, func(t *testing.T) {
 				t.Parallel()
-				var parseErr *ParseError
-				if err := testCase.parse(); !errors.As(err, &parseErr) || parseErr.Format != testCase.format {
+				err := testCase.parse()
+				if parseErr, ok := errors.AsType[*ParseError](err); !ok || parseErr.Format != testCase.format {
 					t.Fatalf("parse error = %v, want %s ParseError", err, testCase.format)
 				}
 			})

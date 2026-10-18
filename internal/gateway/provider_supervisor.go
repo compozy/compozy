@@ -382,8 +382,8 @@ func (s *ProviderSupervisor) authorize(ctx context.Context, activation ProviderA
 	if err != nil {
 		return fmt.Errorf("gateway: derive live provider trust: %w", err)
 	}
-	wantedScope := ProviderChannelScope(activation.Tier)
-	if !slices.Contains(fresh.ChannelScopes, wantedScope) {
+	wantedScope := ProviderPermission(activation.Tier)
+	if !slices.Contains(fresh.Permissions, wantedScope) {
 		return fmt.Errorf("%w: provider does not declare %s", ErrExposureRefused, wantedScope)
 	}
 	persisted, err := s.identities.ProviderIdentity(ctx, activation.ProviderName)

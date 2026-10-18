@@ -8,11 +8,15 @@ func agentCatalogOperations() []OperationSpec {
 			Method:      httpMethodGet,
 			Path:        "/api/agents/catalog",
 			OperationID: "listAgentCatalog",
-			Summary:     "List a filtered workspace agent fleet with exact session metrics",
+			Summary:     "List a filtered agent fleet with exact session metrics",
 			Tags:        []string{specAgentsKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: withProfileSelector(
-				queryParam(specWorkspaceKey, "Workspace id, name, or path", true),
+				queryParam(
+					specWorkspaceKey,
+					"Workspace id, name, or path; omit for Global definitions and cross-workspace session metrics",
+					false,
+				),
 				queryParam("name", "Exact agent name", false),
 				queryParam("q", "Case-insensitive agent name or category search", false),
 				queryParam("category", "Exact category path joined by slash separators", false),

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -12,7 +11,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/vault"
@@ -187,56 +185,6 @@ func parseUpdateSettingsPersonaRequest(c *gin.Context) (settingspkg.SectionUpdat
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, Persona: &config}, nil
 }
 
-func parseUpdateSettingsMemoryRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
-	var body struct {
-		Config *contract.SettingsMemoryConfigPayload `json:"config"`
-	}
-	if err := decodeStrictJSONBody(c, &body); err != nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-			fmt.Errorf("decode memory settings request: %w", err),
-		)
-	}
-	if body.Config == nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(errors.New("memory.config is required"))
-	}
-	req, err := parseSettingsSectionRequest(c, settingspkg.SectionMemory)
-	if err != nil {
-		return settingspkg.SectionUpdateRequest{}, err
-	}
-	config, err := memoryConfigFromPayload(body.Config)
-	if err != nil {
-		return settingspkg.SectionUpdateRequest{}, err
-	}
-	return settingspkg.SectionUpdateRequest{SectionRequest: req, Memory: &config}, nil
-}
-
-func (h *BaseHandlers) validateSettingsMemoryProvider(
-	ctx context.Context,
-	req settingspkg.SectionUpdateRequest,
-) error {
-	if req.Memory == nil {
-		return nil
-	}
-	name := strings.TrimSpace(req.Memory.Provider.Name)
-	if name == "" || name == memoryLocalProviderName {
-		return nil
-	}
-	if h.MemoryProviders == nil {
-		return NewSettingsValidationError(
-			fmt.Errorf("memory.config.provider.name %q is not available", name),
-		)
-	}
-	if _, err := h.MemoryProviders.Get(ctx, req.WorkspaceID, name); err != nil {
-		if errors.Is(err, extensionpkg.ErrMemoryProviderNotFound) {
-			return NewSettingsValidationError(
-				fmt.Errorf("memory.config.provider.name %q is not available: %w", name, err),
-			)
-		}
-		return fmt.Errorf("memory.config.provider.name %q lookup failed: %w", name, err)
-	}
-	return nil
-}
-
 func parseUpdateSettingsSkillsRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
 	req, err := parseSettingsSectionRequest(c, settingspkg.SectionSkills)
 	if err != nil {
@@ -289,29 +237,6 @@ func parseUpdateSettingsAutomationRequest(c *gin.Context) (settingspkg.SectionUp
 		return settingspkg.SectionUpdateRequest{}, err
 	}
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, Automation: &config}, nil
-}
-
-func parseUpdateSettingsNetworkRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
-	var body struct {
-		Config *contract.SettingsNetworkConfigPayload `json:"config"`
-	}
-	if err := decodeStrictJSONBody(c, &body); err != nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-			fmt.Errorf("decode network settings request: %w", err),
-		)
-	}
-	if body.Config == nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(errors.New("network.config is required"))
-	}
-	req, err := parseSettingsSectionRequest(c, settingspkg.SectionNetwork)
-	if err != nil {
-		return settingspkg.SectionUpdateRequest{}, err
-	}
-	config, err := networkConfigFromPayload(*body.Config)
-	if err != nil {
-		return settingspkg.SectionUpdateRequest{}, err
-	}
-	return settingspkg.SectionUpdateRequest{SectionRequest: req, Network: &config}, nil
 }
 
 // parseUpdateSettingsWindowManagerRequest decodes the scope and preserves the opt-in shortcut merge policy.

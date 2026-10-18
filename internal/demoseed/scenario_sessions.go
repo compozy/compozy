@@ -169,12 +169,6 @@ func chargebackWatchSession(clock timeline) sessionStory {
 		Steps: []transcriptStep{
 			{Kind: stepUser, Text: "Start the chargeback triage Loop and leave it parked until MercadoX publishes " +
 				"the next settlement batch."},
-			{
-				Kind: stepTool, ToolName: toolNetworkSend, ToolKind: toolKindOther,
-				ToolInput: `{"channel":"` + launchChannel + `","text":"chargeback triage parked on ` +
-					`settlement.batch.published"}`,
-				ToolResult: `{"content":"delivered to 4 members"}`,
-			},
 			{Kind: stepAgent, Text: "The triage Loop is parked on settlement.batch.published and costs nothing " +
 				"while it waits. It wakes on the declared event only."},
 		},

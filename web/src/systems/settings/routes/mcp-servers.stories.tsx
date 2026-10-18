@@ -196,7 +196,7 @@ export const AuthBeginFailure: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await clickExtensionGithubAuthorize(canvasElement);
-    await page.findByText("Authorization could not be started");
+    await page.findByText("Sign-in couldn't start");
     await page.findByTestId("settings-page-mcp-authorize-retry");
   },
 };

@@ -3,8 +3,9 @@
 package lifecycle
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -58,7 +59,6 @@ const (
 const (
 	pathDaemonReloadTimeoutProviders  = "daemon.reload_timeouts.providers"
 	pathDaemonReloadTimeoutMCP        = "daemon.reload_timeouts.mcp"
-	pathDaemonReloadTimeoutBridges    = "daemon.reload_timeouts.bridges"
 	pathRoles                         = "roles"
 	pathWindowManagerNavStackLimit    = "window_manager.nav_stack_limit"
 	pathWindowManagerClosedEntryLimit = "window_manager.closed_entry_limit"
@@ -77,6 +77,7 @@ type Rule struct {
 // Matrix is the canonical config lifecycle matrix. Patterns use "." path
 // segments and "*" wildcards for one segment.
 var Matrix = []Rule{
+	{Pattern: "subagents.result_max_chars", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "attention.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "shell.*.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.disabled_skills", Lifecycle: Live, DiffClass: DiffClassLive},
@@ -84,7 +85,6 @@ var Matrix = []Rule{
 	{Pattern: "skills.custom_sources", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: pathDaemonReloadTimeoutBridges, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "marketplace.catalog.*", Lifecycle: Live, DiffClass: DiffClassLive},
@@ -96,7 +96,6 @@ var Matrix = []Rule{
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp.oauth.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},
 	{Pattern: "hooks.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "extensions.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "defaults.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
@@ -114,7 +113,7 @@ var Matrix = []Rule{
 		DiffClass: DiffClassRestartRequired,
 	},
 	{Pattern: "daemon.socket", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: "memory.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "daemon.load.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "automation.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "loops.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "goals.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
@@ -125,8 +124,6 @@ var Matrix = []Rule{
 		DiffClass: DiffClassLive,
 	},
 	{Pattern: "task.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: "network.enabled", Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: "network.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: pathGatewayPrivatePort, Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: pathGatewayPublicPort, Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: pathGatewayWildcard, Lifecycle: Live, DiffClass: DiffClassLive},
@@ -187,8 +184,6 @@ func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
 	case "marketplace", "skills", pathRoles, "window-manager", "cmd-palette", "gateway", "attention", "shell":
 		return DiffClassLive
-	case "sandboxes":
-		return DiffClassSessionRebind
 	default:
 		return DiffClassRestartRequired
 	}
@@ -211,8 +206,8 @@ func NextActionForLifecycle(lifecycle Lifecycle, status Status) NextAction {
 // SortedMatrix returns a stable copy for docs and tests.
 func SortedMatrix() []Rule {
 	rules := append([]Rule(nil), Matrix...)
-	sort.Slice(rules, func(i, j int) bool {
-		return rules[i].Pattern < rules[j].Pattern
+	slices.SortFunc(rules, func(left, right Rule) int {
+		return cmp.Compare(left.Pattern, right.Pattern)
 	})
 	return rules
 }

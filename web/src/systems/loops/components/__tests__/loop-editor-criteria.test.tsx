@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
@@ -55,7 +55,7 @@ describe("LoopEditorCriteria", () => {
   it("Should preserve an id-less criterion row while its fields change", () => {
     render(<Harness initial={[{ type: "command", check: "make test", expect: "exit_zero" }]} />);
     const checkInput = screen.getByLabelText("Command check");
-    checkInput.focus();
+    act(() => checkInput.focus());
 
     fireEvent.change(checkInput, { target: { value: "make verify" } });
 

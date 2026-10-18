@@ -39,7 +39,6 @@ func (h *BaseHandlers) schemaStreamStatusPayloads(ctx context.Context) ([]contra
 func (h *BaseHandlers) daemonStatusPayload(
 	health *observe.Health,
 	totalSessions int,
-	networkStatus *contract.NetworkStatusPayload,
 	gatewayStatus *contract.GatewayStatusPayload,
 	schemaStreams []contract.SchemaStreamStatus,
 ) contract.DaemonStatusPayload {
@@ -69,7 +68,6 @@ func (h *BaseHandlers) daemonStatusPayload(
 		TotalSessions:  totalSessions,
 		Version:        version,
 		MinAppVersion:  versionpkg.Current().MinAppVersion,
-		Network:        networkStatus,
 		Gateway:        gatewayStatus,
 		SchemaStreams:  schemaStreams,
 	}

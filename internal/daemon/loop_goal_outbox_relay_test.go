@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -140,10 +141,57 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 				cleanupStore.completed,
 			)
 		}
-		if stopper.cause != session.CauseUserRequested {
-			t.Fatalf("cleanup stop cause = %v, want user requested", stopper.cause)
+		if stopper.cause != session.CauseOwnerReleased {
+			t.Fatalf("cleanup stop cause = %v, want automatic owner release", stopper.cause)
 		}
 	})
+
+	for _, tc := range []struct {
+		name  string
+		cause looppkg.SessionCleanupCause
+		want  session.StopCause
+	}{
+		{
+			"Should attribute terminal cleanup to the owner",
+			looppkg.SessionCleanupCauseTerminal,
+			session.CauseOwnerReleased,
+		},
+		{
+			"Should attribute revoked binding cleanup to the owner",
+			looppkg.SessionCleanupCauseControlRevoked,
+			session.CauseOwnerReleased,
+		},
+		{
+			"Should preserve explicit stop attribution",
+			looppkg.SessionCleanupCauseStop,
+			session.CauseUserRequested,
+		},
+		{
+			"Should preserve operator cancellation attribution",
+			looppkg.SessionCleanupCauseOperatorCancel,
+			session.CauseUserRequested,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cleanupStore := &goalSessionCleanupStoreStub{obligation: looppkg.SessionCleanupObligation{
+				CleanupID: "cleanup-attribution", SessionID: "session-owned", Cause: tc.cause,
+				CreatedAt: time.Now().UTC(),
+			}}
+			stopper := &goalSessionCleanupStopperStub{}
+			relay := &goalSessionOutboxRelay{
+				store: &goalSessionOutboxStoreStub{delivered: true}, appender: &goalSessionEventAppenderStub{},
+				cleanupStore: cleanupStore, stopper: stopper,
+			}
+			if err := relay.DeliverPending(t.Context()); err != nil {
+				t.Fatalf("DeliverPending() error = %v", err)
+			}
+			if stopper.cause != tc.want || stopper.calls != 1 || cleanupStore.ackCalls != 1 {
+				t.Fatalf("cleanup = cause %v, stops %d, acknowledgements %d; want %v/1/1",
+					stopper.cause, stopper.calls, cleanupStore.ackCalls, tc.want)
+			}
+		})
+	}
 
 	t.Run("Should deliver cleanup even when projection delivery is poisoned", func(t *testing.T) {
 		t.Parallel()
@@ -288,6 +336,108 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 			t.Fatalf("maximum cleanup concurrency = %d, want %d", stopper.maximum(), loopSessionCleanupConcurrency)
 		}
 	})
+
+	t.Run("Should wake on nudge, stay idle between enqueues, and sweep on fallback", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			store := &goalSessionOutboxQueueStub{}
+			relay := &goalSessionOutboxRelay{store: store, appender: &goalSessionEventAppenderStub{}}
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				relay.Run(ctx)
+			}()
+			t.Cleanup(func() {
+				cancel()
+				<-done
+			})
+
+			synctest.Wait()
+			if got := store.claimCount(); got != 1 {
+				t.Fatalf("claims after startup = %d, want one startup drain", got)
+			}
+			time.Sleep(goalSessionOutboxPollInterval - time.Millisecond)
+			synctest.Wait()
+			if got := store.claimCount(); got != 1 {
+				t.Fatalf("claims while idle = %d, want no polling before the fallback sweep", got)
+			}
+
+			store.enqueue(goalSessionOutboxEventForTest(1))
+			relay.Nudge()
+			synctest.Wait()
+			if got := store.pendingCount(); got != 0 {
+				t.Fatalf("pending after nudge = %d, want immediate drain without waiting for the sweep", got)
+			}
+
+			store.enqueue(goalSessionOutboxEventForTest(2))
+			time.Sleep(goalSessionOutboxPollInterval)
+			synctest.Wait()
+			if got := store.pendingCount(); got != 0 {
+				t.Fatalf("pending after fallback sweep = %d, want un-nudged event drained", got)
+			}
+		})
+	})
+}
+
+func goalSessionOutboxEventForTest(id int64) goalpkg.SessionOutboxEvent {
+	return goalpkg.SessionOutboxEvent{
+		ID: id, EventID: fmt.Sprintf("goal-snapshot:session-origin:run-1:clear:%d", id),
+		WorkspaceID: "workspace-1", OriginSessionID: "session-origin", LoopRunID: "run-1",
+		Cause: goalpkg.SessionOutboxCauseClear, CreatedAt: time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC),
+	}
+}
+
+type goalSessionOutboxQueueStub struct {
+	mu      sync.Mutex
+	pending []goalpkg.SessionOutboxEvent
+	claims  int
+}
+
+func (s *goalSessionOutboxQueueStub) ClaimGoalSessionOutbox(
+	_ context.Context,
+	limit int,
+) ([]goalpkg.SessionOutboxEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.claims++
+	limit = min(max(limit, 1), len(s.pending))
+	return append([]goalpkg.SessionOutboxEvent(nil), s.pending[:limit]...), nil
+}
+
+func (s *goalSessionOutboxQueueStub) AcknowledgeGoalSessionOutbox(
+	_ context.Context,
+	eventID string,
+	_ time.Time,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index, event := range s.pending {
+		if event.EventID == eventID {
+			s.pending = append(s.pending[:index], s.pending[index+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *goalSessionOutboxQueueStub) enqueue(event goalpkg.SessionOutboxEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pending = append(s.pending, event)
+}
+
+func (s *goalSessionOutboxQueueStub) claimCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.claims
+}
+
+func (s *goalSessionOutboxQueueStub) pendingCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
 }
 
 type goalSessionOutboxStoreStub struct {

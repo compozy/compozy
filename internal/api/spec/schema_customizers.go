@@ -6,15 +6,31 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-var putNetworkCoordinationInvitationRequestType = reflect.TypeFor[contract.PutNetworkCoordinationInvitationRequest]()
+const schemaStabilityExperimental = "experimental"
 
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
+	reflect.TypeFor[contract.SessionCompactionContextAfterPayload](): func(schema *openapi3.Schema) {
+		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+		schema.Description = "Experimental: first occupancy observation after this compaction's first terminal snapshot " +
+			"and before the next compaction's first terminal boundary; " +
+			"counter-only events and later corrections do not change it. Omitted until observed."
+	},
+	reflect.TypeFor[contract.SessionContextClearedByPayload](): func(schema *openapi3.Schema) {
+		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+		schema.Description = "Experimental: compaction id and first terminal snapshot sequence that cleared occupancy. " +
+			"Present only while context is unknown awaiting a later occupancy observation."
+	},
+	reflect.TypeFor[contract.ResolveToolApprovalRequest](): func(schema *openapi3.Schema) {
+		customizeClosedObjectSchema(schema)
+		schema.Properties["decision"] = &openapi3.SchemaRef{
+			Value: openapi3.NewStringSchema().WithEnum("approved", "denied"),
+		}
+	},
 	reflect.TypeFor[extensioninput.Value]():             customizeExtensionInputValueSchema,
 	reflect.TypeFor[contract.InstallExtensionRequest](): customizeExtensionInstallRequestSchema,
 	reflect.TypeFor[contract.UpdateExtensionRequest]():  customizeExtensionUpdateRequestSchema,
@@ -110,27 +126,15 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.CreateTriggerRequest]():           customizeTriggerAgentNameSchema,
 	reflect.TypeFor[contract.SettingsDefaultsPayload]():        customizeSettingsDefaultsSchema,
 	reflect.TypeFor[contract.SettingsRoleConfigPayload]():      customizeSettingsRoleSchema,
+	reflect.TypeFor[contract.SettingsGeneralConfigPayload]():   customizeSettingsGeneralConfigSchema,
 	reflect.TypeFor[contract.ForkSessionWorktreeRequest]():     customizeClosedObjectSchema,
 	reflect.TypeFor[contract.NewSessionWorktreeRequest]():      customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SchedulerDrainRequest]():          customizeSchedulerDrainRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},
-	reflect.TypeFor[contract.BridgeProviderConfigPayload](): func(schema *openapi3.Schema) {
-		*schema = *bridgeProviderConfigSchema()
-	},
-	reflect.TypeFor[contract.BridgeDeliveryDefaultsPayload](): func(schema *openapi3.Schema) {
-		*schema = *bridgeDeliveryDefaultsSchema()
-	},
-	reflect.TypeFor[contract.NetworkSendRequest]():              customizeNetworkSendRequestSchema,
-	reflect.TypeFor[contract.NetworkSubscriptionRequest]():      customizeClosedObjectSchema,
-	reflect.TypeFor[contract.PromoteNetworkThreadTaskRequest](): customizeClosedObjectSchema,
-	reflect.TypeFor[contract.PutNetworkCoordinationRequest]():   customizePutNetworkCoordinationRequestSchema,
-	putNetworkCoordinationInvitationRequestType:                 customizePutNetworkCoordinationInvitationRequestSchema,
-	reflect.TypeFor[contract.TaskPayload]():                     describeTaskBlockedReasonsProperty,
-	reflect.TypeFor[contract.TaskSummaryPayload]():              describeTaskBlockedReasonsProperty,
-	reflect.TypeFor[participation.Request]():                    customizeParticipationRequestSchema,
-	reflect.TypeFor[participation.Spec]():                       customizeParticipationSpecSchema,
+	reflect.TypeFor[contract.TaskPayload]():        describeTaskBlockedReasonsProperty,
+	reflect.TypeFor[contract.TaskSummaryPayload](): describeTaskBlockedReasonsProperty,
 }
 
 func customizeClosedObjectSchema(schema *openapi3.Schema) {

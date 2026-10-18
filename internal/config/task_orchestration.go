@@ -13,16 +13,12 @@ const (
 	MaxTaskDesignatedRunMax = 5
 	// DefaultTaskMaxActiveRunsPerWorkspace bounds simultaneous task execution per workspace.
 	DefaultTaskMaxActiveRunsPerWorkspace = 16
-	// DefaultTaskNetworkStatusQueueSize is the default observer queue depth.
-	DefaultTaskNetworkStatusQueueSize = 64
-	// DefaultTaskNetworkStatusTimeout is the default per-event observer timeout.
-	DefaultTaskNetworkStatusTimeout = 5 * time.Second
+	DefaultTaskStatusProjectionQueueSize = 64
+	DefaultTaskStatusProjectionTimeout   = 5 * time.Second
 
 	TaskCoordinatorModeInherit = "inherit"
 	TaskCoordinatorModeGuided  = "guided"
 	TaskWorkerModeInherit      = "inherit"
-	TaskSandboxModeInherit     = "inherit"
-	TaskSandboxModeNone        = "none"
 	TaskWorktreeModeInherit    = "inherit"
 	TaskWorktreeModeNone       = "none"
 	TaskWorktreeModeRef        = "ref"
@@ -56,11 +52,10 @@ type TaskOrchestrationConfig struct {
 	SchedulerBadTickThreshold int                            `toml:"scheduler_bad_tick_threshold"`
 	SchedulerBadTickCooldown  time.Duration                  `toml:"scheduler_bad_tick_cooldown"`
 	DefaultMaxRuntime         time.Duration                  `toml:"default_max_runtime"`
-	BridgeNotificationTimeout time.Duration                  `toml:"bridge_notification_timeout"`
 	DesignatedRunMax          int                            `toml:"designated_run_max"`
 	MaxActiveRunsPerWorkspace int                            `toml:"max_active_runs_per_workspace"`
-	NetworkStatusQueueSize    int                            `toml:"network_status_queue_size"`
-	NetworkStatusTimeout      time.Duration                  `toml:"network_status_timeout"`
+	StatusProjectionQueueSize int                            `toml:"status_projection_queue_size"`
+	StatusProjectionTimeout   time.Duration                  `toml:"status_projection_timeout"`
 	Profile                   TaskOrchestrationProfileConfig `toml:"profile"`
 	Review                    TaskOrchestrationReviewConfig  `toml:"review"`
 }
@@ -69,10 +64,8 @@ type TaskOrchestrationConfig struct {
 type TaskOrchestrationProfileConfig struct {
 	DefaultCoordinatorMode    string `toml:"default_coordinator_mode"`
 	DefaultWorkerMode         string `toml:"default_worker_mode"`
-	DefaultSandboxMode        string `toml:"default_sandbox_mode"`
 	DefaultWorktreeMode       string `toml:"default_worktree_mode"`
 	AllowTaskProviderOverride bool   `toml:"allow_task_provider_override"`
-	AllowTaskSandboxNone      bool   `toml:"allow_task_sandbox_none"`
 }
 
 // TaskOrchestrationReviewConfig controls task review gate defaults and bounds.
@@ -103,18 +96,15 @@ func DefaultTaskConfig() TaskConfig {
 			SchedulerBadTickThreshold: 6,
 			SchedulerBadTickCooldown:  5 * time.Minute,
 			DefaultMaxRuntime:         0,
-			BridgeNotificationTimeout: 10 * time.Second,
 			DesignatedRunMax:          DefaultTaskDesignatedRunMax,
 			MaxActiveRunsPerWorkspace: DefaultTaskMaxActiveRunsPerWorkspace,
-			NetworkStatusQueueSize:    DefaultTaskNetworkStatusQueueSize,
-			NetworkStatusTimeout:      DefaultTaskNetworkStatusTimeout,
+			StatusProjectionQueueSize: DefaultTaskStatusProjectionQueueSize,
+			StatusProjectionTimeout:   DefaultTaskStatusProjectionTimeout,
 			Profile: TaskOrchestrationProfileConfig{
 				DefaultCoordinatorMode:    TaskCoordinatorModeInherit,
 				DefaultWorkerMode:         TaskWorkerModeInherit,
-				DefaultSandboxMode:        TaskSandboxModeInherit,
 				DefaultWorktreeMode:       TaskWorktreeModeInherit,
 				AllowTaskProviderOverride: true,
-				AllowTaskSandboxNone:      true,
 			},
 			Review: TaskOrchestrationReviewConfig{
 				DefaultPolicy:             TaskReviewPolicyNone,

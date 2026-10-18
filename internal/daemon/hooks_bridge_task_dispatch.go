@@ -10,9 +10,7 @@ func (n *hooksNotifier) DispatchCoordinatorPreSpawn(
 	ctx context.Context,
 	payload hookspkg.CoordinatorPreSpawnPayload,
 ) (hookspkg.CoordinatorPreSpawnPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorPreSpawn,
 		payload,
 		hookRuntime.DispatchCoordinatorPreSpawn,
@@ -79,9 +77,7 @@ func (n *hooksNotifier) DispatchTaskRunEnqueued(
 	ctx context.Context,
 	payload hookspkg.TaskRunEnqueuedPayload,
 ) (hookspkg.TaskRunEnqueuedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		n,
+	result, err := n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunEnqueued,
 		payload,
 		hookRuntime.DispatchTaskRunEnqueued,
@@ -99,9 +95,7 @@ func (n *hooksNotifier) DispatchTaskRunPreClaim(
 	ctx context.Context,
 	payload hookspkg.TaskRunPreClaimPayload,
 ) (hookspkg.TaskRunPreClaimPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunPreClaim,
 		payload,
 		hookRuntime.DispatchTaskRunPreClaim,
@@ -112,9 +106,7 @@ func (n *hooksNotifier) DispatchTaskRunPostClaim(
 	ctx context.Context,
 	payload hookspkg.TaskRunPostClaimPayload,
 ) (hookspkg.TaskRunPostClaimPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunPostClaim,
 		payload,
 		hookRuntime.DispatchTaskRunPostClaim,
@@ -125,9 +117,7 @@ func (n *hooksNotifier) DispatchTaskRunLeaseRecovered(
 	ctx context.Context,
 	payload hookspkg.TaskRunLeaseRecoveredPayload,
 ) (hookspkg.TaskRunLeaseRecoveredPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunLeaseRecovered,
 		payload,
 		hookRuntime.DispatchTaskRunLeaseRecovered,
@@ -138,9 +128,7 @@ func (n *hooksNotifier) DispatchTaskRunLeaseExtended(
 	ctx context.Context,
 	payload hookspkg.TaskRunLeaseExtendedPayload,
 ) (hookspkg.TaskRunLeaseExtendedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunLeaseExtended,
 		payload,
 		hookRuntime.DispatchTaskRunLeaseExtended,
@@ -151,9 +139,7 @@ func (n *hooksNotifier) DispatchTaskRunLeaseExpired(
 	ctx context.Context,
 	payload hookspkg.TaskRunLeaseExpiredPayload,
 ) (hookspkg.TaskRunLeaseExpiredPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunLeaseExpired,
 		payload,
 		hookRuntime.DispatchTaskRunLeaseExpired,
@@ -164,9 +150,7 @@ func (n *hooksNotifier) DispatchTaskRunReleased(
 	ctx context.Context,
 	payload hookspkg.TaskRunReleasedPayload,
 ) (hookspkg.TaskRunReleasedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunReleased,
 		payload,
 		hookRuntime.DispatchTaskRunReleased,
@@ -177,9 +161,7 @@ func (n *hooksNotifier) DispatchTaskRunCompleted(
 	ctx context.Context,
 	payload hookspkg.TaskRunCompletedPayload,
 ) (hookspkg.TaskRunCompletedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		n,
+	result, err := n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunCompleted,
 		payload,
 		hookRuntime.DispatchTaskRunCompleted,
@@ -192,9 +174,7 @@ func (n *hooksNotifier) DispatchTaskRunFailed(
 	ctx context.Context,
 	payload hookspkg.TaskRunFailedPayload,
 ) (hookspkg.TaskRunFailedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		n,
+	result, err := n.dispatchRuntime(ctx,
 		hookspkg.HookTaskRunFailed,
 		payload,
 		hookRuntime.DispatchTaskRunFailed,
@@ -207,9 +187,7 @@ func (n *hooksNotifier) DispatchLoopStarted(
 	ctx context.Context,
 	payload hookspkg.LoopStartedPayload,
 ) (hookspkg.LoopStartedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		n,
+	result, err := n.dispatchRuntime(ctx,
 		hookspkg.HookLoopStarted,
 		payload,
 		hookRuntime.DispatchLoopStarted,
@@ -225,9 +203,7 @@ func (n *hooksNotifier) DispatchLoopGenerationPre(
 	ctx context.Context,
 	payload hookspkg.LoopGenerationPrePayload,
 ) (hookspkg.LoopGenerationPrePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookLoopGenerationPre,
 		payload,
 		hookRuntime.DispatchLoopGenerationPre,
@@ -238,9 +214,7 @@ func (n *hooksNotifier) DispatchLoopGenerationPost(
 	ctx context.Context,
 	payload hookspkg.LoopGenerationPostPayload,
 ) (hookspkg.LoopGenerationPostPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookLoopGenerationPost,
 		payload,
 		hookRuntime.DispatchLoopGenerationPost,
@@ -251,9 +225,7 @@ func (n *hooksNotifier) DispatchLoopGatePre(
 	ctx context.Context,
 	payload hookspkg.LoopGatePrePayload,
 ) (hookspkg.LoopGatePrePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookLoopGatePre,
 		payload,
 		hookRuntime.DispatchLoopGatePre,
@@ -264,9 +236,7 @@ func (n *hooksNotifier) DispatchLoopGatePost(
 	ctx context.Context,
 	payload hookspkg.LoopGatePostPayload,
 ) (hookspkg.LoopGatePostPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookLoopGatePost,
 		payload,
 		hookRuntime.DispatchLoopGatePost,
@@ -284,9 +254,7 @@ func (n *hooksNotifier) DispatchLoopTerminal(
 	ctx context.Context,
 	payload hookspkg.LoopTerminalPayload,
 ) (hookspkg.LoopTerminalPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		n,
+	result, err := n.dispatchRuntime(ctx,
 		hookspkg.HookLoopTerminal,
 		payload,
 		hookRuntime.DispatchLoopTerminal,

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -151,9 +150,6 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 			present: []string{
 				"POST /api/webhooks/global/:endpoint",
 				"POST /api/webhooks/workspaces/:workspace_id/:endpoint",
-				"GET /api/bridge-callbacks/:id",
-				"POST /api/bridge-callbacks/:id",
-				"HEAD /api/bridge-callbacks/:id",
 			},
 			absent: []string{
 				"GET /api/status",
@@ -162,7 +158,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"GET /api/gateway/audit",
 				"POST /api/gateway/stream-tickets",
 			},
-			wantRoutes: 5,
+			wantRoutes: 2,
 		},
 		{
 			name:       "Should expose safe gateway management without pairing on the public operator tier",
@@ -436,7 +432,7 @@ func assertGatewayHTTPRouteUnionMatchesDocumentedOperations(t *testing.T) {
 	for route := range actualSet {
 		actual = append(actual, route)
 	}
-	sort.Strings(actual)
+	slices.Sort(actual)
 
 	want := make([]string, 0)
 	for _, operation := range apispec.Operations() {
@@ -445,7 +441,7 @@ func assertGatewayHTTPRouteUnionMatchesDocumentedOperations(t *testing.T) {
 			want = append(want, operation.Method+" "+operation.Path)
 		}
 	}
-	sort.Strings(want)
+	slices.Sort(want)
 	if !slices.Equal(actual, want) {
 		t.Fatalf("HTTP gateway route union = %v, want documented operations %v", actual, want)
 	}

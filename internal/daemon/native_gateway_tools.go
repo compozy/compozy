@@ -45,13 +45,13 @@ type nativeGatewayInput struct {
 type nativeGatewayResult struct {
 	Action   string                                  `json:"action"`
 	Redacted bool                                    `json:"redacted"`
-	Status   *contract.GatewayStatusPayload          `json:"status,omitempty"`
-	Audit    *contract.GatewayAuditPayload           `json:"audit,omitempty"`
-	Devices  *[]contract.GatewayDevicePayload        `json:"devices,omitempty"`
-	Device   *contract.GatewayDevicePayload          `json:"device,omitempty"`
-	Revoke   *contract.GatewayRevokePayload          `json:"revoke,omitempty"`
-	Binding  *contract.GatewayIngressBindingResponse `json:"binding,omitempty"`
-	Unbind   *contract.GatewayIngressUnbindResponse  `json:"unbind,omitempty"`
+	Status   *contract.GatewayStatusPayload          `json:"status,omitzero"`
+	Audit    *contract.GatewayAuditPayload           `json:"audit,omitzero"`
+	Devices  *[]contract.GatewayDevicePayload        `json:"devices,omitzero"`
+	Device   *contract.GatewayDevicePayload          `json:"device,omitzero"`
+	Revoke   *contract.GatewayRevokePayload          `json:"revoke,omitzero"`
+	Binding  *contract.GatewayIngressBindingResponse `json:"binding,omitzero"`
+	Unbind   *contract.GatewayIngressUnbindResponse  `json:"unbind,omitzero"`
 }
 
 type nativeGatewayActionRequest struct {

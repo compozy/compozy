@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -31,15 +30,13 @@ type taskWorktreePolicySetInput struct {
 }
 
 type taskExecutionProfileInput struct {
-	TaskID               string                     `json:"task_id,omitempty"`
-	Coordinator          taskpkg.CoordinatorProfile `json:"coordinator"`
-	Worker               taskpkg.WorkerProfile      `json:"worker"`
-	Review               taskpkg.ReviewProfile      `json:"review"`
-	Participants         taskpkg.ParticipantPolicy  `json:"participants"`
-	Sandbox              taskpkg.SandboxPolicy      `json:"sandbox"`
-	Worktree             taskpkg.WorktreePolicy     `json:"worktree"`
-	Runtime              taskpkg.RuntimePolicy      `json:"runtime"`
-	NetworkParticipation *participation.Request     `json:"network_participation,omitempty"`
+	TaskID       string                     `json:"task_id,omitempty"`
+	Coordinator  taskpkg.CoordinatorProfile `json:"coordinator"`
+	Worker       taskpkg.WorkerProfile      `json:"worker"`
+	Review       taskpkg.ReviewProfile      `json:"review"`
+	Participants taskpkg.ParticipantPolicy  `json:"participants"`
+	Worktree     taskpkg.WorktreePolicy     `json:"worktree"`
+	Runtime      taskpkg.RuntimePolicy      `json:"runtime"`
 }
 
 func (n *daemonNativeTools) taskExecutionProfileGet(
@@ -176,14 +173,12 @@ func (i *taskExecutionProfileInput) profile(taskID string) (taskpkg.ExecutionPro
 		profileTaskID = taskID
 	}
 	return taskpkg.ExecutionProfile{
-		TaskID:               profileTaskID,
-		Coordinator:          i.Coordinator,
-		Worker:               i.Worker,
-		Review:               i.Review,
-		Participants:         i.Participants,
-		Sandbox:              i.Sandbox,
-		Worktree:             i.Worktree,
-		Runtime:              i.Runtime,
-		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
+		TaskID:       profileTaskID,
+		Coordinator:  i.Coordinator,
+		Worker:       i.Worker,
+		Review:       i.Review,
+		Participants: i.Participants,
+		Worktree:     i.Worktree,
+		Runtime:      i.Runtime,
 	}, nil
 }

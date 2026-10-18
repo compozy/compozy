@@ -89,9 +89,10 @@ describe("PermissionDataPart", () => {
 
     const waiting = screen.getByTestId("permission-waiting-line");
     expect(waiting).toHaveAttribute("role", "status");
-    expect(waiting.querySelector('[data-slot="status-dot"]')).toHaveAttribute(
-      "data-tone",
-      "warning"
+    // Waiting on the operator is needs-you (attention), never the warning amber.
+    expect(waiting.querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "attention"
     );
     expect(waiting).toHaveTextContent("Waiting for your approval to run");
     expect(waiting).toHaveTextContent("bun add @xterm/xterm");

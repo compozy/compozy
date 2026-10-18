@@ -20,7 +20,7 @@ type sessionAgentProjection[T any] struct {
 	byDefinition          func(compozyconfig.AgentDef) (T, error)
 }
 
-func resolveSessionAgentProjection[T any](request sessionAgentProjection[T]) (T, error) {
+func (request sessionAgentProjection[T]) resolve() (T, error) {
 	if request.hasConcreteDefinition && strings.TrimSpace(request.agent.SourcePath) == "" {
 		return request.byDefinition(request.agent)
 	}

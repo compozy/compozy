@@ -58,7 +58,7 @@ func TestDefaultInterrupterProcessGroups(t *testing.T) {
 			StartedAt:      startedAt,
 		}
 
-		if err := (defaultInterrupter{}).InterruptProcess(context.Background(), record); err != nil {
+		if err := (defaultInterrupter{}).InterruptProcess(t.Context(), record); err != nil {
 			t.Fatalf("InterruptProcess() error = %v", err)
 		}
 		if err := procutil.WaitForProcessGroupIDExit(pgid, 100*time.Millisecond); err != nil {

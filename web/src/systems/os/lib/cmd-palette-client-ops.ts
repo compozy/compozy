@@ -11,7 +11,10 @@ export type {
 /** Reads the `profile` argument the daemon declares on `profile.use`. */
 function profileArg(payload: unknown): string {
   if (payload === null || typeof payload !== "object") return "";
-  const profile = Reflect.get(payload, "profile");
+  // Local dispatch supplies arguments directly; daemon commands wrap them in `args`.
+  const args = Reflect.has(payload, "args") ? Reflect.get(payload, "args") : payload;
+  if (args === null || typeof args !== "object") return "";
+  const profile = Reflect.get(args, "profile");
   return typeof profile === "string" ? profile.trim() : "";
 }
 
@@ -32,7 +35,13 @@ const SHELL_OPS: ReadonlyMap<string, PaletteClientOpHandler> = new Map<
   ["scope.global.toggle", context => context.shell.toggleGlobalScope()],
   // `profile.use` switches directly; every other profile.* command navigates to
   // the canonical lifecycle flow instead of mutating from here (ADR-016).
-  ["profile.use", (context, payload) => context.shell.useProfile(profileArg(payload))],
+  [
+    "profile.use",
+    (context, payload) =>
+      context.reply === undefined
+        ? context.shell.useProfile(profileArg(payload))
+        : context.shell.useProfile(profileArg(payload), context.reply),
+  ],
   ["session.cycle.previous", context => context.shell.cycleSession("previous")],
   ["session.cycle.next", context => context.shell.cycleSession("next")],
   ["session.focus.attention", context => context.shell.focusAttention()],

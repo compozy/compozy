@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -110,10 +109,10 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				Status:    speedpkg.ResolutionUnsupported,
 				Reason:    speedpkg.ReasonCapabilityAbsent,
 			},
-			WorkspaceID:          "ws_alpha",
-			Workspace:            "/workspace",
-			NetworkParticipation: testLiveParticipation("ws_alpha", "builders"),
-			Type:                 session.SessionTypeDream,
+			WorkspaceID: "ws_alpha",
+			Workspace:   "/workspace",
+
+			Type: session.SessionTypeSpawned,
 			Lineage: &store.SessionLineage{
 				ParentSessionID:  "sess-root",
 				RootSessionID:    "sess-root",
@@ -128,8 +127,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 					MaxActivePerWorkspace: 3,
 				},
 				PermissionPolicy: store.SessionPermissionPolicy{
-					Tools:           []string{"edit"},
-					NetworkChannels: []string{"coord"},
+					Tools: []string{"edit"},
 				},
 			},
 			State:      session.StateActive,
@@ -146,15 +144,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				Description: "Compact context",
 				Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
 			}},
-			Sandbox: &store.SessionSandboxMeta{
-				SandboxID:     "env-1",
-				Backend:       "local",
-				Profile:       "local",
-				State:         "prepared",
-				InstanceID:    "instance-1",
-				ProviderState: json.RawMessage(`{"sandbox_id":"sb-123","token":"secret"}`),
-				LastSyncError: "sync failed",
-			},
+
 			Liveness: &store.SessionLivenessMeta{
 				Activity: &store.SessionActivityMeta{
 					TurnID: "turn-1",
@@ -192,18 +182,6 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			},
 		})
 
-		if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" ||
-			resolvedParticipationChannelID(payload.ResolvedNetworkParticipation) != "builders" {
-			t.Fatalf("payload = %#v", payload)
-		}
-		wantParticipation := testLiveParticipation("ws_alpha", "builders")
-		if payload.ResolvedNetworkParticipation == nil || *payload.ResolvedNetworkParticipation != wantParticipation {
-			t.Fatalf(
-				"payload.ResolvedNetworkParticipation = %#v, want %#v",
-				payload.ResolvedNetworkParticipation,
-				wantParticipation,
-			)
-		}
 		if payload.Runtime.Status != session.RuntimeStatusReady ||
 			payload.Runtime.Transition != session.RuntimeTransitionLiveConfiguration ||
 			payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "fake" ||
@@ -248,8 +226,8 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		if payload.State != session.StateActive || payload.Runtime.ACPSessionID != "acp-123" {
 			t.Fatalf("payload session fields = %#v", payload)
 		}
-		if payload.Type != session.SessionTypeDream {
-			t.Fatalf("payload.Type = %q, want %q", payload.Type, session.SessionTypeDream)
+		if payload.Type != session.SessionTypeSpawned {
+			t.Fatalf("payload.Type = %q, want %q", payload.Type, session.SessionTypeSpawned)
 		}
 		if payload.Lineage == nil ||
 			payload.Lineage.ParentSessionID != "sess-root" ||
@@ -306,17 +284,6 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		if got := payload.Runtime.ACPCaps.ConfigOptions[1]; got.ID != "thinking" ||
 			got.CurrentBool == nil || !*got.CurrentBool || got.CurrentValueID != "" {
 			t.Fatalf("boolean config option payload = %#v", got)
-		}
-		if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
-			payload.Sandbox.Backend != "local" ||
-			payload.Sandbox.Profile != "local" ||
-			payload.Sandbox.State != "prepared" ||
-			payload.Sandbox.InstanceID != "instance-1" ||
-			payload.Sandbox.LastSyncError != "sync failed" {
-			t.Fatalf("sandbox = %#v", payload.Sandbox)
-		}
-		if payload.Sandbox.ProviderStateJSON != nil {
-			t.Fatalf("sandbox provider state = %s, want omitted", string(payload.Sandbox.ProviderStateJSON))
 		}
 	})
 
@@ -808,9 +775,8 @@ func TestJobPayloadFromJobCopiesNestedOptionalFields(t *testing.T) {
 		schedule := automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "10m"}
 		owner := taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"}
 		jobTask := automationpkg.JobTaskConfig{
-			Title:                "Review queue",
-			Owner:                &owner,
-			NetworkParticipation: testNamedParticipationRequest("builders"),
+			Title: "Review queue",
+			Owner: &owner,
 		}
 		payload := core.JobPayloadFromJob(automationpkg.Job{
 			ID:        "job-1",
@@ -856,7 +822,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z&run=run-1&actor_kind=agent&actor_id=agent:coder&provider=codex&outcome=failure&component=task&error_only=true",
 			http.NoBody,
@@ -909,7 +875,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 		invalidRecorder := httptest.NewRecorder()
 		invalidContext, _ := gin.CreateTestContext(invalidRecorder)
 		invalidContext.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/events?since=bad",
 			http.NoBody,
@@ -981,7 +947,7 @@ func TestPrepareSSESetsHeaders(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/stream",
 			http.NoBody,

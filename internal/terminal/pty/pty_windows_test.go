@@ -221,7 +221,7 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 
 	t.Run("Should report normal and terminated exits honestly", func(t *testing.T) {
 		normal := startWindowsTestProc(t, ModePTY, []string{"cmd.exe", "/d", "/s", "/c", "exit /b 7"})
-		exit, err := normal.Wait(context.Background())
+		exit, err := normal.Wait(t.Context())
 		if err != nil || exit.Cause != "exited" || exit.Code == nil || *exit.Code != 7 || exit.Signal != nil {
 			t.Fatalf("normal exit = %#v error=%v", exit, err)
 		}
@@ -294,7 +294,7 @@ func TestWindowsPipeRuntime(t *testing.T) { // IT-038
 		if readErr != nil {
 			t.Fatalf("ReadAll() error = %v", readErr)
 		}
-		exit, waitErr := proc.Wait(context.Background())
+		exit, waitErr := proc.Wait(t.Context())
 		if waitErr != nil || exit.Code == nil || *exit.Code != 0 || !strings.Contains(string(output), "pipe-ok") {
 			t.Fatalf("output = %q exit=%#v error=%v", output, exit, waitErr)
 		}
@@ -309,7 +309,7 @@ func TestWindowsPipeRuntime(t *testing.T) { // IT-038
 		if err := proc.Kill(SignalKILL); err != nil {
 			t.Fatalf("Kill(KILL) error = %v", err)
 		}
-		if _, err := proc.Wait(context.Background()); err != nil {
+		if _, err := proc.Wait(t.Context()); err != nil {
 			t.Fatalf("Wait() error = %v", err)
 		}
 		assertWindowsProcessExited(t, childPID)
@@ -336,7 +336,7 @@ func startWindowsSleepTestProc(t *testing.T, mode Mode) Proc {
 
 func startWindowsTestProcWithEnv(t *testing.T, mode Mode, argv []string, env map[string]string) Proc {
 	t.Helper()
-	proc, err := New().Start(context.Background(), ProcSpec{
+	proc, err := New().Start(t.Context(), ProcSpec{
 		Argv: argv, Cwd: t.TempDir(), Env: env, Mode: mode, Cols: 80, Rows: 24,
 	})
 	if err != nil {

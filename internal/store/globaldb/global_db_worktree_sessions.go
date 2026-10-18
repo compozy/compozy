@@ -31,3 +31,23 @@ SELECT EXISTS (
 	}
 	return found, nil
 }
+
+// HasOtherActiveWorktreeSession excludes only the exact managed-delivery caller.
+func (g *GlobalDB) HasOtherActiveWorktreeSession(
+	ctx context.Context,
+	workspaceID, worktreeID, sessionID string,
+) (bool, error) {
+	if g == nil || g.Worktrees == nil {
+		return false, fmt.Errorf("store: worktree repository is required")
+	}
+	if err := g.Worktrees.checkReady(ctx, "inspect other worktree sessions"); err != nil {
+		return false, err
+	}
+	var found bool
+	err := g.Worktrees.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sessions WHERE workspace_id=? AND worktree_id=? AND id<>? AND state IN ('starting','active','stopping'))`, workspaceID, worktreeID, sessionID).
+		Scan(&found)
+	if err != nil {
+		return false, fmt.Errorf("store: inspect other worktree sessions: %w", err)
+	}
+	return found, nil
+}

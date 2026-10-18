@@ -1,11 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
-import { posts, type Post } from "#site/content";
+import { posts } from "#site/content";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ArchiveRow } from "../archive-row";
 import { CategoryPill } from "../category-pill";
 import { ContinueReading } from "../continue-reading";
-import { FeaturedPost } from "../featured-post";
 import { PostCard } from "../post-card";
 import { SubscribeRail } from "../subscribe-rail";
 
@@ -30,17 +29,6 @@ function firstPost() {
     throw new Error("Expected generated blog content to include at least one post");
   }
   return post;
-}
-
-function postWithoutCover(): Post {
-  const post = firstPost();
-  return {
-    ...post,
-    slug: "posts/fallback-visual",
-    permalink: "/blog/fallback-visual",
-    cover: undefined,
-    kinds: [],
-  };
 }
 
 describe("blog navigation components", () => {
@@ -116,19 +104,5 @@ describe("blog navigation components", () => {
     expect(screen.getByRole("link", { name: "Read the release log" }).getAttribute("href")).toBe(
       "/changelog"
     );
-  });
-
-  it("uses current protocol kinds and beta maturity without making Live availability claims", () => {
-    const post = postWithoutCover();
-    const { container } = render(<FeaturedPost post={post} authorInitial="A" />);
-
-    expect(screen.getByText("compozy-network/v0")).toBeDefined();
-    expect(screen.getByText("BETA")).toBeDefined();
-    for (const kind of ["greet", "say", "receipt", "trace"]) {
-      expect(screen.getByText(kind)).toBeDefined();
-    }
-    expect(screen.queryByText("direct")).toBeNull();
-    expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(post.date);
-    expect(screen.queryByText("LIVE")).toBeNull();
   });
 });

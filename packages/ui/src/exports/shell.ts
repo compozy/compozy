@@ -15,7 +15,6 @@ export {
   type TopbarSlotValue,
 } from "../components/custom/hooks/use-topbar-slot";
 export { RouteNav } from "../components/custom/route-nav";
-export { KindChip, type KindChipProps } from "../components/custom/kind-chip";
 export {
   RightRail,
   type RightRailMode,
@@ -40,3 +39,4 @@ export {
   type ConnectionVariant,
 } from "../components/custom/connection-indicator";
 export { LiveBadge, type LiveBadgeProps } from "../components/custom/live-badge";
+export { ThemeToggle, type ThemeToggleProps } from "../components/custom/theme-toggle";

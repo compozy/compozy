@@ -3,6 +3,7 @@ package skills
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -156,8 +157,7 @@ func cloneDiagnostic(src SkillDiagnostic) SkillDiagnostic {
 	clone.Warnings = cloneWarnings(src.Warnings)
 	clone.ActivationReasons = cloneSkillActivation(SkillActivation{Reasons: src.ActivationReasons}).Reasons
 	if src.Failure != nil {
-		failure := *src.Failure
-		clone.Failure = &failure
+		clone.Failure = new(*src.Failure)
 	}
 	return clone
 }
@@ -166,7 +166,7 @@ func cloneWarnings(src []Warning) []Warning {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]Warning(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneSkillDiagnostics(src SkillDiagnostics) SkillDiagnostics {
@@ -181,5 +181,5 @@ func cloneSkillDefinitionRefs(src []SkillDefinitionRef) []SkillDefinitionRef {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]SkillDefinitionRef(nil), src...)
+	return slices.Clone(src)
 }

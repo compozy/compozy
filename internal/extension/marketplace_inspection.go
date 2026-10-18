@@ -38,7 +38,7 @@ func InspectPluginPackage(ctx context.Context, root string) (marketplace.PluginI
 		Inputs:       manifest.Inputs,
 		Contents: marketplace.PluginContents{
 			Skills: contents.Skills, MCPServers: contents.MCPServers, Hooks: contents.Hooks,
-			Loops: contents.Loops, Agents: contents.Agents, Bridges: contents.Bridges,
+			Loops: contents.Loops, Agents: contents.Agents,
 		},
 	}, nil
 }

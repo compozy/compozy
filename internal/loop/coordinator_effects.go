@@ -296,8 +296,7 @@ func effectFailureFromAttempt(attempt NodeAttempt) *ClassifiedFailure {
 	if attempt.FailureClass == nil {
 		return nil
 	}
-	failure := classifiedFailureFromAttempt(attempt)
-	return &failure
+	return new(classifiedFailureFromAttempt(attempt))
 }
 
 func terminalEffectSpecs(contract dsl.Contract, status Status) ([]dsl.EffectSpec, EffectTrigger) {

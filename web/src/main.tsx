@@ -2,8 +2,9 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 
-import { Toaster, TooltipProvider, UIProvider } from "@compozy/ui";
+import { TooltipProvider, UIProvider } from "@compozy/ui";
 
+import { ThemeToaster, installThemeRuntime } from "@/systems/theme";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { routeTree } from "./routeTree.gen";
 
@@ -13,6 +14,9 @@ import { Provider as TanStackQueryProvider } from "./integrations/tanstack-query
 import "./styles.css";
 
 const TanStackQueryProviderContext = getContext();
+// No `defaultViewTransition`: the router cannot tell an in-window drill from a
+// window focus change, and its callback resolves before React commits. The OS
+// window-manager runtime owns view transitions (`runViewTransition`).
 const router = createRouter({
   routeTree,
   context: {
@@ -39,6 +43,9 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// Keeps <html> painted with the resolved theme (the boot script set it pre-paint).
+installThemeRuntime();
+
 const rootElement = document.getElementById("app");
 if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
@@ -51,7 +58,7 @@ if (rootElement && !rootElement.innerHTML) {
           </TanStackQueryProvider>
           {/* Top-right, clear of the menubar: the shell's floating-chrome
               region, and the one corner the dock never occupies. */}
-          <Toaster
+          <ThemeToaster
             expand
             position="top-right"
             visibleToasts={5}

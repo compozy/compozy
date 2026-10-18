@@ -56,7 +56,7 @@ export function SettingsChoiceGroup<V extends string>({
   return (
     <div
       aria-label={ariaLabel}
-      className="grid gap-2 p-3 sm:grid-cols-3"
+      className="grid gap-2 p-3 @min-settings-takeover:grid-cols-3"
       data-testid={testId}
       role="radiogroup"
     >
@@ -67,17 +67,14 @@ export function SettingsChoiceGroup<V extends string>({
             badge={
               <Check
                 aria-hidden="true"
-                className={checked ? "size-3.5 text-fg-strong" : "size-3.5 opacity-0"}
+                className={checked ? "size-3.5 text-fg" : "size-3.5 opacity-0"}
               />
             }
-            className="relative rounded-md border border-line-soft bg-canvas-tint"
+            // The card's own selected treatment (selected fill + inset ring)
+            // carries the choice.
+            className="relative"
             data-testid={testId ? `${testId}-${option.value}` : undefined}
-            description={
-              <>
-                <span className="block leading-snug">{option.description}</span>
-                <span className="font-mono text-micro text-faint">{option.value}</span>
-              </>
-            }
+            description={<span className="block leading-snug">{option.description}</span>}
             key={option.value}
             onKeyDown={event => {
               if (

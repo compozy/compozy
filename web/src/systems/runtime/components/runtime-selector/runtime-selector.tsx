@@ -38,6 +38,7 @@ export interface RuntimeSelectorProps {
   refreshing?: boolean;
   /** Rendered under the search header (stale/error/count status). */
   catalogStatus?: ReactNode;
+  providerCatalogIssues?: Record<string, string>;
   /** Allows an exact `provider/model` value when the provider catalog has no matching row. */
   allowCustomProvider?: boolean;
   onOpenProviderSettings?: () => void;
@@ -70,6 +71,7 @@ export function RuntimeSelector({
   onRefreshCatalog,
   refreshing = false,
   catalogStatus,
+  providerCatalogIssues = {},
   allowCustomProvider = false,
   onOpenProviderSettings,
   speed,
@@ -151,8 +153,8 @@ export function RuntimeSelector({
         sideOffset={6}
         anchor={popup.anchor}
         initialFocus={popup.resolveInitialFocus}
-        aria-label="Runtime selector"
-        className="max-h-[min(440px,var(--available-height))] w-[min(320px,94vw)] overflow-hidden bg-canvas p-0 shadow-overlay"
+        aria-label="Choose model"
+        className="max-h-[min(440px,var(--available-height))] w-[min(320px,94vw)] overflow-hidden bg-popover p-0 shadow-pop"
       >
         <div
           id={popup.popupId}
@@ -188,6 +190,26 @@ export function RuntimeSelector({
               {catalogStatus}
             </div>
           ) : null}
+          {/* Keep provider guidance readable without consuming the models viewport. */}
+          <div className="max-h-24 shrink-0 overflow-y-auto overscroll-contain">
+            {providers.map(provider =>
+              providerCatalogIssues[provider.id] &&
+              (controller.railFilter === "all" ||
+                controller.railFilter === "fav" ||
+                controller.railFilter === provider.id ||
+                controller.listModel.searching) ? (
+                <p
+                  key={provider.id}
+                  role="status"
+                  className="px-3 py-1.5 text-form-hint text-subtle"
+                >
+                  <span className="font-medium">{provider.name}</span>
+                  {" · "}
+                  {providerCatalogIssues[provider.id]}
+                </p>
+              ) : null
+            )}
+          </div>
           <ModelList
             listId={popup.listId}
             optionId={popup.optionId}

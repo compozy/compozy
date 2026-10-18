@@ -155,7 +155,7 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 			return filepath.SkipDir
 		}
 		s.result.discovery.directories[candidate] = nil
-		s.result.discovery.track(candidate, entry)
+		s.result.discovery.track(candidate)
 		return nil
 	}
 	s.result.discovery.trackLink(candidate, entry)

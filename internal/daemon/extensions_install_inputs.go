@@ -14,7 +14,7 @@ func (s *daemonExtensionService) commitPreparedInstallWithInputs(
 	ctx context.Context,
 	prepared preparedDaemonExtensionInstall,
 	req contract.InstallExtensionRequest,
-	confirmation *extensionpkg.NetworkConfirmation,
+	confirmation *extensionpkg.GatewayConfirmation,
 	actor taskpkg.ActorContext,
 	event extensionpkg.LifecycleEvent,
 	item *contract.ExtensionPayload,

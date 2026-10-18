@@ -66,6 +66,36 @@ FROM events
 WHERE transcript_entry_key = sqlc.arg(transcript_entry_key)
 ORDER BY sequence ASC;
 
+-- name: ListEventsForTranscriptEntryAfter :many
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
+FROM events
+WHERE transcript_entry_key = sqlc.arg(transcript_entry_key) AND sequence > sqlc.arg(after_sequence)
+ORDER BY sequence ASC;
+
+-- name: GetTranscriptEntryEventBounds :one
+SELECT COUNT(*) AS event_count, CAST(COALESCE(MAX(sequence), 0) AS INTEGER) AS max_sequence
+FROM events
+WHERE transcript_entry_key = sqlc.arg(transcript_entry_key) AND sequence <= sqlc.arg(through_sequence);
+
+-- name: ListTranscriptTextEventsForUpgrade :many
+SELECT sequence, transcript_entry_key, content
+FROM events
+WHERE sequence > sqlc.arg(after_sequence)
+  AND archived = 0 AND transcript_entry_key <> ''
+  AND type IN ('agent_message', 'thought')
+ORDER BY sequence ASC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ListTranscriptSessionPromptEventsForUpgrade :many
+SELECT sequence, transcript_entry_key, content
+FROM events
+WHERE sequence > sqlc.arg(after_sequence)
+  AND archived = 0 AND transcript_entry_key <> ''
+  AND type = 'tool_call'
+  AND instr(content, 'compozy__session_prompt') > 0
+ORDER BY sequence ASC
+LIMIT sqlc.arg(row_limit);
+
 -- name: UpsertTranscriptToolRoute :exec
 INSERT INTO transcript_tool_routes (tool_key, entry_key)
 VALUES (sqlc.arg(tool_key), sqlc.arg(entry_key))
@@ -102,3 +132,16 @@ FROM transcript_entries
 WHERE message_json IS NOT NULL AND start_sequence < sqlc.arg(before_sequence)
 ORDER BY start_sequence DESC
 LIMIT sqlc.arg(row_limit);
+
+-- name: ListTranscriptChanges :many
+SELECT e.message_json, e.start_sequence, e.updated_sequence, e.event_type, e.marker_json
+FROM transcript_entries AS e
+WHERE e.message_json IS NOT NULL
+  AND e.updated_sequence IN (
+    SELECT DISTINCT c.updated_sequence
+    FROM transcript_entries AS c
+    WHERE c.message_json IS NOT NULL AND c.updated_sequence > sqlc.arg(after_sequence)
+    ORDER BY c.updated_sequence ASC
+    LIMIT sqlc.arg(sequence_limit)
+  )
+ORDER BY e.updated_sequence ASC, e.start_sequence ASC;

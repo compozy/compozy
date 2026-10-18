@@ -79,7 +79,7 @@ function CommandMenuItemRow({
         "group/command-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
         "text-small-body text-fg outline-none select-none",
         "transition-colors duration-fast ease-out",
-        "data-[highlighted]:bg-elevated data-[highlighted]:text-fg-strong",
+        "data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg",
         // Unavailable commands stay listed: hiding one would erase the daemon's
         // reason for why it cannot run right now.
         "data-[unavailable]:cursor-not-allowed data-[unavailable]:opacity-55"
@@ -88,7 +88,7 @@ function CommandMenuItemRow({
       <span
         className={cn(
           "flex size-4 shrink-0 items-center justify-center text-muted",
-          "group-data-[highlighted]/command-row:text-fg-strong"
+          "group-data-[highlighted]/command-row:text-fg"
         )}
       >
         {createElement(CommandIcon, { className: "size-3.5", "aria-hidden": "true" })}
@@ -225,7 +225,7 @@ export function SessionComposerCommandMenu({
       data-testid="composer-command-menu"
       className={cn(
         "absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden",
-        "rounded-lg border border-line bg-popover shadow-overlay"
+        "rounded-lg bg-popover shadow-pop"
       )}
     >
       <CommandCatalogOpenReporter onOpen={onOpen} />

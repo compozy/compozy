@@ -5,7 +5,7 @@ title: Follow redacted extension logs from the web detail
 persona: Bruno
 journey: J-extension-dev-lifecycle
 expected: The extension detail logs panel reads one fresh `{stream_epoch, logs}` snapshot for the selected `(name, workspace)` instance before following SSE, pairs every resumed `after` cursor with that epoch, appends only same-epoch `extension_log` deltas, atomically replaces retained rows on `extension_log_reset` (including an empty reset), keeps the Query cache authoritative across reconnect/pause, and closes the EventSource when the panel unmounts or the instance changes.
-entry_points: /marketplace/extension/$entryId (Logs panel); `GET /api/extensions/{name}/logs?workspace=&follow=1&after=&stream_epoch=`
+entry_points: /marketplace/extension/$entryId (Activity section, closed by default); `GET /api/extensions/{name}/logs?workspace=&follow=1&after=&stream_epoch=`
 qa_status: pass
 bug_ids: BUG-20260729-global-extension-log-workspace-scope; BUG-20260812-workspace-extension-detail-missing
 fix_status: fixed

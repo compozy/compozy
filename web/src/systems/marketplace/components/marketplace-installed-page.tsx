@@ -3,7 +3,17 @@ import { AlertCircle, Puzzle, RefreshCw, SearchX, Store } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button, Empty, ListingPage, Spinner, StatusDot, useTopbarSlot } from "@compozy/ui";
+import {
+  Button,
+  Empty,
+  ListingPage,
+  Spinner,
+  StatusDot,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  useTopbarSlot,
+} from "@compozy/ui";
 
 import { extensionUpdateScope, type InstalledExtensionView } from "@/systems/extensions";
 
@@ -57,21 +67,28 @@ function MarketplaceInstalledPage({
     count: page.isPending ? "–" : page.installedCount,
     actions: (
       <>
-        <Button
-          data-testid="marketplace-installed-refresh"
-          disabled={page.isFetching}
-          onClick={() => void page.refetch()}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          {page.isFetching ? (
-            <Spinner aria-hidden="true" className="size-3" />
-          ) : (
-            <RefreshCw aria-hidden="true" className="size-3" />
-          )}
-          Refresh
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="Refresh"
+                data-testid="marketplace-installed-refresh"
+                disabled={page.isFetching}
+                onClick={() => void page.refetch()}
+                size="icon-sm"
+                type="button"
+                variant="quiet"
+              />
+            }
+          >
+            {page.isFetching ? (
+              <Spinner aria-hidden="true" className="size-3.5" />
+            ) : (
+              <RefreshCw aria-hidden="true" className="size-3.5" />
+            )}
+          </TooltipTrigger>
+          <TooltipContent>Refresh installed extensions</TooltipContent>
+        </Tooltip>
         <MarketplaceAddMenu onInstall={install.open} onAddMarketplace={addMarketplace.open} />
       </>
     ),
@@ -124,7 +141,7 @@ function MarketplaceInstalledBody({
     return (
       <Empty
         action={
-          <Button onClick={() => void page.refetch()} size="sm" type="button">
+          <Button onClick={() => void page.refetch()} size="sm" type="button" variant="secondary">
             Retry
           </Button>
         }
@@ -143,39 +160,30 @@ function MarketplaceInstalledBody({
     return query ? (
       <Empty
         action={
-          <Button onClick={onClearSearch} size="sm" type="button" variant="outline">
+          <Button onClick={onClearSearch} size="sm" type="button" variant="secondary">
             Clear search
           </Button>
         }
         data-testid="marketplace-installed-query-empty"
-        description={`Nothing matches "${query}" in your installed extensions.`}
+        description="Try a different word."
         icon={SearchX}
-        title="No installed extensions match this query"
+        title={`No results for "${query}"`}
       />
     ) : (
       <Empty
         action={
           <Button
             data-testid="marketplace-browse"
-            variant="neutral"
             nativeButton={false}
             render={<Link search={{}} to="/marketplace" />}
             size="sm"
           >
-            <Store aria-hidden="true" className="size-3" />
+            <Store aria-hidden="true" />
             Browse the marketplace
           </Button>
         }
         data-testid="marketplace-installed-empty"
-        description={
-          <>
-            Everything you install from the marketplace shows up here. You can also use{" "}
-            <code className="rounded-xs border border-line-soft bg-input-fill px-1.5 py-px font-mono text-xs text-fg">
-              compozy extension install &lt;slug&gt;
-            </code>
-            .
-          </>
-        }
+        description="Extensions you install from the Marketplace show up here."
         icon={Puzzle}
         title="No extensions installed yet"
       />
@@ -316,7 +324,7 @@ function MarketplaceUpdatesLine({
       className="-mx-1 flex min-h-8 items-center gap-2 px-1 text-eyebrow text-muted"
       data-testid="marketplace-updates-line"
     >
-      <StatusDot aria-hidden="true" size="sm" tone="warning" />
+      <StatusDot aria-hidden="true" size="sm" tone="faint" />
       <b className="font-medium text-fg" data-testid="marketplace-updates-count">
         {label}
       </b>

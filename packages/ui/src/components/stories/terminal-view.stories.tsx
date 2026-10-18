@@ -72,7 +72,7 @@ function TerminalStage({
 }) {
   const handleRef = useSeededTerminal(payload);
   return (
-    <div className="flex h-[420px] w-full flex-col bg-terminal-bg font-mono text-[12.5px] leading-[1.5] tracking-[0.02em]">
+    <div className="flex h-[420px] w-full flex-col bg-terminal-bg font-mono text-meta leading-[1.5] tracking-[0.02em]">
       <TerminalView
         aria-label={label}
         className="px-3.5 pt-2.5 pb-3"

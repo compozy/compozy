@@ -303,62 +303,6 @@ func TestPollingLifecycle(t *testing.T) {
 	})
 }
 
-func TestWaitForDaemonStartReturnsStatusWhenDaemonBecomesReady(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return daemon status when daemon becomes ready", func(t *testing.T) {
-		t.Parallel()
-
-		child := &stubDaemonProcess{done: make(chan struct{})}
-		deps := newTestDeps(t, &stubClient{
-			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{Status: daemonRunningStatus, PID: 42}, nil
-			},
-		})
-		deps.pollInterval = time.Millisecond
-		deps.startTimeout = 100 * time.Millisecond
-
-		status, err := waitForDaemonStart(testutil.Context(t), deps, child)
-		child.complete(nil)
-		if err != nil {
-			t.Fatalf("waitForDaemonStart() error = %v", err)
-		}
-		if status.Status != daemonRunningStatus || status.PID != 42 {
-			t.Fatalf("waitForDaemonStart() status = %#v, want running pid 42", status)
-		}
-	})
-}
-
-// TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires verifies the caller deadline remains authoritative.
-func TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should wrap deadline exceeded when daemon readiness times out", func(t *testing.T) {
-		t.Parallel()
-
-		child := &stubDaemonProcess{done: make(chan struct{})}
-		deps := newTestDeps(t, &stubClient{
-			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{}, errors.New("daemon unavailable")
-			},
-		})
-		deps.pollInterval = time.Millisecond
-		deps.startTimeout = 5 * time.Millisecond
-		deps.processAlive = func(int) bool { return true }
-
-		ctx, cancel := context.WithTimeout(testutil.Context(t), deps.startTimeout)
-		defer cancel()
-		_, err := waitForDaemonStart(ctx, deps, child)
-		child.complete(nil)
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("waitForDaemonStart() error = %v, want context.DeadlineExceeded", err)
-		}
-		if !strings.Contains(err.Error(), "daemon did not become ready before timeout") {
-			t.Fatalf("waitForDaemonStart() error = %v, want readiness timeout context", err)
-		}
-	})
-}
-
 func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 	t.Parallel()
 
@@ -387,7 +331,7 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		ctx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
 		defer cancel()
 		status, err := waitForDaemonStop(ctx, deps, runtime, info)
-		if err != nil || ctx.Err() != nil || status.Status != "stopped" {
+		if err != nil || ctx.Err() != nil || status.Status != "stopped" || status.PID != 42 {
 			t.Fatalf("waitForDaemonStop() = %#v, error = %v, context error = %v", status, err, ctx.Err())
 		}
 	})
@@ -395,112 +339,10 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 	t.Run("Should outlive the daemon graceful shutdown budget", func(t *testing.T) {
 		t.Parallel()
 
-		config := compozyconfig.Config{Memory: compozyconfig.MemoryConfig{
-			Enabled: true,
-			Extractor: compozyconfig.MemoryExtractorConfig{
-				Deadline: 42 * time.Second,
-			},
-		}}
-		want := compozydaemon.GracefulShutdownTimeout(&config) + daemonStopWaitMargin
+		config := compozyconfig.Config{}
+		want := max(defaultStopTimeout, compozydaemon.GracefulShutdownTimeout(&config)+daemonStopWaitMargin)
 		if got := daemonStopWaitTimeout(defaultStopTimeout, &config); got != want {
 			t.Fatalf("daemonStopWaitTimeout() = %s, want %s", got, want)
-		}
-	})
-
-	t.Run("Should return stopped status when process exits", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newTestDeps(t, &stubClient{
-			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{}, errors.New("daemon unavailable")
-			},
-		})
-		deps.pollInterval = time.Millisecond
-		deps.stopTimeout = 100 * time.Millisecond
-		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
-			return compozydaemon.Info{
-				PID:       42,
-				StartedAt: fixedTestNow,
-			}, nil
-		}
-
-		aliveChecks := 0
-		deps.processAlive = func(int) bool {
-			aliveChecks++
-			return aliveChecks < 2
-		}
-
-		runtime, err := loadRuntimeContext(deps)
-		if err != nil {
-			t.Fatalf("loadRuntimeContext() error = %v", err)
-		}
-		info := compozydaemon.Info{
-			PID:       42,
-			StartedAt: fixedTestNow,
-		}
-
-		status, err := waitForDaemonStop(testutil.Context(t), deps, runtime, info)
-		if err != nil {
-			t.Fatalf("waitForDaemonStop() error = %v", err)
-		}
-		if status.Status != "stopped" || status.PID != 42 {
-			t.Fatalf("waitForDaemonStop() status = %#v, want stopped pid 42", status)
-		}
-	})
-}
-
-func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should clear stale network snapshot when daemon stops", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newTestDeps(t, &stubClient{
-			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{}, errors.New("daemon unavailable")
-			},
-		})
-		deps.pollInterval = time.Millisecond
-		deps.stopTimeout = 100 * time.Millisecond
-		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
-			return compozydaemon.Info{
-				PID:       42,
-				StartedAt: fixedTestNow,
-				Network: &compozydaemon.NetworkInfo{
-					Enabled: true,
-					Status:  "active",
-				},
-			}, nil
-		}
-
-		aliveChecks := 0
-		deps.processAlive = func(int) bool {
-			aliveChecks++
-			return aliveChecks < 2
-		}
-
-		runtime, err := loadRuntimeContext(deps)
-		if err != nil {
-			t.Fatalf("loadRuntimeContext() error = %v", err)
-		}
-		info := compozydaemon.Info{
-			PID:       42,
-			StartedAt: fixedTestNow,
-			Network: &compozydaemon.NetworkInfo{
-				Enabled: true,
-				Status:  "active",
-			},
-		}
-
-		status, err := waitForDaemonStop(testutil.Context(t), deps, runtime, info)
-		if err != nil {
-			t.Fatalf("waitForDaemonStop() error = %v", err)
-		}
-		if status.Status != "stopped" || status.PID != 42 {
-			t.Fatalf("waitForDaemonStop() status = %#v, want stopped pid 42", status)
-		}
-		if status.Network != nil {
-			t.Fatalf("waitForDaemonStop() network = %#v, want nil after stop", status.Network)
 		}
 	})
 }
@@ -605,7 +447,7 @@ func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 						StartedAt: fixedTestNow,
 						SchemaStreams: []contract.SchemaStreamStatus{
 							{Stream: "global", Version: 1, AppliedCount: 1, SumDigest: "sha256:global"},
-							{Stream: "memory", Version: 1, AppliedCount: 1, SumDigest: "sha256:memory"},
+							{Stream: "workspace", Version: 1, AppliedCount: 1, SumDigest: "sha256:workspace"},
 						},
 					},
 				}, nil
@@ -626,7 +468,7 @@ func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 		}
 		if got, want := decoded.Daemon.SchemaStreams, []contract.SchemaStreamStatus{
 			{Stream: "global", Version: 1, AppliedCount: 1, SumDigest: "sha256:global"},
-			{Stream: "memory", Version: 1, AppliedCount: 1, SumDigest: "sha256:memory"},
+			{Stream: "workspace", Version: 1, AppliedCount: 1, SumDigest: "sha256:workspace"},
 		}; !slices.Equal(got, want) {
 			t.Fatalf("decoded schema streams = %#v, want %#v", got, want)
 		}

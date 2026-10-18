@@ -11,7 +11,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-evaluate-compozy-beta
-  scenarios: [ET-site-docs-examples-wave-one, ET-site-marketplace-bridges-bundled]
+  scenarios: [ET-site-docs-examples-wave-one]
   tour: Feature Tour
   time_box_minutes: 30
   guidance:

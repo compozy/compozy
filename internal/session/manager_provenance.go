@@ -106,6 +106,11 @@ func (m *Manager) prepareSpawnedLineageReferences(
 		return nil, fmt.Errorf("session: validate root lineage %q: %w", rootID, err)
 	}
 
+	if lineage.SpawnRole == store.SubagentSpawnRole {
+		rebased := *lineage
+		rebased.RootSessionID = parent.ID
+		return &rebased, nil
+	}
 	governance, err := m.spawnGovernanceForParent(ctx, parent)
 	if err != nil {
 		return nil, err

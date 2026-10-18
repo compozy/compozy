@@ -16,8 +16,8 @@ type TerminalCreateRequest = contract.TerminalCreateRequest
 
 type TerminalExitRecord struct {
 	Cause  string    `json:"cause"`
-	Code   *int      `json:"code,omitempty"`
-	Signal *string   `json:"signal,omitempty"`
+	Code   *int      `json:"code,omitzero"`
+	Signal *string   `json:"signal,omitzero"`
 	At     time.Time `json:"at"`
 }
 
@@ -90,8 +90,7 @@ func (c *daemonClient) DeleteTerminal(
 	}
 	var exitSignal *string
 	if response.Exit.Signal != nil {
-		value := string(*response.Exit.Signal)
-		exitSignal = &value
+		exitSignal = new(string(*response.Exit.Signal))
 	}
 	return TerminalExitRecord{
 		Cause: string(response.Exit.Cause), Code: response.Exit.Code, Signal: exitSignal, At: response.Exit.At,

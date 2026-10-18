@@ -4,12 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+
+	"time"
+
+	"github.com/pelletier/go-toml/v2"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -21,6 +27,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -43,7 +50,7 @@ issuer_url = "https://login.example.test"
 client_id = "desktop"
 client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 `)
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -68,8 +75,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		}
 		for _, name := range []string{"repair-cloud", "new-cloud"} {
 			result, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-				Name:              name,
+				Collection: CollectionMCPServers,
+				Name:       name,
 				MCPServer: &compozyconfig.MCPServer{
 					Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.test/mcp",
 					Auth: compozyconfig.MCPAuthConfig{
@@ -110,7 +117,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -157,12 +164,10 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		)
 		pending := readFile(t, homePaths.ConfigFile)
 		put, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{
-				Collection: CollectionMCPServers,
-				Owner:      "extension:linear",
-			},
-			Name:      "linear",
-			MCPServer: &compozyconfig.MCPServer{URL: "https://extension.example/changed"},
+			Collection: CollectionMCPServers,
+			Owner:      "extension:linear",
+			Name:       "linear",
+			MCPServer:  &compozyconfig.MCPServer{URL: "https://extension.example/changed"},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -179,8 +184,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		reset, err := service.ApplyCollectionDelete(
 			ctx,
 			CollectionItemDeleteRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers, Owner: "extension:linear"},
-				Name:              "linear",
+				Collection: CollectionMCPServers, Owner: "extension:linear",
+				Name: "linear",
 			},
 		)
 		if err != nil || !reset.Applied || reset.RestartRequired || reset.MCPServer == nil ||
@@ -191,12 +196,10 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			t.Fatal("override reset changed config or did not clear the override")
 		}
 		_, err = service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{
-				Collection: CollectionMCPServers,
-				Owner:      "extension:linear",
-			},
-			Name:      "linear",
-			MCPServer: &compozyconfig.MCPServer{Command: "forbidden"},
+			Collection: CollectionMCPServers,
+			Owner:      "extension:linear",
+			Name:       "linear",
+			MCPServer:  &compozyconfig.MCPServer{Command: "forbidden"},
 		})
 		if !errors.Is(err, ErrValidation) || len(written) != 2 {
 			t.Fatalf("package field reached mutation: %v", err)
@@ -208,7 +211,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -225,7 +228,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		general := generalSettingsFromConfig(&cfg)
 		general.FollowUpMode = new("queue")
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general,
+			Section: SectionGeneral, General: &general,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -245,7 +248,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		general.FollowUpMode = nil
 		if _, err := service.UpdateSection(
 			ctx,
-			SectionUpdateRequest{SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general},
+			SectionUpdateRequest{Section: SectionGeneral, General: &general},
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -264,7 +267,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -279,17 +282,15 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		})
 		for _, request := range []SectionUpdateRequest{
 			{
-				SectionRequest: SectionRequest{Section: SectionPersona, Scope: ScopeUser},
+				Section: SectionPersona, Scope: ScopeUser,
 				Persona: &compozyconfig.DefaultsConfig{
-					Agent: "user-agent", Provider: "codex", Sandbox: "dev",
+					Agent: "user-agent", Provider: "codex",
 				},
 			},
 			{
-				SectionRequest: SectionRequest{
-					Section: SectionPersona, Scope: ScopeProfile, ProfileName: "marketing",
-				},
+				Section: SectionPersona, Scope: ScopeProfile, ProfileName: "marketing",
 				Persona: &compozyconfig.DefaultsConfig{
-					Agent: "profile-agent", Provider: "codex", Sandbox: "dev",
+					Agent: "profile-agent", Provider: "codex",
 				},
 			},
 		} {
@@ -325,7 +326,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -347,8 +348,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		cfg.Skills.DisabledSkills = []string{"alpha"}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
-			Skills:         &cfg.Skills,
+			Section: SectionSkills,
+			Skills:  &cfg.Skills,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(skills) error = %v", err)
@@ -388,16 +389,16 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 	t.Run("Should persist role routing as a live apply with history", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := db.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
+			if err := db.Close(context.Background()); err != nil {
+				t.Errorf("Close() error = %v", err)
 			}
 		})
 
@@ -409,13 +410,13 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		roles := cfg.Roles
-		roles.MemoryExtractor.Model = "anthropic/claude-sonnet-4"
-		roles.MemoryExtractor.Speed = "fast"
-		roles.MemoryExtractor.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		roles.AutoTitle.Model = "anthropic/claude-sonnet-4"
+		roles.AutoTitle.Speed = "fast"
+		roles.AutoTitle.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionRoles},
-			Roles:          &roles,
+			Section: SectionRoles,
+			Roles:   &roles,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(roles) error = %v", err)
@@ -425,46 +426,66 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			t.Fatalf("ApplySection(roles) = %#v, want applied live record", result)
 		}
 
+		var persistedTables map[string]any
+		if err := toml.Unmarshal([]byte(readFile(t, homePaths.ConfigFile)), &persistedTables); err != nil {
+			t.Fatalf("decode persisted config tables: %v", err)
+		}
+		roleTables, ok := persistedTables["roles"].(map[string]any)
+		if !ok {
+			t.Fatalf("persisted roles = %#v, want role tables", persistedTables["roles"])
+		}
+		if got, want := slices.Sorted(
+			maps.Keys(roleTables),
+		), []string{
+			"auto_title",
+			"coordinator",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("persisted role roster = %q, want %q", got, want)
+		}
+
 		persisted, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(persisted) error = %v", err)
 		}
-		if got, want := persisted.Roles.MemoryExtractor.Model, "anthropic/claude-sonnet-4"; got != want {
-			t.Fatalf("persisted roles.memory_extractor.model = %q, want %q", got, want)
+		if got, want := persisted.Roles.AutoTitle.Model, "anthropic/claude-sonnet-4"; got != want {
+			t.Fatalf("persisted roles.auto_title.model = %q, want %q", got, want)
 		}
-		if got, want := persisted.Roles.MemoryExtractor.Speed, speedpkg.SpeedFast; got != want {
-			t.Fatalf("persisted roles.memory_extractor.speed = %q, want %q", got, want)
+		if got, want := persisted.Roles.AutoTitle.Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("persisted roles.auto_title.speed = %q, want %q", got, want)
 		}
-		persistedOption := persisted.Roles.MemoryExtractor.ACPOptions
+		persistedOption := persisted.Roles.AutoTitle.ACPOptions
 		if len(persistedOption) != 1 || persistedOption[0].ID != "thinking" ||
 			persistedOption[0].BoolValue == nil || !*persistedOption[0].BoolValue {
-			t.Fatalf("persisted roles.memory_extractor.acp_options = %#v, want thinking=true", persistedOption)
+			t.Fatalf("persisted roles.auto_title.acp_options = %#v, want thinking=true", persistedOption)
 		}
 		active, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig() error = %v", err)
 		}
-		if active.Roles.MemoryExtractor.Model != persisted.Roles.MemoryExtractor.Model {
+		if active.Roles.AutoTitle.Model != persisted.Roles.AutoTitle.Model {
 			t.Fatalf(
-				"active roles.memory_extractor.model = %q, want persisted %q",
-				active.Roles.MemoryExtractor.Model,
-				persisted.Roles.MemoryExtractor.Model,
+				"active roles.auto_title.model = %q, want persisted %q",
+				active.Roles.AutoTitle.Model,
+				persisted.Roles.AutoTitle.Model,
 			)
 		}
-		active.Roles.MemoryExtractor.FallbackChain = append(
-			active.Roles.MemoryExtractor.FallbackChain,
+		active.Roles.AutoTitle.FallbackChain = append(
+			active.Roles.AutoTitle.FallbackChain,
 			compozyconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
 		)
-		active.RoleSources[compozyconfig.RoleMemoryExtractor]["model"] = "mutated"
+		active.RoleSources[compozyconfig.RoleAutoTitle]["model"] = "mutated"
 		isolated, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(after caller mutation) error = %v", err)
 		}
-		if slices.ContainsFunc(isolated.Roles.MemoryExtractor.FallbackChain, func(
+		if slices.ContainsFunc(isolated.Roles.AutoTitle.FallbackChain, func(
 			fallback compozyconfig.RoleFallback,
 		) bool {
 			return fallback.Provider == "mutated"
-		}) || isolated.RoleSources[compozyconfig.RoleMemoryExtractor]["model"] == "mutated" {
+		}) || isolated.RoleSources[compozyconfig.RoleAutoTitle]["model"] == "mutated" {
 			t.Fatalf("ActiveConfig() retained caller-owned role state: %#v", isolated)
 		}
 		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{})
@@ -484,7 +505,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		workspaceID := "ws-roles"
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -498,7 +519,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
 				workspaceID: {
-					Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot},
+					ID: workspaceID, RootDir: workspaceRoot,
 				},
 			}},
 		})
@@ -510,12 +531,11 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium", Speed: "fast",
 			ACPOptions: []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}},
+			Command:    "CODEX_HOME=/Users/ada/.codex-work codex acp",
 		}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{
-				Section: SectionRoles, Scope: ScopeWorkspace, WorkspaceID: workspaceID,
-			},
+			Section: SectionRoles, Scope: ScopeWorkspace, WorkspaceID: workspaceID,
 			Roles: &roles,
 		})
 		if err != nil {
@@ -550,13 +570,35 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		}
 	})
 
+	t.Run("Should list the fallback chain when only a route command changes", func(t *testing.T) { // UT-019
+		t.Parallel()
+
+		current := compozyconfig.DefaultRolesConfig()
+		current.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{Provider: "claude", Model: "haiku-4-5"}}
+		desired := compozyconfig.CloneRolesConfig(&current)
+		desired.AutoTitle.FallbackChain[0].Command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		if changed := diffRolesSettings(&current, &desired); !reflect.DeepEqual(
+			changed,
+			[]string{"roles.auto_title.fallback_chain"},
+		) {
+			t.Fatalf("diffRolesSettings() = %#v, want only roles.auto_title.fallback_chain", changed)
+		}
+		tables := roleFallbackTables(desired.AutoTitle.FallbackChain)
+		if len(tables) != 1 || tables[0]["command"] != desired.AutoTitle.FallbackChain[0].Command {
+			t.Fatalf("roleFallbackTables() = %#v, want the route command persisted", tables)
+		}
+		if _, persisted := roleFallbackTables(current.AutoTitle.FallbackChain)[0]["command"]; persisted {
+			t.Fatal("roleFallbackTables() persisted an empty inherit command")
+		}
+	})
+
 	t.Run("Should treat nil and empty role fallback chains as unchanged", func(t *testing.T) {
 		t.Parallel()
 
 		current := compozyconfig.DefaultRolesConfig()
 		desired := compozyconfig.CloneRolesConfig(&current)
-		desired.Dream.FallbackChain = make([]compozyconfig.RoleFallback, 0)
-		desired.MemoryController.FallbackChain = make([]compozyconfig.RoleFallback, 0)
+		desired.Coordinator.FallbackChain = make([]compozyconfig.RoleFallback, 0)
+		desired.AutoTitle.FallbackChain = make([]compozyconfig.RoleFallback, 0)
 		if changed := diffRolesSettings(&current, &desired); len(changed) != 0 {
 			t.Fatalf("diffRolesSettings() = %#v, want no changes", changed)
 		}
@@ -565,7 +607,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 	t.Run("Should return provider snapshots without shared nested state", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
@@ -643,7 +685,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "http")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -672,8 +714,8 @@ cost_reasoning_per_million = 30
 		desired := testWindowManagerConfig()
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionWindowManager},
-			WindowManager:  &desired,
+			Section:       SectionWindowManager,
+			WindowManager: &desired,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(window-manager) error = %v", err)
@@ -749,7 +791,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "uds")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -783,7 +825,7 @@ cost_reasoning_per_million = 30
 		}
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Section:                        SectionAttention,
 			Attention:                      &desired,
 			ReplaceAttentionWorkspaceMutes: true,
 		})
@@ -820,7 +862,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "uds")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -852,8 +894,8 @@ cost_reasoning_per_million = 30
 		}}
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionShell},
-			Shell:          &desired,
+			Section: SectionShell,
+			Shell:   &desired,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(shell) error = %v", err)
@@ -880,7 +922,7 @@ cost_reasoning_per_million = 30
 		const removedID = "ws_0123456789abcdef"
 		const retainedID = "ws_abcdef0123456789"
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -901,7 +943,7 @@ cost_reasoning_per_million = 30
 
 		desired := AttentionSettings{Toasts: true, Sound: true, MutedWorkspaces: []string{retainedID}}
 		if _, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Section:                        SectionAttention,
 			Attention:                      &desired,
 			ReplaceAttentionWorkspaceMutes: true,
 		}); err != nil {
@@ -934,7 +976,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "http")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -958,7 +1000,7 @@ cost_reasoning_per_million = 30
 			candidate := normalizeAttentionSettings(candidates[index])
 			writers.Go(func() {
 				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
-					SectionRequest:                 SectionRequest{Section: SectionAttention},
+					Section:                        SectionAttention,
 					Attention:                      &candidate,
 					ReplaceAttentionWorkspaceMutes: true,
 				})
@@ -989,7 +1031,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "http")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1028,7 +1070,7 @@ cost_reasoning_per_million = 30
 			aliases := cloneAliases(candidates[index].aliases)
 			writers.Go(func() {
 				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
-					SectionRequest:       SectionRequest{Section: SectionWindowManager},
+					Section:              SectionWindowManager,
 					WindowManager:        &windowManagerConfig,
 					WindowManagerAliases: &aliases,
 				})
@@ -1067,7 +1109,7 @@ cost_reasoning_per_million = 30
 			ctx := WithMutationSource(context.Background(), "http")
 			homePaths := testHomePaths(t)
 			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-			db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+			db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 			if err != nil {
 				t.Fatalf("OpenGlobalDB() error = %v", err)
 			}
@@ -1089,8 +1131,8 @@ cost_reasoning_per_million = 30
 			pendingGateway := initial.Gateway
 			pendingGateway.PrivatePort = 43210
 			pending, err := service.ApplySection(ctx, SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionGateway},
-				Gateway:        &pendingGateway,
+				Section: SectionGateway,
+				Gateway: &pendingGateway,
 			})
 			if err != nil {
 				t.Fatalf("ApplySection(pending gateway port) error = %v", err)
@@ -1105,8 +1147,8 @@ cost_reasoning_per_million = 30
 			}
 			desired.Gateway.Enabled = !initial.Gateway.Enabled
 			live, err := service.ApplySection(ctx, SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionGateway},
-				Gateway:        &desired.Gateway,
+				Section: SectionGateway,
+				Gateway: &desired.Gateway,
 			})
 			if err != nil {
 				t.Fatalf("ApplySection(gateway ceiling) error = %v", err)
@@ -1144,177 +1186,73 @@ cost_reasoning_per_million = 30
 			}
 		},
 	)
-
-	t.Run(
-		"Should preserve pending restart-required Network fields while applying availability live",
-		func(t *testing.T) {
-			t.Parallel()
-
-			ctx := WithMutationSource(context.Background(), "http")
-			homePaths := testHomePaths(t)
-			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-			db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
-			if err != nil {
-				t.Fatalf("OpenGlobalDB() error = %v", err)
-			}
-			t.Cleanup(func() {
-				if err := db.Close(ctx); err != nil {
-					t.Fatalf("Close() error = %v", err)
-				}
-			})
-
-			applier := &fakeConfigRuntimeApplier{}
-			service := testService(t, homePaths, Dependencies{
-				RuntimeApplier: applier,
-				ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
-			})
-			initialActive, err := service.ActiveConfig(ctx)
-			if err != nil {
-				t.Fatalf("ActiveConfig(initial) error = %v", err)
-			}
-
-			pendingNetwork := initialActive.Network
-			pendingNetwork.MaxReplayAge++
-			pending, err := service.ApplySection(ctx, SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionNetwork},
-				Network:        &pendingNetwork,
-			})
-			if err != nil {
-				t.Fatalf("ApplySection(pending Network config) error = %v", err)
-			}
-			if pending.Applied || !pending.RestartRequired || pending.Record.Status != lifecycle.StatusBlocked {
-				t.Fatalf("pending Network apply = %#v, want blocked restart-required result", pending)
-			}
-
-			desired, err := compozyconfig.LoadForHome(homePaths)
-			if err != nil {
-				t.Fatalf("LoadForHome(pending) error = %v", err)
-			}
-			desired.Network.Enabled = !initialActive.Network.Enabled
-			live, err := service.ApplySection(ctx, SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionNetwork},
-				Network:        &desired.Network,
-			})
-			if err != nil {
-				t.Fatalf("ApplySection(Network availability) error = %v", err)
-			}
-			if !live.Applied || live.RestartRequired || live.Record.Lifecycle != lifecycle.Live {
-				t.Fatalf("Network availability apply = %#v, want live applied result", live)
-			}
-			if live.Record.DesiredHash == live.Record.ActiveHash {
-				t.Fatalf(
-					"Network hashes = desired %q active %q, want pending restart drift",
-					live.Record.DesiredHash,
-					live.Record.ActiveHash,
-				)
-			}
-			if got, want := applier.calls, 1; got != want {
-				t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
-			}
-			if got, want := len(applier.snapshots), 1; got != want {
-				t.Fatalf("runtime snapshots = %d, want %d", got, want)
-			}
-			runtimeNetwork := applier.snapshots[0].Network
-			if runtimeNetwork.Enabled == initialActive.Network.Enabled {
-				t.Fatalf("runtime Network enabled = %t, want toggled value", runtimeNetwork.Enabled)
-			}
-			if runtimeNetwork.MaxReplayAge != initialActive.Network.MaxReplayAge {
-				t.Fatalf(
-					"runtime Network max replay age = %d, want prior active %d",
-					runtimeNetwork.MaxReplayAge,
-					initialActive.Network.MaxReplayAge,
-				)
-			}
-
-			active, err := service.ActiveConfig(ctx)
-			if err != nil {
-				t.Fatalf("ActiveConfig(after live toggle) error = %v", err)
-			}
-			if active.Network != runtimeNetwork {
-				t.Fatalf("active Network = %#v, want runtime projection %#v", active.Network, runtimeNetwork)
-			}
-			desired, err = compozyconfig.LoadForHome(homePaths)
-			if err != nil {
-				t.Fatalf("LoadForHome(after live toggle) error = %v", err)
-			}
-			if desired.Network.MaxReplayAge != pendingNetwork.MaxReplayAge {
-				t.Fatalf(
-					"desired Network max replay age = %d, want pending %d",
-					desired.Network.MaxReplayAge,
-					pendingNetwork.MaxReplayAge,
-				)
-			}
-			reload, err := service.Reload(ctx)
-			if err != nil {
-				t.Fatalf("Reload() error = %v", err)
-			}
-			if reload.Applied || !reload.RestartRequired || reload.Record.Status != lifecycle.StatusBlocked {
-				t.Fatalf("Reload() = %#v, want pending restart-required result", reload)
-			}
-		},
-	)
-
-	t.Run("Should apply Network availability from a mixed restart-required update", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := WithMutationSource(context.Background(), "http")
-		homePaths := testHomePaths(t)
-		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := db.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
-			}
-		})
-
-		applier := &fakeConfigRuntimeApplier{}
-		service := testService(t, homePaths, Dependencies{
-			RuntimeApplier: applier,
-			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
-		})
-		initial, err := service.ActiveConfig(ctx)
-		if err != nil {
-			t.Fatalf("ActiveConfig(initial) error = %v", err)
-		}
-		desired := initial.Network
-		desired.Enabled = !initial.Network.Enabled
-		desired.MaxReplayAge++
-
-		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionNetwork},
-			Network:        &desired,
-		})
-		if err != nil {
-			t.Fatalf("ApplySection(mixed Network) error = %v", err)
-		}
-		if result.Applied || !result.RestartRequired || result.Record.Status != lifecycle.StatusBlocked {
-			t.Fatalf("ApplySection(mixed Network) = %#v, want remaining restart-required drift", result)
-		}
-		if got, want := applier.calls, 1; got != want {
-			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
-		}
-		active, err := service.ActiveConfig(ctx)
-		if err != nil {
-			t.Fatalf("ActiveConfig(after mixed update) error = %v", err)
-		}
-		if active.Network.Enabled != desired.Enabled {
-			t.Fatalf("active network.enabled = %t, want %t", active.Network.Enabled, desired.Enabled)
-		}
-		if active.Network.MaxReplayAge != initial.Network.MaxReplayAge {
-			t.Fatalf(
-				"active network.max_replay_age = %d, want prior active %d",
-				active.Network.MaxReplayAge,
-				initial.Network.MaxReplayAge,
-			)
-		}
-	})
 }
 
 func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: a scoped restart requirement survives unrelated live writes until daemon boot.
+	// Owner: Settings config-apply coordinator; canonical suite: this real-repository lifecycle suite.
+	t.Run("Should retain profile restart requirements until a new runtime starts", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		deps := Dependencies{ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil)}
+		svc := testService(t, homePaths, deps)
+		initial, err := svc.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		skills := initial.Skills
+		skills.PollInterval += time.Second
+		pending, err := svc.ApplySection(ctx, SectionUpdateRequest{
+			Section: SectionSkills, Scope: ScopeProfile, ProfileName: "marketing",
+			Skills: &skills,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pending.Record.WriteTarget != WriteTargetProfileConfig || !pending.RestartRequired ||
+			pending.Record.DesiredHash != pending.Record.ActiveHash {
+			t.Fatalf("profile change should require restart without global hash drift: %#v", pending)
+		}
+		if required, err := svc.HasPendingConfigRestart(ctx); err != nil || !required {
+			t.Fatalf("profile restart requirement = %t, error = %v", required, err)
+		}
+		live, err := svc.ApplySection(ctx, SectionUpdateRequest{
+			Section: SectionShell, Scope: ScopeUser,
+			Shell: &compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+				Sort:  compozyconfig.ShellSessionSortAttention,
+				Scope: compozyconfig.ShellSessionScopeAllWorkspaces,
+			}},
+		})
+		if err != nil || !live.Applied || live.RestartRequired {
+			t.Fatalf("unrelated live write = %#v, error = %v", live, err)
+		}
+		if required, err := svc.HasPendingConfigRestart(ctx); err != nil || !required {
+			t.Fatalf("live write lost profile restart requirement: %t, error = %v", required, err)
+		}
+		restarted := testService(t, homePaths, deps)
+		if required, err := restarted.HasPendingConfigRestart(ctx); err != nil || required {
+			t.Fatalf("new runtime retained an applied profile restart requirement: %t, error = %v", required, err)
+		}
+		section, err := restarted.GetSection(ctx, SectionRequest{
+			Section: SectionSkills, Scope: ScopeProfile, ProfileName: "marketing",
+		})
+		if err != nil || section.Skills == nil || section.Skills.Config.PollInterval != skills.PollInterval {
+			t.Fatalf("profile value did not survive new runtime: %#v, error = %v", section, err)
+		}
+	})
 
 	t.Run("Should persist blocked record for restart-required change", func(t *testing.T) {
 		t.Parallel()
@@ -1322,7 +1260,7 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1350,8 +1288,8 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 		general.HTTP.Port = 2124
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionGeneral},
-			General:        &general,
+			Section: SectionGeneral,
+			General: &general,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(general) error = %v", err)
@@ -1394,7 +1332,7 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1411,8 +1349,8 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
+				Collection: CollectionProviders,
+				Name:       "codex",
 				Provider: &ProviderSettings{
 					Command: "codex-browser",
 				},
@@ -1442,37 +1380,10 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should project five-rate catalog metadata through provider settings", func(t *testing.T) {
-		t.Parallel()
-
-		service, _, _, _ := providerModelCurationTestService(t)
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
-			Collection: CollectionProviders,
-		})
-		if err != nil {
-			t.Fatalf("ListCollection(providers) error = %v", err)
-		}
-		provider := mustFindProviderItem(t, envelope.Providers, "codex")
-		var model *compozyconfig.ProviderModelConfig
-		for index := range provider.Settings.Models.Curated {
-			if provider.Settings.Models.Curated[index].ID == "gpt-5.6-sol" {
-				model = &provider.Settings.Models.Curated[index]
-				break
-			}
-		}
-		if model == nil || model.CostInputPerMillion == nil || *model.CostInputPerMillion != 5 ||
-			model.CostOutputPerMillion == nil || *model.CostOutputPerMillion != 30 ||
-			model.CostCacheReadPerMillion == nil || *model.CostCacheReadPerMillion != 0.5 ||
-			model.CostCacheWritePerMillion == nil || *model.CostCacheWritePerMillion != 6 ||
-			model.CostReasoningPerMillion == nil || *model.CostReasoningPerMillion != 30 {
-			t.Fatalf("provider settings five-rate catalog metadata = %#v", model)
-		}
-	})
-
 	t.Run("Should persist explicit five-rate changes without catalog defaults", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		service, homePaths, catalog, _ := providerModelCurationTestService(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
@@ -1497,6 +1408,26 @@ default_reasoning_effort = "high"
 		if err != nil {
 			t.Fatalf("ListCollection(providers) error = %v", err)
 		}
+		provider := mustFindProviderItem(t, envelope.Providers, "codex")
+		var projectedModel *compozyconfig.ProviderModelConfig
+		for index := range provider.Settings.Models.Curated {
+			if provider.Settings.Models.Curated[index].ID == "gpt-5.6-sol" {
+				projectedModel = &provider.Settings.Models.Curated[index]
+				break
+			}
+		}
+		if projectedModel == nil || projectedModel.CostInputPerMillion == nil ||
+			*projectedModel.CostInputPerMillion != 5 ||
+			projectedModel.CostOutputPerMillion == nil ||
+			*projectedModel.CostOutputPerMillion != 30 ||
+			projectedModel.CostCacheReadPerMillion == nil ||
+			*projectedModel.CostCacheReadPerMillion != 0.5 ||
+			projectedModel.CostCacheWritePerMillion == nil ||
+			*projectedModel.CostCacheWritePerMillion != 6 ||
+			projectedModel.CostReasoningPerMillion == nil ||
+			*projectedModel.CostReasoningPerMillion != 30 {
+			t.Fatalf("provider settings five-rate catalog metadata = %#v", projectedModel)
+		}
 		settings := mustFindProviderItem(t, envelope.Providers, "codex").Settings
 		settings.ModelsSet = true
 		model := requireConfiguredProviderModel(t, settings.Models.Curated, "gpt-5.6-luna")
@@ -1520,9 +1451,9 @@ default_reasoning_effort = "high"
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
-				Provider:          &settings,
+				Collection: CollectionProviders,
+				Name:       "codex",
+				Provider:   &settings,
 			},
 		)
 		if err != nil {
@@ -1552,7 +1483,7 @@ default_reasoning_effort = "high"
 	t.Run("Should reject negative provider model pricing without mutating config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		service, homePaths, _, _ := providerModelCurationTestService(t)
 		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
 		if err != nil {
@@ -1570,9 +1501,9 @@ default_reasoning_effort = "high"
 		_, err = service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
-				Provider:          &settings,
+				Collection: CollectionProviders,
+				Name:       "codex",
+				Provider:   &settings,
 			},
 		)
 		if err == nil {
@@ -1592,7 +1523,7 @@ default_reasoning_effort = "high"
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1622,9 +1553,9 @@ default_reasoning_effort = "high"
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "claude",
-				Provider:          &settings,
+				Collection: CollectionProviders,
+				Name:       "claude",
+				Provider:   &settings,
 			},
 		)
 		if err != nil {
@@ -1664,7 +1595,7 @@ default_reasoning_effort = "high"
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1685,8 +1616,8 @@ default_reasoning_effort = "high"
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
+				Collection: CollectionProviders,
+				Name:       "codex",
 				Provider: &ProviderSettings{
 					ModelsSet: true,
 					Models: compozyconfig.ProviderModelsConfig{
@@ -1747,7 +1678,7 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1768,7 +1699,7 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 		}
 		cfg.Extensions.Trust.AllowUnverified = false
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest:  SectionRequest{Section: SectionHooksExtensions},
+			Section:         SectionHooksExtensions,
 			HooksExtensions: &cfg.Extensions,
 		})
 		if err != nil {
@@ -1998,7 +1929,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 		defaultEffort := modelcatalog.ReasoningEffortMax
 		defaultSpeed := speedpkg.SpeedFast
 		result, err := service.ApplyProviderModelCuration(
-			WithMutationSource(context.Background(), "cli"),
+			WithMutationSource(t.Context(), "cli"),
 			ProviderModelCurationRequest{
 				ProviderID:             "codex",
 				ModelID:                "gpt-5.6-sol",
@@ -2119,7 +2050,7 @@ featured = true
 `)
 		hidden := true
 		if _, err := service.ApplyProviderModelCuration(
-			WithMutationSource(context.Background(), "cli"),
+			WithMutationSource(t.Context(), "cli"),
 			ProviderModelCurationRequest{
 				ProviderID: "codex",
 				ModelID:    "gpt-5.6-sol",
@@ -2162,7 +2093,7 @@ featured = true
 	t.Run("Should preserve pending restart-required provider fields while applying models live", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := WithMutationSource(context.Background(), "cli")
+		ctx := WithMutationSource(t.Context(), "cli")
 		service, homePaths, _, applier := providerModelCurationTestService(t)
 		initialActive, err := service.ActiveConfig(ctx)
 		if err != nil {
@@ -2175,9 +2106,9 @@ featured = true
 
 		const pendingCommand = "codex-pending-restart"
 		pending, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "codex",
-			Provider:          &ProviderSettings{Command: pendingCommand},
+			Collection: CollectionProviders,
+			Name:       "codex",
+			Provider:   &ProviderSettings{Command: pendingCommand},
 		})
 		if err != nil {
 			t.Fatalf("ApplyCollectionItem(pending command) error = %v", err)
@@ -2266,7 +2197,7 @@ featured = true
 
 		service, homePaths, _, applier := providerModelCurationTestService(t)
 		before := readFile(t, homePaths.ConfigFile)
-		_, err := service.ApplyProviderModelCuration(context.Background(), ProviderModelCurationRequest{
+		_, err := service.ApplyProviderModelCuration(t.Context(), ProviderModelCurationRequest{
 			ProviderID: "codex",
 			ModelID:    "gpt-sol",
 		})
@@ -2291,7 +2222,7 @@ featured = true
 		service, homePaths, _, applier := providerModelCurationTestService(t)
 		before := readFile(t, homePaths.ConfigFile)
 		unsupported := modelcatalog.ReasoningEffortMinimal
-		_, err := service.ApplyProviderModelCuration(context.Background(), ProviderModelCurationRequest{
+		_, err := service.ApplyProviderModelCuration(t.Context(), ProviderModelCurationRequest{
 			ProviderID:             "codex",
 			ModelID:                "gpt-5.6-sol",
 			DefaultReasoningEffort: &unsupported,
@@ -2335,7 +2266,7 @@ func TestConfigApplyServiceReloadClassifiesUnknownPathsConservatively(t *testing
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2396,7 +2327,7 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2417,8 +2348,8 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		}
 		cfg.Skills.DisabledSkills = []string{"alpha"}
 		applied, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
-			Skills:         &cfg.Skills,
+			Section: SectionSkills,
+			Skills:  &cfg.Skills,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(skills) error = %v", err)
@@ -2434,8 +2365,8 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		automation := automationSettingsFromConfig(&cfg)
 		automation.Enabled = false
 		blocked, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionAutomation},
-			Automation:     &automation,
+			Section:    SectionAutomation,
+			Automation: &automation,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(automation) error = %v", err)
@@ -2499,7 +2430,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2525,8 +2456,8 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 			t.Fatal(err)
 		}
 		desired := cfg.WindowManager
-		desired.Gaps.Inner = 0
-		request := SectionUpdateRequest{SectionRequest: SectionRequest{Section: SectionWindowManager},
+		desired.Gaps.Inner = 6
+		request := SectionUpdateRequest{Section: SectionWindowManager,
 			WindowManager: &desired, WindowManagerPreserveShortcuts: true}
 		failed, err := service.ApplySection(ctx, request)
 		if err != nil {
@@ -2539,13 +2470,13 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if persisted.WindowManager.Gaps.Inner != 0 {
-			t.Fatal("failed runtime apply lost persisted zero")
+		if persisted.WindowManager.Gaps.Inner != 6 {
+			t.Fatal("failed runtime apply lost the persisted gap")
 		}
 		general := generalSettingsFromConfig(&persisted)
 		general.HTTP.Port++
 		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general,
+			Section: SectionGeneral, General: &general,
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -2558,7 +2489,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 			t.Fatalf("retry skipped pending runtime apply: %#v, calls = %d", retried, applier.calls)
 		}
 		active := applier.snapshots[1]
-		if active.WindowManager.Gaps.Inner != 0 || active.HTTP.Port != cfg.HTTP.Port {
+		if active.WindowManager.Gaps.Inner != 6 || active.HTTP.Port != cfg.HTTP.Port {
 			t.Fatalf(
 				"retry applied the wrong projection: gaps=%#v port=%d",
 				active.WindowManager.Gaps,
@@ -2580,7 +2511,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2617,8 +2548,8 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		cfg.Skills.DisabledSkills = []string{"alpha"}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
-			Skills:         &cfg.Skills,
+			Section: SectionSkills,
+			Skills:  &cfg.Skills,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(skills) error = %v", err)
@@ -2656,7 +2587,7 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2671,7 +2602,7 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 		})
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "cli"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
+			Section: SectionSkills,
 		})
 		if err == nil {
 			t.Fatal("ApplySection(skills nil payload) error = nil, want validation error")
@@ -2733,8 +2664,7 @@ func (a *providerModelCurationRuntimeApplier) ApplyActiveConfig(
 			}
 			models[index].Curated = !models[index].Hidden && !models[index].Deprecated
 			if curated.DefaultReasoningEffort != "" {
-				effort := modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort)
-				models[index].DefaultReasoningEffort = &effort
+				models[index].DefaultReasoningEffort = new(modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort))
 			}
 			if curated.CostInputPerMillion != nil {
 				models[index].CostInputPerMillion = cloneFloat64Ptr(curated.CostInputPerMillion)
@@ -2799,7 +2729,7 @@ func providerModelCurationTestService(
 	ctx := context.Background()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -2869,4 +2799,49 @@ func (f *fakeConfigRuntimeApplier) ApplyActiveConfig(
 		f.snapshots = append(f.snapshots, cloneActiveConfig(cfg))
 	}
 	return append([]ApplyFailure(nil), f.failures...)
+}
+
+// Settings assertions own config-apply behavior, not migration replay. Each
+// service still gets an isolated writable database copied from the closed seed.
+var (
+	settingsTestGlobalSeed     *globalseed.Seed
+	settingsTestGlobalSeedErr  error
+	settingsTestGlobalSeedOnce sync.Once
+)
+
+func TestMain(m *testing.M) {
+	os.Exit(runSettingsTests(m))
+}
+
+func runSettingsTests(m *testing.M) (code int) {
+	defer func() {
+		if err := settingsTestGlobalSeed.Close(); err != nil {
+			reportSettingsTestMainError("close global seed: %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+	return m.Run()
+}
+
+func reportSettingsTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, "settings tests: "+format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
+
+func openSettingsTestGlobalDB(ctx context.Context, t *testing.T, path string) (*globaldb.GlobalDB, error) {
+	t.Helper()
+	// Lazy setup keeps the MCP stdio helper subprocess free of database state.
+	settingsTestGlobalSeedOnce.Do(func() {
+		settingsTestGlobalSeed, settingsTestGlobalSeedErr = globalseed.New(context.Background())
+	})
+	if settingsTestGlobalSeedErr != nil {
+		return nil, fmt.Errorf("create settings global store seed: %w", settingsTestGlobalSeedErr)
+	}
+	if err := settingsTestGlobalSeed.Clone(path); err != nil {
+		return nil, fmt.Errorf("clone settings global store seed: %w", err)
+	}
+	return globaldb.OpenGlobalDB(ctx, path)
 }

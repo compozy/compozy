@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 
@@ -316,10 +317,7 @@ func (e *OverlayEditor) Bytes() ([]byte, error) {
 }
 
 func newOverlayEditor(path string, contents []byte) (*OverlayEditor, error) {
-	source := strings.TrimSpace(path)
-	if source == "" {
-		source = ConfigName
-	}
+	source := cmp.Or(strings.TrimSpace(path), ConfigName)
 	if _, err := parseOverlayDocument(contents); err != nil {
 		return nil, fmt.Errorf("config: parse config overlay %q: %w", source, err)
 	}

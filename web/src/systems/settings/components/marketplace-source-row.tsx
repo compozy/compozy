@@ -123,7 +123,7 @@ function MarketplaceSourceSummary({
             "transition-transform duration-base group-data-panel-open/marketplace-source:rotate-0"
           )}
         />
-        <span className="truncate text-sm text-fg">{source.name}</span>
+        <span className="truncate text-body text-fg">{source.name}</span>
         {source.kind === "custom" ? (
           <Pill data-testid={`${testId}-custom`} form="hollow" size="xs">
             custom
@@ -241,7 +241,7 @@ function MarketplaceSourceActions({
           type="button"
           variant="ghost"
         >
-          <RefreshCw aria-hidden="true" className="size-3" />
+          <RefreshCw aria-hidden="true" />
           {degraded ? "Try again" : "Refresh now"}
         </Button>
       ) : null}

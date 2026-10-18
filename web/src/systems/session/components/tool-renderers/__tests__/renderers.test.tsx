@@ -137,6 +137,14 @@ describe("ReadContent", () => {
   });
 });
 
+/** Each rendered diff line as `[kind, text]`, in order. */
+function diffLines(): Array<[string | null, string]> {
+  return [...document.querySelectorAll('[data-slot="diff-card-line"]')].map(line => [
+    line.getAttribute("data-kind"),
+    line.lastElementChild?.textContent ?? "",
+  ]);
+}
+
 describe("WriteContent", () => {
   it("renders file path and content preview", () => {
     render(
@@ -148,12 +156,12 @@ describe("WriteContent", () => {
       />
     );
     expect(screen.getByText("/out.txt")).toBeInTheDocument();
-    // Written content renders as `+ `-prefixed success text lines.
-    expect(screen.getByText(/\+ hello world/)).toBeInTheDocument();
+    // Written content renders as added lines in the diff card.
+    expect(diffLines()).toEqual([["add", "hello world"]]);
   });
 
-  it("truncates long content", () => {
-    const longContent = "a".repeat(2500);
+  it("collapses long content to its first lines until the reader opens the rest", () => {
+    const longContent = Array.from({ length: 40 }, (_, index) => `line ${index + 1}`).join("\n");
     render(
       <WriteContent
         message={makeMessage({
@@ -162,8 +170,9 @@ describe("WriteContent", () => {
         })}
       />
     );
-    const pre = screen.getByText(/a+\u2026/);
-    expect(pre).toBeInTheDocument();
+    expect(diffLines()).toHaveLength(12);
+    fireEvent.click(screen.getByRole("button", { name: "Show full diff (40 lines)" }));
+    expect(diffLines()).toHaveLength(40);
   });
 });
 
@@ -182,8 +191,35 @@ describe("EditContent", () => {
       />
     );
     expect(screen.getByText("/src/app.ts")).toBeInTheDocument();
-    expect(screen.getByText("- const x = 1;")).toBeInTheDocument();
-    expect(screen.getByText("+ const x = 2;")).toBeInTheDocument();
+    expect(diffLines()).toEqual([
+      ["del", "const x = 1;"],
+      ["add", "const x = 2;"],
+    ]);
+    expect(document.querySelector('[data-slot="diff-card-stat"]')).toHaveTextContent("+1−1");
+  });
+
+  it("opens the collapsed diff just above its first change", () => {
+    const context = Array.from({ length: 20 }, (_, index) => `keep ${index + 1}`).join("\n");
+    render(
+      <EditContent
+        message={makeMessage({
+          toolName: "Edit",
+          toolInput: {
+            file_path: "/src/long.ts",
+            old_string: `${context}\nconst x = 1;`,
+            new_string: `${context}\nconst x = 2;`,
+          },
+        })}
+      />
+    );
+    // Twenty unchanged lines precede the change; the dozen shown still ends on it.
+    const shown = diffLines();
+    expect(shown).toHaveLength(12);
+    expect(shown.slice(-2)).toEqual([
+      ["del", "const x = 1;"],
+      ["add", "const x = 2;"],
+    ]);
+    expect(screen.getByRole("button", { name: "Show full diff (22 lines)" })).toBeInTheDocument();
   });
 
   it("renders only new string when no old string", () => {
@@ -198,7 +234,7 @@ describe("EditContent", () => {
         })}
       />
     );
-    expect(screen.getByText("+ export const y = 3;")).toBeInTheDocument();
+    expect(diffLines()).toEqual([["add", "export const y = 3;"]]);
   });
 });
 
@@ -218,6 +254,28 @@ describe("SearchContent", () => {
     expect(screen.getByText("src/a.ts")).toBeInTheDocument();
     expect(screen.getByText("src/b.ts")).toBeInTheDocument();
     expect(screen.getByText("src/c.ts")).toBeInTheDocument();
+  });
+
+  it("names the glob as the search scope, else the shortened path", () => {
+    const { rerender } = render(
+      <SearchContent
+        message={makeMessage({
+          toolName: "Grep",
+          toolInput: { pattern: "TODO", glob: "*.ts", path: "/repo/web/src/systems" },
+        })}
+      />
+    );
+    expect(screen.getByText("in *.ts")).toBeInTheDocument();
+
+    rerender(
+      <SearchContent
+        message={makeMessage({
+          toolName: "Grep",
+          toolInput: { pattern: "TODO", path: "/repo/web/src/systems" },
+        })}
+      />
+    );
+    expect(screen.getByText("in web/src/systems")).toBeInTheDocument();
   });
 
   it("shows 'No matches' when result exists but empty", () => {

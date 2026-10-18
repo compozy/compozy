@@ -10,7 +10,6 @@ export const sessionContextFixture: SessionContextPayload = {
   size: 256_000,
   ratio: 89_700 / 256_000,
   size_source: "agent",
-  pressure_threshold: 0.85,
   sequence: 412,
   reported_at: "2026-09-12T10:00:00Z",
   reported_turn_id: "turn-12",
@@ -137,25 +136,82 @@ export const sessionContextTurnsFixture: SessionUsageTurnsResponse = {
       sequence: 50,
       turn_id: "turn-2",
       at: "2026-09-12T09:20:00Z",
+      compaction_id: "compaction-1",
+      trigger: "agent",
+      status: "completed",
       context_used: 217_600,
       context_size: 256_000,
-      pressure: 0.85,
-      from_sequence: 1,
-      to_sequence: 40,
-      span_archived: true,
-      strategy: "replay",
     },
     {
       sequence: 80,
       turn_id: "turn-4",
       at: "2026-09-12T09:50:00Z",
+      compaction_id: "compaction-2",
+      trigger: "requested",
+      status: "completed",
       context_used: 225_280,
       context_size: 256_000,
-      pressure: 0.88,
-      from_sequence: 41,
-      to_sequence: 77,
-      span_archived: false,
-      strategy: "replay",
     },
   ],
 };
+
+type UsageTurn = SessionUsageTurnsResponse["turns"][number];
+type UsageCompaction = SessionUsageTurnsResponse["compactions"][number];
+
+const compactionStatuses = [
+  "in_progress",
+  "completed",
+  "failed",
+  "cancelled",
+  // A vendor value the daemon passes through verbatim.
+  "compaction_paused",
+] as const;
+
+function contextTurn(id: string, sequence: number, used: number): UsageTurn {
+  return {
+    turn_id: id,
+    sequence,
+    usage: {
+      sequence,
+      timestamp: "2026-09-12T09:00:00Z",
+      context_used: used,
+      context_size: 256_000,
+    },
+  };
+}
+
+/**
+ * Every compaction marker state: agent and requested triggers across each status.
+ * Each marker carries the occupancy it was observed at (the in-progress request has none);
+ * agent markers also carry the daemon's first post-compaction reading (`context_after`),
+ * requested ones stop at the reading they were observed at.
+ */
+export const sessionContextCompactionStatesFixture: SessionUsageTurnsResponse = (() => {
+  const turns: UsageTurn[] = [];
+  const compactions: UsageCompaction[] = [];
+  compactionStatuses.forEach((status, statusIndex) => {
+    (["agent", "requested"] as const).forEach((trigger, triggerIndex) => {
+      const base = (statusIndex * 2 + triggerIndex + 1) * 100;
+      const turnId = `turn-${base}`;
+      const observed = trigger === "requested" && status === "in_progress" ? undefined : 200_000;
+      // Only an ended agent compaction has a reading after it; the daemon omits it until then.
+      const ended = status === "completed" || status === "failed" || status === "cancelled";
+      turns.push(contextTurn(turnId, base + 10, 200_000));
+      compactions.push({
+        sequence: base + 20,
+        turn_id: turnId,
+        at: "2026-09-12T09:20:00Z",
+        compaction_id: `compaction-${trigger}-${status}`,
+        trigger,
+        status,
+        context_used: observed,
+        context_size: observed == null ? undefined : 256_000,
+        context_after:
+          trigger === "agent" && ended
+            ? { used: 41_000, size: 256_000, sequence: base + 40 }
+            : undefined,
+      });
+    });
+  });
+  return { turns, compactions };
+})();

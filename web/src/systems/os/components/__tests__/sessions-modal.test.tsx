@@ -4,14 +4,16 @@
 // Boundary OUT: session catalog transport and full browser window journeys.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  SessionLifecycleActionHandlers,
-  SessionListViewModel,
-  SessionPayload,
+import {
+  SessionDeriveContext,
+  SessionForkContext,
+  type SessionLifecycleActionHandlers,
+  type SessionListViewModel,
+  type SessionPayload,
 } from "@/systems/session";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
@@ -87,6 +89,18 @@ function listView(overrides: Partial<SessionListViewModel> = {}): SessionListVie
   };
 }
 
+/** The app root provides a QueryClient to every SessionList host; the test host does too. */
+function TestShell({ value, children }: { value: OsShellHandle; children: ReactNode }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  );
+  return (
+    <QueryClientProvider client={client}>
+      <OsShellContext.Provider value={value}>{children}</OsShellContext.Provider>
+    </QueryClientProvider>
+  );
+}
+
 const managers: WindowManagerRuntime[] = [];
 
 function createShell(): OsShellHandle {
@@ -106,7 +120,7 @@ function renderModal(
   sessions: readonly SessionPayload[] = SESSIONS
 ) {
   return render(
-    <OsShellContext.Provider value={shell}>
+    <TestShell value={shell}>
       <OsSessionsModal
         open={open}
         onOpenChange={() => {}}
@@ -116,7 +130,7 @@ function renderModal(
         onNewSession={onNewSession}
         sessionActions={SESSION_ACTIONS}
       />
-    </OsShellContext.Provider>
+    </TestShell>
   );
 }
 
@@ -131,7 +145,7 @@ describe("OsSessionsModal", () => {
     const onOpenChange = vi.fn();
     const onDeleteMany = vi.fn();
     render(
-      <OsShellContext.Provider value={createShell()}>
+      <TestShell value={createShell()}>
         <OsSessionsModal
           open
           onOpenChange={onOpenChange}
@@ -141,7 +155,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={{ ...SESSION_ACTIONS, onDeleteMany }}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
     const row = screen.getByTestId("os-sessions-modal-session-session-1");
     fireEvent.click(row, { metaKey: true });
@@ -213,13 +227,11 @@ describe("OsSessionsModal", () => {
           skills: [],
           mcp_servers: [],
           workspace_paths: [],
-          network_channels: [],
-          sandbox_profiles: [],
         },
       },
     });
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={() => {}}
@@ -229,7 +241,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     const [thread] = screen.getAllByTestId("os-sessions-modal-thread-session-1");
@@ -272,8 +284,6 @@ describe("OsSessionsModal", () => {
           skills: [],
           mcp_servers: [],
           workspace_paths: [],
-          network_channels: [],
-          sandbox_profiles: [],
         },
       },
     });
@@ -293,13 +303,11 @@ describe("OsSessionsModal", () => {
           skills: [],
           mcp_servers: [],
           workspace_paths: [],
-          network_channels: [],
-          sandbox_profiles: [],
         },
       },
     });
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={() => {}}
@@ -309,7 +317,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     const filter = screen.getByRole("searchbox", { name: "Filter sessions" });
@@ -365,7 +373,7 @@ describe("OsSessionsModal", () => {
     const first = renderModal(shell, true, narrow);
 
     const toggle = screen.getByTestId("os-sessions-modal-scope");
-    expect(toggle).toHaveAccessibleName("All workspaces");
+    expect(toggle).toHaveAccessibleName("All projects");
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await user.click(toggle);
     expect(narrow.setScope).toHaveBeenCalledWith("all-workspaces");
@@ -399,7 +407,7 @@ describe("OsSessionsModal", () => {
     function Harness() {
       const [open, setOpen] = useState(false);
       return (
-        <OsShellContext.Provider value={shell}>
+        <TestShell value={shell}>
           <button type="button" onClick={() => setOpen(true)}>
             Open sessions
           </button>
@@ -412,7 +420,7 @@ describe("OsSessionsModal", () => {
             onNewSession={vi.fn()}
             sessionActions={SESSION_ACTIONS}
           />
-        </OsShellContext.Provider>
+        </TestShell>
       );
     }
 
@@ -450,7 +458,7 @@ describe("OsSessionsModal", () => {
       archived_at: "2026-08-04T12:00:00Z",
     });
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={() => {}}
@@ -460,7 +468,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     expect(screen.getByTestId("os-sessions-modal-archived")).toHaveAttribute(
@@ -473,6 +481,67 @@ describe("OsSessionsModal", () => {
     fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
     expect(screen.getByTestId("session-row-unarchive-session-archived")).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-archive-session-archived")).toBeNull();
+  });
+
+  // UT-074 with US-001.EC-1/EC-2: Continue and Fork are offered on user rows only
+  // (never spawned or archived) and hand the row to the dialog host; Fork from a
+  // row is the whole session (no fork point).
+  it("Should offer Continue and Fork on user rows only and hand the row to the dialog host", () => {
+    const shell = createShell();
+    const requestContinue = vi.fn();
+    const requestFork = vi.fn();
+    const rows = [
+      session({ id: "session-user", name: "User row" }),
+      session({ id: "session-spawned", name: "Spawned row", type: "spawned" }),
+      session({
+        id: "session-archived",
+        name: "Archived row",
+        state: "stopped",
+        badge: "stopped",
+        archived_at: "2026-08-04T12:00:00Z",
+      }),
+    ];
+    render(
+      <TestShell value={shell}>
+        <SessionDeriveContext value={requestContinue}>
+          <SessionForkContext value={requestFork}>
+            <OsSessionsModal
+              open
+              onOpenChange={() => {}}
+              sessions={rows}
+              disconnected={false}
+              view={listView({ archived: true })}
+              onNewSession={vi.fn()}
+              sessionActions={SESSION_ACTIONS}
+            />
+          </SessionForkContext>
+        </SessionDeriveContext>
+      </TestShell>
+    );
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-spawned"));
+    expect(screen.queryByTestId("session-row-continue-session-spawned")).toBeNull();
+    expect(screen.queryByTestId("session-row-fork-session-spawned")).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
+    expect(screen.queryByTestId("session-row-continue-session-archived")).toBeNull();
+    expect(screen.queryByTestId("session-row-fork-session-archived")).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-user"));
+    const item = screen.getByTestId("session-row-continue-session-user");
+    expect(item).toHaveTextContent("Continue with another agent…");
+    const labels = screen.getAllByRole("menuitem").map(entry => entry.textContent);
+    expect(labels.indexOf("Fork session…")).toBe(
+      labels.indexOf("Continue with another agent…") + 1
+    );
+    fireEvent.click(item);
+    expect(requestContinue).toHaveBeenCalledExactlyOnceWith(rows[0]);
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-user"));
+    fireEvent.click(screen.getByTestId("session-row-fork-session-user"));
+    expect(requestFork).toHaveBeenCalledExactlyOnceWith(rows[0]);
   });
 
   it("Should start a session from the toolbar instead of a footer action", async () => {
@@ -491,7 +560,7 @@ describe("OsSessionsModal", () => {
     const onOpenChange = vi.fn();
 
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={onOpenChange}
@@ -501,7 +570,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={{ ...SESSION_ACTIONS, onDelete }}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     fireEvent.click(screen.getAllByTestId("session-row-actions-session-1")[0]!);
@@ -517,7 +586,7 @@ describe("OsSessionsModal", () => {
     const onOpenChange = vi.fn();
 
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={onOpenChange}
@@ -528,7 +597,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     await user.keyboard("{Escape}");

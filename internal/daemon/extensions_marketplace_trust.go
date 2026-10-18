@@ -84,17 +84,17 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 
 func splitExtensionDistributionRef(value string) (string, string) {
 	trimmed := strings.TrimSpace(value)
-	index := strings.LastIndex(trimmed, "@")
-	if index <= 0 || index == len(trimmed)-1 {
+	before, after, found := strings.CutLast(trimmed, "@")
+	if !found || before == "" || after == "" {
 		return trimmed, ""
 	}
 	if scheme := strings.Index(trimmed, "://"); scheme >= 0 {
 		hostEnd := strings.Index(trimmed[scheme+3:], "/")
-		if hostEnd < 0 || index < scheme+3+hostEnd {
+		if hostEnd < 0 || len(before) < scheme+3+hostEnd {
 			return trimmed, ""
 		}
 	}
-	return strings.TrimSpace(trimmed[:index]), strings.TrimSpace(trimmed[index+1:])
+	return strings.TrimSpace(before), strings.TrimSpace(after)
 }
 
 func (s *daemonExtensionService) MarketplaceTrust(

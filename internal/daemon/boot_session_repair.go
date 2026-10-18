@@ -7,19 +7,12 @@ import (
 
 	"strings"
 
-	extensionpkg "github.com/compozy/compozy/internal/extension"
-
-	"github.com/compozy/compozy/internal/memory/consolidation"
-
-	"github.com/compozy/compozy/internal/sandbox"
-	"github.com/compozy/compozy/internal/sandbox/daytona"
-	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
-	sessionledger "github.com/compozy/compozy/internal/sessions/ledger"
 
 	"github.com/compozy/compozy/internal/skills"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 
 	"github.com/compozy/compozy/internal/toolruntime"
 
@@ -47,6 +40,7 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 			return fmt.Errorf("daemon: recover pending session stops: %w", err)
 		}
 	}
+	recoverBootStaleInputDispatches(ctx, state)
 
 	infos, err := state.sessions.ListAll(ctx)
 	if err != nil {
@@ -55,10 +49,14 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		}
 		return fmt.Errorf("daemon: boot session inventory recovery failed: %w", err)
 	}
-	if err := upgradeBootSessionDatabases(ctx, state.sessions, infos); err != nil {
+	infos, err = upgradeBootSessionDatabases(ctx, state, infos)
+	if err != nil {
 		return err
 	}
 	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
+		return err
+	}
+	if err := reconcileBootDerivedSessionEvents(ctx, state, infos); err != nil {
 		return err
 	}
 
@@ -108,20 +106,44 @@ type sessionDatabaseUpgrader interface {
 	UpgradeSessionDatabase(context.Context, string) error
 }
 
-func upgradeBootSessionDatabases(ctx context.Context, manager SessionManager, infos []*session.Info) error {
-	upgrader, ok := manager.(sessionDatabaseUpgrader)
+func upgradeBootSessionDatabases(
+	ctx context.Context,
+	state *bootState,
+	infos []*session.Info,
+) ([]*session.Info, error) {
+	upgrader, ok := state.sessions.(sessionDatabaseUpgrader)
 	if !ok {
-		return nil
+		return infos, nil
 	}
+	ready := make([]*session.Info, 0, len(infos))
 	for _, info := range infos {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("daemon: retained session database upgrade canceled: %w", err)
+		}
 		if info == nil || strings.TrimSpace(info.ID) == "" {
 			continue
 		}
 		if err := upgrader.UpgradeSessionDatabase(ctx, info.ID); err != nil {
-			return fmt.Errorf("daemon: upgrade retained session database %q: %w", info.ID, err)
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, fmt.Errorf("daemon: retained session database upgrade canceled: %w", ctxErr)
+			}
+			identityRefused := errors.Is(err, sessiondb.ErrSessionDBOwnerMismatch) ||
+				errors.Is(err, sessiondb.ErrSessionDBOwnerMissing) ||
+				errors.Is(err, sessiondb.ErrSessionDBFamilyChanged)
+			if identityRefused &&
+				!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				state.logger.WarnContext(ctx, "daemon: retained session database refused",
+					"session_id", info.ID,
+					"workspace_id", info.WorkspaceID,
+					"error", err,
+				)
+				continue
+			}
+			return nil, fmt.Errorf("daemon: upgrade retained session database %q: %w", info.ID, err)
 		}
+		ready = append(ready, info)
 	}
-	return nil
+	return ready, nil
 }
 
 func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos []*session.Info) error {
@@ -149,6 +171,39 @@ func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos
 		}
 	}
 	return nil
+}
+
+// reconcileBootDerivedSessionEvents re-emits session.derived lost to a crash between a
+// derived child's commit and its ledger write (ADR-007). Ledger failures are logged.
+func reconcileBootDerivedSessionEvents(ctx context.Context, state *bootState, infos []*session.Info) error {
+	reconciler, ok := state.sessions.(sessionDerivedEventReconciler)
+	if !ok {
+		return nil
+	}
+	emitted, err := reconciler.ReconcileDerivedSessionEvents(ctx, infos)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("daemon: derived session event reconciliation canceled: %w", ctxErr)
+		}
+		state.logger.Warn("daemon: derived session event reconciliation failed", "error", err)
+	}
+	if emitted > 0 {
+		state.logger.Info("daemon: re-emitted derived session events", "count", emitted)
+	}
+	return nil
+}
+
+// recoverBootStaleInputDispatches settles queue leases from the previous
+// process before any session claims input. A row that cannot settle stays
+// visible as dispatching; it must not block boot.
+func recoverBootStaleInputDispatches(ctx context.Context, state *bootState) {
+	recoverer, ok := state.sessions.(sessionStaleInputDispatchRecoverer)
+	if !ok {
+		return
+	}
+	if _, err := recoverer.RecoverStaleInputDispatches(ctx); err != nil {
+		state.logger.Warn("daemon: stale input dispatch recovery incomplete", "error", err)
+	}
 }
 
 func recoverBootSessionHealth(ctx context.Context, state *bootState) error {
@@ -179,9 +234,21 @@ type sessionHealthRecoverer interface {
 	RecoverSessionHealth(ctx context.Context) (session.HealthRecoveryResult, error)
 }
 
+type sessionDerivedEventReconciler interface {
+	ReconcileDerivedSessionEvents(ctx context.Context, infos []*session.Info) (int, error)
+}
+
+var _ sessionDerivedEventReconciler = (*session.Manager)(nil)
+
 type sessionPendingStopRecoverer interface {
 	RecoverPendingStops(context.Context) error
 }
+
+type sessionStaleInputDispatchRecoverer interface {
+	RecoverStaleInputDispatches(context.Context) (int, error)
+}
+
+var _ sessionStaleInputDispatchRecoverer = (*session.Manager)(nil)
 
 type sessionRestartInteractionExpirer interface {
 	ExpireRestartInteractions(ctx context.Context, sessionID string) (int, error)
@@ -229,26 +296,6 @@ func sessionPromptAdmissionStoreDependency(registry Registry) store.SessionPromp
 		return nil
 	}
 	return admissionStore
-}
-
-func (d *Daemon) newSessionLedgerMaterializer(
-	state *bootState,
-) (session.LedgerMaterializer, error) {
-	if state == nil || !state.cfg.Memory.Enabled {
-		return nil, nil
-	}
-	root := strings.TrimSpace(state.cfg.Memory.Session.LedgerRoot)
-	if root == "" {
-		root = d.homePaths.SessionsDir
-	}
-	materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
-		RootDir:          root,
-		UnboundPartition: state.cfg.Memory.Session.UnboundPartition,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create session ledger materializer: %w", err)
-	}
-	return materializer, nil
 }
 
 func (d *Daemon) buildProviderVault(state *bootState) (*vault.Service, error) {
@@ -320,36 +367,12 @@ func (d *Daemon) bootProcessRegistry(ctx context.Context, state *bootState) erro
 	return nil
 }
 
-func (d *Daemon) buildSandboxRegistry(state *bootState) (*sandbox.Registry, error) {
-	if state == nil {
-		return nil, errors.New("daemon: sandbox registry state is required")
-	}
-	registry, err := local.NewRegistry(
-		local.WithLogger(state.logger),
-		local.WithTerminalManager(state.terminals),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create sandbox registry: %w", err)
-	}
-	if err := registry.Register(daytona.NewProvider(
-		daytona.WithLogger(state.logger),
-		daytona.WithProcessRegistry(state.processRegistry),
-	)); err != nil {
-		return nil, fmt.Errorf("daemon: register daytona sandbox provider: %w", err)
-	}
-	return registry, nil
-}
-
 func (d *Daemon) sessionNotifier(state *bootState) session.Notifier {
 	if state == nil {
 		return nil
 	}
 
-	notifier := session.Notifier(state.notifier)
-	if state.bridges != nil {
-		notifier = extensionpkg.NewBridgeDeliveryNotifier(state.bridges.Broker(), state.notifier)
-	}
-	return notifier
+	return state.notifier
 }
 
 func skillRegistryDependency(registry *skills.Registry) session.SkillRegistry {
@@ -364,11 +387,4 @@ func mcpResolverDependency(resolver *skills.MCPResolver) session.MCPResolver {
 		return nil
 	}
 	return resolver
-}
-
-func dreamTriggerFromRuntime(runtime *consolidation.Runtime) DreamTrigger {
-	if runtime == nil {
-		return nil
-	}
-	return runtime
 }

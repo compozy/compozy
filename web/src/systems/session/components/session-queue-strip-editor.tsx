@@ -8,7 +8,6 @@ import type { QueuedPrompt } from "../lib/queued-prompt";
 
 export interface SessionQueueEditingRowProps {
   prompt: QueuedPrompt;
-  first: boolean;
   /** The annotation being edited — never the terminal-context envelope. */
   text: string;
   saving: boolean;
@@ -25,7 +24,6 @@ export interface SessionQueueEditingRowProps {
  */
 export function SessionQueueEditingRow({
   prompt,
-  first,
   text,
   saving,
   onTextChange,
@@ -54,10 +52,7 @@ export function SessionQueueEditingRow({
       data-testid="composer-queued-prompt-row"
       data-status={prompt.status}
       data-editing="true"
-      className={cn(
-        "flex min-w-0 flex-col gap-1.5 py-2 pr-2 pl-3",
-        !first && "border-t border-line-soft"
-      )}
+      className={cn("flex min-w-0 flex-col gap-1.5 py-2 pr-2 pl-3.5")}
     >
       <div className="flex items-center gap-2">
         <span

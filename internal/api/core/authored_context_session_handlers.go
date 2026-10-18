@@ -49,12 +49,21 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		PendingInteractions: make([]contract.PendingInteractionPayload, 0),
 		UpdatedAt:           health.UpdatedAt,
 	}
+	if info != nil {
+		response.Lineage = contract.SessionLineagePayloadFromStore(info.Lineage)
+		response.Derivation = sessionDerivationPayload(info.Derivation)
+	}
 	queue, err := h.Sessions.InputQueueSummary(c.Request.Context(), health.SessionID)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 	response.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}
+	response.ReplyWatches, err = sessionReplyWatchPayloads(c.Request.Context(), h.Sessions, info.WorkspaceID, info.ID)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	if manager, available := h.Sessions.(SessionAttentionManager); available {
 		interactions, err := manager.PendingInteractions(c.Request.Context(), health.SessionID, nil)
 		if err != nil {

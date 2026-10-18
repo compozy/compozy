@@ -56,8 +56,7 @@ func (m *Service) BulkForceFailRuns(
 func bulkForceRunItem(id string, run *Run, err error) BulkForceRunItem {
 	item := BulkForceRunItem{RunID: strings.TrimSpace(id), OK: err == nil, Err: err}
 	if run != nil {
-		runCopy := *run
-		item.Run = &runCopy
+		item.Run = new(*run)
 	}
 	return item
 }

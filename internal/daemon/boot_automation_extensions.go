@@ -76,10 +76,6 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 			state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
 		}
 	}
-	if state.bridges != nil {
-		state.bridges.setExtensionRuntime(manager)
-		state.bridges.startTargetDirectoryRefresh(ctx)
-	}
 	state.setExtensionRuntime(manager)
 	return d.attachExtensionRuntime(ctx, state, extRegistry, manager)
 }

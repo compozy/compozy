@@ -82,8 +82,8 @@ func TestLoadManifestFatality(t *testing.T) {
 			root := t.TempDir()
 			writeJSONFile(t, filepath.Join(root, "plugin.json"), test.manifest)
 			_, err := Load(root, LoadOptions{})
-			var manifestErr *ManifestError
-			if !errors.As(err, &manifestErr) {
+			manifestErr, ok := errors.AsType[*ManifestError](err)
+			if !ok {
 				t.Fatalf("Load() error = %v, want *ManifestError", err)
 			}
 			if len(manifestErr.Issues) != 1 || manifestErr.Issues[0].Path != test.wantField {

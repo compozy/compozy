@@ -1,10 +1,13 @@
 package daemon
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -17,10 +20,174 @@ import (
 func TestWindowManagerRepository(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject a nil commit as invalid topology", func(t *testing.T) {
+	// Invariant: v4 migration preserves windows, writes once, and fences stale writers; repository suite owns persistence.
+	t.Run("Should persist deprecated command apps and warn once per id [IT-014]", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
-		err := fixture.repository.Commit(testutil.Context(t), nil)
+		var logs bytes.Buffer
+		observer := windowManagerAppDeprecationLogger(slog.New(slog.NewJSONHandler(&logs, nil)), &sync.Map{})
+		manager, err := windowmanager.NewService(
+			fixture.repository,
+			windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver},
+			nil,
+			windowmanager.DefaultConfig(),
+			windowmanager.WithAppDeprecationObserver(observer),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for i, app := range []string{"jobs", "triggers", "jobs", "triggers"} {
+			id := windowmanager.WindowID(fmt.Sprintf("retired-%d", i))
+			source := "command"
+			if app == "triggers" {
+				source = "cli"
+			}
+			result, err := manager.Execute(
+				t.Context(),
+				windowmanager.CommandRequest{
+					WorkspaceID:      windowmanager.WorkspaceID(fixture.workspace.ID),
+					ExpectedRevision: windowmanager.Revision(i),
+					Actor:            windowmanager.Actor{Kind: source},
+					Payload: windowmanager.OpenWindowCommand{
+						Window: windowmanager.WindowSpec{
+							ID:  id,
+							App: app,
+							Route: windowmanager.RouteIntent{
+								Pathname: "/" + app + "/example",
+								Search:   windowmanager.RouteSearch{},
+							},
+							FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
+						},
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Snapshot.Windows[id].App != "automations" ||
+				result.Snapshot.Windows[id].Route.Pathname != "/automations/"+app+"/example" {
+				t.Fatalf("window=%+v", result.Snapshot.Windows[id])
+			}
+		}
+		if strings.Count(logs.String(), `"event":"windowmanager.app_id_deprecated"`) != 2 ||
+			!strings.Contains(logs.String(), `"source":"cli"`) ||
+			!strings.Contains(logs.String(), `"source":"command"`) ||
+			!strings.Contains(logs.String(), `"removal":"v0.5.0"`) {
+			t.Fatalf("warnings=%s", logs.String())
+		}
+		loaded, err := fixture.repository.Load(t.Context(), windowmanager.WorkspaceID(fixture.workspace.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(loaded.Windows) != 4 {
+			t.Fatalf("persisted windows=%d", len(loaded.Windows))
+		}
+	})
+
+	t.Run("Should migrate v4 once and reject a stale commit [IT-010 IT-011 UT-125]", func(t *testing.T) {
+		t.Parallel()
+		for _, invalid := range []bool{false, true} {
+			fixture := newDaemonWindowManagerFixture(t)
+			var logs bytes.Buffer
+			fixture.repository.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+			ctx := t.Context()
+			workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+			snapshot := daemonWindowManagerSnapshot(workspaceID, 5, "Primary")
+			snapshot.Version = windowmanager.PreviousSnapshotVersion
+			for _, app := range []string{"jobs", "triggers"} {
+				id := windowmanager.WindowID(app)
+				snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, id)
+				snapshot.Windows[id] = windowmanager.Window{
+					ID:        id,
+					App:       app,
+					DesktopID: "desktop-default",
+					Placement: windowmanager.WindowPlacementFloating,
+					Route: windowmanager.RouteIntent{
+						Pathname: "/" + app,
+						Search:   windowmanager.RouteSearch{},
+					},
+					FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
+				}
+			}
+			if invalid {
+				snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, "missing")
+			}
+			raw, err := json.Marshal(snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			entries, err := fixture.engine.Apply(
+				ctx,
+				clientstate.WorkspaceID(workspaceID),
+				windowManagerStateDomain,
+				[]clientstate.Op{
+					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: raw},
+				},
+				clientstate.ApplyOptions{},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := fixture.repository.Load(ctx, workspaceID)
+			if invalid {
+				if err == nil {
+					t.Fatal("invalid migration accepted")
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if loaded.Version != 5 || loaded.Revision != 6 || len(loaded.Windows) != 2 ||
+					loaded.Windows["jobs"].App != "automations" ||
+					loaded.Windows["triggers"].App != "automations" {
+					t.Fatalf("migration = %+v", loaded)
+				}
+				if _, err := fixture.repository.Load(ctx, workspaceID); err != nil {
+					t.Fatal(err)
+				}
+				stale := loaded
+				err = fixture.repository.Commit(ctx, daemonWindowManagerCommit(stale, 5))
+				conflict, ok := errors.AsType[*windowmanager.RevisionConflictError](err)
+				if !ok || conflict.Current != 6 {
+					t.Fatalf("stale commit = %v", err)
+				}
+			}
+			stored, err := fixture.engine.Get(
+				ctx,
+				clientstate.WorkspaceID(workspaceID),
+				windowManagerStateDomain,
+				windowManagerSnapshotKey(testWindowManagerProfileID),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if invalid {
+				if stored.Rev != entries[0].Rev || !bytes.Equal(stored.Value, raw) {
+					t.Fatal("invalid snapshot changed")
+				}
+			} else {
+				if stored.Rev != entries[0].Rev+1 {
+					t.Fatalf("migration wrote more than once: %d -> %d", entries[0].Rev, stored.Rev)
+				}
+				if strings.Count(logs.String(), `"event":"windowmanager.snapshot_migrated"`) != 1 ||
+					!strings.Contains(logs.String(), `"from_version":4`) ||
+					!strings.Contains(logs.String(), `"to_version":5`) ||
+					!strings.Contains(logs.String(), `"windows_rewritten":2`) {
+					t.Fatalf("migration logs = %s", logs.String())
+				}
+			}
+		}
+	})
+
+	t.Run("Should reject a nil commit as invalid topology", func(t *testing.T) {
+		t.Parallel()
+		repository := &windowManagerRepository{}
+		err := repository.Commit(testutil.Context(t), nil)
 		if !errors.Is(err, windowmanager.ErrInvalidTopology) {
 			t.Fatalf("Commit(nil) error = %v, want ErrInvalidTopology", err)
 		}
@@ -545,8 +712,8 @@ func decorateDaemonV3Snapshot(snapshot *windowmanager.Snapshot) {
 	snapshot.Windows = map[windowmanager.WindowID]windowmanager.Window{
 		w1: {
 			ID:           w1,
-			App:          "One",
-			Route:        route("/one"),
+			App:          "session",
+			Route:        route("/sessions"),
 			NavStack:     []windowmanager.RouteIntent{route("/root")},
 			Pinned:       true,
 			Placement:    windowmanager.WindowPlacementStacked,
@@ -555,8 +722,8 @@ func decorateDaemonV3Snapshot(snapshot *windowmanager.Snapshot) {
 		},
 		w2: {
 			ID:           w2,
-			App:          "Two",
-			Route:        route("/two"),
+			App:          "settings",
+			Route:        route("/settings"),
 			Placement:    windowmanager.WindowPlacementStacked,
 			DesktopID:    "desktop-default",
 			FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
@@ -571,8 +738,8 @@ func decorateDaemonV3Snapshot(snapshot *windowmanager.Snapshot) {
 			Windows: []windowmanager.Window{
 				{
 					ID:           w3,
-					App:          "Three",
-					Route:        route("/three"),
+					App:          "tasks",
+					Route:        route("/tasks"),
 					DesktopID:    "desktop-default",
 					Placement:    windowmanager.WindowPlacementFloating,
 					FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
@@ -582,4 +749,110 @@ func decorateDaemonV3Snapshot(snapshot *windowmanager.Snapshot) {
 			Rect:      windowmanager.NormalizedRect{Width: 1, Height: 1},
 		},
 	}
+}
+
+// Invariant: a load reconciles retired app state durably exactly once, with one observable log.
+// Owning layer: daemon repository/clientstate SQLite; canonical suite: window_manager_repository_test.go.
+func TestWindowManagerRepositoryReconcile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should persist and log reconciliation once across repeated loads [IT-009]", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+		snapshot := daemonWindowManagerSnapshot(workspaceID, 1, "Primary")
+		for _, app := range []string{"knowledge", "session"} {
+			id := windowmanager.WindowID(app)
+			snapshot.Windows[id] = windowmanager.Window{
+				ID:           id,
+				App:          app,
+				DesktopID:    "desktop-default",
+				Placement:    windowmanager.WindowPlacementFloating,
+				Route:        windowmanager.RouteIntent{Pathname: "/" + app, Search: windowmanager.RouteSearch{}},
+				FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
+			}
+			snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, id)
+		}
+		settingsID := windowmanager.WindowID("settings")
+		snapshot.Windows[settingsID] = windowmanager.Window{
+			ID:        settingsID,
+			App:       "settings",
+			DesktopID: "desktop-default",
+			Placement: windowmanager.WindowPlacementFloating,
+			Route:     windowmanager.RouteIntent{Pathname: "/settings/memory", Search: windowmanager.RouteSearch{}},
+			NavStack: []windowmanager.RouteIntent{
+				{Pathname: "/settings/memory", Search: windowmanager.RouteSearch{}},
+			},
+			FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
+		}
+		snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, settingsID)
+		if err := fixture.repository.Commit(ctx, daemonWindowManagerCommit(snapshot, 0)); err != nil {
+			t.Fatalf("Commit() = %v", err)
+		}
+		before, err := fixture.engine.Get(ctx, clientstate.WorkspaceID(workspaceID), windowManagerStateDomain,
+			windowManagerSnapshotKey(testWindowManagerProfileID))
+		if err != nil {
+			t.Fatalf("Get(before) = %v", err)
+		}
+		var logs bytes.Buffer
+		repository, err := newWindowManagerRepository(fixture.engine, testWindowManagerProfileID,
+			withWindowManagerRepositoryLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
+		if err != nil {
+			t.Fatalf("newWindowManagerRepository() = %v", err)
+		}
+		got, err := repository.Load(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("Load() = %v", err)
+		}
+		if len(got.Windows) != 2 || got.Windows["session"].App != "session" || got.Revision != 2 ||
+			len(
+				got.Desktops[0].Floating,
+			) != 2 || !slices.Contains(got.Desktops[0].Floating, windowmanager.WindowID("session")) ||
+			!slices.Contains(
+				got.Desktops[0].Floating,
+				settingsID,
+			) || got.Windows[settingsID].Route.Pathname != "/settings" ||
+			got.Windows[settingsID].NavStack[0].Pathname != "/settings" {
+			t.Fatalf("reconciled snapshot = %+v", got)
+		}
+		after, err := fixture.engine.Get(ctx, clientstate.WorkspaceID(workspaceID), windowManagerStateDomain,
+			windowManagerSnapshotKey(testWindowManagerProfileID))
+		if err != nil {
+			t.Fatalf("Get(after) = %v", err)
+		}
+		if after.Rev != before.Rev+1 {
+			t.Fatalf("store revision = %d, want %d", after.Rev, before.Rev+1)
+		}
+		var record struct {
+			ProfileID       string   `json:"profile_id"`
+			DroppedApps     []string `json:"dropped_apps"`
+			RewrittenRoutes int      `json:"rewritten_routes"`
+		}
+		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+			t.Fatalf("decode reconcile audit: %v", err)
+		}
+		if record.ProfileID != string(testWindowManagerProfileID) || len(record.DroppedApps) != 1 ||
+			record.DroppedApps[0] != "knowledge" || record.RewrittenRoutes != 2 {
+			t.Fatalf("reconcile audit = %+v", record)
+		}
+		again, err := repository.Load(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("second Load() = %+v, error = %v", again, err)
+		}
+		encoded, err := json.Marshal(again)
+		if err != nil {
+			t.Fatalf("Marshal(second load) = %v", err)
+		}
+		if !bytes.Equal(encoded, after.Value) {
+			t.Fatalf("second load changed durable snapshot: %s", encoded)
+		}
+		last, err := fixture.engine.Get(ctx, clientstate.WorkspaceID(workspaceID), windowManagerStateDomain,
+			windowManagerSnapshotKey(testWindowManagerProfileID))
+		if err != nil {
+			t.Fatalf("Get(last) = %v", err)
+		}
+		if last.Rev != after.Rev || strings.Count(logs.String(), "windowmanager.snapshot_reconciled") != 1 {
+			t.Fatalf("second load revision = %d, logs = %s", last.Rev, logs.String())
+		}
+	})
 }

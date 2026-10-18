@@ -4,7 +4,7 @@ description: Run sessions, tasks, and Loops in isolated Git checkouts while shar
 ---
 
 A Worktree is a linked Git checkout inside one CompozyOS workspace. It has its own branch and files,
-but keeps the parent workspace's identity, memory, agents, skills, configuration, and permissions.
+but keeps the parent workspace's identity, agents, skills, configuration, and permissions.
 Use one when parallel agents need independent working directories in the same repository.
 
 The workspace remains the ownership and data-isolation boundary. A Worktree is a nested execution
@@ -12,8 +12,8 @@ context, not another workspace: its sessions, task runs, events, status cache, a
 the parent `workspace_id` plus a `worktree_id`.
 
 <OperatorNote>
-  A Worktree does not copy workspace memory or configuration into a new scope. It changes the Git
-  checkout and current directory used by the work; the parent workspace still owns runtime data.
+  A Worktree does not copy workspace configuration into a new scope. It changes the Git checkout and
+  current directory used by the work; the parent workspace still owns runtime data.
 </OperatorNote>
 
 ## Lifecycle

@@ -17,7 +17,7 @@ const meta: Meta<typeof SessionAttachButtonView> = {
   decorators: [
     Story => (
       <CenteredSurface>
-        <div className="flex items-center gap-2 rounded-lg border border-line bg-elevated p-2">
+        <div className="flex items-center gap-2 rounded-lg bg-canvas shadow-card p-2">
           <Story />
         </div>
       </CenteredSurface>

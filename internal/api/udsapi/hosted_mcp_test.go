@@ -62,10 +62,10 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 		countingRegistry := &countingHostedMCPRegistry{Registry: registry}
 		done := make(chan struct{})
 		var projectionSamples atomic.Int32
-		var closeDone sync.Once
+		closeDone := sync.OnceFunc(func() { close(done) })
 		generation := func(context.Context, toolspkg.Scope) (string, bool) {
 			if projectionSamples.Add(1) >= 5 {
-				closeDone.Do(func() { close(done) })
+				closeDone()
 			}
 			return "stable", true
 		}
@@ -74,6 +74,7 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 				return countingRegistry
 			},
 			ProjectionGeneration: generation,
+			StreamRefresh:        time.Millisecond,
 		}, &core.BaseHandlerConfig{
 			PollInterval: time.Millisecond,
 			StreamDone:   done,
@@ -82,7 +83,7 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/internal/hosted-mcp/projection/stream?bind_id="+bind.BindID,
 			http.NoBody,
@@ -109,8 +110,140 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 	})
 }
 
+func TestHostedMCPProjectionStreamPush(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should push a projection on epoch advance and not rebuild while the epoch is unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		base, err := toolspkg.NewRegistry()
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		registry := &switchingHostedMCPRegistry{Registry: base}
+		registry.setTool("compozy__alpha")
+		epoch := mcppkg.NewProjectionEpoch()
+		done := make(chan struct{})
+		router, service, peer := newHostedMCPRouteTestHarnessWithConfig(t, &mcppkg.HostedConfig{
+			Registry:          func() toolspkg.Registry { return registry },
+			ProjectionEpoch:   epoch.Current,
+			ProjectionChanges: epoch.Changes,
+			StreamRefresh:     time.Hour,
+		}, &core.BaseHandlerConfig{
+			PollInterval: time.Millisecond,
+			StreamDone:   done,
+		})
+		bind := launchAndBindHostedMCP(t, service, peer, "sess-stream-push")
+		baselineLists := registry.listCalls.Load()
+
+		recorder := &flushSignalRecorder{ResponseRecorder: httptest.NewRecorder(), flushed: make(chan struct{}, 8)}
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/internal/hosted-mcp/projection/stream?bind_id="+bind.BindID+"&last_digest="+bind.Digest,
+			http.NoBody,
+		)
+		request = request.WithContext(mcppkg.ContextWithPeerInfo(request.Context(), peer, nil))
+		served := make(chan struct{})
+		go func() {
+			defer close(served)
+			router.ServeHTTP(recorder, request)
+		}()
+
+		recorder.awaitFlush(t, "SSE headers")
+		select {
+		case <-recorder.flushed:
+			t.Fatal("stream emitted an unchanged projection before any epoch advance")
+		case <-time.After(20 * time.Millisecond):
+		}
+		if got, want := registry.listCalls.Load(), baselineLists+1; got != want {
+			t.Fatalf("registry List() calls = %d, want %d while the epoch is unchanged", got, want)
+		}
+
+		registry.setTool("compozy__beta")
+		epoch.Advance()
+		recorder.awaitFlush(t, "projection after epoch advance")
+		close(done)
+		<-served
+
+		if got, want := registry.listCalls.Load(), baselineLists+2; got != want {
+			t.Fatalf("registry List() calls = %d, want %d: one rebuild per epoch advance", got, want)
+		}
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) != 1 || records[0].Event != "projection" {
+			t.Fatalf("stream records = %#v, want one pushed projection event", records)
+		}
+		var pushed mcppkg.HostedProjectionResponse
+		decodeSSEData(t, records[0], &pushed)
+		if len(pushed.Tools) != 1 || pushed.Tools[0].Descriptor.ID != "compozy__beta" || pushed.Digest == bind.Digest {
+			t.Fatalf("pushed projection = %#v, want the post-advance tool set", pushed)
+		}
+	})
+}
+
+type switchingHostedMCPRegistry struct {
+	toolspkg.Registry
+	tool      atomic.Pointer[toolspkg.ToolID]
+	listCalls atomic.Int32
+}
+
+func (r *switchingHostedMCPRegistry) setTool(id toolspkg.ToolID) {
+	r.tool.Store(&id)
+}
+
+func (r *switchingHostedMCPRegistry) List(context.Context, toolspkg.Scope) ([]toolspkg.ToolView, error) {
+	r.listCalls.Add(1)
+	return []toolspkg.ToolView{{Descriptor: toolspkg.Descriptor{ID: *r.tool.Load()}}}, nil
+}
+
+// flushSignalRecorder reports each SSE flush so tests can sequence pushes without reading the body
+// while the handler is still writing it.
+type flushSignalRecorder struct {
+	*httptest.ResponseRecorder
+	flushed chan struct{}
+}
+
+func (r *flushSignalRecorder) Flush() {
+	r.ResponseRecorder.Flush()
+	r.flushed <- struct{}{}
+}
+
+func (r *flushSignalRecorder) awaitFlush(t *testing.T, label string) {
+	t.Helper()
+	select {
+	case <-r.flushed:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", label)
+	}
+}
+
 func TestHostedMCPJSONToolErrors(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		code    toolspkg.ErrorCode
+		message string
+	}{
+		{"Should classify busy compaction as a conflict", toolspkg.ErrorCodeSessionBusy, "session is busy"},
+		{"Should classify unsupported compaction as a conflict", toolspkg.ErrorCodeCompactionUnsupported, "session compaction is unsupported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			registry := newCompactionFailureHostedMCPToolRegistry(t, tc.code)
+			router, service, peer := newHostedMCPRouteTestHarnessWithRegistry(t, registry)
+			bind := launchAndBindHostedMCP(t, service, peer, "sess-"+string(tc.code))
+			recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, string(toolspkg.ToolIDSessionCompact))
+			payload := decodeHostedMCPToolError(t, recorder)
+			if recorder.Code != http.StatusConflict || payload.Error.Code != tc.code ||
+				payload.Error.ToolID != toolspkg.ToolIDSessionCompact || payload.Error.Message != tc.message {
+				t.Fatalf("hosted refusal status=%d payload=%#v, want safe typed 409", recorder.Code, payload)
+			}
+			if strings.Contains(recorder.Body.String(), "compozy_claim_secret") {
+				t.Fatalf("hosted refusal leaked backend details: %s", recorder.Body)
+			}
+		})
+	}
 
 	t.Run("Should return structured not found tool errors from hosted tool calls", func(t *testing.T) {
 		t.Parallel()
@@ -270,7 +403,7 @@ func TestHostedMCPJSONRouteErrors(t *testing.T) {
 
 				recorder := httptest.NewRecorder()
 				request := httptest.NewRequestWithContext(
-					context.Background(),
+					t.Context(),
 					tt.method,
 					tt.path,
 					bytes.NewBufferString(tt.body),
@@ -434,7 +567,7 @@ func postHostedMCPToolCall(
 	body := fmt.Sprintf(`{"bind_id":%q,"tool_name":%q,"input":{}}`, bindID, toolName)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"/api/internal/hosted-mcp/tools/call",
 		bytes.NewBufferString(body),
@@ -476,7 +609,7 @@ func newDeniedHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 		Risk:            toolspkg.RiskRead,
 		ReadOnly:        true,
 		ConcurrencySafe: true,
-		Toolsets:        []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		Toolsets:        []toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 	}
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: descriptor,
@@ -525,7 +658,7 @@ func newTerminalFailureHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 		Risk:             toolspkg.RiskRead,
 		ReadOnly:         true,
 		ConcurrencySafe:  true,
-		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 	}
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: descriptor,
@@ -561,7 +694,7 @@ func newApprovalRequiredHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 		Visibility:       toolspkg.VisibilityModel,
 		Risk:             toolspkg.RiskMutating,
 		ConcurrencySafe:  true,
-		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 	}
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: descriptor,
@@ -583,6 +716,33 @@ func newApprovalRequiredHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 			ApprovalAvailable:    true,
 		}, toolspkg.ToolsetCatalog{}),
 	)
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	return registry
+}
+
+func newCompactionFailureHostedMCPToolRegistry(t *testing.T, code toolspkg.ErrorCode) toolspkg.Registry {
+	t.Helper()
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: toolspkg.BuiltinSourceOwner}
+	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
+		Descriptor: toolspkg.Descriptor{
+			ID:               toolspkg.ToolIDSessionCompact,
+			ToolPresentation: toolspkg.NewToolPresentation("Compact", "", ""),
+			Description:      "Compaction refusal test tool.",
+			InputSchema:      json.RawMessage(`{"type":"object"}`),
+			Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "session_compact"},
+			Source:           source, Visibility: toolspkg.VisibilityModel, Risk: toolspkg.RiskRead, ReadOnly: true,
+		},
+		Call: func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(code, toolspkg.ToolIDSessionCompact,
+				"backend compozy_claim_secret", toolspkg.ErrToolConflict)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewNativeProvider() error = %v", err)
+	}
+	registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}

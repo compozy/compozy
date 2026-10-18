@@ -3,7 +3,8 @@ package globaldb
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -119,11 +120,7 @@ func modelCatalogContextFilterClause(
 		}
 		return contextColumn + " = ?", []any{contextID}, nil
 	}
-	sourceIDs := make([]string, 0, len(sourceContexts))
-	for sourceID := range sourceContexts {
-		sourceIDs = append(sourceIDs, sourceID)
-	}
-	sort.Strings(sourceIDs)
+	sourceIDs := slices.Sorted(maps.Keys(sourceContexts))
 	parts := make([]string, 0, len(sourceIDs))
 	args := make([]any, 0, len(sourceIDs)*2)
 	for _, sourceID := range sourceIDs {
@@ -177,7 +174,7 @@ func modelCatalogContextQueries(opts modelcatalog.ListOptions) ([]modelCatalogCo
 			sourceIDs = append(sourceIDs, sourceID)
 		}
 	}
-	sort.Strings(sourceIDs)
+	slices.Sort(sourceIDs)
 	queries := make([]modelCatalogContextQuery, 0, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
 		contextID, err := opts.SourceContexts[sourceID].ID()

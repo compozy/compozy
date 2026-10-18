@@ -1,5 +1,7 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import { SessionDeriveContext } from "../../contexts/session-derive-context-value";
 
 import type { AgentEventPayload, RuntimeActivityPayload } from "../../types";
 import { RuntimeActivityNotice } from "../runtime-activity-notice";
@@ -68,9 +70,11 @@ describe("RuntimeActivityNotice", () => {
     // Progress is a neutral marker — no signal tone, no tinted card.
     expect(notice).toHaveAttribute("data-tone", "neutral");
     expect(screen.getByText("Still working")).toBeInTheDocument();
-    expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
+    expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Running…");
     const meta = screen.getByTestId("runtime-activity-meta");
-    expect(meta).toHaveTextContent("11m elapsed · 42s idle");
+    // One plain duration; idle time belongs to the status row.
+    expect(meta).toHaveTextContent("for 11m");
+    expect(meta).not.toHaveTextContent("idle");
     // Meta reads as language: sans, with tabular figures so the numbers stay aligned.
     expect(meta.className).not.toContain("font-mono");
     expect(meta.className).toContain("tabular-nums");
@@ -89,7 +93,7 @@ describe("RuntimeActivityNotice", () => {
     render(<RuntimeActivityNotice event={event} />);
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "warning");
-    expect(screen.getByText("Runtime warning")).toBeInTheDocument();
+    expect(screen.getByText("Warning")).toBeInTheDocument();
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent(
       "no provider activity observed"
     );
@@ -206,14 +210,17 @@ describe("RuntimeActivityNotice", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
-    expect(screen.getByTestId("session-error-notice")).toHaveTextContent("Session failed");
-    expect(screen.getByTestId("session-error-meta")).toHaveTextContent("process_exit");
+    const notice = screen.getByTestId("session-error-notice");
+    expect(notice).toHaveTextContent("Session failed");
+    // The failure kind is diagnostic: it rides on an attribute, never on screen.
+    expect(notice).toHaveAttribute("data-failure-kind", "process_exit");
+    expect(notice).not.toHaveTextContent("process_exit");
     expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
       "peer disconnected before response"
     );
   });
 
-  it("renders an auth lapse as a provider notice naming the provider and the daemon status command", () => {
+  it("renders an auth lapse as a provider notice naming the provider, with the status command one step deeper", async () => {
     render(<RuntimeActivityNotice event={providerErrorEvent()} />);
 
     const notice = screen.getByTestId("session-error-notice");
@@ -224,8 +231,11 @@ describe("RuntimeActivityNotice", () => {
     expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(
       "claude-code needs sign-in"
     );
+    expect(notice).not.toHaveTextContent("daemon");
+    expect(screen.queryByTestId("provider-error-command")).not.toBeInTheDocument();
     // The real recovery command, with a literal placeholder — never an interpolated shell string.
-    expect(screen.getByTestId("provider-error-command")).toHaveTextContent(
+    fireEvent.click(screen.getByRole("button", { name: "How to check sign-in" }));
+    expect(await screen.findByTestId("provider-error-command")).toHaveTextContent(
       "compozy provider auth status <provider> --remote"
     );
     // The session survives: no "Session failed", no raw code or failure kind in the sentence.
@@ -279,6 +289,45 @@ describe("RuntimeActivityNotice", () => {
   });
 
   it.each([
+    { code: "provider_rate_limited", subject: "claude-code is rate limited" },
+    { code: "provider_auth_required", subject: "claude-code authentication failed" },
+  ])("offers Continue for a $code turn failure whose next step is handoff", ({ code, subject }) => {
+    const requestContinue = vi.fn();
+    render(
+      <SessionDeriveContext value={requestContinue}>
+        <RuntimeActivityNotice event={providerErrorEvent({ code, next_action: "handoff" })} />
+      </SessionDeriveContext>
+    );
+
+    const notice = screen.getByTestId("session-error-notice");
+    expect(notice).toHaveAttribute("data-provider-next-action", "handoff");
+    expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(subject);
+    expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
+      "Continue this session with another agent or route."
+    );
+    const offer = screen.getByTestId("provider-error-continue");
+    expect(offer).toHaveTextContent("Continue with another agent…");
+    expect(requestContinue).not.toHaveBeenCalled();
+
+    fireEvent.click(offer);
+    // No source: the host that mounted this transcript continues its own session.
+    expect(requestContinue).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  it("keeps the handoff sentence but offers no button where no dialog can open", () => {
+    render(
+      <RuntimeActivityNotice
+        event={providerErrorEvent({ code: "provider_rate_limited", next_action: "handoff" })}
+      />
+    );
+
+    expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
+      "Continue this session with another agent or route."
+    );
+    expect(screen.queryByTestId("provider-error-continue")).not.toBeInTheDocument();
+  });
+
+  it.each([
     { code: "provider_auth_required", subject: "claude-code authentication failed" },
     { code: "provider_rate_limited", subject: "claude-code is rate limited" },
   ])(
@@ -306,7 +355,10 @@ describe("RuntimeActivityNotice", () => {
     );
 
     expect(screen.getByTestId("session-error-notice")).toHaveTextContent("Session failed");
-    expect(screen.getByTestId("session-error-meta")).toHaveTextContent("process_exit");
+    expect(screen.getByTestId("session-error-notice")).toHaveAttribute(
+      "data-failure-kind",
+      "process_exit"
+    );
     expect(screen.queryByTestId("provider-error-subject")).not.toBeInTheDocument();
   });
 
@@ -327,15 +379,14 @@ describe("RuntimeActivityNotice", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
-    // The summary is the sentence; the raw kind string is faint sans meta —
-    // never a pill, never a "Transcript marker" card title.
+    // The summary is the sentence; the raw kind string never reaches the screen —
+    // it stays on `data-marker-kind` for diagnostics.
     expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
       "Runtime activity timed out."
     );
-    const kind = screen.getByTestId("transcript-marker-kind");
-    expect(kind).toHaveTextContent("transcript_marker.prompt_timeout");
-    expect(kind.className).not.toContain("font-mono");
-    expect(kind.className).toContain("tabular-nums");
+    const notice = screen.getByTestId("transcript-marker-notice");
+    expect(notice).toHaveAttribute("data-marker-kind", "transcript_marker.prompt_timeout");
+    expect(notice).not.toHaveTextContent("transcript_marker");
   });
 
   it("renders the post-stop marker as a neutral discard note, never as an alert", () => {
@@ -363,9 +414,8 @@ describe("RuntimeActivityNotice", () => {
     expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
       "The agent sent more output after you stopped it — discarded; the reply was not changed."
     );
-    expect(screen.getByTestId("transcript-marker-kind")).toHaveTextContent(
-      "transcript_marker.post_stop"
-    );
+    expect(notice).toHaveAttribute("data-marker-kind", "transcript_marker.post_stop");
+    expect(notice).not.toHaveTextContent("transcript_marker");
   });
 
   it("renders the queue-cleared marker as a neutral attributed trace", () => {
@@ -435,9 +485,11 @@ describe("RuntimeActivityNotice", () => {
     const notice = screen.getByTestId("transcript-marker-notice");
     expect(notice).toHaveAttribute("data-tone", "warning");
     expect(screen.getByRole("alert")).toBe(notice);
-    expect(screen.getByTestId("transcript-marker-kind")).toHaveTextContent(
+    expect(notice).toHaveAttribute(
+      "data-marker-kind",
       "transcript_marker.file_mutation_unverified"
     );
+    expect(notice).not.toHaveTextContent("transcript_marker");
     expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(summary);
   });
 

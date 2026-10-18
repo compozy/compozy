@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -410,35 +409,6 @@ func TestHasSidecarReturnsFalseWhenSidecarMissing(t *testing.T) {
 	}
 	if hasSidecar {
 		t.Fatal("HasSidecar() = true, want false")
-	}
-}
-
-func TestSidecarRoundTripProducesIdenticalProvenance(t *testing.T) {
-	t.Parallel()
-
-	skillDir := t.TempDir()
-	want := testProvenance()
-
-	if err := WriteSidecar(skillDir, want); err != nil {
-		t.Fatalf("WriteSidecar() error = %v", err)
-	}
-
-	got, err := ReadSidecar(skillDir)
-	if err != nil {
-		t.Fatalf("ReadSidecar() error = %v", err)
-	}
-
-	marshaledGot, err := json.Marshal(got)
-	if err != nil {
-		t.Fatalf("json.Marshal(got) error = %v", err)
-	}
-	marshaledWant, err := json.Marshal(want)
-	if err != nil {
-		t.Fatalf("json.Marshal(want) error = %v", err)
-	}
-
-	if !bytes.Equal(marshaledGot, marshaledWant) {
-		t.Fatalf("round-trip mismatch\ngot:  %s\nwant: %s", marshaledGot, marshaledWant)
 	}
 }
 

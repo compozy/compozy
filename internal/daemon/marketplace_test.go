@@ -64,7 +64,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := runtime.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				if err := runtime.Shutdown(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
 			})

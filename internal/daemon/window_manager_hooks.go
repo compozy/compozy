@@ -55,10 +55,8 @@ func windowManagerHookPayloads(event windowmanager.Event) []windowManagerHookDis
 		dispatches = append(dispatches, windowManagerHookDispatch{
 			event: hookEvent,
 			payload: hookspkg.WindowManagerPayload{
-				PayloadBase: hookspkg.PayloadBase{
-					Event:     hookEvent,
-					Timestamp: event.OccurredAt,
-				},
+				Event:       hookEvent,
+				Timestamp:   event.OccurredAt,
 				WorkspaceID: string(event.WorkspaceID),
 				Revision:    uint64(event.Revision),
 				CommandID:   string(event.CommandID),

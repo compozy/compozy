@@ -1,11 +1,12 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 
 	"reflect"
-	"sort"
+	"slices"
 
 	"strings"
 	"time"
@@ -30,31 +31,31 @@ const (
 	toolSurfaceDaemonSubprocessHealthEscalationThresholdPath   = "daemon.subprocess_health_escalation_threshold"
 	toolSurfaceDefaultsAgentPath                               = "defaults.agent"
 	toolSurfaceEventKey                                        = "event"
-	toolSurfaceExtractorKey                                    = "extractor"
 	toolSurfaceHooksKey                                        = "hooks"
 	toolSurfaceMarketplaceKey                                  = "marketplace"
 	toolSurfaceMCPServersKey                                   = "mcp_servers"
-	toolSurfaceMemoryDreamGatesMinScorePath                    = "memory.dream.gates.min_score"
-	toolSurfaceMemoryProviderTimeoutPath                       = "memory.provider.timeout"
-	toolSurfaceMemoryRecallWeightsBm25UnicodePath              = "memory.recall.weights.bm25_unicode"
-	toolSurfaceNetworkMaxReplayAgePath                         = "network.max_replay_age"
 	toolSurfacePermissionsKey                                  = "permissions"
 	toolSurfaceToolsDefaultMaxResultBytesPath                  = "tools.default_max_result_bytes"
 	toolSurfaceToolsArtifactsMaxAgePath                        = "tools.artifacts.max_age"
 	toolSurfaceToolsArtifactsMaxBytesPath                      = "tools.artifacts.max_bytes"
 	toolSurfaceToolsArtifactsMaxCountPath                      = "tools.artifacts.max_count"
+	toolSurfaceToolsClarifyTimeoutPath                         = "tools.clarify.timeout"
 	toolSurfaceWebhookSecretRefKey                             = "webhook_secret_ref"
 )
+
+// toolSurfaceToolsClarifyTimeoutSegments splits the boot-scoped clarify
+// timeout path for scope checks without repeating its segments.
+var toolSurfaceToolsClarifyTimeoutSegments = strings.Split(toolSurfaceToolsClarifyTimeoutPath, ".")
 
 var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
 
 	agentMutableConfigKinds = mergeAgentMutableConfigKinds(map[string]ValueKind{
+		"subagents.result_max_chars":                               ConfigValueInt,
 		"app.update_check":                                         ConfigValueBool,
 		appUpdateCheckIntervalPath:                                 ConfigValueDuration,
 		toolSurfaceDefaultsAgentPath:                               ConfigValueString,
 		"defaults.provider":                                        ConfigValueString,
-		"defaults.sandbox":                                         ConfigValueString,
 		"agents.soul.enabled":                                      ConfigValueBool,
 		toolSurfaceAgentsSoulMaxBodyBytesPath:                      ConfigValueInt64,
 		toolSurfaceAgentsSoulContextProjectionBytesPath:            ConfigValueInt64,
@@ -80,78 +81,20 @@ var (
 		"session.supervision.inactivity_timeout":                   ConfigValueDuration,
 		"session.supervision.quiet_after":                          ConfigValueDuration,
 		"session.supervision.stop_grace":                           ConfigValueDuration,
+		"session.supervision.idle_release_after":                   ConfigValueDuration,
 		"session.supervision.timeout_cancel_grace":                 ConfigValueDuration,
 		"session.busy_input.default_mode":                          ConfigValueString,
 		"session.busy_input.queue_cap":                             ConfigValueInt,
 		"session.busy_input.max_text_bytes":                        ConfigValueInt,
-		"session.compaction.enabled":                               ConfigValueBool,
-		"session.compaction.pressure_threshold":                    ConfigValueFloat,
-		"session.compaction.max_attempts_per_turn":                 ConfigValueInt,
-		"session.compaction.failure_cooldown":                      ConfigValueDuration,
+		"session.messaging.rate_limit_messages":                    ConfigValueInt,
+		"session.messaging.rate_limit_window":                      ConfigValueDuration,
+		"session.messaging.reply_watch_ttl":                        ConfigValueDuration,
+		"session.messaging.queue_promote_after":                    ConfigValueDuration,
 		toolSurfaceDaemonSubprocessHealthEscalationThresholdPath:   ConfigValueInt,
+		daemonLoadAgentNicenessPath:                                ConfigValueInt,
+		daemonLoadAdmissionThreshold:                               ConfigValueFloat,
+		daemonLoadAdmissionMaxWaitPath:                             ConfigValueDuration,
 		"redact.enabled":                                           ConfigValueBool,
-		"memory.enabled":                                           ConfigValueBool,
-		"memory.controller.mode":                                   ConfigValueString,
-		"memory.controller.max_latency":                            ConfigValueDuration,
-		"memory.controller.default_op_on_fail":                     ConfigValueString,
-		"memory.controller.policy.max_content_chars":               ConfigValueInt,
-		"memory.controller.policy.max_writes_per_min":              ConfigValueInt,
-		"memory.controller.policy.allow_origins":                   ConfigValueStringSlice,
-		"memory.recall.top_k":                                      ConfigValueInt,
-		"memory.recall.raw_candidates":                             ConfigValueInt,
-		"memory.recall.fusion":                                     ConfigValueString,
-		"memory.recall.include_already_surfaced":                   ConfigValueBool,
-		"memory.recall.include_system":                             ConfigValueBool,
-		toolSurfaceMemoryRecallWeightsBm25UnicodePath:              ConfigValueFloat,
-		"memory.recall.weights.bm25_trigram":                       ConfigValueFloat,
-		"memory.recall.weights.recency":                            ConfigValueFloat,
-		"memory.recall.weights.recall_signal":                      ConfigValueFloat,
-		"memory.recall.freshness.banner_after_days":                ConfigValueInt,
-		"memory.recall.signals.queue_capacity":                     ConfigValueInt,
-		"memory.recall.signals.worker_retry_max":                   ConfigValueInt,
-		"memory.decisions.prune_after_applied_days":                ConfigValueInt,
-		"memory.decisions.keep_audit_summary":                      ConfigValueBool,
-		"memory.decisions.max_post_content_bytes":                  ConfigValueInt64,
-		"memory.extractor.mode":                                    ConfigValueString,
-		"memory.extractor.throttle_turns":                          ConfigValueInt,
-		"memory.extractor.deadline":                                ConfigValueDuration,
-		"memory.extractor.sandbox_inbox_only":                      ConfigValueBool,
-		"memory.extractor.queue.capacity":                          ConfigValueInt,
-		configExtractorQueueCoalesceMaxPath:                        ConfigValueInt,
-		"memory.dream.min_hours":                                   ConfigValueFloat,
-		"memory.dream.min_sessions":                                ConfigValueInt,
-		"memory.dream.debounce":                                    ConfigValueDuration,
-		"memory.dream.prompt_version":                              ConfigValueString,
-		"memory.dream.check_interval":                              ConfigValueDuration,
-		"memory.dream.gates.min_unpromoted":                        ConfigValueInt,
-		"memory.dream.gates.min_recall_count":                      ConfigValueInt,
-		toolSurfaceMemoryDreamGatesMinScorePath:                    ConfigValueFloat,
-		"memory.dream.scoring.recency_half_life_days":              ConfigValueInt,
-		"memory.dream.scoring.weights.frequency":                   ConfigValueFloat,
-		"memory.dream.scoring.weights.relevance":                   ConfigValueFloat,
-		"memory.dream.scoring.weights.recency":                     ConfigValueFloat,
-		"memory.dream.scoring.weights.freshness":                   ConfigValueFloat,
-		"memory.session.ledger_format":                             ConfigValueString,
-		"memory.session.events_purge_grace":                        ConfigValueDuration,
-		"memory.session.cold_archive_days":                         ConfigValueInt,
-		"memory.session.hard_delete_days":                          ConfigValueInt,
-		"memory.session.max_archive_bytes":                         ConfigValueInt64,
-		"memory.session.unbound_partition":                         ConfigValueString,
-		"memory.daily.max_bytes":                                   ConfigValueInt64,
-		"memory.daily.max_lines":                                   ConfigValueInt,
-		"memory.daily.rotate_format":                               ConfigValueString,
-		"memory.daily.dreaming_window":                             ConfigValueInt,
-		"memory.daily.cold_archive_days":                           ConfigValueInt,
-		"memory.daily.hard_delete_days":                            ConfigValueInt,
-		"memory.daily.max_archive_bytes":                           ConfigValueInt64,
-		"memory.daily.sweep_hour":                                  ConfigValueInt,
-		"memory.file.max_lines":                                    ConfigValueInt,
-		"memory.file.max_bytes":                                    ConfigValueInt64,
-		"memory.provider.name":                                     ConfigValueString,
-		toolSurfaceMemoryProviderTimeoutPath:                       ConfigValueDuration,
-		"memory.provider.failure_threshold":                        ConfigValueInt,
-		"memory.provider.cooldown":                                 ConfigValueDuration,
-		"memory.workspace.auto_create":                             ConfigValueBool,
 		"marketplace.catalog.ttl":                                  ConfigValueDuration,
 		"marketplace.catalog.timeout":                              ConfigValueDuration,
 		"skills.enabled":                                           ConfigValueBool,
@@ -163,27 +106,11 @@ var (
 		"shell.sessions.scope":                                     ConfigValueString,
 		"cmd_palette.fallback_targets":                             ConfigValueStringSlice,
 		"cmd_palette.personalization":                              ConfigValueBool,
-		"network.enabled":                                          ConfigValueBool,
-		toolSurfaceNetworkMaxReplayAgePath:                         ConfigValueInt,
-		"network.live.defaults.max_wakes":                          ConfigValueInt,
-		"network.live.defaults.max_wake_wall_time":                 ConfigValueString,
-		"network.live.defaults.max_total_wall_time":                ConfigValueString,
-		"network.live.defaults.max_input_tokens":                   ConfigValueInt64,
-		"network.live.defaults.max_output_tokens":                  ConfigValueInt64,
-		"network.live.defaults.max_wake_depth":                     ConfigValueInt,
-		"network.live.defaults.coalesce_window":                    ConfigValueString,
-		networkLiveLimitsMaxWakesPath:                              ConfigValueInt,
-		"network.live.limits.max_wake_wall_time":                   ConfigValueString,
-		"network.live.limits.max_total_wall_time":                  ConfigValueString,
-		"network.live.limits.max_input_tokens":                     ConfigValueInt64,
-		"network.live.limits.max_output_tokens":                    ConfigValueInt64,
-		"network.live.limits.max_wake_depth":                       ConfigValueInt,
-		networkLiveLimitsMinCoalesceWindowPath:                     ConfigValueString,
-		"network.live.limits.max_coalesce_window":                  ConfigValueString,
 		toolSurfaceToolsDefaultMaxResultBytesPath:                  ConfigValueInt64,
 		toolSurfaceToolsArtifactsMaxAgePath:                        ConfigValueDuration,
 		toolSurfaceToolsArtifactsMaxBytesPath:                      ConfigValueInt64,
 		toolSurfaceToolsArtifactsMaxCountPath:                      ConfigValueInt,
+		toolSurfaceToolsClarifyTimeoutPath:                         ConfigValueDuration,
 	}, roleMutableConfigKinds, automationToolPathKinds(), loopAndGoalToolPathKinds(),
 		taskToolSurfaceMutableConfigKinds(), worktreeToolSurfaceMutableConfigKinds(),
 		sessionAttachmentsToolPathKinds())
@@ -208,8 +135,8 @@ func RedactedConfigMap(cfg *Config) map[string]any {
 func FlattenConfigEntries(configMap map[string]any) []Entry {
 	entries := make([]Entry, 0)
 	flattenConfigValue(&entries, "", configMap, false)
-	sort.Slice(entries, func(i int, j int) bool {
-		return entries[i].Path < entries[j].Path
+	slices.SortFunc(entries, func(left, right Entry) int {
+		return cmp.Compare(left.Path, right.Path)
 	})
 	return entries
 }
@@ -250,8 +177,8 @@ func DiffConfigEntries(before []Entry, after []Entry) []DiffEntry {
 		}
 		diff = append(diff, entry)
 	}
-	sort.Slice(diff, func(i int, j int) bool {
-		return diff[i].Path < diff[j].Path
+	slices.SortFunc(diff, func(left, right DiffEntry) int {
+		return cmp.Compare(left.Path, right.Path)
 	})
 	return diff
 }

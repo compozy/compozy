@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,9 +19,15 @@ const (
 	// MaxListLimit is the largest public session catalog page.
 	MaxListLimit = 100
 
+	sessionCatalogSearchTitleAgent = "title_agent"
+
 	ListSortRecent       = "recent"
+	ListSortCreated      = "created"
+	ListSortName         = "name"
+	ListSortNavigator    = "navigator"
 	ListSortLastActivity = "last_activity"
 	ListSortAttention    = "attention"
+	ListSortManual       = "manual"
 
 	ArchiveExclude = store.SessionArchiveExclude
 	ArchiveOnly    = store.SessionArchiveOnly
@@ -40,6 +46,7 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
+	Subagents       string
 	ReadScope       store.ReadScope
 	WorkspaceID     string
 	AllWorkspaces   bool
@@ -49,6 +56,7 @@ type ListQuery struct {
 	AgentName       string
 	ParentSessionID string
 	RootSessionID   string
+	SearchFields    string
 	Search          string
 	Resumable       bool
 	AttentionOnly   bool
@@ -57,6 +65,7 @@ type ListQuery struct {
 	Sort            string
 	Cursor          string
 	Limit           int
+	SkipTotal       bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -66,9 +75,12 @@ type ListPage struct {
 	HasMore    bool
 	Total      int
 	Limit      int
+	// Placements carries folder membership for page sessions that have one.
+	Placements map[string]store.SessionPlacement
 }
 
 type sessionListFingerprint struct {
+	Subagents       string                     `json:"subagents,omitempty"`
 	ProfileID       string                     `json:"profile_id"`
 	AllProfiles     bool                       `json:"all_profiles"`
 	WorkspaceID     string                     `json:"workspace_id"`
@@ -79,6 +91,7 @@ type sessionListFingerprint struct {
 	AgentName       string                     `json:"agent"`
 	ParentSessionID string                     `json:"parent"`
 	RootSessionID   string                     `json:"root"`
+	SearchFields    string                     `json:"search_fields,omitempty"`
 	Search          string                     `json:"q"`
 	Resumable       bool                       `json:"resumable"`
 	AttentionOnly   bool                       `json:"attention"`
@@ -105,12 +118,9 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	if err != nil {
 		return ListPage{}, err
 	}
-	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint)
+	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint, normalized.Sort)
 	if err != nil {
 		return ListPage{}, err
-	}
-	if normalized.AttentionOnly || len(normalized.Badges) > 0 {
-		return m.listAttentionPage(ctx, normalized, pager, fingerprint, after)
 	}
 
 	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
@@ -120,19 +130,24 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
 	}
 
+	placements, err := m.sessionCatalogPlacements(ctx, durable.Sessions, activeMatches)
+	if err != nil {
+		return ListPage{}, err
+	}
+	position := func(info *store.SessionInfo) store.SessionCatalogPosition {
+		return sessionCatalogPlacedPosition(info, normalized.Sort, placements)
+	}
+
 	candidates := make([]store.SessionInfo, 0, len(durable.Sessions)+len(activeMatches))
 	candidates = append(candidates, durable.Sessions...)
 	for index := range activeMatches {
 		info := &activeMatches[index]
-		if after == nil || compareSessionCatalogPosition(sessionCatalogPosition(info, normalized.Sort), *after) > 0 {
+		if after == nil || compareSessionCatalogPosition(position(info), *after) > 0 {
 			candidates = append(candidates, *info)
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return compareSessionCatalogPosition(
-			sessionCatalogPosition(&candidates[i], normalized.Sort),
-			sessionCatalogPosition(&candidates[j], normalized.Sort),
-		) < 0
+	slices.SortFunc(candidates, func(a, b store.SessionInfo) int {
+		return compareSessionCatalogPosition(position(&a), position(&b))
 	})
 
 	page := ListPage{
@@ -144,10 +159,11 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		candidates = candidates[:normalized.Limit]
 	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
+	page.Placements = pageSessionPlacements(candidates, placements)
 	if page.HasMore && len(candidates) > 0 {
 		page.NextCursor, err = encodeSessionListCursor(
 			fingerprint,
-			sessionCatalogPosition(&candidates[len(candidates)-1], normalized.Sort),
+			position(&candidates[len(candidates)-1]),
 		)
 		if err != nil {
 			return ListPage{}, err
@@ -161,25 +177,33 @@ func sessionCatalogPageQuery(
 	after *store.SessionCatalogPosition,
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
-	return store.SessionCatalogPageQuery{
-		ReadScope:           normalized.ReadScope,
-		WorkspaceID:         normalized.WorkspaceID,
-		WorktreeID:          normalized.WorktreeID,
-		State:               normalized.State,
-		SessionType:         string(normalized.SessionType),
-		AgentName:           normalized.AgentName,
-		ParentSessionID:     normalized.ParentSessionID,
-		RootSessionID:       normalized.RootSessionID,
-		Search:              normalized.Search,
-		Resumable:           normalized.Resumable,
-		Archive:             normalized.Archive,
-		Sort:                normalized.Sort,
-		Limit:               normalized.Limit + 1,
-		After:               after,
-		ExcludeIDs:          activeIDs,
-		ExcludeSessionTypes: []string{string(SessionTypeDream)},
-		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle},
+	query := store.SessionCatalogPageQuery{
+		Subagents:         normalized.Subagents,
+		SkipTotal:         normalized.SkipTotal,
+		ReadScope:         normalized.ReadScope,
+		WorkspaceID:       normalized.WorkspaceID,
+		WorktreeID:        normalized.WorktreeID,
+		State:             normalized.State,
+		SessionType:       string(normalized.SessionType),
+		AgentName:         normalized.AgentName,
+		ParentSessionID:   normalized.ParentSessionID,
+		RootSessionID:     normalized.RootSessionID,
+		SearchFields:      normalized.SearchFields,
+		Search:            normalized.Search,
+		AttentionOnly:     normalized.AttentionOnly,
+		Badges:            badgeStrings(normalized.Badges),
+		Resumable:         normalized.Resumable,
+		Archive:           normalized.Archive,
+		Sort:              normalized.Sort,
+		Limit:             normalized.Limit + 1,
+		After:             after,
+		ExcludeIDs:        activeIDs,
+		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
 	}
+	if normalized.SessionType == "" {
+		query.ExcludeVerdictOnly = true
+	}
+	return query
 }
 
 func (m *Manager) activeSessionCatalogRows(
@@ -205,6 +229,11 @@ func (m *Manager) activeSessionCatalogRows(
 }
 
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
+	filter, err := normalizeSubagentListFilter(query.Subagents)
+	if err != nil {
+		return ListQuery{}, err
+	}
+	query.Subagents = filter
 	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
 	if err := query.ReadScope.Validate(); err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
@@ -222,7 +251,16 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.AgentName = strings.TrimSpace(query.AgentName)
 	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
 	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
-	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
+	query.SearchFields = strings.TrimSpace(query.SearchFields)
+	if query.SearchFields != "" && query.SearchFields != sessionCatalogSearchTitleAgent {
+		return ListQuery{}, fmt.Errorf("%w: unsupported search_fields %q", ErrListQueryInvalid, query.SearchFields)
+	}
+	query.Search = strings.TrimSpace(query.Search)
+	if query.SearchFields == sessionCatalogSearchTitleAgent {
+		query.Search = store.LowerSessionCatalogSearchText(query.Search)
+	} else {
+		query.Search = strings.ToLower(query.Search)
+	}
 	badges, err := ParseBadgeFilters(badgeStrings(query.Badges))
 	if err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
@@ -249,7 +287,8 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrListQueryInvalid, MaxListLimit)
 	}
 	switch query.Sort {
-	case ListSortRecent, ListSortLastActivity, ListSortAttention:
+	case ListSortRecent, ListSortCreated, ListSortName, ListSortNavigator, ListSortLastActivity, ListSortAttention,
+		ListSortManual:
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
 	}
@@ -278,16 +317,21 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if len(query.Badges) > 0 && !badgeFilterContains(query.Badges, badge) {
 		return false
 	}
-	search := strings.ToLower(strings.TrimSpace(query.Search))
+	search := strings.TrimSpace(query.Search)
 	if search == "" {
 		return true
 	}
+	if query.SearchFields == sessionCatalogSearchTitleAgent {
+		search = store.LowerSessionCatalogSearchText(search)
+		return strings.Contains(store.LowerSessionCatalogSearchText(sessionCatalogDisplayTitle(info)), search) ||
+			strings.Contains(store.LowerSessionCatalogSearchText(strings.TrimSpace(info.AgentName)), search)
+	}
+	search = strings.ToLower(search)
 	for _, value := range []string{
 		info.ID,
 		info.Name,
 		info.AgentName,
 		info.Provider,
-		info.NetworkParticipation.ChannelID,
 	} {
 		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), search) {
 			return true
@@ -297,7 +341,8 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 }
 
 func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
-	if !isPublicSessionCatalogInfo(info) {
+	if !isPublicSessionCatalogInfo(info) ||
+		(query.SessionType == "" && isInternalVerificationSession(info)) {
 		return false
 	}
 	return query.ReadScope.Matches(info.ProfileID) &&
@@ -309,7 +354,7 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 }
 
 func isPublicSessionCatalogInfo(info *Info) bool {
-	if info == nil || info.Type == SessionTypeDream {
+	if info == nil {
 		return false
 	}
 	lineage := info.Lineage
@@ -317,6 +362,10 @@ func isPublicSessionCatalogInfo(info *Info) bool {
 }
 
 func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
+	isSubagent := info.Lineage != nil && info.Lineage.SpawnRole == store.SubagentSpawnRole
+	if (query.Subagents == "exclude" && isSubagent) || (query.Subagents == "only" && !isSubagent) {
+		return false
+	}
 	if query.ParentSessionID == "" && query.RootSessionID == "" {
 		return true
 	}
@@ -344,6 +393,7 @@ func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) 
 
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
+		Subagents:       query.Subagents,
 		ProfileID:       query.ReadScope.ProfileID,
 		AllProfiles:     query.ReadScope.AllProfiles,
 		WorkspaceID:     query.WorkspaceID,
@@ -354,6 +404,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		AgentName:       query.AgentName,
 		ParentSessionID: query.ParentSessionID,
 		RootSessionID:   query.RootSessionID,
+		SearchFields:    query.SearchFields,
 		Search:          query.Search,
 		Resumable:       query.Resumable,
 		AttentionOnly:   query.AttentionOnly,
@@ -365,43 +416,6 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		return "", fmt.Errorf("session: fingerprint list query: %w", err)
 	}
 	return fingerprint, nil
-}
-
-func decodeSessionListCursor(raw string, fingerprint string) (*store.SessionCatalogPosition, error) {
-	if raw == "" {
-		return nil, nil
-	}
-	position, err := listcursor.Decode[store.SessionCatalogPosition](
-		raw,
-		sessionListCursorVersion,
-		sessionListCursorKind,
-		fingerprint,
-		listcursor.DefaultMaxEncodedSize,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrListCursorInvalid, err)
-	}
-	if err := position.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrListCursorInvalid, err)
-	}
-	position.PrimaryAt = position.PrimaryAt.UTC()
-	position.SecondaryAt = position.SecondaryAt.UTC()
-	position.CreatedAt = position.CreatedAt.UTC()
-	position.ID = strings.TrimSpace(position.ID)
-	return &position, nil
-}
-
-func encodeSessionListCursor(fingerprint string, position store.SessionCatalogPosition) (string, error) {
-	encoded, err := listcursor.Encode(
-		sessionListCursorVersion,
-		sessionListCursorKind,
-		fingerprint,
-		position,
-	)
-	if err != nil {
-		return "", fmt.Errorf("session: encode list cursor: %w", err)
-	}
-	return encoded, nil
 }
 
 func projectSessionCatalogPage(
@@ -423,6 +437,7 @@ func projectSessionCatalogPage(
 func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 	attention := info.AttentionSnapshot()
 	return &Info{
+		VerdictOnly:              info.VerdictOnly,
 		ID:                       strings.TrimSpace(info.ID),
 		ProfileID:                strings.TrimSpace(info.ProfileID),
 		Name:                     strings.TrimSpace(info.Name),
@@ -442,7 +457,6 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
 		WorkspaceID:              strings.TrimSpace(info.WorkspaceID),
 		WorktreeID:               strings.TrimSpace(info.WorktreeID),
-		NetworkParticipation:     info.NetworkSpecSnapshot(),
 		Type:                     Type(strings.TrimSpace(info.SessionType)),
 		Lineage:                  store.CloneSessionLineage(info.Lineage),
 		State:                    State(strings.TrimSpace(info.State)),
@@ -453,7 +467,6 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		ACPSessionID:             stringValue(info.ACPSessionID),
 		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(info.Sandbox),
 		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
@@ -470,5 +483,16 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
+	}
+}
+
+func normalizeSubagentListFilter(value string) (string, error) {
+	switch value {
+	case "", "include":
+		return "", nil
+	case "exclude", "only":
+		return value, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported subagents %q", ErrListQueryInvalid, value)
 	}
 }

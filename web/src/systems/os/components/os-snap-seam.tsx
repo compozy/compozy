@@ -17,10 +17,15 @@ export type SeamGestureHandlers = {
   onSeamPreviewEnd: () => void;
 };
 
+/**
+ * Seam grammar (shell-rail prototype `.seam`): a 9px hit strip centred on the
+ * boundary whose 1px `line` hairline is the only divider between flush panes;
+ * hover, drag and keyboard focus widen it to 2px `accent`.
+ */
 const SEAM_CLASS_BASE = cn(
-  "absolute touch-none rounded-pill outline-none",
-  "before:absolute before:rounded-pill before:bg-line-strong",
-  "hover:before:bg-accent focus-visible:shadow-focus-ring focus-visible:before:bg-accent"
+  "absolute touch-none outline-none",
+  "before:absolute before:bg-line before:transition-colors before:duration-fast",
+  "hover:before:bg-accent focus-visible:before:bg-accent"
 );
 
 function seamClassName(vertical: boolean, dragging: boolean): string {
@@ -28,17 +33,27 @@ function seamClassName(vertical: boolean, dragging: boolean): string {
     SEAM_CLASS_BASE,
     dragging && "before:bg-accent",
     vertical
-      ? "w-3 cursor-col-resize before:top-0 before:bottom-0 before:left-1/2 before:w-px before:-translate-x-1/2"
-      : "h-3 cursor-row-resize before:top-1/2 before:right-0 before:left-0 before:h-px before:-translate-y-1/2"
+      ? [
+          "cursor-col-resize before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2",
+          "hover:before:w-0.5 focus-visible:before:w-0.5",
+          dragging && "before:w-0.5",
+        ]
+      : [
+          "cursor-row-resize before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2",
+          "hover:before:h-0.5 focus-visible:before:h-0.5",
+          dragging && "before:h-0.5",
+        ]
   );
 }
 
+const SEAM_HIT = "var(--size-seam-hit)";
+
 function seamStyle(vertical: boolean, rect: ProjectedSeam["rect"]) {
   return {
-    left: rect.x - (vertical ? 6 : 0),
-    top: rect.y - (vertical ? 0 : 6),
-    width: vertical ? 12 : rect.w,
-    height: vertical ? rect.h : 12,
+    left: vertical ? `calc(${rect.x}px - ${SEAM_HIT} / 2)` : rect.x,
+    top: vertical ? rect.y : `calc(${rect.y}px - ${SEAM_HIT} / 2)`,
+    width: vertical ? SEAM_HIT : rect.w,
+    height: vertical ? rect.h : SEAM_HIT,
     zIndex: WINDOW_VISUAL_LAYER.seam,
   };
 }

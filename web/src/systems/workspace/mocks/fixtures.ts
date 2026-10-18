@@ -2,7 +2,6 @@ import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace/types";
 import {
   storyAgentNames,
-  storyChannels,
   storyDefaultWorkspaceId,
   storySessionIds,
   storySkillNames,
@@ -11,11 +10,6 @@ import {
   storyWorkspacePaths,
   storyWorkspaceSkillDir,
 } from "@/storybook/fintech-scenario";
-import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
-
-function liveParticipation(workspaceId: string, channelId: string) {
-  return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
-}
 
 function sessionRuntime(provider: string) {
   return {
@@ -231,21 +225,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       harness: "pi_acp",
       runtime_provider: "openrouter",
     },
-    { name: "cline", display_name: "Cline", harness: "acp", runtime_provider: "cline" },
-    { name: "hermes", display_name: "Hermes", harness: "acp", runtime_provider: "hermes" },
-    { name: "goose", display_name: "Goose", harness: "acp", runtime_provider: "goose" },
+    { name: "cursor", display_name: "Cursor Agent", harness: "acp", runtime_provider: "cursor" },
+    { name: "opencode", display_name: "OpenCode", harness: "acp", runtime_provider: "opencode" },
     {
-      name: "openhands",
-      display_name: "OpenHands",
+      name: "copilot",
+      display_name: "GitHub Copilot CLI",
       harness: "acp",
-      runtime_provider: "openhands",
+      runtime_provider: "copilot",
     },
-    {
-      name: "junie",
-      display_name: "Junie",
-      harness: "acp",
-      runtime_provider: "junie",
-    },
+    { name: "kimi-cli", display_name: "Kimi CLI", harness: "acp", runtime_provider: "kimi-cli" },
   ],
   sessions: [
     {
@@ -254,10 +242,6 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       id: storySessionIds.product,
       name: "Launch room command brief",
       agent_name: storyAgentNames.product,
-      resolved_network_participation: liveParticipation(
-        primaryWorkspaceFixture.id,
-        storyChannels.launchWarRoom
-      ),
       runtime: sessionRuntime("gemini"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
@@ -276,10 +260,6 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       id: storySessionIds.frontend,
       name: "Landing page launch QA",
       agent_name: storyAgentNames.frontend,
-      resolved_network_participation: liveParticipation(
-        primaryWorkspaceFixture.id,
-        storyChannels.landingPage
-      ),
       runtime: sessionRuntime("codex"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
@@ -298,10 +278,6 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       id: storySessionIds.cto,
       name: "Executive launch review",
       agent_name: storyAgentNames.cto,
-      resolved_network_participation: liveParticipation(
-        primaryWorkspaceFixture.id,
-        storyChannels.execSignal
-      ),
       runtime: sessionRuntime("claude"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
@@ -320,10 +296,6 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       id: storySessionIds.cfo,
       name: "Launch revenue watch",
       agent_name: storyAgentNames.cfo,
-      resolved_network_participation: liveParticipation(
-        primaryWorkspaceFixture.id,
-        storyChannels.financeWatch
-      ),
       runtime: sessionRuntime("claude"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
@@ -342,10 +314,6 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       id: storySessionIds.marketing,
       name: "CRM launch timing",
       agent_name: storyAgentNames.marketing,
-      resolved_network_participation: liveParticipation(
-        primaryWorkspaceFixture.id,
-        storyChannels.growthLaunch
-      ),
       runtime: sessionRuntime("gemini"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
@@ -364,10 +332,6 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       id: storySessionIds.copywriter,
       name: "Headline claim polish",
       agent_name: storyAgentNames.copywriter,
-      resolved_network_participation: liveParticipation(
-        primaryWorkspaceFixture.id,
-        storyChannels.landingPage
-      ),
       runtime: sessionRuntime("claude"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
@@ -386,10 +350,6 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       id: storySessionIds.release,
       name: "Release control canary",
       agent_name: storyAgentNames.release,
-      resolved_network_participation: liveParticipation(
-        primaryWorkspaceFixture.id,
-        storyChannels.releaseControl
-      ),
       runtime: sessionRuntime("codex"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,

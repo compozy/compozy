@@ -64,7 +64,7 @@ function FormSection({
             data-slot="form-section-icon"
             className="inline-flex size-3.5 shrink-0 items-center justify-center text-subtle"
           >
-            <Icon width={14} height={14} strokeWidth={1.75} />
+            <Icon width={14} height={14} />
           </span>
         ) : null}
         <h3

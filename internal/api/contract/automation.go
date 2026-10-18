@@ -8,7 +8,6 @@ import (
 	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // AutomationResourceStatusPayload reports total and enabled counts for one
@@ -28,10 +27,10 @@ type AutomationSchedulerStatePayload struct {
 	LastScheduledAt           *time.Time                           `json:"last_scheduled_at,omitempty"`
 	LastFireID                string                               `json:"last_fire_id,omitempty"`
 	CatchUpPolicy             automationpkg.SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds       int                                  `json:"misfire_grace_seconds,omitempty"`
-	ConsecutiveResumeFailures int                                  `json:"consecutive_resume_failures,omitempty"`
+	MisfireGraceSeconds       int                                  `json:"misfire_grace_seconds,omitzero"`
+	ConsecutiveResumeFailures int                                  `json:"consecutive_resume_failures,omitzero"`
 	LastMisfireAt             *time.Time                           `json:"last_misfire_at,omitempty"`
-	MisfireCount              int                                  `json:"misfire_count,omitempty"`
+	MisfireCount              int                                  `json:"misfire_count,omitzero"`
 	UpdatedAt                 *time.Time                           `json:"updated_at,omitempty"`
 }
 
@@ -59,9 +58,9 @@ type JobPayload struct {
 	AgentName    string                           `json:"agent_name"`
 	WorkspaceID  string                           `json:"workspace_id,omitempty"`
 	Prompt       string                           `json:"prompt"`
-	Schedule     *automationpkg.ScheduleSpec      `json:"schedule,omitempty"`
-	Task         *automationpkg.JobTaskConfig     `json:"task,omitempty"`
-	LoopTarget   *automationpkg.LoopTarget        `json:"loop_target,omitempty"`
+	Schedule     *automationpkg.ScheduleSpec      `json:"schedule,omitzero"`
+	Task         *automationpkg.JobTaskConfig     `json:"task,omitzero"`
+	LoopTarget   *automationpkg.LoopTarget        `json:"loop_target,omitzero"`
 	Enabled      bool                             `json:"enabled"`
 	Retry        automationpkg.RetryConfig        `json:"retry"`
 	FireLimit    automationpkg.FireLimitConfig    `json:"fire_limit"`
@@ -69,7 +68,19 @@ type JobPayload struct {
 	CreatedAt    time.Time                        `json:"created_at"`
 	UpdatedAt    time.Time                        `json:"updated_at"`
 	NextRun      *time.Time                       `json:"next_run,omitempty"`
-	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitempty"`
+	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
+	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
+}
+
+// AutomationLastRunPayload summarizes the newest run of one job or trigger.
+// It equals the first run of the owner's run list; skipped scheduled fires
+// carry the reason stored in the run metadata.
+type AutomationLastRunPayload struct {
+	ID         string                            `json:"id"`
+	Status     automationpkg.RunStatus           `json:"status"`
+	StartedAt  *time.Time                        `json:"started_at,omitzero"`
+	EndedAt    *time.Time                        `json:"ended_at,omitzero"`
+	SkipReason automationpkg.SchedulerSkipReason `json:"skip_reason,omitempty"`
 }
 
 // AutomationSuggestionPayload is a workspace-scoped, consent-first Job proposal.
@@ -112,6 +123,7 @@ type TriggerPayload struct {
 	Ingress              *GatewayIngressPayload        `json:"ingress,omitempty"`
 	CreatedAt            time.Time                     `json:"created_at"`
 	UpdatedAt            time.Time                     `json:"updated_at"`
+	LastRun              *AutomationLastRunPayload     `json:"last_run,omitzero"`
 }
 
 // TriggerPayloadFromTrigger converts an internal automation trigger into the
@@ -173,28 +185,27 @@ func cloneTriggerFilter(source map[string]string) map[string]string {
 
 // RunPayload is the shared automation run response payload.
 type RunPayload struct {
-	ID                   string                  `json:"id"`
-	ProfileID            string                  `json:"profile_id"`
-	ProfileName          string                  `json:"profile_name"`
-	ProfileColor         string                  `json:"profile_color,omitempty"`
-	ProfileIcon          string                  `json:"profile_icon,omitempty"`
-	JobID                string                  `json:"job_id,omitempty"`
-	TriggerID            string                  `json:"trigger_id,omitempty"`
-	SessionID            string                  `json:"session_id,omitempty"`
-	TaskID               string                  `json:"task_id,omitempty"`
-	TaskRunID            string                  `json:"task_run_id,omitempty"`
-	LoopRunID            string                  `json:"loop_run_id,omitempty"`
-	FireID               string                  `json:"fire_id,omitempty"`
-	Status               automationpkg.RunStatus `json:"status"`
-	Attempt              int                     `json:"attempt"`
-	NetworkParticipation *participation.Request  `json:"network_participation,omitempty"`
-	ScheduledAt          *time.Time              `json:"scheduled_at,omitempty"`
-	StartedAt            *time.Time              `json:"started_at,omitempty"`
-	EndedAt              *time.Time              `json:"ended_at,omitempty"`
-	Error                string                  `json:"error,omitempty"`
-	DeliveryError        string                  `json:"delivery_error,omitempty"`
-	DeliveryErrorAt      *time.Time              `json:"delivery_error_at,omitempty"`
-	Metadata             map[string]any          `json:"metadata,omitempty"`
+	ID              string                  `json:"id"`
+	ProfileID       string                  `json:"profile_id"`
+	ProfileName     string                  `json:"profile_name"`
+	ProfileColor    string                  `json:"profile_color,omitempty"`
+	ProfileIcon     string                  `json:"profile_icon,omitempty"`
+	JobID           string                  `json:"job_id,omitempty"`
+	TriggerID       string                  `json:"trigger_id,omitempty"`
+	SessionID       string                  `json:"session_id,omitempty"`
+	TaskID          string                  `json:"task_id,omitempty"`
+	TaskRunID       string                  `json:"task_run_id,omitempty"`
+	LoopRunID       string                  `json:"loop_run_id,omitempty"`
+	FireID          string                  `json:"fire_id,omitempty"`
+	Status          automationpkg.RunStatus `json:"status"`
+	Attempt         int                     `json:"attempt"`
+	ScheduledAt     *time.Time              `json:"scheduled_at,omitempty"`
+	StartedAt       *time.Time              `json:"started_at,omitempty"`
+	EndedAt         *time.Time              `json:"ended_at,omitempty"`
+	Error           string                  `json:"error,omitempty"`
+	DeliveryError   string                  `json:"delivery_error,omitempty"`
+	DeliveryErrorAt *time.Time              `json:"delivery_error_at,omitempty"`
+	Metadata        map[string]any          `json:"metadata,omitempty"`
 }
 
 // WebhookDeliveryPayload is the shared webhook dispatch response payload.
@@ -303,6 +314,5 @@ func cloneLoopTarget(source *automationpkg.LoopTarget) *automationpkg.LoopTarget
 	if len(source.InputMapping) > 0 {
 		cloned.InputMapping = maps.Clone(source.InputMapping)
 	}
-	cloned.NetworkParticipation = participation.CloneRequest(source.NetworkParticipation)
 	return &cloned
 }

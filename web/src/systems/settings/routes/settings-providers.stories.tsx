@@ -98,8 +98,8 @@ export const CreateProvider: Story = {
 };
 
 /**
- * Delete dialog and fallback banner for removing an overlay provider that reveals the builtin definition.
- * The Delete action lives inside the card overflow menu now -- open it before clicking the item.
+ * Reset dialog for a provider with your changes on top of the shipped setup: open the card,
+ * then use the detail footer's "Reset to default" action.
  */
 export const DeleteOverlay: Story = {
   args: {},
@@ -107,11 +107,9 @@ export const DeleteOverlay: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      await canvas.findByTestId("settings-page-providers-card-claude-overflow")
-    );
-    await userEvent.click(await screen.findByTestId("settings-page-providers-card-claude-delete"));
-    await expect(canvas.findByTestId("settings-providers-delete-fallback")).resolves.toBeDefined();
+    await userEvent.click(await canvas.findByTestId("settings-page-providers-card-claude"));
+    await userEvent.click(await screen.findByTestId("provider-detail-delete"));
+    await expect(screen.findByTestId("settings-providers-delete-fallback")).resolves.toBeDefined();
   },
 };
 

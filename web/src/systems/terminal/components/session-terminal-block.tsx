@@ -1,6 +1,13 @@
 "use client";
 
-import { Button, MonoId, Pill, TerminalView, type TerminalEngineLoader } from "@compozy/ui";
+import {
+  Button,
+  MonoId,
+  Pill,
+  StateGlyph,
+  TerminalView,
+  type TerminalEngineLoader,
+} from "@compozy/ui";
 
 import { TerminalSquare } from "lucide-react";
 
@@ -133,12 +140,12 @@ function SessionTerminalBlockBody({
 
   return (
     <div
-      className="max-w-160 overflow-hidden rounded-md border border-line"
+      className="max-w-160 overflow-hidden rounded-lg border border-line"
       data-testid={`session-terminal-block-${terminalId}`}
     >
-      <div className="flex min-h-8 min-w-0 items-center gap-2 border-line border-b bg-canvas-soft px-2.5">
+      <div className="flex min-h-8.5 min-w-0 items-center gap-2 border-line border-b bg-sunken px-3">
         <TerminalSquare aria-hidden="true" className="size-deck-glyph flex-none text-subtle" />
-        <span className="truncate font-semibold text-fg text-transcript-body">{title}</span>
+        <span className="truncate font-medium text-fg text-transcript-body">{title}</span>
         <MonoId size="sm" value={terminalId} />
         <div className="ml-auto flex flex-none items-center gap-1.5">
           {onOpenTerminal ? (
@@ -175,12 +182,13 @@ function SessionTerminalBlockBody({
 
 function SessionTerminalFooter({ status }: { status: SessionTerminalStatus }) {
   return (
-    <div className="flex min-h-7 items-center gap-2 border-line border-t bg-canvas-soft px-2.5 text-micro text-subtle">
+    <div className="flex min-h-7 items-center gap-2 border-line border-t bg-sunken px-3 font-mono text-eyebrow text-subtle">
       {status.kind === "replay-failed" ? (
         <span role="status">{terminalReplayFailedCopy()}</span>
       ) : status.kind === "exited" ? (
         <>
-          <Pill size="xs" tone={status.tone}>
+          <Pill form="plain" size="xs" tone={status.tone}>
+            <Pill.Dot />
             {status.label}
           </Pill>
           <MonoId size="sm" value={status.code} />
@@ -188,7 +196,7 @@ function SessionTerminalFooter({ status }: { status: SessionTerminalStatus }) {
         </>
       ) : (
         <>
-          <Pill.Dot aria-hidden="true" pulse size="sm" tone="accent" />
+          <StateGlyph size="sm" state="running" />
           <span>
             {status.stillRunning
               ? "still running — the agent continued without waiting"

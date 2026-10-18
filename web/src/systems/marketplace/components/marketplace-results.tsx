@@ -72,7 +72,7 @@ function MarketplaceResults({
           action={
             <Button
               data-testid="marketplace-retry"
-              variant="outline"
+              variant="secondary"
               onClick={() => void page.refresh()}
               size="sm"
               type="button"
@@ -99,25 +99,25 @@ function MarketplaceResults({
         {query ? (
           <Empty
             action={
-              <Button onClick={onClearSearch} size="sm" type="button" variant="outline">
+              <Button onClick={onClearSearch} size="sm" type="button" variant="secondary">
                 Clear search
               </Button>
             }
             data-testid="marketplace-query-empty"
-            description={`Nothing matches "${query}" in the marketplace.`}
+            description="Try a different word."
             icon={SearchX}
-            title="No extensions match this query"
+            title={`No results for "${query}"`}
           />
         ) : (
           <Empty
             action={
               <>
-                <Button onClick={onAddMarketplace} size="sm" type="button" variant="neutral">
-                  <Store aria-hidden="true" className="size-3" />
+                <Button onClick={onAddMarketplace} size="sm" type="button">
+                  <Store aria-hidden="true" />
                   Add plugin marketplace…
                 </Button>
                 <Button onClick={onInstallFromGitHub} size="sm" type="button" variant="ghost">
-                  <GithubLogo aria-hidden="true" className="size-3" />
+                  <GithubLogo aria-hidden="true" className="size-3.5" />
                   Install from GitHub…
                 </Button>
               </>
@@ -294,7 +294,7 @@ function MarketplaceContinuation({ page }: { page: MarketplacePageModel }) {
             ? "The catalog changed while loading; showing the last complete catalog."
             : "The catalog could not be refreshed."}
         </span>
-        <Button onClick={() => void page.refresh()} size="sm" type="button" variant="outline">
+        <Button onClick={() => void page.refresh()} size="sm" type="button" variant="secondary">
           Retry
         </Button>
       </div>

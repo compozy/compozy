@@ -136,7 +136,7 @@ func (m *Manager) rewindConversationLocked(
 	if err != nil {
 		return ConversationRewindResult{}, err
 	}
-	if info.Type != SessionTypeUser || conversationHasParentLineage(info.Lineage) {
+	if info.Type != SessionTypeUser || (info.Lineage != nil && info.Lineage.Kind == store.LineageKindSpawn) {
 		return ConversationRewindResult{}, fmt.Errorf(
 			"%w: %s",
 			ErrConversationRewindManaged,
@@ -290,10 +290,6 @@ func (m *Manager) commitStoppedConversationRewind(
 		return ConversationRewindResult{}, err
 	}
 	return m.resumeCommittedConversationRewind(ctx, request.sessionID, storedResult)
-}
-
-func conversationHasParentLineage(lineage *store.SessionLineage) bool {
-	return lineage != nil && strings.TrimSpace(lineage.ParentSessionID) != ""
 }
 
 func (m *Manager) readConversationRewindPreflight(

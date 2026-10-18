@@ -58,7 +58,7 @@ export function LoopNodeControlMenu({
         render={
           <Button
             aria-label={`Actions for ${node.label}`}
-            className="min-h-6 shrink-0"
+            className="shrink-0"
             data-testid={`loop-node-menu-trigger-${node.nodeId}`}
             disabled={isPending}
             size="sm"

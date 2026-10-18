@@ -41,6 +41,23 @@ class FakeEventSource {
   }
 }
 
+class FakeWebSocket {
+  static instances: FakeWebSocket[] = [];
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  onopen: ((event: Event) => void) | null = null;
+  onclose: ((event: Event) => void) | null = null;
+  closed = false;
+
+  constructor(readonly url: string) {
+    FakeWebSocket.instances.push(this);
+  }
+
+  close() {
+    this.closed = true;
+  }
+}
+
 function ticketResponse(ticket: string): Response {
   return new Response(JSON.stringify({ ticket, expires_at: "2026-08-07T00:00:00Z" }), {
     status: 201,
@@ -72,7 +89,9 @@ describe("ticketed event source", () => {
   beforeEach(() => {
     resetGatewayStreamAuth();
     FakeEventSource.instances = [];
+    FakeWebSocket.instances = [];
     vi.stubGlobal("EventSource", FakeEventSource);
+    vi.stubGlobal("WebSocket", FakeWebSocket);
   });
 
   afterEach(() => {
@@ -98,6 +117,66 @@ describe("ticketed event source", () => {
 
     source.close();
   });
+
+  it.each(["local", "private"] as const)(
+    "Should deliver named WebSocket events and resume with fresh authorization on %s listeners",
+    async tier => {
+      vi.useFakeTimers();
+      let issued = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          Promise.resolve(
+            requestPath(input) === "/api/status"
+              ? listenerResponse(tier)
+              : ticketResponse(`socket-${++issued}`)
+          )
+        )
+      );
+      const source = createStreamEventSource("/api/logs/stream?component=profile&replay=false", {
+        transport: "websocket",
+        resumeWithLastEventId: true,
+      });
+      const named = vi.fn();
+      const messages = vi.fn();
+      const errors = vi.fn();
+      source.addEventListener("profile.renamed", named);
+      source.addEventListener("error", errors);
+      source.onmessage = messages;
+      await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+      expect(FakeEventSource.instances).toHaveLength(0);
+      const first = FakeWebSocket.instances[0];
+      expect(new URL(first.url).protocol).toBe("ws:");
+      expect(new URL(first.url).searchParams.get("ticket")).toBe(
+        tier === "private" ? "socket-1" : null
+      );
+      first.onmessage?.(new MessageEvent("message", { data: ": stream ready\n\n" }));
+      first.onmessage?.(
+        new MessageEvent("message", {
+          data: 'id: 2026-10-02T23:00:00Z|17\nevent: profile.renamed\ndata: {"profile_name":"studio"}\n\n',
+        })
+      );
+      expect(named).toHaveBeenCalledTimes(1);
+      expect(named.mock.calls[0][0]).toMatchObject({
+        type: "profile.renamed",
+        data: '{"profile_name":"studio"}',
+        lastEventId: "2026-10-02T23:00:00Z|17",
+      });
+      expect(messages).not.toHaveBeenCalled();
+      first.onclose?.(new Event("close"));
+      expect(errors).toHaveBeenCalledTimes(1);
+      expect(first.closed).toBe(true);
+      await vi.advanceTimersByTimeAsync(500);
+      await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
+      const second = new URL(FakeWebSocket.instances[1].url);
+      expect(second.searchParams.get("last_event_id")).toBe("2026-10-02T23:00:00Z|17");
+      expect(second.searchParams.get("ticket")).toBe(tier === "private" ? "socket-2" : null);
+      source.close();
+      expect(FakeWebSocket.instances[1].closed).toBe(true);
+      await vi.advanceTimersByTimeAsync(16_000);
+      expect(FakeWebSocket.instances).toHaveLength(2);
+    }
+  );
 
   it("Should open a remote stream with a minted ticket", async () => {
     vi.stubGlobal(

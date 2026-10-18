@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,9 +13,12 @@ import (
 func (m *Manager) persistRepairActions(
 	ctx context.Context,
 	recorder EventRecorder,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	actions []RepairAction,
 ) ([]RepairAction, error) {
+	if meta == nil {
+		return nil, errors.New("session: repair metadata is required")
+	}
 	type preparedRepairAction struct {
 		action      RepairAction
 		agentEvent  acp.AgentEvent
@@ -64,7 +68,10 @@ func (m *Manager) persistRepairActions(
 	return persisted, nil
 }
 
-func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction) (acp.AgentEvent, error) {
+func (m *Manager) repairActionEvent(meta *store.SessionMeta, action RepairAction) (acp.AgentEvent, error) {
+	if meta == nil {
+		return acp.AgentEvent{}, errors.New("session: repair metadata is required")
+	}
 	now := m.now().UTC()
 	event := acp.AgentEvent{
 		SessionID: repairACPSessionID(meta),
@@ -86,7 +93,7 @@ func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction)
 	case RepairActionAppendTerminalError:
 		event.Type = acp.EventTypeError
 		event.Error = repairTerminalErrorMessage
-		event.StopReason = string(sessionMetaStopReason(&meta))
+		event.StopReason = string(sessionMetaStopReason(meta))
 		event.Failure = store.CloneSessionFailure(meta.Failure)
 	default:
 		return acp.AgentEvent{}, fmt.Errorf("session: unknown repair action %q", action.Code)
@@ -94,15 +101,15 @@ func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction)
 	return event, nil
 }
 
-func (m *Manager) notifyRepairEvent(ctx context.Context, meta store.SessionMeta, event acp.AgentEvent) {
+func (m *Manager) notifyRepairEvent(ctx context.Context, meta *store.SessionMeta, event acp.AgentEvent) {
 	if m == nil || m.notifier == nil {
 		return
 	}
 	m.notifyAgentEventFromInfo(ctx, m.sessionInfoFromMeta(ctx, meta), event)
 }
 
-func repairACPSessionID(meta store.SessionMeta) string {
-	if meta.ACPSessionID == nil {
+func repairACPSessionID(meta *store.SessionMeta) string {
+	if meta == nil || meta.ACPSessionID == nil {
 		return ""
 	}
 	return strings.TrimSpace(*meta.ACPSessionID)

@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Bootstrap a fresh isolated lab with unique COMPOZY_HOME/ports/provider home/tmux socket, register PIDs, and run eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every pass/fail/blocked/abort exit; cite clean teardown.json."
-      - "Register a root, a nested root inside it, and a sibling root; from subdirectories of each, run workspace info, Loop, config, memory, and session creation with no --workspace and confirm the nearest enclosing root wins and no subdirectory registration is minted."
+      - "Register a root, a nested root inside it, and a sibling root; from subdirectories of each, run workspace info, Loop, config, and session creation with no --workspace and confirm the nearest enclosing root wins and no subdirectory registration is minted."
       - "Walk the precedence chain once end to end — positional over flag, flag over environment, environment over validated session identity, identity over cwd — and confirm resolution_source names the winning tier in structured output."
       - "From a workspace-bound session, invoke representative native reads and mutations with no workspace input and confirm dispatch fills the bound workspace, the handler receives it, and pre-call hooks cannot rewrite it."
       - "Supply the session's own workspace explicitly by id, name, and path and confirm each canonicalizes to the same registry id and proceeds as an ordinary same-workspace call, with no policy prompt and no denial."

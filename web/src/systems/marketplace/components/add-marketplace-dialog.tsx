@@ -11,6 +11,7 @@ import {
   DialogTitle,
   Field,
   FieldDescription,
+  HelpTip,
   FieldHeader,
   FieldLabel,
   Input,
@@ -67,9 +68,12 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
             <Field data-invalid={form.refInvalid ? true : undefined}>
               <FieldHeader>
                 <FieldLabel htmlFor={REF_ID}>GitHub repository or folder</FieldLabel>
+                <HelpTip label="What the repository needs">
+                  The repository needs a <MonoId value="marketplace.json" /> at its root or under{" "}
+                  <MonoId value=".claude-plugin/" />.
+                </HelpTip>
               </FieldHeader>
               <Input
-                aria-describedby={`${REF_ID}-hint`}
                 aria-invalid={form.refInvalid ? true : undefined}
                 autoComplete="off"
                 autoFocus
@@ -83,10 +87,6 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
                 spellCheck={false}
                 value={form.draft.ref}
               />
-              <FieldDescription id={`${REF_ID}-hint`}>
-                The repository needs a <MonoId value="marketplace.json" /> at its root or under{" "}
-                <MonoId value=".claude-plugin/" />.
-              </FieldDescription>
             </Field>
 
             {form.showNameField ? (
@@ -120,7 +120,7 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
                 data-testid="add-marketplace-checking"
                 role="status"
               >
-                <Spinner aria-hidden="true" className="size-3" />
+                <Spinner aria-hidden="true" className="size-3.5" />
                 Reading the plugin list…
               </p>
             ) : null}
@@ -167,7 +167,7 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
               Cancel
             </Button>
             <Button data-testid="add-marketplace-submit" disabled={!form.canAdd} type="submit">
-              {form.isPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {form.isPending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
               {form.isPending ? "Adding…" : "Add marketplace"}
             </Button>
           </DialogFooter>
@@ -198,7 +198,7 @@ function AddMarketplaceFailureNotice({
             onClick={() => onUseSuggestedName(suggested)}
             size="xs"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             Use {suggested}
           </Button>

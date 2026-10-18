@@ -38,7 +38,6 @@ function isTaskLiveQuery(query: Query, taskId: string): boolean {
     case "timeline":
     case "tree":
     case "profile":
-    case "bridge-notifications":
       return key[2] === taskId;
     case "inspect":
       return key[2] === "run" || (key[2] === "task" && key[3] === taskId);

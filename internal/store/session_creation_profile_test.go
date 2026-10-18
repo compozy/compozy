@@ -5,16 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve the previous release canonical profile and its identity", func(t *testing.T) {
+	t.Run("Should preserve the current canonical profile and its identity", func(t *testing.T) {
 		t.Parallel()
-		const payload = `{"version":4,"agent_name":"worker","provider":"codex","speed":"normal","profile_id":"00000000000000000000000000","workspace_id":"workspace:test","cwd":"/workspace","sandbox_mode":"none","permissions":"approve-all"}`
+		const payload = `{"version":6,"agent_name":"worker","provider":"codex","speed":"normal","profile_id":"00000000000000000000000000","workspace_id":"workspace:test","cwd":"/workspace","permissions":"approve-all"}`
 		var profile SessionCreationProfile
 		if err := json.Unmarshal([]byte(payload), &profile); err != nil {
 			t.Fatal(err)
@@ -24,7 +23,7 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 			t.Fatal(err)
 		}
 		if string(canonical) != payload {
-			t.Fatalf("canonical profile = %s, want unchanged previous release payload", canonical)
+			t.Fatalf("canonical profile = %s, want unchanged canonical payload", canonical)
 		}
 		ref, err := profile.Ref()
 		if err != nil {
@@ -33,33 +32,29 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 		if ref != "profile:sha256:"+sha256Hex([]byte(payload)) {
 			t.Fatalf("reference = %s, want original content address", ref)
 		}
-		profile.ACPOptions = []SessionACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
-		if _, err := profile.CanonicalJSON(); err == nil {
-			t.Fatal("version four accepted a field absent from its schema")
-		}
 	})
 
-	t.Run("Should persist typed runtime defaults in the canonical version five profile", func(t *testing.T) {
+	t.Run("Should persist typed runtime defaults in the canonical version six profile", func(t *testing.T) {
 		t.Parallel()
 
-		profile := validSessionCreationProfile()
+		profile := validSessionCreationProfile(t)
 		profile.ACPOptions = []SessionACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 		payload, err := profile.CanonicalJSON()
 		if err != nil {
 			t.Fatalf("CanonicalJSON() error = %v", err)
 		}
 		encoded := string(payload)
-		if !strings.Contains(encoded, `"version":5`) ||
+		if !strings.Contains(encoded, `"version":6`) ||
 			!strings.Contains(encoded, `"speed":"normal"`) ||
 			!strings.Contains(encoded, `"acp_options":[{"id":"thinking","bool_value":true}]`) ||
 			!strings.Contains(encoded, `"profile_id":"00000000000000000000000000"`) {
-			t.Fatalf("CanonicalJSON() = %s, want version 5 with typed runtime defaults", encoded)
+			t.Fatalf("CanonicalJSON() = %s, want version 6 with typed runtime defaults", encoded)
 		}
 		var decoded SessionCreationProfile
 		if err := json.Unmarshal(payload, &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(CanonicalJSON()) error = %v", err)
 		}
-		if decoded.Version != 5 || decoded.Speed != speedpkg.SpeedNormal ||
+		if decoded.Version != SessionCreationProfileVersion || decoded.Speed != speedpkg.SpeedNormal ||
 			len(decoded.ACPOptions) != 1 || decoded.ACPOptions[0].ID != "thinking" ||
 			decoded.ACPOptions[0].BoolValue == nil || !*decoded.ACPOptions[0].BoolValue {
 			t.Fatalf("decoded creation profile = %#v, want structural typed runtime fields", decoded)
@@ -69,7 +64,7 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 	t.Run("Should change the immutable profile reference when speed changes", func(t *testing.T) {
 		t.Parallel()
 
-		normal := validSessionCreationProfile()
+		normal := validSessionCreationProfile(t)
 		fast := normal
 		fast.Speed = speedpkg.SpeedFast
 		normalRef, err := normal.Ref()
@@ -88,7 +83,7 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 	t.Run("Should change the immutable profile reference when an ACP option changes", func(t *testing.T) {
 		t.Parallel()
 
-		withoutOption := validSessionCreationProfile()
+		withoutOption := validSessionCreationProfile(t)
 		withOption := withoutOption
 		withOption.ACPOptions = []SessionACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 		withoutRef, err := withoutOption.Ref()
@@ -107,14 +102,12 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 	t.Run("Should change every derived identity when profile identity changes", func(t *testing.T) {
 		t.Parallel()
 
-		defaultProfile := validSessionCreationProfile()
+		defaultProfile := validSessionCreationProfile(t)
 		otherProfile := defaultProfile
 		otherProfile.ProfileID = "01K3PROFILEIDENTITY00000001"
 		options := SessionCreationOptions{
-			SessionID:            "sess-profile-witness",
-			NetworkOwnerKey:      "session:sess-profile-witness",
-			NetworkParticipation: participation.LocalSpec(),
-			SessionType:          "user",
+			SessionID:   "sess-profile-witness",
+			SessionType: "user",
 		}
 
 		defaultRef, err := defaultProfile.Ref()
@@ -150,14 +143,14 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 	t.Run("Should reject version two and unsupported speeds", func(t *testing.T) {
 		t.Parallel()
 
-		versionTwo := validSessionCreationProfile()
+		versionTwo := validSessionCreationProfile(t)
 		versionTwo.Version = 2
 		if err := versionTwo.Validate(); err == nil ||
 			!strings.Contains(err.Error(), "unsupported session creation profile version 2") {
 			t.Fatalf("Validate(version 2) error = %v, want hard-cut version rejection", err)
 		}
 
-		invalidSpeed := validSessionCreationProfile()
+		invalidSpeed := validSessionCreationProfile(t)
 		invalidSpeed.Speed = speedpkg.Speed("turbo")
 		if err := invalidSpeed.Validate(); err == nil || !strings.Contains(err.Error(), "expected normal or fast") {
 			t.Fatalf("Validate(turbo) error = %v, want closed speed rejection", err)
@@ -165,7 +158,8 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 	})
 }
 
-func validSessionCreationProfile() SessionCreationProfile {
+func validSessionCreationProfile(t *testing.T) SessionCreationProfile {
+	t.Helper()
 	return SessionCreationProfile{
 		Version:     SessionCreationProfileVersion,
 		AgentName:   "worker",
@@ -173,7 +167,6 @@ func validSessionCreationProfile() SessionCreationProfile {
 		ProfileID:   DefaultProfileID,
 		WorkspaceID: "workspace:test",
 		CWD:         "/workspace",
-		SandboxMode: SessionCreationSandboxNone,
 		Permissions: "approve-all",
 	}
 }

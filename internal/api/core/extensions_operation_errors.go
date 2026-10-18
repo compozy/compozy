@@ -34,18 +34,18 @@ func extensionOperationErrorPayload(
 		extensionErrorInputsRequired,
 		extensionErrorInputInvalid:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
-	case extensionErrorNetworkConfirmationRequired:
-		confirmationErr, ok := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
+	case extensionErrorGatewayConfirmationRequired:
+		confirmationErr, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err)
 		if ok && confirmationErr != nil {
 			payload.CurrentDigest = strings.TrimSpace(confirmationErr.CurrentDigest)
 		}
-		payload.Code = diagnosticcontract.CodeExtensionNetworkConfirmRequired
+		payload.Code = diagnosticcontract.CodeExtensionGatewayConfirmRequired
 		payload.Diagnostic = extensionOperationDiagnostic(
-			"extension.network_confirmation_required",
+			"extension.gateway_confirmation_required",
 			payload.Code,
-			"Network confirmation is required",
+			"Gateway confirmation is required",
 			message,
-			extensionNetworkRetryCommand(name, payload.CurrentDigest),
+			extensionGatewayRetryCommand(name, payload.CurrentDigest),
 		)
 	case extensionErrorAgentConflict:
 		if conflictErr, ok := errors.AsType[*extensionpkg.AgentConflictError](err); ok && conflictErr != nil {
@@ -117,13 +117,13 @@ func extensionOperationDiagnostic(id, code, title, message, command string) *con
 	return &item
 }
 
-func extensionNetworkRetryCommand(name, digest string) string {
+func extensionGatewayRetryCommand(name, digest string) string {
 	name = strings.TrimSpace(name)
 	digest = strings.TrimSpace(digest)
 	if name == "" || digest == "" {
 		return ""
 	}
-	return fmt.Sprintf("compozy extension enable %s --confirm-network-requirement %s", name, digest)
+	return fmt.Sprintf("compozy extension enable %s --confirm-gateway-requirement %s", name, digest)
 }
 
 func extensionEnvBindingErrorCode(kind extensionErrorKind) string {

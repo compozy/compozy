@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/retention"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestSweeperLifecycle(t *testing.T) {
@@ -26,7 +27,7 @@ func TestSweeperLifecycle(t *testing.T) {
 				t.Fatalf("Start() error = %v", err)
 			}
 			t.Cleanup(func() {
-				if err := worker.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				if err := worker.Shutdown(testutil.Context(t)); err != nil {
 					t.Errorf("cleanup Shutdown() error = %v", err)
 				}
 			})
@@ -87,7 +88,7 @@ func TestSweeperLifecycle(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := worker.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			if err := worker.Shutdown(testutil.Context(t)); err != nil {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})

@@ -12,74 +12,11 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
-
-func testLiveParticipation(workspaceID string, channelID string) participation.Spec {
-	return participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     workspaceID,
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       channelID,
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
-	}
-}
-
-func testNamedParticipationRequest(channelID string) *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	return &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &channelID,
-	}
-}
-
-func testParticipationRequestChannel(request *participation.Request) string {
-	if request == nil || request.ChannelID == nil {
-		return ""
-	}
-	return strings.TrimSpace(*request.ChannelID)
-}
-
-type stubDreamTrigger struct {
-	Triggered bool
-	Reason    string
-	Err       error
-	Last      time.Time
-	LastErr   error
-	EnabledFn bool
-	Calls     int
-	Workspace string
-}
-
-func (s *stubDreamTrigger) Trigger(_ context.Context, workspace string) (bool, string, error) {
-	s.Calls++
-	s.Workspace = workspace
-	return s.Triggered, s.Reason, s.Err
-}
-
-func (s *stubDreamTrigger) LastConsolidatedAt() (time.Time, error) {
-	return s.Last, s.LastErr
-}
-
-func (s *stubDreamTrigger) Enabled() bool {
-	return s.EnabledFn
-}
 
 type handlerFixture struct {
 	Handlers  *core.BaseHandlers
@@ -91,8 +28,8 @@ type noOpAgentDefinitionSync struct{}
 
 func (noOpAgentDefinitionSync) Sync(context.Context) error { return nil }
 
-func testConfigWithDisabledNetwork(homePaths compozyconfig.HomePaths) compozyconfig.Config {
-	return testutil.ConfigWithDisabledNetwork(homePaths)
+func testConfigForTest(homePaths compozyconfig.HomePaths) compozyconfig.Config {
+	return testutil.ConfigForTest(homePaths)
 }
 
 func defaultCoreWorkspaceService(workspaces testutil.StubWorkspaceService) testutil.StubWorkspaceService {
@@ -168,8 +105,6 @@ func newHandlerFixture(
 	manager testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	return newHandlerFixtureWithAutomationAndTasks(
 		t,
@@ -178,8 +113,6 @@ func newHandlerFixture(
 		testutil.StubAutomationManager{},
 		&testutil.StubTaskManager{},
 		workspaces,
-		store,
-		dream,
 	)
 }
 
@@ -189,8 +122,6 @@ func newHandlerFixtureWithAutomation(
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	return newHandlerFixtureWithAutomationAndTasks(
 		t,
@@ -199,8 +130,6 @@ func newHandlerFixtureWithAutomation(
 		automation,
 		&testutil.StubTaskManager{},
 		workspaces,
-		store,
-		dream,
 	)
 }
 
@@ -210,8 +139,6 @@ func newHandlerFixtureWithTasks(
 	observer testutil.StubObserver,
 	tasks *testutil.StubTaskManager,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	return newHandlerFixtureWithAutomationAndTasks(
 		t,
@@ -220,31 +147,6 @@ func newHandlerFixtureWithTasks(
 		testutil.StubAutomationManager{},
 		tasks,
 		workspaces,
-		store,
-		dream,
-	)
-}
-
-func newHandlerFixtureWithTasksAndBridges(
-	t *testing.T,
-	manager testutil.StubSessionManager,
-	observer testutil.StubObserver,
-	tasks *testutil.StubTaskManager,
-	bridges testutil.StubBridgeService,
-	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
-) handlerFixture {
-	return newHandlerFixtureWithAutomationTasksAndBridges(
-		t,
-		manager,
-		observer,
-		testutil.StubAutomationManager{},
-		tasks,
-		bridges,
-		workspaces,
-		store,
-		dream,
 	)
 }
 
@@ -255,32 +157,25 @@ func newHandlerFixtureWithAutomationAndTasks(
 	automation testutil.StubAutomationManager,
 	tasks *testutil.StubTaskManager,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
-	return newHandlerFixtureWithAutomationTasksAndBridges(
+	return newHandlerFixtureWithRuntime(
 		t,
 		manager,
 		observer,
 		automation,
 		tasks,
-		testutil.StubBridgeService{},
 		workspaces,
-		store,
-		dream,
 	)
 }
 
-func newHandlerFixtureWithAutomationTasksAndBridges(
+func newHandlerFixtureWithRuntime(
 	t *testing.T,
 	manager testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
 	tasks *testutil.StubTaskManager,
-	bridges testutil.StubBridgeService,
+
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	t.Helper()
 	manager = defaultCoreSessionManager(manager)
@@ -288,7 +183,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 	cfg.Daemon.Socket = "/tmp/api-core-test.sock"
@@ -303,15 +198,13 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 		Observer:                     observer,
 		Automation:                   automation,
 		Tasks:                        tasks,
-		Bridges:                      bridges,
-		Workspaces:                   workspaces,
-		AgentDefinitionSync:          noOpAgentDefinitionSync{},
-		MemoryStore:                  store,
-		DreamTrigger:                 dream,
-		HomePaths:                    homePaths,
-		Config:                       cfg,
-		Logger:                       testutil.DiscardLogger(),
-		StartedAt:                    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+
+		Workspaces:          workspaces,
+		AgentDefinitionSync: noOpAgentDefinitionSync{},
+		HomePaths:           homePaths,
+		Config:              cfg,
+		Logger:              testutil.DiscardLogger(),
+		StartedAt:           time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		Now: func() time.Time {
 			return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
 		},
@@ -326,6 +219,13 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/sessions/attention-summary", handlers.SessionAttentionSummary)
 	engine.GET("/sessions/:session_id", handlers.GetSessionByID)
 	engine.GET("/sessions/:session_id/owner", handlers.GetSessionOwner)
+	engine.GET("/sessions/:session_id/status", handlers.GetSessionStatus)
+	engine.GET("/sessions/:session_id/events", handlers.SessionEvents)
+	engine.GET("/sessions/:session_id/history", handlers.SessionHistory)
+	engine.GET("/sessions/:session_id/stream", handlers.StreamSession)
+	engine.GET("/sessions/:session_id/transcript", handlers.SessionTranscript)
+	engine.GET("/sessions/:session_id/transcript/search", handlers.SessionTranscriptSearch)
+	engine.GET("/sessions/:session_id/transcript/outline", handlers.SessionTranscriptOutline)
 	engine.POST("/sessions", handlers.CreateSession)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id", handlers.GetSession)
 	engine.PATCH("/workspaces/:workspace_id/sessions/:session_id", handlers.RenameSession)
@@ -382,51 +282,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/automation/runs/:id", handlers.GetAutomationRun)
 	engine.POST("/webhooks/global/:endpoint", handlers.DeliverGlobalWebhook)
 	engine.POST("/webhooks/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
-	engine.GET("/network/status", handlers.NetworkStatus)
-	engine.GET("/workspaces/:workspace_id/network/usage", handlers.GetNetworkUsage)
-	engine.GET("/workspaces/:workspace_id/network-coordination", handlers.GetNetworkCoordination)
-	engine.PUT("/workspaces/:workspace_id/network-coordination", handlers.PutNetworkCoordination)
-	engine.PUT(
-		"/workspaces/:workspace_id/network-coordination/invitation",
-		handlers.PutNetworkCoordinationInvitation,
-	)
-	engine.GET("/workspaces/:workspace_id/network/peers", handlers.NetworkPeers)
-	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
-	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id", handlers.NetworkPeer)
-	engine.GET("/workspaces/:workspace_id/network/channels", handlers.NetworkChannels)
-	engine.POST("/workspaces/:workspace_id/network/channels", handlers.CreateNetworkChannel)
-	engine.GET("/workspaces/:workspace_id/network/channels/:channel", handlers.NetworkChannel)
-	engine.PATCH("/workspaces/:workspace_id/network/channels/:channel", handlers.UpdateNetworkChannel)
-	engine.GET("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
-	engine.PUT("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
-	engine.DELETE(
-		"/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
-		handlers.DeleteNetworkSubscription,
-	)
-	engine.GET("/workspaces/:workspace_id/network/channels/:channel/messages", handlers.NetworkChannelMessages)
-	engine.GET("/workspaces/:workspace_id/network/channels/:channel/threads", handlers.NetworkThreads)
-	engine.GET("/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id", handlers.NetworkThread)
-	engine.POST(
-		"/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
-		handlers.PromoteNetworkThreadTask,
-	)
-	engine.GET(
-		"/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
-		handlers.NetworkThreadMessages,
-	)
-	engine.GET("/workspaces/:workspace_id/network/channels/:channel/directs", handlers.NetworkDirectRooms)
-	engine.POST(
-		"/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
-		handlers.ResolveNetworkDirectRoom,
-	)
-	engine.GET("/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id", handlers.NetworkDirectRoom)
-	engine.GET(
-		"/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id/messages",
-		handlers.NetworkDirectRoomMessages,
-	)
-	engine.GET("/workspaces/:workspace_id/network/work/:work_id", handlers.NetworkWork)
-	engine.POST("/workspaces/:workspace_id/network/send", handlers.NetworkSend)
-	engine.GET("/workspaces/:workspace_id/network/inbox", handlers.NetworkInbox)
+
 	engine.GET("/tasks", handlers.ListTasks)
 	engine.POST("/tasks", handlers.CreateTask)
 	engine.GET("/tasks/:id", handlers.GetTask)
@@ -436,13 +292,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.PUT("/tasks/:id/execution-profile", handlers.SetTaskExecutionProfile)
 	engine.PATCH("/tasks/:id/execution-profile/worktree", handlers.SetTaskWorktreePolicy)
 	engine.DELETE("/tasks/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
-	engine.POST("/tasks/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
-	engine.GET("/tasks/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)
-	engine.GET("/tasks/:id/notifications/bridges/:subscription_id", handlers.GetTaskBridgeNotificationSubscription)
-	engine.DELETE(
-		"/tasks/:id/notifications/bridges/:subscription_id",
-		handlers.DeleteTaskBridgeNotificationSubscription,
-	)
+
 	engine.GET("/tasks/:id/reviews", handlers.ListTaskReviews)
 	engine.POST("/tasks/:id/publish", handlers.PublishTask)
 	engine.POST("/tasks/:id/start", handlers.StartTask)
@@ -466,7 +316,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/tasks/:id/runs/fan-out", handlers.FanOutTaskRuns)
 	engine.GET("/task-runs/:id", handlers.GetTaskRun)
 	engine.GET("/task-runs/:id/result", handlers.ReadTaskRunResult)
-	engine.GET("/task-runs/:id/conversation/stream", handlers.StreamTaskRunConversation)
+
 	engine.GET("/runs/:id/inspect", handlers.InspectRun)
 	engine.POST("/runs/:id/release", handlers.ForceReleaseTaskRun)
 	engine.POST("/runs/:id/fail", handlers.ForceFailTaskRun)
@@ -490,44 +340,6 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/observe/overview", handlers.ObserveOverview)
 	engine.GET("/observe/tasks/dashboard", handlers.TaskDashboard)
 	engine.GET("/observe/tasks/inbox", handlers.TaskInbox)
-	engine.GET("/memory", handlers.ListMemory)
-	engine.GET("/memory/health", handlers.MemoryHealth)
-	engine.GET("/memory/config", handlers.MemoryConfigMetadata)
-	engine.GET("/memory/history", handlers.MemoryHistory)
-	engine.GET("/memory/scope-show", handlers.MemoryScopeShow)
-	engine.POST("/memory", handlers.WriteMemory)
-	engine.POST("/memory/search", handlers.SearchMemory)
-	engine.POST("/memory/reindex", handlers.ReindexMemory)
-	engine.POST("/memory/promote", handlers.PromoteMemory)
-	engine.POST("/memory/reset", handlers.ResetMemory)
-	engine.POST("/memory/reload", handlers.ReloadMemory)
-	engine.GET("/memory/decisions", handlers.ListMemoryDecisions)
-	engine.GET("/memory/decisions/:decision_id", handlers.GetMemoryDecision)
-	engine.POST("/memory/decisions/:decision_id/revert", handlers.RevertMemoryDecision)
-	engine.GET("/memory/recall-traces/:session_id/:turn_seq", handlers.GetMemoryRecallTrace)
-	engine.GET("/memory/dreams/status", handlers.GetMemoryDreamStatus)
-	engine.GET("/memory/dreams", handlers.ListMemoryDreams)
-	engine.POST("/memory/dreams/trigger", handlers.TriggerMemoryDream)
-	engine.GET("/memory/dreams/:dream_id", handlers.GetMemoryDream)
-	engine.POST("/memory/dreams/:dream_id/retry", handlers.RetryMemoryDream)
-	engine.GET("/memory/daily", handlers.ListMemoryDailyLogs)
-	engine.GET("/memory/extractor/status", handlers.GetMemoryExtractorStatus)
-	engine.GET("/memory/extractor/failures", handlers.ListMemoryExtractorFailures)
-	engine.POST("/memory/extractor/retry", handlers.RetryMemoryExtractor)
-	engine.POST("/memory/extractor/drain", handlers.DrainMemoryExtractor)
-	engine.GET("/memory/providers", handlers.ListMemoryProviders)
-	engine.POST("/memory/providers/select", handlers.SelectMemoryProvider)
-	engine.GET("/memory/providers/:provider_name", handlers.GetMemoryProvider)
-	engine.POST("/memory/providers/:provider_name/enable", handlers.EnableMemoryProvider)
-	engine.POST("/memory/providers/:provider_name/disable", handlers.DisableMemoryProvider)
-	engine.POST("/memory/ad-hoc", handlers.CreateMemoryAdhocNote)
-	engine.GET("/workspaces/:workspace_id/memory/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
-	engine.POST("/workspaces/:workspace_id/memory/sessions/:session_id/replay", handlers.ReplayMemorySession)
-	engine.POST("/memory/sessions/prune", handlers.PruneMemorySessions)
-	engine.POST("/memory/sessions/repair", handlers.RepairMemorySessions)
-	engine.GET("/memory/:filename", handlers.ReadMemory)
-	engine.PATCH("/memory/:filename", handlers.EditMemory)
-	engine.DELETE("/memory/:filename", handlers.DeleteMemory)
 	engine.POST("/workspaces", handlers.CreateWorkspace)
 	engine.GET("/workspaces", handlers.ListWorkspaces)
 	engine.GET("/workspaces/:workspace_id", handlers.GetWorkspace)
@@ -545,4 +357,28 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 func performRequest(t *testing.T, engine http.Handler, method, path string, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	return testutil.PerformRequest(t, engine, method, path, body)
+}
+
+func testSessionManager(
+	workspaceID string,
+	sessionIDs ...string,
+) testutil.StubSessionManager {
+	allowed := make(map[string]struct{}, len(sessionIDs))
+	for _, id := range sessionIDs {
+		allowed[strings.TrimSpace(id)] = struct{}{}
+	}
+	return testutil.StubSessionManager{
+		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			trimmedID := strings.TrimSpace(id)
+			if _, ok := allowed[trimmedID]; !ok {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{
+				ID:          trimmedID,
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: strings.TrimSpace(workspaceID),
+				State:       session.StateActive,
+			}, nil
+		},
+	}
 }

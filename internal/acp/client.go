@@ -10,8 +10,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/compozy/compozy/internal/sandbox"
-
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -23,6 +21,9 @@ const (
 
 const (
 	defaultStopTimeout          = 5 * time.Second
+	defaultStopDrainTimeout     = 3 * time.Second
+	defaultControlTimeout       = 30 * time.Second
+	defaultStartAttempts        = 2
 	defaultPromptBufSize        = 128
 	defaultPromptDrain          = 50 * time.Millisecond
 	defaultPermissionWait       = 5 * time.Minute
@@ -60,15 +61,18 @@ type Option func(*Driver)
 type Driver struct {
 	logger               *slog.Logger
 	stopTimeout          time.Duration
+	controlTimeout       time.Duration
+	startAttempts        int
 	promptBufferCap      int
 	promptDrainWait      time.Duration
 	permissionWait       time.Duration
 	processRecordTimeout time.Duration
-	launcher             sandbox.Launcher
-	toolHost             sandbox.ToolHost
+	launcher             Launcher
+	toolHost             ToolHost
 	processRegistry      *toolruntime.Registry
 	terminals            TerminalHost
 	providerPreStarter   ProviderPreStarter
+	agentNiceness        int
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -83,6 +87,24 @@ func WithStopTimeout(timeout time.Duration) Option {
 	return func(driver *Driver) {
 		driver.stopTimeout = timeout
 	}
+}
+
+// WithAgentNiceness lowers the CPU priority of locally launched agent process
+// groups; zero keeps the daemon's priority. It applies to the default local launcher.
+func WithAgentNiceness(niceness int) Option {
+	return func(driver *Driver) {
+		driver.agentNiceness = niceness
+	}
+}
+
+// WithControlTimeout bounds each non-prompt ACP request; nonpositive values use method-specific defaults.
+func WithControlTimeout(timeout time.Duration) Option {
+	return func(driver *Driver) { driver.controlTimeout = timeout }
+}
+
+// WithStartAttempts sets the fresh-process ceiling for timed-out session/new; nonpositive values use two.
+func WithStartAttempts(attempts int) Option {
+	return func(driver *Driver) { driver.startAttempts = attempts }
 }
 
 // WithPromptBufferSize overrides the per-prompt event buffer size.
@@ -106,15 +128,15 @@ func WithPermissionTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithLauncher overrides the sandbox launcher used by default for new ACP sessions.
-func WithLauncher(launcher sandbox.Launcher) Option {
+// WithLauncher overrides the process launcher used by default for new ACP sessions.
+func WithLauncher(launcher Launcher) Option {
 	return func(driver *Driver) {
 		driver.launcher = launcher
 	}
 }
 
-// WithToolHost overrides the sandbox tool host used by default for new ACP sessions.
-func WithToolHost(toolHost sandbox.ToolHost) Option {
+// WithToolHost overrides the local tool host used by default for new ACP sessions.
+func WithToolHost(toolHost ToolHost) Option {
 	return func(driver *Driver) {
 		driver.toolHost = toolHost
 	}
@@ -161,6 +183,7 @@ func New(opts ...Option) *Driver {
 	driver := &Driver{
 		logger:               slog.Default(),
 		stopTimeout:          defaultStopTimeout,
+		startAttempts:        defaultStartAttempts,
 		promptBufferCap:      defaultPromptBufSize,
 		promptDrainWait:      defaultPromptDrain,
 		permissionWait:       defaultPermissionWait,
@@ -177,6 +200,9 @@ func New(opts ...Option) *Driver {
 	if driver.stopTimeout <= 0 {
 		driver.stopTimeout = defaultStopTimeout
 	}
+	if driver.startAttempts <= 0 {
+		driver.startAttempts = defaultStartAttempts
+	}
 	if driver.promptBufferCap <= 0 {
 		driver.promptBufferCap = defaultPromptBufSize
 	}
@@ -190,7 +216,7 @@ func New(opts ...Option) *Driver {
 		driver.processRecordTimeout = defaultProcessRecordTimeout
 	}
 	if driver.launcher == nil {
-		driver.launcher = newLocalLauncher(driver.logger, driver.stopTimeout)
+		driver.launcher = newLocalLauncher(driver.logger, driver.stopTimeout, driver.agentNiceness)
 	}
 	return driver
 }

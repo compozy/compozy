@@ -1,11 +1,11 @@
 package cmdpalette
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 )
@@ -224,7 +224,9 @@ func (s *Service) resolveInvocationClient(
 		return "", err
 	}
 	clients := append([]Client(nil), listed...)
-	sort.Slice(clients, func(left, right int) bool { return clients[left].ID < clients[right].ID })
+	slices.SortFunc(clients, func(a, b Client) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 	switch len(clients) {
 	case 0:
 		return "", ErrNoAttachedShell
@@ -293,8 +295,12 @@ func descriptorNeedsClient(descriptor Descriptor) bool {
 }
 
 func findCommand(commands []ResolvedCommand, id CommandID) (ResolvedCommand, bool) {
-	index := sort.Search(len(commands), func(index int) bool { return commands[index].ID >= id })
-	if index >= len(commands) || commands[index].ID != id {
+	index, found := slices.BinarySearchFunc(
+		commands,
+		id,
+		func(command ResolvedCommand, target CommandID) int { return cmp.Compare(command.ID, target) },
+	)
+	if !found {
 		return ResolvedCommand{}, false
 	}
 	return commands[index], true

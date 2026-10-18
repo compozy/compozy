@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import { cn, DataSurface, Skeleton } from "@compozy/ui";
+import { cn, DataSurface, PAGE_CONTENT_GUTTER, Skeleton } from "@compozy/ui";
 
 import { useHomeDashboard } from "../hooks/use-home-dashboard";
 import { HomeActivityFeed } from "./home-activity-feed";
@@ -9,7 +9,6 @@ import { HomeAgentsPanel } from "./home-agents-panel";
 import { HomeAttentionZone } from "./home-attention-zone";
 import { HomeFirstRun } from "./home-first-run";
 import { HomeKpiStrip } from "./home-kpi-strip";
-import { HomeNetworkPanel } from "./home-network-panel";
 import { HomeOutcomesChart } from "./home-outcomes-chart";
 import { HomePageMeta } from "./home-page-meta";
 import { HomePulseHeatmap } from "./home-pulse-heatmap";
@@ -36,7 +35,7 @@ function HomeDashboardSkeleton() {
 
 /**
  * The 7-zone end-user home. Zone order is the design contract: page meta →
- * needs-you → KPI strip → working-now | network → pulse → outcomes | usage →
+ * needs-you (only when something waits) → KPI strip (only once work exists) → working-now → pulse → outcomes | usage →
  * agents | activity → system.
  */
 export interface HomeDashboardProps extends ComponentProps<"div"> {
@@ -45,7 +44,7 @@ export interface HomeDashboardProps extends ComponentProps<"div"> {
 
 export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeDashboardProps) {
   const model = useHomeDashboard({ liveEnabled });
-  const { workingNow, network, agents, system } = model;
+  const { workingNow, agents, system } = model;
 
   const overview = model.overview;
   const overviewState =
@@ -54,7 +53,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
 
   return (
     <div
-      className={cn("mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20", className)}
+      className={cn(PAGE_CONTENT_GUTTER, "pt-6 pb-20", className)}
       data-testid="home-body"
       {...props}
     >
@@ -75,27 +74,27 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                 attention={overview.attention}
                 actions={model.attentionActions}
                 notificationScope={model.notificationScope}
-                scopeLabel={model.activeWorkspaceName ?? "Selected workspace"}
-              />
-              <HomeKpiStrip
-                overview={overview}
-                workingNowDetail={workingNowDetail(workingNow.sessionCount, workingNow.runCount)}
-                workingNowTotal={workingNow.total}
+                scopeLabel={model.activeWorkspaceName ?? "Selected project"}
               />
               {model.hasNoWork ? (
                 <HomeFirstRun workspaceName={workspaceName} />
               ) : (
                 <>
-                  <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-                    <HomeWorkingNow
-                      cards={workingNow.cards}
-                      errorMessage={workingNow.errorMessage}
-                      liveEnabled={liveEnabled}
-                      status={workingNow.status}
-                      total={workingNow.total}
-                    />
-                    <HomeNetworkPanel rows={network.rows} />
-                  </div>
+                  <HomeKpiStrip
+                    overview={overview}
+                    workingNowDetail={workingNowDetail(
+                      workingNow.sessionCount,
+                      workingNow.runCount
+                    )}
+                    workingNowTotal={workingNow.total}
+                  />
+                  <HomeWorkingNow
+                    cards={workingNow.cards}
+                    errorMessage={workingNow.errorMessage}
+                    liveEnabled={liveEnabled}
+                    status={workingNow.status}
+                    total={workingNow.total}
+                  />
                   <HomePulseHeatmap pulse={overview.pulse} />
                   <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
                     <HomeOutcomesChart outcomes={overview.outcomes} />

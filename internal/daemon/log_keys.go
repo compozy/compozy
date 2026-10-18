@@ -1,11 +1,10 @@
 package daemon
 
 const (
-	daemonNetworkChannelKey = "channel"
-	daemonHookEventKey      = "hook_event"
-	daemonExtensionNameKey  = "extension_name"
-	daemonLogRunIDKey       = "run_id"
-	daemonLoopRunIDKey      = "loop_run_id"
-	daemonTaskIDKey         = "task_id"
-	daemonWorkspaceIDKey    = "workspace_id"
+	daemonHookEventKey     = "hook_event"
+	daemonExtensionNameKey = "extension_name"
+	daemonLogRunIDKey      = "run_id"
+	daemonLoopRunIDKey     = "loop_run_id"
+	daemonTaskIDKey        = "task_id"
+	daemonWorkspaceIDKey   = "workspace_id"
 )

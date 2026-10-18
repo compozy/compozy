@@ -4,7 +4,9 @@ const DEFAULT_ACP_CAPS = {
   prompt_audio: false,
   prompt_embedded_context: false,
   prompt_image: false,
+  supports_fork_session: false,
   supports_load_session: false,
+  supports_resume_session: false,
 } as const;
 
 export function sessionRuntime(

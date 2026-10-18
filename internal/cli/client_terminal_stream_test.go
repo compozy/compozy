@@ -524,7 +524,7 @@ func TestTerminalClientStreamShouldAdvanceOnlyWrittenSequence(t *testing.T) {
 
 func TestTerminalClientInputShouldSurviveConnectionReplacement(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	reader, writer := io.Pipe()
 	t.Cleanup(func() {

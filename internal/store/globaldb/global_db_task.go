@@ -50,13 +50,12 @@ const taskRunSelectColumnsSQL = `
 	id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count,
 	previous_run_id, failure_kind,
 	claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-	network_spec_json, network_mode, network_channel, network_source,
+
 	designation_group_id, resolved_worktree_mode, resolved_worktree_ref, '' AS claim_token,
 	claim_token_hash, lease_until, heartbeat_at, queued_at,
 	claimed_at, started_at, ended_at, tokens_used, error, metadata_json, result_json, review_required,
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
-	review_round, continuation_reason, missing_work_json, next_round_guidance,
-	network_wake_id, network_target_session_id, network_owner_key`
+	review_round, continuation_reason, missing_work_json, next_round_guidance`
 
 const taskRecordSelectColumnsSQL = `
 	id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,

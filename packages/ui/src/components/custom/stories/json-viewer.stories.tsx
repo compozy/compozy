@@ -27,18 +27,18 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Realistic compozy-network/v0 receipt payload covering all token kinds.
+ * Task run payload covering all token kinds.
  */
-export const Receipt: Story = {
+export const TaskRun: Story = {
   args: {},
   render: () => (
     <JsonViewer
       value={{
-        kind: "receipt",
-        from: "compozy://workspace/personal",
-        to: "compozy://agent/anthropic",
-        ref: "msg_5f3a91",
-        delivered: true,
+        status: "succeeded",
+        workspace_id: "workspace-personal",
+        agent_id: "agent-reviewer",
+        run_id: "run_5f3a91",
+        complete: true,
         attempt: 1,
         latencyMs: 87,
         cause: null,

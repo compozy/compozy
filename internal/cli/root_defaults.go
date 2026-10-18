@@ -52,12 +52,6 @@ func (d commandDeps) withGatewayRuntimeDefaults() commandDeps {
 	if d.runInstallWizard == nil {
 		d.runInstallWizard = runInstallWizard
 	}
-	if d.runBridgeSetupWizard == nil {
-		d.runBridgeSetupWizard = runBridgeSetupWizard
-	}
-	if d.generateBridgeSetupSecret == nil {
-		d.generateBridgeSetupSecret = generateBridgeSetupSecret
-	}
 	if d.newClient == nil {
 		d.newClient = NewClient
 	}

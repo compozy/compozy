@@ -43,13 +43,31 @@ func overviewTestPayload() contract.ObserveOverviewPayload {
 				Date:            "2026-07-22",
 			},
 		},
-		Network: contract.OverviewNetworkPayload{MessagesToday: 128},
-		System:  contract.OverviewSystemPayload{HookRunsToday: 24, HookFailuresToday: 0, RetentionDays: 7},
+		System: contract.OverviewSystemPayload{HookRunsToday: 24, HookFailuresToday: 0, RetentionDays: 7},
 	}
 }
 
 func TestObserveOverviewCommand(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject an explicit zero usage window before reading the overview", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		client := &stubClient{
+			observeOverviewFn: func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error) {
+				called = true
+				return contract.ObserveOverviewResponse{Overview: overviewTestPayload()}, nil
+			},
+		}
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client),
+			"observe", "overview", "--usage-window=0", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "--usage-window must be 7, 30, or 90") {
+			t.Fatalf("explicit zero error = %v, output = %q", err, stdout)
+		}
+		if called {
+			t.Fatal("invalid usage window reached the overview client")
+		}
+	})
 
 	t.Run("Should return the raw overview payload for json output", func(t *testing.T) {
 		t.Parallel()
@@ -82,7 +100,7 @@ func TestObserveOverviewCommand(t *testing.T) {
 		if decoded.SchemaVersion != contract.ObserveOverviewSchemaVersion {
 			t.Fatalf("schema_version = %q, want %q", decoded.SchemaVersion, contract.ObserveOverviewSchemaVersion)
 		}
-		if decoded.Attention.Total != 3 || decoded.Network.MessagesToday != 128 {
+		if decoded.Attention.Total != 3 {
 			t.Fatalf("decoded = %+v, want stubbed counters", decoded)
 		}
 		var fields map[string]json.RawMessage
@@ -140,8 +158,8 @@ func TestObserveOverviewCommand(t *testing.T) {
 		}
 
 		lines := strings.Split(strings.TrimSpace(stdout), "\n")
-		if len(lines) != 9 {
-			t.Fatalf("jsonl lines = %d, want meta + 8 sections:\n%s", len(lines), stdout)
+		if len(lines) != 8 {
+			t.Fatalf("jsonl lines = %d, want meta + 7 sections:\n%s", len(lines), stdout)
 		}
 		var meta map[string]any
 		if err := json.Unmarshal([]byte(lines[0]), &meta); err != nil {

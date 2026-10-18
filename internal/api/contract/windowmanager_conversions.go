@@ -88,8 +88,7 @@ func cloneWindowManagerRoutePointer(route *windowmanager.RouteIntent) *windowman
 	if route == nil {
 		return nil
 	}
-	cloned := cloneWindowManagerRoute(*route)
-	return &cloned
+	return new(cloneWindowManagerRoute(*route))
 }
 
 func windowManagerStackActiveFromDomain(values map[windowmanager.NodeID]windowmanager.WindowID) map[string]string {

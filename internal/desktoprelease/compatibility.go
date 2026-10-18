@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -85,7 +85,7 @@ func VerifyChecksumsCatalog(ctx context.Context, catalogPath string, artifacts [
 			missing = append(missing, artifact.Name)
 		}
 	}
-	sort.Strings(missing)
+	slices.Sort(missing)
 	if len(missing) > 0 {
 		return fmt.Errorf("desktop release: checksums catalog does not authenticate %v", missing)
 	}

@@ -23,7 +23,7 @@ charter:
       - "Rotate and update the same managed identity, then unset and remove. Bindings survive update, stale bindings never inject, owned extension_env refs GC only when unreferenced, foreign-kind refs remain, and reinstall starts with no inherited authority."
       - "Confirm the native catalog exposes no secret-write tool; an agent uses the documented CLI/UDS path and still receives deterministic structured results."
     must_avoid:
-      - "Printing test secret plaintext into argv, evidence, reports, prompts, or terminal transcripts; using a production credential; widening the test to MCP or bridge secret ownership."
+      - "Printing test secret plaintext into argv, evidence, reports, prompts, or terminal transcripts; using a production credential; widening the test to MCP secret ownership."
 ```
 
 ## Evidence expectations

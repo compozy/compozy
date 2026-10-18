@@ -14,11 +14,18 @@ export function rowContainsPart(row: SessionRow, partIndex: number): boolean {
       return row.parts.some(part => part.partIndex === partIndex);
     case "data":
       return row.parts.some(part => part.partIndex === partIndex);
+    case "session-message":
+      return row.part.partIndex === partIndex || row.toolPart?.partIndex === partIndex;
     case "work":
     case "live-tool":
       return row.entries.some(entry => entry.partIndex === partIndex);
     case "turn-fold":
       return rowsContainPart(row.rows, partIndex);
+    case "subagents":
+      return (
+        row.parts.some(part => part.partIndex === partIndex) ||
+        [...row.nested.values()].some(parts => parts.some(part => part.partIndex === partIndex))
+      );
     case "working":
     case "changed-files":
       return false;

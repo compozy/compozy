@@ -1,15 +1,14 @@
 package model
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
 // SortJobsForList orders jobs by source precedence, name, and id.
 func SortJobsForList(jobs []Job) {
-	sort.Slice(jobs, func(left int, right int) bool {
-		leftJob := jobs[left]
-		rightJob := jobs[right]
+	slices.SortFunc(jobs, func(leftJob, rightJob Job) int {
 		return compareListKey(
 			leftJob.Source,
 			leftJob.Name,
@@ -17,15 +16,13 @@ func SortJobsForList(jobs []Job) {
 			rightJob.Source,
 			rightJob.Name,
 			rightJob.ID,
-		) < 0
+		)
 	})
 }
 
 // SortTriggersForList orders triggers by source precedence, name, and id.
 func SortTriggersForList(triggers []Trigger) {
-	sort.Slice(triggers, func(left int, right int) bool {
-		leftTrigger := triggers[left]
-		rightTrigger := triggers[right]
+	slices.SortFunc(triggers, func(leftTrigger, rightTrigger Trigger) int {
 		return compareListKey(
 			leftTrigger.Source,
 			leftTrigger.Name,
@@ -33,7 +30,7 @@ func SortTriggersForList(triggers []Trigger) {
 			rightTrigger.Source,
 			rightTrigger.Name,
 			rightTrigger.ID,
-		) < 0
+		)
 	})
 }
 
@@ -43,6 +40,7 @@ func normalizeJobListQuery(query JobListQuery) JobListQuery {
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	query.Source = JobSource(strings.TrimSpace(string(query.Source)))
 	query.LoopName = strings.TrimSpace(query.LoopName)
+	query.Target = strings.TrimSpace(query.Target)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	return query
@@ -55,6 +53,7 @@ func normalizeTriggerListQuery(query TriggerListQuery) TriggerListQuery {
 	query.Event = strings.TrimSpace(query.Event)
 	query.Source = JobSource(strings.TrimSpace(string(query.Source)))
 	query.LoopName = strings.TrimSpace(query.LoopName)
+	query.Target = strings.TrimSpace(query.Target)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	return query
@@ -74,6 +73,9 @@ func jobMatchesListQuery(job Job, query JobListQuery) bool {
 		return false
 	}
 	if query.LoopName != "" && !jobMatchesLoopName(job, query.LoopName) {
+		return false
+	}
+	if query.Target != "" && query.Target != JobListTarget(job) {
 		return false
 	}
 	if query.Enabled != nil && job.Enabled != *query.Enabled {
@@ -125,6 +127,9 @@ func triggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
 	if query.LoopName != "" && !triggerMatchesLoopName(trigger, query.LoopName) {
 		return false
 	}
+	if query.Target != "" && query.Target != string(normalizedTargetKind(trigger.TargetKind, trigger.LoopTarget)) {
+		return false
+	}
 	if query.Enabled != nil && trigger.Enabled != *query.Enabled {
 		return false
 	}
@@ -158,12 +163,9 @@ func TriggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
 }
 
 func listSearchMatches(search string, fields ...string) bool {
-	for _, field := range fields {
-		if strings.Contains(strings.ToLower(field), search) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(fields, func(field string) bool {
+		return strings.Contains(strings.ToLower(field), search)
+	})
 }
 
 func jobMatchesLoopName(job Job, loopName string) bool {
@@ -186,13 +188,11 @@ func compareListKey(
 	rightName string,
 	rightID string,
 ) int {
-	if sourceComparison := listSourceRank(leftSource) - listSourceRank(rightSource); sourceComparison != 0 {
-		return sourceComparison
-	}
-	if nameComparison := strings.Compare(leftName, rightName); nameComparison != 0 {
-		return nameComparison
-	}
-	return strings.Compare(leftID, rightID)
+	return cmp.Or(
+		listSourceRank(leftSource)-listSourceRank(rightSource),
+		strings.Compare(leftName, rightName),
+		strings.Compare(leftID, rightID),
+	)
 }
 
 func listSourceRank(source JobSource) int {
@@ -211,4 +211,12 @@ func listSourceRank(source JobSource) int {
 // ListSourceRank returns the stable source precedence used by every automation catalog.
 func ListSourceRank(source JobSource) int {
 	return listSourceRank(source)
+}
+
+// JobListTarget includes task delegation, which shares the agent target kind in stored jobs.
+func JobListTarget(job Job) string {
+	if job.Task != nil {
+		return "task"
+	}
+	return string(normalizedTargetKind(job.TargetKind, job.LoopTarget))
 }

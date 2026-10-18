@@ -5,12 +5,12 @@ import {
   formatMessageTimestamp,
   formatMessageTimestampFull,
 } from "@/systems/session/lib/format-timestamp";
-import { SessionRewindMessageAction } from "@/systems/session";
+import { SessionForkMessageAction, SessionRewindMessageAction } from "@/systems/session";
 import { CopyIconButton } from "@compozy/ui";
 import { deriveMessageActions } from "./message-actions.logic";
 import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
 
-const ACTIONS_CLASS_NAME = "flex items-center gap-2 text-small-body text-muted tabular-nums";
+const ACTIONS_CLASS_NAME = "flex items-center gap-1.5 text-transcript-meta text-muted tabular-nums";
 
 export interface MessageActionsProps {
   /** `start` aligns the row under a flat assistant message; `end` under the right-aligned user bubble. */
@@ -50,25 +50,42 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
       copiedToastLabel="Message copied"
       copyFailedToastLabel="Couldn't copy message"
       disabled={streaming && source.length === 0}
-      className="text-muted hover:text-fg"
+      variant="quiet"
       data-testid={`${testId}-copy`}
     />
   );
   return (
     <div
       data-testid={testId}
-      className={cn(ACTIONS_CLASS_NAME, align === "end" ? "justify-end" : "justify-start")}
+      className={cn(
+        ACTIONS_CLASS_NAME,
+        // The user's own message keeps its actions out of the resting read:
+        // they surface on hover or keyboard focus, never shifting layout.
+        align === "end"
+          ? "justify-end opacity-0 transition-opacity duration-base ease-out group-hover/message:opacity-100 focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+          : "justify-start"
+      )}
     >
       {align === "end" ? (
         <>
           {timestamp}
           {copy}
-          {readOnly ? null : <SessionRewindMessageAction />}
+          {readOnly ? null : (
+            <>
+              <SessionForkMessageAction messageText={source} />
+              <SessionRewindMessageAction />
+            </>
+          )}
         </>
       ) : (
         <>
           {copy}
-          {timestamp}
+          {timestamp ? (
+            <>
+              <span aria-hidden="true" className="size-[3px] rounded-full bg-line-strong" />
+              {timestamp}
+            </>
+          ) : null}
         </>
       )}
     </div>

@@ -267,7 +267,7 @@ func (s *daemonExtensionService) payloadFromExtension(
 	if err := s.populateExtensionInputStatus(ctx, ext, profile.ID, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.populateExtensionNetworkStatus(key, &payload); err != nil {
+	if err := s.populateExtensionGatewayStatus(key, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.populateExtensionMCPDetails(ctx, key, profile, &payload); err != nil {
@@ -340,25 +340,25 @@ func extensionUpdatePayload(value extensionpkg.MarketplaceUpdateResult) contract
 	}
 }
 
-func (s *daemonExtensionService) populateExtensionNetworkStatus(
+func (s *daemonExtensionService) populateExtensionGatewayStatus(
 	key extensionpkg.InstanceKey,
 	payload *contract.ExtensionPayload,
 ) error {
-	if strings.TrimSpace(payload.NetworkRequirementDigest) != "" {
+	if strings.TrimSpace(payload.GatewayRequirementDigest) != "" {
 		if !payload.Dev {
 			key = extensionpkg.GlobalInstanceKey(key.Name)
 		}
-		confirmation, err := s.registry.NetworkConfirmation(key)
+		confirmation, err := s.registry.GatewayConfirmation(key)
 		if err != nil {
 			return fmt.Errorf(
-				"daemon: load extension network confirmation for %q in workspace %q: %w",
+				"daemon: load extension gateway confirmation for %q in workspace %q: %w",
 				key.Name,
 				key.WorkspaceID,
 				err,
 			)
 		}
-		payload.NetworkRequirementDigest = confirmation.Digest
-		payload.NetworkConfirmationRequired = confirmation.Digest != "" &&
+		payload.GatewayRequirementDigest = confirmation.Digest
+		payload.GatewayConfirmationRequired = confirmation.Digest != "" &&
 			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
 	}
 	return nil

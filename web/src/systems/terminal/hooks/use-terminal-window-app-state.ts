@@ -20,8 +20,6 @@ export interface UseTerminalWindowAppStateOptions {
   /** The per-project cap, from `[terminal].max_per_workspace`. Absent until loaded. */
   limit?: number;
   readOnly: boolean;
-  /** False where the platform cannot host an interactive terminal at all. */
-  interactiveAvailable: boolean;
   actions: TerminalWindowActions;
   /**
    * The PTY the route named. `undefined` is an isolated window with no host
@@ -76,7 +74,6 @@ export function useTerminalWindowAppState({
   terminals,
   limit,
   readOnly,
-  interactiveAvailable,
   actions,
   requestedTerminalId,
   windowedTerminalIds = EMPTY_WINDOWED,
@@ -140,8 +137,6 @@ export function useTerminalWindowAppState({
       actions.retargetTerminal(adoptable.id);
       return;
     }
-    // Execute-only platforms cannot host a PTY; the state surface says so.
-    if (!interactiveAvailable) return;
     openTerminal?.();
   });
   useEffect(() => {

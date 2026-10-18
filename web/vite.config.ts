@@ -38,7 +38,7 @@ export default defineConfig(({ command }) => ({
       "/api": {
         target: apiProxyTarget,
         changeOrigin: true,
-        // Window-manager stream: forward WebSocket upgrades to the daemon.
+        // Forward window-manager and document-wide event streams to the daemon.
         ws: true,
         headers: {
           Origin: apiProxyOrigin,

@@ -51,9 +51,9 @@ func (e *cmdPaletteActionExecutor) ApprovalCompletionStatus(
 	case toolspkg.ApprovalDenied:
 		return "denied", nil
 	case toolspkg.ApprovalTimedOut:
-		return "timeout", nil
+		return daemonTimeoutKey, nil
 	case toolspkg.ApprovalCanceled:
-		return nativeMemoryAdminToolsCanceledKey, nil
+		return "canceled", nil
 	default:
 		return "", nil
 	}

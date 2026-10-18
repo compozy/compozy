@@ -31,13 +31,6 @@ export const settingsRouteStories = [
   },
   {
     system: "settings",
-    routePath: "/sandbox",
-    storybookPath: "/sandbox",
-    title: "systems/settings/routes/Sandbox",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
     routePath: "/settings/skills",
     storybookPath: "/settings/skills",
     title: "systems/settings/routes/SettingsSkills",
@@ -66,23 +59,9 @@ export const settingsRouteStories = [
   },
   {
     system: "settings",
-    routePath: "/settings/network",
-    storybookPath: "/settings/network",
-    title: "systems/settings/routes/SettingsNetwork",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
     routePath: "/settings/gateway",
     storybookPath: "/settings/gateway",
     title: "systems/settings/routes/SettingsGateway",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/memory",
-    storybookPath: "/settings/memory",
-    title: "systems/settings/routes/SettingsMemory",
     storyName: "Default",
   },
   {

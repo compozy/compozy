@@ -86,6 +86,15 @@ func (m *Manager) cleanupInterruptingInputActivationFailure(
 	if entry.Status != store.SessionInputQueueStatusQueued {
 		return cause
 	}
+	if service := m.ReplyWatches(); service != nil {
+		// An undecodable origin skips only the optional watch notification; the entry is still canceled.
+		origin, err := decodePromptOrigin(entry.Origin)
+		if err != nil {
+			cause = errors.Join(cause, err)
+		} else if origin != nil && origin.ReplyWatchID != "" {
+			service.OnSendResult(context.WithoutCancel(ctx), origin.ReplyWatchID, cause)
+		}
+	}
 	return m.cancelUndeliverableInput(ctx, entry.SessionID, entry.ID, cause)
 }
 
@@ -95,9 +104,12 @@ func (m *Manager) cancelUndeliverableInput(
 	entryID string,
 	cause error,
 ) error {
-	_, cancelErr := m.inputQueue.Cancel(context.WithoutCancel(ctx), sessionID, entryID)
+	entry, cancelErr := m.inputQueue.Cancel(context.WithoutCancel(ctx), sessionID, entryID)
 	if cancelErr != nil {
 		return errors.Join(cause, fmt.Errorf("session: cancel undeliverable input: %w", cancelErr))
+	}
+	if service := m.ReplyWatches(); service != nil {
+		service.OnQueueEntryTerminal(context.WithoutCancel(ctx), &entry)
 	}
 	return cause
 }

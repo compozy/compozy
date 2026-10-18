@@ -7,6 +7,7 @@ CREATE TABLE automation_job_catalog_entries (
 			name                     TEXT NOT NULL,
 			loop_name                TEXT NOT NULL DEFAULT '',
 			enabled                  BOOLEAN NOT NULL,
+			target                   TEXT NOT NULL DEFAULT '',
 			search_name              TEXT NOT NULL,
 			search_agent_name        TEXT NOT NULL,
 			search_prompt            TEXT NOT NULL,
@@ -43,9 +44,6 @@ CREATE TABLE automation_jobs (
 		loop_name    TEXT,
 		loop_inputs  TEXT,
 		loop_input_mapping TEXT,
-		loop_network_participation TEXT CHECK (
-			loop_network_participation IS NULL OR json_valid(loop_network_participation)
-		),
 		created_at   TEXT NOT NULL,
 		updated_at   TEXT NOT NULL,
 		CHECK (
@@ -84,10 +82,7 @@ CREATE TABLE automation_runs (
 		ended_at   TEXT,
 		error      TEXT,
 		loop_run_id TEXT REFERENCES loop_runs(id) ON DELETE SET NULL
-	, fire_id TEXT, scheduled_at TEXT, delivery_error TEXT, delivery_error_at TEXT,
-	  network_participation TEXT CHECK (
-		network_participation IS NULL OR json_valid(network_participation)
-	  ), metadata_json TEXT NOT NULL DEFAULT '{}');
+	, fire_id TEXT, scheduled_at TEXT, delivery_error TEXT, delivery_error_at TEXT, metadata_json TEXT NOT NULL DEFAULT '{}');
 
 CREATE TABLE "automation_scheduler_state" (
 			deferred_until               TEXT,
@@ -119,6 +114,7 @@ CREATE TABLE automation_trigger_catalog_entries (
 			name                 TEXT NOT NULL,
 			loop_name            TEXT NOT NULL DEFAULT '',
 			enabled              BOOLEAN NOT NULL,
+			target               TEXT NOT NULL DEFAULT '',
 			search_name          TEXT NOT NULL,
 			search_agent_name    TEXT NOT NULL,
 			search_prompt        TEXT NOT NULL,
@@ -163,9 +159,6 @@ CREATE TABLE automation_triggers (
 		loop_name     TEXT,
 		loop_inputs   TEXT,
 		loop_input_mapping TEXT,
-		loop_network_participation TEXT CHECK (
-			loop_network_participation IS NULL OR json_valid(loop_network_participation)
-		),
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL,
 		CHECK (
@@ -331,3 +324,7 @@ BEGIN
 		)
 	);
 END;
+
+CREATE INDEX idx_automation_runs_job_latest ON automation_runs(job_id, started_at DESC, id DESC) WHERE job_id IS NOT NULL;
+
+CREATE INDEX idx_automation_runs_trigger_latest ON automation_runs(trigger_id, started_at DESC, id DESC) WHERE trigger_id IS NOT NULL;

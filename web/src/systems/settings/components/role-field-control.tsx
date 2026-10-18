@@ -83,7 +83,7 @@ export function RoleFieldControl(props: RoleFieldControlProps) {
       help={field.description}
       description={
         hasEffective ? (
-          <RoleEffectiveHint effective={effective} emptyLabel="Resolves at invocation." />
+          <RoleEffectiveHint effective={effective} emptyLabel="Decided when the role runs." />
         ) : undefined
       }
       error={error}

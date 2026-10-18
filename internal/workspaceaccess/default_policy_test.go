@@ -181,7 +181,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 
 	t.Run("Should UT-051 prevent non-agent kinds from inheriting approve-all", func(t *testing.T) {
 		t.Parallel()
-		for _, kind := range []ActorKind{ActorExtension, ActorAutomation, ActorNetworkPeer, ActorDaemon} {
+		for _, kind := range []ActorKind{ActorExtension, ActorAutomation, ActorDaemon} {
 			t.Run("Should deny "+string(kind), func(t *testing.T) {
 				t.Parallel()
 				modes := &modeSourceStub{mode: ModeApproveAll}

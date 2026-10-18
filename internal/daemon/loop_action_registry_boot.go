@@ -43,7 +43,7 @@ func newBootLoopActionRegistry(
 		}}),
 	}
 	if goalStore, ok := store.(loopGoalProductionStore); ok && state.sessions != nil {
-		goalRuntime := newLoopGoalProductionRuntime(
+		goalRuntime := withGoalToolProjection(newLoopGoalProductionRuntime(
 			goalStore,
 			state.sessions,
 			globalWorkspacePath,
@@ -51,7 +51,8 @@ func newBootLoopActionRegistry(
 			time.Now,
 			state.logger,
 			worktrees,
-		)
+		), goalToolProjectionInvalidator(state))
+		installGoalToolProjectionObserver(state)
 		actionOptions[1] = looppkg.WithActionSessionBinder(goalRuntime)
 		goalOption, err := composeLoopGoalExecutor(
 			goalStore,
@@ -66,9 +67,6 @@ func newBootLoopActionRegistry(
 		actionOptions = append(actionOptions, goalOption)
 	} else if _, supportsGoalExecutor := store.(loopGoalExecutorStore); supportsGoalExecutor && state.sessions != nil {
 		return nil, fmt.Errorf("%w: Goal production store ports are incomplete", looppkg.ErrActionDependencyMissing)
-	}
-	if conversations, ok := state.registry.(looppkg.ChannelResultConversationStore); ok {
-		actionOptions = append(actionOptions, looppkg.WithActionChannelResultStore(conversations))
 	}
 	return looppkg.NewActionRegistry(toolRegistry, actionOptions...)
 }

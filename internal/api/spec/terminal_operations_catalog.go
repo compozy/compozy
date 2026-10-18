@@ -57,7 +57,7 @@ func terminalCreateOperation(transports []Transport, workspace ParameterSpec) Op
 		),
 		contract.TerminalCreateRequest{},
 		[]ResponseSpec{
-			{Status: 201, Description: "Created", Body: contract.TerminalResponse{}},
+			{Status: 201, Description: specCreatedDescription, Body: contract.TerminalResponse{}},
 			terminalErrorResponse(409, "Terminal limit reached"),
 			terminalErrorResponse(422, "Invalid terminal request"),
 			terminalErrorResponse(503, "Terminal service unavailable"),
@@ -117,7 +117,7 @@ func terminalTicketOperation(transports []Transport, workspace, id ParameterSpec
 		),
 		contract.TerminalAttachTicketRequest{},
 		[]ResponseSpec{
-			{Status: 201, Description: "Created", Body: contract.TerminalAttachTicketResponse{}},
+			{Status: 201, Description: specCreatedDescription, Body: contract.TerminalAttachTicketResponse{}},
 			terminalErrorResponse(404, "Terminal not found"),
 			terminalErrorResponse(409, "Subscriber limit reached"),
 			terminalErrorResponse(422, "Invalid attach mode"),

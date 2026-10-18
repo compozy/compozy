@@ -16,9 +16,9 @@ export function LoopConfigureLocation({ name }: { name: string }) {
   if (workspaceId === "") {
     return (
       <ConfigureState
-        description="Select a workspace to configure this Loop."
+        description="Select a project to configure this Loop."
         testId="loop-configure-no-workspace"
-        title="No workspace selected"
+        title="No project selected"
       />
     );
   }
@@ -46,7 +46,7 @@ export function LoopConfigureLocation({ name }: { name: string }) {
         description={message}
         icon={AlertCircle}
         testId="loop-configure-error"
-        title="Unable to load loop"
+        title="Couldn't open this Loop"
       />
     );
   }
@@ -54,10 +54,10 @@ export function LoopConfigureLocation({ name }: { name: string }) {
   if (!configQuery.effectiveConfig) {
     return (
       <ConfigureState
-        description="Couldn't load the effective loop configuration."
+        description="Couldn't load this Loop's settings. Try again in a moment."
         icon={AlertCircle}
         testId="loop-configure-effective-error"
-        title="Unable to load loop configuration"
+        title="Couldn't load settings"
       />
     );
   }

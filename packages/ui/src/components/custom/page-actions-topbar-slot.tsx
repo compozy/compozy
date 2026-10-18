@@ -59,7 +59,7 @@ function PageActionsTopbarSlot({
     >
       {saveAriaDisabled && saveBlockedCaption ? (
         <span
-          className="text-xs text-subtle"
+          className="text-eyebrow text-subtle"
           data-slot="page-actions-topbar-slot-blocked-caption"
           data-testid="page-actions-topbar-slot-blocked-caption"
         >
@@ -74,12 +74,12 @@ function PageActionsTopbarSlot({
         disabled={discardDisabled}
         onClick={onDiscard}
       >
-        <Undo2Icon className="size-3" />
+        <Undo2Icon />
         {discardLabel}
       </Button>
       <Button
         type="button"
-        variant="default"
+        variant="secondary"
         size="sm"
         data-slot="page-actions-topbar-slot-save"
         disabled={saveHtmlDisabled}
@@ -89,11 +89,7 @@ function PageActionsTopbarSlot({
           onSave();
         }}
       >
-        {saving ? (
-          <Spinner aria-hidden="true" className="size-3" />
-        ) : (
-          <SaveIcon className="size-3" />
-        )}
+        {saving ? <Spinner aria-hidden="true" /> : <SaveIcon />}
         {saving ? savingLabel : saveLabel}
       </Button>
     </div>

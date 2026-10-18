@@ -35,7 +35,7 @@ export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transpor
 export type ExtensionsApiErrorMetadata = ExtensionOperationErrorMetadata;
 
 export class ExtensionsApiError extends Error {
-  /** Daemon error code, e.g. `extension_network_confirmation_required`. */
+  /** Daemon error code, e.g. `extension_gateway_confirmation_required`. */
   public readonly code: string | undefined;
 
   /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */

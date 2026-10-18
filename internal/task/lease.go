@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
@@ -36,38 +35,24 @@ const (
 	LeaseRecoveryExhaustedReason = "lease_recovery_exhausted"
 )
 
-var defaultCoordinationMessageKinds = []string{
-	leaseStatusKey,
-	"request",
-	"reply",
-	"blocker",
-	leaseHandoffKey,
-	"result",
-	"review_request",
-}
-
 var canonicalTaskIDTokenPattern = regexp.MustCompile(`\btask-[A-Za-z0-9][A-Za-z0-9_-]*\b`)
 
 // ClaimCriteria captures the atomic next-work filters for one claiming session.
 type ClaimCriteria struct {
-	RunID                string         `json:"run_id,omitempty"`
-	Scope                Scope          `json:"scope,omitempty"`
-	WorkspaceID          string         `json:"workspace_id,omitempty"`
-	RunKind              RunKind        `json:"run_kind,omitempty"`
-	TargetSessionID      string         `json:"target_session_id,omitempty"`
-	ClaimerSessionID     string         `json:"claimer_session_id"`
-	ClaimedBy            *ActorIdentity `json:"claimed_by,omitempty"`
-	AgentName            string         `json:"agent_name,omitempty"`
-	RequiredCapabilities []string       `json:"required_capabilities,omitempty"`
-	PriorityMin          int            `json:"priority_min,omitempty"`
-	ParticipationChannel string         `json:"participation_channel,omitempty"`
+	RunID                string               `json:"run_id,omitempty"`
+	Scope                Scope                `json:"scope,omitempty"`
+	WorkspaceID          string               `json:"workspace_id,omitempty"`
+	RunKind              RunKind              `json:"run_kind,omitzero"`
+	ClaimerSessionID     string               `json:"claimer_session_id"`
+	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
+	AgentName            string               `json:"agent_name,omitempty"`
+	RequiredCapabilities []string             `json:"required_capabilities,omitempty"`
+	PriorityMin          int                  `json:"priority_min,omitzero"`
+	Soul                 *SoulClaimProvenance `json:"soul,omitzero"`
 	// WorkspaceActiveRunCap is trusted Service policy and never caller-controlled wire input.
-	WorkspaceActiveRunCap int `json:"-"`
-	// CallerNetworkParticipation is trusted hook context, never run-selection input.
-	CallerNetworkParticipation *participation.Spec  `json:"-"`
-	Soul                       *SoulClaimProvenance `json:"soul,omitempty"`
-	LeaseDuration              time.Duration        `json:"lease_duration"`
-	Now                        time.Time            `json:"now"`
+	WorkspaceActiveRunCap int           `json:"-"`
+	LeaseDuration         time.Duration `json:"lease_duration"`
+	Now                   time.Time     `json:"now"`
 }
 
 // SoulClaimProvenance captures pre-resolved session Soul data at claim time.
@@ -78,26 +63,12 @@ type SoulClaimProvenance struct {
 	CapturedAt time.Time `json:"captured_at"`
 }
 
-// CoordinationChannelMetadata is the safe channel display metadata returned with a claim.
-type CoordinationChannelMetadata struct {
-	ID                  string    `json:"id"`
-	DisplayName         string    `json:"display_name"`
-	Purpose             string    `json:"purpose,omitempty"`
-	WorkspaceID         string    `json:"workspace_id,omitempty"`
-	TaskID              string    `json:"task_id,omitempty"`
-	RunID               string    `json:"run_id,omitempty"`
-	WorkflowID          string    `json:"workflow_id,omitempty"`
-	AllowedMessageKinds []string  `json:"allowed_message_kinds,omitempty"`
-	LastActivityAt      time.Time `json:"last_activity_at"`
-}
-
 // ClaimResult is the successful synchronous claim result. ClaimToken is raw and must not cross public surfaces.
 type ClaimResult struct {
-	Task                *Task                        `json:"task,omitempty"`
-	Run                 Run                          `json:"run"`
-	ClaimToken          string                       `json:"claim_token"`
-	LeaseUntil          time.Time                    `json:"lease_until"`
-	CoordinationChannel *CoordinationChannelMetadata `json:"coordination_channel,omitempty"`
+	Task       *Task     `json:"task,omitzero"`
+	Run        Run       `json:"run"`
+	ClaimToken string    `json:"claim_token"`
+	LeaseUntil time.Time `json:"lease_until"`
 }
 
 // LeaseHeartbeat captures a token-fenced lease extension request.
@@ -106,7 +77,7 @@ type LeaseHeartbeat struct {
 	ClaimToken    string        `json:"claim_token"`
 	LeaseDuration time.Duration `json:"lease_duration"`
 	Now           time.Time     `json:"now"`
-	TokensUsed    int64         `json:"tokens_used,omitempty"`
+	TokensUsed    int64         `json:"tokens_used,omitzero"`
 	Actor         ActorContext  `json:"-"`
 }
 
@@ -134,7 +105,7 @@ type LeaseCompletion struct {
 	ClaimToken           string    `json:"claim_token"`
 	Result               RunResult `json:"result"`
 	CreatedTaskIDs       []string  `json:"created_task_ids,omitempty"`
-	TokensUsed           int64     `json:"tokens_used,omitempty"`
+	TokensUsed           int64     `json:"tokens_used,omitzero"`
 	Now                  time.Time `json:"now"`
 	Actor                ActorContext
 	actionResultMaxBytes int
@@ -145,7 +116,7 @@ type LeaseFailure struct {
 	RunID      string     `json:"run_id"`
 	ClaimToken string     `json:"claim_token"`
 	Failure    RunFailure `json:"failure"`
-	TokensUsed int64      `json:"tokens_used,omitempty"`
+	TokensUsed int64      `json:"tokens_used,omitzero"`
 	Now        time.Time  `json:"now"`
 	Actor      ActorContext
 }
@@ -154,7 +125,7 @@ type LeaseFailure struct {
 type ExpiredLeaseRecovery struct {
 	Now    time.Time    `json:"now"`
 	Reason string       `json:"reason,omitempty"`
-	Limit  int          `json:"limit,omitempty"`
+	Limit  int          `json:"limit,omitzero"`
 	Actor  ActorContext `json:"-"`
 }
 
@@ -166,7 +137,7 @@ type ExpiredLeaseRecoveryResult struct {
 	PreviousLeaseUntil     time.Time `json:"previous_lease_until"`
 	PreviousClaimTokenHash string    `json:"previous_claim_token_hash,omitempty"`
 	Reason                 string    `json:"reason,omitempty"`
-	Exhausted              bool      `json:"exhausted,omitempty"`
+	Exhausted              bool      `json:"exhausted,omitzero"`
 }
 
 // SessionLeaseRelease captures a daemon-owned structural release for all active
@@ -226,7 +197,7 @@ func VerifyClaimToken(rawToken string, persistedHash string) bool {
 	return subtle.ConstantTimeCompare([]byte(computed), []byte(hash)) == 1
 }
 
-// Normalize returns a validated claim criteria with default scope, time, and lease duration applied.
+// Validate reports whether Soul provenance is internally consistent.
 func (p SoulClaimProvenance) Validate(path string) error {
 	hasSnapshotID := strings.TrimSpace(p.SnapshotID) != ""
 	hasDigest := strings.TrimSpace(p.Digest) != ""

@@ -9,3 +9,7 @@ package daemon
 func lockPIDPath(lockPath string) string {
 	return lockPath + ".pid"
 }
+
+func updateLockOwnerPath(lockPath string) string {
+	return lockPath + ".owner"
+}

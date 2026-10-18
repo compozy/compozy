@@ -9,7 +9,6 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func (m *Service) dispatchTaskBlocked(
@@ -20,10 +19,8 @@ func (m *Service) dispatchTaskBlocked(
 	release *BlockTaskAndReleaseRunResult,
 ) {
 	payload := hookspkg.TaskBlockedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskBlocked,
-			Timestamp: m.now().UTC(),
-		},
+		Event:       hookspkg.HookTaskBlocked,
+		Timestamp:   m.now().UTC(),
 		TaskContext: m.taskHookContext(taskRecord, actor, release),
 		BlockID:     strings.TrimSpace(block.ID),
 		Kind:        string(block.Kind.Normalize()),
@@ -43,10 +40,8 @@ func (m *Service) dispatchTaskUnblocked(
 	actor ActorContext,
 ) {
 	payload := hookspkg.TaskUnblockedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskUnblocked,
-			Timestamp: m.now().UTC(),
-		},
+		Event:       hookspkg.HookTaskUnblocked,
+		Timestamp:   m.now().UTC(),
 		TaskContext: m.taskHookContext(taskRecord, actor, nil),
 		BlockID:     strings.TrimSpace(block.ID),
 		Kind:        string(block.Kind.Normalize()),
@@ -70,10 +65,8 @@ func (m *Service) dispatchTaskNeedsAttention(
 	release *BlockTaskAndReleaseRunResult,
 ) {
 	payload := hookspkg.TaskNeedsAttentionPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskNeedsAttention,
-			Timestamp: m.now().UTC(),
-		},
+		Event:       hookspkg.HookTaskNeedsAttention,
+		Timestamp:   m.now().UTC(),
 		TaskContext: m.taskHookContext(taskRecord, actor, release),
 		Reason:      redactTaskSecretText(strings.TrimSpace(reason)),
 		At:          at,
@@ -92,10 +85,8 @@ func (m *Service) dispatchTaskRecovered(
 	at time.Time,
 ) {
 	payload := hookspkg.TaskRecoveredPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRecovered,
-			Timestamp: m.now().UTC(),
-		},
+		Event:       hookspkg.HookTaskRecovered,
+		Timestamp:   m.now().UTC(),
 		TaskContext: m.taskHookContext(taskRecord, actor, nil),
 		Note:        redactTaskSecretText(strings.TrimSpace(note)),
 		At:          at,
@@ -128,9 +119,6 @@ func (m *Service) taskHookContext(
 		contextPayload.RunID = strings.TrimSpace(release.Run.ID)
 		contextPayload.ReleaseReason = strings.TrimSpace(release.ReleaseReason)
 		contextPayload.ClaimTokenHash = strings.TrimSpace(release.ClaimTokenHash)
-		contextPayload.ResolvedNetworkParticipation = participation.CloneSpec(
-			release.Run.NetworkSpecSnapshot(),
-		)
 	}
 	return contextPayload
 }

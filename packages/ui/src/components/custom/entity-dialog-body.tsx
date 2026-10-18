@@ -70,7 +70,7 @@ function EntityDialogBody({
         <div
           className={cn(
             PANE_CLASS,
-            "border-l border-line bg-canvas max-[980px]:border-t max-[980px]:border-l-0",
+            "border-l border-line max-[980px]:border-t max-[980px]:border-l-0",
             sideClassName
           )}
           data-slot="entity-dialog-body-side"

@@ -35,7 +35,7 @@ const meta: Meta<typeof SessionComposerFeedbackNote> = {
   parameters: { layout: "centered" },
   decorators: [
     Story => (
-      <div className="flex w-[560px] flex-col gap-3 rounded-lg border border-line bg-elevated px-3.5 py-3">
+      <div className="flex w-[560px] flex-col gap-3 rounded-lg bg-canvas shadow-card px-3.5 py-3">
         <Story />
       </div>
     ),

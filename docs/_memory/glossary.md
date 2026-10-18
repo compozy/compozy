@@ -1,6 +1,6 @@
 # CompozyOS Glossary
 
-Canonical vocabulary for CompozyOS and Compozy Network. When the corpus is ambiguous (older RFC drafts, older `.codex/ledger` entries, internal Slack/notes), this document is authoritative.
+Canonical vocabulary for CompozyOS. When the corpus is ambiguous (older RFC drafts, older `.codex/ledger` entries, internal Slack/notes), this document is authoritative.
 
 ---
 
@@ -8,7 +8,7 @@ Canonical vocabulary for CompozyOS and Compozy Network. When the corpus is ambig
 
 ### CompozyOS and `compozy`
 
-**CompozyOS** is the public product name used in ordinary prose, UI, package descriptions, calls to action, and formal category language. It names the complete agent operating system: the daemon-owned runtime, sessions and work model, memory, permissions, automation, OS shell, extensibility, and coordination.
+**CompozyOS** is the public product name used in ordinary prose, UI, package descriptions, calls to action, and formal category language. It names the complete agent operating system: the daemon-owned runtime, sessions and work model, permissions, automation, OS shell, extensibility, and coordination.
 
 **`compozy`** is the command identifier. The binary, `COMPOZY_*` environment variables, Go module path, `@compozy/*` packages, Homebrew formula, socket names, config paths, and `compozy__*` native tool IDs keep this spelling. CompozyOS is the product; `compozy` is its command. Do not use `CompozyOS Runtime` as a separate product name; `CompozyOS runtime` is descriptive prose when the runtime specifically matters.
 
@@ -22,7 +22,7 @@ The local background runtime process. It owns state, executes work, and serves e
 
 ### ACP
 
-**Agent Client Protocol** — the standard CompozyOS uses to talk to agent CLIs, spoken over JSON-RPC/stdio to a spawned subprocess. CompozyOS is an ACP host; Claude Code, OpenClaw, and Hermes are ACP-compatible agent CLIs it drives.
+**Agent Client Protocol** — the standard CompozyOS uses to talk to agent CLIs, spoken over JSON-RPC/stdio to a spawned subprocess. CompozyOS is an ACP host; Claude Code, Codex, and Cursor are ACP-compatible agent CLIs it drives.
 
 **UI label:** none. Expand the acronym on first use in end-user prose; reference and protocol docs may use `ACP` directly.
 
@@ -34,17 +34,34 @@ A durable managed agent run: saved history, resumable state, and the same view f
 
 **UI label:** "session" — already everyday English. Gloss it on first use rather than aliasing it.
 
+**Derived sessions** (lineage `kind`; copy rules in `COPY.md` §6 "Session Continue & Fork Terms"):
+
+- **continue** — a new session for another agent, runtime, or declared route with a session's conversation carried over; the source stays unchanged. UI: "Continue with another agent…", pill/divider "Continued from …".
+- **fork** — a conversation fork: a second session with the same agent and the conversation up to a point. UI: "Fork session…", "Fork from here", "Forked from …". Unqualified `fork` means this; worktree and Loop forks are always qualified.
+- **recovery** — an empty restart of a session whose runtime cannot be resumed. UI: "Restart in a new session" — never "fork".
+- `handoff` stays the Network term; it never labels continue or fork in UI copy (the `provider_error.next_action` value `handoff` is a wire value, not a label).
+
+---
+
+### Compaction
+
+The agent's own compaction of its live context window. CompozyOS never compacts a session itself: it observes agent compaction when the agent supports the ACP compaction capability (a `compaction` item in session history, `session.compaction_fired`, usage markers, and the observation-only `context.pre_compact` / `context.post_compact` hooks) and requests it only through the command the agent advertises (`compact`, else `compress`). The surfaces are experimental while the upstream ACP contract is unstable.
+
+A rebuild of a session into a new agent session is a **bounded replay** (`[session.derive]` budget, pinned first user message, pointer to `compozy__session_history`), not a compaction.
+
+**UI label:** "Compact now" for the operator action; the timeline row reads "Context compacted". **Say:** "agent compaction", "request compaction". **Do not say:** "CompozyOS compacts the session" or "summarizes older messages".
+
 ---
 
 ### Profile
 
-An operator-owned partition of work on one CompozyOS installation. Each work root — session, task, loop run, automation, automation run, bridge instance, worktree, network conversation, notification cursor, tool approval grant, usage row — is stamped with exactly one profile at creation and never moves. Children inherit their parent's owner. Profile-aware owned-work reads run in one of exactly two modes — scoped to one profile, or the explicit owner-labeled aggregate — and the daemon enforces both, fail-closed. Ruled exceptions are documented, not implicit: worktrees are visible in every profile with an owner tag, and Compozy Network delivery stays profile-blind so peers in different profiles can converse.
+An operator-owned partition of work on one CompozyOS installation. Each work root — session, task, loop run, automation, automation run, worktree, notification cursor, tool approval grant, usage row — is stamped with exactly one profile at creation and never moves. Children inherit their parent's owner. Profile-aware owned-work reads run in one of exactly two modes — scoped to one profile, or the explicit owner-labeled aggregate — and the daemon enforces both, fail-closed. Ruled exceptions are documented, not implicit: worktrees are visible in every profile with an owner tag.
 
 Every installation has the permanent `default` profile, structurally identical to any other, which cannot be archived, deleted, or renamed. Names match `^[a-z][a-z0-9-]{0,31}$`, are unique across active and archived profiles, and reserve `default`, `all`, and `global`. The name doubles as a repository folder name and as the binding key extensions place resources into; the stamp itself is a stable ULID, so a rename never touches work.
 
 **Organization, not access control.** Profiles carry no permission, grant, lock, or hidden-from vocabulary. Any active profile is selectable at any time; archived profiles remain visible in aggregate reads and must be unarchived before selection. Do not reintroduce the closed [Cross-workspace access](#cross-workspace-access) vocabulary. Access control for more than one operator is a separate future program.
 
-**Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), sandbox profile (see [Sandbox](#sandbox)), layout profile, [Trust Profile](#trust-profile), gateway connection profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
+**Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), layout profile, gateway connection profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
 
 **UI label:** "Profile" — keep. It has no alias, so it has no row in [Surface Names](#surface-names).
 
@@ -58,37 +75,15 @@ A human/agent-operable surface — CLI, HTTP/SSE, UDS, or web UI — over the sa
 
 ---
 
-### Bridge
-
-An external messaging or platform adapter (Slack, Discord, and peers). Do not call a bridge a `channel`: `channel` is the Compozy Network namespace and coordination-channel term.
-
-**UI label:** "Bridge" / "Bridges" — keep the product name. Do not alias to "connection" or "Connections".
-
----
-
-### Compozy Network
-
-The agent-to-agent coordination subsystem inside CompozyOS. It lets sessions participate as peers, discover capabilities, exchange typed envelopes, and return receipts. The current protocol/version name is `compozy-network/v0`.
-
-Compozy Network is not the product category, a federation protocol, or a synonym for CompozyOS. Its wire format remains implementable outside CompozyOS.
-
 ### Capability
 
-The single canonical name for **reusable agent artifacts** that describe transferable delegation offers, network discovery shapes, and CompozyOS artifacts shipped between peers.
+An authored description of an outcome an agent can perform. Optional capability catalogs live
+beside `AGENT.md` and supply agent inspection, task eligibility, and reviewer selection.
+The runtime normalizes the catalog and computes a digest; the agent name and capability ID identify
+the offer. A capability describes an outcome; a [Loop](#loop) executes a deterministic program.
 
-A capability is **interpretive**, not deterministic — it tells an agent what is available, not how to execute a deterministic program.
-
-**Forbidden synonyms:** `recipe` (used in pre-rename RFC 003-old), `procedure`, `playbook`. If you find these in code, docs, or task artifacts targeting current behavior, rename them. `workflow` is no longer a forbidden synonym: the runtime now owns a first-class **Loop** domain (see below, ADR-001). A capability is still never a workflow/loop — but the word `workflow` no longer implies a naming collision.
-
-**Source:** RFC 003-v0 (`.../compozy-rfcs-local/003-compozy-network-v0.md`) renamed `recipe` → `capability`. RFC 004 enforces.
-
-**Operational identity:** `(peer_id, capability_id)`.
-
-**UI label:** "capability" — keep the word and define it on first use. It has no alias: `capability` is the only name in code, wire, docs, and CLI, and the forbidden synonyms above stay forbidden on every surface.
-
-**Capability vs Loop:** a capability is the interpretive network artifact (what an agent offers to peers); a [Loop](#loop) is the deterministic runtime program the daemon owns and executes. The network carries capabilities, never loop execution.
-
-**Capability vs extension vocabulary (disambiguation):** the extension domain uses two neighbouring words that are **not** this artifact. [Provides](#provides) names the runtime interfaces an extension implements (`capabilities.provides` in the manifest — the TOML key is historical). [Permissions](#permissions) names the Host API methods an extension is allowed to call. Neither travels the network, neither is a delegation offer, and neither may be called "a capability" in prose. When an extension manifest key must be named, quote it as `capabilities.provides` and say "provide surface".
+Use `capability` consistently in code, docs, and CLI. Extension `capabilities.provides` names
+runtime interfaces; extension permissions name Host API access. Those are separate concepts.
 
 ---
 
@@ -96,9 +91,9 @@ A capability is **interpretive**, not deterministic — it tells an agent what i
 
 The closed set of **runtime interfaces an extension implements**, declared as `capabilities.provides` in the extension manifest and generated from the SDK declaration by `compozy extension build`.
 
-Public set: `tool.provider`, `memory.backend`, `model.source`, `loop.watch_source`, `view.provider`, `connectivity.provider`, `forge.provider`. `view.provider` is the TypeScript-only programmable command-palette interface (`view/open`, `view/event`, `view/close`). `bridge.adapter` exists in the daemon but is excluded from the public surface (ADR-006) — an installed third-party manifest declaring it is rejected.
+Public set: `tool.provider`, `model.source`, `loop.watch_source`, `view.provider`, `connectivity.provider`, `forge.provider`. `view.provider` is the TypeScript-only programmable command-palette interface (`view/open`, `view/event`, `view/close`).
 
-Each provide binds the extension to the CompozyOS → extension service methods the daemon will call (for example `memory.backend` → `memory/store`, `memory/recall`, `memory/forget`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
+Each provide binds the extension to the CompozyOS → extension service methods the daemon will call (for example `view.provider` → `view/open`, `view/event`, `view/close`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
 
 **Say:** "provide surface", "the extension provides `tool.provider`". **Do not say:** "the extension's capabilities" when you mean this — see the [Capability](#capability) disambiguation.
 
@@ -108,11 +103,11 @@ Each provide binds the extension to the CompozyOS → extension service methods 
 
 The single authored list of **Host API methods an extension may call**, declared as `permissions.requires` in the extension manifest.
 
-The list is validated against the closed Host API method set at build, validate, install, and daemon load. CompozyOS **derives** the operator-facing consent areas from it (`sessions:read`, `memory:write`, …) — consent areas are a display and policy projection, never an authored field.
+The list is validated against the closed Host API method set at build, validate, install, and daemon load. CompozyOS **derives** the operator-facing consent areas from it (`sessions:read`, `sessions:write`, …) — consent areas are a display and policy projection, never an authored field.
 
 Enforcement is per call against the effective grant, which is the declared list narrowed by the install source tier. Published sources (`curated`, `github`, `git`) run under the marketplace ceiling; local-path installs and dev links carry no ceiling.
 
-**Not to be conflated with:** agent permission modes (`[permissions] mode` in `config.toml`, which governs tool approval), or the network [Trust Profile](#trust-profile).
+**Not to be conflated with:** agent permission modes (`[permissions] mode` in `config.toml`, which governs tool approval).
 
 ---
 
@@ -124,9 +119,9 @@ The static resources shipped by one extension: skills, agents and their sidecars
 
 An instance-scoped link from a manifest-declared environment key to an existing Vault reference. Public reads expose only bound key names, never values or references.
 
-### Network Requirement Confirmation
+### Gateway Requirement Confirmation
 
-Explicit operator consent to the exact digest of an extension's normalized Network Live requirement. Enable or update must receive the daemon-returned digest; confirmation does not enroll a session in Live participation.
+Explicit consent from an operator or authorized agent to the exact digest of an extension's normalized gateway permissions. Enable or update must receive the daemon-returned digest; the selected Gateway tier must match a declared permission.
 
 ---
 
@@ -134,15 +129,27 @@ Explicit operator consent to the exact digest of an extension's normalized Netwo
 
 The **deterministic runtime program the daemon owns and executes**, defined by the contract **goal → act → verify → stop** plus a fixed set of named terminal outcomes (ADR-001). A Loop's body is a static DAG of typed nodes; iteration is simply what happens when verification says "not done." A single-pass linear pipeline is still a Loop — one that finished on its first pass — and it still carries the contract (definition-of-done, verification gate, terminal states, budget), which is the value no plain DAG engine delivers.
 
-Loops ride CompozyOS's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
+Loops ride CompozyOS's existing durable foundations (work queue, sessions, automation) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
 
-**Loop vs Capability:** a Loop is deterministic and runtime-owned; a [capability](#capability) is interpretive and network-shipped. Loops do not replace capabilities, and loop execution never travels over the network wire.
+**Loop vs Capability:** a Loop is deterministic and runtime-owned; a capability describes an agent outcome.
 
 **Terminal outcomes:** `done`, `no-op`, `blocked`, `failed`, `exhausted`, `stalled`, `canceled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
 
-**Not to be conflated with:** the historical "workflow" positioning. CompozyOS is a runtime with a Loop domain; the Compozy Network protocol remains not a workflow engine.
+**Not to be conflated with:** the historical "workflow" positioning. CompozyOS is a runtime with a Loop domain.
 
 **UI label:** "Loop" — **pending owner decision, do not alias.** `workflow` is no longer a forbidden synonym for [capability](#capability), but the historical positioning above is still warned off, so no alias lands until the owner decides.
+
+---
+
+### Automation
+
+Unattended work that **starts on its own** — on a schedule, when something happens inside CompozyOS, or when another app calls a link — and **does one thing**: ask an agent, start a Loop, or (schedules only) create a task. Every automation reads as one sentence: Starts → Only if → Does.
+
+The daemon keeps two entities: a **job** (`[[automation.jobs]]`, `compozy automation jobs`, `compozy__automation_jobs_*`) starts on a schedule; a **trigger** (`[[automation.triggers]]`, `compozy automation triggers`, `compozy__automation_triggers_*`) starts on an event, and a webhook trigger (`event = "webhook"`) starts when another app calls its link. The start decides the entity; neither converts into the other.
+
+**UI label:** "Automations" for the one window, dock launcher, palette view, and Settings row. `job` and `trigger` stay canonical in code, payloads, CLI verbs, tool ids, config tables, and reference docs (see the Surface Names table).
+
+**Not to be conflated with:** a [Loop](#loop) (the program an automation may start) or a hook (typed dispatch around a runtime event, not unattended work).
 
 ---
 
@@ -150,7 +157,7 @@ Loops ride CompozyOS's existing durable foundations (work queue, sessions, autom
 
 A **bundled procedural instruction** that a CompozyOS session can activate before doing work. Skills are local to CompozyOS (loaded via `internal/skills`), governed by `metadata.compozy.*` frontmatter, scanned via `VerifyContent`, and may declare MCP servers and lifecycle hooks.
 
-**Skills vs. Capabilities:** Skills live inside a CompozyOS instance and govern an agent's behavior locally. Capabilities cross CompozyOS instances over the network and describe what an agent offers to peers. A skill could be exposed as a capability, but they are not the same artifact.
+**Skills vs. Capabilities:** skills guide behavior; capabilities describe the outcomes an agent offers.
 
 **UI label:** "Skill" — keep the word; it already reads plainly. Gloss it on first use.
 
@@ -162,18 +169,6 @@ A **bundled procedural instruction** that a CompozyOS session can activate befor
 Use `cmd_palette` for Go packages, config and event families; `cmd-palette` for CLI verbs and URL-facing
 slugs; and `compozy__cmd_palette_*` for native tool IDs. These spellings name one registry, not separate
 features.
-
----
-
-### Sandbox
-
-The CompozyOS execution boundary selected for a workspace or session. A sandbox profile is configured under `[sandboxes.<name>]`, selected by `sandbox_ref` or runtime flags, and carried through the session lifecycle as sandbox metadata.
-
-Implemented providers are `local` and `daytona`. Provider lifecycle surfaces use `sandbox.prepare`, `sandbox.ready`, `sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop` hooks, plus the extension Host API methods `sandbox/list`, `sandbox/info`, and `sandbox/exec`.
-
-Do not call this product feature an `environment`. Reserve `environment`, `env`, and `environment variable` for process-level variables and operating-system context.
-
-**UI label:** "Sandbox" — keep the product name on the dock, Go menu, window title, command palette, and profile-editor surface. Do not alias to "Permissions". Permissions remains a nested concept: extension [Permissions](#permissions) (`permissions.requires`), agent permission modes (`[permissions] mode`), and sandbox permission policy. Those meanings keep their own names and must not replace this surface.
 
 ---
 
@@ -197,7 +192,7 @@ Self-contained agent definition: YAML frontmatter (provider/model/tools/permissi
 
 **Status:** Partially shipped from RFC 001. The runtime now parses `AGENT.md` frontmatter,
 including agent-local `skills/` overlays and `skills.disabled`. Draft fields such as
-`skills.inherit`, `skills.extra_sources`, and `memory.*` remain out of scope today.
+`skills.inherit` and `skills.extra_sources` remain out of scope today.
 
 **vs AGENTS.md (project file)**:
 
@@ -208,26 +203,7 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 
 ---
 
-### Peer Card
-
-The Compozy Network discovery artifact: a peer's identity and `peer_card.capabilities` index, optionally
-with `peer_card.ext["compozy.capabilities_brief"]` for CompozyOS-specific projection.
-
-**vs A2A Agent Card:** A2A Agent Cards are an external industry standard. Peer Cards are specific to Compozy Network but could be generated FROM an AGENT.md definition (RFC 001 §3.3 is open on the mapping). Today they are not unified.
-
----
-
 ## Identity
-
-### `peer_id`
-
-A network-scoped identifier matching `[a-z0-9][a-z0-9._-]{0,127}`.
-
-### `nickname@fingerprint`
-
-The verified-format identity in Compozy Network v1. `nickname` matches `[a-z0-9_-]{1,32}`; `fingerprint` is the first 32 lowercase hex of `SHA-256(pubkey)`.
-
-**Critical:** A `nickname@fingerprint`-shaped identity arriving WITHOUT a valid `proof` MUST classify as `rejected`, NOT `unverified`. This is the proof-stripping defense from RFC 004 §3.3.
 
 ### Caller Identity (operational)
 
@@ -235,131 +211,23 @@ Inside CompozyOS, agent-facing CLI commands resolve identity from `COMPOZY_SESSI
 
 ---
 
-## Network Wire (RFCs 003-v0, 004)
-
-### Message Kinds (MVP allowlist)
-
-The six canonical core kinds: `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.
-
-Message kinds describe what happened. They do not describe where the message lives.
-
-### Conversation Surfaces
-
-Conversation-bearing messages use `surface` to declare where they live:
-
-- `surface:"thread"` for public-thread messages.
-- `surface:"direct"` for direct-room messages.
-
-`greet` and `whois` are discovery messages and must not carry a conversation surface.
-
-### `public_thread`
-
-A public N-to-N conversation container inside one `channel`.
-
-Wire shape:
-
-- `surface:"thread"`
-- `thread_id`
-
-Public threads are visible to peers with access to the channel. A public thread can contain ordinary chat,
-capability transfers, and zero or more lifecycle-bearing work units.
-
-### `direct_room`
-
-A restricted two-party conversation container inside one `channel`.
-
-Wire shape:
-
-- `surface:"direct"`
-- `direct_id`
-
-Direct rooms restrict default runtime visibility to the two room peers plus operator/audit access. They are not
-cryptographic privacy and do not imply end-to-end encryption.
-
-### `work_id`
-
-Lifecycle-bearing work inside exactly one conversation container. `work_id` is not a conversation identifier,
-task-run identifier, route key, claim token, or queue lease.
-
-Receipts and traces require `work_id`. Ordinary `say` and `capability` messages carry `work_id` only when they
-open or continue lifecycle-bearing work.
-
-For coordination channels (autonomy MVP): `status`, `request`, `reply`, `blocker`, `handoff`, `result`, `review_request`.
-
-Future-RFC kinds explicitly NOT in MVP: `contract-net`, `multi-home`, `vote`, `react`, `escalate`, `offer`, `accept`, `decline`, complex mention routing.
-
-### Lifecycle States
-
-`submitted → working → needs_input → completed | failed | canceled`. Post-terminal regression is forbidden.
-
-### Cancellation Duality
-
-- `receipt(canceled)` = initiator-side withdrawal.
-- `trace(canceled)` = worker-side abort.
-
-### Trust States
-
-`verified` / `unverified` / `rejected`. Default classification for non-conformant proofs is `rejected` (not `unverified`).
-
-RFC 004 signed content includes `surface`, `thread_id`, `direct_id`, and `work_id` when present. A receiver must
-verify canonical bytes before injecting defaults.
-
-### Replay Defense
-
-Bounded replay window via `id`. Recommended 300-second clock-skew rejection when `expires_at` is null.
-
-### Trust Profile
-
-**Baseline Trust Profile** (RFC 004): Ed25519 + RFC 8785 JCS + SHA-256 fingerprints. Profile id `compozy-network.trust.ed25519-jcs/v1`. Self-certified handles only — no DIDs, no revocation, no organization-level authorization, no federation policy in this profile.
-
----
-
-## Memory
-
-### Memory Types (taxonomy)
-
-Per RFC 002 / Claude Code AutoDream / CompozyOS `internal/memory/consolidation/`:
-
-- `user` — persona, role, preferences, knowledge.
-- `feedback` — rules and corrections from past interactions.
-- `project` — context about ongoing work, who/why/by-when.
-- `reference` — pointers to where info lives in external systems.
-
-### Memory Scopes
-
-- `agent` — local to a specific agent definition; only this scope accepts `agent_tier = workspace | global`.
-- `workspace` — shared across agents and across profiles within a workspace; repository-committed.
-- `profile` — shared across workspaces, owned by one [Profile](#profile). Stored under `$COMPOZY_HOME/profiles/<name>/memory/`.
-
-The scope value `global` was hard-cut to `profile`; no dual value is accepted. `global` survives only as an **agent tier**, which is a different axis (how far one agent's memory reaches, not who owns it).
-
-Default write scope is declared per agent in `memory.scope`.
-
-### Consolidation Gates (cascade by cost)
-
-**Time Gate** (default 24h since last consolidation) → **Session Gate** (default 3 sessions touched) → **Lock Gate** (`tryAcquireConsolidationLock` to prevent multi-instance races). All must pass. Never replace with naive heuristics.
-
----
-
 ## Autonomy
 
 ### Background role
 
-A named daemon-owned responsibility routed through the closed `[roles]` roster: `coordinator`,
-`dream`, `checkpoint_summary`, `memory_extractor`, `auto_title`, or `memory_controller`. Empty
-session-role agents resolve either to a virtual builtin (`coordinator` or `dreaming-curator`) or to
-the invoking context (`memory_extractor` and `auto_title`); the memory controller is an in-process
-model call and has no agent identity.
+A named daemon-owned responsibility routed through the closed `[roles]` roster: `coordinator` or
+`auto_title`. Empty session-role agents resolve either to the virtual builtin `coordinator` or to the
+invoking context (`auto_title`).
 
 `[roles]` owns routing — enabled state, agent/provider/model/reasoning selection, ordered fallbacks,
-and the small amount of policy inseparable from coordinator sessions or controller calls. The
+and the small amount of policy inseparable from coordinator sessions. The
 owning subsystem keeps its operational policy, gates, scoring, cadence, and prompts. Background
 roles do not replace or govern Loop DSL model defaults, `TaskExecutionProfile`, or automation
 resources.
 
 ### `task_run`
 
-The single durable work-queue row. Carries `claim_token`, `lease_until`, `heartbeat_at`, the owning `session_id`, and the execution's immutable resolved Network participation snapshot. A `run_kind = "network_wake"` row is taskless and identifies the wake, owner execution, and target session explicitly. **Never duplicated by a parallel queue.**
+The single durable work-queue row. Carries `claim_token`, `lease_until`, `heartbeat_at`, the owning `session_id`, and the run's execution identity. **Never duplicated by a parallel queue.**
 
 ### `claim_token` / `claim_token_hash`
 
@@ -373,39 +241,25 @@ The single authoritative claim primitive. Lives in `internal/task`. The mechanic
 
 A managed CompozyOS session whose semantic role is to orchestrate executable workspace runs. Auto-spawn
 is conservative: a run must be enqueued, coordinator auto-start enabled, no healthy active
-coordinator present, and spawn caps available. Network participation is not a bootstrap condition.
+coordinator present, and spawn caps available.
 
 ### Mechanical Scheduler
 
 Daemon-owned operational-safety component (`internal/scheduler`). Idle registry, capability-aware wakeups, lease sweep, recovery, backpressure. **Does not claim runs.** Wake/observe/sweep are advisory.
 
-### Coordination Channel
-
-The workspace-scoped conversation channel created only when a task run's immutable
-`resolved_network_participation` snapshot is Live. Local runs create no channel. Explicit run intent
-wins over the task execution profile, then workspace coordination, then built-in Local. Enabling
-workspace coordination affects future runs only. Conversation evidence is never task ownership or
-status authority.
-
 ### Task Execution Profile
 
 The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `compozy task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the web UI Task setup sheet.
 
-The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred channels, peers, agents, capabilities), `SandboxPolicy` (`mode = "inherit" | "none" | "ref"`), and an optional `network_participation` request for future runs. Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
+The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred agents and capabilities), `WorktreePolicy`, and `RuntimePolicy`. Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
 
-The profile is **not** runtime authority: task ownership remains in `task_runs`, worker mutation remains session-bound, review verdict authority remains `task.Service.RecordRunReview`, sandbox policy does not bypass tool/approval policy, and coordinator guidance does not create queue or terminal-state authority.
+The profile is **not** runtime authority: task ownership remains in `task_runs`, worker mutation remains session-bound, review verdict authority remains `task.Service.RecordRunReview`, execution policy does not bypass tool/approval policy, and coordinator guidance does not create queue or terminal-state authority.
 
 ### Notification Cursor
 
 The shared durable delivery-progress primitive in `internal/notifications`. Identity is `(scope_kind, workspace_id, consumer_id, stream_name, subject_id)`; storage is `notification_cursors`. Every identity component and delivery id is an opaque, valid UTF-8 value preserved byte for byte. The cursor records `last_sequence`, `last_delivery_id`, `last_delivered_at`, `last_error`, and `updated_at`.
 
-Advance is monotonic; same-sequence replay is accepted only when both sequence and delivery id match. `Reset` is the only path that may lower a cursor and requires an explicit recovery reason. Cursors do **not** assign tasks, claim runs, complete runs, replace SSE replay cursors, replace task hooks, or define bridge delivery targets. Notification cursors are NOT SSE `after_sequence` cursors — SSE cursors are client-side replay positions, while notification cursors are daemon-side confirmed-delivery state.
-
-### Bridge Task Subscription
-
-The delivery-target row in `bridge_task_subscriptions` that selects which bridge instance, task, delivery mode, and routing fields receive a terminal task notification. Owns target state only. Cursor identity is fixed to `consumer_id = <subscription_id>` byte for byte, `stream_name = "task_events"`, and `subject_id = <task_id>`; delivery progress lives in the matching `notification_cursors` row. Task, subscription, bridge, workspace, peer, group, and thread IDs are opaque, valid UTF-8 identities with no trimming, prefixing, or alternate textual form.
-
-Subscription delete removes the active target row only. Stale cursor diagnostics remain inspectable by cursor key, and same-id recreation resumes from the preserved cursor. Public route shape is `/api/tasks/{id}/notifications/bridges` (create/list) and `/api/tasks/{id}/notifications/bridges/{subscription_id}` (show/delete) across HTTP, UDS, OpenAPI, generated TypeScript, CLI, and generated CLI docs.
+Advance is monotonic; same-sequence replay is accepted only when both sequence and delivery id match. `Reset` is the only path that may lower a cursor and requires an explicit recovery reason. Cursors do **not** assign tasks, claim runs, complete runs, replace SSE replay cursors, or replace task hooks. Notification cursors are NOT SSE `after_sequence` cursors — SSE cursors are client-side replay positions, while notification cursors are daemon-side confirmed-delivery state.
 
 ### Run Review
 
@@ -425,7 +279,35 @@ The shared rendered overlay assembled by `internal/situation`, exposed in Go as 
 
 ### Safe Spawn
 
-Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children = 5`, mandatory TTL. Permission narrowing on **concrete atoms only**: tools, skills, MCP server IDs, workspace path grants, network channels, env profile grants. Subset-only; unknown child atoms count as widening and reject.
+Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children = 5`, mandatory TTL. Permission narrowing on **concrete atoms only**: tools, skills, MCP server IDs, and workspace path grants. Subset-only; unknown child atoms count as widening and reject.
+
+### Subagent
+
+A child agent session that a parent session's turn delegates one self-contained task to, on any available agent, provider, or model. The parent keeps a durable subagent record (`sub-…` id, `parent_turn_id`, status, `work_state`, result, delivery) and is woken when the subagent settles. Agents use `compozy__subagent_capabilities|delegate|status|cancel`; operators use `compozy session subagents …`, the matching HTTP/UDS routes, the transcript card, the sidebar chip, and the inspector roster.
+
+- **delegated** (`origin = delegated`) — created by `compozy__subagent_delegate`; it has a child session (`spawn_role = "subagent"`) that sees only the task. It reuses Safe Spawn's permission narrowing but has no depth, count, or TTL cap (ADR-003), and it inherits the caller's budget when narrowing lists are omitted.
+- **provider-native** (`origin = provider_native`) — a subagent the provider runs inside its own process (Claude's Agent/Task tool), observed from the tool call and shown as the same card. It has no child session, never wakes the parent, and cannot be canceled.
+- **subagent wake** — the pointer prompt (`synthetic.kind = "subagent_wake"`) that tells the parent which subagents settled; it carries no result. The parent reads results with `compozy__subagent_status`, which acknowledges delivery. A wake is steered into the running turn when the agent supports steering, otherwise queued ahead of user prompts. It is distinct from the creator wake that plain spawned children send.
+
+**UI label:** "subagent". Never "thread", "worker", or "task" (`task` is the Tasks domain). Copy rules in `COPY.md` §6 "Subagent Terms".
+
+### Isolated Subagent
+
+A delegated subagent started with `isolation: "worktree"` on `compozy__subagent_delegate`. CompozyOS creates a new `per_run` worktree on branch `<worktrees.run_branch_namespace><title-slug>-<8 hex>` from `base_ref` (or the caller checkout's current HEAD commit) and runs the child there; uncommitted parent changes are not copied. `SubagentPayload` carries `isolation` and a `worktree` object: static facts (id, name, branch, `base_ref`, `base_sha`, path) from creation, and git/PR facts (`head_sha`, `commits_ahead`, `dirty_files`, `observed_at`, `pull_request_status`, `pull_request`) snapshotted once by the daemon when the subagent settles. Unobserved facts are absent, never zero; `pull_request_status = "unknown"` (no forge or lookup failed) is distinct from `"none"` (the forge answered with no PR). The worktree is retained after any terminal status and removed only through the existing worktree surfaces. The default, `isolation: "shared"`, keeps today's behavior and has no facts.
+
+**UI label:** "subagent"; the card shows the branch and a "#{n}" PR link. Never "sandbox" or "workspace" for the worktree.
+
+### Session Message
+
+A prompt one agent session sends to another with `compozy__session_prompt`. The daemon stamps the sender from the calling session's scope (no input overrides it) as a typed `origin` (`kind = "session"`, sender session/workspace/agent, `title_at_send`, `hop`, `notify_on_complete`, `reply_watch_id`) that survives queue, steer, interrupt, and restart. The receiving agent gets a provider-only sender header; transcripts, history, and the UI keep the original text with the origin as metadata. A session message is agent-authored: operators can cancel or Steer (promote) it from the queue but not edit it (`input_agent_authored`). Operator input always sorts ahead of session messages. A session cannot message itself; a chain stops at 8 forwarding hops (`message_hop_limit`), answers keep the hop (`in_reply_to`), and each sender→target pair has a rate budget (`message_rate_limited`). Operator prompts over HTTP/CLI carry no origin unless the CLI opts in with `--from-session` (HTTP: daemon-validated agent identity headers).
+
+**UI label:** "message from {session}" ("From {title}" on the receiver's card, "Sent to {title}" on the sender's). Never "DM", "inbox", or "thread".
+
+### Reply Wake
+
+The synthetic turn (`synthetic.kind = "session_reply"`) that brings a target session's answer back to the sender of a session message sent with `notify_on_complete: true`. The send arms a durable reply watch (`rw-…`, states `armed → fired → delivered`, or `abandoned`); when the target's turn that consumed the message ends, the watch fires once and the sender is woken with the outcome (`completed`, `failed`, `canceled`, `dropped`, `unknown`) and the turn's last assistant message, truncated at 12,000 runes. Delivery is exactly once across restarts; an offline sender receives it on resume, an archived or deleted sender abandons it. `wake_event_id` equals the watch id. Distinct from the subagent wake (a pointer to settled subagents) and the creator wake of spawned children.
+
+**UI label:** "Reply from {title}". Copy rules in `COPY.md` §6 "Session Message Terms".
 
 ---
 
@@ -435,13 +317,13 @@ The web UI presents as a desktop environment: a menubar, persistent virtual desk
 
 ### Workspace
 
-The runtime object: project root and scoped runtime context (sessions, memory, tasks, vault, config). A workspace owns window-manager topology, but remains the unit of runtime scope. The Workspaces surface switches this runtime context.
+The runtime object: project root and scoped runtime context (sessions, tasks, vault, config). A workspace owns window-manager topology, but remains the unit of runtime scope. The Workspaces surface switches this runtime context.
 
-**UI label:** "project". The alias may NOT be `environment` — that word is reserved (see [Sandbox](#sandbox)). `workspace` stays canonical in code, `workspace_id`, CLI, API, and docs.
+**UI label:** "project". The alias may NOT be `environment` — that word is reserved for process-level context. `workspace` stays canonical in code, `workspace_id`, CLI, API, and docs.
 
 ### Desktop
 
-One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions, memory, or tasks of its own.
+One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions or tasks of its own.
 
 ### Tiled group
 
@@ -453,21 +335,35 @@ A frame hosting one app's durably resumed route subtree. The window head is the 
 
 ### Desktop pager
 
-The minimal lower-left horizontal dot control for switching the active client's desktop, aligned with the Dock centerline. It is navigation, not a persistent management panel. Desktops Overview owns create, rename, reorder, transfer, and delete operations.
+The minimal horizontal dot control in the menubar tray for switching the active client's desktop; an orange dot marks an off-screen desktop that needs you. It is navigation, not a persistent management panel. The tray's All desktops button opens Desktops Overview, which owns create, rename, reorder, transfer, and delete operations.
 
 ### Dock
 
-The bottom strip of app launchers. It mirrors the app inventory and carries running/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks).
+The rail of app launchers along the left edge, below the menubar (a bottom tab bar in compact presentation). It mirrors the app inventory and carries running/focused/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks). Its foot holds the profile switcher, the light/dark toggle, and Settings.
+
+**UI noun:** "dock" (`aria-label="Dock"`, "Open an app from the dock"). See [Rail](#rail) for the shape name.
+
+### Rail
+
+The visual shape of the dock: the 60px column on the left edge (`--width-rail`, items `--size-rail-item`). Internal and design vocabulary only — tokens, design references, and component internals may say "rail"; product copy, aria labels, and docs for users say **dock**. Do not rename the dock to "rail" in UI text.
 
 ### Menubar
 
-The top bar across the desktop: CompozyOS mark, Global scope globe, workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
+The top bar across the full window: CompozyOS mark (whose menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray — desktop pager, All desktops, the approvals bell, and the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
+
+**Naming:** the menubar's accessible name is "System bar"; "topbar" is only a prose description of its position. `<Topbar>` in `@compozy/ui` is the **window head**, not the menubar — never use "Topbar" to mean the menubar in code or specs.
+
+### Theme
+
+The painted color scheme of the web UI: `light` or `dark`. The stored **theme preference** is `light`, `dark`, or `system` (Settings › Appearance: **Light / Dark / System**; default **Dark**); `system` follows the operating system. The **resolved theme** is what is painted. The dock-foot toggle flips the resolved theme and stores an explicit `light`/`dark`. The preference is per browser (localStorage `compozy.theme`), never a `config.toml` key, and is applied to `<html>` (`data-theme` plus the `.dark` class) before first paint. Theme is presentation only; it never changes runtime state.
+
+### Main and stack
+
+A window arrangement (`main_stack` in `compozy layout arrange --arrangement`; **Window › Arrange › Main and stack** in the app): one window takes a 60% main column and the rest split vertically in the column beside it. In the app the focused window takes the main column; from the CLI the first listed window does. Sibling arrangements in the same menu: **Columns**, **Grid**, **Balance sizes**.
 
 ### Window manager
 
 The daemon-authoritative, workspace-scoped topology and semantic command surface for desktops, tiled groups, and windows. Durable mutations use revision checks and atomic commits. Browser geometry projection, active desktop, focus, and gesture previews remain client-specific where defined by the contract.
-
-**Window manager vs memory:** window-manager data is *presentation topology* interpreted by the daemon. `memory` is *agent* knowledge (see Memory above). Window-manager documents hold no agent knowledge, and memory holds no window geometry.
 
 ### Terminal
 
@@ -515,6 +411,7 @@ Regenerate / verify drift on `openapi/compozy.json`, `web/src/generated/compozy-
 - **Integration** (`make test-integration`) — `+integration` build tag, co-located.
 - **E2E Runtime** (`make test-e2e-runtime`) — daemon-side Go harness against `acpmock`.
 - **E2E Web** (`make test-e2e-web`) — Playwright against the daemon-served SPA.
+- **E2E Desktop Nightly** (`make test-e2e-desktop-nightly`) — real-time desktop soaks, run by the release-PR `e2e-desktop-nightly` job; excluded from the per-PR desktop lane.
 - **E2E Nightly** (`make test-e2e-nightly`) — heavy E2E, runs in release-PR `dry-run` job only.
 
 ### Real-Scenario QA
@@ -527,11 +424,7 @@ The practice of validating CompozyOS the way real users experience it, owned by 
 
 For positioning consistency on the marketing site and in docs:
 
-- **Compozy Network is not a workflow engine.** Capabilities are interpretive, not deterministic programs, and envelopes never carry loop execution. (The CompozyOS *runtime* does own a deterministic [Loop](#loop) domain — but it stays off the network wire, per ADR-001.)
-- CompozyOS is **not a federation protocol**. Compozy Network v1 is a self-certified pairwise envelope, not a federated trust system.
 - CompozyOS is **not an MCP replacement**. MCP integrates _into_ CompozyOS skills via `metadata.compozy.mcp_servers`.
-- CompozyOS is **not an A2A replacement**. Compozy Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.
-- CompozyOS **competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol.** Compozy Network must remain implementable outside CompozyOS.
 
 ---
 
@@ -546,21 +439,27 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | Canonical | UI surface alias | Notes |
 | --- | --- | --- |
 | `daemon` | "CompozyOS" / "CompozyOS is running" | Never "daemon" in end-user UI. |
-| `workspace` | "project" | Alias may NOT be "environment" — reserved for process-level variables and operating-system context (see [Sandbox](#sandbox)). |
-| `bridge` | keep | The product surface is Bridges. Do not alias to "connection" or "Connections". Alias may NOT be "channel" — `channel` is the Compozy Network namespace, not an adapter. |
+| `workspace` | "project" | Alias may NOT be "environment" — reserved for process-level variables and operating-system context . |
 | `event ledger` | "history" | Use only where the implementation actually exposes the event trail. |
 | `tool registry` / `toolset` | "what agents are allowed to do" | A descriptive gloss, not a label swap. |
-| `sandbox` | keep | The product surface is Sandbox. Do not alias to "Permissions". Permissions remains a nested concept (extension [Permissions](#permissions), `[permissions] mode`, sandbox permission policy) and must not replace this surface name. |
 | `control surface` | — drop from UI | Internal vocabulary; stays the runtime term in specs and docs. |
 | `capability` | keep + define on first use | Wire identity `(peer_id, capability_id)` unchanged. `recipe`, `procedure`, and `playbook` stay forbidden everywhere. |
 | `session` | keep + gloss on first use | Already everyday English. |
 | `terminal` | "Terminal" | First-class product surface. Never label it "console" or "shell pane". |
 | `Loop` | — pending owner decision | Do not alias. `workflow` is released as a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off (see [Loop](#loop)). |
-| `Jobs` / `Triggers` / `Network` (dock titles) | — pending owner decision | Do not rename. |
+| `job` / `trigger` (automation entities) | "Automations"; "scheduled automation" (job), "automation on an event" (trigger), "link" (webhook trigger) | One UI noun for both; `job` and `trigger` stay canonical in code, payloads, CLI, tool ids, config tables, and reference docs, one step deeper (Inspect). Never "rule", "workflow", or "recipe". See [Automation](#automation). |
 | settings group `Operator` | "Personal" | Group label only. |
 | settings section `Observability` | "Diagnostics" | Section label only. |
 | settings section `Attention` | "Notifications" | Section label only. |
 | settings section `Gateway` | "Remote access" | Section label only. |
+| settings group `workspace` | "Basics" | Group label only. |
+| settings group `runtime` | "Agents" | Group label only. |
+| settings group `system` | "Advanced" | Group label only. |
+| Loop `generation` | "round" | One iteration of a Loop run. Wire, CLI, and payloads keep `generation`. |
+| Loop step `quarantined` | "set aside" | A step removed from scheduling after repeated failures; the UI verb is "Retry" (wire: requeue). |
+| fork (built-in Loop) | "Copy and edit" | UI verb for forking a built-in Loop into the project. |
+| extension dev overlay | "local development copy" | Menu verb "Unlink local copy". |
+| session status tokens (`waiting-for-input`, `hung`, `unhealthy`, …) | "Needs your answer", "Stuck", "Having trouble", … | Display words only; the token stays on `data-badge`/aria. Color only states that need the user. |
 
 `Roles`, `Hooks`, and `Extensions` keep their names — glossary terms that already read plainly.
 
@@ -568,8 +467,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 
 ## Style
 
-- File names: kebab-case for code/config, snake_case for memory files.
+- File names: kebab-case for code/config.
 - Identifiers in code: Go conventions (`PascalCase` exported, `camelCase` unexported).
 - Capability/skill IDs: kebab-case.
-- Network channel IDs: lowercase alphanumeric with optional underscores or hyphens.
 - Commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:` only.

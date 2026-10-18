@@ -5,40 +5,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (
-	tasksReceivedKey = "received"
-	tasksRejectedKey = "rejected"
-)
-
-const (
-	taskIngressAuditEnqueueAction = "task.run.enqueue"
-	taskIngressChannelMismatch    = "channel_mismatch"
-	taskEventCanceled             = "task.canceled"
-	taskEventRunEnqueued          = "task.run_enqueued"
-	taskEventRunForceStopped      = "task.run_force_stopped"
-	taskEventRunRecovered         = "task.run_recovered"
-	taskHealthStatusOK            = "ok"
-	taskHealthStatusWarn          = "warn"
+	taskEventCanceled        = "task.canceled"
+	taskEventRunEnqueued     = "task.run_enqueued"
+	taskEventRunForceStopped = "task.run_force_stopped"
+	taskEventRunRecovered    = "task.run_recovered"
+	taskHealthStatusOK       = "ok"
+	taskHealthStatusWarn     = "warn"
 )
 
 // TaskSummaryQuery filters the current task summary view.
 type TaskSummaryQuery struct {
-	ReadScope            store.ReadScope    `json:"-"`
-	Scope                taskpkg.Scope      `json:"scope,omitempty"`
-	WorkspaceID          string             `json:"workspace_id,omitempty"`
-	WorktreeID           string             `json:"worktree_id,omitempty"`
-	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef             string             `json:"owner_ref,omitempty"`
-	ParticipationChannel string             `json:"participation_channel,omitempty"`
-	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
-	Search               string             `json:"search,omitempty"`
-	ExcludeCreatedBy     []taskpkg.ActorRef `json:"exclude_created_by,omitempty"`
+	ReadScope   store.ReadScope   `json:"-"`
+	Scope       taskpkg.Scope     `json:"scope,omitempty"`
+	WorkspaceID string            `json:"workspace_id,omitempty"`
+	WorktreeID  string            `json:"worktree_id,omitempty"`
+	OwnerKind   taskpkg.OwnerKind `json:"owner_kind,omitempty"`
+	OwnerRef    string            `json:"owner_ref,omitempty"`
+
+	OriginKind       taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	Search           string             `json:"search,omitempty"`
+	ExcludeCreatedBy []taskpkg.ActorRef `json:"exclude_created_by,omitempty"`
 }
 
 // Validate ensures the summary query uses supported filters.
@@ -76,10 +67,10 @@ func (q TaskSummaryQuery) Validate() error {
 
 // TaskMetricsQuery filters audit-derived metrics and current queue metrics.
 type TaskMetricsQuery struct {
-	ReadScope            store.ReadScope    `json:"-"`
-	Since                time.Time          `json:"since"`
-	ParticipationChannel string             `json:"participation_channel,omitempty"`
-	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	ReadScope store.ReadScope `json:"-"`
+	Since     time.Time       `json:"since"`
+
+	OriginKind taskpkg.OriginKind `json:"origin_kind,omitempty"`
 }
 
 // Validate ensures the metrics query uses supported filters.
@@ -97,15 +88,15 @@ func (q TaskMetricsQuery) Validate() error {
 
 // TaskDashboardQuery filters the observer-backed task dashboard read model.
 type TaskDashboardQuery struct {
-	ReadScope            store.ReadScope    `json:"-"`
-	Scope                taskpkg.Scope      `json:"scope,omitempty"`
-	WorkspaceID          string             `json:"workspace_id,omitempty"`
-	WorktreeID           string             `json:"worktree_id,omitempty"`
-	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef             string             `json:"owner_ref,omitempty"`
-	ParticipationChannel string             `json:"participation_channel,omitempty"`
-	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
-	ExcludeCreatedBy     []taskpkg.ActorRef `json:"exclude_created_by,omitempty"`
+	ReadScope   store.ReadScope   `json:"-"`
+	Scope       taskpkg.Scope     `json:"scope,omitempty"`
+	WorkspaceID string            `json:"workspace_id,omitempty"`
+	WorktreeID  string            `json:"worktree_id,omitempty"`
+	OwnerKind   taskpkg.OwnerKind `json:"owner_kind,omitempty"`
+	OwnerRef    string            `json:"owner_ref,omitempty"`
+
+	OriginKind       taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	ExcludeCreatedBy []taskpkg.ActorRef `json:"exclude_created_by,omitempty"`
 }
 
 // Validate ensures the dashboard query uses supported filters.
@@ -125,48 +116,48 @@ func (q TaskDashboardQuery) Validate() error {
 
 func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
 	return TaskSummaryQuery{
-		ReadScope:            q.ReadScope,
-		Scope:                q.Scope,
-		WorkspaceID:          q.WorkspaceID,
-		WorktreeID:           q.WorktreeID,
-		OwnerKind:            q.OwnerKind,
-		OwnerRef:             q.OwnerRef,
-		ParticipationChannel: q.ParticipationChannel,
-		OriginKind:           q.OriginKind,
-		ExcludeCreatedBy:     q.ExcludeCreatedBy,
+		ReadScope:   q.ReadScope,
+		Scope:       q.Scope,
+		WorkspaceID: q.WorkspaceID,
+		WorktreeID:  q.WorktreeID,
+		OwnerKind:   q.OwnerKind,
+		OwnerRef:    q.OwnerRef,
+
+		OriginKind:       q.OriginKind,
+		ExcludeCreatedBy: q.ExcludeCreatedBy,
 	}
 }
 
 func (q TaskDashboardQuery) metricsQuery(since time.Time) TaskMetricsQuery {
 	return TaskMetricsQuery{
-		ReadScope:            q.ReadScope,
-		Since:                since,
-		ParticipationChannel: q.ParticipationChannel,
-		OriginKind:           q.OriginKind,
+		ReadScope: q.ReadScope,
+		Since:     since,
+
+		OriginKind: q.OriginKind,
 	}
 }
 
 // TaskStatusTotal reports one current task-count bucket.
 type TaskStatusTotal struct {
-	Scope     taskpkg.Scope  `json:"scope"`
-	Status    taskpkg.Status `json:"status"`
-	ChannelID string         `json:"channel_id,omitempty"`
-	Count     int            `json:"count"`
+	Scope  taskpkg.Scope  `json:"scope"`
+	Status taskpkg.Status `json:"status"`
+
+	Count int `json:"count"`
 }
 
 // TaskOriginTotal reports one current task-origin bucket.
 type TaskOriginTotal struct {
 	OriginKind taskpkg.OriginKind `json:"origin_kind"`
-	ChannelID  string             `json:"channel_id,omitempty"`
-	Count      int                `json:"count"`
+
+	Count int `json:"count"`
 }
 
 // TaskRunTotal reports one current task-run bucket.
 type TaskRunTotal struct {
 	Status     taskpkg.RunStatus  `json:"status"`
 	OriginKind taskpkg.OriginKind `json:"origin_kind"`
-	ChannelID  string             `json:"channel_id,omitempty"`
-	Count      int                `json:"count"`
+
+	Count int `json:"count"`
 }
 
 // TaskOwnerTotal reports one current ownership bucket.
@@ -176,9 +167,8 @@ type TaskOwnerTotal struct {
 	Count     int               `json:"count"`
 }
 
-// TaskQueueDepth reports queued work by channel.
+// TaskQueueDepth reports the aggregate queued workload.
 type TaskQueueDepth struct {
-	ChannelID           string    `json:"channel_id,omitempty"`
 	Count               int       `json:"count"`
 	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
 	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
@@ -224,9 +214,8 @@ type TaskMetrics struct {
 	TaskForcedStopsTotal    int                      `json:"task_forced_stops_total"`
 	TaskClaimLatencyMillis  LatencyMetric            `json:"task_claim_latency_ms"`
 	TaskStartLatencyMillis  LatencyMetric            `json:"task_start_latency_ms"`
-	DuplicateIngressTotal   int                      `json:"duplicate_ingress_total"`
-	ChannelMismatchTotal    int                      `json:"channel_mismatch_total"`
-	RecoveryTotals          TaskRecoveryTotals       `json:"recovery_totals"`
+
+	RecoveryTotals TaskRecoveryTotals `json:"recovery_totals"`
 }
 
 // StuckTaskRun reports one run that exceeded the configured claimed/starting/running threshold.
@@ -235,27 +224,26 @@ type StuckTaskRun struct {
 	RunID      string             `json:"run_id"`
 	Status     taskpkg.RunStatus  `json:"status"`
 	OriginKind taskpkg.OriginKind `json:"origin_kind"`
-	ChannelID  string             `json:"channel_id,omitempty"`
-	SessionID  string             `json:"session_id,omitempty"`
-	AgeMillis  int64              `json:"age_ms"`
+
+	SessionID string `json:"session_id,omitempty"`
+	AgeMillis int64  `json:"age_ms"`
 }
 
 // TaskHealth exposes the current operational task-health view.
 type TaskHealth struct {
-	Status                     string             `json:"status"`
-	QueueDepthTotal            int                `json:"queue_depth_total"`
-	OldestQueuedAt             time.Time          `json:"oldest_queued_at"`
-	OldestQueueAgeMilli        int64              `json:"oldest_queue_age_ms"`
-	QueueDepth                 []TaskQueueDepth   `json:"queue_depth,omitempty"`
-	StuckRuns                  []StuckTaskRun     `json:"stuck_runs,omitempty"`
-	ActiveOrphanRuns           int                `json:"active_orphan_runs"`
-	TaskTotals                 []TaskStatusTotal  `json:"task_totals,omitempty"`
-	RunTotals                  []TaskRunTotal     `json:"run_totals,omitempty"`
-	OwnerTotals                []TaskOwnerTotal   `json:"owner_totals,omitempty"`
-	ForcedStopsSinceStart      int                `json:"forced_stops_since_start"`
-	DuplicateIngressSinceStart int                `json:"duplicate_ingress_since_start"`
-	ChannelMismatchSinceStart  int                `json:"channel_mismatch_since_start"`
-	RecoverySinceStart         TaskRecoveryTotals `json:"recovery_since_start"`
+	Status                string            `json:"status"`
+	QueueDepthTotal       int               `json:"queue_depth_total"`
+	OldestQueuedAt        time.Time         `json:"oldest_queued_at"`
+	OldestQueueAgeMilli   int64             `json:"oldest_queue_age_ms"`
+	QueueDepth            []TaskQueueDepth  `json:"queue_depth,omitempty"`
+	StuckRuns             []StuckTaskRun    `json:"stuck_runs,omitempty"`
+	ActiveOrphanRuns      int               `json:"active_orphan_runs"`
+	TaskTotals            []TaskStatusTotal `json:"task_totals,omitempty"`
+	RunTotals             []TaskRunTotal    `json:"run_totals,omitempty"`
+	OwnerTotals           []TaskOwnerTotal  `json:"owner_totals,omitempty"`
+	ForcedStopsSinceStart int               `json:"forced_stops_since_start"`
+
+	RecoverySinceStart TaskRecoveryTotals `json:"recovery_since_start"`
 }
 
 // TaskDashboardView exposes the observer-owned aggregate payload for the Paper task dashboard.
@@ -372,26 +360,26 @@ type TaskDashboardActiveRuns struct {
 
 // TaskDashboardActiveRun exposes one recent active-run card payload.
 type TaskDashboardActiveRun struct {
-	TaskID                       string              `json:"task_id"`
-	TaskIdentifier               string              `json:"task_identifier,omitempty"`
-	TaskTitle                    string              `json:"task_title"`
-	TaskStatus                   taskpkg.Status      `json:"task_status"`
-	TaskPriority                 taskpkg.Priority    `json:"task_priority,omitempty"`
-	TaskOwner                    *taskpkg.Ownership  `json:"task_owner,omitempty"`
-	Scope                        taskpkg.Scope       `json:"scope"`
-	WorkspaceID                  string              `json:"workspace_id,omitempty"`
-	LatestEventSeq               int64               `json:"latest_event_seq"`
-	RunID                        string              `json:"run_id"`
-	RunStatus                    taskpkg.RunStatus   `json:"run_status"`
-	Attempt                      int                 `json:"attempt"`
-	MaxAttempts                  int                 `json:"max_attempts"`
-	SessionID                    string              `json:"session_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
-	LastActivityAt               time.Time           `json:"last_activity_at"`
-	AgeMilli                     int64               `json:"age_ms"`
-	HealthStatus                 string              `json:"health_status"`
-	Stuck                        bool                `json:"stuck"`
-	Error                        string              `json:"error,omitempty"`
+	TaskID         string             `json:"task_id"`
+	TaskIdentifier string             `json:"task_identifier,omitempty"`
+	TaskTitle      string             `json:"task_title"`
+	TaskStatus     taskpkg.Status     `json:"task_status"`
+	TaskPriority   taskpkg.Priority   `json:"task_priority,omitempty"`
+	TaskOwner      *taskpkg.Ownership `json:"task_owner,omitempty"`
+	Scope          taskpkg.Scope      `json:"scope"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	LatestEventSeq int64              `json:"latest_event_seq"`
+	RunID          string             `json:"run_id"`
+	RunStatus      taskpkg.RunStatus  `json:"run_status"`
+	Attempt        int                `json:"attempt"`
+	MaxAttempts    int                `json:"max_attempts"`
+	SessionID      string             `json:"session_id,omitempty"`
+
+	LastActivityAt time.Time `json:"last_activity_at"`
+	AgeMilli       int64     `json:"age_ms"`
+	HealthStatus   string    `json:"health_status"`
+	Stuck          bool      `json:"stuck"`
+	Error          string    `json:"error,omitempty"`
 }
 
 // TaskDashboardFreshness exposes the recency and stale-warning state of the dashboard snapshot.
@@ -406,13 +394,11 @@ type TaskDashboardFreshness struct {
 }
 
 type taskSnapshot struct {
-	tasks        []taskpkg.Summary
-	runs         []taskpkg.Run
-	events       []taskpkg.Event
-	audits       []store.NetworkAuditEntry
-	tasksByID    map[string]taskpkg.Summary
-	runsByID     map[string]taskpkg.Run
-	taskChannels map[string]string
+	tasks  []taskpkg.Summary
+	runs   []taskpkg.Run
+	events []taskpkg.Event
+
+	tasksByID map[string]taskpkg.Summary
 }
 
 type taskRecoveryPayload struct {

@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -108,195 +109,10 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 			[]string{"format", "ingest_diagnostics_json"},
 		)
 		assertTableHasColumns(t, upgraded.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
-		for table, where := range map[string]string{
-			"extensions":          "name = 'portable'",
-			"extension_dev_links": "extension_name = 'portable' AND workspace_id = 'ws-portable'",
-		} {
-			var format, diagnostics string
-			if err := upgraded.db.QueryRowContext(
-				testutil.Context(t),
-				`SELECT format, ingest_diagnostics_json FROM `+table+` WHERE `+where,
-			).Scan(&format, &diagnostics); err != nil {
-				t.Fatalf("query %s portable defaults error = %v", table, err)
-			}
-			if format != "compozy" || diagnostics != "[]" {
-				t.Fatalf("%s portable defaults = %q/%q, want compozy/[]", table, format, diagnostics)
-			}
-		}
-		var server, header string
-		if err := upgraded.db.QueryRowContext(
-			testutil.Context(t),
-			`SELECT mcp_server, header_name FROM extension_env_bindings
-			 WHERE extension_name = 'portable' AND workspace_id = '' AND env_name = 'API_KEY'`,
-		).Scan(&server, &header); err != nil {
-			t.Fatalf("query binding mapping defaults error = %v", err)
-		}
-		if server != "" || header != "" {
-			t.Fatalf("binding mapping defaults = %q/%q, want empty/empty", server, header)
-		}
-		baseInsert := `INSERT INTO extension_env_bindings (
-		 extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name,
-		 kind, created_at, updated_at
-		 ) VALUES ('portable', '', ?, ?, ?, ?, 'extension_env',
-		 '2026-08-15T12:05:00Z', '2026-08-15T12:05:00Z')`
-		for _, valid := range []struct {
-			envName string
-			server  string
-			header  string
-		}{
-			{envName: "PLAIN", server: "", header: ""},
-			{envName: "REMOTE", server: "api", header: "Authorization"},
-		} {
-			if _, err := upgraded.db.ExecContext(
-				testutil.Context(t), baseInsert, valid.envName,
-				"vault:extensions/global/portable/env/"+valid.envName, valid.server, valid.header,
-			); err != nil {
-				t.Fatalf("insert valid binding shape %#v error = %v", valid, err)
-			}
-		}
-		for _, invalid := range []struct {
-			envName string
-			server  string
-			header  string
-		}{
-			{envName: "SERVER_ONLY", server: "api"},
-			{envName: "HEADER_ONLY", header: "Authorization"},
-		} {
-			if _, err := upgraded.db.ExecContext(
-				testutil.Context(t), baseInsert, invalid.envName,
-				"vault:extensions/global/portable/env/"+invalid.envName, invalid.server, invalid.header,
-			); err == nil || !strings.Contains(err.Error(), "CHECK constraint failed") {
-				t.Fatalf("insert partial binding shape %#v error = %v, want SQLite CHECK rejection", invalid, err)
-			}
-		}
-		if _, err := upgraded.db.ExecContext(
-			testutil.Context(t),
-			`DELETE FROM workspaces WHERE id = 'ws-portable'`,
-		); err != nil {
-			t.Fatalf("delete workspace after binding table rebuild error = %v", err)
-		}
-		var workspaceBindingCount int
-		if err := upgraded.db.QueryRowContext(
-			testutil.Context(t),
-			`SELECT COUNT(*) FROM extension_env_bindings WHERE workspace_id = 'ws-portable'`,
-		).Scan(&workspaceBindingCount); err != nil {
-			t.Fatalf("count workspace bindings after delete error = %v", err)
-		}
-		if workspaceBindingCount != 0 {
-			t.Fatalf("workspace binding count after delete = %d, want zero", workspaceBindingCount)
-		}
-		status, err := store.Status(testutil.Context(t), upgraded.db, MigrationStream())
-		if err != nil {
-			t.Fatalf("Status(upgraded v64 fixture) error = %v", err)
-		}
-		assertCompleteMigrationStream(t, status, MigrationStream())
-
-		if err := upgraded.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close(upgraded v64 fixture) error = %v", err)
-		}
-		closed = true
-		reopened, err := OpenGlobalDB(testutil.Context(t), path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen upgraded v64 fixture) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(reopened v64 fixture) error = %v", closeErr)
-			}
-		})
-		assertTableHasColumns(t, reopened.db, "extensions", []string{"format", "ingest_diagnostics_json"})
-		assertTableHasColumns(t, reopened.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
-	})
-
-	t.Run("Should preserve valid extension environment bindings and enforce their ownership kind", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefix := globalMigrationPrefixBefore(t, "00039_schema.sql")
-		if err := copyGlobalMigrationTemplate(path, prefix); err != nil {
-			t.Fatalf("copy v38 migration fixture: %v", err)
-		}
-		legacy, err := sql.Open(sqliteDriverName, path)
-		if err != nil {
-			t.Fatalf("sql.Open(v38 fixture) error = %v", err)
-		}
-		legacyClosed := false
-		t.Cleanup(func() {
-			if legacyClosed {
-				return
-			}
-			if closeErr := legacy.Close(); closeErr != nil {
-				t.Errorf("Close(v38 fixture cleanup) error = %v", closeErr)
-			}
-		})
-		if err := applyGlobalMigrationPrefix(
-			t,
-			legacy,
-			prefix,
-		); err != nil {
-			t.Fatalf("Apply(v38 prefix) error = %v", err)
-		}
-		statements := []string{
-			`INSERT INTO extensions (
-			name, version, source, enabled, manifest_path, installed_at,
-			provides_json, permissions_json, checksum, provenance_json
-		) VALUES (
-			'kit', '1.0.0', 'local', 0, '/tmp/kit/extension.toml',
-			'2026-08-02T12:00:00Z', '[]', '[]', 'checksum-kit', '{}'
-		)`,
-			`INSERT INTO extension_dev_links (
-			extension_name, workspace_id, origin_path, bundle_generation, linked_at
-		) VALUES (
-			'kit', 'ws-1', '/tmp/kit-dev',
-			'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-			'2026-08-02T12:01:00Z'
-		)`,
-		}
-		for index, statement := range statements {
-			if _, err := legacy.ExecContext(testutil.Context(t), statement); err != nil {
-				t.Fatalf("seed v38 statement %d error = %v", index+1, err)
-			}
-		}
-		if err := legacy.Close(); err != nil {
-			t.Fatalf("Close(v38 fixture) error = %v", err)
-		}
-		legacyClosed = true
-
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(v38 fixture) error = %v", err)
-		}
-		closed := false
-		t.Cleanup(func() {
-			if closed {
-				return
-			}
-			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(upgraded fixture cleanup) error = %v", closeErr)
-			}
-		})
-		for table, where := range map[string]string{
-			"extensions":          "name = 'kit'",
-			"extension_dev_links": "extension_name = 'kit' AND workspace_id = 'ws-1'",
-		} {
-			var digest string
-			var confirmedBy, confirmedAt sql.NullString
-			query := `SELECT network_requirement_digest, network_confirmed_by, network_confirmed_at FROM ` +
-				table + ` WHERE ` + where
-			if err := upgraded.db.QueryRowContext(testutil.Context(t), query).Scan(
-				&digest,
-				&confirmedBy,
-				&confirmedAt,
-			); err != nil {
-				t.Fatalf("query %s confirmation defaults error = %v", table, err)
-			}
-			if digest != "" || confirmedBy.Valid || confirmedAt.Valid {
-				t.Fatalf(
-					"%s confirmation defaults = digest:%q by:%#v at:%#v, want empty/null/null",
-					table,
-					digest,
-					confirmedBy,
-					confirmedAt,
-				)
-			}
+		for _, table := range []string{"extensions", "extension_dev_links"} {
+			assertTableExcludesColumns(t, upgraded.db, table, []string{
+				"network_requirement_digest", "network_confirmed_by", "network_confirmed_at",
+			})
 		}
 		insertBinding := `INSERT INTO extension_env_bindings (
 		extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
@@ -544,6 +360,62 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 // Owner: global extension input persistence. Canonical suite: extension environment repository tests.
 func TestExtensionInputRepoLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: a batch waits for another writer and cancellation persists no before-image changes.
+	// Owner: extension input persistence; canonical suite: TestExtensionInputRepoLifecycle.
+	t.Run("Should honor cancellation while waiting to apply an input batch", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		db.DB().SetMaxOpenConns(2)
+		writer, err := db.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		locked := false
+		t.Cleanup(func() {
+			if locked {
+				if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+					t.Error(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.DB().ExecContext(ctx, "PRAGMA busy_timeout = 1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		locked = true
+		instance := extensioninput.Instance{Extension: "example"}
+		record := extensioninput.Record{
+			Type: "string", Value: json.RawMessage(`"value"`), Active: true,
+			UpdatedAt: time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC),
+		}
+		mutations := []extensioninput.Mutation{{InputID: "setting", After: &record}}
+		waitCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		if err := db.ExtensionInputs.Apply(waitCtx, instance, mutations); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("contended input batch = %v; want deadline exceeded", err)
+		}
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		locked = false
+		values, err := db.ExtensionInputs.List(ctx, instance)
+		if err != nil || len(values) != 0 {
+			t.Fatalf("canceled batch persisted = %#v, %v", values, err)
+		}
+		if err := db.ExtensionInputs.Apply(ctx, instance, mutations); err != nil {
+			t.Fatalf("input batch after writer release: %v", err)
+		}
+		values, err = db.ExtensionInputs.List(ctx, instance)
+		if err != nil || len(values) != 1 || !equalExtensionInputRecord(values["setting"], record) {
+			t.Fatalf("committed input batch = %#v, %v", values, err)
+		}
+	})
 	t.Run("Should preserve values across reopen and roll back an entire conflicted batch [UT-056]", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

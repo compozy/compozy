@@ -156,12 +156,21 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		result := terminationResult{StopOutcome: run.outcome}
 		var ladderErr error
 		if !result.Verified {
-			result, ladderErr = m.runTerminationLadder(ctx, proc, terminationTarget{
+			stopProc := proc
+			if stopProc == nil {
+				stopProc = session.releasedProcessForStop()
+			}
+			target := terminationTarget{
 				promptDone: promptDone,
 				beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
 					return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
 				},
-			})
+			}
+			if (cause == CauseCompleted || cause == CauseOwnerReleased) &&
+				(promptDone == nil || signalClosed(promptDone)) {
+				target.cooperative = m.driver.Stop
+			}
+			result, ladderErr = m.runTerminationLadder(ctx, stopProc, target)
 		}
 		outcome := result.StopOutcome
 		outcome.Cause = cause

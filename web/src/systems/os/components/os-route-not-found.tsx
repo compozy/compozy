@@ -7,8 +7,8 @@ import { toast } from "sonner";
  */
 export function OsRouteNotFound() {
   useEffect(() => {
-    toast("Nothing lives at this address", {
-      description: "No app owns this path. The desktop is unchanged.",
+    toast("Page not found", {
+      description: "That link doesn't open anything.",
     });
   }, []);
   return null;

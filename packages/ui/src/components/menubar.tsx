@@ -49,7 +49,7 @@ function MenubarTrigger({ className, ...props }: React.ComponentProps<typeof Dro
     <DropdownMenuTrigger
       data-slot="menubar-trigger"
       className={cn(
-        "flex cursor-default items-center rounded-md px-2 py-1 text-small-body text-muted transition-colors duration-fast outline-none select-none hover:bg-elevated hover:text-fg-strong focus-visible:shadow-focus-ring data-popup-open:bg-elevated data-popup-open:text-fg-strong",
+        "flex h-button-default cursor-default items-center rounded-pill px-3 text-body font-medium text-fg-2 transition-colors duration-fast outline-none select-none hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring data-popup-open:bg-rail-selected data-popup-open:text-fg",
         className
       )}
       {...props}
@@ -68,7 +68,7 @@ function MenubarContent({
       sideOffset={sideOffset}
       // Menubar triggers are narrow, so the anchor width the dropdown inherits
       // would clip long labels; menu popups size to their content instead.
-      className={cn("w-auto min-w-56", className)}
+      className={cn("w-auto min-w-58", className)}
       {...props}
     />
   );

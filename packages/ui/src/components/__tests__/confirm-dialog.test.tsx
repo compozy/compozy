@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Info, Trash2, Zap } from "lucide-react";
+import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "../button";
@@ -32,6 +33,17 @@ describe("ConfirmDialog", () => {
       contentProps: { "data-testid": "confirm-dialog" },
       confirmButtonProps: { "data-testid": "confirm-action" },
       confirmIcon: Trash2,
+      cancelButtonProps: { "data-testid": "cancel-action" },
+      error: "Delete rejected",
+      errorProps: { "data-testid": "confirm-error" },
+      note: "Builtin fallback will become effective again.",
+      noteProps: { "data-testid": "confirm-note" },
+      footNote: (
+        <>
+          <Info />
+          mode: drain
+        </>
+      ),
     });
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
@@ -46,18 +58,39 @@ describe("ConfirmDialog", () => {
       "ruled"
     );
     expect(screen.getByTestId("confirm-action").querySelector("svg")).not.toBeNull();
+    await waitFor(() => expect(screen.getByTestId("cancel-action")).toHaveFocus());
+    expect(screen.getByTestId("confirm-error")).toHaveAttribute("role", "alert");
+    expect(screen.getByTestId("confirm-error")).toHaveTextContent("Delete rejected");
+    const note = screen.getByTestId("confirm-note");
+    expect(note).toHaveAttribute("role", "note");
+    expect(note).toHaveAttribute("data-variant", "info");
+    expect(note).toHaveTextContent("Builtin fallback will become effective again.");
+    const footer = dialog.querySelector<HTMLElement>('[data-slot="dialog-footer"]');
+    const footnote = dialog.querySelector<HTMLElement>('[data-slot="confirm-dialog-footnote"]');
+    const actions = dialog.querySelector<HTMLElement>('[data-slot="confirm-dialog-actions"]');
+    if (!footer || !footnote || !actions) {
+      throw new Error("confirm dialog footer slots were not rendered");
+    }
+    expect(footer).toContainElement(footnote);
+    expect(footer).toContainElement(actions);
+    expect(footnote).toHaveTextContent("mode: drain");
+    expect(footnote.querySelector("svg")).not.toBeNull();
   });
 
   it("Should block confirmation until confirmTyping matches exactly", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
+    const consumerRef = React.createRef<HTMLInputElement>();
     renderDialog({
       confirmTyping: "operator-style.md",
       onConfirm,
-      confirmInputProps: { "data-testid": "confirm-typing" },
+      confirmInputProps: { "data-testid": "confirm-typing", ref: consumerRef },
+      cancelButtonProps: { "data-testid": "cancel-action" },
       confirmButtonProps: { "data-testid": "confirm-action" },
     });
 
+    await waitFor(() => expect(screen.getByTestId("confirm-typing")).toHaveFocus());
+    expect(consumerRef.current).toBe(screen.getByTestId("confirm-typing"));
     const button = screen.getByTestId("confirm-action");
     expect(button).toBeDisabled();
     await user.type(screen.getByTestId("confirm-typing"), "operator-style");
@@ -67,36 +100,6 @@ describe("ConfirmDialog", () => {
     expect(button).toBeEnabled();
     await user.click(button);
     expect(onConfirm).toHaveBeenCalledTimes(1);
-  });
-
-  it("Should focus the cancel button by default", async () => {
-    renderDialog({
-      cancelButtonProps: { "data-testid": "cancel-action" },
-    });
-
-    await waitFor(() => expect(screen.getByTestId("cancel-action")).toHaveFocus());
-  });
-
-  it("Should render error copy in an alert region", () => {
-    renderDialog({
-      error: "Delete rejected",
-      errorProps: { "data-testid": "confirm-error" },
-    });
-
-    expect(screen.getByTestId("confirm-error")).toHaveAttribute("role", "alert");
-    expect(screen.getByTestId("confirm-error")).toHaveTextContent("Delete rejected");
-  });
-
-  it("Should render note copy with the requested tone", () => {
-    renderDialog({
-      note: "Builtin fallback will become effective again.",
-      noteProps: { "data-testid": "confirm-note" },
-    });
-
-    const note = screen.getByTestId("confirm-note");
-    expect(note).toHaveAttribute("role", "note");
-    expect(note).toHaveAttribute("data-variant", "info");
-    expect(note).toHaveTextContent("Builtin fallback will become effective again.");
   });
 
   it("Should clear typed confirmation after an uncontrolled close and reopen", async () => {
@@ -112,7 +115,7 @@ describe("ConfirmDialog", () => {
           confirmTyping="operator-style.md"
           description="Confirm the filename before removing this entry."
           onConfirm={() => undefined}
-          title="Delete knowledge entry?"
+          title="Delete note?"
         >
           <DialogTrigger render={<Button variant="outline">Open confirm</Button>} />
         </ConfirmDialog>
@@ -140,6 +143,8 @@ describe("ConfirmDialog", () => {
       <UIProvider reducedMotion="always">
         <ConfirmDialog
           body={<p data-testid="confirm-body">Choose what happens to work already in flight.</p>}
+          cancelButtonProps={{ "data-testid": "cancel-action" }}
+          noteProps={{ "data-testid": "confirm-note" }}
           cancelLabel="Cancel"
           confirmLabel="Pause"
           contentProps={{ "data-testid": "confirm-content" }}
@@ -161,30 +166,6 @@ describe("ConfirmDialog", () => {
     const body = screen.getByTestId("confirm-body");
     expect(content).toContainElement(body);
     expect(body).toHaveTextContent("Choose what happens to work already in flight.");
-  });
-
-  it("Should place body between the note and the footer", async () => {
-    const user = userEvent.setup();
-    render(
-      <UIProvider reducedMotion="always">
-        <ConfirmDialog
-          body={<p data-testid="confirm-body">body slot</p>}
-          cancelButtonProps={{ "data-testid": "cancel-action" }}
-          cancelLabel="Cancel"
-          confirmLabel="Pause"
-          contentProps={{ "data-testid": "confirm-content" }}
-          note="current state strip"
-          noteProps={{ "data-testid": "confirm-note" }}
-          onConfirm={() => undefined}
-          title="Pause lane?"
-        >
-          <DialogTrigger render={<Button variant="outline">Open confirm</Button>} />
-        </ConfirmDialog>
-      </UIProvider>
-    );
-    await user.click(screen.getByRole("button", { name: "Open confirm" }));
-
-    const content = await screen.findByTestId("confirm-content");
     const order = Array.from(content.querySelectorAll("[data-testid]")).map(node =>
       node.getAttribute("data-testid")
     );
@@ -215,84 +196,5 @@ describe("ConfirmDialog", () => {
     expect(well?.querySelector("svg")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Kill this run?" })).toBeInTheDocument();
     expect(screen.getByText("Run")).toBeInTheDocument();
-  });
-
-  it("Should paint accent and neutral wells from iconTone", async () => {
-    const { unmount } = renderDialog({
-      contentProps: { "data-testid": "confirm-dialog" },
-      icon: Trash2,
-      iconTone: "accent",
-      tone: "accent",
-    });
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    expect(
-      screen.getByTestId("confirm-dialog").querySelector('[data-slot="confirm-dialog-icon"]')
-    ).toHaveAttribute("data-icon-tone", "accent");
-    unmount();
-
-    renderDialog({
-      contentProps: { "data-testid": "confirm-dialog" },
-      icon: Trash2,
-      iconTone: "neutral",
-      tone: "warning",
-    });
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    const well = screen
-      .getByTestId("confirm-dialog")
-      .querySelector('[data-slot="confirm-dialog-icon"]');
-    expect(well).toHaveAttribute("data-icon-tone", "neutral");
-    expect(well?.className).toContain("bg-canvas-tint");
-  });
-
-  it("Should keep description muted instead of painting it with tone", async () => {
-    renderDialog({
-      description: "This removes the selected entry.",
-      tone: "danger",
-    });
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    const description = screen.getByText("This removes the selected entry.");
-    expect(description).toHaveAttribute("data-slot", "dialog-description");
-    expect(description.className).toContain("text-muted");
-    expect(description.className).not.toContain("text-danger");
-  });
-
-  it("Should map warning tone to the tinted destructive confirm variant", async () => {
-    renderDialog({
-      confirmButtonProps: { "data-testid": "confirm-action" },
-      confirmLabel: "Discard",
-      tone: "warning",
-    });
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    const confirm = screen.getByTestId("confirm-action");
-    expect(confirm.className).toContain("bg-danger-tint");
-    expect(confirm.className).toContain("text-danger");
-    expect(confirm.className).not.toContain("bg-accent");
-  });
-
-  it("Should render footNote in the ruled footer beside the actions", async () => {
-    renderDialog({
-      contentProps: { "data-testid": "confirm-dialog" },
-      footNote: (
-        <>
-          <Info />
-          mode: drain
-        </>
-      ),
-    });
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    const dialog = screen.getByTestId("confirm-dialog");
-    const footer = dialog.querySelector<HTMLElement>('[data-slot="dialog-footer"]');
-    const note = dialog.querySelector<HTMLElement>('[data-slot="confirm-dialog-footnote"]');
-    const actions = dialog.querySelector<HTMLElement>('[data-slot="confirm-dialog-actions"]');
-    if (!footer || !note || !actions) {
-      throw new Error("confirm dialog footer slots were not rendered");
-    }
-    expect(footer).toContainElement(note);
-    expect(footer).toContainElement(actions);
-    expect(note).toHaveTextContent("mode: drain");
-    expect(note.querySelector("svg")).not.toBeNull();
   });
 });

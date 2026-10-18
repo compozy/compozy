@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,16 +53,16 @@ const (
 type GenerationLifecycleEventIntent struct {
 	Kind            GenerationLifecycleEventKind `json:"kind"`
 	GateID          string                       `json:"gate_id,omitempty"`
-	ItemIndex       int                          `json:"item_index,omitempty"`
+	ItemIndex       int                          `json:"item_index,omitzero"`
 	Route           gate.RouteAction             `json:"route,omitempty"`
 	Reason          string                       `json:"reason,omitempty"`
-	BestGeneration  *int64                       `json:"best_generation,omitempty"`
+	BestGeneration  *int64                       `json:"best_generation,omitzero"`
 	NodeID          string                       `json:"node_id,omitempty"`
-	Attempt         int                          `json:"attempt,omitempty"`
-	IssuedEpoch     int64                        `json:"issued_epoch,omitempty"`
+	Attempt         int                          `json:"attempt,omitzero"`
+	IssuedEpoch     int64                        `json:"issued_epoch,omitzero"`
 	NextAttemptAt   *time.Time                   `json:"next_attempt_at,omitempty"`
 	FailureClass    FailureClass                 `json:"failure_class,omitempty"`
-	Failure         *ClassifiedFailure           `json:"failure,omitempty"`
+	Failure         *ClassifiedFailure           `json:"failure,omitzero"`
 	Disposition     AttemptDisposition           `json:"disposition,omitempty"`
 	QuarantineEntry json.RawMessage              `json:"quarantine_entry,omitempty"`
 	AttentionFlag   string                       `json:"attention_flag,omitempty"`
@@ -79,12 +80,12 @@ type GenerationLifecycleEventIntent struct {
 	Effects                 []RenderedEffectIntent `json:"effects,omitempty"`
 	Predicate               string                 `json:"predicate,omitempty"`
 	DiagnosticCode          string                 `json:"diagnostic_code,omitempty"`
-	Cost                    uint64                 `json:"cost,omitempty"`
-	CostLimit               uint64                 `json:"cost_limit,omitempty"`
-	Warning                 bool                   `json:"warning,omitempty"`
+	Cost                    uint64                 `json:"cost,omitzero"`
+	CostLimit               uint64                 `json:"cost_limit,omitzero"`
+	Warning                 bool                   `json:"warning,omitzero"`
 	SelectedRoute           string                 `json:"selected_route,omitempty"`
 	MatchedWhen             string                 `json:"matched_when,omitempty"`
-	DefaultRoute            bool                   `json:"default_route,omitempty"`
+	DefaultRoute            bool                   `json:"default_route,omitzero"`
 	ItemIndexes             []int                  `json:"item_indexes,omitempty"`
 }
 
@@ -111,22 +112,19 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.ItemIndexes = append([]int(nil), i.ItemIndexes...)
 	i.AheadCursors = cloneInt64Map(i.AheadCursors)
 	if len(i.QuarantineEntry) > 0 {
-		i.QuarantineEntry = append(json.RawMessage(nil), i.QuarantineEntry...)
+		i.QuarantineEntry = slices.Clone(i.QuarantineEntry)
 	}
 	if i.NextAttemptAt != nil {
-		value := i.NextAttemptAt.UTC()
-		i.NextAttemptAt = &value
+		i.NextAttemptAt = new(i.NextAttemptAt.UTC())
 	}
 	if i.BestGeneration != nil {
-		value := *i.BestGeneration
-		i.BestGeneration = &value
+		i.BestGeneration = new(*i.BestGeneration)
 	}
 	if i.Failure != nil {
-		failure := *i.Failure
-		i.Failure = &failure
+		i.Failure = new(*i.Failure)
 	}
 	if len(i.Effects) > 0 {
-		i.Effects = append([]RenderedEffectIntent(nil), i.Effects...)
+		i.Effects = slices.Clone(i.Effects)
 	}
 	return i
 }
@@ -424,12 +422,10 @@ func normalizeGenerationVerdictIntent(intent gate.VerdictIntent) (gate.VerdictIn
 		return gate.VerdictIntent{}, fmt.Errorf("%w: generation gate verdict diagnostics must be JSON", ErrValidation)
 	}
 	if intent.Score != nil {
-		score := *intent.Score
-		intent.Score = &score
+		intent.Score = new(*intent.Score)
 	}
 	if intent.RouteCauseRank != nil {
-		rank := *intent.RouteCauseRank
-		intent.RouteCauseRank = &rank
+		intent.RouteCauseRank = new(*intent.RouteCauseRank)
 	}
 	intent.BlockingIssues = append(json.RawMessage(nil), intent.BlockingIssues...)
 	intent.Criteria = append(json.RawMessage(nil), intent.Criteria...)

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // EnqueueRun persists one new queue-first task run under manager authority.
@@ -50,7 +48,6 @@ func (m *Service) enqueueRun(
 		return &result.run, nil
 	}
 	m.publishTaskEventsAfterCommand(ctx, []Event{result.event})
-	m.observeCommittedRunParticipation(ctx, result.participationObservation)
 	m.dispatchTaskRunEnqueued(
 		ctx,
 		result.run,
@@ -62,11 +59,10 @@ func (m *Service) enqueueRun(
 }
 
 type enqueueRunCommandResult struct {
-	task                     Task
-	run                      Run
-	event                    Event
-	participationObservation *participation.ResolvedObservation
-	existing                 bool
+	task     Task
+	run      Run
+	event    Event
+	existing bool
 }
 
 func (m *Service) enqueueRunWithStore(
@@ -125,20 +121,6 @@ func (m *Service) reserveQueuedRunWithStore(
 	if err != nil {
 		return Run{}, false, fmt.Errorf("task: generate run id: %w", err)
 	}
-	networkSpec, err := m.resolveQueuedRunParticipationWithStore(
-		ctx,
-		store,
-		taskRecord,
-		runID,
-		spec.DesignationGroupID,
-		spec.RunKind,
-		spec.LoopRunID,
-		spec.NetworkParticipation,
-		spec.NetworkParticipationSource,
-	)
-	if err != nil {
-		return Run{}, false, err
-	}
 	worktreePolicy, err := m.resolveQueuedRunWorktreePolicyWithStore(
 		ctx,
 		store,
@@ -156,7 +138,6 @@ func (m *Service) reserveQueuedRunWithStore(
 		LoopRunID:            spec.LoopRunID,
 		IdempotencyKey:       spec.IdempotencyKey,
 		Origin:               actor.Origin,
-		NetworkSpec:          networkSpec,
 		DesignationGroupID:   spec.DesignationGroupID,
 		ResolvedWorktreeMode: worktreePolicy.Mode,
 		ResolvedWorktreeRef:  worktreePolicy.WorktreeRef,
@@ -216,28 +197,10 @@ func (m *Service) finishEnqueuedRunWithStore(
 	if err := store.CreateTaskEvent(ctx, event); err != nil {
 		return enqueueRunCommandResult{}, err
 	}
-	var participationObservation *participation.ResolvedObservation
-	networkSpec := run.NetworkSpecSnapshot()
-	workspaceID := strings.TrimSpace(networkSpec.WorkspaceID)
-	if workspaceID == "" {
-		workspaceID = strings.TrimSpace(run.WorkspaceID)
-	}
-	if workspaceID != "" {
-		participationObservation = &participation.ResolvedObservation{
-			WorkspaceID: workspaceID,
-			Owner: participation.OwnerRef{
-				WorkspaceID: workspaceID,
-				Kind:        participation.OwnerKindTaskRun,
-				ID:          strings.TrimSpace(run.ID),
-			},
-			Spec: networkSpec,
-		}
-	}
 	return enqueueRunCommandResult{
-		task:                     reconciledTask,
-		run:                      run,
-		event:                    event,
-		participationObservation: participationObservation,
+		task:  reconciledTask,
+		run:   run,
+		event: event,
 	}, nil
 }
 

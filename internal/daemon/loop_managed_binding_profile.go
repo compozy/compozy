@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/worktree"
@@ -61,6 +62,9 @@ func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
 		}
 	}
 	opts := createOptionsFromProfile(req, profile)
+	if len(req.AllowedTools) > 0 {
+		opts.AllowedToolsOverride = slices.Clone(req.AllowedTools)
+	}
 	if !applyManagedDenials {
 		opts.DeniedToolsOverride = append([]string(nil), profile.DeniedTools...)
 	}
@@ -124,23 +128,20 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 ) session.CreateOpts {
 	runtime := req.RuntimeValue()
 	opts := session.CreateOpts{
-		ProfileID:                    strings.TrimSpace(req.ProfileID),
-		AgentName:                    strings.TrimSpace(agent),
-		Provider:                     strings.TrimSpace(runtime.Provider),
-		Model:                        strings.TrimSpace(runtime.Model),
-		ReasoningEffort:              strings.TrimSpace(runtime.Reasoning),
-		Speed:                        runtime.Speed,
-		ACPOptions:                   loopACPOptionsForSession(runtime.ACPOptions),
-		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
-		ResolvedNetworkParticipation: req.NetworkParticipation,
-		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindLoopRun,
-			ID:   string(req.LoopRunID),
-		}),
-		PromptOverlay:       strings.TrimSpace(req.ContractBlock),
-		ContractOverlay:     strings.TrimSpace(req.ContractBlock),
-		Type:                session.SessionTypeSystem,
-		DeniedToolsOverride: loopActionTerminalTools(),
+		ProfileID:       strings.TrimSpace(req.ProfileID),
+		AgentName:       strings.TrimSpace(agent),
+		Provider:        strings.TrimSpace(runtime.Provider),
+		Model:           strings.TrimSpace(runtime.Model),
+		ReasoningEffort: strings.TrimSpace(runtime.Reasoning),
+		Speed:           runtime.Speed,
+		ACPOptions:      loopACPOptionsForSession(runtime.ACPOptions),
+		Name:            loopRuntimeSessionName(kind, agent, req.Handle),
+
+		PromptOverlay:        strings.TrimSpace(req.ContractBlock),
+		ContractOverlay:      strings.TrimSpace(req.ContractBlock),
+		Type:                 session.SessionTypeSystem,
+		AllowedToolsOverride: slices.Clone(req.AllowedTools),
+		DeniedToolsOverride:  loopActionTerminalTools(),
 	}
 	applyLoopDirectoryBeforePolicy(&opts, req.EnvironmentValue())
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
@@ -187,25 +188,20 @@ func createOptionsFromProfile(
 	profile store.SessionCreationProfile,
 ) session.CreateOpts {
 	return session.CreateOpts{
-		ProfileID:                    profile.ProfileID,
-		AgentName:                    profile.AgentName,
-		Provider:                     profile.Provider,
-		Model:                        profile.Model,
-		ReasoningEffort:              profile.ReasoningEffort,
-		Speed:                        profile.Speed,
-		ACPOptions:                   session.ACPOptionSelectionsFromStore(profile.ACPOptions),
-		CWD:                          profile.CWD,
-		Worktree:                     profile.WorktreeRef,
-		SandboxRef:                   profile.SandboxRef,
-		DisableSandbox:               profile.SandboxMode == store.SessionCreationSandboxNone,
-		Permissions:                  compozyconfig.PermissionMode(profile.Permissions),
-		Name:                         loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
-		Workspace:                    profile.WorkspaceID,
-		ResolvedNetworkParticipation: req.NetworkParticipation,
-		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindLoopRun,
-			ID:   string(req.LoopRunID),
-		}),
+		ProfileID:       profile.ProfileID,
+		AgentName:       profile.AgentName,
+		Provider:        profile.Provider,
+		Model:           profile.Model,
+		ReasoningEffort: profile.ReasoningEffort,
+		Speed:           profile.Speed,
+		ACPOptions:      session.ACPOptionSelectionsFromStore(profile.ACPOptions),
+		CWD:             profile.CWD,
+		Worktree:        profile.WorktreeRef,
+
+		Permissions: compozyconfig.PermissionMode(profile.Permissions),
+		Name:        loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
+		Workspace:   profile.WorkspaceID,
+
 		PromptOverlay:        profile.PromptOverlay,
 		ContractOverlay:      profile.ContractOverlay,
 		RuntimeMode:          profile.RuntimeMode,
@@ -219,12 +215,6 @@ func profileFromPolicyResolution(
 	opts session.CreateOpts,
 	resolution *loopSessionPolicyResolution,
 ) store.SessionCreationProfile {
-	sandboxMode := store.SessionCreationSandboxRef
-	sandboxRef := strings.TrimSpace(opts.SandboxRef)
-	if opts.DisableSandbox || sandboxRef == "" {
-		sandboxMode = store.SessionCreationSandboxNone
-		sandboxRef = ""
-	}
 	permissions := strings.TrimSpace(string(opts.Permissions))
 	if permissions == "" {
 		permissions = strings.TrimSpace(resolution.agent.Permissions)
@@ -240,8 +230,7 @@ func profileFromPolicyResolution(
 		WorkspaceID:     resolution.workspace.ID,
 		CWD:             opts.CWD,
 		WorktreeRef:     opts.Worktree,
-		SandboxMode:     sandboxMode,
-		SandboxRef:      sandboxRef,
+
 		Permissions:     permissions,
 		AllowedTools:    opts.AllowedToolsOverride,
 		AgentTools:      resolution.agent.Tools,
@@ -279,11 +268,10 @@ func bindingCreationIdentity(
 
 func bindingCreationOptions(opts session.CreateOpts, sessionID string) store.SessionCreationOptions {
 	return store.SessionCreationOptions{
-		SessionID:            strings.TrimSpace(sessionID),
-		Name:                 opts.Name,
-		NetworkOwnerKey:      opts.NetworkOwnerKey,
-		NetworkParticipation: participationSnapshotValue(opts.ResolvedNetworkParticipation),
-		SessionType:          string(opts.Type),
+		SessionID: strings.TrimSpace(sessionID),
+		Name:      opts.Name,
+
+		SessionType: string(opts.Type),
 	}
 }
 
@@ -318,11 +306,9 @@ func shortSHA256(value string) string {
 }
 
 func cloneStoreCreationProfile(profile store.SessionCreationProfile) *store.SessionCreationProfile {
-	cloned := store.NormalizeSessionCreationProfile(profile)
-	return &cloned
+	return new(store.NormalizeSessionCreationProfile(profile))
 }
 
 func cloneStoreCreationIdentity(identity store.SessionCreationIdentity) *store.SessionCreationIdentity {
-	cloned := identity
-	return &cloned
+	return new(identity)
 }

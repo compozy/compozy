@@ -1,9 +1,10 @@
 package loop
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -83,11 +84,8 @@ func (c *gateEvaluationCollector) ordered() []gateEvaluation {
 	for key := range c.values {
 		keys = append(keys, key)
 	}
-	sort.Slice(keys, func(left, right int) bool {
-		if keys[left].gateID != keys[right].gateID {
-			return keys[left].gateID < keys[right].gateID
-		}
-		return keys[left].itemIndex < keys[right].itemIndex
+	slices.SortFunc(keys, func(a, b gateEvaluationKey) int {
+		return cmp.Or(cmp.Compare(a.gateID, b.gateID), cmp.Compare(a.itemIndex, b.itemIndex))
 	})
 	ordered := make([]gateEvaluation, 0, len(keys))
 	for _, key := range keys {
@@ -133,11 +131,7 @@ func (c *gateEvaluationCollector) gateRevisionMutations() []NodeControlMutation 
 			state.at = evaluation.evaluatedAt
 		}
 	}
-	gateIDs := make([]string, 0, len(states))
-	for gateID := range states {
-		gateIDs = append(gateIDs, gateID)
-	}
-	sort.Strings(gateIDs)
+	gateIDs := slices.Sorted(maps.Keys(states))
 	mutations := make([]NodeControlMutation, 0, len(gateIDs))
 	for _, gateID := range gateIDs {
 		state := states[gateID]
@@ -228,7 +222,7 @@ func routeCauseIDs(evaluations []gateEvaluation) []string {
 	for _, evaluation := range evaluations {
 		ids = append(ids, strings.TrimSpace(evaluation.runtime.ID))
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids
 }
 

@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import {
   ArtifactCollector,
   type BrowserRouteState,
-  isLikelyViteDevHTML,
   mirrorBrowserScreenshotForQA,
   persistBrowserArtifacts,
   resolveBrowserArtifactPath,
@@ -34,14 +33,8 @@ describe("artifact collector", () => {
       title: "CompozyOS",
       chat_view_visible: true,
       message_count: 2,
-      network_channel_count: 0,
-      network_thread_count: 0,
-      network_direct_count: 0,
-      network_message_count: 0,
-      network_view_visible: false,
       permission_prompt_visible: false,
       processing_indicator_visible: false,
-      resume_button_visible: false,
       session_name: "browser-session",
       stop_button_visible: true,
     };
@@ -107,20 +100,6 @@ describe("artifact collector", () => {
     await mkdir(rootDir, { recursive: true });
 
     expect(() => resolveBrowserArtifactPath(rootDir, "../escape.json")).toThrow();
-  });
-
-  it("identifies vite development HTML markers", () => {
-    expect(
-      isLikelyViteDevHTML(
-        '<!doctype html><html><head><script type="module" src="/@vite/client"></script></head></html>'
-      )
-    ).toBe(true);
-
-    expect(
-      isLikelyViteDevHTML(
-        '<!doctype html><html><head><script type="module" src="/assets/index-abc123.js"></script></head></html>'
-      )
-    ).toBe(false);
   });
 
   it("mirrors named screenshots into the task QA artifact root", async () => {

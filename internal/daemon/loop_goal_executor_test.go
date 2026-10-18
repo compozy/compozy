@@ -27,41 +27,6 @@ import (
 // TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary
 // Checks Goal composition through the parent action registry.
 func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *testing.T) {
-	t.Run("Should resolve the child executor without a parent package import", func(t *testing.T) {
-		t.Parallel()
-
-		store, err := openDaemonTestGlobalDBAtPath(context.Background(), filepath.Join(t.TempDir(), "compozy.db"))
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := store.Close(context.Background()); err != nil {
-				t.Errorf("Close() error = %v", err)
-			}
-		})
-		option, err := composeLoopGoalExecutor(
-			store,
-			inertLoopGoalRuntime{},
-			inertGateEvaluator{},
-			newLoopJudgeExecutionRegistry(),
-			nil,
-		)
-		if err != nil {
-			t.Fatalf("composeLoopGoalExecutor() error = %v", err)
-		}
-		registry, err := looppkg.NewActionRegistry(inertActionToolRegistry{}, option)
-		if err != nil {
-			t.Fatalf("NewActionRegistry() error = %v", err)
-		}
-		executor, err := registry.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionGoal))
-		if err != nil {
-			t.Fatalf("Resolve(goal) error = %v", err)
-		}
-		if _, ok := executor.(*goalpkg.Executor); !ok {
-			t.Fatalf("resolved Goal executor = %T", executor)
-		}
-	})
-
 	t.Run("Should compose through the real production session Manager", func(t *testing.T) {
 		t.Parallel()
 
@@ -71,7 +36,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := store.Close(ctx); err != nil {
+			if err := store.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -80,7 +45,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			t.Fatalf("session.NewManager() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := manager.Shutdown(ctx); err != nil {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
 				t.Errorf("Manager.Shutdown() error = %v", err)
 			}
 		})
@@ -146,24 +111,179 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 		if !usage.Known || usage.Used != used || usage.Size != size || usage.Sequence != 2 {
 			t.Fatalf("Usage() = %#v", usage)
 		}
-		hasCompact, err := runtime.HasAdvertisedCommand(testutil.Context(t), binding, "compact")
+		command, ok, err := runtime.CompactionCommand(testutil.Context(t), binding)
 		if err != nil {
-			t.Fatalf("HasAdvertisedCommand(compact) error = %v", err)
+			t.Fatal(err)
 		}
-		if hasCompact {
-			t.Fatal("HasAdvertisedCommand(compact) = true, want latest-set replacement")
-		}
-		hasReview, err := runtime.HasAdvertisedCommand(testutil.Context(t), binding, "review")
-		if err != nil {
-			t.Fatalf("HasAdvertisedCommand(review) error = %v", err)
-		}
-		if !hasReview {
-			t.Fatal("HasAdvertisedCommand(review) = false")
+		if ok || command != "" {
+			t.Fatalf("command=%q/%v", command, ok)
 		}
 	})
+	t.Run("Should invalidate occupancy until newer usage after the terminal boundary", func(t *testing.T) {
+		t.Parallel()
+		reader := staticLoopSessionEventReader{events: []store.SessionEvent{
+			managedGoalContextEvent(
+				t,
+				10,
+				acp.AgentEvent{
+					Type:  acp.EventTypeUsage,
+					Usage: &acp.TokenUsage{ContextUsed: new(int64(190000)), ContextSize: new(int64(200000))},
+				},
+			),
+			managedGoalContextEvent(
+				t,
+				12,
+				acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true},
+				},
+			),
+			managedGoalContextEvent(
+				t,
+				13,
+				acp.AgentEvent{Type: acp.EventTypeDone, Usage: &acp.TokenUsage{InputTokens: new(int64(100))}},
+			),
+		}}
+		runtime := loopGoalContextRuntime{sessions: reader}
+		binding := looppkg.ActionSessionBinding{SessionID: "session-context"}
+		usage, err := runtime.Usage(t.Context(), binding)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if usage.Known {
+			t.Fatalf("stale usage=%#v", usage)
+		}
+		pinned, err := runtime.UsageAtSequence(t.Context(), binding, 10)
+		if err != nil || pinned.Known {
+			t.Fatalf("stale pinned=%#v %v", pinned, err)
+		}
+		service := daemonLoopAPIService{goalContext: &runtime}
+		snapshot, err := service.goalContextSnapshot(
+			t.Context(),
+			"workspace",
+			goalpkg.SessionProjection{
+				Checkpoint: &goalpkg.Checkpoint{
+					SessionID:         binding.SessionID,
+					ContextState:      "known",
+					UsageSequence:     new(int64(10)),
+					ContextNudgeRatio: 0.8,
+				},
+			},
+		)
+		if err != nil || snapshot.State != "unknown" || snapshot.Used != nil || snapshot.Size != nil ||
+			snapshot.Ratio != nil {
+			t.Fatalf("stale Goal snapshot=%#v %v", snapshot, err)
+		}
+
+		reader.events = append(
+			reader.events,
+			managedGoalContextEvent(
+				t,
+				14,
+				acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: new(int64(40000))}},
+			),
+		)
+		runtime.sessions = reader
+		usage, err = runtime.Usage(t.Context(), binding)
+		if err != nil || usage.Known {
+			t.Fatalf("used-only occupancy=%#v err=%v", usage, err)
+		}
+		pinned, err = runtime.UsageAtSequence(t.Context(), binding, 14)
+		if err != nil || pinned.Known {
+			t.Fatalf("used-only pinned occupancy=%#v err=%v", pinned, err)
+		}
+		reader.events = append(
+			reader.events,
+			managedGoalContextEvent(
+				t,
+				15,
+				acp.AgentEvent{
+					Type:  acp.EventTypeUsage,
+					Usage: &acp.TokenUsage{ContextUsed: new(int64(40000)), ContextSize: new(int64(200000))},
+				},
+			),
+		)
+		runtime.sessions = reader
+		usage, err = runtime.Usage(t.Context(), binding)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !usage.Known || usage.Used != 40000 || usage.Sequence != 15 {
+			t.Fatalf("usage=%#v", usage)
+		}
+		pinned, err = runtime.UsageAtSequence(t.Context(), binding, 15)
+		if err != nil || !pinned.Known || pinned.Used != 40000 {
+			t.Fatalf("fresh pinned=%#v %v", pinned, err)
+		}
+	})
+	for _, commands := range [][]store.SessionAdvertisedCommand{{{Name: "compress"}}, {{Name: "compress"}, {Name: "compact"}}, {{Name: "Compact"}}, {{Name: "review"}}} {
+		t.Run("Should share compaction command resolution for "+commands[0].Name, func(t *testing.T) {
+			t.Parallel()
+			runtime := loopGoalContextRuntime{
+				sessions: staticLoopSessionEventReader{
+					events: []store.SessionEvent{
+						managedGoalContextEvent(
+							t,
+							1,
+							(acp.AgentEvent{Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate}).WithAvailableCommands(
+								commands,
+							),
+						),
+					},
+				},
+			}
+			got, ok, err := runtime.CompactionCommand(t.Context(), looppkg.ActionSessionBinding{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, wantOK := session.ResolveCompactionCommand(commands)
+			if got != want || ok != wantOK {
+				t.Fatalf("command=%q/%v want=%q/%v", got, ok, want, wantOK)
+			}
+		})
+	}
 }
 
 func TestReconstructManagedGoalPromptResultShouldRequireExactOrderedTerminalWindow(t *testing.T) {
+	for _, test := range []struct{ first, current string }{
+		{"completed", "failed"},
+		{"failed", "completed"},
+	} {
+		t.Run("Should use corrected "+test.current+" status for live and recovered compaction", func(t *testing.T) {
+			t.Parallel()
+			promptID := "corrected-compaction"
+			rows := []store.SessionEvent{
+				managedGoalRecoveryEvent(t, 1, promptID, acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.first, Terminal: true},
+				}),
+				managedGoalRecoveryEvent(t, 2, promptID, acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.current},
+				}),
+				managedGoalRecoveryEvent(t, 3, promptID, acp.AgentEvent{
+					Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn,
+				}),
+			}
+			reader := staticLoopSessionEventReader{events: rows}
+			result := looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 1, EventEndSeq: 3}
+			live, err := readManagedGoalCompaction(t.Context(), reader,
+				&store.SessionInputQueueEntry{SessionID: "session-corrected", PromptID: promptID}, result)
+			if err != nil || live == nil || live.CompactionID != "c1" || live.Status != test.current {
+				t.Fatalf("live compaction=%#v err=%v", live, err)
+			}
+			recovered, _, found, err := reconstructManagedGoalPromptResult(
+				t.Context(),
+				reader,
+				"session-corrected",
+				promptID,
+			)
+			if err != nil || !found || recovered.Compaction == nil || recovered.Compaction.CompactionID != "c1" ||
+				recovered.Compaction.Status != test.current {
+				t.Fatalf("recovered result=%#v found=%v err=%v", recovered, found, err)
+			}
+		})
+	}
 	t.Run(
 		"Should recover ordered text structured output and reported zero usage across unrelated sequence gaps",
 		func(t *testing.T) {
@@ -289,6 +409,53 @@ func TestReconstructManagedGoalPromptResultShouldRequireExactOrderedTerminalWind
 }
 
 func TestReadManagedGoalPromptOutputShouldIgnoreOnlyCorrelatedAuxiliaryEvents(t *testing.T) {
+	t.Run("Should preserve streamed JSON and whitespace during read and recovery", func(t *testing.T) {
+		t.Parallel()
+
+		promptID := "goal-prompt-streamed-output"
+		chunks := []string{
+			`{"sta`,
+			`tus":"complete","summary":"Studio`,
+			" ",
+			`delivery finished","tasks":[{"id":"task_01"},{"id":"task_02"}]}`,
+		}
+		want := strings.Join(chunks, "")
+		events := make([]store.SessionEvent, 0, len(chunks)+1)
+		for index, chunk := range chunks {
+			events = append(events, managedGoalRecoveryEvent(t, int64(index+1), promptID, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, Text: chunk,
+			}))
+		}
+		endSequence := int64(len(events) + 1)
+		events = append(events, managedGoalRecoveryEvent(t, endSequence, promptID, acp.AgentEvent{
+			Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn,
+		}))
+		reader := staticLoopSessionEventReader{events: events}
+		text, structured, err := readManagedGoalPromptOutput(
+			t.Context(), reader,
+			&store.SessionInputQueueEntry{SessionID: "session-streamed", PromptID: promptID},
+			looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 1, EventEndSeq: endSequence},
+		)
+		if err != nil {
+			t.Fatalf("readManagedGoalPromptOutput() error = %v", err)
+		}
+		if text != want || string(structured) != want {
+			t.Errorf("managed Goal output = text:%q structured:%s, want %q", text, structured, want)
+		}
+		recovered, _, found, err := reconstructManagedGoalPromptResult(
+			t.Context(),
+			reader,
+			"session-streamed",
+			promptID,
+		)
+		if err != nil {
+			t.Fatalf("reconstructManagedGoalPromptResult() error = %v", err)
+		}
+		if !found || recovered.Text != want || string(recovered.Structured) != want {
+			t.Errorf("recovered Goal output = %#v found=%t, want %q", recovered, found, want)
+		}
+	})
+
 	t.Run(
 		"Should read an ordered prompt across foreign sequence gaps and trailing transcript metadata",
 		func(t *testing.T) {
@@ -442,8 +609,7 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 			LoopName:  "goal-judge-usage", Status: looppkg.StatusRunning,
 			CreatedAt: now, StartedAt: now, Inputs: map[string]any{},
 		}
-		wantParticipation := daemonTestLiveParticipation(string(run.WorkspaceID), "goal-judge")
-		run.SetNetworkSpec(wantParticipation)
+
 		applyLoopRunPinningForTest(t, &run, now)
 		storeStub := goalJudgeLoopStore{
 			run: run,
@@ -464,6 +630,9 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 					!strings.Contains(req.Rubric, "Candidate structured output:\n{\"status\":\"complete\"}") {
 					t.Fatalf("Goal judge rubric = %q, want unchanged rubric plus authoritative candidate", req.Rubric)
 				}
+				if req.ParentSessionID != "sess-bound-goal" {
+					t.Fatalf("judge parent = %q", req.ParentSessionID)
+				}
 				if req.CorrelationID != "judge-attempt-usage" {
 					t.Fatalf("Goal judge correlation id = %q, want judge-attempt-usage", req.CorrelationID)
 				}
@@ -477,6 +646,7 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 			store: &storeStub, evaluator: evaluator, executions: newLoopJudgeExecutionRegistry(),
 		}
 		result, err := adapter.EvaluateGoal(testutil.Context(t), goalpkg.JudgeRequest{
+			SessionID: "sess-bound-goal",
 			AttemptID: "judge-attempt-usage",
 			Key: goalpkg.TurnKey{
 				WorkspaceID: run.WorkspaceID, LoopRunID: run.ID,
@@ -497,13 +667,7 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 		if got, want := gotJudgeReq.LoopRunID, string(run.ID); got != want {
 			t.Fatalf("JudgeRequest.LoopRunID = %q, want %q", got, want)
 		}
-		if gotJudgeReq.NetworkParticipation == nil || *gotJudgeReq.NetworkParticipation != wantParticipation {
-			t.Fatalf(
-				"JudgeRequest.NetworkParticipation = %#v, want %#v",
-				gotJudgeReq.NetworkParticipation,
-				wantParticipation,
-			)
-		}
+
 		if got, want := gotJudgeReq.ProfileID, run.ProfileID; got != want {
 			t.Fatalf("JudgeRequest.ProfileID = %q, want %q", got, want)
 		}
@@ -524,7 +688,7 @@ func TestLoopGoalJudgeEvaluatorShouldEvaluateDeterministicJudges(t *testing.T) {
 			LoopName: "goal-judge-command", Status: looppkg.StatusRunning,
 			CreatedAt: now, StartedAt: now, Inputs: map[string]any{},
 		}
-		run.SetNetworkSpec(daemonTestLiveParticipation(string(run.WorkspaceID), "goal-judge"))
+
 		applyLoopRunPinningForTest(t, &run, now)
 		storeStub := goalJudgeLoopStore{
 			run: run,
@@ -754,63 +918,6 @@ func managedGoalRecoveryEvent(
 	}
 }
 
-type inertLoopGoalRuntime struct{}
-
-func (inertLoopGoalRuntime) BindActionSession(
-	context.Context,
-	looppkg.ActionSessionBindRequest,
-) (looppkg.ActionSessionBinding, error) {
-	return looppkg.ActionSessionBinding{}, nil
-}
-
-func (inertLoopGoalRuntime) AdvanceActionSessionRetry(
-	context.Context,
-	*looppkg.ActionSessionRetryRequest,
-) error {
-	return nil
-}
-
-func (inertLoopGoalRuntime) PrepareActionPrompt(
-	context.Context,
-	looppkg.ActionSessionBinding,
-	looppkg.ActionPromptRequest,
-) (looppkg.ActionPromptTicket, error) {
-	return looppkg.ActionPromptTicket{}, nil
-}
-
-func (inertLoopGoalRuntime) AwaitActionPrompt(
-	context.Context,
-	looppkg.ActionPromptTicket,
-) (looppkg.ActionPromptResult, error) {
-	return looppkg.ActionPromptResult{}, nil
-}
-
-func (inertLoopGoalRuntime) CancelActionPrompts(context.Context, looppkg.ActionPromptOwner) error {
-	return nil
-}
-
-func (inertLoopGoalRuntime) Usage(
-	context.Context,
-	looppkg.ActionSessionBinding,
-) (goalpkg.ContextUsage, error) {
-	return goalpkg.ContextUsage{}, nil
-}
-
-func (inertLoopGoalRuntime) HasAdvertisedCommand(
-	context.Context,
-	looppkg.ActionSessionBinding,
-	string,
-) (bool, error) {
-	return false, nil
-}
-
-func (inertLoopGoalRuntime) ReconcileTerminalFromEvents(
-	context.Context,
-	goalpkg.PromptRecoveryIdentity,
-) (looppkg.ActionPromptResult, bool, error) {
-	return looppkg.ActionPromptResult{}, false, nil
-}
-
 type inertGateEvaluator struct{}
 
 func (inertGateEvaluator) Evaluate(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
@@ -837,4 +944,38 @@ func (inertActionToolRegistry) Get(context.Context, tools.Scope, tools.ToolID) (
 
 func (inertActionToolRegistry) Call(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
 	return tools.ToolResult{}, nil
+}
+
+// Invariant: goal_report availability follows Goal prompt state, so every binding and prompt
+// transition advances the tool projection epoch, including failed transitions that may have
+// persisted partial state. Owner: daemon Goal runtime composition.
+func TestGoalToolProjectionRuntimeShouldInvalidateOnGoalPromptTransitions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should invalidate after binding, prompt preparation, and prompt completion", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		runtime := &loopGoalRuntime{loopActionSessionBinder: &loopActionSessionBinder{}}
+		invalidations := 0
+		decorated := withGoalToolProjection(runtime, func() { invalidations++ })
+
+		if _, err := decorated.BindActionSession(ctx, looppkg.ActionSessionBindRequest{}); err == nil {
+			t.Fatal("BindActionSession() error = nil, want missing session runtime")
+		}
+		if _, err := decorated.PrepareActionPrompt(
+			ctx, looppkg.ActionSessionBinding{}, looppkg.ActionPromptRequest{},
+		); err == nil {
+			t.Fatal("PrepareActionPrompt() error = nil, want missing prompt runtime")
+		}
+		if _, err := decorated.AwaitActionPrompt(ctx, looppkg.ActionPromptTicket{}); err == nil {
+			t.Fatal("AwaitActionPrompt() error = nil, want missing prompt store")
+		}
+		if invalidations != 3 {
+			t.Fatalf("projection invalidations = %d, want 3", invalidations)
+		}
+		if undecorated := withGoalToolProjection(runtime, nil); undecorated != loopGoalBinderRuntime(runtime) {
+			t.Fatal("withGoalToolProjection(nil) wrapped the runtime, want it unchanged")
+		}
+	})
 }

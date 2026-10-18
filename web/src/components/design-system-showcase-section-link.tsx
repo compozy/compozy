@@ -16,7 +16,7 @@ export function SectionLink({
       href={`${DESIGN_MD_BASE}${section.anchor}`}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1.5 text-muted transition-colors hover:text-accent"
+      className="inline-flex items-center gap-1.5 text-muted transition-colors hover:text-fg"
     >
       <span>{children ?? section.label}</span>
       <span aria-hidden="true" className="font-mono text-badge tracking-mono">

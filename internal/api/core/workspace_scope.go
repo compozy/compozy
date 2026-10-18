@@ -9,7 +9,7 @@ import (
 
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/store"
+
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -20,17 +20,6 @@ type workspaceScope struct {
 	Resolved   workspacepkg.ResolvedWorkspace
 	ID         string
 	RegistryID string
-}
-
-func (s *workspaceScope) NetworkChannelRef(channel string) store.NetworkChannelRef {
-	return store.NetworkChannelRef{
-		WorkspaceID: s.NetworkWorkspaceID(),
-		Channel:     strings.TrimSpace(channel),
-	}
-}
-
-func (s *workspaceScope) NetworkWorkspaceID() string {
-	return strings.TrimSpace(s.RegistryID)
 }
 
 func (s *workspaceScope) SessionWorkspaceID() string {

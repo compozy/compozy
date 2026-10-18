@@ -3,7 +3,6 @@
 package procutil
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -26,7 +25,7 @@ func TestSpawnDetachedLoggedProcessCreatesIndependentSession(t *testing.T) {
 		}
 		t.Cleanup(func() { startDetachedProcess = originalStart })
 
-		process, err := SpawnDetachedLoggedProcess(context.Background(), DetachedLaunchRequest{
+		process, err := SpawnDetachedLoggedProcess(t.Context(), DetachedLaunchRequest{
 			Binary:  os.Args[0],
 			LogPath: filepath.Join(t.TempDir(), "detached.log"),
 		})

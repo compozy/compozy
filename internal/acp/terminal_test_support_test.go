@@ -10,6 +10,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -170,7 +171,7 @@ func newACPTestTerminalCore(
 		t.Fatalf("terminal.Start() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := manager.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
 			t.Errorf("terminal.Shutdown() error = %v", err)
 		}
 	})

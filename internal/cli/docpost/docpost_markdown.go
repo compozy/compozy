@@ -112,7 +112,7 @@ func escapeLineJSX(line string) string {
 	var b strings.Builder
 	inCode := false
 
-	for i := 0; i < len(line); i++ {
+	for i := range len(line) {
 		ch := line[i]
 		if ch == '`' {
 			inCode = !inCode
@@ -183,7 +183,7 @@ func transformInlineText(line string, transform func(string) string) string {
 	var b strings.Builder
 	inCode := false
 	start := 0
-	for i := 0; i < len(line); i++ {
+	for i := range len(line) {
 		if line[i] != '`' {
 			continue
 		}

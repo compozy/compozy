@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The single extension detail route shows the large entry logo and the existing extension body with contents, lifecycle state, diagnostics and provenance. Installed selection uses source and installed_name; controls report daemon truth. Task 04 adds the extension-owned Server section.
 entry_points: /marketplace/{entry_id}?source=<source>; /marketplace/{entry_id}?installed_name=<local-name>
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: untested
 fix_commits:
 evidence: .compozy/tasks/marketplace-detail-redesign/evidence/visual/VC-01; .compozy/tasks/marketplace-detail-redesign/evidence/visual/VC-02; .compozy/tasks/marketplace-detail-redesign/evidence/visual/VC-03
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-marketplace-installed-management; ET-web-mcp-authorize-manual
 ---
 
@@ -32,6 +32,18 @@ Status grid never collapses config/auth/runtime/probe into one green. Installed 
 kit inventory, environment bindings, diagnostics, and live logs render in the body, and that Update
 appears only in the head while the rail switch enables/disables with its consequence note.
 
+QA impact 2026-09-28 (ui-normie-pass, marketplace-knowledge-vault slice): the installed extension
+detail is calm by default. Body order: "What's inside" (open), "Setup" (open only when an input is
+missing), "Problems" (diagnostics, last error and trust warnings; absent when there are none),
+"Activity" (logs, closed), "What it can do" (capabilities and permissions, closed), "Profiles and
+placement" (open only when a profile needs setup or a placement is dormant). Rail: Manage (switch,
+one status word — Running / On / Off / Having trouble — and one trust word), Server×N (status and
+actions; Launch/Scope/Owner/runtime name under "Technical details"), About (trust sentence such as
+"Official · checked by CompozyOS", version, author, dates), and a closed Advanced card holding
+process status, provenance badges, remote-access consent and ids (it opens itself when remote
+access needs confirmation). Browse detail leads with identity and warnings; the download source and
+SHA-256 sit last in a closed "Source" section. Reset to untested.
+
 QA impact 2026-09-13 (marketplace-catalog task03, UT038; final tasks09/10 own this walk): change a
 listing after opening confirmation, then attempt installation. Both preview and install refusals with
 extension_source_changed must show the daemon code, refetch the exact origin through Query, and
@@ -45,3 +57,7 @@ The refused update must leave the installed version and values intact and return
 candidate declarations in input_definitions. The configuration step uses those declarations without
 another preview acquisition; a retry keeps the original profile/workspace selector. Secret values
 and refs must not appear in error metadata. UI recovery remains pending until UT039 is complete.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

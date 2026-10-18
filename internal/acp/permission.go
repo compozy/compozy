@@ -26,8 +26,6 @@ var (
 	ErrInvalidPath = errors.New("acp: invalid path")
 	// ErrPathOutsideWorkspace reports that a requested path escapes the session root.
 	ErrPathOutsideWorkspace = errors.New("acp: path outside session workspace")
-	// ErrToolBlockedForNetworkTurn reports that daemon-side network turn policy rejected a tool operation.
-	ErrToolBlockedForNetworkTurn = errors.New("acp: tool blocked for network-originated turn")
 	// ErrPendingPermissionNotFound reports that no waiting permission request matched the approval request.
 	ErrPendingPermissionNotFound = errors.New("acp: pending permission not found")
 	// ErrPendingPermissionConflict reports that a fallback lookup by turn ID matched multiple pending requests.

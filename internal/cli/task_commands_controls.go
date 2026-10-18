@@ -2,10 +2,8 @@ package cli
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -36,6 +34,7 @@ func newTaskRejectCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskBundle(&rejected))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -67,8 +66,8 @@ func newTaskExecutionCommand(
 		},
 	}
 	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional idempotency key")
-	bindNetworkParticipationFlags(cmd, &input.NetworkFlags)
 	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional run metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -76,13 +75,8 @@ func buildTaskExecutionRequest(
 	cmd *cobra.Command,
 	input taskExecutionInput,
 ) (TaskExecutionRequest, error) {
-	participationRequest, err := input.NetworkFlags.request()
-	if err != nil {
-		return TaskExecutionRequest{}, err
-	}
 	request := TaskExecutionRequest{
-		IdempotencyKey:       strings.TrimSpace(input.IdempotencyKey),
-		NetworkParticipation: participationRequest,
+		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
 	}
 	if cmd.Flags().Changed("metadata") {
 		metadata, err := parseJSONFlag("metadata", input.MetadataRaw)
@@ -127,8 +121,7 @@ func buildTaskBlockRequest(
 		if duration <= 0 {
 			return CreateTaskBlockRequest{}, errors.New("cli: --expires-in must be positive")
 		}
-		expiresAt := now.Add(duration).UTC()
-		request.ExpiresAt = &expiresAt
+		request.ExpiresAt = new(now.Add(duration).UTC())
 	}
 	return request, nil
 }
@@ -138,7 +131,6 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 		reason      string
 		metadataRaw string
 	)
-
 	cmd := &cobra.Command{
 		Use:   "cancel <id>",
 		Short: "Cancel a task tree",
@@ -148,7 +140,6 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request := CancelTaskRequest{Reason: strings.TrimSpace(reason)}
 			if cmd.Flags().Changed("metadata") {
 				request.Metadata, err = parseJSONFlag("metadata", metadataRaw)
@@ -156,7 +147,6 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 					return err
 				}
 			}
-
 			canceled, err := client.CancelTask(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -166,6 +156,7 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional cancellation reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional cancellation metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -221,6 +212,7 @@ func newTaskBlockCommand(deps commandDeps) *cobra.Command {
 	)
 	mustMarkFlagRequired(cmd, taskKindKey)
 	mustMarkFlagRequired(cmd, taskReasonKey)
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -266,6 +258,7 @@ func newTaskUnblockCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&note, "note", "", "Optional clear note")
 	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Clear using the current CompozyOS-managed agent session identity")
 	mustMarkFlagRequired(cmd, "block")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -288,6 +281,7 @@ func newTaskBlocksCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&includeCleared, "all", false, "Include cleared blocks")
+	configureSingleProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -314,5 +308,6 @@ func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&note, "note", "", "Optional recovery note")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }

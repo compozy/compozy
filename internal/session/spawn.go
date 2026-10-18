@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/network/participation"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -21,10 +22,6 @@ const (
 	DefaultSpawnMaxDepth = 1
 	// DefaultSpawnRole is used when an agent omits the advisory child role.
 	DefaultSpawnRole = "worker"
-	// SpawnRoleMemoryExtractor marks daemon-owned extractor children.
-	SpawnRoleMemoryExtractor = "memory-extractor"
-	// SpawnRoleCheckpointSummary marks reference-only checkpoint summarization.
-	SpawnRoleCheckpointSummary = "checkpoint-summary"
 	// SpawnRoleAutoTitle marks daemon-owned title generator children.
 	SpawnRoleAutoTitle = "auto-title"
 )
@@ -40,31 +37,37 @@ var (
 
 // SpawnOpts defines the safe child-session creation request accepted by the manager.
 type SpawnOpts struct {
+	ParentTurnID    string
+	Permissions     compozyconfig.PermissionMode
+	Subagent        *hookspkg.SubagentSpawnPayload
 	ParentSessionID string
 	// InheritedWorktreeID is daemon-owned structural context copied from the parent.
 	// Public callers cannot select or override it.
-	InheritedWorktreeID  string
-	AgentName            string
-	Provider             string
-	Model                string
-	ReasoningEffort      string
-	Speed                speedpkg.Speed
-	ACPOptions           []acp.SessionConfigOptionSelection
-	Name                 string
-	Workspace            string
-	WorkspacePath        string
-	NetworkParticipation *participation.Request
-	PromptOverlay        string
-	SpawnRole            string
-	TTL                  time.Duration
-	AutoStopOnParent     bool
-	NotifyCreator        bool
-	NotifyCreatorSet     bool
-	PermissionPolicy     store.SessionPermissionPolicy
-	IdempotencyKey       string
-	AllowStoppedParent   bool
+	InheritedWorktreeID string
+	IsolatedWorktreeID  string
+	AgentName           string
+	Provider            string
+	Model               string
+	ReasoningEffort     string
+	Speed               speedpkg.Speed
+	ACPOptions          []acp.SessionConfigOptionSelection
+	Name                string
+	Workspace           string
+	WorkspacePath       string
+	PromptOverlay       string
+	SpawnRole           string
+	TTL                 time.Duration
+	AutoStopOnParent    bool
+	NotifyCreator       bool
+	NotifyCreatorSet    bool
+	PermissionPolicy    store.SessionPermissionPolicy
+	IdempotencyKey      string
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
+	// Command is an explicit launch command for this attempt (a fallback route's account).
+	Command string
+	// ChainOwner declares who owns the fallback chain; see CreateOpts.ChainOwner.
+	ChainOwner ChainOwner
 }
 
 type permissionCategory struct {
@@ -77,10 +80,6 @@ var knownPermissionCategories = []permissionCategory{
 	{name: "skills", values: func(p store.SessionPermissionPolicy) []string { return p.Skills }},
 	{name: "mcp_servers", values: func(p store.SessionPermissionPolicy) []string { return p.MCPServers }},
 	{name: "workspace_paths", values: func(p store.SessionPermissionPolicy) []string { return p.WorkspacePaths }},
-	{name: "network_channels", values: func(p store.SessionPermissionPolicy) []string { return p.NetworkChannels }},
-	{name: "sandbox_profiles", values: func(p store.SessionPermissionPolicy) []string {
-		return p.SandboxProfiles
-	}},
 }
 
 // Spawn creates a bounded child session after enforcing lineage, TTL, caps,
@@ -101,29 +100,35 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		return nil, err
 	}
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
+	desiredID := ""
+	if normalized.SpawnRole == store.SubagentSpawnRole && normalized.IdempotencyKey != "" {
+		desiredID = subagentChildSessionID(parent.ID, normalized.IdempotencyKey)
+		if existing, ok := m.Get(desiredID); ok {
+			return existing, nil
+		}
+	}
 
 	child, err := m.Create(ctx, CreateOpts{
-		ProfileID:            strings.TrimSpace(parent.ProfileID),
-		AgentName:            normalized.AgentName,
-		Provider:             normalized.Provider,
-		Model:                normalized.Model,
-		ReasoningEffort:      normalized.ReasoningEffort,
-		Speed:                normalized.Speed,
-		ACPOptions:           acp.CloneSessionConfigOptionSelections(normalized.ACPOptions),
-		Name:                 normalized.Name,
-		Workspace:            workspaceRef,
-		WorkspacePath:        workspacePath,
-		Worktree:             normalized.InheritedWorktreeID,
-		NetworkParticipation: spawnNetworkParticipation(normalized),
-		NetworkAuthority: &participation.AuthorityScope{
-			Enforced:   true,
-			ChannelIDs: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
-		},
+		DesiredSessionID:    desiredID,
+		ProfileID:           strings.TrimSpace(parent.ProfileID),
+		AgentName:           normalized.AgentName,
+		Permissions:         normalized.Permissions,
+		Provider:            normalized.Provider,
+		Model:               normalized.Model,
+		ReasoningEffort:     normalized.ReasoningEffort,
+		Speed:               normalized.Speed,
+		ACPOptions:          acp.CloneSessionConfigOptionSelections(normalized.ACPOptions),
+		Name:                normalized.Name,
+		Workspace:           workspaceRef,
+		WorkspacePath:       workspacePath,
+		Worktree:            normalized.InheritedWorktreeID,
 		PromptOverlay:       normalized.PromptOverlay,
 		Type:                SessionTypeSpawned,
 		Lineage:             lineage,
 		ParentSoulDigest:    strings.TrimSpace(parent.SoulDigest),
 		DiscardStartFailure: normalized.DiscardStartFailure,
+		Command:             normalized.Command,
+		ChainOwner:          normalized.ChainOwner,
 	})
 	if err != nil {
 		return nil, err
@@ -142,14 +147,22 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	parent, err := m.spawnParent(ctx, normalized.ParentSessionID, normalized.AllowStoppedParent)
+	parent, err := m.spawnParent(ctx, normalized.ParentSessionID)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
+	}
+	if normalized.SpawnRole == store.SubagentSpawnRole {
+		if err := m.validateSubagentSpawn(parent, &normalized); err != nil {
+			return SpawnOpts{}, nil, nil, err
+		}
 	}
 	if normalized.Speed == "" {
 		normalized.Speed = parent.Speed
 	}
 	normalized.InheritedWorktreeID = strings.TrimSpace(parent.WorktreeID)
+	if normalized.IsolatedWorktreeID != "" {
+		normalized.InheritedWorktreeID = normalized.IsolatedWorktreeID
+	}
 	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
@@ -163,11 +176,12 @@ func (m *Manager) prepareSpawn(
 		return SpawnOpts{}, nil, nil, err
 	}
 
+	expectedWorktreeID := normalized.InheritedWorktreeID
 	normalized, lineage, err = m.dispatchSpawnPreCreate(ctx, parent, normalized, lineage)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	if strings.TrimSpace(normalized.InheritedWorktreeID) != strings.TrimSpace(parent.WorktreeID) {
+	if strings.TrimSpace(normalized.InheritedWorktreeID) != expectedWorktreeID {
 		return SpawnOpts{}, nil, nil, spawnValidation("inherited worktree binding is immutable")
 	}
 	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
@@ -186,6 +200,7 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
 	normalized.Model = strings.TrimSpace(normalized.Model)
+	normalized.Command = strings.TrimSpace(normalized.Command)
 	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
 	var err error
 	normalized.ACPOptions, err = acp.NormalizeSessionConfigOptionSelections(normalized.ACPOptions)
@@ -202,13 +217,6 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Workspace = strings.TrimSpace(normalized.Workspace)
 	normalized.WorkspacePath = strings.TrimSpace(normalized.WorkspacePath)
-	if normalized.NetworkParticipation != nil {
-		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
-		if err != nil {
-			return SpawnOpts{}, spawnValidation(fmt.Sprintf("network_participation: %v", err))
-		}
-		normalized.NetworkParticipation = &request
-	}
 	normalized.PromptOverlay = strings.TrimSpace(normalized.PromptOverlay)
 	normalized.SpawnRole = normalizeSpawnRole(normalized.SpawnRole)
 	if IsInternalSpawnRole(normalized.SpawnRole) {
@@ -225,20 +233,18 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 		return SpawnOpts{}, spawnValidation("parent_session_id is required")
 	case normalized.AgentName == "":
 		return SpawnOpts{}, spawnValidation("agent_name is required")
-	case normalized.TTL <= 0:
+	case normalized.SpawnRole == store.SubagentSpawnRole && normalized.TTL != 0:
+		return SpawnOpts{}, ErrSubagentCapabilityDenied
+	case normalized.TTL <= 0 && normalized.SpawnRole != store.SubagentSpawnRole:
 		return SpawnOpts{}, spawnValidation("ttl is required and must be positive")
 	case isCoordinatorSpawnRole(normalized.SpawnRole):
 		return SpawnOpts{}, spawnValidation("coordinator spawn role is not supported in MVP")
-	case normalized.AllowStoppedParent && !isMemoryExtractorSpawnRole(normalized.SpawnRole):
-		return SpawnOpts{}, spawnValidation("allow_stopped_parent is restricted to memory extractor spawns")
-	case normalized.AllowStoppedParent && normalized.AutoStopOnParent:
-		return SpawnOpts{}, spawnValidation("allow_stopped_parent cannot use auto_stop_on_parent")
 	default:
 		return normalized, nil
 	}
 }
 
-func (m *Manager) spawnParent(ctx context.Context, parentID string, allowStopped bool) (*Info, error) {
+func (m *Manager) spawnParent(ctx context.Context, parentID string) (*Info, error) {
 	parent, err := m.Status(ctx, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: parent session %q: %w", ErrSpawnValidation, parentID, err)
@@ -247,10 +253,6 @@ func (m *Manager) spawnParent(ctx context.Context, parentID string, allowStopped
 		return nil, fmt.Errorf("%w: parent session %q returned nil status", ErrSpawnValidation, parentID)
 	}
 	if parent.State != StateActive {
-		if allowStopped && parent.State == StateStopped {
-			parent.Lineage = store.NormalizeSessionLineage(parent.ID, parent.Lineage)
-			return parent, nil
-		}
 		return nil, fmt.Errorf("%w: parent session %q is %q", ErrSpawnValidation, parent.ID, parent.State)
 	}
 	parent.Lineage = store.NormalizeSessionLineage(parent.ID, parent.Lineage)
@@ -355,6 +357,13 @@ func (m *Manager) spawnLineage(
 	opts SpawnOpts,
 ) (*store.SessionLineage, error) {
 	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
+	if opts.SpawnRole == store.SubagentSpawnRole {
+		return store.NormalizeSessionLineage("", &store.SessionLineage{
+			ParentSessionID: parent.ID, RootSessionID: parentLineage.RootSessionID,
+			SpawnDepth: parentLineage.SpawnDepth + 1, SpawnRole: opts.SpawnRole,
+			AutoStopOnParent: true, NotifyCreator: false, PermissionPolicy: opts.PermissionPolicy,
+		}), nil
+	}
 	budget := effectiveSpawnBudget(parentLineage.SpawnBudget)
 	governance, err := m.spawnGovernanceForParent(ctx, parent)
 	if err != nil {

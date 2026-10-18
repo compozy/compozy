@@ -114,7 +114,7 @@ args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook"
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := manager.Stop(context.WithoutCancel(ctx)); err != nil {
+				if err := manager.Stop(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
 			})
@@ -157,17 +157,13 @@ args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook"
 					t.Fatal(err)
 				}
 				_, err := runtime.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
-					PayloadBase: hookspkg.PayloadBase{
-						Event:     hookspkg.HookToolPreCall,
-						Timestamp: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-					},
-					SessionContext: hookspkg.SessionContext{
-						SessionID:   "session-hooks",
-						ProfileID:   profileID,
-						WorkspaceID: workspaceID,
-						AgentName:   "default",
-					},
-					ToolCallRef: hookspkg.ToolCallRef{ToolCallID: "call-hooks", ToolID: "Read"},
+					Event:       hookspkg.HookToolPreCall,
+					Timestamp:   time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+					SessionID:   "session-hooks",
+					ProfileID:   profileID,
+					WorkspaceID: workspaceID,
+					AgentName:   "default",
+					ToolCallID:  "call-hooks", ToolID: "Read",
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -252,59 +248,6 @@ args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook"
 			dispatch(h.hooks, alpha.ID, "ws-hooks", "")
 		},
 	)
-	toolPayloads := make(chan hookspkg.ToolPreCallPayload, 1)
-	h := newHookBindingIntegrationHarness(t, map[string]hookspkg.Executor{
-		"tool-hook": hookspkg.NewTypedNativeExecutor(
-			func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
-				select {
-				case toolPayloads <- payload:
-				default:
-				}
-				return hookspkg.ToolCallPatch{}, nil
-			},
-		),
-	})
-
-	record := h.putBinding(t, "tool-hook", 0, resources.ResourceScope{
-		Kind: resources.ResourceScopeKindWorkspace,
-		ID:   "ws-1",
-	}, hookspkg.HookDecl{
-		Name:         "tool-hook",
-		Event:        hookspkg.HookToolPreCall,
-		Source:       hookspkg.HookSourceNative,
-		Mode:         hookspkg.HookModeSync,
-		ExecutorKind: hookspkg.HookExecutorNative,
-		Matcher: hookspkg.HookMatcher{
-			AgentName: "codex",
-			ToolID:    "Read",
-		},
-	})
-	if record.Version <= 0 {
-		t.Fatalf("record.Version = %d, want positive", record.Version)
-	}
-	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
-		t.Fatalf("driver.RunBoot() error = %v", err)
-	}
-
-	h.notifier.OnAgentEventForSession(testutil.Context(t), integrationSession(), acp.AgentEvent{
-		Type:       acp.EventTypeToolCall,
-		SessionID:  "acp-session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "tool-1",
-		Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
-	})
-
-	select {
-	case payload := <-toolPayloads:
-		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" {
-			t.Fatalf("payload.SessionContext = %#v, want session metadata", payload.SessionContext)
-		}
-		if payload.ToolID != "Read" {
-			t.Fatalf("payload.ToolID = %q, want %q", payload.ToolID, "Read")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for resource-backed tool.pre_call hook")
-	}
 }
 
 func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(t *testing.T) {
@@ -463,8 +406,7 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 		Matcher: hookspkg.HookMatcher{
 			WorkspaceID: "ws-1",
 			Autonomy: &hookspkg.AutonomyMatcher{
-				TaskID:               "task-1",
-				ParticipationChannel: "coord-ch-1",
+				TaskID: "task-1",
 			},
 		},
 	})
@@ -473,47 +415,34 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 	}
 
 	if _, err := h.notifier.DispatchTaskRunEnqueued(testutil.Context(t), hookspkg.TaskRunEnqueuedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunEnqueued,
-			Timestamp: time.Date(2026, 4, 15, 11, 59, 0, 0, time.UTC),
-		},
-		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:                       "task-1",
-			RunID:                        "run-mismatched-channel",
-			WorkspaceID:                  "ws-1",
-			ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "other-channel"),
-		},
+		Event:       hookspkg.HookTaskRunEnqueued,
+		Timestamp:   time.Date(2026, 4, 15, 11, 59, 0, 0, time.UTC),
+		TaskID:      "other-task",
+		RunID:       "run-other-task",
+		WorkspaceID: "ws-1",
 	}); err != nil {
-		t.Fatalf("DispatchTaskRunEnqueued(mismatched channel) error = %v", err)
+		t.Fatalf("DispatchTaskRunEnqueued(mismatched task) error = %v", err)
 	}
 	select {
 	case payload := <-taskRunPayloads:
-		t.Fatalf("mismatched participation dispatched payload %#v", payload.TaskRunContext)
+		t.Fatalf("mismatched task dispatched payload %#v", payload.TaskRunContext)
 	default:
 	}
 
 	if _, err := h.notifier.DispatchTaskRunEnqueued(testutil.Context(t), hookspkg.TaskRunEnqueuedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunEnqueued,
-			Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
-		},
-		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:                       "task-1",
-			RunID:                        "run-1",
-			WorkspaceID:                  "ws-1",
-			ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "coord-ch-1"),
-		},
+		Event:       hookspkg.HookTaskRunEnqueued,
+		Timestamp:   time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		WorkspaceID: "ws-1",
 	}); err != nil {
 		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
 	}
 
 	select {
 	case payload := <-taskRunPayloads:
-		if payload.RunID != "run-1" ||
-			payload.ResolvedNetworkParticipation == nil ||
-			payload.ResolvedNetworkParticipation.WorkspaceID != "ws-1" ||
-			resolvedParticipationChannelID(payload.ResolvedNetworkParticipation) != "coord-ch-1" {
-			t.Fatalf("task-run payload = %#v, want run and participation channel metadata", payload.TaskRunContext)
+		if payload.RunID != "run-1" || payload.TaskID != "task-1" || payload.WorkspaceID != "ws-1" {
+			t.Fatalf("task-run payload = %#v, want task run and workspace metadata", payload.TaskRunContext)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for resource-backed task.run.enqueued hook")
@@ -553,17 +482,13 @@ func TestHookBindingResourceReconcileFiresTaskStatusChangedHookThroughDaemonBrid
 		}
 
 		if _, err := h.notifier.DispatchTaskStatusChanged(testutil.Context(t), hookspkg.TaskStatusChangedPayload{
-			PayloadBase: hookspkg.PayloadBase{
-				Event:     hookspkg.HookTaskStatusChanged,
-				Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
-			},
-			TaskContext: hookspkg.TaskContext{
-				TaskID:       "task-1",
-				ParentTaskID: "task-parent",
-				WorkspaceID:  "ws-1",
-			},
-			FromStatus: "ready",
-			ToStatus:   "blocked",
+			Event:        hookspkg.HookTaskStatusChanged,
+			Timestamp:    time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+			TaskID:       "task-1",
+			ParentTaskID: "task-parent",
+			WorkspaceID:  "ws-1",
+			FromStatus:   "ready",
+			ToStatus:     "blocked",
 		}); err != nil {
 			t.Fatalf("DispatchTaskStatusChanged() error = %v", err)
 		}
@@ -605,6 +530,9 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 			ToolID:    "Read",
 		},
 	})
+	if record.Version <= 0 {
+		t.Fatalf("record.Version = %d, want positive", record.Version)
+	}
 	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
 		t.Fatalf("initial driver.RunBoot() error = %v", err)
 	}
@@ -616,7 +544,10 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 		Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
 	})
 	select {
-	case <-toolPayloads:
+	case payload := <-toolPayloads:
+		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" || payload.ToolID != "Read" {
+			t.Fatalf("initial payload = %#v, want session/workspace metadata and Read tool", payload)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for initial stable hook dispatch")
 	}

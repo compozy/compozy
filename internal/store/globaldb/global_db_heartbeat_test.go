@@ -623,6 +623,38 @@ func TestGlobalDBSessionHealthStore(t *testing.T) {
 func TestGlobalDBHeartbeatWakeAuditStore(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: retention with no expired events does not reserve the writer; heartbeat storage owns it.
+	t.Run("Should skip the writer when heartbeat retention has no expired events", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+				t.Error(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		scanCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		count, err := db.SweepHeartbeatWakeEvents(
+			scanCtx,
+			time.Date(2026, time.October, 3, 12, 0, 0, 0, time.UTC),
+			1000,
+		)
+		if err != nil || count != 0 {
+			t.Fatalf("empty retention = %d, %v", count, err)
+		}
+	})
+
 	t.Run("Should select profile wake status and events before applying limits", func(t *testing.T) {
 		t.Parallel()
 
@@ -1043,7 +1075,7 @@ func TestGlobalDBHeartbeatStoreDefaultsAndErrors(t *testing.T) {
 func TestGlobalDBHeartbeatStorageBoundaries(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should avoid queue lease claim and network greet columns in Heartbeat storage", func(t *testing.T) {
+	t.Run("Should avoid queue lease and claim columns in Heartbeat storage", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -1071,16 +1103,6 @@ func TestGlobalDBHeartbeatStorageBoundaries(t *testing.T) {
 			"heartbeat_snapshot_id",
 			"wake_event_id",
 			"wake_reason",
-		})
-		assertTableExcludesColumns(t, globalDB.db, "network_audit_log", []string{
-			"heartbeat_digest",
-			"session_health",
-			"wake_event_id",
-		})
-		assertTableExcludesColumns(t, globalDB.db, "network_channels", []string{
-			"heartbeat_digest",
-			"session_health",
-			"wake_event_id",
 		})
 	})
 }

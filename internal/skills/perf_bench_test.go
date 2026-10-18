@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,7 +86,7 @@ func BenchmarkScanDirectoryWithSnapshots(b *testing.B) {
 func BenchmarkRegistryForWorkspaceCached(b *testing.B) {
 	b.ReportAllocs()
 
-	ctx := context.Background()
+	ctx := b.Context()
 	userDir := b.TempDir()
 	for i := range 128 {
 		benchmarkWriteSkill(
@@ -120,11 +119,9 @@ func BenchmarkRegistryForWorkspaceCached(b *testing.B) {
 	}
 
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "bench-workspace",
-			RootDir: workspaceRoot,
-		},
-		Skills: workspaceSkillDirs,
+		ID:      "bench-workspace",
+		RootDir: workspaceRoot,
+		Skills:  workspaceSkillDirs,
 	}
 	if _, err := registry.ForWorkspace(ctx, resolved); err != nil {
 		b.Fatalf("ForWorkspace(warmup) error = %v", err)

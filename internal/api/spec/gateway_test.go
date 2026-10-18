@@ -84,18 +84,6 @@ func TestGatewayOperationRegistry(t *testing.T) {
 				operationID: "unbindGatewayIngress", transports: []Transport{TransportHTTP, TransportUDS},
 				auth: managementAuth, statuses: []int{200, 400, 403, 404, 500},
 			},
-			"GET /api/bridge-callbacks/{id}": {
-				operationID: "probeGatewayBridgeCallback", transports: []Transport{TransportHTTP},
-				statuses: []int{200, 204, 400, 404, 413, 429, 502, 504},
-			},
-			"POST /api/bridge-callbacks/{id}": {
-				operationID: "deliverGatewayBridgeCallback", transports: []Transport{TransportHTTP},
-				statuses: []int{200, 204, 400, 404, 413, 429, 502, 504},
-			},
-			"HEAD /api/bridge-callbacks/{id}": {
-				operationID: "headGatewayBridgeCallback", transports: []Transport{TransportHTTP},
-				statuses: []int{200, 204, 400, 404, 413, 429, 502, 504},
-			},
 		}
 
 		actual := make(map[string]OperationSpec)
@@ -133,27 +121,6 @@ func TestGatewayOperationRegistry(t *testing.T) {
 		if name.Name != "name" || name.In != "path" || !name.Required ||
 			tier.Name != "tier" || tier.In != "query" || !tier.Required {
 			t.Fatalf("disable parameters = %#v", operation.Parameters)
-		}
-	})
-
-	t.Run("Should document adapter-owned callback statuses and media types", func(t *testing.T) {
-		t.Parallel()
-		for _, operationID := range []string{
-			"probeGatewayBridgeCallback",
-			"deliverGatewayBridgeCallback",
-			"headGatewayBridgeCallback",
-		} {
-			operation := gatewayOperationByID(t, operationID)
-			found := false
-			for _, response := range operation.Responses {
-				if response.Default && response.ContentType == "*/*" {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Fatalf("operation %q has no wildcard default adapter response", operationID)
-			}
 		}
 	})
 

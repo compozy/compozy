@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"errors"
 	"syscall"
 	"time"
 
@@ -21,9 +20,6 @@ func recoveredTerminationTarget(meta *store.SessionMeta) (*AgentProcess, termina
 		}
 	}
 	verify := func(proc *AgentProcess) (bool, error) {
-		if recoveredProcessRequiresRemoteProof(meta) {
-			return false, errors.New("session: recovered remote process requires remote exit proof")
-		}
 		return procutil.VerifyProcessExit(proc.PID, proc.StartedAt)
 	}
 	return proc, terminationTarget{
@@ -63,8 +59,4 @@ func recoveredProcessSignal(
 			}
 		}
 	}
-}
-
-func recoveredProcessRequiresRemoteProof(meta *store.SessionMeta) bool {
-	return meta.Sandbox != nil && meta.Sandbox.Backend != "local"
 }

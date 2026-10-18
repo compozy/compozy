@@ -9,23 +9,19 @@ import (
 
 // SessionPermissionPolicy captures concrete permission atoms available to a session.
 type SessionPermissionPolicy struct {
-	Tools           []string `json:"tools"`
-	Skills          []string `json:"skills"`
-	MCPServers      []string `json:"mcp_servers"`
-	WorkspacePaths  []string `json:"workspace_paths"`
-	NetworkChannels []string `json:"network_channels"`
-	SandboxProfiles []string `json:"sandbox_profiles"`
+	Tools          []string `json:"tools"`
+	Skills         []string `json:"skills"`
+	MCPServers     []string `json:"mcp_servers"`
+	WorkspacePaths []string `json:"workspace_paths"`
 }
 
 // NormalizeSessionPermissionPolicy returns a policy with stable, trimmed atom lists.
 func NormalizeSessionPermissionPolicy(policy SessionPermissionPolicy) SessionPermissionPolicy {
 	return SessionPermissionPolicy{
-		Tools:           normalizePolicyAtoms(policy.Tools),
-		Skills:          normalizePolicyAtoms(policy.Skills),
-		MCPServers:      normalizePolicyAtoms(policy.MCPServers),
-		WorkspacePaths:  normalizePolicyAtoms(policy.WorkspacePaths),
-		NetworkChannels: normalizePolicyAtoms(policy.NetworkChannels),
-		SandboxProfiles: normalizePolicyAtoms(policy.SandboxProfiles),
+		Tools:          normalizePolicyAtoms(policy.Tools),
+		Skills:         normalizePolicyAtoms(policy.Skills),
+		MCPServers:     normalizePolicyAtoms(policy.MCPServers),
+		WorkspacePaths: normalizePolicyAtoms(policy.WorkspacePaths),
 	}
 }
 
@@ -38,8 +34,6 @@ func validateSessionPermissionPolicy(policy SessionPermissionPolicy) error {
 		{name: "skills", values: policy.Skills},
 		{name: "mcp_servers", values: policy.MCPServers},
 		{name: "workspace_paths", values: policy.WorkspacePaths},
-		{name: "network_channels", values: policy.NetworkChannels},
-		{name: "sandbox_profiles", values: policy.SandboxProfiles},
 	}
 	for _, check := range checks {
 		for idx, value := range check.values {

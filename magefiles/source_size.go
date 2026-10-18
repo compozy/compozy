@@ -4,12 +4,14 @@ package main
 
 import (
 	"bytes"
+	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -83,7 +85,7 @@ func inspectProductionSourceLineLimit(root string) ([]productionSourceSizeViolat
 }
 
 func listTrackedFiles(root string) ([]string, error) {
-	command := exec.Command(
+	command := exec.CommandContext(context.Background(),
 		"git",
 		"-C",
 		root,
@@ -138,11 +140,8 @@ func inspectTrackedProductionSources(
 		violations = append(violations, productionSourceSizeViolation{path: path, lines: lines})
 	}
 
-	sort.Slice(violations, func(left int, right int) bool {
-		if violations[left].lines == violations[right].lines {
-			return violations[left].path < violations[right].path
-		}
-		return violations[left].lines > violations[right].lines
+	slices.SortFunc(violations, func(a, b productionSourceSizeViolation) int {
+		return cmp.Or(cmp.Compare(b.lines, a.lines), cmp.Compare(a.path, b.path))
 	})
 	return violations, nil
 }
@@ -160,7 +159,7 @@ func isProductionSourcePath(path string) bool {
 	if isTestSourceName(name) || isGeneratedSourceName(name) {
 		return false
 	}
-	for _, segment := range strings.Split(path, "/") {
+	for segment := range strings.SplitSeq(path, "/") {
 		if _, excluded := excludedProductionSourceSegments[segment]; excluded {
 			return false
 		}

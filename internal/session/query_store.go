@@ -30,7 +30,7 @@ func newDefaultQueryStoreRuntime(logger *slog.Logger) *queryStoreRuntime {
 	pool := sessiondb.NewReadOnlyPool(sessiondb.ReadOnlyPoolConfig{
 		TTL: defaultReadOnlyQueryStoreTTL,
 		Open: func(ctx context.Context, owner store.SessionDBOwner, path string) (store.EventReadCloser, error) {
-			return sessiondb.OpenSessionDBReadOnly(ctx, owner, path)
+			return sessiondb.OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
 		},
 	})
 	if logger == nil {

@@ -18,8 +18,8 @@ export const vaultSecretFixtures: VaultSecret[] = [
     updated_at: "2026-04-17T10:20:00Z",
   },
   {
-    ref: "vault:bridges/slack/launch-room",
-    namespace: "bridges",
+    ref: "vault:extensions/tools/launch-room",
+    namespace: "extensions",
     kind: "bot_token",
     present: true,
     created_at: "2026-04-16T19:05:00Z",

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const defaultViewOpenBudget = 5 * time.Second
@@ -88,7 +88,7 @@ func newViewSession(
 ) *viewSession {
 	sessionCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &viewSession{
-		id: "vs_" + uuid.NewString(), streamToken: "vst_" + uuid.NewString(),
+		id: "vs_" + uuid.NewV4().String(), streamToken: "vst_" + uuid.NewV4().String(),
 		profileLens: request.ProfileLens,
 		workspace:   request.Workspace, client: request.Client, view: descriptor.ID,
 		extension: descriptor.Extension,
@@ -164,7 +164,7 @@ func (s *Service) resolveAttachedViewClient(
 		}
 		return request.Client, nil
 	}
-	clients, err := s.clients.Clients(ctx, request.Workspace)
+	clients, err := s.clients.AttachedClients(ctx, request.Workspace)
 	if err != nil {
 		return "", fmt.Errorf("cmd palette view: list attached clients: %w", err)
 	}

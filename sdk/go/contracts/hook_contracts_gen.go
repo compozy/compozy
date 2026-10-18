@@ -6,6 +6,7 @@ type HookContract[P any, Patch any] struct {
 	Event HookEvent
 }
 
+var HookSubagentSettledContract = HookContract[SubagentSettledPayload, SubagentObservationPatch]{Event: HookEventSubagentSettled}
 var HookSessionPreCreateContract = HookContract[SessionPreCreatePayload, SessionCreatePatch]{Event: HookEventSessionPreCreate}
 var HookSessionPostCreateContract = HookContract[SessionPostCreatePayload, SessionPostCreatePatch]{Event: HookEventSessionPostCreate}
 var HookSessionPreResumeContract = HookContract[SessionPreResumePayload, SessionPreResumePatch]{Event: HookEventSessionPreResume}
@@ -16,11 +17,6 @@ var HookSessionMessagePersistedContract = HookContract[SessionMessagePersistedPa
 var HookSessionRuntimeRecoveryStartedContract = HookContract[SessionRuntimeRecoveryStartedPayload, AuthoredContextObservationPatch]{Event: HookEventSessionRuntimeRecoveryStarted}
 var HookSessionRuntimeRecoverySucceededContract = HookContract[SessionRuntimeRecoverySucceededPayload, AuthoredContextObservationPatch]{Event: HookEventSessionRuntimeRecoverySucceeded}
 var HookSessionRuntimeRecoveryExhaustedContract = HookContract[SessionRuntimeRecoveryExhaustedPayload, AuthoredContextObservationPatch]{Event: HookEventSessionRuntimeRecoveryExhausted}
-var HookSandboxPrepareContract = HookContract[SandboxPreparePayload, SandboxPreparePatch]{Event: HookEventSandboxPrepare}
-var HookSandboxReadyContract = HookContract[SandboxReadyPayload, SandboxReadyPatch]{Event: HookEventSandboxReady}
-var HookSandboxSyncBeforeContract = HookContract[SandboxSyncBeforePayload, SandboxSyncBeforePatch]{Event: HookEventSandboxSyncBefore}
-var HookSandboxSyncAfterContract = HookContract[SandboxSyncAfterPayload, SandboxSyncAfterPatch]{Event: HookEventSandboxSyncAfter}
-var HookSandboxStopContract = HookContract[SandboxStopPayload, SandboxStopPatch]{Event: HookEventSandboxStop}
 var HookInputPreSubmitContract = HookContract[InputPreSubmitPayload, InputPreSubmitPatch]{Event: HookEventInputPreSubmit}
 var HookPromptPostAssembleContract = HookContract[PromptPayload, PromptPatch]{Event: HookEventPromptPostAssemble}
 var HookEventPreRecordContract = HookContract[EventPreRecordPayload, EventPreRecordPatch]{Event: HookEventEventPreRecord}
@@ -86,16 +82,6 @@ var HookSpawnParentStoppedContract = HookContract[SpawnParentStoppedPayload, Spa
 var HookSpawnTtlExpiredContract = HookContract[SpawnTTLExpiredPayload, SpawnObservationPatch]{Event: HookEventSpawnTtlExpired}
 var HookSpawnReapedContract = HookContract[SpawnReapedPayload, SpawnObservationPatch]{Event: HookEventSpawnReaped}
 var HookSessionAttentionChangedContract = HookContract[SessionAttentionChangedPayload, SessionAttentionObservationPatch]{Event: HookEventSessionAttentionChanged}
-var HookNetworkThreadOpenedContract = HookContract[NetworkThreadOpenedPayload, NetworkObservationPatch]{Event: HookEventNetworkThreadOpened}
-var HookNetworkDirectRoomOpenedContract = HookContract[NetworkDirectRoomOpenedPayload, NetworkObservationPatch]{Event: HookEventNetworkDirectRoomOpened}
-var HookNetworkMessagePersistedContract = HookContract[NetworkMessagePersistedPayload, NetworkObservationPatch]{Event: HookEventNetworkMessagePersisted}
-var HookNetworkWorkOpenedContract = HookContract[NetworkWorkOpenedPayload, NetworkObservationPatch]{Event: HookEventNetworkWorkOpened}
-var HookNetworkWorkTransitionedContract = HookContract[NetworkWorkTransitionedPayload, NetworkObservationPatch]{Event: HookEventNetworkWorkTransitioned}
-var HookNetworkWorkClosedContract = HookContract[NetworkWorkClosedPayload, NetworkObservationPatch]{Event: HookEventNetworkWorkClosed}
-var HookNetworkPeerJoinedContract = HookContract[NetworkPeerJoinedPayload, NetworkObservationPatch]{Event: HookEventNetworkPeerJoined}
-var HookNetworkPeerLeftContract = HookContract[NetworkPeerLeftPayload, NetworkObservationPatch]{Event: HookEventNetworkPeerLeft}
-var HookNetworkParticipationPreResolveContract = HookContract[NetworkParticipationPreResolvePayload, NetworkParticipationPreResolvePatch]{Event: HookEventNetworkParticipationPreResolve}
-var HookNetworkParticipationResolvedContract = HookContract[NetworkParticipationResolvedPayload, NetworkParticipationResolvedPatch]{Event: HookEventNetworkParticipationResolved}
 var HookWindowManagerLayoutAppliedContract = HookContract[WindowManagerLayoutAppliedPayload, WindowManagerObservationPatch]{Event: HookEventWindowManagerLayoutApplied}
 var HookWindowManagerDesktopCreatedContract = HookContract[WindowManagerDesktopCreatedPayload, WindowManagerObservationPatch]{Event: HookEventWindowManagerDesktopCreated}
 var HookWindowManagerDesktopDeletedContract = HookContract[WindowManagerDesktopDeletedPayload, WindowManagerObservationPatch]{Event: HookEventWindowManagerDesktopDeleted}

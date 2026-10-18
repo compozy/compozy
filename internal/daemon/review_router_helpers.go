@@ -26,9 +26,7 @@ func (r *reviewRouter) isOriginalWorker(info *session.Info, original originalWor
 	if strings.TrimSpace(original.sessionID) != "" && strings.TrimSpace(info.ID) == original.sessionID {
 		return true
 	}
-	if strings.TrimSpace(original.peerID) != "" && reviewRouterPeerID(info) == original.peerID {
-		return true
-	}
+
 	return false
 }
 
@@ -87,13 +85,6 @@ func selectorAllows(exact string, allowed []string, value string) bool {
 		return false
 	}
 	return len(allowed) == 0 || slices.Contains(allowed, value)
-}
-
-func reviewRouterPeerID(info *session.Info) string {
-	if info == nil {
-		return ""
-	}
-	return strings.ToLower(strings.TrimSpace(info.AgentName)) + "." + strings.TrimSpace(info.ID)
 }
 
 func reviewSessionName(taskID string) string {

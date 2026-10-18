@@ -21,9 +21,6 @@ func (g *SessionRepo) AggregateSessionsByAgent(
 		return nil, err
 	}
 	now := g.now()
-	if _, err := g.SweepExpiredSessionAttachLocks(ctx, now); err != nil {
-		return nil, fmt.Errorf("store: sweep expired session attach locks before aggregating agents: %w", err)
-	}
 
 	where, args, err := sessionCatalogPageFilters(store.SessionCatalogPageQuery{
 		ReadScope:           query.ReadScope,

@@ -46,8 +46,8 @@ func TestCmdPaletteConfig(t *testing.T) {
 				cfg := DefaultCmdPaletteConfig()
 				cfg.Aliases["session.new"] = testCase.alias
 				err := cfg.Validate()
-				var validationErr ValidationError
-				if !errors.As(err, &validationErr) {
+				validationErr, validationErrOK := errors.AsType[ValidationError](err)
+				if !validationErrOK {
 					t.Fatalf("Validate() error = %T %v, want ValidationError", err, err)
 				}
 				if validationErr.Path != `cmd_palette.aliases["session.new"]` {
@@ -63,8 +63,8 @@ func TestCmdPaletteConfig(t *testing.T) {
 		cfg := DefaultCmdPaletteConfig()
 		cfg.FallbackTargets = []string{"telegram"}
 		err := cfg.Validate()
-		var validationErr ValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrOK := errors.AsType[ValidationError](err)
+		if !validationErrOK {
 			t.Fatalf("Validate() error = %T %v, want ValidationError", err, err)
 		}
 		if validationErr.Path != "cmd_palette.fallback_targets[0]" ||
@@ -106,8 +106,8 @@ func TestCmdPaletteConfig(t *testing.T) {
 			"palette.open": "go",
 		}
 		err := cfg.Validate()
-		var validationErr ValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrOK := errors.AsType[ValidationError](err)
+		if !validationErrOK {
 			t.Fatalf("Validate() error = %T %v, want ValidationError", err, err)
 		}
 		if validationErr.Path != `cmd_palette.aliases["session.new"]` ||

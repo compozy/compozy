@@ -288,7 +288,6 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 			ACPSessionID:             "acp-provider",
 			WorkspaceID:              "ws-provider",
 			Workspace:                t.TempDir(),
-			NetworkParticipation:     testLocalParticipation(),
 			State:                    StateActive,
 			CreatedAt:                now,
 			UpdatedAt:                now,
@@ -331,7 +330,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 
 		metaPath := filepath.Join(t.TempDir(), "meta.json")
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 		rawMeta, err := os.ReadFile(metaPath)
@@ -394,16 +393,15 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
 		}}
 		session := &Session{
-			ID:                   "sess-commands",
-			AgentName:            "coder",
-			RuntimeStatus:        RuntimeStatusUnbound,
-			WorkspaceID:          "ws-commands",
-			Workspace:            t.TempDir(),
-			NetworkParticipation: testLocalParticipation(),
-			State:                StateActive,
-			AdvertisedCommands:   commands,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ID:                 "sess-commands",
+			AgentName:          "coder",
+			RuntimeStatus:      RuntimeStatusUnbound,
+			WorkspaceID:        "ws-commands",
+			Workspace:          t.TempDir(),
+			State:              StateActive,
+			AdvertisedCommands: commands,
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
 
 		meta := session.Meta()
@@ -424,7 +422,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 
 		metaPath := filepath.Join(t.TempDir(), "meta.json")
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 		readBack, err := store.ReadSessionMeta(metaPath)
@@ -487,19 +485,45 @@ func TestBeginPromptSetupRejectsReservedConversationRewind(t *testing.T) {
 func TestNormalizeSessionTypeDefaultsToUser(t *testing.T) {
 	t.Parallel()
 
-	if got := normalizeSessionType(""); got != SessionTypeUser {
-		t.Fatalf("normalizeSessionType(\"\") = %q, want %q", got, SessionTypeUser)
-	}
-	if got := normalizeSessionType(" dream "); got != SessionTypeDream {
-		t.Fatalf("normalizeSessionType(\" dream \") = %q, want %q", got, SessionTypeDream)
-	}
-	if got := normalizeSessionType(" coordinator "); got != SessionTypeCoordinator {
-		t.Fatalf("normalizeSessionType(\" coordinator \") = %q, want %q", got, SessionTypeCoordinator)
-	}
-	if got := normalizeSessionType(" spawned "); got != SessionTypeSpawned {
-		t.Fatalf("normalizeSessionType(\" spawned \") = %q, want %q", got, SessionTypeSpawned)
-	}
-	if got := normalizeSessionType("unknown"); got != SessionTypeUser {
-		t.Fatalf("normalizeSessionType(\"unknown\") = %q, want %q", got, SessionTypeUser)
+	t.Run("Should normalize supported types and default unknown types to user", func(t *testing.T) {
+		t.Parallel()
+
+		if got := normalizeSessionType(""); got != SessionTypeUser {
+			t.Fatalf("normalizeSessionType(\"\") = %q, want %q", got, SessionTypeUser)
+		}
+
+		if got := normalizeSessionType(" coordinator "); got != SessionTypeCoordinator {
+			t.Fatalf("normalizeSessionType(\" coordinator \") = %q, want %q", got, SessionTypeCoordinator)
+		}
+		if got := normalizeSessionType(" spawned "); got != SessionTypeSpawned {
+			t.Fatalf("normalizeSessionType(\" spawned \") = %q, want %q", got, SessionTypeSpawned)
+		}
+		if got := normalizeSessionType("unknown"); got != SessionTypeUser {
+			t.Fatalf("normalizeSessionType(\"unknown\") = %q, want %q", got, SessionTypeUser)
+		}
+	})
+}
+
+func TestResolveCompactionCommand(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		commands []store.SessionAdvertisedCommand
+		want     string
+		ok       bool
+	}{
+		{name: "Should resolve compact", commands: []store.SessionAdvertisedCommand{{Name: "compact"}}, want: "compact", ok: true},
+		{name: "Should resolve compress", commands: []store.SessionAdvertisedCommand{{Name: "compress"}}, want: "compress", ok: true},
+		{name: "Should prefer compact", commands: []store.SessionAdvertisedCommand{{Name: "compress"}, {Name: "compact"}}, want: "compact", ok: true},
+		{name: "Should reject other commands", commands: []store.SessionAdvertisedCommand{{Name: "review"}}},
+		{name: "Should reject an empty command set"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := ResolveCompactionCommand(tc.commands)
+			if got != tc.want || ok != tc.ok {
+				t.Fatalf("ResolveCompactionCommand=%q,%t want %q,%t", got, ok, tc.want, tc.ok)
+			}
+		})
 	}
 }

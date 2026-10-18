@@ -20,6 +20,7 @@ import type { WorkspacePayload } from "@/systems/workspace/types";
 
 import { fetchWindowManagerSnapshot } from "../../adapters/window-manager-api";
 import { windowManagerKeys } from "../../lib/window-manager-query";
+import type { WindowManagerClientCommandExecutor } from "../../lib/window-manager-client-command-frames";
 import type {
   WindowManagerClientView,
   WindowManagerSnapshot,
@@ -30,9 +31,11 @@ import {
   WINDOW_MANAGER_STREAM_STALL_MS,
   windowManagerReconnectDelay,
   type WindowManagerClientContextInput,
-  type WindowManagerSocket,
-  type WindowManagerSocketFactory,
 } from "../use-window-manager-stream";
+import type {
+  WindowManagerSocket,
+  WindowManagerSocketFactory,
+} from "../../lib/window-manager-stream-socket";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../../adapters/window-manager-api")>();
@@ -73,7 +76,7 @@ class FakeSocket implements WindowManagerSocket {
 
 function snapshot(revision: number): WindowManagerSnapshot {
   return {
-    version: 4,
+    version: 5,
     workspaceId: "workspace:test",
     revision,
     desktops: [
@@ -169,7 +172,7 @@ function rawSnapshotFrame(revision: number) {
     workspace_id: "workspace:test",
     revision,
     snapshot: {
-      version: 4,
+      version: 5,
       workspace_id: "workspace:test",
       revision,
       desktops: [
@@ -608,61 +611,72 @@ describe("useWindowManagerStream", () => {
     expect(signal?.aborted).toBe(true);
   });
 
-  it("Should acknowledge client commands before returning their terminal result", async () => {
-    const queryClient = new QueryClient();
-    const { factory, sockets } = createSocketFactory();
-    const onClientCommand = vi.fn().mockResolvedValue({ opened: true });
+  it.each([false, true])(
+    "Should return one client result before disconnect: %s",
+    async disconnect => {
+      // Invariant: a completed scope-changing command replies once before its stream is closed.
+      // Owner: stream protocol; canonical suite: this existing terminal-result case.
+      const queryClient = new QueryClient();
+      const { factory, sockets } = createSocketFactory();
+      const onClientCommand = vi.fn<WindowManagerClientCommandExecutor>(async (_command, reply) => {
+        if (disconnect) {
+          reply({ opened: true });
+          unmount();
+        }
+        return { opened: true };
+      });
 
-    renderHook(
-      () =>
-        useWindowManagerStream({
-          workspaceId: "workspace:test",
-          profileId: "marketing",
-          clientId: "client:web",
-          registrationEpoch: 0,
-          currentClient: client(1),
-          enabled: true,
-          afterRevision: 1,
-          socketFactory: factory,
-          onStatusChange: vi.fn(),
-          onSnapshot: vi.fn(),
-          onClient: vi.fn(),
-          onClientCommand,
-          onClientInvalidated: vi.fn(),
-          onError: vi.fn(),
-        }),
-      { wrapper: wrapper(queryClient) }
-    );
+      const { unmount } = renderHook(
+        () =>
+          useWindowManagerStream({
+            workspaceId: "workspace:test",
+            profileId: "marketing",
+            clientId: "client:web",
+            registrationEpoch: 0,
+            currentClient: client(1),
+            enabled: true,
+            afterRevision: 1,
+            socketFactory: factory,
+            onStatusChange: vi.fn(),
+            onSnapshot: vi.fn(),
+            onClient: vi.fn(),
+            onClientCommand,
+            onClientInvalidated: vi.fn(),
+            onError: vi.fn(),
+          }),
+        { wrapper: wrapper(queryClient) }
+      );
 
-    act(() =>
-      sockets[0]?.message({
-        type: "client_command",
-        workspace_id: "workspace:test",
-        command_id: "invocation-a",
-        op: "palette.open",
-        payload: { args: {} },
-      })
-    );
+      act(() =>
+        sockets[0]?.message({
+          type: "client_command",
+          workspace_id: "workspace:test",
+          command_id: "invocation-a",
+          op: "palette.open",
+          payload: { args: {} },
+        })
+      );
 
-    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
-      1,
-      JSON.stringify({ type: "client_command_ack", command_id: "invocation-a" })
-    );
-    await waitFor(() => expect(sockets[0]?.send).toHaveBeenCalledTimes(2));
-    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
-      2,
-      JSON.stringify({
-        type: "client_command_result",
-        command_id: "invocation-a",
-        result: { opened: true },
-      })
-    );
-    expect(onClientCommand).toHaveBeenCalledWith({
-      commandId: "invocation-a",
-      op: "palette.open",
-      payload: { args: {} },
-    });
-  });
+      expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+        1,
+        JSON.stringify({ type: "client_command_ack", command_id: "invocation-a" })
+      );
+      await waitFor(() => expect(sockets[0]?.send).toHaveBeenCalledTimes(2));
+      expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+        2,
+        JSON.stringify({
+          type: "client_command_result",
+          command_id: "invocation-a",
+          result: { opened: true },
+        })
+      );
+      expect(onClientCommand).toHaveBeenCalledWith(
+        { commandId: "invocation-a", op: "palette.open", payload: { args: {} } },
+        expect.any(Function)
+      );
+      if (disconnect) expect(sockets[0]?.close).toHaveBeenCalledOnce();
+    }
+  );
 
   it("Should acknowledge a rejected client command and write its error result", async () => {
     const queryClient = new QueryClient();
@@ -1002,6 +1016,43 @@ describe("useWindowManagerStream", () => {
         windowManagerKeys.snapshot("workspace:test", "marketing")
       )?.revision
     ).toBe(2);
+  });
+
+  it("Should stay idle before the first stream attempt and report a later stop as disconnected", () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onStatusChange = vi.fn();
+    const props = (clientId: string | null) => ({
+      workspaceId: "workspace:test",
+      profileId: "marketing",
+      clientId,
+      registrationEpoch: 0,
+      currentClient: clientId === null ? null : client(1),
+      enabled: true,
+      afterRevision: 0,
+      socketFactory: factory,
+      onStatusChange,
+      onSnapshot: vi.fn(),
+      onClient: vi.fn(),
+      onClientInvalidated: vi.fn(),
+      onError: vi.fn(),
+    });
+    const { rerender } = renderHook(
+      ({ clientId }: { clientId: string | null }) => useWindowManagerStream(props(clientId)),
+      { wrapper: wrapper(queryClient), initialProps: { clientId: null as string | null } }
+    );
+    // Registration pending: no stream attempted yet, so there is nothing to report.
+    expect(onStatusChange).toHaveBeenLastCalledWith("idle");
+    expect(onStatusChange).not.toHaveBeenCalledWith("disconnected");
+
+    rerender({ clientId: "client:web" });
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+    expect(onStatusChange).toHaveBeenLastCalledWith("connected");
+
+    // The client is lost and re-registers: that stop is a real disconnect.
+    rerender({ clientId: null });
+    expect(onStatusChange).toHaveBeenLastCalledWith("disconnected");
   });
 
   it("Should drop a silent socket after the stall window and reconnect", async () => {

@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +23,6 @@ import (
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -33,8 +33,8 @@ func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	handle, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
+	launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+	handle, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "sh -c 'read line; printf \"%s\\n\" \"$line\"; sleep 0.1'",
 		Cwd:     root,
 		Env:     os.Environ(),
@@ -90,7 +90,7 @@ func TestLocalConstructorsReturnInterfaceImplementations(t *testing.T) {
 		t.Fatal("NewLocalToolHost(nil context) error = nil, want context validation failure")
 	}
 
-	host, err := NewLocalToolHost(context.Background(), t.TempDir(), "", nil)
+	host, err := NewLocalToolHost(t.Context(), t.TempDir(), "", nil)
 	if err != nil {
 		t.Fatalf("NewLocalToolHost() error = %v", err)
 	}
@@ -107,8 +107,8 @@ func TestLocalConstructorsReturnInterfaceImplementations(t *testing.T) {
 func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 	t.Parallel()
 
-	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	if _, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
+	launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+	if _, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "definitely-not-an-compozy-test-command",
 		Cwd:     t.TempDir(),
 	}); err == nil {
@@ -116,11 +116,47 @@ func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 	}
 }
 
+func TestLocalLauncherPrepareLaunchForwardsLeadingEnvironment(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should forward a route account's leading assignments as environment, not as the executable",
+		func(t *testing.T) {
+			t.Parallel()
+
+			launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+			spec, err := launcher.PrepareLaunch(testutil.Context(t), LaunchSpec{
+				Command: "QA_ACCOUNT=seat-two QA_HOME='/tmp/seat two' sh -c true",
+				Cwd:     t.TempDir(),
+				Env:     []string{"PATH=" + os.Getenv("PATH"), "QA_ACCOUNT=operator"},
+			})
+			if err != nil {
+				t.Fatalf("PrepareLaunch(env-prefixed command) error = %v", err)
+			}
+			if filepath.Base(spec.ResolvedExecutable) != "sh" || !slices.Equal(spec.Args, []string{"-c", "true"}) {
+				t.Fatalf(
+					"PrepareLaunch() executable/args = %q %v, want sh [-c true]",
+					spec.ResolvedExecutable,
+					spec.Args,
+				)
+			}
+			if strings.Contains(spec.Command, "QA_ACCOUNT") {
+				t.Fatalf("PrepareLaunch() command = %q, want the assignments out of argv", spec.Command)
+			}
+			for key, want := range map[string]string{"QA_ACCOUNT": "seat-two", "QA_HOME": "/tmp/seat two"} {
+				if got, ok := envValue(spec.Env, key); !ok || got != want {
+					t.Fatalf("PrepareLaunch() env %s = %q (%t), want %q", key, got, ok, want)
+				}
+			}
+		},
+	)
+}
+
 func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 	t.Parallel()
 
-	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	spec := sandbox.LaunchSpec{Command: "sh -c 'sleep 1'", Cwd: t.TempDir()}
+	launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+	spec := LaunchSpec{Command: "sh -c 'sleep 1'", Cwd: t.TempDir()}
 	var missingContext context.Context
 	if _, err := launcher.PrepareLaunch(missingContext, spec); err == nil {
 		t.Fatal("PrepareLaunch(nil) error = nil, want context validation failure")
@@ -129,7 +165,7 @@ func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 		t.Fatal("Launch(nil) error = nil, want context validation failure")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err := launcher.Launch(ctx, spec)
@@ -170,11 +206,8 @@ func TestDriverStartUsesFinalEnvironmentForProviderExecutable(t *testing.T) {
 		probeEnv := &providers.ProbeEnv{
 			ProviderName: "provider-a",
 			PreStartScope: providers.PreStartScope{
-				WorkspaceID:    "workspace-a",
-				HomeIdentity:   t.TempDir(),
-				SandboxID:      "sandbox-a",
-				SandboxBackend: "local",
-				SandboxProfile: "default",
+				WorkspaceID:  "workspace-a",
+				HomeIdentity: t.TempDir(),
 			},
 			LookPath: func(command string) (string, error) {
 				candidate := filepath.Join(providerBin, command)
@@ -253,8 +286,8 @@ func TestDriverStartUsesFinalEnvironmentForProviderExecutable(t *testing.T) {
 func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 	t.Parallel()
 
-	launcher := newLocalLauncher(testDiscardLogger(), 10*time.Millisecond)
-	handle, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
+	launcher := newLocalLauncher(testDiscardLogger(), 10*time.Millisecond, 0)
+	handle, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "sh -c 'while :; do sleep 1; done'",
 		Cwd:     t.TempDir(),
 		Env:     os.Environ(),
@@ -263,7 +296,7 @@ func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 		t.Fatalf("Launch(long-running) error = %v", err)
 	}
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	stopCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := handle.Stop(stopCtx); err != nil {
 		t.Fatalf("handle.Stop() error = %v", err)
@@ -393,10 +426,10 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	t.Parallel()
 
 	approveAll, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
-	for _, op := range []sandbox.PermissionOperation{
-		sandbox.PermissionOperationReadTextFile,
-		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationRequestToolGrant,
+	for _, op := range []PermissionOperation{
+		PermissionOperationReadTextFile,
+		PermissionOperationWriteTextFile,
+		PermissionOperationRequestToolGrant,
 	} {
 		if err := approveAll.Authorize(op); err != nil {
 			t.Fatalf("Authorize(%s) with approve-all error = %v", op, err)
@@ -404,10 +437,10 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	}
 
 	denyAll, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeDenyAll)
-	for _, op := range []sandbox.PermissionOperation{
-		sandbox.PermissionOperationReadTextFile,
-		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationRequestToolGrant,
+	for _, op := range []PermissionOperation{
+		PermissionOperationReadTextFile,
+		PermissionOperationWriteTextFile,
+		PermissionOperationRequestToolGrant,
 	} {
 		if err := denyAll.Authorize(op); !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("Authorize(%s) with deny-all error = %v, want ErrPermissionDenied", op, err)
@@ -614,7 +647,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 			t.Fatalf("CreateTerminal(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := host.ReleaseTerminal(first.TerminalId); err != nil {
+			if err := host.releaseTerminalWithContext(testutil.Context(t), first.TerminalId); err != nil {
 				t.Fatalf("ReleaseTerminal(first) error = %v", err)
 			}
 		})
@@ -653,7 +686,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 func TestDriverUsesInjectedLauncherAndToolHostOptions(t *testing.T) {
 	t.Parallel()
 
-	launcher := &recordingLauncher{delegate: newLocalLauncher(testDiscardLogger(), time.Second)}
+	launcher := &recordingLauncher{delegate: newLocalLauncher(testDiscardLogger(), time.Second, 0)}
 	toolHost, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	driver := New(WithLauncher(launcher), WithToolHost(toolHost))
 
@@ -998,19 +1031,59 @@ func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
 	if !errors.Is(err, launchErr) {
 		t.Fatalf("launchAgentProcess() error = %v, want wrapped launch error", err)
 	}
-	if !strings.Contains(err.Error(), `helper`) || !strings.Contains(err.Error(), `sh -c 'cat'`) {
-		t.Fatalf("launchAgentProcess() error = %v, want agent and command context", err)
+	if !strings.Contains(err.Error(), `helper`) ||
+		!strings.Contains(err.Error(), compozyconfig.CommandFingerprint(`sh -c 'cat'`)) {
+		t.Fatalf("launchAgentProcess() error = %v, want agent and command fingerprint context", err)
+	}
+	if strings.Contains(err.Error(), `sh -c 'cat'`) {
+		t.Fatalf("launchAgentProcess() error = %v, want no raw command", err)
 	}
 }
 
+func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a route's private assignment and arguments out of errors and logs", func(t *testing.T) {
+		t.Parallel()
+
+		const command = "ACCOUNT=private-seat /missing-compozy-route-executable --account private-seat"
+		var logs bytes.Buffer
+		driver := New(WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))))
+		_, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:   "route-helper",
+			Command:     command,
+			Cwd:         t.TempDir(),
+			Env:         []string{"PATH=" + os.Getenv("PATH")},
+			Permissions: compozyconfig.PermissionModeApproveAll,
+		})
+		if err == nil {
+			t.Fatal("Start(missing route executable) error = nil, want resolution failure")
+		}
+		for _, leak := range []string{"private-seat", "ACCOUNT=", "--account", command} {
+			if strings.Contains(err.Error(), leak) {
+				t.Fatalf("Start() error = %v, want no %q", err, leak)
+			}
+			if strings.Contains(logs.String(), leak) {
+				t.Fatalf("driver logs contain %q:\n%s", leak, logs.String())
+			}
+		}
+		if !strings.Contains(err.Error(), compozyconfig.CommandFingerprint(command)) {
+			t.Fatalf("Start() error = %v, want the command fingerprint", err)
+		}
+		if !strings.Contains(err.Error(), "missing-compozy-route-executable") {
+			t.Fatalf("Start() error = %v, want the safe executable identity", err)
+		}
+	})
+}
+
 type recordingLauncher struct {
-	delegate sandbox.Launcher
-	handle   sandbox.Handle
+	delegate Launcher
+	handle   Handle
 	err      error
 
 	mu     sync.Mutex
 	called bool
-	spec   sandbox.LaunchSpec
+	spec   LaunchSpec
 }
 
 type terminalPreparingLauncher struct {
@@ -1021,16 +1094,16 @@ type terminalPreparingLauncher struct {
 
 func (l *terminalPreparingLauncher) PrepareLaunch(
 	_ context.Context,
-	spec sandbox.LaunchSpec,
-) (sandbox.LaunchSpec, error) {
+	spec LaunchSpec,
+) (LaunchSpec, error) {
 	l.prepareCalls++
 	return spec, l.prepareErr
 }
 
 func (l *terminalPreparingLauncher) Launch(
 	context.Context,
-	sandbox.LaunchSpec,
-) (sandbox.Handle, error) {
+	LaunchSpec,
+) (Handle, error) {
 	l.launchCalls++
 	return nil, errors.New("terminalPreparingLauncher: Launch must not run after prepare failure")
 }
@@ -1059,8 +1132,8 @@ func (s *recordingProviderPreStarter) PreStart(
 
 func (l *recordingLauncher) Launch(
 	ctx context.Context,
-	spec sandbox.LaunchSpec,
-) (sandbox.Handle, error) {
+	spec LaunchSpec,
+) (Handle, error) {
 	l.mu.Lock()
 	l.called = true
 	l.spec = spec
@@ -1074,7 +1147,7 @@ func (l *recordingLauncher) Launch(
 	return l.delegate.Launch(ctx, spec)
 }
 
-func (l *recordingLauncher) lastSpec() (sandbox.LaunchSpec, bool) {
+func (l *recordingLauncher) lastSpec() (LaunchSpec, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.spec, l.called

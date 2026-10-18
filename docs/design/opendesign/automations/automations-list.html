@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Listing · Automations · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="automations.css">
+<!--
+  automations-list · S1 — one listing for every automation.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — ListingPage + ListingToolbar (search · FiltersWithSearch · Rows|Cards),
+                 ListingRow / CatalogCard, exception-only badges (Disabled → Off, lock),
+                 next-run stat, Run now, CatalogEmptyState + AutomationSuggestionsPanel,
+                 unavailable Alert, filtered-empty, SkeletonRows.
+    delta      — one window for jobs + triggers; Start views (All · Scheduled · On events)
+                 lead the toolbar; row description = the automation as a sentence;
+                 On/Off switch on the row; Run now moves into the row overflow;
+                 "Last run failed" meta (needs last_run on the list DTOs — proposal).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ls-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Automations</a><span class="w2-sep">/</span><h1 class="w2-title">S1 · Listing</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="index.html">← Overview</a><a class="btn btn--sm" href="automations-detail.html">Next: Detail →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="au-contract" data-od-id="ls-contract" aria-label="What this board is">
+      <div class="au-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="au-contract__what"><b>S1 — every automation in one list.</b> Jobs and Triggers used to be two dock apps with two lists. Now there is one window, <b>Automations</b>. The first control on the toolbar answers the only question that differs between them, <b>how it starts</b> (All · Scheduled · On events). Each row reads as a sentence, says when it runs next or last ran, and can be turned on or off without opening it.</p>
+        <p class="au-contract__file">automations-list.html · S1 · route /automations · ?start= · ?q= · ?view=cards · filters</p>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="au-mods">
+          <li><span class="au-mod au-mod--new">new</span><span><b>automations.tsx · automations.$kind.$id.tsx</b><i>web/src/routes/_app/</i>createOsRouteSync("automations"); search gains <code>start</code></span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>AutomationsWindow · AutomationsCatalogLocation</b><i>web/src/systems/os/apps/automations/</i>replaces apps/jobs + apps/triggers; topbar slot, toolbar, banner, states</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>AutomationRow · AutomationCard</b><i>systems/automation/components/</i>replace job-row/trigger-row and job-card/trigger-card</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>describeAutomation()</b><i>systems/automation/lib/automation-sentence.ts</i>absorbs trigger-sentence.ts + describeSchedule</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>useAutomationPageBase</b><i>systems/os/apps/automation/use-automation-page-base.ts</i>loads both lists, merges by name, counts per Start view</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>automation-list-filters.ts</b><i>systems/automation/lib/</i>+ Does (Agent · Loop · Task); Event text filter removed; labels On/Off</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>AutomationSuggestionsPanel</b><i>systems/automation/components/</i>"Suggested automations" · "Create automation"</span></li>
+          <li><span class="au-mod au-mod--backend">backend</span><span><b>last_run on list items</b><i>GET /api/automation/jobs · /triggers</i>status + started_at for the row's last-run truth</span></li>
+          <li><span class="au-mod au-mod--delete">delete</span><span><b>apps/jobs/* · apps/triggers/* · job/trigger rows + cards</b><i>systems/os/apps · systems/automation/components</i>no aliases</span></li>
+          <li><span class="au-mod au-mod--reuse">reuse</span><span><b>ListingPage · ListingToolbar · ListingRow · CatalogCard · PillGroup · Switch · DropdownMenu · Empty · SkeletonRows · Alert</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="au-states">
+          <li><a href="#ls-default">Rows — all seven, interactive</a><code>list VC-01</code></li>
+          <li><a href="#ls-cards">Cards</a><code>list VC-02</code></li>
+          <li><a href="#ls-filter">Filter menu + applied chip</a><code>list VC-03</code></li>
+          <li><a href="#ls-empty">Nothing yet — with suggestions</a><code>list VC-04</code></li>
+          <li><a href="#ls-noresult">Filtered empty</a><code>list VC-05</code></li>
+          <li><a href="#ls-system">Loading · unavailable · error</a><code>list VC-06</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · DEFAULT ===== -->
+    <section class="lab-sec" id="ls-default" data-od-id="ls-default">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Rows — one list, three ways to start</h2><span class="lab-sec__gist">list VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Try it.</b> Switch the Start view, search for "delivery", flip a switch, open a row's overflow, or toggle Rows/Cards. The <code>start</code> view, the query and the display mode all live in the URL. Rows sort by name. A switch flip waits for the daemon before it moves, the same rule as the detail page.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="ls-default-stage">
+            <section class="win win--inline is-focused au-win" style="--au-win-h:auto" data-au-listing data-od-id="ls-window">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="zap"></svg></span><span class="w2-title">Automations</span><span class="w2-count">7</span></div><i class="au-n">1</i>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions">
+                  <!-- production: Button variant=secondary size=sm (was "+ Job" / "+ Trigger") -->
+                  <a class="btn btn--sm" href="automations-editor.html" data-od-id="ls-new"><svg data-lucide="plus"></svg>New automation</a>
+                </div></div>
+              </header>
+              <div class="win-toolbar">
+                <div class="listing-toolbar">
+                  <div class="listing-toolbar__leading">
+                    <!-- new: ?start=schedule|event — webhooks count as events -->
+                    <div class="pill-group pill-group--sm" role="group" aria-label="How it starts" data-od-id="ls-views">
+                      <button class="pill-group__item is-on" type="button" aria-pressed="true" data-au-view="all">All <span class="mono">7</span></button>
+                      <button class="pill-group__item" type="button" aria-pressed="false" data-au-view="schedule"><svg data-lucide="clock-3"></svg>Scheduled <span class="mono">4</span></button>
+                      <button class="pill-group__item" type="button" aria-pressed="false" data-au-view="event"><svg data-lucide="radio"></svg>On events <span class="mono">3</span></button>
+                    </div><i class="au-n">2</i>
+                    <label class="field field-search"><svg data-lucide="search"></svg><input type="search" placeholder="Search automations" aria-label="Search automations"></label>
+                    <button class="btn btn--ghost btn--sm" type="button" aria-label="Add filter"><svg data-lucide="list-filter"></svg>Filter</button><i class="au-n">3</i>
+                  </div>
+                  <div class="listing-toolbar__trailing">
+                    <div class="pill-group pill-group--sm" role="group" aria-label="Display">
+                      <button class="pill-group__item is-on" type="button" aria-pressed="true" aria-label="Rows" data-au-mode="rows"><svg data-lucide="list"></svg></button>
+                      <button class="pill-group__item" type="button" aria-pressed="false" aria-label="Cards" data-au-mode="cards"><svg data-lucide="layout-grid"></svg></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="win-body"><div class="au-page">
+                <div class="list-shell au-rows" data-mode="rows">
+
+                  <article class="listing-row au-row is-off" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-off" data-od-id="ls-row-dependency-review">
+                    <span class="listing-row__icon"><svg data-lucide="clock-3"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b><a href="automations-detail.html#dt-off">dependency-review</a></b><span class="pill" data-form="hollow">Off</span><i class="au-n">6</i></div>
+                      <p class="listing-row__desc au-sentence">Every Monday at 08:00 UTC, create a task <em>Review dependency updates</em> for <em>reviewers</em>.</p>
+                      <p class="listing-row__meta">Project checkout-api<span class="dotsep"></span>Last run completed 6 days ago</p>
+                    </div>
+                    <div class="listing-row__trail">
+                      <div class="listing-row__stat"><span class="listing-row__stat-v">—</span><span class="listing-row__stat-l">next run</span></div>
+                      <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Turn dependency-review on or off" data-au-enable="dependency-review"><span class="knob"></span></button>
+                      <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for dependency-review"><svg data-lucide="ellipsis"></svg></button>
+                        <div class="menu" role="menu"><button class="menu-item" role="menuitem" data-toast="Queued run run_dependency_review_014."><svg data-lucide="play"></svg>Run now</button><a class="menu-item" role="menuitem" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a><div class="menu-sep"></div><a class="menu-item menu-item--danger" role="menuitem" href="automations-detail.html#dt-delete"><svg data-lucide="trash-2"></svg>Delete automation…</a></div></div>
+                    </div>
+                  </article>
+
+                  <article class="listing-row au-row" data-kind="webhook" data-au-entity data-href="automations-detail.html#dt-webhook" data-od-id="ls-row-deploy-webhook">
+                    <span class="listing-row__icon"><svg data-lucide="webhook"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b><a href="automations-detail.html#dt-webhook">deploy-webhook</a></b></div>
+                      <p class="listing-row__desc au-sentence">When another app calls the <em>deploy</em> link with action <em>deploy</em> on <em>main</em>, ask <em>deployer</em> to ship it.</p>
+                      <p class="listing-row__meta">Project checkout-api<span class="dotsep"></span>Public link live</p>
+                    </div>
+                    <div class="listing-row__trail">
+                      <div class="listing-row__stat"><span class="listing-row__stat-v">Yesterday</span><span class="listing-row__stat-l">last ran</span><i class="au-n au-n--pin" style="right:auto;left:-20px;top:2px">5</i></div>
+                      <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn deploy-webhook on or off" data-au-enable="deploy-webhook"><span class="knob"></span></button>
+                      <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for deploy-webhook"><svg data-lucide="ellipsis"></svg></button>
+                        <div class="menu" role="menu"><button class="menu-item" role="menuitem" data-copy="/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123"><svg data-lucide="link"></svg>Copy link</button><a class="menu-item" role="menuitem" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a><div class="menu-sep"></div><a class="menu-item menu-item--danger" role="menuitem" href="automations-detail.html#dt-delete"><svg data-lucide="trash-2"></svg>Delete automation…</a></div></div>
+                    </div>
+                  </article>
+
+                  <article class="listing-row au-row" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-schedule" data-od-id="ls-row-morning-digest">
+                    <span class="listing-row__icon"><svg data-lucide="clock-3"></svg></span><i class="au-n au-n--abs" style="left:4px;top:4px">4</i>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b><a href="automations-detail.html#dt-schedule">morning-digest</a></b></div>
+                      <p class="listing-row__desc au-sentence">Every weekday at 09:00 UTC, ask <em>summarizer</em> to summarize yesterday's sessions.</p>
+                      <p class="listing-row__meta">Project checkout-api<span class="dotsep"></span>Last run completed 15h ago</p>
+                    </div>
+                    <div class="listing-row__trail">
+                      <div class="listing-row__stat"><span class="listing-row__stat-v">In 14h</span><span class="listing-row__stat-l">next run</span></div>
+                      <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn morning-digest on or off" data-au-enable="morning-digest"><span class="knob"></span></button>
+                      <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for morning-digest"><svg data-lucide="ellipsis"></svg></button>
+                        <div class="menu" role="menu"><button class="menu-item" role="menuitem" data-toast="Queued run run_morning_digest_118."><svg data-lucide="play"></svg>Run now</button><a class="menu-item" role="menuitem" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a><div class="menu-sep"></div><a class="menu-item menu-item--danger" role="menuitem" href="automations-detail.html#dt-delete"><svg data-lucide="trash-2"></svg>Delete automation…</a></div></div>
+                    </div>
+                  </article>
+
+                  <article class="listing-row au-row" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-schedule" data-od-id="ls-row-nightly-delivery">
+                    <span class="listing-row__icon"><svg data-lucide="clock-3"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b><a href="automations-detail.html#dt-schedule">nightly-delivery</a></b></div>
+                      <p class="listing-row__desc au-sentence">Every day at 02:00 UTC, start the Loop <em>software-delivery</em> on <em>main</em>.</p>
+                      <!-- proposal: last_run.status on the list DTO -->
+                      <p class="listing-row__meta">Project checkout-api<span class="dotsep"></span><span class="au-meta-fail"><svg data-lucide="circle-alert"></svg>Last run failed 7h ago</span><i class="au-n">7</i></p>
+                    </div>
+                    <div class="listing-row__trail">
+                      <div class="listing-row__stat"><span class="listing-row__stat-v">In 19h</span><span class="listing-row__stat-l">next run</span></div>
+                      <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn nightly-delivery on or off" data-au-enable="nightly-delivery"><span class="knob"></span></button>
+                      <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for nightly-delivery"><svg data-lucide="ellipsis"></svg></button><i class="au-n au-n--pin">8</i>
+                        <div class="menu" role="menu"><button class="menu-item" role="menuitem" data-toast="Queued run run_nightly_delivery_042."><svg data-lucide="play"></svg>Run now</button><a class="menu-item" role="menuitem" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a><div class="menu-sep"></div><a class="menu-item menu-item--danger" role="menuitem" href="automations-detail.html#dt-delete"><svg data-lucide="trash-2"></svg>Delete automation…</a></div></div>
+                    </div>
+                  </article>
+
+                  <article class="listing-row au-row" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-locked" data-od-id="ls-row-release-checklist">
+                    <span class="listing-row__icon"><svg data-lucide="clock-3"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b><a href="automations-detail.html#dt-locked">release-checklist</a></b><span class="pill pill--xs au-lock"><svg data-lucide="lock"></svg>From config</span></div>
+                      <p class="listing-row__desc au-sentence">Every 30 minutes, ask <em>release-manager</em> to check the release checklist.</p>
+                      <p class="listing-row__meta">Global<span class="dotsep"></span><span class="au-meta-skip"><svg data-lucide="skip-forward"></svg>Last run skipped — the one before was still going</span></p>
+                    </div>
+                    <div class="listing-row__trail">
+                      <div class="listing-row__stat"><span class="listing-row__stat-v">In 12m</span><span class="listing-row__stat-l">next run</span></div>
+                      <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn release-checklist on or off" data-au-enable="release-checklist"><span class="knob"></span></button>
+                      <!-- config source: Edit/Delete absent; overflow keeps Run now -->
+                      <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for release-checklist"><svg data-lucide="ellipsis"></svg></button>
+                        <div class="menu" role="menu"><button class="menu-item" role="menuitem" data-toast="Queued run run_release_checklist_903."><svg data-lucide="play"></svg>Run now</button><button class="menu-item" role="menuitem" disabled><svg data-lucide="lock"></svg>Edit in config.toml</button></div></div>
+                    </div>
+                  </article>
+
+                  <article class="listing-row au-row" data-kind="event" data-au-entity data-href="automations-detail.html#dt-event" data-od-id="ls-row-rerun-delivery">
+                    <span class="listing-row__icon"><svg data-lucide="radio"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b><a href="automations-detail.html#dt-event">rerun-delivery</a></b></div>
+                      <p class="listing-row__desc au-sentence">When a session stops in checkout-api with an error, start the Loop <em>software-delivery</em>.</p>
+                      <p class="listing-row__meta">Project checkout-api<span class="dotsep"></span>Last run handed off 2h ago</p>
+                    </div>
+                    <div class="listing-row__trail">
+                      <div class="listing-row__stat"><span class="listing-row__stat-v">2h ago</span><span class="listing-row__stat-l">last ran</span></div>
+                      <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn rerun-delivery on or off" data-au-enable="rerun-delivery"><span class="knob"></span></button>
+                      <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for rerun-delivery"><svg data-lucide="ellipsis"></svg></button>
+                        <div class="menu" role="menu"><a class="menu-item" role="menuitem" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a><div class="menu-sep"></div><a class="menu-item menu-item--danger" role="menuitem" href="automations-detail.html#dt-delete"><svg data-lucide="trash-2"></svg>Delete automation…</a></div></div>
+                    </div>
+                  </article>
+
+                  <article class="listing-row au-row" data-kind="event" data-au-entity data-href="automations-detail.html#dt-event" data-od-id="ls-row-summarize-failures">
+                    <span class="listing-row__icon"><svg data-lucide="radio"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b><a href="automations-detail.html#dt-event">summarize-failures</a></b></div>
+                      <p class="listing-row__desc au-sentence">When a session stops in checkout-api with an error, ask <em>summarizer</em> to explain what went wrong.</p>
+                      <p class="listing-row__meta">Project checkout-api<span class="dotsep"></span>Last run completed 2h ago</p>
+                    </div>
+                    <div class="listing-row__trail">
+                      <div class="listing-row__stat"><span class="listing-row__stat-v">2h ago</span><span class="listing-row__stat-l">last ran</span></div>
+                      <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn summarize-failures on or off" data-au-enable="summarize-failures"><span class="knob"></span></button>
+                      <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for summarize-failures"><svg data-lucide="ellipsis"></svg></button>
+                        <div class="menu" role="menu"><a class="menu-item" role="menuitem" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a><div class="menu-sep"></div><a class="menu-item menu-item--danger" role="menuitem" href="automations-detail.html#dt-delete"><svg data-lucide="trash-2"></svg>Delete automation…</a></div></div>
+                    </div>
+                  </article>
+                </div>
+
+                <div class="au-cards" hidden>
+                  <article class="listing-card au-card is-off" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-off"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-card__title"><b>dependency-review</b><p class="listing-card__eyebrow">Scheduled · Off</p></div></div><p class="au-card__desc au-sentence">Every Monday at 08:00 UTC, create a task <em>Review dependency updates</em> for <em>reviewers</em>.</p><div class="au-card__foot"><span>No next run</span><span class="w2-flex"></span><button class="switch" type="button" role="switch" aria-checked="false" aria-label="Turn dependency-review on or off" data-au-enable="dependency-review"><span class="knob"></span></button></div></article>
+                  <article class="listing-card au-card" data-kind="webhook" data-au-entity data-href="automations-detail.html#dt-webhook"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="webhook"></svg></span><div class="listing-card__title"><b>deploy-webhook</b><p class="listing-card__eyebrow">Webhook</p></div></div><p class="au-card__desc au-sentence">When another app calls the <em>deploy</em> link with action <em>deploy</em> on <em>main</em>, ask <em>deployer</em> to ship it.</p><div class="au-card__foot"><span>Last ran yesterday</span><span class="w2-flex"></span><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn deploy-webhook on or off" data-au-enable="deploy-webhook"><span class="knob"></span></button></div></article>
+                  <article class="listing-card au-card" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-schedule"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-card__title"><b>morning-digest</b><p class="listing-card__eyebrow">Scheduled</p></div></div><p class="au-card__desc au-sentence">Every weekday at 09:00 UTC, ask <em>summarizer</em> to summarize yesterday's sessions.</p><div class="au-card__foot"><span>Next run in 14h</span><span class="w2-flex"></span><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn morning-digest on or off" data-au-enable="morning-digest"><span class="knob"></span></button></div></article>
+                  <article class="listing-card au-card" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-schedule"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-card__title"><b>nightly-delivery</b><p class="listing-card__eyebrow">Scheduled</p></div></div><p class="au-card__desc au-sentence">Every day at 02:00 UTC, start the Loop <em>software-delivery</em> on <em>main</em>.</p><div class="au-card__foot"><span class="au-meta-fail"><svg data-lucide="circle-alert"></svg>Last run failed</span><span class="w2-flex"></span><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn nightly-delivery on or off" data-au-enable="nightly-delivery"><span class="knob"></span></button></div></article>
+                  <article class="listing-card au-card" data-kind="schedule" data-au-entity data-href="automations-detail.html#dt-locked"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-card__title"><b>release-checklist</b><p class="listing-card__eyebrow">Scheduled · From config</p></div></div><p class="au-card__desc au-sentence">Every 30 minutes, ask <em>release-manager</em> to check the release checklist.</p><div class="au-card__foot"><span>Next run in 12m</span><span class="w2-flex"></span><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn release-checklist on or off" data-au-enable="release-checklist"><span class="knob"></span></button></div></article>
+                  <article class="listing-card au-card" data-kind="event" data-au-entity data-href="automations-detail.html#dt-event"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="radio"></svg></span><div class="listing-card__title"><b>rerun-delivery</b><p class="listing-card__eyebrow">On an event</p></div></div><p class="au-card__desc au-sentence">When a session stops in checkout-api with an error, start the Loop <em>software-delivery</em>.</p><div class="au-card__foot"><span>Last ran 2h ago</span><span class="w2-flex"></span><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn rerun-delivery on or off" data-au-enable="rerun-delivery"><span class="knob"></span></button></div></article>
+                  <article class="listing-card au-card" data-kind="event" data-au-entity data-href="automations-detail.html#dt-event"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="radio"></svg></span><div class="listing-card__title"><b>summarize-failures</b><p class="listing-card__eyebrow">On an event</p></div></div><p class="au-card__desc au-sentence">When a session stops in checkout-api with an error, ask <em>summarizer</em> to explain what went wrong.</p><div class="au-card__foot"><span>Last ran 2h ago</span><span class="w2-flex"></span><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn summarize-failures on or off" data-au-enable="summarize-failures"><span class="knob"></span></button></div></article>
+                </div>
+
+                <div class="empty empty--framed au-filtered-empty" hidden>
+                  <span class="empty__well"><svg data-lucide="search"></svg></span>
+                  <b>No automations match</b>
+                  <p>Try clearing search or filters.</p>
+                  <div class="empty__acts"><button class="btn btn--ghost btn--sm" type="button" data-au-clear>Clear filters</button></div>
+                </div>
+              </div></div>
+              <div class="au-foot"><b>7 automations</b><span class="dotsep"></span>6 on<span class="dotsep"></span>next run in 12m</div>
+            </section>
+          </div>
+          <ul class="au-legend">
+            <li><i class="au-n">1</i><span><b>One window</b> <em>bolt glyph, "Automations", total = jobs.total + triggers.total. The only head action is the neutral "New automation" (production secondary sm), which opens S3 with nothing preselected.</em></span></li>
+            <li><i class="au-n">2</i><span><b>Start views</b> <em>new leading PillGroup, <code>?start=schedule|event</code>. Counts come from each list's <code>page.total</code>. Webhooks count as events. Because Start is a view, it is not also a filter (L3).</em></span></li>
+            <li><i class="au-n">3</i><span><b>Filter</b> <em>production FiltersWithSearch: Location · Source · Status (On/Off) · Does (new). The free-text Event filter goes away. See 03.</em></span></li>
+            <li><i class="au-n">4</i><span><b>Kind well</b> <em>34px neutral well holding the Start glyph: <code>clock-3</code> schedule, <code>radio</code> event, <code>webhook</code> link. <code>zap</code> stays the app mark, so a row never repeats the window glyph. Structure, never a colored pill.</em></span></li>
+            <li><i class="au-n">5</i><span><b>Time stat</b> <em>schedules show <b>next run</b> (<code>scheduler.next_run_at ?? next_run</code>), events show <b>last ran</b>. A faint "—" when off.</em></span></li>
+            <li><i class="au-n">6</i><span><b>Exceptions only</b> <em>a row gets a badge only when it is <b>Off</b> (hollow pill, dimmer title) or locked ("From config" / "From package"). Created-here rows carry nothing.</em></span></li>
+            <li><i class="au-n">7</i><span><b>Last-run truth</b> <em>danger text with a glyph, never a pill, and only for a failed last run. A skip stays neutral ("skipped — the one before was still going"), as the production skip tone does. Proposal: needs <code>last_run</code> on the list DTO.</em></span></li>
+            <li><i class="au-n">8</i><span><b>Row controls</b> <em>the switch (<code>PATCH {enabled}</code>, every source) plus an overflow menu: Run now (schedules only), Edit, Delete (created here only). Config rows show "Edit in config.toml" disabled.</em></span></li>
+          </ul>
+          <div class="au-tags"><span class="au-tag"><b>state</b>7 automations · 4 scheduled · 3 on events · 1 off · 1 config</span><span class="au-tag"><b>component</b>AutomationsCatalogLocation · AutomationRow</span><span class="au-tag"><b>VC</b>list/VC-01</span><span class="au-tag"><b>tone</b>danger = failed last run only · switch = production inverted primary · no accent at rest</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · CARDS ===== -->
+    <section class="lab-sec" id="ls-cards" data-od-id="ls-cards">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Cards</h2><span class="lab-sec__gist">list VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same truth, more room for the sentence.</b> The card eyebrow says how it starts in words ("Scheduled", "On an event", "Webhook") plus the exceptions. The foot carries the time truth and the switch. Run now and the overflow are only on rows and on the detail page. The grid is 3 columns, then 2, then 1, matching production CatalogCard.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="ls-cards-demo">
+            <div class="au-cards">
+              <article class="listing-card au-card"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-card__title"><b>morning-digest</b><p class="listing-card__eyebrow">Scheduled</p></div></div><p class="au-card__desc au-sentence">Every weekday at 09:00 UTC, ask <em>summarizer</em> to summarize yesterday's sessions.</p><div class="au-card__foot"><span>Next run in 14h</span><span class="w2-flex"></span><span class="switch" aria-hidden="true" aria-checked="true"><span class="knob"></span></span></div></article>
+              <article class="listing-card au-card"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="radio"></svg></span><div class="listing-card__title"><b>summarize-failures</b><p class="listing-card__eyebrow">On an event</p></div></div><p class="au-card__desc au-sentence">When a session stops in checkout-api with an error, ask <em>summarizer</em> to explain what went wrong.</p><div class="au-card__foot"><span>Last ran 2h ago</span><span class="w2-flex"></span><span class="switch" aria-hidden="true" aria-checked="true"><span class="knob"></span></span></div></article>
+              <article class="listing-card au-card"><div class="listing-card__head"><span class="listing-card__icon"><svg data-lucide="webhook"></svg></span><div class="listing-card__title"><b>deploy-webhook</b><p class="listing-card__eyebrow">Webhook</p></div></div><p class="au-card__desc au-sentence">When another app calls the <em>deploy</em> link with action <em>deploy</em> on <em>main</em>, ask <em>deployer</em> to ship it.</p><div class="au-card__foot"><span>Last ran yesterday</span><span class="w2-flex"></span><span class="switch" aria-hidden="true" aria-checked="true"><span class="knob"></span></span></div></article>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>AutomationCard (CatalogCard actionable)</span><span class="au-tag"><b>VC</b>list/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · FILTER ===== -->
+    <section class="lab-sec" id="ls-filter" data-od-id="ls-filter">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Filter menu + applied chip</h2><span class="lab-sec__gist">list VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Four facets, plain words.</b> Production keeps one value per field (<code>allowMultiple=false</code>) and the operator "is". <b>Does</b> is new and maps to <code>target_kind</code>, or to <code>task</code> for jobs. <b>Location</b> renames Scope: "This project" instead of "Project", "Global" stays. Applying a filter keeps the Start view.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><span class="lab-cell__t">menu · step 1 <code>FiltersWithSearch</code></span>
+              <div class="plain" style="display:flex;justify-content:flex-start">
+                <div class="menu" role="menu" style="position:static;width:240px">
+                  <p class="menu-label">Filter by</p>
+                  <button class="menu-item" role="menuitem"><svg data-lucide="play"></svg>Does<span class="au-sum">Agent · Loop · Task</span></button>
+                  <button class="menu-item" role="menuitem"><svg data-lucide="toggle-right"></svg>Status<span class="au-sum">On · Off</span></button>
+                  <button class="menu-item" role="menuitem"><svg data-lucide="folder"></svg>Location<span class="au-sum">This project · Global</span></button>
+                  <button class="menu-item" role="menuitem"><svg data-lucide="package"></svg>Source<span class="au-sum">3</span></button>
+                </div>
+              </div>
+            </div>
+            <div class="lab-cell"><span class="lab-cell__t">applied · <code>?target=loop</code></span>
+              <div class="plain plain--flush plain--canvas">
+                <div class="win-toolbar" style="border-bottom:0">
+                  <div class="listing-toolbar"><div class="listing-toolbar__leading">
+                    <div class="pill-group pill-group--sm"><button class="pill-group__item is-on">All <span class="mono">7</span></button><button class="pill-group__item"><svg data-lucide="clock-3"></svg>Scheduled</button><button class="pill-group__item"><svg data-lucide="radio"></svg>On events</button></div>
+                    <div class="filters"><div class="filter-chip"><span class="filter-chip__label">Does</span><span class="filter-chip__op">is</span><span class="filter-chip__val">Start a Loop</span><button class="filter-chip__x" aria-label="Remove filter"><svg data-lucide="x"></svg></button></div></div>
+                  </div></div>
+                </div>
+                <div class="au-page" style="padding-top:0">
+                  <div class="list-shell">
+                    <div class="listing-row au-row"><span class="listing-row__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-row__main"><div class="listing-row__name"><b>nightly-delivery</b></div><p class="listing-row__desc au-sentence">Every day at 02:00 UTC, start the Loop <em>software-delivery</em> on <em>main</em>.</p></div><div class="listing-row__trail"><div class="listing-row__stat"><span class="listing-row__stat-v">In 19h</span><span class="listing-row__stat-l">next run</span></div></div></div>
+                    <div class="listing-row au-row"><span class="listing-row__icon"><svg data-lucide="radio"></svg></span><div class="listing-row__main"><div class="listing-row__name"><b>rerun-delivery</b></div><p class="listing-row__desc au-sentence">When a session stops in checkout-api with an error, start the Loop <em>software-delivery</em>.</p></div><div class="listing-row__trail"><div class="listing-row__stat"><span class="listing-row__stat-v">2h ago</span><span class="listing-row__stat-l">last ran</span></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>AutomationListFilters · automation-list-filters.ts</span><span class="au-tag"><b>VC</b>list/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · EMPTY ===== -->
+    <section class="lab-sec" id="ls-empty" data-od-id="ls-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Nothing yet — two ways to start, then suggestions</h2><span class="lab-sec__gist">list VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The first screen teaches the model.</b> Instead of one "Create from scratch" button there are two neutral starts. Each opens S3 with Starts already chosen (<code>?create=1&amp;start=schedule|event</code>). The daemon's suggestions follow with production behavior: workspace scope only, accept creates a job. The toolbar stays hidden while the inventory is truly empty, as in production.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad stage--auto">
+            <section class="win win--inline is-focused au-win au-win--auto" data-od-id="ls-empty-win">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="zap"></svg></span><span class="w2-title">Automations</span><span class="w2-count">0</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><a class="btn btn--sm" href="automations-editor.html"><svg data-lucide="plus"></svg>New automation</a></div></div>
+              </header>
+              <div class="win-body"><div class="au-page" style="padding:36px 20px 28px;align-items:center">
+                <div class="empty" style="padding:0">
+                  <span class="empty__well"><svg data-lucide="zap"></svg></span><i class="au-n">1</i>
+                  <b>No automations in default yet</b>
+                  <p>An automation runs an agent, a Loop or a task on a schedule, or when something happens.</p>
+                  <div class="empty__acts"><a class="btn btn--sm" href="automations-editor.html#ed-schedule"><svg data-lucide="clock-3"></svg>On a schedule</a><a class="btn btn--sm" href="automations-editor.html#ed-event"><svg data-lucide="radio"></svg>When something happens</a><i class="au-n">2</i></div>
+                </div>
+                <div style="width:min(640px,100%);margin-top:18px" data-od-id="ls-suggestions">
+                  <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px"><span class="eyebrow">Suggested automations</span><span class="count-chip">2</span><span class="au-sugg-hint">Review each suggestion before creating it.</span><i class="au-n">3</i></div>
+                  <div class="list-shell">
+                    <div class="listing-row"><span class="listing-row__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-row__main"><div class="listing-row__name"><b>Weekday failure digest</b></div><p class="listing-row__desc au-sentence">Every weekday at 09:00 UTC, ask <em>summarizer</em> to list yesterday's failed sessions.</p></div><div class="listing-row__trail"><button class="btn btn--sm" type="button" data-toast="Created morning-digest.">Create automation</button><button class="btn btn--ghost btn--sm" type="button" data-toast="Dismissed suggestion.">Dismiss</button></div></div>
+                    <div class="listing-row"><span class="listing-row__icon"><svg data-lucide="clock-3"></svg></span><div class="listing-row__main"><div class="listing-row__name"><b>Monday dependency review</b></div><p class="listing-row__desc au-sentence">Every Monday at 08:00 UTC, ask <em>reviewer</em> to review pending dependency updates.</p></div><div class="listing-row__trail"><button class="btn btn--sm" type="button" data-toast="Created dependency-review.">Create automation</button><button class="btn btn--ghost btn--sm" type="button" data-toast="Dismissed suggestion.">Dismiss</button></div></div>
+                  </div>
+                </div>
+              </div></div>
+            </section>
+          </div>
+          <ul class="au-legend">
+            <li><i class="au-n">1</i><span><b>CatalogEmptyState</b> <em>48px well, bolt. Title "No automations in {profile} yet" ("…in any profile yet" in aggregate mode). Support line rewritten for both kinds.</em></span></li>
+            <li><i class="au-n">2</i><span><b>Two neutral starts</b> <em>CTA budget = 2 neutral, no primary. They preselect Starts in S3. They replace "Create from scratch".</em></span></li>
+            <li><i class="au-n">3</i><span><b>Suggestions</b> <em>AutomationSuggestionsPanel. The label is now "Suggested automations". Each row reads as a sentence; "Create automation" / "Dismiss". Zero suggestions render nothing.</em></span></li>
+          </ul>
+          <div class="au-tags"><span class="au-tag"><b>state</b>total 0 · no filters · workspace scope</span><span class="au-tag"><b>VC</b>list/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · FILTERED EMPTY ===== -->
+    <section class="lab-sec" id="ls-noresult" data-od-id="ls-noresult">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Filtered empty — the strip stays</h2><span class="lab-sec__gist">list VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The way out stays on screen.</b> Production copy: "No automations match" · "Try clearing search or filters." · ghost "Clear filters". It clears the query, the filters and the Start view (rule L5).</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush plain--canvas">
+            <div class="win-toolbar"><div class="listing-toolbar"><div class="listing-toolbar__leading"><div class="pill-group pill-group--sm"><button class="pill-group__item">All <span class="mono">7</span></button><button class="pill-group__item"><svg data-lucide="clock-3"></svg>Scheduled <span class="mono">4</span></button><button class="pill-group__item is-on"><svg data-lucide="radio"></svg>On events <span class="mono">3</span></button></div><label class="field field-search" style="border-color:var(--line-strong)"><svg data-lucide="search"></svg><input type="search" value="digest" aria-label="Search automations"></label></div></div></div>
+            <div class="au-page"><div class="empty empty--framed"><span class="empty__well"><svg data-lucide="search"></svg></span><b>No automations match</b><p>Try clearing search or filters.</p><div class="empty__acts"><button class="btn btn--ghost btn--sm" type="button">Clear filters</button></div></div></div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>state</b>start=event · q=digest · 0 of 3</span><span class="au-tag"><b>VC</b>list/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · SYSTEM STATES ===== -->
+    <section class="lab-sec" id="ls-system" data-od-id="ls-system">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Loading · unavailable · error</h2><span class="lab-sec__gist">list VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One message instead of two.</b> The runtime-off and 503 copy used to say "Jobs" or "Triggers" depending on the window. Now it says automations once. "Open Settings" is an authorized delta, because a normie should not have to find the switch. Run now is disabled while the banner shows (production).</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--3">
+            <div class="lab-cell"><span class="lab-cell__t">loading <code>SkeletonRows ×5</code></span>
+              <div class="plain plain--canvas" aria-label="Loading automations as rows">
+                <div class="list-shell">
+                  <div class="listing-row"><span class="sk" style="width:34px;height:34px;border-radius:10px"></span><div><span class="sk" style="display:block;width:46%;height:12px"></span><span class="sk" style="display:block;width:82%;height:10px;margin-top:8px"></span></div><span class="sk" style="width:56px;height:20px"></span></div>
+                  <div class="listing-row"><span class="sk" style="width:34px;height:34px;border-radius:10px"></span><div><span class="sk" style="display:block;width:38%;height:12px"></span><span class="sk" style="display:block;width:74%;height:10px;margin-top:8px"></span></div><span class="sk" style="width:56px;height:20px"></span></div>
+                  <div class="listing-row"><span class="sk" style="width:34px;height:34px;border-radius:10px"></span><div><span class="sk" style="display:block;width:52%;height:12px"></span><span class="sk" style="display:block;width:66%;height:10px;margin-top:8px"></span></div><span class="sk" style="width:56px;height:20px"></span></div>
+                </div>
+              </div>
+            </div>
+            <div class="lab-cell"><span class="lab-cell__t">runtime off <code>Alert warning</code></span>
+              <div class="plain plain--canvas">
+                <div class="notice" role="status"><svg data-lucide="triangle-alert"></svg><div><b>Automations aren't available right now</b><br>Automations are turned off. Turn on automations in Settings, then restart CompozyOS.</div></div>
+                <div style="margin-top:10px"><a class="btn btn--sm" href="automations-surfaces.html#sf-settings">Open Settings</a></div>
+              </div>
+            </div>
+            <div class="lab-cell"><span class="lab-cell__t">load error <code>Empty</code></span>
+              <div class="plain plain--canvas"><div class="empty" style="padding:12px 0"><span class="empty__well"><svg data-lucide="circle-alert"></svg></span><b>Unable to load automations</b><p>CompozyOS couldn't load your automations right now. Try again in a moment.</p><div class="empty__acts"><button class="btn btn--sm" type="button">Try again</button></div></div></div>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>AutomationsCatalogLocation states · automation-catalog-shell</span><span class="au-tag"><b>VC</b>list/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: systems/os/apps/jobs/jobs-catalog-location.tsx · systems/os/apps/triggers/triggers-catalog-location.tsx · automation-job-row / -trigger-row / -card · automation-catalog-shell.tsx · automation-list-filters.ts · use-automation-page-base.ts. Patterns: design-system/patterns.html §01 (L1–L5).</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="automations.js"></script>
+</body>
+</html>

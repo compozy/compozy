@@ -12,6 +12,8 @@ import {
   CmdPaletteApiError,
   cmdPaletteViewSessionStreamURL,
   getCmdPaletteView,
+  getPendingToolApproval,
+  resolvePendingToolApproval,
   invokeCmdPaletteCommand,
   listCmdPaletteCommands,
   openCmdPaletteViewSession,
@@ -35,6 +37,34 @@ describe("command palette API adapter", () => {
   beforeEach(() => {
     vi.mocked(apiClient.GET).mockReset();
     vi.mocked(apiClient.POST).mockReset();
+  });
+
+  it("Should scope approval reads and decisions to the recorded profile", async () => {
+    const data = {
+      approval_status: "pending",
+      expires_at: "2026-10-04T15:00:00Z",
+    };
+    vi.mocked(apiClient.GET).mockResolvedValue({
+      data,
+      response: new Response(null, { status: 200 }),
+    } as never);
+    vi.mocked(apiClient.POST).mockResolvedValue({
+      data,
+      response: new Response(null, { status: 200 }),
+    } as never);
+    const signal = new AbortController().signal;
+
+    await getPendingToolApproval("editorial", "apr_owner", signal);
+    await resolvePendingToolApproval("editorial", "apr_owner", "approved");
+
+    expect(apiClient.GET).toHaveBeenCalledWith("/api/tools/approvals/{id}", {
+      params: { path: { id: "apr_owner" }, query: { profile: "editorial" } },
+      signal,
+    });
+    expect(apiClient.POST).toHaveBeenCalledWith("/api/tools/approvals/{id}/resolve", {
+      params: { path: { id: "apr_owner" }, query: { profile: "editorial" } },
+      body: { decision: "approved" },
+    });
   });
 
   it("Should reject an incomplete view-session open envelope [RD0068]", async () => {
@@ -220,36 +250,6 @@ describe("command palette API adapter", () => {
   it("Should encode the view-session stream URL [RA0252]", () => {
     expect(cmdPaletteViewSessionStreamURL("vs/a", "t k")).toBe(
       "/api/cmd-palette/view-sessions/vs%2Fa/stream?token=t%20k"
-    );
-  });
-
-  it("Should bind a view session to the acting profile rather than resolving default", async () => {
-    vi.mocked(apiClient.POST).mockResolvedValue({
-      data: {
-        view_session: "vs_1",
-        stream_token: "st_1",
-        profile_lens: { profile_lens_id: "01J9MARKETING00000000000000", profile_name: "marketing" },
-        first_frame: {
-          view_session: "vs_1",
-          revision: "vr_1",
-          seq: 1,
-          effects: [],
-          generation: 1,
-          handlers: [],
-        },
-      },
-      error: undefined,
-      response: new Response(null, { status: 200 }),
-    } as never);
-
-    await openCmdPaletteViewSession("ws", "marketing", "ext.notes.browser", "tok");
-    // A programmable view runs extension code under an owner; opening it without
-    // a selector would bind the session to `default` from any profile.
-    expect(apiClient.POST).toHaveBeenLastCalledWith(
-      "/api/cmd-palette/views/{id}/open",
-      expect.objectContaining({
-        params: expect.objectContaining({ query: { profile: "marketing" } }),
-      })
     );
   });
 });

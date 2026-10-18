@@ -119,15 +119,6 @@ func findSettingsProvider(values []settingspkg.ProviderItem, name string) (setti
 	return settingspkg.ProviderItem{}, false
 }
 
-func findSettingsSandbox(values []settingspkg.SandboxItem, name string) (settingspkg.SandboxItem, bool) {
-	for _, value := range values {
-		if strings.TrimSpace(value.Name) == name {
-			return value, true
-		}
-	}
-	return settingspkg.SandboxItem{}, false
-}
-
 func automationFireLimitFromPayload(
 	payload automationmodel.FireLimitConfig,
 ) automationmodel.FireLimitConfig {

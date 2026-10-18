@@ -71,7 +71,7 @@ Five terminal verbs are defined: `heartbeat`, `complete`, `fail`, `release`, plu
 
 ## The claim token: dual representation
 
-The claim token is a bearer credential. Whoever holds it can extend, complete, fail, or release the run. That gives it the blast radius of a session secret — and the same disclosure problem. Logs are read by humans; SSE frames are read by browsers; channel messages are read by other agents. None of those surfaces should ever see the raw token.
+The claim token is a bearer credential. Whoever holds it can extend, complete, fail, or release the run. That gives it the blast radius of a session secret — and the same disclosure problem. Logs are read by humans; SSE frames are read by browsers. None of those surfaces should ever see the raw token.
 
 Compozy solves this with a dual representation that is structural, not optional. The handle in the previous section has two fields side by side: `ClaimToken` (the raw `compozy_claim_*` bearer) and `ClaimTokenHash` (a `sha256:` digest). Internal writers that mutate lease state take the raw form. Everything else takes the hash.
 
@@ -88,7 +88,7 @@ func ClaimTokenHash(rawToken string) (string, error) {
 }
 ```
 
-`internal/task/lease.go:174-181`. Verification uses `subtle.ConstantTimeCompare` against the persisted hash to defeat timing oracles. A raw token never returns from a public handler; only the hash does. A coordination channel message that names a claim attaches `claim_token_hash: sha256:af3c…` and nothing else.
+`internal/task/lease.go:174-181`. Verification uses `subtle.ConstantTimeCompare` against the persisted hash to defeat timing oracles. A raw token never returns from a public handler; only the hash does.
 
 The format itself is a tell. The raw bearer begins with the literal prefix `compozy_claim_`. Compozy ships a regular expression — `rawClaimTokenPattern` in the same file — that matches the prefix and replaces it with `compozy_claim_[REDACTED]` before any free-form string crosses a boundary. The pattern is the safety net for a log line whose individual fields were not all routed through the typed redactor.
 
@@ -116,7 +116,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 
 The invariant that makes this work is not the function itself; it is that the function is the _only_ path. Transcript assembly, SSE broadcast, the CLI replay command, and the web UI all consume the redacted event, never the persisted one. A transport added tomorrow does not get a chance to forget to redact, because the only event type it can receive is already redacted. The threat being modeled is not a malicious operator; it is the boring case of a future contributor who adds a new event field, forgets to update one of three transports, and ships a regression. The single chokepoint absorbs that mistake before it leaves the daemon.
 
-A live trace makes the discipline visible. A coordination channel message that references a claim shows `claim_token_hash: sha256:af3c…`. The corresponding event in `runtime.db` shows the same hash. The CLI stream, the SSE frame, and the operator log all show the same hash. Nothing on any of those surfaces shows the raw `compozy_claim_…` bearer.
+A claim response exposes `claim_token_hash` for correlation. The CLI stream, the SSE frame, and the operator log all show the same hash. Nothing on any of those surfaces shows the raw `compozy_claim_…` bearer.
 
 ## Safe spawn: TTL, caps, and a permission subset
 
@@ -131,7 +131,7 @@ The spawn contract is narrow on purpose. Four bounds apply to every child:
 | Max children per parent | `5`                | `DefaultSpawnMaxChildren`, `internal/session/spawn.go:16`                       |
 | Permission set          | subset of parent   | `ValidatePermissionSubset`, called before and after the `spawn.pre_create` hook |
 
-The MVP rejects three classes of request outright: a child with no TTL, a child whose role is `coordinator` (coordinators are daemon-managed roots, never spawned), and a child whose tools, skills, MCP servers, workspace paths, network channels, or sandbox profiles include any atom the parent does not hold. Unknown permission atoms count as widening and reject the spawn.
+The MVP rejects three classes of request outright: a child with no TTL, a child whose role is `coordinator` (coordinators are daemon-managed roots, never spawned), and a child whose tools, skills, MCP servers, workspace paths include any atom the parent does not hold. Unknown permission atoms count as widening and reject the spawn.
 
 The permission subset check runs twice: once after the request is normalized, once after the `spawn.pre_create` hook has had a chance to narrow or deny it. Hook patches can shrink permissions; they cannot widen them. The validator runs again on the post-hook value so a hook that tried to widen is caught the same way a malformed request would be.
 
@@ -166,7 +166,7 @@ W-->>D: TTL expires; reaper releases held leases; child stops
 
 The shape worth attending to is what the operator and ledger see versus what the daemon resolves internally. The operator sees a coordinator and a worker, both bounded by TTL, and a ledger of events that names the run by `run_id` and the lease by `claim_token_hash`. The daemon resolves the raw token into the internal handle on every mutation, then drops the raw form before any event reaches a public surface.
 
-The coordinator's own permission set illustrates the same principle at a coarser grain. `internal/coordinator/coordinator.go:50-61` defines a tool allowlist that grants the coordinator orchestration verbs — `task_run_claim_next`, `task_run_heartbeat`, `network_send` — and intentionally omits operator lifecycle verbs and coordinator-to-coordinator spawn. A coordinator cannot spawn a coordinator; that rule is enforced both by the allowlist and by the `coordinator spawn role is not supported in MVP` check inside `normalizeSpawnOpts`.
+The coordinator's own permission set illustrates the same principle at a coarser grain. `internal/coordinator/coordinator.go:50-61` defines a tool allowlist that grants the coordinator orchestration verbs — `task_run_claim_next`, `task_run_heartbeat` — and intentionally omits operator lifecycle verbs and coordinator-to-coordinator spawn. A coordinator cannot spawn a coordinator; that rule is enforced both by the allowlist and by the `coordinator spawn role is not supported in MVP` check inside `normalizeSpawnOpts`.
 
 ## Where the kernel is intentionally early
 
@@ -178,14 +178,14 @@ Safe spawn caps depth at one. A spawned reviewer cannot itself spawn a specialis
 
 Coordinator handoff is workspace-scoped. A global-scope run does not auto-spawn a coordinator. Cross-daemon coordination, leader election across multiple daemons, and autonomy dashboards in the web UI are not in the alpha; the autonomy index lists them as out of scope.
 
-These constraints are visible because the autonomy surface is agent-manageable. `compozy me context` returns the calling session, active leases, and active coordination channel as structured JSON. `compozy task next` returns the claim result with `claim_token_hash`. The deterministic reason codes — `AUTONOMY_SESSION_REQUIRED`, `AUTONOMY_NO_ACTIVE_LEASE`, `AUTONOMY_FOREIGN_RUN`, `AUTONOMY_LEASE_EXPIRED`, `AUTONOMY_LEASE_ALREADY_HELD` — let an agent distinguish "I have no claim" from "my claim expired" from "this is not my run" without parsing prose.
+These constraints are visible because the autonomy surface is agent-manageable. `compozy me context` returns the calling session and active leases as structured JSON. `compozy task next` returns the claim result with `claim_token_hash`. The deterministic reason codes — `AUTONOMY_SESSION_REQUIRED`, `AUTONOMY_NO_ACTIVE_LEASE`, `AUTONOMY_FOREIGN_RUN`, `AUTONOMY_LEASE_EXPIRED`, `AUTONOMY_LEASE_ALREADY_HELD` — let an agent distinguish "I have no claim" from "my claim expired" from "this is not my run" without parsing prose.
 
 ## What any agent runtime needs
 
 Any runtime that hosts long-running agent work eventually has to answer the same three questions. The autonomy kernel's answers are concrete enough to copy.
 
 - **A bounded ownership interval, not a lock.** Pick a renewal cadence (Compozy uses five minutes), a hard ceiling (Compozy uses twenty-four hours), and a recovery path that sweeps stale holders without overwriting newer claims. The reason codes are part of the contract: a stale heartbeat must fail explicitly, never silently extend.
-- **A bearer credential with a dual representation.** Generate a raw token; persist a hash; verify with constant-time compare; ensure every public surface — logs, SSE, web UI, tool output, channel messages — receives only the hash. Add a regular-expression net for free-form strings so a missing field-level redaction does not become a leak.
+- **A bearer credential with a dual representation.** Generate a raw token; persist a hash; verify with constant-time compare; ensure every public surface — logs, SSE, web UI, tool output — receives only the hash. Add a regular-expression net for free-form strings so a missing field-level redaction does not become a leak.
 - **A child-session contract with a TTL, caps, and a permission subset.** Require the TTL. Cap the depth and child count. Enforce permission narrowing before and after hook dispatch. Make the reaper release leases before it stops the child, so recovered work cannot be touched by a stale token.
 
 The autonomy kernel is the load-bearing piece of Compozy that lets an agent claim a four-hour task, spawn a helper, and finish on time — without a leaked token, an orphaned child, or a lease that drifted past its budget. Read the runtime docs at `compozy.com/runtime/core/autonomy` for the control surface; read `internal/task/autonomy.go` and `internal/transcript/redaction.go` for the chokepoints. The primitives are small enough to audit, and that is the point.

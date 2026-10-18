@@ -2,11 +2,13 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // ListAttentionWorkspaceMutes returns the muted workspace registrations for one profile.
@@ -83,6 +85,12 @@ func (r *AttentionRepo) ReplaceAttentionWorkspaceMutes(
 		workspaceID = strings.TrimSpace(workspaceID)
 		if workspaceID == "" {
 			return errors.New("store: attention workspace id is required")
+		}
+		if _, err := queries.GetWorkspace(ctx, workspaceID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("store: attention workspace %q: %w", workspaceID, workspacepkg.ErrWorkspaceNotFound)
+			}
+			return fmt.Errorf("store: read attention workspace %q: %w", workspaceID, err)
 		}
 		if _, err := queries.InsertAttentionWorkspaceMute(ctx, sqlcgen.InsertAttentionWorkspaceMuteParams{
 			ProfileID: profileID, WorkspaceID: workspaceID,

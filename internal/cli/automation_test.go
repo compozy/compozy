@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
@@ -77,7 +78,7 @@ func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
 func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should create a workspace job with static Loop inputs and Network participation", func(t *testing.T) {
+	t.Run("Should create a workspace job with static Loop inputs", func(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationJobCreateRequest
@@ -105,9 +106,6 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			"--loop", "release-readiness",
 			"--loop-input", "channel=stable",
 			"--loop-input", "retries=3",
-			"--network", "live",
-			"--network-channel-strategy", "named",
-			"--network-channel", "automation",
 		)
 		if err != nil {
 			t.Fatalf("automation jobs create Loop target error = %v", err)
@@ -122,11 +120,6 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 		}
 		if retries, ok := request.LoopTarget.Inputs["retries"].(json.Number); !ok || retries.String() != "3" {
 			t.Fatalf("job Loop retries = %#v, want json.Number(3)", request.LoopTarget.Inputs["retries"])
-		}
-		participation := request.LoopTarget.NetworkParticipation
-		if participation == nil || participation.Mode == nil || *participation.Mode != "live" ||
-			participation.ChannelID == nil || *participation.ChannelID != "automation" {
-			t.Fatalf("job Loop Network participation = %#v, want Live automation channel", participation)
 		}
 	})
 
@@ -211,19 +204,6 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			name: "Should require a Loop name for Loop-only options",
 			args: []string{"--loop-input", "channel=stable"},
 			want: "--loop is required when Loop target flags are set",
-		},
-		{
-			name: "Should require a Loop name for Network participation flags",
-			args: []string{"--network", "live"},
-			want: "--loop is required when Loop target flags are set",
-		},
-		{
-			name: "Should reject Network participation flags on an Agent target",
-			args: []string{
-				"--agent", "coder", "--prompt", "review", "--network", "live",
-				"--network-channel-strategy", "named", "--network-channel", "automation",
-			},
-			want: "Loop target flags cannot be used with --agent",
 		},
 		{
 			name: "Should require a Loop workspace for global automation",
@@ -540,7 +520,7 @@ func TestAutomationJobsCreateInfersWorkspaceForWorkspaceScope(t *testing.T) {
 	})
 }
 
-func TestAutomationJobsCreateSupportsHumanAndJSONOutput(t *testing.T) {
+func TestAutomationJobsCreateSupportsHumanOutput(t *testing.T) {
 	t.Parallel()
 
 	deps := newDefaultProfileTestDeps(t, &stubClient{
@@ -566,29 +546,6 @@ func TestAutomationJobsCreateSupportsHumanAndJSONOutput(t *testing.T) {
 	if !strings.Contains(humanOut, "Automation Job") || !strings.Contains(humanOut, "nightly-review") ||
 		!strings.Contains(humanOut, "default") {
 		t.Fatalf("human output = %q, want Automation Job details", humanOut)
-	}
-
-	jsonOut, _, err := executeRootCommand(
-		t,
-		deps,
-		"automation", "jobs", "create",
-		"--name", "nightly-review",
-		"--scope", "global",
-		"--schedule", "every:30m",
-		"--agent", "coder",
-		"--prompt", "review repo",
-		"-o", "json",
-	)
-	if err != nil {
-		t.Fatalf("automation jobs create json error = %v", err)
-	}
-
-	var created JobRecord
-	if err := json.Unmarshal([]byte(jsonOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(job create json) error = %v", err)
-	}
-	if created.ID != "job-1" {
-		t.Fatalf("created.ID = %q, want %q", created.ID, "job-1")
 	}
 }
 
@@ -745,6 +702,7 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		"--source", "package",
 		"--enabled=false",
 		"--loop", "triage",
+		"--target", "loop",
 		"--query", "digest",
 		"--cursor", jobCursor,
 		"--limit", "3",
@@ -762,7 +720,7 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		listQuery.WorkspaceID != "ws-alpha" ||
 		listQuery.Source != automationpkg.JobSourcePackage ||
 		listQuery.Enabled == nil || *listQuery.Enabled ||
-		listQuery.LoopName != "triage" ||
+		listQuery.LoopName != "triage" || listQuery.Target != "loop" ||
 		listQuery.Search != "digest" ||
 		listQuery.Cursor != jobCursor ||
 		listQuery.Limit != 3 {
@@ -832,7 +790,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		jobsToon,
-		"automation_jobs[1]{id,profile_name,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run}:",
+		"automation_jobs[1]{id,profile_name,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run,last_run_status,last_run_started_at}:",
 	) || !strings.Contains(jobsToon, "default") {
 		t.Fatalf("jobs toon output = %q, want automation_jobs TOON array", jobsToon)
 	}
@@ -843,7 +801,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		triggerToon,
-		"automation_trigger{id,profile_name,name,scope,workspace_id,agent_name,event,enabled,source,retry,fire_limit,webhook_id,endpoint_slug,webhook_path,created_at,updated_at,prompt}:",
+		"automation_trigger{id,profile_name,name,scope,workspace_id,agent_name,event,enabled,source,retry,fire_limit,webhook_id,endpoint_slug,webhook_path,created_at,updated_at,prompt,last_run_status,last_run_started_at}:",
 	) || !strings.Contains(triggerToon, "default") {
 		t.Fatalf("trigger toon output = %q, want automation_trigger TOON object", triggerToon)
 	}
@@ -1190,7 +1148,7 @@ func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	triggerListHuman, err := automationTriggerListBundle(AutomationTriggerListRecord{
 		Triggers: []TriggerRecord{sampleAutomationTriggerRecord()},
 		Page:     contract.CountedCursorPagePayload{Total: 1, Limit: automationpkg.DefaultListLimit},
-	}).human()
+	}, nil).human()
 	if err != nil {
 		t.Fatalf("automationTriggerListBundle().human() error = %v", err)
 	}
@@ -1222,9 +1180,6 @@ func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	}
 	if got := displayRunTarget(sampleAutomationRunRecord()); got != "job:job-1" {
 		t.Fatalf("displayRunTarget() = %q, want job target", got)
-	}
-	if ptr := new(true); ptr == nil || !*ptr {
-		t.Fatalf("new(true) = %#v, want true pointer", ptr)
 	}
 }
 
@@ -1267,6 +1222,8 @@ func sampleAutomationSuggestionRecord() SuggestionRecord {
 func automationJobCursorForTest(t *testing.T, query AutomationJobQuery) string {
 	t.Helper()
 
+	query.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+
 	source := query.Source
 	if source == "" {
 		source = automationpkg.JobSourceDynamic
@@ -1276,6 +1233,7 @@ func automationJobCursorForTest(t *testing.T, query AutomationJobQuery) string {
 	for index, name := range []string{"digest-alpha", "digest-bravo"} {
 		jobs = append(jobs, automationpkg.Job{
 			ID:          fmt.Sprintf("job-cursor-%d", index),
+			ProfileID:   store.DefaultProfileID,
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        name,
 			WorkspaceID: "ws-alpha",
@@ -1299,6 +1257,8 @@ func automationJobCursorForTest(t *testing.T, query AutomationJobQuery) string {
 func automationTriggerCursorForTest(t *testing.T, query AutomationTriggerQuery) string {
 	t.Helper()
 
+	query.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+
 	source := query.Source
 	if source == "" {
 		source = automationpkg.JobSourceDynamic
@@ -1308,6 +1268,7 @@ func automationTriggerCursorForTest(t *testing.T, query AutomationTriggerQuery) 
 	for index, name := range []string{"review-alpha", "review-bravo"} {
 		triggers = append(triggers, automationpkg.Trigger{
 			ID:          fmt.Sprintf("trigger-cursor-%d", index),
+			ProfileID:   store.DefaultProfileID,
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        name,
 			WorkspaceID: "ws-alpha",
@@ -1364,4 +1325,80 @@ func sampleAutomationRunRecord() RunRecord {
 		StartedAt:   &started,
 		EndedAt:     &ended,
 	}
+}
+
+func TestAutomationListLastRunOutput(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render latest runs consistently in both automation lists", func(t *testing.T) {
+		t.Parallel()
+		fixed := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+		for _, tc := range []struct {
+			name  string
+			run   *contract.AutomationLastRunPayload
+			human string
+		}{
+			{name: "Should show failed run age", run: &contract.AutomationLastRunPayload{ID: "run-failed", Status: automationpkg.RunFailed, StartedAt: new(fixed.Add(-7 * time.Hour))}, human: "failed 7h ago"},
+			{name: "Should describe skipped cancellations", run: &contract.AutomationLastRunPayload{ID: "run-skipped", Status: automationpkg.RunCancelled, SkipReason: "self_overlap", StartedAt: new(fixed.Add(-30 * time.Minute))}, human: "skipped 30m ago"},
+			{name: "Should describe misfired fires as missed", run: &contract.AutomationLastRunPayload{ID: "run-missed", Status: automationpkg.RunCancelled, SkipReason: automationpkg.SchedulerSkipReasonGraceExceeded, StartedAt: new(fixed.Add(-30 * time.Minute))}, human: "missed 30m ago"},
+			{name: "Should show a dash for an automation without runs", human: "—"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				job := sampleAutomationJobRecord()
+				job.LastRun = tc.run
+				trigger := sampleAutomationTriggerRecord()
+				trigger.LastRun = tc.run
+				bundles := []outputBundle{
+					automationJobListBundle(
+						AutomationJobListRecord{Jobs: []JobRecord{job}},
+						func() time.Time { return fixed },
+					),
+					automationTriggerListBundle(
+						AutomationTriggerListRecord{Triggers: []TriggerRecord{trigger}},
+						func() time.Time { return fixed },
+					),
+				}
+				for _, bundle := range []outputBundle{automationJobBundle(job), automationTriggerBundle(trigger)} {
+					toon, err := bundle.toon()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(toon, "last_run_status,last_run_started_at") {
+						t.Fatalf("missing detail latest run fields: %s", toon)
+					}
+					if tc.run != nil &&
+						!strings.Contains(toon, string(tc.run.Status)+","+formatOptionalTime(tc.run.StartedAt)) {
+						t.Fatalf("missing detail latest run values: %s", toon)
+					}
+				}
+				for _, bundle := range bundles {
+					human, err := bundle.human()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(strings.ToUpper(human), "LAST RUN") || !strings.Contains(human, tc.human) {
+						t.Fatalf("human output = %q, want latest run %q", human, tc.human)
+					}
+					encoded, err := json.Marshal(bundle.jsonValue)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if tc.run == nil {
+						if strings.Contains(string(encoded), "last_run") {
+							t.Fatalf("unexpected last_run: %s", encoded)
+						}
+					} else if !strings.Contains(string(encoded), tc.run.ID) {
+						t.Fatalf("missing last_run: %s", encoded)
+					}
+					toon, err := bundle.toon()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(toon, "last_run_status,last_run_started_at") {
+						t.Fatalf("missing last run toon fields: %s", toon)
+					}
+				}
+			})
+		}
+	})
 }

@@ -90,7 +90,7 @@ func TestActorScreenContract(t *testing.T) {
 						}
 						return
 					}
-					if _, err := actor.Screen(context.Background()); err != nil {
+					if _, err := actor.Screen(t.Context()); err != nil {
 						select {
 						case workerErrors <- fmt.Errorf("worker %d screen: %w", index, err):
 						default:
@@ -106,7 +106,7 @@ func TestActorScreenContract(t *testing.T) {
 			t.Fatal(err)
 		default:
 		}
-		if _, err := actor.Screen(context.Background()); err != nil {
+		if _, err := actor.Screen(t.Context()); err != nil {
 			t.Fatalf("Screen() error = %v", err)
 		}
 	})
@@ -143,7 +143,7 @@ func TestActorScreenContract(t *testing.T) {
 		if err := actor.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
-		snapshot, err := actor.Screen(context.Background())
+		snapshot, err := actor.Screen(t.Context())
 		if err != nil {
 			t.Fatalf("Screen(closed) error = %v", err)
 		}
@@ -204,7 +204,7 @@ func TestActorOverflowRebuild(t *testing.T) {
 	if pending := actor.pending.Load(); pending > actor.capacity {
 		t.Fatalf("mailbox pending = %d, cap = %d", pending, actor.capacity)
 	}
-	busy, err := actor.Screen(context.Background())
+	busy, err := actor.Screen(t.Context())
 	if err != nil || !busy.Busy {
 		t.Fatalf("Screen(rebuilding) = %#v error=%v, want busy", busy, err)
 	}

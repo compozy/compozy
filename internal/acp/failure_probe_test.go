@@ -83,7 +83,7 @@ func TestProbeTargetCommandReportsStructuredTimeoutAndCancellation(t *testing.T)
 	t.Run("Should return timeout when lookup exceeds probe timeout", func(t *testing.T) {
 		t.Parallel()
 
-		result := ProbeTargetCommand(context.Background(), ProbeTarget{
+		result := ProbeTargetCommand(t.Context(), ProbeTarget{
 			AgentName: "coder",
 			Provider:  "fake",
 			Command:   "fake-agent --acp",
@@ -105,7 +105,7 @@ func TestProbeTargetCommandReportsStructuredTimeoutAndCancellation(t *testing.T)
 	t.Run("Should return canceled when parent context is canceled", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		result := ProbeTargetCommand(ctx, ProbeTarget{Command: "fake-agent"}, ProbeOptions{})
 		if got, want := result.Status, ProbeStatusCanceled; got != want {
@@ -116,7 +116,7 @@ func TestProbeTargetCommandReportsStructuredTimeoutAndCancellation(t *testing.T)
 	t.Run("Should return ok with executable path", func(t *testing.T) {
 		t.Parallel()
 
-		result := ProbeTargetCommand(context.Background(), ProbeTarget{Command: "fake-agent --acp"}, ProbeOptions{
+		result := ProbeTargetCommand(t.Context(), ProbeTarget{Command: "fake-agent --acp"}, ProbeOptions{
 			Lookup: func(context.Context, string) (string, error) {
 				return "/usr/local/bin/fake-agent", nil
 			},
@@ -132,7 +132,7 @@ func TestProbeTargetCommandReportsStructuredTimeoutAndCancellation(t *testing.T)
 	t.Run("Should redact exposed command and parse errors", func(t *testing.T) {
 		t.Parallel()
 
-		result := ProbeTargetCommand(context.Background(), ProbeTarget{
+		result := ProbeTargetCommand(t.Context(), ProbeTarget{
 			Command: `fake-agent --api-key=super-secret "unterminated`,
 		}, ProbeOptions{})
 		if got, want := result.Status, ProbeStatusInvalid; got != want {
@@ -141,8 +141,11 @@ func TestProbeTargetCommandReportsStructuredTimeoutAndCancellation(t *testing.T)
 		if strings.Contains(result.Command, "super-secret") || strings.Contains(result.Error, "super-secret") {
 			t.Fatalf("result = %#v, want redacted command and error", result)
 		}
-		if !strings.Contains(result.Command, "[REDACTED]") || !strings.Contains(result.Error, "[REDACTED]") {
-			t.Fatalf("result = %#v, want redacted marker", result)
+		if !strings.Contains(result.Command, "[REDACTED]") {
+			t.Fatalf("result = %#v, want redacted command marker", result)
+		}
+		if strings.Contains(result.Error, "--api-key") {
+			t.Fatalf("result.Error = %q, want the command named by fingerprint only", result.Error)
 		}
 	})
 }

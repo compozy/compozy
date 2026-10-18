@@ -1,7 +1,7 @@
 import { cn } from "../../lib/utils";
 import { ButtonGroup, ButtonGroupText } from "../button-group";
 import { FilterOperatorDropdown, FilterRemoveButton } from "./filter-controls";
-import { filtersContainerVariants } from "./filter-layout";
+import { FILTER_CHIP_SEGMENT_CLASS, filtersContainerVariants } from "./filter-layout";
 import type { Filter, FilterFieldsConfig } from "./filter-types";
 import { FilterValueSelector } from "./filter-value-selector";
 import { getFieldsMap } from "./hooks/filter-helpers";
@@ -54,7 +54,7 @@ function FiltersContent<T = unknown>({
         if (field.type === "toggle") {
           return (
             <ButtonGroup key={filter.id}>
-              <ButtonGroupText className="bg-background dark:bg-input/30">
+              <ButtonGroupText className={FILTER_CHIP_SEGMENT_CLASS[context.size]}>
                 {field.icon}
                 {field.label}
               </ButtonGroupText>
@@ -68,7 +68,7 @@ function FiltersContent<T = unknown>({
 
         return (
           <ButtonGroup key={filter.id}>
-            <ButtonGroupText className="bg-background dark:bg-input/30">
+            <ButtonGroupText className={FILTER_CHIP_SEGMENT_CLASS[context.size]}>
               {field.icon}
               {field.label}
             </ButtonGroupText>

@@ -78,7 +78,7 @@ type WindowManagerErrorPayload struct {
 	Error           string                     `json:"error"`
 	Code            WindowManagerErrorCode     `json:"code"`
 	WorkspaceID     windowmanager.WorkspaceID  `json:"workspace_id"`
-	CurrentRevision *WindowManagerRevision     `json:"current_revision,omitempty"`
+	CurrentRevision *WindowManagerRevision     `json:"current_revision,omitzero"`
 	Conflicts       []windowmanager.Conflict   `json:"conflicts,omitempty"`
 	Diagnostics     []windowmanager.Diagnostic `json:"diagnostics,omitempty"`
 }
@@ -92,21 +92,21 @@ type WindowManagerActor struct {
 // WindowManagerReturnAnchor is the stable wire form of a prior structural slot.
 type WindowManagerReturnAnchor struct {
 	DesktopID      windowmanager.DesktopID   `json:"desktop_id"`
-	GroupID        *windowmanager.GroupID    `json:"group_id,omitempty"`
-	ParentSplitID  *windowmanager.NodeID     `json:"parent_split_id,omitempty"`
-	ChildIndex     *int                      `json:"child_index,omitempty"`
-	Weight         *float64                  `json:"weight,omitempty"`
+	GroupID        *windowmanager.GroupID    `json:"group_id,omitzero"`
+	ParentSplitID  *windowmanager.NodeID     `json:"parent_split_id,omitzero"`
+	ChildIndex     *int                      `json:"child_index,omitzero"`
+	Weight         *float64                  `json:"weight,omitzero"`
 	NeighborIDs    []windowmanager.WindowID  `json:"neighbor_ids,omitempty"`
 	SourceRevision WindowManagerRevision     `json:"source_revision"`
-	SourceGroup    *WindowManagerLayoutGroup `json:"source_group,omitempty"`
-	Zoomed         bool                      `json:"zoomed,omitempty"`
+	SourceGroup    *WindowManagerLayoutGroup `json:"source_group,omitzero"`
+	Zoomed         bool                      `json:"zoomed,omitzero"`
 }
 
 // WindowManagerWindow is one durable application instance.
 type WindowManagerWindow struct {
 	ID           windowmanager.WindowID        `json:"id"`
 	App          string                        `json:"app"`
-	InstanceKey  *string                       `json:"instance_key,omitempty"`
+	InstanceKey  *string                       `json:"instance_key,omitzero"`
 	Route        windowmanager.RouteIntent     `json:"route"`
 	NavStack     []windowmanager.RouteIntent   `json:"nav_stack"`
 	Pinned       bool                          `json:"pinned"`
@@ -115,7 +115,7 @@ type WindowManagerWindow struct {
 	FloatingRect windowmanager.NormalizedRect  `json:"floating_rect"`
 	Minimized    bool                          `json:"minimized"`
 	Zoomed       bool                          `json:"zoomed"`
-	ReturnAnchor *WindowManagerReturnAnchor    `json:"return_anchor,omitempty"`
+	ReturnAnchor *WindowManagerReturnAnchor    `json:"return_anchor,omitzero"`
 }
 
 // WindowManagerSnapshot is the complete durable workspace aggregate.
@@ -147,7 +147,7 @@ type WindowManagerClientView struct {
 	PresentationRevision WindowManagerRevision                      `json:"presentation_revision"`
 	ContextRevision      WindowManagerRevision                      `json:"context_revision"`
 	ActiveDesktopID      windowmanager.DesktopID                    `json:"active_desktop_id"`
-	FocusedWindowID      *windowmanager.WindowID                    `json:"focused_window_id,omitempty"`
+	FocusedWindowID      *windowmanager.WindowID                    `json:"focused_window_id,omitzero"`
 	FocusOrder           []windowmanager.WindowID                   `json:"focus_order"`
 	StackActive          map[string]string                          `json:"stack_active"`
 	PaletteContext       WindowManagerPaletteContext                `json:"palette_context"`
@@ -165,7 +165,7 @@ type WindowManagerPaletteContext struct {
 	ShellDesktop        bool                       `json:"shell_desktop"`
 	FocusedSessionState string                     `json:"focused_session_state,omitempty"`
 	WorkspaceTrusted    bool                       `json:"workspace_trusted"`
-	DestinationIntent   *windowmanager.RouteIntent `json:"destination_intent,omitempty"`
+	DestinationIntent   *windowmanager.RouteIntent `json:"destination_intent,omitzero"`
 }
 
 // WindowManagerClientsResponse lists client-local views in one workspace partition.
@@ -187,7 +187,7 @@ type WindowManagerClientContextInput struct {
 	ScopeGlobal         bool                                       `json:"scope_global"`
 	FocusedSessionState string                                     `json:"focused_session_state,omitempty"`
 	WorkspaceTrusted    bool                                       `json:"workspace_trusted"`
-	DestinationIntent   *windowmanager.RouteIntent                 `json:"destination_intent,omitempty"`
+	DestinationIntent   *windowmanager.RouteIntent                 `json:"destination_intent,omitzero"`
 	GlobalShortcuts     []windowmanager.GlobalShortcutRegistration `json:"global_shortcuts"`
 }
 
@@ -208,7 +208,7 @@ type WindowManagerLayoutValidationResponse struct {
 type WindowManagerLayoutReplaceRequest struct {
 	WorkspaceID      windowmanager.WorkspaceID   `json:"workspace_id"`
 	ExpectedRevision *WindowManagerRevision      `json:"expected_revision"`
-	ClientID         *windowmanager.ClientID     `json:"client_id,omitempty"`
+	ClientID         *windowmanager.ClientID     `json:"client_id,omitzero"`
 	Actor            WindowManagerActor          `json:"actor"`
 	Origin           string                      `json:"origin"`
 	Document         WindowManagerLayoutDocument `json:"document"`
@@ -220,8 +220,8 @@ type WindowManagerResult struct {
 	Applied     bool                       `json:"applied"`
 	Changes     windowmanager.ChangeSet    `json:"changes"`
 	Diagnostics []windowmanager.Diagnostic `json:"diagnostics,omitempty"`
-	Client      *WindowManagerClientView   `json:"client,omitempty"`
-	RebasedFrom *WindowManagerRevision     `json:"rebased_from,omitempty"`
+	Client      *WindowManagerClientView   `json:"client,omitzero"`
+	RebasedFrom *WindowManagerRevision     `json:"rebased_from,omitzero"`
 }
 
 // WindowManagerPreview reports a validated proposal without a durable write.
@@ -230,5 +230,5 @@ type WindowManagerPreview struct {
 	Changed     bool                       `json:"changed"`
 	Changes     windowmanager.ChangeSet    `json:"changes"`
 	Diagnostics []windowmanager.Diagnostic `json:"diagnostics,omitempty"`
-	Client      *WindowManagerClientView   `json:"client,omitempty"`
+	Client      *WindowManagerClientView   `json:"client,omitzero"`
 }

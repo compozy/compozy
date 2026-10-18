@@ -43,16 +43,14 @@ func runPreStart(
 			Kind:    ProviderFailureCLIMissing,
 			Action:  ProviderFailureActionInstallCLI,
 		}
-		item := DiagnosticItem(normalized.ProviderName, classification)
-		return PreStartReport{Item: &item}
+		return PreStartReport{Item: new(DiagnosticItem(normalized.ProviderName, classification))}
 	}
 	classification, err := ClassifyDeclared(ctx, provider, &normalized)
 	if err != nil {
 		return preStartErrorReport(&normalized, err)
 	}
 	if classification.Code != "" && classification.State != ProviderAuthStateUnknown {
-		item := DiagnosticItem(normalized.ProviderName, classification)
-		return PreStartReport{Item: &item}
+		return PreStartReport{Item: new(DiagnosticItem(normalized.ProviderName, classification))}
 	}
 	if strings.TrimSpace(provider.AuthStatusCmd) == "" {
 		return PreStartReport{}
@@ -76,11 +74,9 @@ func runPreStart(
 	if probeClassification.Code == "" {
 		return PreStartReport{}
 	}
-	item := DiagnosticItem(normalized.ProviderName, probeClassification)
-	return PreStartReport{Item: &item}
+	return PreStartReport{Item: new(DiagnosticItem(normalized.ProviderName, probeClassification))}
 }
 
 func preStartErrorReport(env *ProbeEnv, cause error) PreStartReport {
-	item := DiagnosticItem(env.ProviderName, ClassifyError(cause))
-	return PreStartReport{Item: &item, Cause: cause}
+	return PreStartReport{Item: new(DiagnosticItem(env.ProviderName, ClassifyError(cause))), Cause: cause}
 }

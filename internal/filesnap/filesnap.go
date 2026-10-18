@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -35,7 +36,7 @@ func FromPath(path string) (Snapshot, error) {
 // FromInfo captures supplied metadata, fingerprinting content only when the OS lacks a reliable change token.
 func FromInfo(path string, info fs.FileInfo) Snapshot {
 	snapshot := Snapshot{
-		ModTime: info.ModTime(), Size: info.Size(), mode: info.Mode(),
+		ModTime: info.ModTime(), Size: snapshotSize(info), mode: info.Mode(),
 		change: fileChangeToken(info), captured: true,
 	}
 	if snapshot.change.available {
@@ -123,7 +124,13 @@ func Clone(src map[string]Snapshot) map[string]Snapshot {
 		return map[string]Snapshot{}
 	}
 
-	cloned := make(map[string]Snapshot, len(src))
-	maps.Copy(cloned, src)
-	return cloned
+	return maps.Clone(src)
+}
+
+func snapshotSize(info fs.FileInfo) int64 {
+	// NTFS directory allocation size varies with the metadata query and cache state.
+	if runtime.GOOS == "windows" && info.IsDir() {
+		return 0
+	}
+	return info.Size()
 }

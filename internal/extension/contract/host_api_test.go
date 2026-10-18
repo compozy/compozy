@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
@@ -26,62 +25,6 @@ func TestHostAPIMethodSpecsFollowProtocolWireOrder(t *testing.T) {
 			if specs[idx].Method != wantOrder[idx] {
 				t.Fatalf("HostAPIMethodSpecs()[%d].Method = %q, want %q", idx, specs[idx].Method, wantOrder[idx])
 			}
-		}
-	})
-
-	t.Run("Should root bridge method named types in the bridge wire contract", func(t *testing.T) {
-		t.Parallel()
-
-		type expectedTypes struct {
-			paramsName string
-			paramsType reflect.Type
-			resultName string
-			resultType reflect.Type
-		}
-		want := map[HostAPIMethod]expectedTypes{
-			extensionprotocol.HostAPIMethodBridgesInstancesList: {
-				paramsName: "EmptyResult", paramsType: reflect.TypeFor[EmptyResult](),
-				resultName: "BridgeInstance", resultType: reflect.TypeFor[[]bridgecontract.BridgeInstance](),
-			},
-			extensionprotocol.HostAPIMethodBridgesInstancesGet: {
-				paramsName: "BridgeInstanceTargetParams",
-				paramsType: reflect.TypeFor[bridgecontract.BridgeInstanceTargetParams](),
-				resultName: "BridgeInstance", resultType: reflect.TypeFor[bridgecontract.BridgeInstance](),
-			},
-			extensionprotocol.HostAPIMethodBridgesInstancesReportState: {
-				paramsName: "BridgesInstancesReportStateParams",
-				paramsType: reflect.TypeFor[bridgecontract.BridgesInstancesReportStateParams](),
-				resultName: "BridgeInstance", resultType: reflect.TypeFor[bridgecontract.BridgeInstance](),
-			},
-			extensionprotocol.HostAPIMethodBridgesMessagesIngest: {
-				paramsName: "InboundMessageEnvelope",
-				paramsType: reflect.TypeFor[bridgecontract.InboundMessageEnvelope](),
-				resultName: "BridgesMessagesIngestResult",
-				resultType: reflect.TypeFor[bridgecontract.BridgesMessagesIngestResult](),
-			},
-		}
-
-		for _, spec := range HostAPIMethodSpecs() {
-			expected, ok := want[spec.Method]
-			if !ok {
-				continue
-			}
-			if spec.Params.Name != expected.paramsName || reflect.TypeOf(spec.Params.Value) != expected.paramsType {
-				t.Fatalf(
-					"HostAPIMethodSpecs()[%q].Params = (%q, %T), want (%q, %v)",
-					spec.Method, spec.Params.Name, spec.Params.Value, expected.paramsName, expected.paramsType,
-				)
-			}
-			if spec.Result.Name != expected.resultName || reflect.TypeOf(spec.Result.Value) != expected.resultType {
-				t.Fatalf(
-					"HostAPIMethodSpecs()[%q].Result = (%q, %T), want (%q, %v)",
-					spec.Method, spec.Result.Name, spec.Result.Value, expected.resultName, expected.resultType,
-				)
-			}
-			delete(want, spec.Method)
-		}
-		if len(want) != 0 {
-			t.Fatalf("HostAPIMethodSpecs() missing bridge methods: %#v", want)
 		}
 	})
 }

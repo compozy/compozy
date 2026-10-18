@@ -1,0 +1,79 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "browser-command-allowed",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are a command browser E2E fixture.",
+            "turns": [
+                {
+                    "name": "command-allowed-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "exercise command allowed path"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Command allowed started."
+                        },
+                        {
+                            "kind": "command_exec",
+                            "tool_call_id": "browser-command-allowed-command",
+                            "title": "Write command browser marker",
+                            "command": "cp",
+                            "args": ["browser-allowed-source.txt", "browser-allowed.txt"]
+                        },
+                        {
+                            "kind": "command_exec",
+                            "tool_call_id": "browser-command-allowed-read",
+                            "title": "Read command browser marker",
+                            "command": "cat",
+                            "args": ["browser-allowed.txt"],
+                            "expect_output_contains": "command-browser-allowed",
+                            "emit_output": true
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Command allowed complete."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "browser-command-blocked",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are a blocked command browser E2E fixture.",
+            "turns": [
+                {
+                    "name": "command-blocked-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "exercise command blocked path"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Command blocked started."
+                        },
+                        {
+                            "kind": "command_exec",
+                            "tool_call_id": "browser-command-blocked-command",
+                            "title": "Attempt blocked terminal write",
+                            "command": "sh",
+                            "args": [
+                                "-c",
+                                "mkdir -p toolhost && printf command-browser-blocked > toolhost/browser-blocked.txt"
+                            ],
+                            "expect_error_contains": "terminal/create",
+                            "emit_text": "Command blocked diagnostic: terminal/create denied before writing workspace marker."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

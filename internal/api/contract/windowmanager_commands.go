@@ -64,11 +64,11 @@ func WindowManagerCommandIDValues() []string {
 
 // WindowManagerRebaseGuard proves stale source and target identities remain unambiguous.
 type WindowManagerRebaseGuard struct {
-	WindowID      *windowmanager.WindowID `json:"window_id,omitempty"`
-	SourceNodeID  *windowmanager.NodeID   `json:"source_node_id,omitempty"`
-	TargetNodeID  *windowmanager.NodeID   `json:"target_node_id,omitempty"`
-	SplitID       *windowmanager.NodeID   `json:"split_id,omitempty"`
-	BoundaryIndex *int                    `json:"boundary_index,omitempty"`
+	WindowID      *windowmanager.WindowID `json:"window_id,omitzero"`
+	SourceNodeID  *windowmanager.NodeID   `json:"source_node_id,omitzero"`
+	TargetNodeID  *windowmanager.NodeID   `json:"target_node_id,omitzero"`
+	SplitID       *windowmanager.NodeID   `json:"split_id,omitzero"`
+	BoundaryIndex *int                    `json:"boundary_index,omitzero"`
 }
 
 // WindowManagerCommandRequest binds one discriminated payload to a workspace revision.
@@ -76,10 +76,10 @@ type WindowManagerCommandRequest struct {
 	WorkspaceID      windowmanager.WorkspaceID `json:"workspace_id"`
 	CommandID        WindowManagerCommandID    `json:"command_id"`
 	ExpectedRevision *WindowManagerRevision    `json:"expected_revision"`
-	ClientID         *windowmanager.ClientID   `json:"client_id,omitempty"`
+	ClientID         *windowmanager.ClientID   `json:"client_id,omitzero"`
 	Actor            WindowManagerActor        `json:"actor"`
 	Origin           string                    `json:"origin"`
-	Rebase           *WindowManagerRebaseGuard `json:"rebase,omitempty"`
+	Rebase           *WindowManagerRebaseGuard `json:"rebase,omitzero"`
 	Payload          json.RawMessage           `json:"payload"`
 }
 

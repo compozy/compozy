@@ -24,17 +24,16 @@ INSERT INTO permission_log (
 
 -- name: InsertWorkspace :exec
 INSERT INTO workspaces (
-  id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+  id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(root_dir), sqlc.arg(add_dirs), sqlc.arg(name),
-  sqlc.narg(default_agent), sqlc.arg(sandbox_ref), sqlc.arg(created_at), sqlc.arg(updated_at)
+  sqlc.narg(default_agent), sqlc.arg(created_at), sqlc.arg(updated_at)
 );
 
 -- name: UpdateWorkspace :execrows
 UPDATE workspaces SET
   root_dir = sqlc.arg(root_dir), add_dirs = sqlc.arg(add_dirs), name = sqlc.arg(name),
-  default_agent = sqlc.narg(default_agent), sandbox_ref = sqlc.arg(sandbox_ref),
-  updated_at = sqlc.arg(updated_at)
+  default_agent = sqlc.narg(default_agent), updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
 -- name: ListActiveSessionIDsByWorkspace :many
@@ -50,17 +49,17 @@ DELETE FROM sessions WHERE id = sqlc.arg(id);
 DELETE FROM workspaces WHERE id = sqlc.arg(id);
 
 -- name: GetWorkspace :one
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces WHERE id = sqlc.arg(id);
 
 -- name: GetWorkspaceByPath :one
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces WHERE root_dir = sqlc.arg(root_dir);
 
 -- name: GetWorkspaceByName :one
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces WHERE name = sqlc.arg(name);
 
 -- name: ListWorkspaces :many
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces ORDER BY name ASC, id ASC;

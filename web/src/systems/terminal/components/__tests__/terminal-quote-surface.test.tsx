@@ -174,7 +174,7 @@ describe("SessionTerminalBlock", () => {
 
     const block = screen.getByTestId(`session-terminal-block-${DEV_SERVER_TERMINAL.id}`);
     await waitFor(() => {
-      expect(block.querySelector("[data-tone='accent']")).not.toBeNull();
+      expect(block.querySelector("[data-slot='state-glyph'][data-state='running']")).not.toBeNull();
     });
     expect(block.querySelector("[data-tone='success']")).toBeNull();
     expect(block).toHaveTextContent("still running — the agent continued without waiting");
@@ -217,19 +217,13 @@ describe("SessionTerminalBlock", () => {
 });
 
 describe("TerminalQuoteBlock", () => {
-  it("Should show the terminal and the lines the excerpt was true for", () => {
-    render(<TerminalQuoteBlock onRemove={vi.fn()} quote={QUOTE} />);
-
-    const block = screen.getByTestId("terminal-quote-block");
-    expect(block).toHaveTextContent(DEV_SERVER_TERMINAL.id);
-    // Scrollback numbering shifts as old output is trimmed, which is exactly
-    // why the block records the range it was taken from.
-    expect(block).toHaveTextContent("214");
-  });
-
   it("Should let the excerpt be taken back out", async () => {
     const onRemove = vi.fn();
     render(<TerminalQuoteBlock onRemove={onRemove} quote={QUOTE} />);
+
+    const block = screen.getByTestId("terminal-quote-block");
+    expect(block).toHaveTextContent(DEV_SERVER_TERMINAL.id);
+    expect(block).toHaveTextContent("214");
 
     await userEvent.click(screen.getByRole("button", { name: /remove/i }));
 

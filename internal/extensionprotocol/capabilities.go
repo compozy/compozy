@@ -1,15 +1,12 @@
 package protocol
 
 import (
+	"maps"
 	"slices"
 	"strings"
 )
 
 const (
-	// CapabilityProvideMemoryBackend is the provide surface for daemon-managed memory backends.
-	CapabilityProvideMemoryBackend = "memory.backend"
-	// CapabilityProvideBridgeAdapter is the provide surface for bridge-capable adapter extensions.
-	CapabilityProvideBridgeAdapter = "bridge.adapter"
 	// CapabilityToolProvider is the provide surface for executable extension-host tools.
 	CapabilityToolProvider = "tool.provider"
 	// CapabilityProvideModelSource is the provide surface for model catalog source rows.
@@ -28,11 +25,6 @@ const (
 type ExtensionServiceMethod string
 
 const (
-	ExtensionServiceMethodMemoryStore           ExtensionServiceMethod = "memory/store"
-	ExtensionServiceMethodMemoryRecall          ExtensionServiceMethod = "memory/recall"
-	ExtensionServiceMethodMemoryForget          ExtensionServiceMethod = "memory/forget"
-	ExtensionServiceMethodBridgesDeliver        ExtensionServiceMethod = "bridges/deliver"
-	ExtensionServiceMethodBridgeTargets         ExtensionServiceMethod = "bridges/targets/snapshot"
 	ExtensionServiceMethodProvideTools          ExtensionServiceMethod = "provide_tools"
 	ExtensionServiceMethodToolsCall             ExtensionServiceMethod = "tools/call"
 	ExtensionServiceMethodModelsList            ExtensionServiceMethod = "models/list"
@@ -49,15 +41,6 @@ const (
 )
 
 var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
-	CapabilityProvideMemoryBackend: {
-		ExtensionServiceMethodMemoryStore,
-		ExtensionServiceMethodMemoryRecall,
-		ExtensionServiceMethodMemoryForget,
-	},
-	CapabilityProvideBridgeAdapter: {
-		ExtensionServiceMethodBridgesDeliver,
-		ExtensionServiceMethodBridgeTargets,
-	},
 	CapabilityToolProvider: {
 		ExtensionServiceMethodProvideTools,
 		ExtensionServiceMethodToolsCall,
@@ -87,10 +70,7 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 
 // ProvideCapabilities returns every daemon-recognized provide capability in stable order.
 func ProvideCapabilities() []string {
-	provides := make([]string, 0, len(capabilityServiceMethods))
-	for provide := range capabilityServiceMethods {
-		provides = append(provides, provide)
-	}
+	provides := slices.AppendSeq(make([]string, 0, len(capabilityServiceMethods)), maps.Keys(capabilityServiceMethods))
 	slices.Sort(provides)
 	return provides
 }

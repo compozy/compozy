@@ -83,7 +83,6 @@ export function useFilters<T = unknown>({
     lastAddedFilterId,
     sessionFilterIds,
   } = menuState;
-  const rootInputRef = useRef<HTMLInputElement>(null);
   const lastAddedFilterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootId = useId();
 
@@ -117,7 +116,6 @@ export function useFilters<T = unknown>({
   }, []);
 
   const focusRootInput = (node: HTMLInputElement | null) => {
-    rootInputRef.current = node;
     if (node && addFilterOpen && activeMenu === "root") {
       scheduleFilterDomSync(() => node.focus());
     }
@@ -217,7 +215,6 @@ export function useFilters<T = unknown>({
     openSubMenu,
     rootHighlightedIndex,
     rootId,
-    rootInputRef,
     selectableFields,
     sessionFilterIds,
     setMenuState,

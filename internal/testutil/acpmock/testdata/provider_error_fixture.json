@@ -1,0 +1,58 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "handoff-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are the handoff agent.",
+            "turns": [
+                {
+                    "name": "handoff-hello",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "hello handoff"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "handoff agent ready"
+                        }
+                    ]
+                },
+                {
+                    "name": "handoff-rate-limited",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "rate limit this turn"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "fail_prompt",
+                                "error_message": "429 rate limit exceeded"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "handoff-auth-lapsed",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "auth lapse this turn"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "fail_prompt",
+                                "error_message": "401 unauthorized: authentication required"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

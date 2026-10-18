@@ -40,6 +40,16 @@ const config = {
         destination: "/blog/cursor-vs-claude-code/",
         permanent: true,
       },
+      {
+        source: "/docs/automation/jobs/",
+        destination: "/docs/automation/schedules/",
+        permanent: true,
+      },
+      {
+        source: "/docs/automation/triggers/",
+        destination: "/docs/automation/events/",
+        permanent: true,
+      },
     ];
   },
   turbopack: {
@@ -48,7 +58,6 @@ const config = {
   outputFileTracingRoot: repoRoot,
   outputFileTracingIncludes: {
     "/api/search": [
-      "../../extensions/bridges/*/extension.toml",
       "../../extensions/spec-cycle/extension.json",
       "../../extensions/spec-cycle/agents/*/AGENT.md",
       "../../extensions/spec-cycle/loops/*/loop.yaml",

@@ -7,7 +7,6 @@ CREATE TABLE tool_processes (
 			terminal_id      TEXT NOT NULL DEFAULT '',
 			extension_name   TEXT NOT NULL DEFAULT '',
 			hook_name        TEXT NOT NULL DEFAULT '',
-			sandbox_id   TEXT NOT NULL DEFAULT '',
 			pid              INTEGER NOT NULL DEFAULT 0,
 			process_group_id INTEGER NOT NULL DEFAULT 0,
 			command          TEXT NOT NULL DEFAULT '',

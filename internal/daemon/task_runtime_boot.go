@@ -70,7 +70,6 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState, cleanup *bootC
 		parts.reentry,
 		parts.wakeBridge,
 		claimHandoff,
-		parts.bridgeNotifications,
 		parts.taskStatusProjection,
 		loopActions,
 		parts.reviewRequests,
@@ -91,7 +90,6 @@ type bootTaskRuntimeParts struct {
 	reviewRequests       *runReviewRequestedForwarder
 	coordinatorRunner    *looppkg.CoordinatorRunner
 	loopJudges           *loopGateJudgeRunner
-	bridgeNotifications  *bridgeTerminalTaskNotificationObserver
 	taskStatusProjection *taskStatusProjectionObserver
 }
 
@@ -115,7 +113,7 @@ func (d *Daemon) newBootTaskRuntimeParts(
 		return parts, fmt.Errorf("daemon: create task wake bridge: %w", err)
 	}
 	parts.reviewRequests = newRunReviewRequestedForwarder()
-	parts.eventObserver, parts.bridgeNotifications, parts.taskStatusProjection = d.composeTaskEventObserver(
+	parts.eventObserver, parts.taskStatusProjection = d.composeTaskEventObserver(
 		state,
 		store,
 		parts.reentry,
@@ -267,7 +265,6 @@ func installLoopWatchEventsObserver(
 	state.notifier.AddLoopTerminalObserver(observer)
 	state.notifier.AddLoopNodeTerminalObserver(observer)
 	state.notifier.AddAutomationRunWatchObserver(observer)
-	state.notifier.AddNetworkWatchObserver(observer)
 	state.notifier.AddCoordinatorWatchObserver(observer)
 	state.notifier.AddEventRecordWatchObserver(observer)
 	return nil
@@ -281,7 +278,6 @@ func installTaskRuntime(
 	reentry *harnessReentryBridge,
 	wakeBridge *taskWakeBridge,
 	claimHandoff *taskClaimHandoffRuntime,
-	bridgeNotifications *bridgeTerminalTaskNotificationObserver,
 	taskStatusProjection *taskStatusProjectionObserver,
 	loopActions *loopActionRuntime,
 	reviewRequests *runReviewRequestedForwarder,
@@ -295,7 +291,6 @@ func installTaskRuntime(
 		reentry:              reentry,
 		wakeBridge:           wakeBridge,
 		claimHandoff:         claimHandoff,
-		bridgeNotifications:  bridgeNotifications,
 		taskStatusProjection: taskStatusProjection,
 		loopActions:          loopActions,
 		coordinatorBackstop:  coordinatorBackstop,
@@ -317,10 +312,6 @@ func newTaskRuntimeManager(
 	workAdmission admission.Checker,
 	now func() time.Time,
 ) (*taskpkg.Service, error) {
-	resolver, err := ensureDaemonParticipationResolver(state, store)
-	if err != nil {
-		return nil, err
-	}
 	options := taskManagerOptions(
 		store,
 		bridge,
@@ -337,11 +328,9 @@ func newTaskRuntimeManager(
 	)
 	options = append(
 		options,
-		taskpkg.WithParticipationResolver(resolver),
 		taskpkg.WithExecutionProfileValidationOptions(taskpkg.ExecutionProfileValidationOptions{
-			AllowProviderOverride:       state.cfg.Task.Orchestration.Profile.AllowTaskProviderOverride,
-			AllowSandboxNone:            state.cfg.Task.Orchestration.Profile.AllowTaskSandboxNone,
-			AllowSandboxRef:             true,
+			AllowProviderOverride: state.cfg.Task.Orchestration.Profile.AllowTaskProviderOverride,
+
 			DefaultWorktreeMode:         taskpkg.WorktreeMode(state.cfg.Task.Orchestration.Profile.DefaultWorktreeMode),
 			MaxCoordinatorGuidanceBytes: 0,
 		}),

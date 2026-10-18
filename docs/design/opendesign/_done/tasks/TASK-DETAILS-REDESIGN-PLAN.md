@@ -34,10 +34,10 @@ Rebuild the task-details surface (detail page, all its internal views, and the r
 ### 1.2 What the code audit confirms (file:line)
 
 - **8-pill header + 7-button action bar** with 8 interlocking enablement booleans: `web/src/systems/tasks/components/tasks-detail-header-sections.tsx:51-154`, `:204-400` (`:217-239` for the boolean ladder).
-- **Orchestration tab stacks 5 expert cards** (`tasks-detail-orchestration-panel.tsx:40-44`): raw-JSON execution profile editor (`tasks-execution-profile-card.tsx:351-360`, 472 ln), bridge-notifications table with 6 columns and an 8-field create dialog (`tasks-bridge-notifications-card.tsx:380-504`, 606 ln), reviews table with 7 columns exposing `submit_run_review` (`tasks-reviews-card.tsx:132`), SSE meters labeled "SSE resume seed / awaiting first frame" (`tasks-stream-resume-card.tsx:15-84`).
+- **Orchestration tab stacks expert cards** (`tasks-detail-orchestration-panel.tsx:40-44`): raw-JSON execution profile editor (`tasks-execution-profile-card.tsx:351-360`, 472 ln), reviews table with 7 columns exposing `submit_run_review` (`tasks-reviews-card.tsx:132`), SSE meters labeled "SSE resume seed / awaiting first frame" (`tasks-stream-resume-card.tsx:15-84`).
 - **10 competing status tone maps** feed pills on the same screen (`task-formatters.ts:630`, `task-inspect-diagnostics-card.tsx:19-34`, `tasks-reviews-card.tsx:36-52`, `tasks-stream-resume-card.tsx:15-20`, `lib/status-tone`, others).
-- **Scheduler vocabulary as user copy**, concentrated in `task-formatters.ts` (771 ln): "Coordinator handoff" (`:595`), "channel chatter never owns status" (`:621`), "Saved intent only -- no runs yet" (`tasks-detail-runs-panel.tsx:55`), raw enums `stranded` / `waiting_for_session` / `recovery_required` shown underscore-stripped (`task-inspect-diagnostics-card.tsx:19-25,50-55`).
-- **Bespoke re-implementations of kit primitives**: `SummaryItem` and `DiagnosticRow` hand-rolled cards (`task-inspect-diagnostics-card.tsx:77-207`), `agent-card.tsx:44-165` (article + dl + ul instead of Card/MetricGrid/Timeline), `ProfileLine` and `BridgeTargetRow` byte-identical mono label/value helpers (`tasks-execution-profile-card.tsx:463`, `tasks-bridge-notifications-card.tsx:597`), hand-rolled shimmer progress (`tasks-detail-children-panel.tsx:118-132`), "Live" indicator re-implemented 3 times.
+- **Scheduler vocabulary as user copy**, concentrated in `task-formatters.ts` (771 ln): "Coordinator handoff" (`:595`), "Saved intent only -- no runs yet" (`tasks-detail-runs-panel.tsx:55`), raw enums `stranded` / `waiting_for_session` / `recovery_required` shown underscore-stripped (`task-inspect-diagnostics-card.tsx:19-25,50-55`).
+- **Bespoke re-implementations of kit primitives**: `SummaryItem` and `DiagnosticRow` hand-rolled cards (`task-inspect-diagnostics-card.tsx:77-207`), `agent-card.tsx:44-165` (article + dl + ul instead of Card/MetricGrid/Timeline), `ProfileLine` mono label/value helper (`tasks-execution-profile-card.tsx:463`), hand-rolled shimmer progress (`tasks-detail-children-panel.tsx:118-132`), "Live" indicator re-implemented 3 times.
 - **Panel padding drift**: overview `px-9 py-7` vs other tabs `px-6 py-5`; LaneTabs wrapped in a div that fights its own border (`tasks-detail-tabs.tsx:27-37`).
 - **Tabs are React state, not URLs** (`tasks.$id.tsx:116-207`): no deep links into Runs/Activity.
 - Scale: ~41 components / 7,268 ln + 17 hooks + 13 lib modules; jargon concentrated in `task-formatters.ts`.
@@ -51,7 +51,7 @@ Rebuild the task-details surface (detail page, all its internal views, and the r
 | User control and freedom | 2 | Actions exist; enablement opaque; no undo affordances |
 | Consistency and standards | 2 | 10 tone maps, padding drift, 3 live-indicator variants |
 | Error prevention | 2 | Delete permanently exposed; force-fail has confirm |
-| Recognition over recall | 2 | Ids must be memorized to correlate run/session/channel |
+| Recognition over recall | 2 | Ids must be memorized to correlate run/session |
 | Flexibility and efficiency | 1 | No keyboard shortcuts, no bulk, no command affordance |
 | Aesthetic and minimalist | 1 | The core complaint: everything at max volume |
 | Error recovery | 2 | Recovery paths exist but described in scheduler jargon |
@@ -67,7 +67,7 @@ Cognitive-load checklist: fails 6 of 8 (single focus, chunking, visual hierarchy
 **In scope**
 - `/tasks/$id` detail page: header, all 7 current tabs, their replacement IA.
 - `/tasks/$id/runs/$runId` run-detail page.
-- The operator disclosure layer (diagnostics, bridges, stream, raw data).
+- The operator disclosure layer (diagnostics, stream, raw data).
 - Task-scoped dialogs/sheets opened from these pages (execution profile editor, confirmations).
 - New/changed `@compozy/ui` primitives required by the above.
 
@@ -117,7 +117,7 @@ Tab count drops 7 → 3. Former tabs are re-homed:
 | Agents | Dissolved: owner + per-run claimant in Runs/rail; subtask owners on subtask rows |
 | Children | Overview section "Subtasks" (inline, with progress) |
 | Dependencies | Overview section "Blocked by / Blocks" (inline) |
-| Orchestration | Split: execution profile → "Setup" sheet + rail summary; reviews → Runs/run-detail; bridges + stream + diagnostics → Inspect drawer |
+| Orchestration | Split: execution profile → "Setup" sheet + rail summary; reviews → Runs/run-detail; stream + diagnostics → Inspect drawer |
 
 TODO(pedro): confirm dissolving the Agents tab. Alternative: keep a 4th "Agents" tab only when a task has fan-out designations.
 
@@ -149,14 +149,14 @@ Order, each as a `Section` (label 10.5px uppercase; body in `panelbox` only when
 4. **Dependencies** (when any) — two quiet groups: "Blocked by" and "Blocks". Same row anatomy. Resolved dependencies collapse under "n resolved".
 5. **Recent activity** — last 5 humanized events (`Timeline`/`TimelineEvent` compact), "View all" → Activity tab.
 
-Deleted from Overview: metric cards (E5), diagnostics grid (E7 → Inspect drawer), channel pills (→ rail), description box frame when empty.
+Deleted from Overview: metric cards (E5), diagnostics grid (E7 → Inspect drawer), description box frame when empty.
 
 ### 4.4 Properties rail (320px, `DetailInspector`)
 
 `PropertyRow` list (label subtle 11px / value 13px, mono only for ids), grouped:
 
 - **Properties**: Priority (inline `CommandSelect` editor: PATCH-backed), Owner (inline select: PATCH-backed), Workspace, Parent task (link, when subtask).
-- **Execution**: Agent/worker (from execution profile: agent name or allowed set summary), Model (provider · model, mono), Sandbox (name), Attempts (used of max, e.g. "2 of 3"), Auto-enqueue (on/off, PATCH-backed switch), Channel (network channel, mono, when set). `Edit setup` ghost link → Setup sheet (§4.7).
+- **Execution**: Agent/worker (from execution profile: agent name or allowed set summary), Model (provider · model, mono), Attempts (used of max, e.g. "2 of 3"), Auto-enqueue (on/off, PATCH-backed switch). `Edit setup` ghost link → Setup sheet (§4.7).
 - **Approval** (when policy = manual): state + Approve/Reject inline when pending.
 - **Activity meta**: Created (`Time` relative + absolute tooltip), Updated, Closed (when set), Created by, Task id (`MonoId` copy), Current run id (`MonoId`, when active).
 - Rail footer: `Inspect` ghost icon-button (opens operator drawer) — the only entry point to tier-c data besides the overflow menu.
@@ -181,18 +181,17 @@ Rule: rail shows tier (a) and (b) fields only (§11). No lease, heartbeat, claim
 Replaces the Orchestration tab's profile card + JSON editor:
 
 - `Sheet` (right, per MODAL-STANDARD anatomy: icon well + eyebrow + title, body scroll, single primary footer action).
-- Form on `Field*`/`FieldRow`: Worker mode (pillgroup), Worker agent(s) (CommandSelect multi), Provider/Model via the **canonical `RuntimeSelector`** (reuse verbatim, 7-bar reasoning meter, no rebuilt selector), Coordinator (mode + agent + guidance textarea), Review policy, Sandbox (mode + ref), Participants.
+- Form on `Field*`/`FieldRow`: Worker mode (pillgroup), Worker agent(s) (CommandSelect multi), Provider/Model via the **canonical `RuntimeSelector`** (reuse verbatim, 7-bar reasoning meter, no rebuilt selector), Coordinator (mode + agent + guidance textarea), Review policy, Participants.
 - Guardrail: when a run is active, sheet opens read-only with a quiet inline note "Editing is locked while a run is active." (replaces the warning banner prose). No catalog-status banners.
-- `Fan out` action (when designations configured) moves next to `Start run` in the primary-action logic, opening a small dialog: channel + assignments builder (structured rows, not a mono textarea). TODO(pedro): confirm fan-out stays user-facing vs operator drawer.
+- `Fan out` action (when designations configured) moves next to `Start run` in the primary-action logic, opening a small dialog: assignments builder (structured rows, not a mono textarea). TODO(pedro): confirm fan-out stays user-facing vs operator drawer.
 - Raw JSON view stays available inside the sheet behind a "View JSON" toggle (`CodeBlock`, read-only + copy) for operators; editing is form-first.
 
 ### 4.8 Inspect drawer (operator layer)
 
-`Sheet` (wide) with `LaneTabs`: **Diagnostics** · **Stream** · **Bridges** · **Raw**.
+`Sheet` (wide) with `LaneTabs`: **Diagnostics** · **Stream** · **Raw**.
 
 - Diagnostics: current `TaskInspect` content rebuilt on `MetadataTile` (bordered variant) + `StatusCard` per finding; next-action enums humanized (§7.3) with the suggested CLI command in `CodeBlock`.
 - Stream: connection state, latest seq, resume seed (`Metric`/`MetadataTile`), reconnect action.
-- Bridges: existing subscriptions table + create dialog rebuilt on `FieldRow` (kept 8 fields; this is operator turf).
 - Raw: task + active run DTOs in `JsonViewer`.
 
 Everything currently rendered is preserved here; nothing is lost, it just stops being the default.
@@ -341,7 +340,7 @@ Example rewrite (S1 warn card): "Run heartbeat is stale. The claimed run has not
 
 | New primitive | Why |
 |---|---|
-| `PropertyRow` (label/value row, optional inline editor slot, mono variant) | Rail anatomy; kills `ProfileLine`/`BridgeTargetRow` duplicates |
+| `PropertyRow` (label/value row, optional inline editor slot, mono variant) | Rail anatomy; kills `ProfileLine` duplication |
 | `MetadataTile` `variant="bordered"` | Diagnostics `SummaryItem` replacement |
 | `LiveBadge` (pulse dot + label, reduced-motion-safe) | 3 hand-rolled implementations today; single live vocabulary |
 | `PillField` (eyebrow label + wrapped pill cluster) | Profile `ListSlot` replacement (allowed agents, capabilities) |
@@ -383,7 +382,7 @@ Rejected: generic `StatusSelect` for task status — status is derived by the da
 2. **No delete-run verb.** Runs terminalize; only tasks delete. Run overflow never shows Delete.
 3. **Nullable operational metrics.** Tool calls/turns/tokens/cost come best-effort from the bound session; render "—" when null (`contract/tasks.go:313-324`).
 4. **Run page is not live today.** Polling only (`use-task-run-page.ts:48`); either attach the task stream during implementation or do not render live affordances there.
-5. **Tier-c fields stay in Inspect**: claim_token_hash, lease_until, heartbeat_at, idempotency_key, designation_group_id, coordination_channel_id, event seq, previous_run_id, spawn failures, review circuit fields, raw payloads. Raw claim tokens do not exist in any DTO (never render).
+5. **Tier-c fields stay in Inspect**: claim_token_hash, lease_until, heartbeat_at, idempotency_key, designation_group_id, event seq, previous_run_id, spawn failures, review circuit fields, raw payloads. Raw claim tokens do not exist in any DTO (never render).
 6. **Reviews come from their own endpoints** (`/:id/reviews`), not the task record.
 7. **CLI surface is `compozy task` (singular)** for any command hints.
 8. **Dead SSE listeners** in `use-task-stream.ts:33-96` (`task.run_review_circuit_opened`, `task.notification_delivered`, hook-bus names) to be pruned during implementation.
@@ -408,7 +407,7 @@ TODO(pedro): confirm whether `tasks/task-detail-states.html` should be one galle
 
 ## 13. Implementation notes (for the eventual web/ execution)
 
-- **Consolidation map**: rebuild `agent-card.tsx`, `task-inspect-diagnostics-card.tsx`, `tasks-execution-profile-card.tsx` (form + RuntimeSelector), `tasks-bridge-notifications-card.tsx` (FieldRow), `tasks-multi-agent-panel.tsx` on primitives; delete `SummaryItem`, `DiagnosticRow`, `AgentMetric`, `ProfileLine`, `BridgeTargetRow`, `ListSlot`, hand-rolled shimmer + live dots. Single tone map exported from one module; delete the other nine.
+- **Consolidation map**: rebuild `agent-card.tsx`, `task-inspect-diagnostics-card.tsx`, `tasks-execution-profile-card.tsx` (form + RuntimeSelector), `tasks-multi-agent-panel.tsx` on primitives; delete `SummaryItem`, `DiagnosticRow`, `AgentMetric`, `ProfileLine`, `ListSlot`, hand-rolled shimmer + live dots. Single tone map exported from one module; delete the other nine.
 - **Copy**: all vocabulary changes in `task-formatters.ts`; new humanized event map as its own module with fallback.
 - **Routing**: URL-addressable tabs; keep `use-task-stream` invalidation model; prune dead listeners; wire run page to the stream before advertising live.
 - **Greenfield rule**: hard cuts, no compat props or legacy variants left behind; obsolete components deleted in the same change.

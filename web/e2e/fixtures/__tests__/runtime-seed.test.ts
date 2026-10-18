@@ -1,7 +1,9 @@
 // @vitest-environment node
 
-import { lstat, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, stat, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
+import { DatabaseSync } from "node:sqlite";
+import { seedRuntimeDatabase } from "../runtime-database";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,15 +12,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyBrowserRuntimeSeed,
   browserAutomationOperatorFlowScenario,
-  browserBridgeOperatorFlowScenario,
-  browserNetworkOperatorFlowScenario,
   cleanupBrowserSettingsFixtures,
   browserSettingsOperatorFlowScenario,
   browserTasksOperatorFlowScenario,
-  seedBrowserBridgeOperatorFlow,
   seedBrowserAutomationOperatorFlow,
-  seedBrowserNetworkOperatorFlow,
-  seedBrowserSandboxProfiles,
   seedBrowserSettingsFixtures,
   seedBrowserTasksOperatorFlow,
   seedBrowserRuntimeHome,
@@ -306,260 +303,6 @@ describe("browser runtime seed helpers", () => {
       'seed session sess_browser_stopped entered "stopped" before activating; failure protocol_failure: ACP negotiation failed'
     );
     expect(requestJSON).toHaveBeenCalledTimes(1);
-  });
-
-  it("seeds sandbox profiles through the settings collection API", async () => {
-    const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
-      expect(init?.method).toBe("PUT");
-      const body = JSON.parse(String(init?.body));
-      expect(body).toEqual({
-        profile: {
-          backend: "local",
-          persistence: "reuse",
-          sync_mode: "none",
-        },
-      });
-      return {
-        sandbox: {
-          name: pathname.split("/").at(-1),
-          profile: body.profile,
-          source_metadata: {
-            available_targets: ["global-config"],
-            effective_source: { kind: "global-config", scope: "global" },
-          },
-          workspace_usage_count: 0,
-        },
-      };
-    });
-
-    const result = await seedBrowserSandboxProfiles(
-      { requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"] },
-      [
-        {
-          name: "browser-local-sandbox",
-          profile: {
-            backend: "local",
-            persistence: "reuse",
-            sync_mode: "none",
-          },
-        },
-      ]
-    );
-
-    expect(requestJSON).toHaveBeenCalledWith(
-      "/api/settings/sandboxes/browser-local-sandbox",
-      expect.objectContaining({ method: "PUT" })
-    );
-    expect(result.sandboxes).toHaveLength(1);
-    expect(result.sandboxes[0]?.name).toBe("browser-local-sandbox");
-  });
-
-  it("materializes deterministic network channel, peer, and timeline state through public runtime surfaces", async () => {
-    const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
-      if (pathname === "/api/workspaces/ws_browser/network/channels/browser-builders") {
-        return {
-          channel: {
-            channel: "browser-builders",
-            sessions: [
-              {
-                id: "sess_ops",
-                agent_name: "mock-ops-coordinator",
-                workspace_id: "ws_browser",
-                state: "active",
-              },
-              {
-                id: "sess_patch",
-                agent_name: "mock-patch-worker",
-                workspace_id: "ws_browser",
-                state: "active",
-              },
-            ],
-          },
-        };
-      }
-
-      if (pathname === "/api/workspaces/ws_browser/network/peers?channel=browser-builders") {
-        return {
-          peers: [
-            {
-              channel: "browser-builders",
-              peer_id: "peer_ops",
-              session_id: "sess_ops",
-            },
-            {
-              channel: "browser-builders",
-              peer_id: "peer_patch",
-              session_id: "sess_patch",
-            },
-          ],
-        };
-      }
-
-      if (pathname === "/api/workspaces/ws_browser/network/send") {
-        return {
-          message: {
-            id: JSON.parse(init?.body as string).id,
-          },
-        };
-      }
-
-      if (
-        pathname === "/api/workspaces/ws_browser/network/channels/browser-builders/directs/resolve"
-      ) {
-        expect(JSON.parse(init?.body as string)).toEqual({
-          session_id: "sess_patch",
-          peer_id: "peer_ops",
-        });
-        return {
-          direct: {
-            direct_id: "direct_browser_patch",
-          },
-        };
-      }
-
-      if (
-        pathname ===
-        `/api/workspaces/ws_browser/network/channels/browser-builders/threads/${browserNetworkOperatorFlowScenario.threadId}/messages`
-      ) {
-        return {
-          messages: [
-            {
-              message_id: browserNetworkOperatorFlowScenario.messageIds.say,
-              surface: "thread",
-              thread_id: browserNetworkOperatorFlowScenario.threadId,
-            },
-            {
-              message_id: browserNetworkOperatorFlowScenario.messageIds.summary,
-              surface: "thread",
-              thread_id: browserNetworkOperatorFlowScenario.threadId,
-            },
-          ],
-        };
-      }
-
-      if (
-        pathname ===
-        "/api/workspaces/ws_browser/network/channels/browser-builders/directs/direct_browser_patch/messages"
-      ) {
-        return {
-          messages: [
-            {
-              message_id: browserNetworkOperatorFlowScenario.messageIds.direct,
-              surface: "direct",
-              direct_id: "direct_browser_patch",
-            },
-            {
-              message_id: browserNetworkOperatorFlowScenario.messageIds.trace,
-              surface: "direct",
-              direct_id: "direct_browser_patch",
-            },
-          ],
-        };
-      }
-
-      if (pathname === "/api/network/status") {
-        return {
-          network: {
-            kind_metrics: [
-              {
-                kind: "say",
-                sent: 3,
-                delivered: 2,
-              },
-              {
-                kind: "trace",
-                sent: 1,
-                delivered: 1,
-              },
-            ],
-          },
-        };
-      }
-
-      throw new Error(`unexpected request ${pathname}`);
-    });
-
-    const seeded = await seedBrowserNetworkOperatorFlow(
-      {
-        requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"],
-      },
-      {
-        channel: "browser-builders",
-        initiatorAgentName: "mock-ops-coordinator",
-        responderAgentName: "mock-patch-worker",
-        workspaceId: "ws_browser",
-      }
-    );
-
-    expect(seeded).toEqual({
-      channel: "browser-builders",
-      directId: "direct_browser_patch",
-      initiator: {
-        id: "sess_ops",
-        agent_name: "mock-ops-coordinator",
-        workspace_id: "ws_browser",
-        state: "active",
-        peerId: "peer_ops",
-      },
-      responder: {
-        id: "sess_patch",
-        agent_name: "mock-patch-worker",
-        workspace_id: "ws_browser",
-        state: "active",
-        peerId: "peer_patch",
-      },
-      messageIds: browserNetworkOperatorFlowScenario.messageIds,
-      threadId: browserNetworkOperatorFlowScenario.threadId,
-      traceId: browserNetworkOperatorFlowScenario.traceId,
-      workId: browserNetworkOperatorFlowScenario.workId,
-      workspaceId: "ws_browser",
-    });
-
-    const sendBodies = requestJSON.mock.calls
-      .filter(([pathname]) => pathname === "/api/workspaces/ws_browser/network/send")
-      .map(([, init]) => JSON.parse(init?.body as string));
-
-    expect(sendBodies).toEqual([
-      expect.objectContaining({
-        session_id: "sess_ops",
-        channel: "browser-builders",
-        kind: "say",
-        surface: "thread",
-        thread_id: browserNetworkOperatorFlowScenario.threadId,
-        id: browserNetworkOperatorFlowScenario.messageIds.say,
-      }),
-      expect.objectContaining({
-        session_id: "sess_patch",
-        channel: "browser-builders",
-        kind: "say",
-        surface: "direct",
-        direct_id: "direct_browser_patch",
-        work_id: browserNetworkOperatorFlowScenario.workId,
-        to: "peer_ops",
-        id: browserNetworkOperatorFlowScenario.messageIds.direct,
-      }),
-      expect.objectContaining({
-        session_id: "sess_patch",
-        channel: "browser-builders",
-        kind: "trace",
-        surface: "direct",
-        direct_id: "direct_browser_patch",
-        work_id: browserNetworkOperatorFlowScenario.workId,
-        to: "peer_ops",
-        id: browserNetworkOperatorFlowScenario.messageIds.trace,
-      }),
-      expect.objectContaining({
-        session_id: "sess_patch",
-        channel: "browser-builders",
-        kind: "say",
-        surface: "thread",
-        thread_id: browserNetworkOperatorFlowScenario.threadId,
-        reply_to: browserNetworkOperatorFlowScenario.messageIds.trace,
-        id: browserNetworkOperatorFlowScenario.messageIds.summary,
-      }),
-    ]);
-
-    expect(requestJSON).toHaveBeenCalledWith("/api/network/status");
   });
 
   it("seeds deterministic automation jobs, triggers, and visible run history through public runtime surfaces", async () => {
@@ -1061,226 +804,6 @@ describe("browser runtime seed helpers", () => {
     expect(requestJSON).toHaveBeenCalledWith("/api/observe/tasks/inbox?lane=approvals&limit=10");
   });
 
-  it("uses a bundled bridge extension and creates deterministic disabled bridge prerequisites", async () => {
-    const resolveWorkspace = vi.fn(async (rootDir: string) => ({
-      id: "ws_browser_01",
-      name: "compozy-browser-workspace",
-      root_dir: rootDir,
-    }));
-    const prepareExtension = vi.fn(async () => ({
-      checksum: "bridge-checksum",
-      extensionDir: "/tmp/telegram-reference",
-      markers: {
-        crashOnce: "/tmp/markers/adapter-crash-once.json",
-        delivery: "/tmp/markers/adapter-deliveries.jsonl",
-        handshake: "/tmp/markers/adapter-handshake.json",
-        ingest: "/tmp/markers/adapter-ingest.jsonl",
-        ownership: "/tmp/markers/adapter-ownership.json",
-        shutdown: "/tmp/markers/adapter-shutdown.log",
-        starts: "/tmp/markers/adapter-starts.log",
-        state: "/tmp/markers/adapter-states.jsonl",
-        updates: "/tmp/markers/adapter-updates.jsonl",
-      },
-    }));
-    const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
-      if (pathname === "/api/extensions/telegram-reference") {
-        return {
-          extension: {
-            checksum: "bridge-checksum",
-            enabled: true,
-            health: "healthy",
-            name: "telegram-reference",
-            source: "bundled",
-            state: "active",
-          },
-        };
-      }
-
-      if (pathname === "/api/bridges/providers") {
-        return {
-          providers: [
-            {
-              config_schema: {
-                schema: "provider-config",
-                version: "2026-04-15",
-              },
-              description: "Telegram bridge provider",
-              display_name: "Telegram",
-              enabled: true,
-              extension_name: "telegram-reference",
-              health: "healthy",
-              platform: "telegram",
-              secret_slots: [
-                {
-                  description: "Bot API token",
-                  name: "bot_token",
-                  required: true,
-                },
-              ],
-              state: "active",
-            },
-          ],
-        };
-      }
-
-      if (pathname === "/api/workspaces") {
-        return {
-          workspaces: [
-            {
-              id: "ws_browser_01",
-              name: "compozy-browser-workspace",
-              root_dir: "/tmp/compozy-browser-workspace",
-            },
-          ],
-        };
-      }
-
-      if (pathname === "/api/bridges") {
-        return {
-          bridge: {
-            created_at: "2026-04-17T12:00:00Z",
-            display_name: browserBridgeOperatorFlowScenario.bridge.initialName,
-            enabled: false,
-            extension_name: "telegram-reference",
-            id: "brg_browser_01",
-            platform: "telegram",
-            provider_config: browserBridgeOperatorFlowScenario.bridge.initialProviderConfig,
-            routing_policy: {
-              include_group: false,
-              include_peer: true,
-              include_thread: true,
-            },
-            scope: "workspace",
-            status: "disabled",
-            updated_at: "2026-04-17T12:00:00Z",
-            workspace_id: "ws_browser_01",
-          },
-          health: {
-            auth_failures_total: 0,
-            bridge_instance_id: "brg_browser_01",
-            delivery_backlog: 0,
-            delivery_dropped_total: 0,
-            delivery_failures_total: 0,
-            route_count: 0,
-            status: "disabled",
-          },
-        };
-      }
-
-      if (pathname === "/api/bridges/brg_browser_01") {
-        return {
-          bridge: {
-            created_at: "2026-04-17T12:00:00Z",
-            display_name: browserBridgeOperatorFlowScenario.bridge.initialName,
-            enabled: false,
-            extension_name: "telegram-reference",
-            id: "brg_browser_01",
-            platform: "telegram",
-            provider_config: browserBridgeOperatorFlowScenario.bridge.initialProviderConfig,
-            routing_policy: {
-              include_group: false,
-              include_peer: true,
-              include_thread: true,
-            },
-            scope: "workspace",
-            status: "disabled",
-            updated_at: "2026-04-17T12:00:00Z",
-            workspace_id: "ws_browser_01",
-          },
-          health: {
-            auth_failures_total: 0,
-            bridge_instance_id: "brg_browser_01",
-            delivery_backlog: 0,
-            delivery_dropped_total: 0,
-            delivery_failures_total: 0,
-            route_count: 0,
-            status: "disabled",
-          },
-        };
-      }
-
-      if (pathname === "/api/bridges/brg_browser_01/secret-bindings/bot_token") {
-        return {
-          binding: {
-            binding_name: "bot_token",
-            kind: "bot_token",
-            secret_ref: `vault:bridges/brg_browser_01/${browserBridgeOperatorFlowScenario.secretBinding.name}`,
-          },
-        };
-      }
-
-      throw new Error(`unexpected request ${pathname} ${init?.method ?? "GET"}`);
-    });
-
-    const seeded = await seedBrowserBridgeOperatorFlow(
-      {
-        requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"],
-        resolveWorkspace,
-      },
-      { prepareExtension, workspaceRootDir: "/tmp/compozy-browser-workspace" }
-    );
-
-    expect(prepareExtension).toHaveBeenCalledTimes(1);
-    expect(resolveWorkspace).toHaveBeenCalledWith("/tmp/compozy-browser-workspace");
-    expect(requestJSON).toHaveBeenCalledWith("/api/extensions/telegram-reference", undefined);
-    expect(requestJSON).not.toHaveBeenCalledWith(
-      "/api/extensions",
-      expect.objectContaining({ method: "POST" })
-    );
-    expect(requestJSON).toHaveBeenCalledWith(
-      "/api/bridges/brg_browser_01/secret-bindings/bot_token",
-      expect.objectContaining({
-        method: "PUT",
-        body: JSON.stringify({
-          kind: "bot_token",
-          secret_ref: `vault:bridges/brg_browser_01/${browserBridgeOperatorFlowScenario.secretBinding.name}`,
-          secret_value: browserBridgeOperatorFlowScenario.secretBinding.value,
-        }),
-      })
-    );
-    expect(requestJSON).toHaveBeenCalledWith(
-      "/api/bridges",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          display_name: browserBridgeOperatorFlowScenario.bridge.initialName,
-          enabled: false,
-          extension_name: "telegram-reference",
-          platform: "telegram",
-          provider_config: browserBridgeOperatorFlowScenario.bridge.initialProviderConfig,
-          routing_policy: {
-            include_group: false,
-            include_peer: true,
-            include_thread: true,
-          },
-          scope: "workspace",
-          workspace_id: "ws_browser_01",
-        }),
-      })
-    );
-    expect(seeded).toMatchObject({
-      bridge: {
-        display_name: browserBridgeOperatorFlowScenario.bridge.initialName,
-        id: "brg_browser_01",
-        status: "disabled",
-      },
-      extension: {
-        checksum: "bridge-checksum",
-        dir: "/tmp/telegram-reference",
-        name: "telegram-reference",
-        platform: "telegram",
-      },
-      health: {
-        route_count: 0,
-        status: "disabled",
-      },
-      provider: {
-        extension_name: "telegram-reference",
-        platform: "telegram",
-      },
-    });
-  });
-
   it("creates deterministic settings prerequisites across disabled skills, providers, hooks, and global/workspace MCP scopes", async () => {
     let disabledSkills: string[] = [];
     const providers = new Map<string, { name: string }>();
@@ -1602,4 +1125,44 @@ describe("browser runtime seed helpers", () => {
     ]);
     await expect(readFile(markerPath, "utf8")).rejects.toThrow();
   });
+});
+
+describe("runtime database seed", () => {
+  // Invariant: each runtime owns a writable database; neither sibling copies nor
+  // later copies inherit writes. Owner: real SQLite, canonical runtime seed suite.
+  // This real Go/SQLite boundary test compiles storeseed and globaldb on cold
+  // CI runners; allow three minutes for that build without raising other budgets.
+  it("keeps concurrent and later database copies independent", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-database-test-"));
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+    const homes = ["first", "second", "later"].map(name => path.join(root, name));
+    const databases: DatabaseSync[] = [];
+    try {
+      await Promise.all(homes.map(home => mkdir(home)));
+      await Promise.all(homes.slice(0, 2).map(home => seedRuntimeDatabase(repoRoot, home)));
+      const first = new DatabaseSync(path.join(homes[0]!, "compozy.db"));
+      databases.push(first);
+      first.exec("UPDATE scheduler_pause SET paused = 1 WHERE id = 1");
+      expect(first.prepare("SELECT paused FROM scheduler_pause WHERE id = 1").get()).toEqual({
+        paused: 1,
+      });
+      await seedRuntimeDatabase(repoRoot, homes[2]!);
+      for (const home of homes.slice(1)) {
+        const db = new DatabaseSync(path.join(home, "compozy.db"));
+        databases.push(db);
+        expect(db.prepare("SELECT paused FROM scheduler_pause WHERE id = 1").get()).toEqual({
+          paused: 0,
+        });
+      }
+      await expect(seedRuntimeDatabase(repoRoot, homes[0]!)).rejects.toMatchObject({
+        code: "EEXIST",
+      });
+      expect(first.prepare("SELECT paused FROM scheduler_pause WHERE id = 1").get()).toEqual({
+        paused: 1,
+      });
+    } finally {
+      for (const db of databases) db.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 180_000);
 });

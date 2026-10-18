@@ -52,7 +52,7 @@ const LazyBars = React.lazy(async () => {
           {withTooltip ? (
             <Tooltip
               contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
-              cursor={{ fill: "var(--color-row-hover)" }}
+              cursor={{ fill: "var(--color-viz-grid)" }}
               isAnimationActive={false}
             />
           ) : null}

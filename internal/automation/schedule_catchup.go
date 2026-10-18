@@ -37,7 +37,7 @@ func nextRunAfterMissed(job Job, missedAt time.Time, now time.Time, location *ti
 		if next.IsZero() {
 			return nil
 		}
-		return timePointer(next)
+		return new(next)
 	case ScheduleModeEvery:
 		interval, err := time.ParseDuration(strings.TrimSpace(job.Schedule.Interval))
 		if err != nil || interval <= 0 {
@@ -45,10 +45,10 @@ func nextRunAfterMissed(job Job, missedAt time.Time, now time.Time, location *ti
 		}
 		elapsed := now.Sub(missedAt)
 		if elapsed < 0 {
-			return timePointer(missedAt)
+			return new(missedAt)
 		}
 		skippedIntervals := int64(elapsed/interval) + 1
-		return timePointer(missedAt.Add(time.Duration(skippedIntervals) * interval))
+		return new(missedAt.Add(time.Duration(skippedIntervals) * interval))
 	case ScheduleModeAt:
 		return nil
 	default:
@@ -63,7 +63,7 @@ func reconcileMissedSchedulerCursor(
 	location *time.Location,
 ) (SchedulerState, SchedulerSkipReason) {
 	missedAt := *state.NextRunAt
-	state.LastMisfireAt = timePointer(now)
+	state.LastMisfireAt = new(now)
 	state.MisfireCount++
 	state.ConsecutiveResumeFailures = 0
 	state.UpdatedAt = now
@@ -72,20 +72,20 @@ func reconcileMissedSchedulerCursor(
 	switch policy {
 	case SchedulerCatchUpPolicyRunOnce, SchedulerCatchUpPolicyCoalesce:
 		coalescedAt := latestMissedRunAt(job, missedAt, now, location)
-		state.NextRunAt = timePointer(coalescedAt)
-		state.LastScheduledAt = timePointer(coalescedAt)
+		state.NextRunAt = new(coalescedAt)
+		state.LastScheduledAt = new(coalescedAt)
 	case SchedulerCatchUpPolicyReplay:
-		state.NextRunAt = timePointer(missedAt)
+		state.NextRunAt = new(missedAt)
 		state.LastScheduledAt = nil
 	default:
 		if now.Sub(missedAt) > schedulerCatchUpGrace(state) {
 			state.NextRunAt = nextRunAfterMissed(job, missedAt, now, location)
-			state.LastScheduledAt = timePointer(missedAt)
+			state.LastScheduledAt = new(missedAt)
 			return state, SchedulerSkipReasonGraceExceeded
 		}
 		coalescedAt := latestMissedRunAt(job, missedAt, now, location)
-		state.NextRunAt = timePointer(coalescedAt)
-		state.LastScheduledAt = timePointer(coalescedAt)
+		state.NextRunAt = new(coalescedAt)
+		state.LastScheduledAt = new(coalescedAt)
 	}
 	return state, ""
 }

@@ -97,8 +97,8 @@ func (m *ExposeManager) markUnappliedExposureTargets(
 	results []TargetResult,
 	cause error,
 ) {
-	var exposureErr *ExposureError
-	targetFailure := errors.As(cause, &exposureErr) && strings.TrimSpace(exposureErr.Target) != ""
+	exposureErr, ok := errors.AsType[*ExposureError](cause)
+	targetFailure := ok && strings.TrimSpace(exposureErr.Target) != ""
 	for index := range results {
 		if results[index].OK || results[index].Err != nil {
 			continue

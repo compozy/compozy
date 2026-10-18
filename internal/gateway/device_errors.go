@@ -31,7 +31,7 @@ var (
 	ErrProviderNotFound = errors.New("gateway provider not found")
 	// ErrDigestConfirmationRequired reports a provider control digest awaiting operator consent.
 	ErrDigestConfirmationRequired = errors.New("gateway digest confirmation required")
-	// ErrIngressSubjectNotFound reports an unknown webhook or bridge ingress subject.
+	// ErrIngressSubjectNotFound reports an unknown webhook ingress subject.
 	ErrIngressSubjectNotFound = errors.New("gateway ingress subject not found")
 	// ErrIngressTargetUnavailable reports a subject whose daemon-local ingress target is invalid.
 	ErrIngressTargetUnavailable = errors.New("gateway ingress target unavailable")

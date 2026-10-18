@@ -66,7 +66,7 @@ const KANBAN_TASKS: TaskListItem[] = [
     id: "task_k4",
     identifier: "TASK-14",
     status: "in_progress",
-    title: "Bridge health telemetry",
+    title: "Runtime health telemetry",
   }),
   buildTaskFixture({
     id: "task_k5",

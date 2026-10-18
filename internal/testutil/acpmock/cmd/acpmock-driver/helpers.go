@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
-func (a *mockAgent) emitSandboxFailure(
+func (a *mockAgent) emitCommandFailure(
 	ctx context.Context,
 	sessionID acpsdk.SessionId,
 	step acpmock.Step,

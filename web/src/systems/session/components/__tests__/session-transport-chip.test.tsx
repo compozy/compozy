@@ -124,9 +124,10 @@ describe("SessionTransportChip", () => {
     const notice = screen.getByTestId("session-transport-history-reset");
     expect(notice).toHaveAttribute("role", "status");
     expect(notice).toHaveTextContent("The conversation history changed while you were away");
-    expect(screen.getByTestId("session-transport-history-reset-generation")).toHaveTextContent(
-      "generation 4 · generation_mismatch"
-    );
+    // Generation and reason are diagnostics: attributes, never on screen.
+    expect(notice).toHaveAttribute("data-reset-generation", "4");
+    expect(notice).toHaveAttribute("data-reset-reason", "generation_mismatch");
+    expect(notice).not.toHaveTextContent("generation");
   });
 
   it("Should explain a retention reset as older history no longer retained (US-017.EC-1)", () => {

@@ -126,8 +126,8 @@ async function stopHoldingTurn(harness: AgentHarness, appPage: Page): Promise<vo
   const stopped = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      (response.url().endsWith(`${sessionBase}/prompt/cancel`) ||
-        response.url().endsWith(`${sessionBase}/stop`))
+      (new URL(response.url()).pathname === `${sessionBase}/prompt/cancel` ||
+        new URL(response.url()).pathname === `${sessionBase}/stop`)
   );
   await harness.sessionUI.stopButton.click();
   expect((await stopped).ok()).toBe(true);
@@ -625,7 +625,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     );
     await profiles.createConfirm.click();
     expect((await createdProfile).ok()).toBe(true);
-    await expect(profiles.switcher).toContainText("terminal-b");
+    await expect(profiles.switcher).toHaveAccessibleName("Profile: terminal-b");
     // Profile-b has its own desktop and no terminals: the ensured window
     // resolves straight into a fresh terminal owned by terminal-b — the other
     // profile's terminals are hidden, not closed, and never adopted here.
@@ -662,7 +662,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
 
     await profiles.switcher.click();
     await profiles.switcherOption("default").click();
-    await expect(profiles.switcher).toContainText("default");
+    await expect(profiles.switcher).toHaveAccessibleName("Profile: default");
     // Back on default, its own desktop returns with the original window still
     // showing the input terminal and its pending question.
     terminalWindow = terminalWindowFor(appPage, inputTerminalId);
@@ -676,7 +676,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
 
     await profiles.switcher.click();
     await profiles.switcherAll.click();
-    await expect(profiles.switcher).toContainText("All profiles");
+    await expect(profiles.switcher).toHaveAccessibleName("Profile: All profiles");
     // The aggregate lens changes the data, not the desktop: the default
     // profile's windows stay, and any of them journals every owner.
     terminalWindow = terminalWindowFor(appPage, inputTerminalId);

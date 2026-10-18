@@ -1,7 +1,8 @@
 @import "tailwindcss";
-/* Geist Variable — wght axis only (100–900); Geist ships no optical-size axis. */
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/jetbrains-mono";
+/* Inter Variable (wght 100–900) carries the 425 regular; Geist Mono Variable
+   covers code, paths and the terminal. */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "@compozy/ui/tokens.css";
 @import "shadcn/tailwind.css";
 

@@ -167,12 +167,17 @@ function foldTurnGroup(
 }
 
 /**
- * Text, decision asks, permissions, errors and terminal evidence remain
- * operator-visible after a turn settles (rich rows never fold, ADR-006).
+ * Text, decision asks, permissions, errors, terminal evidence and live
+ * subagent cards remain operator-visible after a turn settles (rich rows never
+ * fold, ADR-006).
  * Deliberate terminal tool rows are their own surface, not transient work.
  */
 function isPersistentTurnRow(row: SessionRow): boolean {
   if (row.kind === "text") return true;
+  // A subagent still working outlives its turn: its card stays in view (UT-W04).
+  if (row.kind === "subagents") return row.live;
+  // A message to another session is said, not worked: its "Sent to" card stays (S3).
+  if (row.kind === "session-message") return true;
   if (row.kind === "work") {
     return (
       row.summary === null &&
@@ -182,6 +187,8 @@ function isPersistentTurnRow(row: SessionRow): boolean {
   }
   if (row.kind !== "data") return false;
   if (row.part.name === "data-compozy-permission") return true;
+  // An observed compaction is a state of the session, not intra-turn work.
+  if (row.part.name === "data-compozy-compaction") return true;
   if (row.part.name !== "data-compozy-event") return false;
   return row.parts.some(part => {
     const data = part.data;

@@ -39,8 +39,8 @@ func TestDefaultsAgentNameValidation(t *testing.T) {
 
 			defaults := DefaultsConfig{Agent: test.agent}
 			err := defaults.Validate()
-			var validationErr ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, validationErrOK := errors.AsType[ValidationError](err)
+			if !validationErrOK {
 				t.Fatalf("DefaultsConfig.Validate() error = %T, want ValidationError", err)
 			}
 			if got, want := validationErr.Path, "defaults.agent"; got != want {
@@ -85,8 +85,8 @@ func TestDefaultsAgentNameValidation(t *testing.T) {
 		t.Parallel()
 
 		err := (DefaultsConfig{Agent: "audio designer"}).Validate()
-		var validationErr ValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrOK := errors.AsType[ValidationError](err)
+		if !validationErrOK {
 			t.Fatalf("DefaultsConfig.Validate() error = %T, want ValidationError", err)
 		}
 		if got, want := validationErr.Path, "defaults.agent"; got != want {
@@ -136,9 +136,6 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("SaveBootstrapConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
-	if !cfg.Network.Enabled {
-		t.Fatal("SaveBootstrapConfig() Network.Enabled = false, want inherited enabled default")
-	}
 
 	reloaded, err := LoadGlobalConfig(homePaths)
 	if err != nil {
@@ -160,9 +157,6 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 			reloaded.Providers["claude"].Models.Default,
 			"claude-sonnet-4-6",
 		)
-	}
-	if !reloaded.Network.Enabled {
-		t.Fatal("LoadGlobalConfig() Network.Enabled = false, want inherited enabled default")
 	}
 
 	contents, err := os.ReadFile(homePaths.ConfigFile)
@@ -189,30 +183,33 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 func TestSaveBootstrapConfigAllowsProviderManagedModel(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+	t.Run("Should save a provider-managed model without a default", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	cfg, err := SaveBootstrapConfig(homePaths, "blackbox", "")
-	if err != nil {
-		t.Fatalf("SaveBootstrapConfig() error = %v", err)
-	}
-	if cfg.Defaults.Provider != "blackbox" {
-		t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want blackbox", cfg.Defaults.Provider)
-	}
-	if got := cfg.Providers["blackbox"].Models.Default; got != "" {
-		t.Fatalf("SaveBootstrapConfig() Providers[blackbox].Models.Default = %q, want empty", got)
-	}
+		cfg, err := SaveBootstrapConfig(homePaths, "copilot", "")
+		if err != nil {
+			t.Fatalf("SaveBootstrapConfig() error = %v", err)
+		}
+		if cfg.Defaults.Provider != "copilot" {
+			t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want copilot", cfg.Defaults.Provider)
+		}
+		if got := cfg.Providers["copilot"].Models.Default; got != "" {
+			t.Fatalf("SaveBootstrapConfig() Providers[copilot].Models.Default = %q, want empty", got)
+		}
 
-	contents, err := os.ReadFile(homePaths.ConfigFile)
-	if err != nil {
-		t.Fatalf("ReadFile(config) error = %v", err)
-	}
-	text := string(contents)
-	if strings.Contains(text, `default_model =`) {
-		t.Fatalf("config contents wrote provider-managed default model:\n%s", text)
-	}
+		contents, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(config) error = %v", err)
+		}
+		text := string(contents)
+		if strings.Contains(text, `default_model =`) {
+			t.Fatalf("config contents wrote provider-managed default model:\n%s", text)
+		}
+	})
 }
 
 func TestSaveBootstrapConfigRequiresModelForPiProviders(t *testing.T) {
@@ -233,128 +230,57 @@ func TestSaveBootstrapConfigRequiresModelForPiProviders(t *testing.T) {
 	}
 }
 
-func TestSaveBootstrapConfigNetworkBehavior(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name               string
-		seed               string
-		wantEnabled        bool
-		wantNetworkSection bool
-	}{
-		{
-			name:               "ShouldKeepNetworkEnabledByDefaultOnFirstRun",
-			wantEnabled:        true,
-			wantNetworkSection: false,
-		},
-		{
-			name: "ShouldPreserveExplicitNetworkDisable",
-			seed: `
-[network]
-enabled = false
-`,
-			wantEnabled:        false,
-			wantNetworkSection: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-			if err != nil {
-				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-			}
-
-			if strings.TrimSpace(tt.seed) != "" {
-				writeFile(t, homePaths.ConfigFile, tt.seed)
-			}
-
-			cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-6")
-			if err != nil {
-				t.Fatalf("SaveBootstrapConfig() error = %v", err)
-			}
-			if got := cfg.Network.Enabled; got != tt.wantEnabled {
-				t.Fatalf("SaveBootstrapConfig() Network.Enabled = %t, want %t", got, tt.wantEnabled)
-			}
-			reloaded, err := LoadGlobalConfig(homePaths)
-			if err != nil {
-				t.Fatalf("LoadGlobalConfig() error = %v", err)
-			}
-			if got := reloaded.Network.Enabled; got != tt.wantEnabled {
-				t.Fatalf("LoadGlobalConfig() Network.Enabled = %t, want %t", got, tt.wantEnabled)
-			}
-			contents, err := os.ReadFile(homePaths.ConfigFile)
-			if err != nil {
-				t.Fatalf("ReadFile(config) error = %v", err)
-			}
-			text := string(contents)
-			if !tt.wantNetworkSection {
-				if strings.Contains(text, "[network]") {
-					t.Fatalf("bootstrap config wrote an unexpected network section:\n%s", text)
-				}
-				return
-			}
-
-			for _, want := range []string{
-				"[network]",
-				`enabled = false`,
-			} {
-				if !strings.Contains(text, want) {
-					t.Fatalf("config contents missing %q\n%s", want, text)
-				}
-			}
-		})
-	}
-}
-
 func TestEnsureBootstrapAgentCreatesAndPreservesManagedAgent(t *testing.T) {
 	t.Parallel()
+	t.Run("Should create a private managed agent and preserve authored content", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+		path, created, err := EnsureBootstrapAgent(homePaths)
+		if err != nil {
+			t.Fatalf("EnsureBootstrapAgent() error = %v", err)
+		}
+		if !created {
+			t.Fatal("EnsureBootstrapAgent() created = false, want true")
+		}
 
-	path, created, err := EnsureBootstrapAgent(homePaths)
-	if err != nil {
-		t.Fatalf("EnsureBootstrapAgent() error = %v", err)
-	}
-	if !created {
-		t.Fatal("EnsureBootstrapAgent() created = false, want true")
-	}
+		assertConfigPathMode(t, filepath.Dir(path), 0o700)
+		assertConfigPathMode(t, path, 0o600)
 
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile(agent) error = %v", err)
-	}
-	if !strings.Contains(string(contents), "name: "+DefaultAgentName) {
-		t.Fatalf("agent contents = %q, want default agent name", string(contents))
-	}
-	if strings.Contains(string(contents), "provider:") {
-		t.Fatalf("agent contents = %q, want provider omitted", string(contents))
-	}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(agent) error = %v", err)
+		}
+		if !strings.Contains(string(contents), "name: "+DefaultAgentName) {
+			t.Fatalf("agent contents = %q, want default agent name", string(contents))
+		}
+		if strings.Contains(string(contents), "provider:") {
+			t.Fatalf("agent contents = %q, want provider omitted", string(contents))
+		}
 
-	if err := os.WriteFile(path, []byte("custom"), 0o644); err != nil {
-		t.Fatalf("WriteFile(agent) error = %v", err)
-	}
-	againPath, createdAgain, err := EnsureBootstrapAgent(homePaths)
-	if err != nil {
-		t.Fatalf("EnsureBootstrapAgent() second error = %v", err)
-	}
-	if createdAgain {
-		t.Fatal("EnsureBootstrapAgent() second created = true, want false")
-	}
-	if againPath != path {
-		t.Fatalf("EnsureBootstrapAgent() path = %q, want %q", againPath, path)
-	}
+		if err := os.WriteFile(path, []byte("custom"), 0o644); err != nil {
+			t.Fatalf("WriteFile(agent) error = %v", err)
+		}
+		againPath, createdAgain, err := EnsureBootstrapAgent(homePaths)
+		if err != nil {
+			t.Fatalf("EnsureBootstrapAgent() second error = %v", err)
+		}
+		if createdAgain {
+			t.Fatal("EnsureBootstrapAgent() second created = true, want false")
+		}
+		if againPath != path {
+			t.Fatalf("EnsureBootstrapAgent() path = %q, want %q", againPath, path)
+		}
 
-	preserved, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile(agent second) error = %v", err)
-	}
-	if string(preserved) != "custom" {
-		t.Fatalf("agent contents after second ensure = %q, want custom", string(preserved))
-	}
+		preserved, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(agent second) error = %v", err)
+		}
+		if string(preserved) != "custom" {
+			t.Fatalf("agent contents after second ensure = %q, want custom", string(preserved))
+		}
+	})
 }

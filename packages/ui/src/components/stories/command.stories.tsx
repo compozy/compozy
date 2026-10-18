@@ -44,7 +44,7 @@ const navigateItems = [
   { value: "sessions", label: "Go to sessions", icon: CircleDotIcon },
   { value: "agents", label: "Go to agents", icon: CpuIcon },
   { value: "skills", label: "Go to skills", icon: LayersIcon },
-  { value: "memory", label: "Go to memory", icon: DatabaseIcon },
+  { value: "vault", label: "Go to vault", icon: DatabaseIcon },
 ];
 
 const quickItems = [
@@ -109,6 +109,43 @@ export const WithShortcuts: Story = {
   ),
 };
 
+/** The ⌘K palette: quiet borderless input over the list, shortcuts as Kbd in the trailing slot. */
+export const Palette: Story = {
+  render: () => (
+    <Command className="w-[32rem] shadow-pop">
+      <CommandInput
+        aria-label="Search palette"
+        placeholder="Search or run a command…"
+        variant="quiet"
+      />
+      <CommandSeparator />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandGroup heading="Go">
+          <CommandItem value="sessions">
+            Sessions
+            <CommandShortcut>
+              <KbdGroup>
+                <Kbd>⌘</Kbd>
+                <Kbd>1</Kbd>
+              </KbdGroup>
+            </CommandShortcut>
+          </CommandItem>
+          <CommandItem value="tasks">
+            Tasks
+            <CommandShortcut>
+              <KbdGroup>
+                <Kbd>⌘</Kbd>
+                <Kbd>2</Kbd>
+              </KbdGroup>
+            </CommandShortcut>
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  ),
+};
+
 export const KeyboardNavigation: Story = {
   parameters: {
     docs: {
@@ -140,7 +177,7 @@ export const KeyboardNavigation: Story = {
     await userEvent.click(search);
     await userEvent.type(search, "agents");
     await waitFor(() => expect(canvas.getByText("Go to agents")).toBeInTheDocument());
-    await expect(canvas.queryByText("Go to memory")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Go to vault")).not.toBeInTheDocument();
   },
 };
 

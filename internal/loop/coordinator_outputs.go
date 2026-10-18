@@ -1,15 +1,17 @@
 package loop
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func (r *CoordinatorRunner) refreshGenerationOutputs(
@@ -26,8 +28,7 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 			output.Attempt = 1
 		}
 		if output.ExpectedEpoch == nil {
-			expectedEpoch := output.Epoch
-			output.ExpectedEpoch = &expectedEpoch
+			output.ExpectedEpoch = new(output.Epoch)
 		}
 		outputs[key] = output
 	}
@@ -81,12 +82,13 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 	for _, output := range outputs {
 		ordered = append(ordered, output)
 	}
-	sort.Slice(ordered, func(i, j int) bool {
-		if ordered[i].NodeID == ordered[j].NodeID {
-			return ordered[i].ItemIndex < ordered[j].ItemIndex
-		}
-		return ordered[i].NodeID < ordered[j].NodeID
+	slices.SortFunc(ordered, func(a, b GenerationOutput) int {
+		return cmp.Or(cmp.Compare(a.NodeID, b.NodeID), cmp.Compare(a.ItemIndex, b.ItemIndex))
 	})
+	ordered, err := r.refreshRecoveredChildOutputs(ctx, run, generation, graph, topology, ordered)
+	if err != nil {
+		return nil, nil, nil, false, nil, err
+	}
 	failed := selectFailedOutput(ordered)
 	return ordered, failed, selectGoalControlTerminal(controlTerminals), live, loopStops, nil
 }
@@ -109,19 +111,25 @@ func keepDeferredGoalTerminalsPending(
 
 func selectFailedOutput(outputs []GenerationOutput) *GenerationOutput {
 	var first *GenerationOutput
+	var invalidInput *GenerationOutput
 	for idx := range outputs {
 		output := outputs[idx]
 		if output.Status != generationOutputFailed {
 			continue
 		}
-		if classifyGenerationOutputFailure(output, task.Run{}).Class == FailureTargetUnavailable {
-			selected := output
-			return &selected
+		failure := classifyGenerationOutputFailure(output, task.Run{})
+		if failure.Class == FailureTargetUnavailable {
+			return new(output)
+		}
+		if failure.Code == string(tools.ErrorCodeInvalidInput) && invalidInput == nil {
+			invalidInput = new(output)
 		}
 		if first == nil {
-			selected := output
-			first = &selected
+			first = new(output)
 		}
+	}
+	if invalidInput != nil {
+		return invalidInput
 	}
 	return first
 }
@@ -335,7 +343,11 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 	if child.Status.Terminal() {
 		switch child.Status {
 		case StatusDone, StatusNoOp:
-			setGenerationOutputRef(&output, childLoopStatusRef(child.Status))
+			ref, refErr := completedChildLoopOutputRef(graph, output.NodeID, child)
+			if refErr != nil {
+				return GenerationOutput{}, false, nil, refErr
+			}
+			setGenerationOutputRef(&output, ref)
 			output.Status = generationOutputSucceeded
 		default:
 			setGenerationOutputRef(&output, childLoopFailureRef(child))
@@ -356,6 +368,19 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 		LoopRunID:  childRunID,
 		ReasonCode: childLoopTimeoutReason,
 	}}, nil
+}
+
+func completedChildLoopOutputRef(graph dsl.Graph, nodeID string, child Run) (string, error) {
+	node, found := graphNode(graph, dsl.NodeID(nodeID))
+	if !found || !declaresCompletedRunLoopResult(node) {
+		// Keep the scalar result for definitions without an explicit structured output contract.
+		return childLoopStatusRef(child.Status), nil
+	}
+	payload, err := json.Marshal(completedRunLoopResult{LoopRunID: string(child.ID), Status: string(child.Status)})
+	if err != nil {
+		return "", fmt.Errorf("loop: encode completed child result: %w", err)
+	}
+	return string(payload), nil
 }
 
 func (r *CoordinatorRunner) awaitingChildTimedOut(

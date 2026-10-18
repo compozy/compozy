@@ -1,6 +1,6 @@
 # Listing standard — rows & cards
 
-Reusable catalog listing pattern for CompozyOS redesigns (Loops, Skills, Bridges, Vault, and similar inventories). Applied in `loops-catalog.html` and `vault-redesign.html`.
+Reusable catalog listing pattern for CompozyOS redesigns (Loops, Skills, Vault, and similar inventories). Applied in `loops-catalog.html` and `vault-redesign.html`.
 
 **Visual companion:** [`catalog-design-system.html`](./catalog-design-system.html) — live specs, anatomy, playground, and class contract for redesigning other inventory pages.
 
@@ -8,7 +8,7 @@ Reusable catalog listing pattern for CompozyOS redesigns (Loops, Skills, Bridges
 
 | View | Default for | Use when |
 | --- | --- | --- |
-| **Rows** | Loops catalog, installed skills, bridges, vault-style inventories | Operator scanning, dense meta, status + rate + primary action |
+| **Rows** | Loops catalog, installed skills, vault-style inventories | Operator scanning, dense meta, status + rate + primary action |
 | **Cards** | Marketplace / browse & install | Choosing among fewer items; logo + short pitch + install/run |
 
 Default view is always **rows**. Persist `view=rows|cards` in URL/search params when both ship.
@@ -38,7 +38,7 @@ Marketplace kind pages (exception — no Filters, no view mode):
 
 ## Topbar (inventory pages)
 
-**Default (Vault / Bridges / Loops):** title-in-topbar shell — **not** a breadcrumb:
+**Default (Vault / Loops):** title-in-topbar shell — **not** a breadcrumb:
 
 ```
 [ icon well ] [ Title ] [ count ] ………… [ secondary ghost ] [ primary CTA ]

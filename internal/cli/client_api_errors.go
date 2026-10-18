@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -282,8 +283,9 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 			parseWorktreeRemovalAPIError,
 			parseGoalCommandAPIError,
 			parseTerminalAPIError,
+			parseSessionDeriveAPIError,
+			parseProviderModelRefreshAPIError,
 			parseDaemonAPIError,
-			parseMemoryAPIError,
 			parseToolAPIError,
 		} {
 			if ok, err := parse(statusCode, status, body); ok {
@@ -292,10 +294,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		}
 	}
 
-	message := strings.TrimSpace(string(body))
-	if message == "" {
-		message = status
-	}
+	message := cmp.Or(strings.TrimSpace(string(body)), status)
 	message = redactToolDiagnostic(message)
 	if strings.TrimSpace(status) != "" {
 		message = fmt.Sprintf("daemon api %s: %s", status, message)
@@ -355,8 +354,7 @@ func parseExtensionValidationAPIError(statusCode int, status string, body []byte
 		return false, nil
 	}
 	payload.Error = redactToolDiagnostic(payload.Error)
-	redactedDiagnostic := diagnosticspkg.RedactItem(*payload.Diagnostic)
-	payload.Diagnostic = &redactedDiagnostic
+	payload.Diagnostic = new(diagnosticspkg.RedactItem(*payload.Diagnostic))
 	for index := range payload.Issues {
 		payload.Issues[index].Path = redactToolDiagnostic(payload.Issues[index].Path)
 		payload.Issues[index].Scope = redactToolDiagnostic(payload.Issues[index].Scope)
@@ -388,8 +386,7 @@ func parseExtensionOperationAPIError(statusCode int, status string, body []byte)
 	}
 	extensionPayload.Error = redactToolDiagnostic(extensionPayload.Error)
 	if extensionPayload.Diagnostic != nil {
-		redacted := diagnosticspkg.RedactItem(*extensionPayload.Diagnostic)
-		extensionPayload.Diagnostic = &redacted
+		extensionPayload.Diagnostic = new(diagnosticspkg.RedactItem(*extensionPayload.Diagnostic))
 	}
 	return true, &extensionOperationAPIError{
 		statusCode: statusCode,
@@ -423,22 +420,6 @@ func parseDaemonAPIError(statusCode int, status string, body []byte) (bool, erro
 		return true, diagnosticspkg.NewStructuredError(*payload.Diagnostic, cause)
 	}
 	return true, &daemonAPIError{statusCode: statusCode, status: status, payload: payload}
-}
-
-func parseMemoryAPIError(_ int, _ string, body []byte) (bool, error) {
-	var memoryPayload contract.MemoryErrorPayload
-	if json.Unmarshal(body, &memoryPayload) != nil || strings.TrimSpace(memoryPayload.Code) == "" {
-		return false, nil
-	}
-	message := strings.TrimSpace(memoryPayload.Message)
-	if message == "" {
-		message = strings.TrimSpace(memoryPayload.Code)
-	}
-	return true, fmt.Errorf(
-		"%s: %s",
-		strings.TrimSpace(memoryPayload.Code),
-		redactToolDiagnostic(message),
-	)
 }
 
 func parseToolAPIError(statusCode int, status string, body []byte) (bool, error) {

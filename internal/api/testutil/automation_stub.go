@@ -9,7 +9,8 @@ import (
 )
 
 type StubAutomationManager struct {
-	ListSuggestionsFn func(
+	LatestRunsByOwnerFn func(context.Context, automationpkg.RunOwnerKind, []string) (map[string]automationpkg.Run, error)
+	ListSuggestionsFn   func(
 		context.Context,
 		store.ReadScope,
 		string,
@@ -271,3 +272,14 @@ func (s StubAutomationManager) HandleWebhook(
 }
 
 var _ core.AutomationManager = (*StubAutomationManager)(nil)
+
+func (s StubAutomationManager) LatestRunsByOwner(
+	ctx context.Context,
+	owner automationpkg.RunOwnerKind,
+	ids []string,
+) (map[string]automationpkg.Run, error) {
+	if s.LatestRunsByOwnerFn == nil {
+		return nil, nil
+	}
+	return s.LatestRunsByOwnerFn(ctx, owner, ids)
+}

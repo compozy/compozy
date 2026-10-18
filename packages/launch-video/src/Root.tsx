@@ -1,8 +1,8 @@
 import { Composition } from "remotion";
 import { ReleaseFilm } from "@/compositions/release-film";
 import { releaseFilmSchema, filmDuration } from "@/compositions/release-film/schema";
-import beta26 from "@/releases/beta26.json";
-const filmDefaults = releaseFilmSchema.parse(beta26);
+import beta27 from "@/releases/beta27.json";
+const filmDefaults = releaseFilmSchema.parse(beta27);
 
 import { ReleaseAnnounce } from "@/compositions/release-announce";
 import {

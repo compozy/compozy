@@ -26,7 +26,7 @@ type migrationFile struct {
 	contents []byte
 }
 
-func loadMigrationDirectory(stream MigrationStream) (migrationDirectory, error) {
+func readMigrationDirectory(stream MigrationStream) (migrationDirectory, error) {
 	directory, err := fs.Sub(stream.FS, stream.Dir)
 	if err != nil {
 		return migrationDirectory{}, fmt.Errorf("store: open migration stream %q directory: %w", stream.Name, err)
@@ -59,9 +59,7 @@ func loadMigrationDirectory(stream MigrationStream) (migrationDirectory, error) 
 			if err != nil {
 				return err
 			}
-			if version > maxVersion {
-				maxVersion = version
-			}
+			maxVersion = max(maxVersion, version)
 			versions = append(versions, version)
 			migrationCount++
 		}

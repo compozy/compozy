@@ -1,10 +1,8 @@
 package daemon
 
 import (
-	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/udsapi"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
@@ -14,20 +12,17 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithLogger(deps.Logger),
 		httpapi.WithStartedAt(deps.StartedAt),
 		httpapi.WithSessionManager(deps.Sessions),
+		httpapi.WithSubagentService(deps.Subagents),
 		httpapi.WithDaemonDrainController(deps.DrainController),
 		httpapi.WithSessionCatalog(deps.Registry),
 		httpapi.WithTaskService(deps.Tasks),
-		httpapi.WithNetworkService(deps.Network),
-		httpapi.WithNetworkStore(deps.Registry),
-		httpapi.WithNetworkUsageStore(deps.Registry),
-		httpapi.WithCoordinationService(workspacepkg.NewCoordinationService(deps.Registry, deps.WorkspaceAccess)),
+		httpapi.WithTaskDesignationStore(deps.Registry),
+		httpapi.WithSkillExposureStore(deps.Registry, deps.Registry),
 		httpapi.WithOnboardingStore(deps.Registry),
 		httpapi.WithObserver(deps.Observer),
 		httpapi.WithSchemaStreamStatusReader(deps.SchemaStreams),
 		httpapi.WithAutomation(deps.Automation),
 		httpapi.WithLoopService(deps.Loops),
-		httpapi.WithBridgeService(deps.Bridges),
-		httpapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
 		httpapi.WithProfileService(deps.Profiles),
 		httpapi.WithToolRegistry(deps.ToolRegistry),
 		httpapi.WithToolsetRegistry(deps.Toolsets),
@@ -68,24 +63,13 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
 		httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 		httpapi.WithSkillResourceSyncer(deps.SkillResources),
-		httpapi.WithMemoryStore(deps.MemoryStore),
-		httpapi.WithDreamTrigger(deps.DreamTrigger),
-		httpapi.WithMemoryExtractorService(deps.MemoryExtractor),
-		httpapi.WithMemoryProviderService(deps.MemoryProviders),
-		httpapi.WithMemorySessionLedgerService(deps.MemorySessionLedger),
 		httpapi.WithRuntimeMemorySnapshotSource(deps.RuntimeMemory),
+		httpapi.WithHostLoadSnapshotSource(deps.HostLoad),
 		httpapi.WithDeadEntitySource(deps.DeadEntities),
 		httpapi.WithExtensionService(deps.Extensions),
 		httpapi.WithGatewayService(deps.Gateway),
 		httpapi.WithDeviceAuth(deps.Gateway),
 	}
-}
-
-func notificationPresetServiceFromDeps(deps *RuntimeDeps) core.NotificationPresetService {
-	if deps == nil {
-		return nil
-	}
-	return deps.Notifications
 }
 
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
@@ -95,20 +79,17 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithLogger(deps.Logger),
 		udsapi.WithStartedAt(deps.StartedAt),
 		udsapi.WithSessionManager(deps.Sessions),
+		udsapi.WithSubagentService(deps.Subagents),
 		udsapi.WithDaemonDrainController(deps.DrainController),
 		udsapi.WithSessionCatalog(deps.Registry),
 		udsapi.WithTaskService(deps.Tasks),
-		udsapi.WithNetworkService(deps.Network),
-		udsapi.WithNetworkStore(deps.Registry),
-		udsapi.WithNetworkUsageStore(deps.Registry),
-		udsapi.WithCoordinationService(workspacepkg.NewCoordinationService(deps.Registry, deps.WorkspaceAccess)),
+		udsapi.WithTaskDesignationStore(deps.Registry),
+		udsapi.WithSkillExposureStore(deps.Registry, deps.Registry),
 		udsapi.WithOnboardingStore(deps.Registry),
 		udsapi.WithObserver(deps.Observer),
 		udsapi.WithSchemaStreamStatusReader(deps.SchemaStreams),
 		udsapi.WithAutomation(deps.Automation),
 		udsapi.WithLoopService(deps.Loops),
-		udsapi.WithBridgeService(deps.Bridges),
-		udsapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
 		udsapi.WithProfileService(deps.Profiles),
 		udsapi.WithToolRegistry(deps.ToolRegistry),
 		udsapi.WithToolsetRegistry(deps.Toolsets),
@@ -149,12 +130,8 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithRolesStatusProvider(deps.Roles),
 		udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 		udsapi.WithSkillResourceSyncer(deps.SkillResources),
-		udsapi.WithMemoryStore(deps.MemoryStore),
-		udsapi.WithDreamTrigger(deps.DreamTrigger),
-		udsapi.WithMemoryExtractorService(deps.MemoryExtractor),
-		udsapi.WithMemoryProviderService(deps.MemoryProviders),
-		udsapi.WithMemorySessionLedgerService(deps.MemorySessionLedger),
 		udsapi.WithRuntimeMemorySnapshotSource(deps.RuntimeMemory),
+		udsapi.WithHostLoadSnapshotSource(deps.HostLoad),
 		udsapi.WithDeadEntitySource(deps.DeadEntities),
 		udsapi.WithExtensionService(deps.Extensions),
 		udsapi.WithHostedMCP(deps.HostedMCP),

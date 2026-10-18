@@ -9,7 +9,7 @@ import (
 	"maps"
 	"os"
 
-	"sort"
+	"slices"
 
 	"time"
 )
@@ -23,11 +23,7 @@ func subprocessProcessEnv(env map[string]string) []string {
 	}
 	maps.Copy(merged, env)
 
-	keys := make([]string, 0, len(merged))
-	for key := range merged {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(merged))
 
 	values := make([]string, 0, len(keys))
 	for _, key := range keys {

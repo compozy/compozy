@@ -29,7 +29,7 @@ func (n *daemonNativeTools) sessionRename(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, input.SessionID); err != nil {
 		return toolspkg.ToolResult{}, err

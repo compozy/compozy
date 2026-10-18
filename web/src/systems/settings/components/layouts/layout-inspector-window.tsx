@@ -126,7 +126,7 @@ function WindowChoiceList({
               <ItemTitle className="truncate">{face.title}</ItemTitle>
             </ItemContent>
             {selected ? (
-              <Check aria-hidden="true" className="size-3 shrink-0 text-accent-strong" />
+              <Check aria-hidden="true" className="size-3 shrink-0 text-fg" />
             ) : (
               <span className="shrink-0 font-mono text-badge text-faint">
                 {taken ? "in use" : face.detail}

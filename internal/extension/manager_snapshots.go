@@ -2,9 +2,7 @@ package extensionpkg
 
 import (
 	"slices"
-	"strings"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -63,51 +61,4 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.InitializeResult = cloneInitializeResponse(ext.initialize)
 	}
 	return clone
-}
-
-func (m *Manager) reportBridgeRuntimeIssue(bridgeInstanceID string, status bridgepkg.BridgeStatus, reason error) {
-	if m == nil || m.bridgeTelemetrySink == nil {
-		return
-	}
-	trimmedID := strings.TrimSpace(bridgeInstanceID)
-	if trimmedID == "" || reason == nil {
-		return
-	}
-	m.bridgeTelemetrySink.RecordBridgeRuntimeIssue(trimmedID, status, reason.Error())
-}
-
-func (m *Manager) reportBridgeRuntimeIssues(bridgeInstanceIDs []string, status bridgepkg.BridgeStatus, reason error) {
-	if len(bridgeInstanceIDs) == 0 {
-		return
-	}
-	for _, bridgeInstanceID := range bridgeInstanceIDs {
-		m.reportBridgeRuntimeIssue(bridgeInstanceID, status, reason)
-	}
-}
-
-func (m *Manager) clearBridgeRuntimeIssue(bridgeInstanceID string) {
-	if m == nil || m.bridgeTelemetrySink == nil {
-		return
-	}
-	trimmedID := strings.TrimSpace(bridgeInstanceID)
-	if trimmedID == "" {
-		return
-	}
-	m.bridgeTelemetrySink.ClearBridgeRuntimeIssue(trimmedID)
-}
-
-func (m *Manager) clearBridgeRuntimeIssues(bridgeInstanceIDs []string) {
-	if len(bridgeInstanceIDs) == 0 {
-		return
-	}
-	for _, bridgeInstanceID := range bridgeInstanceIDs {
-		m.clearBridgeRuntimeIssue(bridgeInstanceID)
-	}
-}
-
-func managedBridgeInstanceIDs(ext *managedExtension) []string {
-	if ext == nil || ext.runtime.Bridge == nil {
-		return nil
-	}
-	return ext.runtime.Bridge.ManagedBridgeInstanceIDs()
 }

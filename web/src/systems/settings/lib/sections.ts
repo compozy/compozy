@@ -1,11 +1,9 @@
 import {
   Activity,
   Bell,
-  Brain,
   Cable,
   Command,
   Cpu,
-  Network,
   Palette,
   PanelTop,
   Puzzle,
@@ -29,8 +27,9 @@ import type {
 
 /**
  * Daemon sections + browser Appearance, grouped so the nav reads as a mental
- * model (design system §03): Workspace = "how my work is set up", Runtime =
- * "what my agents can do", System = "how the daemon itself behaves".
+ * model (design system §03): Workspace = "how my work is set up", Personal =
+ * "how I like to work", Runtime = "what my agents can do", System = "how
+ * CompozyOS itself behaves".
  * Keywords feed the sidebar search.
  */
 export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
@@ -54,14 +53,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Defaults",
     icon: UserRoundCog,
     group: "workspace",
-    keywords: "profile agent provider sandbox defaults new sessions",
+    keywords: "profile agent provider defaults new sessions",
   },
   {
     slug: "appearance",
     label: "Appearance",
     icon: Palette,
     group: "workspace",
-    keywords: "wallpaper theme desktop dock icons",
+    keywords: "theme dark mode light mode wallpaper motion desktop",
   },
   {
     slug: "layouts",
@@ -78,33 +77,18 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     keywords: "profile context switch identity archive selection separation",
   },
   {
-    slug: "palette",
-    label: "Palette",
-    icon: Command,
-    group: "workspace",
-    keywords: "command palette personalization recents pinned ranking",
-  },
-  {
     slug: "providers",
     label: "Providers",
     icon: Cpu,
     group: "workspace",
-    keywords: "models catalog auth claude codex openclaw hermes sign-in",
-  },
-  {
-    slug: "memory",
-    label: "Memory",
-    icon: Brain,
-    group: "runtime",
-    keywords: "recall dream ledger persistence daily logs extractor",
+    keywords: "models catalog auth claude codex cursor gemini sign-in",
   },
   {
     slug: "roles",
     label: "Roles",
     icon: Route,
     group: "runtime",
-    keywords:
-      "background agents coordinator dream checkpoint auto-title memory controller routing model provider fallback",
+    keywords: "background agents coordinator auto-title routing model provider fallback",
   },
   {
     slug: "skills",
@@ -130,19 +114,19 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     keywords: "jobs triggers scheduler engine timezone cron",
   },
   {
-    slug: "network",
-    label: "Network",
-    icon: Network,
-    group: "runtime",
-    keywords: "peers channels listener delivery embedded port",
-  },
-  {
     slug: "gateway",
     label: "Remote access",
     icon: Radio,
     group: "system",
     keywords:
       "gateway remote reachability exposure overlay public pairing devices revoke audit ingress",
+  },
+  {
+    slug: "palette",
+    label: "Palette",
+    icon: Command,
+    group: "operator",
+    keywords: "command palette personalization recents pinned ranking",
   },
   {
     slug: "attention",
@@ -163,7 +147,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Hooks",
     icon: Webhook,
     group: "system",
-    keywords: "lifecycle notifications presets events",
+    keywords: "lifecycle events",
   },
   {
     slug: "extensions",
@@ -186,10 +170,10 @@ export const SETTINGS_SECTION_GROUPS: ReadonlyArray<{
   id: SettingsSectionGroup;
   label: string;
 }> = [
-  { id: "workspace", label: "Workspace" },
-  { id: "runtime", label: "Runtime" },
+  { id: "workspace", label: "Basics" },
   { id: "operator", label: "Personal" },
-  { id: "system", label: "System" },
+  { id: "runtime", label: "Agents" },
+  { id: "system", label: "Advanced" },
 ];
 
 export const SETTINGS_SECTION_SLUGS: readonly SettingsSectionSlug[] = SETTINGS_SECTIONS.map(

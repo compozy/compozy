@@ -1,36 +1,38 @@
 import { useState } from "react";
 
-import { SearchInput } from "@compozy/ui";
+import { TriangleAlert, WifiOff } from "lucide-react";
 
-import { isEditableTarget } from "../../lib/editable-target";
-import { getSessionDisplayTitle } from "../../lib/session-display-title";
-import { buildSessionTree, filterThreadSessions } from "../../lib/session-hierarchy";
+import { Alert, AlertActions, AlertDescription, Button, SearchInput } from "@compozy/ui";
+
+import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
+import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { emptyForScope } from "@/systems/profiles";
 
-import { sessionSelectionCounts, useSessionSelection } from "../../hooks/use-session-selection";
+import { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
+import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
+import { SessionFolderDialogs } from "./session-folder-dialogs";
+import { SessionListSections } from "./session-list-sections";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
-import { SessionListThread } from "./session-list-thread";
+import { SessionListThreadList } from "./session-list-thread-list";
 import { SessionListToolbar } from "./session-list-toolbar";
 import { SessionListWorkspaceGroups } from "./session-list-workspace-groups";
-
-interface SessionThreadModel {
-  session: SessionPayload;
-  childSessions: SessionPayload[];
-}
 
 export interface SessionListProps {
   sessions: readonly SessionPayload[];
   disconnected: boolean;
   collapsedThreadIds: readonly string[];
   currentSessionId?: string;
+  /** The session on screen; a subagent session is revealed under its parent row. */
+  revealedSession?: SessionPayload | null;
   /** Breadth, order, and the widened per-workspace groups. */
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
-  onNewSession: () => void;
+  /** Opens session creation; `folderId` files the new session into that folder. */
+  onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   /** Rendered above the controls (the modal's eyebrow + close chrome). */
@@ -38,22 +40,33 @@ export interface SessionListProps {
 }
 
 /**
+ * Say what is empty AND for whom: an operator in Marketing needs to know the
+ * list is empty in Marketing, not on the machine (US-009.EC-3).
+ */
+function emptySessionListMessage(filtering: boolean, view: SessionListViewModel): string {
+  if (filtering) return `${emptyForScope("matching sessions", view.scopeLabel)}.`;
+  if (view.archived) return `${emptyForScope("archived sessions", view.scopeLabel)}.`;
+  return `${emptyForScope("sessions", view.scopeLabel)}.`;
+}
+
+/**
  * Shared sessions catalog body: this workspace, or every workspace.
  *
- * The narrow breadth lists the active workspace's complete catalog as
+ * The narrow breadth pages the active workspace catalog as
  * provenance threads; `All workspaces` widens to every workspace, grouped and
  * labelled, so no workspace can stall unnoticed. Ordering is served by the
  * daemon for the operator's chosen sort — this component renders the order it
  * receives rather than re-deciding it.
  *
- * A matching descendant keeps its full ancestor path visible, so a thread never
- * renders detached from its root.
+ * Loaded parents retain their descendants as threads. A parent outside the
+ * current page leaves its child visible as a root rather than hiding it.
  */
 export function SessionList({
   sessions,
   disconnected,
   collapsedThreadIds,
   currentSessionId,
+  revealedSession,
   view,
   onToggleThread,
   onSelectSession,
@@ -63,199 +76,306 @@ export function SessionList({
   header,
 }: SessionListProps) {
   const [filter, setFilter] = useState("");
-  const normalizedFilter = filter.trim().toLocaleLowerCase();
-  const matchesFilter = (session: SessionPayload) => {
-    if (normalizedFilter === "") return true;
-    return (
-      getSessionDisplayTitle(session).toLocaleLowerCase().includes(normalizedFilter) ||
-      session.agent_name.toLocaleLowerCase().includes(normalizedFilter)
-    );
-  };
-
-  const tree = buildSessionTree(sessions);
-  const threads: SessionThreadModel[] = [];
-  for (const root of tree.roots) {
-    const childSessions = filterThreadSessions(root, tree.childrenByParent, matchesFilter);
-    if (childSessions === null) continue;
-    threads.push({ session: root, childSessions });
-  }
-  const visibleCount = threads.reduce(
-    (count, thread) => count + 1 + thread.childSessions.length,
-    0
+  const remoteSearch = view.search !== undefined;
+  const normalizedFilter = (view.search ?? filter).trim().toLocaleLowerCase();
+  const listed = useSubagentContextSessions(
+    sessions,
+    revealedSession,
+    remoteSearch && normalizedFilter !== ""
   );
+  const threads = buildSessionListThreads(listed, remoteSearch ? "" : normalizedFilter);
+  const visibleCount = countThreadSessions(threads);
   const collapsedThreads = new Set(collapsedThreadIds);
-  const allWorkspaces = view.scope === "all-workspaces";
-  const selection = useSessionSelection(view.scope, view.archived, sessions);
-  const catalog = allWorkspaces ? [] : sessions;
-  const visibleOrder = allWorkspaces
-    ? []
-    : threads.flatMap(thread => [
-        thread.session.id,
-        ...(collapsedThreads.has(thread.session.id)
-          ? []
-          : thread.childSessions.map(session => session.id)),
-      ]);
-  const sessionsById = new Map(catalog.map(session => [session.id, session]));
-  const selectedSessions = selection.selectedIds.flatMap(id => {
-    const session = sessionsById.get(id);
-    return session ? [session] : [];
+  const filtering = normalizedFilter !== "";
+  const folders = useSessionListFolderLayout(view, threads, filtering);
+  const { layout, sections } = folders;
+  const bulk = useSessionListBulkSelection({
+    scope: view.scope,
+    archived: view.archived,
+    sessions: listed,
+    threads: folders.visibleThreads,
+    collapsedThreads,
+    sessionActions,
   });
-  const selectedIdSet = new Set(selection.selectedIds);
-  const counts = sessionSelectionCounts(selectedSessions, visibleOrder);
-  const rowSelection = {
-    ...selection,
-    selectedIds: selectedIdSet,
-    toggleRange: (id: string) => selection.toggleRange(id, visibleOrder),
-  };
-  const deleteSelected = sessionActions.onDeleteMany
-    ? () =>
-        sessionActions.onDeleteMany?.(selectedSessions, remainingIds => {
-          selection.prune(remainingIds);
-          if (remainingIds.length === 0) selection.clear();
-        })
-    : undefined;
-  const ownerOf = view.aggregate ? view.ownerOf : undefined;
-  // Say what is empty AND for whom: an operator in Marketing needs to know the
-  // list is empty in Marketing, not on the machine (US-009.EC-3).
-  const emptyMessage =
-    normalizedFilter !== ""
-      ? `${emptyForScope("matching sessions", view.scopeLabel)}.`
-      : view.archived
-        ? `${emptyForScope("archived sessions", view.scopeLabel)}.`
-        : `${emptyForScope("sessions", view.scopeLabel)}.`;
 
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
       data-testid={`${testIdPrefix}-content`}
-      onKeyDown={event => {
-        if (
-          allWorkspaces ||
-          event.defaultPrevented ||
-          isEditableTarget(event.target) ||
-          !event.currentTarget.contains(event.target as Node)
-        )
-          return;
-        if (event.key === "Escape" && selection.mode) {
-          event.preventDefault();
-          event.stopPropagation();
-          selection.clear();
-        } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
-          event.preventDefault();
-          event.stopPropagation();
-          selection.selectAll(visibleOrder);
-        } else if (
-          (event.metaKey || event.ctrlKey) &&
-          event.key === "Backspace" &&
-          selection.mode &&
-          sessionActions.pendingAction === null
-        ) {
-          event.preventDefault();
-          event.stopPropagation();
-          deleteSelected?.();
-        }
-      }}
+      onKeyDown={bulk.onKeyDown}
     >
       {header?.(visibleCount)}
-      {!allWorkspaces && selection.mode ? (
-        <SessionListSelectionBar
-          count={selection.selectedIds.length}
-          {...counts}
-          allSelected={visibleOrder.length > 0 && visibleOrder.every(id => selectedIdSet.has(id))}
-          disabled={sessionActions.pendingAction !== null}
-          onSelectAll={() => selection.selectAll(visibleOrder)}
-          onClear={selection.clear}
-          onDelete={deleteSelected}
-          onStop={
-            sessionActions.onStopMany
-              ? () => sessionActions.onStopMany?.(selectedSessions)
-              : undefined
-          }
-          onArchive={
-            sessionActions.onArchiveMany
-              ? () => sessionActions.onArchiveMany?.(selectedSessions)
-              : undefined
-          }
-          onUnarchive={
-            sessionActions.onUnarchiveMany
-              ? () => sessionActions.onUnarchiveMany?.(selectedSessions)
-              : undefined
-          }
-          testIdPrefix={testIdPrefix}
-        />
-      ) : (
-        <SessionListToolbar
-          allWorkspaces={allWorkspaces}
-          archived={view.archived}
-          sort={view.sort}
-          disabled={view.saving}
-          onAllWorkspacesChange={next => view.setScope(next ? "all-workspaces" : "workspace")}
-          onArchivedChange={view.setArchived}
-          onSortChange={view.setSort}
-          onNewSession={onNewSession}
-          testIdPrefix={testIdPrefix}
-        />
-      )}
+      <SessionListControls
+        bulk={bulk}
+        view={view}
+        onNewSession={() => onNewSession()}
+        onNewFolder={layout ? () => folders.setDialog({ kind: "create" }) : undefined}
+        testIdPrefix={testIdPrefix}
+      />
       <div className="px-3 pb-1.5">
         <SearchInput
-          value={filter}
-          onChange={setFilter}
+          value={view.search ?? filter}
+          onChange={view.setSearch ?? setFilter}
           placeholder="Filter sessions…"
           aria-label="Filter sessions"
           containerClassName="min-w-0"
         />
       </div>
       {disconnected ? (
-        <p
-          className="mx-3 my-1 rounded-md border border-warning/30 bg-warning-tint px-2.5 py-2 text-small-body text-warning"
-          role="status"
-        >
-          Session updates are unavailable. Cached sessions remain visible.
-        </p>
+        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
+          <WifiOff aria-hidden="true" />
+          <AlertDescription>
+            Can&apos;t get session updates right now. The sessions below may be out of date.
+          </AlertDescription>
+        </Alert>
       ) : null}
-      <div
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
-        data-scope={view.scope}
-      >
-        {allWorkspaces ? (
-          <SessionListWorkspaceGroups
-            groups={view.workspaceGroups}
-            collapsedWorkspaceIds={view.collapsedWorkspaceIds}
-            currentSessionId={currentSessionId}
-            ownerOf={ownerOf}
-            scopeLabel={view.scopeLabel}
-            archived={view.archived}
-            onToggleWorkspace={view.toggleWorkspace}
-            onSelectSession={onSelectSession}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-          />
-        ) : (
-          <>
-            {threads.map(thread => (
-              <SessionListThread
-                key={thread.session.id}
-                session={thread.session}
-                childSessions={thread.childSessions}
-                currentSessionId={currentSessionId}
-                owner={ownerOf?.(thread.session)}
-                ownerOf={ownerOf}
-                collapsed={collapsedThreads.has(thread.session.id)}
-                onToggleThread={onToggleThread}
-                onSelectSession={onSelectSession}
-                selection={rowSelection}
-                sessionActions={sessionActions}
-                testIdPrefix={testIdPrefix}
-              />
-            ))}
-            {threads.length === 0 ? (
-              <p className="px-3 py-8 text-center text-small-body text-muted">{emptyMessage}</p>
-            ) : null}
-          </>
-        )}
-      </div>
+      {view.layoutError ? (
+        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
+          <AlertActions>
+            <Button size="xs" type="button" variant="secondary" onClick={view.layoutError.retry}>
+              Retry
+            </Button>
+          </AlertActions>
+        </Alert>
+      ) : null}
+      {sections && layout ? (
+        <SessionListFolderBody
+          sections={sections}
+          layout={layout}
+          folders={folders}
+          view={view}
+          bulk={bulk}
+          filtering={filtering}
+          collapsedThreads={collapsedThreads}
+          currentSessionId={currentSessionId}
+          onToggleThread={onToggleThread}
+          onSelectSession={onSelectSession}
+          onNewSession={onNewSession}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+        />
+      ) : (
+        <SessionListBody
+          view={view}
+          threads={threads}
+          collapsedThreads={collapsedThreads}
+          currentSessionId={currentSessionId}
+          normalizedFilter={normalizedFilter}
+          onToggleThread={onToggleThread}
+          onSelectSession={onSelectSession}
+          selection={bulk.rowSelection}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+        />
+      )}
+      {layout ? (
+        <SessionFolderDialogs
+          state={folders.dialog}
+          onClose={() => folders.setDialog(null)}
+          onCreate={layout.createFolder}
+          onRename={layout.renameFolder}
+          onDelete={layout.deleteFolder}
+        />
+      ) : null}
     </div>
   );
 }
 
-export type { SessionThreadModel };
+type SessionListFolderLayoutModel = ReturnType<typeof useSessionListFolderLayout>;
+
+/** The workspace list grouped into folders, with drag and folder verbs wired in. */
+function SessionListFolderBody({
+  sections,
+  layout,
+  folders,
+  view,
+  bulk,
+  filtering,
+  collapsedThreads,
+  currentSessionId,
+  onToggleThread,
+  onSelectSession,
+  onNewSession,
+  sessionActions,
+  testIdPrefix,
+}: {
+  sections: NonNullable<SessionListFolderLayoutModel["sections"]>;
+  layout: NonNullable<SessionListFolderLayoutModel["layout"]>;
+  folders: SessionListFolderLayoutModel;
+  view: SessionListViewModel;
+  bulk: ReturnType<typeof useSessionListBulkSelection>;
+  filtering: boolean;
+  collapsedThreads: ReadonlySet<string>;
+  currentSessionId: SessionListProps["currentSessionId"];
+  onToggleThread: SessionListProps["onToggleThread"];
+  onSelectSession: SessionListProps["onSelectSession"];
+  onNewSession: SessionListProps["onNewSession"];
+  sessionActions: SessionListProps["sessionActions"];
+  testIdPrefix: string;
+}) {
+  const { dnd } = folders;
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+      data-scope={view.scope}
+      aria-busy={view.catalog?.paging || undefined}
+    >
+      <SessionListSections
+        sections={sections}
+        layout={layout}
+        dnd={bulk.active ? undefined : dnd}
+        orderable={folders.orderable}
+        filtering={filtering}
+        collapsedThreads={collapsedThreads}
+        collapsedFolders={folders.collapsedFolders}
+        currentSessionId={currentSessionId}
+        onToggleThread={onToggleThread}
+        onToggleFolder={folders.toggleFolder}
+        onSelectSession={session => {
+          if (!view.catalog?.paging) onSelectSession(session);
+        }}
+        onNewSessionInFolder={folderId => onNewSession({ folderId })}
+        onFolderDialog={folders.setDialog}
+        selection={bulk.rowSelection}
+        sessionActions={sessionActions}
+        testIdPrefix={testIdPrefix}
+        emptyMessage={emptySessionListMessage(filtering, view)}
+      />
+      {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
+    </div>
+  );
+}
+
+function SessionListControls({
+  bulk,
+  view,
+  onNewSession,
+  onNewFolder,
+  testIdPrefix,
+}: {
+  bulk: ReturnType<typeof useSessionListBulkSelection>;
+  view: SessionListViewModel;
+  onNewSession: () => void;
+  onNewFolder?: () => void;
+  testIdPrefix: string;
+}) {
+  const allWorkspaces = view.scope === "all-workspaces";
+  return bulk.active ? (
+    <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
+  ) : (
+    <SessionListToolbar
+      allWorkspaces={allWorkspaces}
+      archived={view.archived}
+      sort={view.sort}
+      disabled={view.saving}
+      onAllWorkspacesChange={next => view.setScope(next ? "all-workspaces" : "workspace")}
+      onArchivedChange={view.setArchived}
+      onSortChange={view.setSort}
+      onNewSession={onNewSession}
+      onNewFolder={onNewFolder}
+      testIdPrefix={testIdPrefix}
+    />
+  );
+}
+
+function SessionListBody({
+  view,
+  threads,
+  collapsedThreads,
+  currentSessionId,
+  normalizedFilter,
+  onToggleThread,
+  onSelectSession,
+  selection,
+  sessionActions,
+  testIdPrefix,
+}: Pick<
+  SessionListProps,
+  | "view"
+  | "currentSessionId"
+  | "onToggleThread"
+  | "onSelectSession"
+  | "sessionActions"
+  | "testIdPrefix"
+> & {
+  threads: ReturnType<typeof buildSessionListThreads>;
+  collapsedThreads: ReadonlySet<string>;
+  normalizedFilter: string;
+  selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
+}) {
+  const allWorkspaces = view.scope === "all-workspaces";
+  const ownerOf = view.aggregate ? view.ownerOf : undefined;
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+      data-scope={view.scope}
+      aria-busy={view.catalog?.paging || undefined}
+    >
+      {allWorkspaces ? (
+        <SessionListWorkspaceGroups
+          groups={view.workspaceGroups}
+          collapsedWorkspaceIds={view.collapsedWorkspaceIds}
+          currentSessionId={currentSessionId}
+          ownerOf={ownerOf}
+          scopeLabel={view.scopeLabel}
+          archived={view.archived}
+          onToggleWorkspace={view.toggleWorkspace}
+          onSelectSession={session => {
+            if (!view.catalog?.paging) onSelectSession(session);
+          }}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+        />
+      ) : (
+        <SessionListThreadList
+          threads={threads}
+          collapsedThreads={collapsedThreads}
+          currentSessionId={currentSessionId}
+          ownerOf={ownerOf}
+          onToggleThread={onToggleThread}
+          onSelectSession={session => {
+            if (!view.catalog?.paging) onSelectSession(session);
+          }}
+          selection={selection}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+          emptyMessage={emptySessionListMessage(normalizedFilter !== "", view)}
+        />
+      )}
+      {!allWorkspaces && view.catalog ? (
+        <SessionListCatalogNavigation catalog={view.catalog} />
+      ) : null}
+    </div>
+  );
+}
+
+function SessionListCatalogNavigation({
+  catalog,
+}: {
+  catalog: NonNullable<SessionListViewModel["catalog"]>;
+}) {
+  return (
+    <div className="flex items-center justify-between px-2 py-2">
+      {catalog.paging ? <span role="status">Loading sessions…</span> : null}
+      {catalog.previous ? (
+        <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.previousPage}>
+          Previous sessions
+        </Button>
+      ) : (
+        <span />
+      )}
+      {catalog.next ? (
+        <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.nextPage}>
+          Next sessions
+        </Button>
+      ) : null}
+      {catalog.failed ? (
+        <Button variant="ghost" size="sm" onClick={catalog.retry}>
+          Retry loading sessions
+        </Button>
+      ) : null}
+    </div>
+  );
+}

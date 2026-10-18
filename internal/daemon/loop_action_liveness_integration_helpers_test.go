@@ -8,6 +8,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -61,6 +62,7 @@ func testLoopActionSettlementIntegration(
 	executor looppkg.ActionExecutor,
 	actionResultMaxBytes int64,
 	wantFailure bool,
+	configure ...func(*globaldb.GlobalDB, *loopActionRuntime),
 ) {
 	t.Helper()
 
@@ -85,6 +87,24 @@ func testLoopActionSettlementIntegration(
 	}
 
 	resolved := compileManagedGoalDefinition(t, suffix, "worker", "main")
+	if suffix == "claim-contention" {
+		definition := resolved.Definition
+		definition.Graph.Nodes[0].Kind = string(loopdsl.ActionRunAgent)
+		definition.Graph.Nodes[0].Session = &loopdsl.SessionSpec{Isolated: true}
+		definition.Graph.Nodes[0].Params = loopdsl.NodeParams{
+			"agent":  "worker",
+			"prompt": "Complete the claimed task",
+			"output_schema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"status": map[string]any{"type": "string"}},
+			},
+		}
+		var err error
+		resolved, err = looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	run := looppkg.Run{
 		ID:                looppkg.RunID("looprun-" + suffix),
 		WorkspaceID:       looppkg.WorkspaceID(workspaceID),
@@ -109,6 +129,7 @@ func testLoopActionSettlementIntegration(
 	actions, err := looppkg.NewActionRegistry(
 		inertActionToolRegistry{},
 		looppkg.WithActionGoalExecutor(executor),
+		looppkg.WithActionRunAgentExecutor(executor),
 		looppkg.WithActionDefaultMaxResultBytes(actionResultMaxBytes),
 	)
 	if err != nil {
@@ -186,7 +207,10 @@ func testLoopActionSettlementIntegration(
 
 	runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 	runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
-	executeErr := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued)
+	for _, setup := range configure {
+		setup(db, runtime)
+	}
+	executeErr := runtime.executeQueuedRun(runtime.root, taskRecord, worker, loopActionRuntimeReasonEnqueued)
 	if wantFailure {
 		if executeErr == nil || !errors.Is(executeErr, looppkg.ErrActionResultTooLarge) {
 			t.Fatalf(
@@ -226,8 +250,8 @@ func testLoopActionSettlementIntegration(
 		!strings.Contains(outputs[0].OutputRef, "65536-byte result limit")) {
 		t.Fatalf("oversized generation output = %#v, want bounded node-aware diagnostic", outputs[0])
 	}
-	if !wantFailure && outputs[0].Status == "failed" {
-		t.Fatalf("quiet generation outputs = %#v, want no liveness failure", outputs)
+	if !wantFailure && outputs[0].Status != "succeeded" {
+		t.Fatalf("completed generation outputs = %#v, want succeeded", outputs)
 	}
 	if !wantFailure && strings.Contains(suffix, "within-budget") {
 		if len(settled.ResultValue()) != 0 || settled.ResultReference() == "" ||
@@ -666,4 +690,197 @@ func (oversizedLoopActionExecutor) Harvest(
 	_ loopdsl.Node,
 ) (looppkg.ActionOutput, error) {
 	return looppkg.ActionOutput{Value: raw.Value}, nil
+}
+
+func testLoopActionPersistenceContention(t *testing.T, oversized, duringExecution bool, lifecycle ...string) {
+	t.Helper()
+	executor := &contendedLoopActionExecutor{t: t, oversized: oversized, duringExecution: duringExecution}
+	suffix := "contended-complete"
+	if oversized {
+		suffix = "contended-fail"
+	}
+	testLoopActionSettlementIntegration(t, suffix, executor, taskpkg.MaxResultBytes, oversized,
+		func(db *globaldb.GlobalDB, runtime *loopActionRuntime) {
+			executor.db = db
+			runtime.persistenceAttemptTimeout = time.Second
+			runtime.heartbeatInterval = func(time.Duration) time.Duration { return time.Minute }
+			if duringExecution {
+				runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+			}
+			if len(lifecycle) > 0 && lifecycle[0] == "shutdown" {
+				executor.duringContention = runtime.cancel
+			}
+			if len(lifecycle) > 0 && lifecycle[0] == "expiry" {
+				var offset atomic.Int64
+				runtime.now = func() time.Time { return time.Now().UTC().Add(time.Duration(offset.Load())) }
+				executor.duringContention = func() { offset.Store(int64(10 * time.Minute)) }
+			}
+		})
+	if calls := executor.calls.Load(); calls != 1 {
+		t.Fatalf("action executions = %d, want one", calls)
+	}
+}
+
+type contendedLoopActionExecutor struct {
+	t                *testing.T
+	db               *globaldb.GlobalDB
+	oversized        bool
+	duringExecution  bool
+	calls            atomic.Int32
+	duringContention func()
+}
+
+func (e *contendedLoopActionExecutor) Execute(
+	ctx context.Context,
+	_ loopdsl.Node,
+	_ looppkg.ActionExecutionInput,
+) (looppkg.ActionRawResult, error) {
+	e.calls.Add(1)
+	locked, done := make(chan struct{}), make(chan error, 1)
+	unlocked := make(chan struct{})
+	go func() {
+		defer close(unlocked)
+		done <- store.ExecuteWriteOperation(e.t.Context(), e.db.DB(), "hold action settlement writer", func(ctx context.Context, _ *store.WriteTx) error {
+			close(locked)
+			if e.duringContention != nil {
+				select {
+				case <-time.After(200 * time.Millisecond):
+					e.duringContention()
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			timer := time.NewTimer(2200 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+	}()
+	select {
+	case <-locked:
+	case err := <-done:
+		return looppkg.ActionRawResult{}, err
+	case <-ctx.Done():
+		return looppkg.ActionRawResult{}, ctx.Err()
+	}
+	e.t.Cleanup(func() {
+		if err := <-done; err != nil {
+			e.t.Error(err)
+		}
+	})
+	if e.duringExecution {
+		select {
+		case <-unlocked:
+		case <-ctx.Done():
+			return looppkg.ActionRawResult{}, ctx.Err()
+		}
+	}
+	value := map[string]any{"status": "complete"}
+	if e.oversized {
+		value["data"] = strings.Repeat("x", taskpkg.MaxResultBytes)
+	}
+	return looppkg.ActionRawResult{Value: value}, nil
+}
+
+func (*contendedLoopActionExecutor) Harvest(
+	_ context.Context,
+	raw looppkg.ActionRawResult,
+	_ loopdsl.Node,
+) (looppkg.ActionOutput, error) {
+	return looppkg.ActionOutput{Value: raw.Value}, nil
+}
+
+func testLoopActionClaimContention(t *testing.T) {
+	t.Helper()
+	executor := &claimCheckingLoopActionExecutor{}
+	var observed *contendedLoopClaimManager
+	testLoopActionSettlementIntegration(t, "claim-contention", executor, taskpkg.MaxResultBytes, false,
+		func(db *globaldb.GlobalDB, runtime *loopActionRuntime) {
+			executor.db = db
+			observed = &contendedLoopClaimManager{loopActionTaskManager: runtime.manager, db: db, ctx: t.Context()}
+			runtime.manager = observed
+			runtime.persistenceAttemptTimeout = 100 * time.Millisecond
+		})
+	if observed.calls.Load() < 2 || executor.calls.Load() != 1 {
+		t.Fatalf(
+			"claim/action calls = %d/%d, want retried claim and one action",
+			observed.calls.Load(),
+			executor.calls.Load(),
+		)
+	}
+}
+
+type contendedLoopClaimManager struct {
+	loopActionTaskManager
+	db    *globaldb.GlobalDB
+	ctx   context.Context
+	calls atomic.Int32
+}
+
+func (m *contendedLoopClaimManager) ClaimNextRun(
+	ctx context.Context,
+	criteria taskpkg.ClaimCriteria,
+	actor taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
+	if m.calls.Add(1) != 1 {
+		return m.loopActionTaskManager.ClaimNextRun(ctx, criteria, actor)
+	}
+	locked, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		done <- store.ExecuteWriteOperation(m.ctx, m.db.DB(), "hold action claim writer", func(writerCtx context.Context, _ *store.WriteTx) error {
+			close(locked)
+			select {
+			case <-release:
+				return nil
+			case <-writerCtx.Done():
+				return writerCtx.Err()
+			}
+		})
+	}()
+	select {
+	case <-locked:
+	case err := <-done:
+		return nil, err
+	case <-m.ctx.Done():
+		close(release)
+		return nil, m.ctx.Err()
+	}
+	attemptCtx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+	defer cancel()
+	claim, err := m.loopActionTaskManager.ClaimNextRun(attemptCtx, criteria, actor)
+	close(release)
+	writerErr := <-done
+	return claim, errors.Join(err, writerErr)
+}
+
+type claimCheckingLoopActionExecutor struct {
+	quietLoopActionExecutor
+	db    *globaldb.GlobalDB
+	calls atomic.Int32
+}
+
+func (e *claimCheckingLoopActionExecutor) Execute(
+	ctx context.Context,
+	node loopdsl.Node,
+	in looppkg.ActionExecutionInput,
+) (looppkg.ActionRawResult, error) {
+	e.calls.Add(1)
+	runs, err := e.db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusClaimed})
+	if err != nil {
+		return looppkg.ActionRawResult{}, err
+	}
+	found := false
+	for _, run := range runs {
+		if run.IsLoopWorker() && run.LoopRunID == string(in.LoopRunID) {
+			found = run.ClaimTokenHash != "" && !run.ClaimedAt.IsZero()
+		}
+	}
+	if !found {
+		return looppkg.ActionRawResult{}, errors.New("action has no durably claimed worker")
+	}
+	return e.quietLoopActionExecutor.Execute(ctx, node, in)
 }

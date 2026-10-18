@@ -6,9 +6,9 @@
  *
  * | Size | Width token | Height ceiling | Surfaces |
  * | --- | --- | --- | --- |
- * | `sm` | `--width-modal-sm` 560 | `--height-modal-tall` | start session · create/edit knowledge · create/edit channel · add vault secret |
- * | `md` | `--width-modal-md` 720 | `--height-modal-md` | task editor · add/edit MCP server · create/edit sandbox profile · edit bridge |
- * | `lg` | `--width-modal-lg` 880 | `--height-modal-tall` | create agent · create bridge |
+ * | `sm` | `--width-modal-sm` 560 | `--height-modal-tall` | start session · create/edit channel · add vault secret |
+ * | `md` | `--width-modal-md` 720 | `--height-modal-md` | task editor · add/edit MCP server |
+ * | `lg` | `--width-modal-lg` 880 | `--height-modal-tall` | create agent |
  * | `xl` | `--width-modal-xl` 1180 | `--height-modal-xl` | job/trigger editor · add workspace (split body) |
  *
  * No `sheet` size is emitted: the provider surface stays on
@@ -65,6 +65,15 @@ export const DIALOG_TOUCH_TARGET_CLASS = "max-[760px]:min-h-(--height-button-cta
 
 /** Square variant of {@link DIALOG_TOUCH_TARGET_CLASS} for icon-only controls. */
 export const DIALOG_TOUCH_TARGET_SQUARE_CLASS = "max-[760px]:size-(--height-button-cta-lg)";
+
+/**
+ * Quiet icon-button grammar for a dialog or sheet dismiss control — the window
+ * controls' look: no fill or ring at rest, subtle ink, a small squircle hover
+ * plate. Pair with `variant="quiet"` and `size="icon-sm"` (26px, above the 24px
+ * target floor).
+ */
+export const DIALOG_CLOSE_BUTTON_CLASS =
+  "rounded-xs text-subtle hover:text-fg max-[760px]:size-(--height-button-cta-lg)";
 
 /**
  * {@link DIALOG_TOUCH_TARGET_CLASS} projected onto segmented-control children.

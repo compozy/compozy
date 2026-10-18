@@ -284,12 +284,20 @@ func TestCallSendsRequestAndReceivesResponse(t *testing.T) {
 
 	process := launchHelperProcess(t, "default", LaunchConfig{})
 	defer shutdownProcess(t, process)
-	initializeProcess(t, process, InitializeRuntime{
+	initializeResponse := initializeProcess(t, process, InitializeRuntime{
 		HealthCheckIntervalMS: 1_000,
 		HealthCheckTimeoutMS:  100,
 		ShutdownTimeoutMS:     250,
 		DefaultHookTimeoutMS:  100,
 	})
+
+	if initializeResponse.ProtocolVersion != defaultProtocolVersion {
+		t.Fatalf(
+			"Initialize() protocol_version = %q, want %q",
+			initializeResponse.ProtocolVersion,
+			defaultProtocolVersion,
+		)
+	}
 
 	var response struct {
 		Message string `json:"message"`
@@ -384,7 +392,7 @@ func TestCallWithContextCancellationReturnsPromptly(t *testing.T) {
 		DefaultHookTimeoutMS:  100,
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 	defer cancel()
 
 	startedAt := time.Now()
@@ -414,6 +422,17 @@ func TestHandleMethodRoutesInboundRequests(t *testing.T) {
 		ShutdownTimeoutMS:     250,
 		DefaultHookTimeoutMS:  100,
 	})
+
+	err := process.Call(testContext(t), "relay_to_host", map[string]any{
+		"method": "host/missing",
+		"params": map[string]int{"a": 1},
+	}, nil)
+	if err == nil {
+		t.Fatal("Call(relay_to_host missing) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "Internal error") {
+		t.Fatalf("Call(relay_to_host missing) error = %v, want wrapped internal error", err)
+	}
 
 	if err := process.HandleMethod("host/add", func(_ context.Context, params json.RawMessage) (any, error) {
 		var request struct {
@@ -594,23 +613,6 @@ func assertErrorContains(t *testing.T, err error, substr string) {
 	}
 }
 
-func TestInitializeHandshakeSucceedsWithCompatibleVersions(t *testing.T) {
-	t.Parallel()
-
-	process := launchHelperProcess(t, "default", LaunchConfig{})
-	defer shutdownProcess(t, process)
-
-	response := initializeProcess(t, process, InitializeRuntime{
-		HealthCheckIntervalMS: 1_000,
-		HealthCheckTimeoutMS:  100,
-		ShutdownTimeoutMS:     250,
-		DefaultHookTimeoutMS:  100,
-	})
-	if response.ProtocolVersion != defaultProtocolVersion {
-		t.Fatalf("Initialize() protocol_version = %q, want %q", response.ProtocolVersion, defaultProtocolVersion)
-	}
-}
-
 func TestInitializeHandshakeFailsForUnsupportedProtocolVersion(t *testing.T) {
 	t.Parallel()
 
@@ -711,7 +713,7 @@ func TestStopHealthMonitorIsRaceFree(t *testing.T) {
 	t.Parallel()
 
 	for range 32 {
-		lifecycleCtx, cancel := context.WithCancel(context.Background())
+		lifecycleCtx, cancel := context.WithCancel(t.Context())
 		process := &Process{
 			lifecycleCtx:    lifecycleCtx,
 			cancelLifecycle: cancel,
@@ -735,7 +737,7 @@ func TestStopHealthMonitorIsRaceFree(t *testing.T) {
 func TestStopHealthMonitorCancelsInFlightProbe(t *testing.T) {
 	t.Parallel()
 
-	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	lifecycleCtx, cancel := context.WithCancel(t.Context())
 	process := &Process{
 		stdin:           discardWriteCloser{Writer: io.Discard},
 		lifecycleCtx:    lifecycleCtx,
@@ -909,30 +911,6 @@ func TestHandleMethodRegistrationValidation(t *testing.T) {
 	}
 }
 
-func TestUnknownInboundMethodReturnsMethodNotFound(t *testing.T) {
-	t.Parallel()
-
-	process := launchHelperProcess(t, "default", LaunchConfig{})
-	defer shutdownProcess(t, process)
-	initializeProcess(t, process, InitializeRuntime{
-		HealthCheckIntervalMS: 1_000,
-		HealthCheckTimeoutMS:  100,
-		ShutdownTimeoutMS:     250,
-		DefaultHookTimeoutMS:  100,
-	})
-
-	err := process.Call(testContext(t), "relay_to_host", map[string]any{
-		"method": "host/missing",
-		"params": map[string]int{"a": 1},
-	}, nil)
-	if err == nil {
-		t.Fatal("Call(relay_to_host missing) error = nil, want failure")
-	}
-	if !strings.Contains(err.Error(), "Internal error") {
-		t.Fatalf("Call(relay_to_host missing) error = %v, want wrapped internal error", err)
-	}
-}
-
 func TestHealthMonitorRecordsHealthyResponses(t *testing.T) {
 	t.Parallel()
 
@@ -1071,20 +1049,6 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 				response.Supports.HealthCheck = false
 			},
 			wantSub: "health_check support",
-		},
-		{
-			name: "missing-bridge-deliver-service",
-			setup: func(request *InitializeRequest) {
-				request.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-				request.Methods.ExtensionServices = extensionprotocol.CapabilityServiceMethods(
-					request.Capabilities.Provides,
-				)
-			},
-			mutate: func(response *InitializeResponse) {
-				response.AcceptedCapabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
-				response.ImplementedMethods = []string{"health_check", "shutdown"}
-			},
-			wantSub: "bridges/deliver",
 		},
 		{
 			name: "missing-tool-provider-provide-tools-service",
@@ -1246,14 +1210,6 @@ func TestNilHelpersAndBufferUtilities(t *testing.T) {
 		t.Fatalf("boundedBuffer.String() = %q, want cdef", got)
 	}
 
-	buffer = &boundedBuffer{limit: 4}
-	if _, err := buffer.Write([]byte("uvwxyz")); err != nil {
-		t.Fatalf("boundedBuffer.Write(large) error = %v", err)
-	}
-	if got := buffer.String(); got != "wxyz" {
-		t.Fatalf("boundedBuffer.String() after large write = %q, want wxyz", got)
-	}
-
 	if got := attachStderr(errors.New("base"), "stderr-output").Error(); !strings.Contains(got, "stderr-output") {
 		t.Fatalf("attachStderr() = %q, want stderr suffix", got)
 	}
@@ -1268,7 +1224,7 @@ func TestNilHelpersAndBufferUtilities(t *testing.T) {
 func testContext(t *testing.T) context.Context {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	t.Cleanup(cancel)
 	return ctx
 }
@@ -1300,6 +1256,7 @@ func launchHelperProcess(t *testing.T, scenario string, cfg LaunchConfig, extraE
 		HealthFailureThreshold: cfg.HealthFailureThreshold,
 		ProcessRegistry:        cfg.ProcessRegistry,
 		ProcessRecord:          cfg.ProcessRecord,
+		Niceness:               cfg.Niceness,
 	})
 	if err != nil {
 		t.Fatalf("Launch(helper %s) error = %v", scenario, err)

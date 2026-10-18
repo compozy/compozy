@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"os"
@@ -42,11 +43,6 @@ type GeneralRuntimeProvider interface {
 	GeneralRuntimeStatus(ctx context.Context) (DaemonRuntimeStatus, error)
 }
 
-// MemoryRuntimeProvider returns memory runtime metadata.
-type MemoryRuntimeProvider interface {
-	MemoryHealthStatus(ctx context.Context) (MemoryHealthStatus, error)
-}
-
 // SkillsRuntime exposes the global skills registry state used by settings.
 type SkillsRuntime interface {
 	List() []*skillspkg.Skill
@@ -84,11 +80,6 @@ type SkillsSourcesRuntime interface {
 // AutomationRuntimeProvider returns automation runtime metadata.
 type AutomationRuntimeProvider interface {
 	AutomationRuntimeStatus(ctx context.Context) (AutomationRuntimeStatus, error)
-}
-
-// NetworkRuntimeProvider returns network runtime metadata.
-type NetworkRuntimeProvider interface {
-	NetworkRuntimeStatus(ctx context.Context) (NetworkRuntimeStatus, error)
 }
 
 // ObservabilityRuntimeProvider returns observability runtime metadata.
@@ -193,10 +184,8 @@ type Dependencies struct {
 	ProfileResolver             ProfileResolver
 	AttentionWorkspaceMutes     AttentionWorkspaceMuteStore
 	GeneralRuntime              GeneralRuntimeProvider
-	MemoryRuntime               MemoryRuntimeProvider
 	SkillsRuntime               SkillsRuntime
 	AutomationRuntime           AutomationRuntimeProvider
-	NetworkRuntime              NetworkRuntimeProvider
 	ObservabilityRuntime        ObservabilityRuntimeProvider
 	Extensions                  ExtensionStatusProvider
 	TransportParity             TransportParityProvider
@@ -213,7 +202,6 @@ type Dependencies struct {
 	EventSummaries              store.EventSummaryStore
 	ApplyRecords                ApplyRecordStore
 	RestartActionAvailable      bool
-	ConsolidateActionAvailable  bool
 	LogTailAvailable            bool
 	CommandLookPath             func(string) (string, error)
 	ProviderAuthCommandResolver authproviders.ProviderAuthCommandResolver
@@ -226,10 +214,8 @@ type service struct {
 	profileResolver             ProfileResolver
 	attentionWorkspaceMutes     AttentionWorkspaceMuteStore
 	generalRuntime              GeneralRuntimeProvider
-	memoryRuntime               MemoryRuntimeProvider
 	skillsRuntime               SkillsRuntime
 	automationRuntime           AutomationRuntimeProvider
-	networkRuntime              NetworkRuntimeProvider
 	observabilityRuntime        ObservabilityRuntimeProvider
 	extensions                  ExtensionStatusProvider
 	transportParity             TransportParityProvider
@@ -249,7 +235,6 @@ type service struct {
 	attentionMu                 sync.RWMutex
 	applyMu                     sync.Mutex
 	restartActionAvailable      bool
-	consolidateActionAvailable  bool
 	logTailAvailable            bool
 	commandLookPath             func(string) (string, error)
 	providerAuthCommandResolver authproviders.ProviderAuthCommandResolver
@@ -293,10 +278,8 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		profileResolver:             deps.ProfileResolver,
 		attentionWorkspaceMutes:     deps.AttentionWorkspaceMutes,
 		generalRuntime:              deps.GeneralRuntime,
-		memoryRuntime:               deps.MemoryRuntime,
 		skillsRuntime:               deps.SkillsRuntime,
 		automationRuntime:           deps.AutomationRuntime,
-		networkRuntime:              deps.NetworkRuntime,
 		observabilityRuntime:        deps.ObservabilityRuntime,
 		extensions:                  deps.Extensions,
 		transportParity:             deps.TransportParity,
@@ -313,7 +296,6 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		eventSummaries:              deps.EventSummaries,
 		applyRecords:                deps.ApplyRecords,
 		restartActionAvailable:      deps.RestartActionAvailable,
-		consolidateActionAvailable:  deps.ConsolidateActionAvailable,
 		logTailAvailable:            deps.LogTailAvailable,
 		commandLookPath:             commandLookPath,
 		providerAuthCommandResolver: providerAuthCommandResolver,
@@ -322,10 +304,7 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 }
 
 func (s *service) normalizeReadScope(scope ScopeKind, workspaceID string) (ScopeKind, string, error) {
-	normalized := scope
-	if normalized == "" {
-		normalized = ScopeUser
-	}
+	normalized := cmp.Or(scope, ScopeUser)
 	if err := normalized.Validate(); err != nil {
 		return "", "", validationError(err)
 	}

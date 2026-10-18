@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -115,6 +116,20 @@ func (c *daemonClient) GetWorktreeExitPlan(
 	return response, err
 }
 
+func (c *daemonClient) GetWorktreeExitPlanForPaths(
+	ctx context.Context,
+	workspaceRef, ref string,
+	paths []string,
+) (WorktreeExitPlanRecord, error) {
+	var response WorktreeExitPlanRecord
+	query := url.Values{}
+	for _, path := range paths {
+		query.Add("include", path)
+	}
+	err := c.doJSON(ctx, http.MethodGet, worktreeItemPath(workspaceRef, ref)+"/exit", query, nil, &response)
+	return response, err
+}
+
 func (c *daemonClient) RunWorktreeExitAction(
 	ctx context.Context,
 	workspaceRef string,
@@ -158,4 +173,23 @@ func worktreeCollectionPath(workspaceRef string) string {
 
 func worktreeItemPath(workspaceRef, ref string) string {
 	return worktreeCollectionPath(workspaceRef) + "/" + url.PathEscape(strings.TrimSpace(ref))
+}
+
+func (c *daemonClient) SubmitWorktreeDelivery(
+	ctx context.Context,
+	workspaceRef, ref string,
+	request WorktreeExitActionRequest,
+	credentials agentidentity.Credentials,
+) (WorktreeExitOperationRecord, error) {
+	var response WorktreeExitOperationRecord
+	err := c.doAgentJSON(
+		ctx,
+		http.MethodPost,
+		worktreeItemPath(workspaceRef, ref)+"/exit/actions",
+		nil,
+		request,
+		credentials,
+		&response,
+	)
+	return response, err
 }

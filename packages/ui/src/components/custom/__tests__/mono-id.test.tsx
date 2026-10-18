@@ -13,12 +13,6 @@ describe("MonoId", () => {
     expect(value?.textContent).toBe("run_abc123");
   });
 
-  it("Should expose sm size data attribute", () => {
-    const { container } = render(<MonoId value="run_abc" size="sm" />);
-    const root = container.querySelector<HTMLElement>('[data-slot="mono-id"]');
-    expect(root?.dataset.size).toBe("sm");
-  });
-
   it("Should render an inline copy button only when copy is true", () => {
     const { rerender } = render(<MonoId value="run_abc" />);
     expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();

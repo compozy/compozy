@@ -25,7 +25,6 @@ type PluginContents struct {
 	Hooks      int `json:"hooks"`
 	Loops      int `json:"loops"`
 	Agents     int `json:"agents"`
-	Bridges    int `json:"bridges"`
 }
 
 type PluginInspection struct {
@@ -91,7 +90,7 @@ type pluginEntry struct {
 	License     string                          `json:"license,omitempty"`
 	Category    string                          `json:"category,omitempty"`
 	Keywords    []string                        `json:"keywords,omitempty"`
-	Acquisition *pluginsource.AcquisitionRecord `json:"acquisition,omitempty"`
+	Acquisition *pluginsource.AcquisitionRecord `json:"acquisition,omitzero"`
 	Contents    PluginContents                  `json:"contents"`
 }
 
@@ -270,20 +269,17 @@ func pluginPayload(plugin pluginsource.Plugin, name, sourceRef string) pluginEnt
 		icon = ""
 	}
 	return pluginEntry{SourceRef: sourceRef, Homepage: plugin.Homepage, License: plugin.License,
-		Category: plugin.Category, Keywords: plugin.Keywords, extensionEntry: extensionEntry{
-			entryCommon: entryCommon{
-				EntryID:     plugin.Name,
-				Name:        plugin.Name,
-				Description: plugin.Description,
-				Version:     plugin.Version,
-			},
-			Icon:        icon,
-			InstallSlug: (Origin{SourceRef: sourceRef, EntryID: plugin.Name}).InstallSlug(name),
-			Tier:        extensionTierUnverified,
-			Author: strings.TrimSpace(
-				plugin.Author,
-			),
-			Repository: strings.TrimSpace(plugin.Repository),
-			Format:     ExtensionFormatAgentPlugin,
-		}}
+		Category: plugin.Category, Keywords: plugin.Keywords,
+		EntryID:     plugin.Name,
+		Name:        plugin.Name,
+		Description: plugin.Description,
+		Version:     plugin.Version,
+		Icon:        icon,
+		InstallSlug: (Origin{SourceRef: sourceRef, EntryID: plugin.Name}).InstallSlug(name),
+		Tier:        extensionTierUnverified,
+		Author: strings.TrimSpace(
+			plugin.Author,
+		),
+		Repository: strings.TrimSpace(plugin.Repository),
+		Format:     ExtensionFormatAgentPlugin}
 }

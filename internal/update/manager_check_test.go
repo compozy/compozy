@@ -1,7 +1,6 @@
 package update
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -44,7 +43,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("writeCache() error = %v", err)
 		}
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{})
+		state, release, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -98,14 +97,14 @@ func TestManagerCheck(t *testing.T) {
 			}),
 		}
 
-		_, freshRelease, err := manager.Check(context.Background(), CheckOptions{})
+		_, freshRelease, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check(fresh) error = %v", err)
 		}
 		if _, err := manager.resolveReleaseAssets(freshRelease); err != nil {
 			t.Fatalf("resolveReleaseAssets(fresh) error = %v", err)
 		}
-		_, cachedRelease, err := manager.Check(context.Background(), CheckOptions{})
+		_, cachedRelease, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check(cached) error = %v", err)
 		}
@@ -150,7 +149,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("writeCache() error = %v", err)
 		}
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{})
+		state, release, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -201,7 +200,7 @@ func TestManagerCheck(t *testing.T) {
 				t.Fatalf("writeCache() error = %v", err)
 			}
 
-			state, release, err := manager.Check(context.Background(), CheckOptions{
+			state, release, err := manager.Check(t.Context(), CheckOptions{
 				AllowCachedOnFailure: true,
 			})
 			if err != nil {
@@ -222,9 +221,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should refuse self-update for dev builds", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{
-			CurrentVersion: "dev",
-		})
+		manager := &Manager{currentVersion: "dev"}
 
 		state := manager.composeState(
 			installInfo{Method: string(InstallMethodDirectBinary)},
@@ -253,7 +250,7 @@ func TestManagerCheck(t *testing.T) {
 			},
 		})
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{})
+		state, release, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -286,7 +283,7 @@ func TestManagerCheck(t *testing.T) {
 			},
 		})
 
-		_, err := manager.fetchLatestRelease(context.Background())
+		_, err := manager.fetchLatestRelease(t.Context())
 		if err == nil {
 			t.Fatal("fetchLatestRelease() error = nil, want prerelease rejection")
 		}
@@ -341,7 +338,7 @@ func TestManagerCheck(t *testing.T) {
 			},
 		})
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{ForceRefresh: true})
+		state, release, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -359,10 +356,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should mark Windows direct-binary installs as manual-only", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{
-			RuntimeOS:   runtimeOSWindows,
-			RuntimeArch: runtimeArchAMD64,
-		})
+		manager := &Manager{currentVersion: "v1.0.0", runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchAMD64}
 
 		state := manager.composeState(
 			installInfo{Method: string(InstallMethodDirectBinary)},
@@ -383,7 +377,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should defer managed npm and go-install updates with package-specific guidance", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{})
+		manager := &Manager{currentVersion: "v1.0.0", runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64}
 		tests := []struct {
 			name   string
 			method InstallMethod
@@ -423,7 +417,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should self-apply a desktop-owned runtime", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{})
+		manager := &Manager{currentVersion: "v1.0.0", runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64}
 		state := manager.composeState(
 			installInfo{Method: string(InstallMethodDesktopApp)},
 			&Release{Version: "v1.1.0"},
@@ -438,7 +432,10 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should keep beta recommendations on beta-capable distribution paths", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{CurrentVersion: "v0.3.0-beta.1"})
+		manager := &Manager{
+			currentVersion: "v0.3.0-beta.1", releaseTrack: releaseTrackBeta,
+			runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64,
+		}
 		tests := []struct {
 			name      string
 			method    InstallMethod
@@ -491,7 +488,7 @@ func TestManagerCheck(t *testing.T) {
 		archived := &Operation{
 			LastError: "installer exited before relaunch",
 			App: &AppOperationState{
-				ArtifactIdentity:    ArtifactIdentity{ToVersion: "v1.2.0"},
+				ToVersion:           "v1.2.0",
 				AttemptID:           "attempt-2",
 				Phase:               PhaseFailed,
 				ConsecutiveFailures: 2,
@@ -541,7 +538,7 @@ func TestManagerCheck(t *testing.T) {
 				{Name: "CompozyOS-1.2.0-linux-x64.AppImage"},
 			},
 		}
-		mac, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64})
+		mac := &Manager{runtimeOS: runtimeOSDarwin, runtimeArch: runtimeArchARM64}
 		macAsset, err := mac.resolveAppReleaseAsset(release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(macOS) error = %v", err)
@@ -550,7 +547,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("resolveAppReleaseAsset(macOS) = %q, want zip", macAsset.Name)
 		}
 
-		linux, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchAMD64})
+		linux := &Manager{runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64}
 		linuxAsset, err := linux.resolveAppReleaseAsset(release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(Linux) error = %v", err)
@@ -559,13 +556,13 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("resolveAppReleaseAsset(Linux) = %q, want AppImage", linuxAsset.Name)
 		}
 
-		linuxARM, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
+		linuxARM := &Manager{runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchARM64}
 		if _, err := linuxARM.resolveAppReleaseAsset(release); err == nil ||
 			!strings.Contains(err.Error(), "unsupported on linux/arm64") {
 			t.Fatalf("resolveAppReleaseAsset(Linux ARM) error = %v, want unsupported", err)
 		}
 
-		windows, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64})
+		windows := &Manager{runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchAMD64}
 		if _, err := windows.resolveAppReleaseAsset(release); err == nil {
 			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
 		}
@@ -656,7 +653,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 		})
 
 		var release githubReleaseResponse
-		err := manager.fetchGitHubJSON(context.Background(), "https://example.invalid/releases", &release)
+		err := manager.fetchGitHubJSON(t.Context(), "https://example.invalid/releases", &release)
 		if err == nil {
 			t.Fatal("fetchGitHubJSON() error = nil, want status and close failures")
 		}
@@ -696,7 +693,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 		})
 
 		var release githubReleaseResponse
-		err := manager.fetchGitHubJSON(context.Background(), "https://example.invalid/releases", &release)
+		err := manager.fetchGitHubJSON(t.Context(), "https://example.invalid/releases", &release)
 		if err == nil {
 			t.Fatal("fetchGitHubJSON() error = nil, want status, drain, and close failures")
 		}

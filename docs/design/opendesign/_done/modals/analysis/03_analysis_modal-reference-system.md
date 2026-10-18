@@ -1,6 +1,6 @@
 # Analysis: modal-reference-system
 
-> **Living authority (post-research):** `modals/MODAL-STANDARD.md`, `modals/` 16 surfaces, and `design-system/patterns.html` § Modals. The former `systems/design-system.html` was deleted 2026-07-22 (absorbed into `design-system/`). Keep this file as a research snapshot; do not treat deleted paths as open links.
+> **Living authority (post-research):** `modals/MODAL-STANDARD.md`, `modals/` 10 surfaces, and `design-system/patterns.html` § Modals. The former `systems/design-system.html` was deleted 2026-07-22 (absorbed into `design-system/`). Keep this file as a research snapshot; do not treat deleted paths as open links.
 
 Read-only exploration of the slice `modal-reference-system` (ordinal `03`) for the research prompt:
 

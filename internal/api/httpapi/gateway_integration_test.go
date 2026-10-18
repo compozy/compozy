@@ -14,7 +14,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -124,6 +124,67 @@ func TestGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 		t.Parallel()
 		exerciseGatewayPairingAndBrowserCredentialIntegration(t)
 	})
+	t.Run("Should reach the pairing gate and redeem through the advertised HTTPS origin", func(t *testing.T) {
+		t.Parallel()
+		service := newGatewayIntegrationService(t)
+		server := newGatewayIntegrationServer(t, service)
+		const origin = "https://gateway.example.ts.net:8443"
+		request, err := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			server.URL+"/api/gateway/status",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Host = "gateway.example.ts.net:8443"
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request.Header.Set("X-Forwarded-Proto", "https")
+		response, err := gatewayIntegrationHTTPClient().Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := readAndCloseHTTPBody(t, response)
+		if response.StatusCode != http.StatusUnauthorized ||
+			!strings.Contains(string(body), "gateway_device_unauthenticated") {
+			t.Fatalf("pairing gate: status=%d body=%s", response.StatusCode, body)
+		}
+		artifact, err := service.MintPairing(t.Context(), gateway.PairingRequest{Source: gateway.PairingSourceLocal})
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload := `{"artifact":"` + artifact.Artifact + `","name":"Tailnet browser","actor_kind":"operator_device"}`
+		request, err = http.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			server.URL+"/api/gateway/pairings/redeem",
+			strings.NewReader(payload),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Host = "gateway.example.ts.net:8443"
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request.Header.Set("X-Forwarded-Proto", "https")
+		request.Header.Set("Content-Type", "application/json")
+		response, err = gatewayIntegrationHTTPClient().Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = readAndCloseHTTPBody(t, response)
+		if response.StatusCode != http.StatusOK || len(response.Cookies()) != 1 || !response.Cookies()[0].Secure ||
+			response.Header.Get("Access-Control-Allow-Origin") != origin {
+			t.Fatalf(
+				"pairing redemption: status=%d cookies=%d body=%s",
+				response.StatusCode,
+				len(response.Cookies()),
+				body,
+			)
+		}
+	})
 }
 
 func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
@@ -145,9 +206,7 @@ func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 	results := make(chan result, 2)
 	var workers sync.WaitGroup
 	for range 2 {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
+		workers.Go(func() {
 			<-start
 			payload := `{"artifact":"` + artifact.Artifact +
 				`","name":"Browser","actor_kind":"operator_device"}`
@@ -175,7 +234,7 @@ func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 				status: response.StatusCode, body: body, cookies: response.Cookies(),
 				err: errors.Join(readErr, closeErr),
 			}
-		}()
+		})
 	}
 	close(start)
 	workers.Wait()
@@ -208,7 +267,7 @@ func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 			t.Fatalf("pairing status = %d; body=%s", outcome.status, outcome.body)
 		}
 	}
-	sort.Ints(statuses)
+	slices.Sort(statuses)
 	if !reflect.DeepEqual(statuses, []int{http.StatusOK, http.StatusConflict}) {
 		t.Fatalf("pairing race statuses = %v, want [200 409]", statuses)
 	}
@@ -407,9 +466,7 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 		errorsCh := make(chan error, 2)
 		var workers sync.WaitGroup
 		for range 2 {
-			workers.Add(1)
-			go func() {
-				defer workers.Done()
+			workers.Go(func() {
 				<-start
 				response, body, err := tryDeliverGatewayIntegrationWebhook(
 					t.Context(), publicServer.URL, trigger, "shared-secret", "delivery-race", timestamp, payload,
@@ -423,7 +480,7 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 					return
 				}
 				statuses <- response.StatusCode
-			}()
+			})
 		}
 		close(start)
 		workers.Wait()
@@ -438,7 +495,7 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 		for status := range statuses {
 			got = append(got, status)
 		}
-		sort.Ints(got)
+		slices.Sort(got)
 		if !reflect.DeepEqual(got, []int{http.StatusOK, http.StatusConflict}) {
 			t.Fatalf("duplicate race statuses = %v, want [200 409]", got)
 		}
@@ -480,24 +537,6 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 		},
 	)
 
-	t.Run("Should expose a transport failure after the public listener stops [IT-045]", func(t *testing.T) {
-		offlineServer := newGatewayPublicIngressIntegrationServer(t, runtime, 100)
-		requestURL := offlineServer.URL + "/api/webhooks/global/offline--wbh_offline"
-		offlineServer.Close()
-		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, requestURL, strings.NewReader(`{}`))
-		if err != nil {
-			t.Fatalf("http.NewRequestWithContext(offline) error = %v", err)
-		}
-		response, err := gatewayIntegrationHTTPClient().Do(request)
-		if response != nil && response.Body != nil {
-			if closeErr := response.Body.Close(); closeErr != nil {
-				t.Fatalf("offline response body close error = %v", closeErr)
-			}
-		}
-		if err == nil {
-			t.Fatal("offline delivery error = nil, want sender-visible transport failure")
-		}
-	})
 }
 
 func exerciseGatewayAuthenticatedProductAndStatusParityIntegration(t *testing.T) {
@@ -603,14 +642,6 @@ func exerciseGatewayAuthenticatedProductAndStatusParityIntegration(t *testing.T)
 		t.Fatalf(
 			"gateway status parity differs: HTTP=%#v UDS=%#v",
 			httpPayload.Daemon.Gateway,
-			udsPayload.Daemon.Gateway,
-		)
-	}
-	cliProjection := httpPayload.Daemon
-	if !reflect.DeepEqual(cliProjection.Gateway, udsPayload.Daemon.Gateway) {
-		t.Fatalf(
-			"CLI daemon-status projection differs: CLI=%#v UDS=%#v",
-			cliProjection.Gateway,
 			udsPayload.Daemon.Gateway,
 		)
 	}
@@ -959,6 +990,7 @@ func newGatewayIntegrationServer(t *testing.T, service *gatewayIntegrationServic
 		boundHost: "127.0.0.1",
 	})
 	router := gin.New()
+	router.Use(corsMiddlewareWithForwardedTarget("127.0.0.1", true))
 	router.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
 	RegisterSurfaceRoutes(router, handlers, SurfaceSetPrivate)
 	server := httptest.NewServer(router)

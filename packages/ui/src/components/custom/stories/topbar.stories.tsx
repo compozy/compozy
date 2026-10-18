@@ -16,7 +16,7 @@ const meta: Meta<typeof Topbar> = {
     docs: {
       description: {
         component:
-          "Unified window head (44px): traffic lights · quiet glyph + title (or window-local drill-in trail) · optional peer RouteNav after identity · status + ≤2 actions. Routes publish identity/nav/tools via `useTopbarSlot`.",
+          "Unified window head (48px): identity well + title (or window-local drill-in trail) · optional peer RouteNav after identity · status + ≤2 actions · hairline · window controls. Routes publish identity/nav/tools via `useTopbarSlot`.",
       },
     },
   },
@@ -187,6 +187,8 @@ export const MarketplaceDrillIn: Story = {
 
 function SessionDocumentSetup() {
   useTopbarSlot({
+    glyph: <span className="size-[7px] rounded-full bg-success" />,
+    glyphPresentation: "state",
     status: <span className="text-xs text-subtle">2m 14s</span>,
     actions: <span className="text-xs text-subtle">claude-opus · Claude Code</span>,
   });
@@ -201,16 +203,7 @@ export const SessionDocument: Story = {
   render: () => (
     <TopbarSlotProvider>
       <SessionDocumentSetup />
-      <Topbar
-        leading={
-          <span
-            aria-hidden
-            className="size-2 shrink-0 rounded-full bg-success"
-            data-slot="topbar-state-dot"
-          />
-        }
-        title="Prune stale sessions"
-      />
+      <Topbar title="Prune stale sessions" />
     </TopbarSlotProvider>
   ),
 };

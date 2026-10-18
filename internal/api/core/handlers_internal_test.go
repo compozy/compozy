@@ -1,8 +1,12 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -50,19 +54,6 @@ func (s workspaceResolveServiceStub) ResolveOrRegister(
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
-func TestWorkspaceResolveServiceStub(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return workspace not found when resolve callback is unset", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := workspaceResolveServiceStub{}.Resolve(context.Background(), "alpha")
-		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
-			t.Fatalf("Resolve() error = %v, want ErrWorkspaceNotFound", err)
-		}
-	})
-}
-
 func TestCreateAgentDefinitionPath(t *testing.T) {
 	t.Parallel()
 
@@ -74,18 +65,16 @@ func TestCreateAgentDefinitionPath(t *testing.T) {
 			Workspaces: workspaceResolveServiceStub{
 				resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-empty-root",
-							Name:    "alpha",
-							RootDir: "",
-						},
+						ID:          "ws-empty-root",
+						Name:        "alpha",
+						RootDir:     "",
 						WorkspaceID: "ws-empty-root",
 					}, nil
 				},
 			},
 		}
 
-		_, err := handlers.createAgentDefinitionPath(context.Background(), contract.CreateAgentRequest{
+		_, err := handlers.createAgentDefinitionPath(t.Context(), contract.CreateAgentRequest{
 			Scope:     contract.AgentCreateScopeWorkspace,
 			Workspace: "alpha",
 			Agent: contract.CreateAgentPayload{
@@ -94,6 +83,26 @@ func TestCreateAgentDefinitionPath(t *testing.T) {
 		})
 		if !errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
 			t.Fatalf("createAgentDefinitionPath() error = %v, want ErrWorkspaceRootMissing", err)
+		}
+	})
+}
+
+// Invariant: deprecated palette IDs emit one structured warning per process history; handler internals own warning deduplication.
+func TestPaletteDeprecationWarnings(t *testing.T) {
+	t.Parallel()
+	t.Run("Should warn once per retired command id [IT-013]", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		var seen sync.Map
+		logger := slog.New(slog.NewJSONHandler(&logs, nil))
+		for range 2 {
+			resolvePaletteCommandID(t.Context(), logger, &seen, "app.open.jobs")
+		}
+		if strings.Count(logs.String(), `"id":"app.open.jobs"`) != 1 ||
+			!strings.Contains(logs.String(), `"event":"cmdpalette.command_id_deprecated"`) ||
+			!strings.Contains(logs.String(), `"replacement":"app.open.automations"`) ||
+			!strings.Contains(logs.String(), `"removal":"v0.5.0"`) {
+			t.Fatalf("warnings=%s", logs.String())
 		}
 	})
 }

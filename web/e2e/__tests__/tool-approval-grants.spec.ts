@@ -137,7 +137,8 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     await expect(sessionWin.getByTestId("permission-dock-title")).toHaveText(
       "Tool Approvals Revoke"
     );
-    await expect(sessionWin.getByTestId("permission-dock-meta")).toContainText(
+    await expect(sessionWin.getByTestId("permission-dock")).toHaveAttribute(
+      "data-permission-action",
       "session/request_permission"
     );
     const approvePromise = appPage.waitForResponse(
@@ -166,8 +167,8 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     const stopResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
-        (response.url().endsWith(`${sessionBase}/prompt/cancel`) ||
-          response.url().endsWith(`${sessionBase}/stop`))
+        (new URL(response.url()).pathname === `${sessionBase}/prompt/cancel` ||
+          new URL(response.url()).pathname === `${sessionBase}/stop`)
     );
     await expect(sessionUI.stopButton).toBeVisible();
     await sessionUI.stopButton.click();
@@ -191,7 +192,7 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
     await expect(appPage.getByTestId("settings-page-general")).toBeVisible({ timeout: 20_000 });
     await expect(grantsUI.row(grant.id)).toBeVisible();
-    await expect(grantsUI.decision(grant.id)).toHaveText(/allow/i);
+    await expect(grantsUI.decision(grant.id)).toHaveText(/allowed/i);
 
     // Revoke through the confirmation flow; the row disappears after the daemon refetch.
     await grantsUI.revoke(grant.id).click();
@@ -227,7 +228,7 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     expect(widerGrant.input_digest).toBeUndefined();
     await expect(grantsUI.row(widerGrant.id)).toBeVisible();
     await expect(appPage.getByTestId(`tool-approval-grant-scope-${widerGrant.id}`)).toHaveText(
-      "agent-wide"
+      "Every request from this agent"
     );
   } finally {
     await teardownHostedMcp(connection, toolCall);

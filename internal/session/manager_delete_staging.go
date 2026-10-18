@@ -1,12 +1,12 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
@@ -216,7 +216,7 @@ func (m *Manager) sortedWorkspaceSessions(ctx context.Context, workspaceID strin
 			err,
 		)
 	}
-	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
+	slices.SortFunc(infos, func(a, b *Info) int { return cmp.Compare(a.ID, b.ID) })
 	return infos, nil
 }
 
@@ -393,7 +393,11 @@ func (m *Manager) stageSessionDirectoryDeleteWithAttachmentStaging(
 		m.homePaths.SessionsDir,
 		sessionDeleteTombstoneName(sessionDeleteCommittedPrefix, target, deletionID),
 	)
-	owner, err := m.resolveStoredSessionOwner(ctx, target, info.WorkspaceID)
+	meta, err := m.readSessionMetaReadOnly(ctx, target)
+	if err != nil {
+		return stagedSessionDelete{}, fmt.Errorf("session: read deletion metadata for %q: %w", target, err)
+	}
+	owner, err := meta.DatabaseOwner()
 	if err != nil {
 		return stagedSessionDelete{}, fmt.Errorf("session: resolve catalog owner for delete %q: %w", target, err)
 	}
@@ -434,10 +438,8 @@ func (m *Manager) rollbackStagedSessionDeletes(ctx context.Context, staged []sta
 		if err := verifyStagedSessionDelete(ctx, entry); err != nil {
 			rollbackErr = errors.Join(rollbackErr, err)
 		} else {
-			result, moveErr := entry.capabilities.directory.MoveTo(
-				entry.capabilities.parentDirectory,
-				filepath.Base(entry.originalPath),
-				false,
+			result, moveErr := entry.capabilities.database.MoveParentDirectory(
+				ctx, entry.owner, entry.capabilities.directory, entry.capabilities.parentDirectory, entry.originalPath,
 			)
 			rollbackErr = errors.Join(rollbackErr, moveErr, result.PostCommitErr)
 			if result.Committed() {

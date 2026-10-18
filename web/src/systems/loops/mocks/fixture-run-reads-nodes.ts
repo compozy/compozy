@@ -21,7 +21,6 @@ export const runsById = new Map<string, LoopRun>(
  */
 export const TIMELINE_NOISE_KINDS: ReadonlySet<string> = new Set([
   "node_running",
-  "channel_msg",
   "token_tick",
   "goal_turn_started",
   "goal_turn_completed",

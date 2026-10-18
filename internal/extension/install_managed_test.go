@@ -28,6 +28,29 @@ func TestDeclaredProfileInstallPlanAndApply(t *testing.T) {
 		t.Parallel()
 		testDeclaredProfileInstallPlanAndApply(t)
 	})
+	t.Run("Should report binding when an operator creates the profile after planning", func(t *testing.T) {
+		t.Parallel()
+		manager := &declaredProfileManagerStub{
+			profiles: make(map[string]profilepkg.Profile),
+			markers:  make(map[string]bool),
+			beforeCreate: func(profiles map[string]profilepkg.Profile) {
+				profiles["shared"] = profilepkg.Profile{
+					ID: "operator-profile", Name: "shared", Color: "#112233",
+					State: profilepkg.StateActive, CreatedAt: time.Unix(1, 0).UTC(),
+				}
+			},
+		}
+		results, err := ApplyDeclaredProfiles(t.Context(), manager, &Manifest{
+			Name: "kit", Profiles: []ManifestProfile{{Name: "shared", Color: "#445566"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(results) != 1 || results[0].Created || !results[0].Bound ||
+			results[0].Profile.ID != "operator-profile" || results[0].Profile.Color != "#112233" {
+			t.Fatalf("ApplyDeclaredProfiles(concurrent create) = %#v, want unchanged bound profile", results)
+		}
+	})
 }
 
 func testDeclaredProfileInstallPlanAndApply(t *testing.T) {
@@ -77,15 +100,20 @@ func testDeclaredProfileInstallPlanAndApply(t *testing.T) {
 }
 
 type declaredProfileManagerStub struct {
-	profiles map[string]profilepkg.Profile
-	markers  map[string]bool
-	lastSeed profilepkg.DeclaredSeed
+	profiles     map[string]profilepkg.Profile
+	markers      map[string]bool
+	creations    map[string]string
+	lastSeed     profilepkg.DeclaredSeed
+	beforeCreate func(map[string]profilepkg.Profile)
 }
 
 func (s *declaredProfileManagerStub) CreateDeclared(
 	_ context.Context,
 	in profilepkg.DeclaredInput,
 ) (profilepkg.Profile, error) {
+	if s.beforeCreate != nil {
+		s.beforeCreate(s.profiles)
+	}
 	key := in.Extension + "\x00" + in.Name
 	if s.markers[key] {
 		return s.profiles[in.Name], nil
@@ -100,7 +128,18 @@ func (s *declaredProfileManagerStub) CreateDeclared(
 		State: profilepkg.StateActive, CreatedAt: time.Now().UTC(),
 	}
 	s.profiles[in.Name] = created
+	if s.creations == nil {
+		s.creations = make(map[string]string)
+	}
+	s.creations[key] = created.ID
 	return created, nil
+}
+
+func (s *declaredProfileManagerStub) HasDeclaredCreation(
+	_ context.Context,
+	extension, name, profileID string,
+) (bool, error) {
+	return profileID != "" && s.creations[extension+"\x00"+name] == profileID, nil
 }
 
 func (s *declaredProfileManagerStub) GetByName(_ context.Context, name string) (profilepkg.Profile, error) {
@@ -1014,6 +1053,9 @@ func TestInstallLocalManagedRejectsExistingOrFailedInstall(t *testing.T) {
 	if !errors.Is(err, installErr) {
 		t.Fatalf("InstallLocalManaged(failing) error = %v, want %v", err, installErr)
 	}
+	if !strings.Contains(err.Error(), `extension: persist managed extension "failing-ext"`) {
+		t.Fatalf("InstallLocalManaged(failing) error = %v, want wrapped registry install failure", err)
+	}
 	if _, statErr := os.Stat(ManagedInstallPath(homePaths, "failing-ext")); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("failed install path stat error = %v, want not exists", statErr)
 	}
@@ -1114,37 +1156,6 @@ func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "extension: compute source checksum") {
 			t.Fatalf("InstallLocalManaged() error = %v, want wrapped source checksum failure", err)
-		}
-	})
-
-	t.Run("ShouldWrapRegistryInstallFailures", func(t *testing.T) {
-		t.Parallel()
-
-		sourceDir := filepath.Join(t.TempDir(), "source")
-		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(source) error = %v", err)
-		}
-		if err := os.WriteFile(
-			filepath.Join(sourceDir, "extension.toml"),
-			[]byte("name = \"wrapped-ext\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.1.0\"\n"),
-			0o644,
-		); err != nil {
-			t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
-		}
-
-		sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
-		if err != nil {
-			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
-		}
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		registry := &recordingManagedInstallRegistry{installErr: errors.New("registry boom")}
-		err = InstallLocalManaged(homePaths, registry, &Manifest{Name: "wrapped-ext"}, sourceDir, sourceChecksum)
-		if err == nil || !strings.Contains(err.Error(), `extension: persist managed extension "wrapped-ext"`) {
-			t.Fatalf("InstallLocalManaged() error = %v, want wrapped registry install failure", err)
 		}
 	})
 }

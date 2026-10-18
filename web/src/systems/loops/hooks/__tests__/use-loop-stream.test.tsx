@@ -12,7 +12,6 @@ const LOOP_EVENT_KINDS = [
   "node_failed",
   "gate_verdict",
   "generation_started",
-  "channel_msg",
   "token_tick",
   "needs_approval",
   "status_changed",
@@ -277,9 +276,8 @@ describe("useLoopStream", () => {
     // High-frequency display frames are applied locally via onEvent, never invalidating.
     act(() => {
       eventSource.emitNamed("token_tick", buildFrame({ kind: "token_tick" }));
-      eventSource.emitNamed("channel_msg", buildFrame({ kind: "channel_msg" }));
     });
-    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(1));
     expect(invalidateQueries).not.toHaveBeenCalled();
 
     // Goal turn frames wake only the durable turn read for this workspace and run.
@@ -287,7 +285,7 @@ describe("useLoopStream", () => {
       eventSource.emitNamed("goal_turn_started", buildFrame({ kind: "goal_turn_started" }));
       eventSource.emitNamed("goal_turn_completed", buildFrame({ kind: "goal_turn_completed" }));
     });
-    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(3));
     expect(invalidateQueries).toHaveBeenCalledTimes(2);
     expect(invalidateQueries).toHaveBeenNthCalledWith(1, {
       queryKey: ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
@@ -299,7 +297,7 @@ describe("useLoopStream", () => {
     act(() => {
       eventSource.emitNamed("goal_status_changed", buildFrame({ kind: "goal_status_changed" }));
     });
-    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(4));
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
     });

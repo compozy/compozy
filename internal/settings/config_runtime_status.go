@@ -3,7 +3,7 @@ package settings
 import "context"
 
 // HasPendingConfigRestart reports whether persisted desired config still
-// differs from the daemon's active runtime projection.
+// differs from the daemon's active runtime projection or a scoped mutation awaits boot.
 func (s *service) HasPendingConfigRestart(ctx context.Context) (bool, error) {
 	state, err := s.ensureActiveConfigState(ctx)
 	if err != nil {
@@ -13,5 +13,5 @@ func (s *service) HasPendingConfigRestart(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return desiredHash != state.hash, nil
+	return desiredHash != state.hash || state.scopedRestartRequired, nil
 }

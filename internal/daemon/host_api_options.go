@@ -4,7 +4,6 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/store"
 )
 
 func buildHostAPIOptions(
@@ -16,8 +15,6 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
 		extensionpkg.WithHostAPITaskCatalogFilterMapper(core.ApplyTaskLoopCatalogFilters),
-		extensionpkg.WithHostAPINetworkService(deps.Network),
-		extensionpkg.WithHostAPINetworkStore(deps.NetworkStore),
 		extensionpkg.WithHostAPIModelCatalogService(deps.ModelCatalog),
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
@@ -32,25 +29,11 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPIHeartbeatWake(deps.HeartbeatWake),
 		extensionpkg.WithHostAPISessionHealth(deps.SessionHealth),
 		extensionpkg.WithHostAPIHeartbeatWakeEvents(deps.WakeEvents),
-		extensionpkg.WithHostAPIMemoryProviderRegistry(deps.MemoryProviderRegistry),
-		extensionpkg.WithHostAPIMemoryStoreResolver(deps.MemoryStoreResolver),
 		extensionpkg.WithHostAPIClarify(deps.Clarify),
 		extensionpkg.WithHostAPIViewService(deps.CmdPalette),
 	}
 	if deps.ViewPatches != nil {
 		opts = append(opts, extensionpkg.WithHostAPIViewPatchPublisher(deps.ViewPatches))
-	}
-	if usageStore, ok := deps.NetworkStore.(store.NetworkUsageStore); ok {
-		opts = append(opts, extensionpkg.WithHostAPINetworkUsageStore(usageStore))
-	}
-	if deps.BridgeRegistry != nil {
-		opts = append(opts, extensionpkg.WithHostAPIBridgeRegistry(deps.BridgeRegistry))
-	}
-	if deps.BridgeDedupStore != nil {
-		opts = append(opts, extensionpkg.WithHostAPIBridgeDedupStore(deps.BridgeDedupStore))
-	}
-	if deps.BridgeBroker != nil {
-		opts = append(opts, extensionpkg.WithHostAPIDeliveryBroker(deps.BridgeBroker))
 	}
 	return opts
 }

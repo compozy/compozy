@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -235,10 +236,7 @@ func waitForSupportBundle(
 			case supportStatusCompleted:
 				return operation, true, nil
 			case supportStatusFailed:
-				reason := strings.TrimSpace(operation.FailureReason)
-				if reason == "" {
-					reason = "support bundle creation failed"
-				}
+				reason := cmp.Or(strings.TrimSpace(operation.FailureReason), "support bundle creation failed")
 				return operation, true, errors.New("cli: " + reason)
 			default:
 				return SupportBundleOperationRecord{}, false, nil

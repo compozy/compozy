@@ -140,8 +140,8 @@ function feedbackView(feedback: SessionComposerFeedback): FeedbackNoteView {
 
 /**
  * One line inside the composer card that says what happened to the last busy
- * send: the glyph names the verb, the bold phrase names the outcome, the mono
- * suffix is the daemon's own delivery word or entry id. Refusals lead with
+ * send: the glyph names the verb, the bold phrase names the outcome. The
+ * daemon's own delivery word or entry id rides on `data-detail`, off screen. Refusals lead with
  * "Not sent" under a warning glyph — a gate is not a failure of the system.
  */
 export function SessionComposerFeedbackNote({
@@ -162,6 +162,7 @@ export function SessionComposerFeedbackNote({
             ? "unconfirmed"
             : feedback.outcome.disposition
       }
+      data-detail={view.suffix ?? undefined}
       data-kind={feedback.kind}
       data-testid="composer-feedback-note"
       role="status"
@@ -181,11 +182,6 @@ export function SessionComposerFeedbackNote({
         <span className="font-medium text-fg">{view.lead}</span>
         {view.rest}
       </span>
-      {view.suffix ? (
-        <span className="shrink-0 font-mono text-faint" data-testid="composer-feedback-suffix">
-          {view.suffix}
-        </span>
-      ) : null}
     </p>
   );
 }

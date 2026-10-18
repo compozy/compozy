@@ -1,7 +1,6 @@
 package situation
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -25,9 +24,6 @@ func TestContextForSessionActiveLeaseMetadataContract(t *testing.T) {
 			ClaimTokenHash: "sha256:claim-token",
 			LeaseUntil:     leaseUntil,
 			HeartbeatAt:    heartbeatAt,
-			RunNetworkState: &taskpkg.RunNetworkState{
-				NetworkSpec: situationLiveSpec(t, "ws-1", "coord-structured"),
-			},
 		}
 		service := NewService(Deps{
 			Now: fixedNow,
@@ -45,7 +41,7 @@ func TestContextForSessionActiveLeaseMetadataContract(t *testing.T) {
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:          "sess-1",
 			ProfileID:   store.DefaultProfileID,
 			AgentName:   "coder",

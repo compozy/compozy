@@ -3,8 +3,12 @@
 package globaldb
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,7 +77,7 @@ func TestGlobalDBAutomationPersistenceSurvivesReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -166,7 +170,7 @@ func TestGlobalDBRunWindowQueriesSurviveReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -207,7 +211,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := first.Close(ctx); err != nil {
+			if err := first.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close(first) error = %v", err)
 			}
 		})
@@ -230,7 +234,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := second.Close(ctx); err != nil {
+			if err := second.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close(second) error = %v", err)
 			}
 		})
@@ -251,7 +255,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 					JobID:     job.ID,
 					Status:    automation.RunScheduled,
 					Attempt:   1,
-					StartedAt: timePointer(now),
+					StartedAt: new(now),
 				},
 				Since:           now.Add(-window),
 				Until:           now,
@@ -265,7 +269,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 					JobID:     job.ID,
 					Status:    automation.RunScheduled,
 					Attempt:   1,
-					StartedAt: timePointer(now),
+					StartedAt: new(now),
 				},
 				Since:           now.Add(-window),
 				Until:           now,
@@ -345,7 +349,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 			JobID:     casJob.ID,
 			Status:    automation.RunScheduled,
 			Attempt:   1,
-			StartedAt: timePointer(now),
+			StartedAt: new(now),
 		})
 		if err != nil {
 			t.Fatalf("CreateRun(existing reservation) error = %v", err)
@@ -399,6 +403,165 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 		}
 		if got, want := activated.Status, automation.RunRunning; got != want {
 			t.Fatalf("activated.Status = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestGlobalDBAutomationLatestRunsBatch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should load fifty latest runs in one indexed query from two thousand runs", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		base := time.Date(2026, 10, 8, 1, 0, 0, 0, time.UTC)
+		for index := range 200 {
+			job := automationJobForTest(
+				automation.AutomationScopeGlobal,
+				fmt.Sprintf("batch-%03d", index),
+				"",
+				automation.JobSourceDynamic,
+			)
+			job, err := db.CreateJob(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for attempt := range 10 {
+				run := automationRunForJob(
+					job.ID,
+					automation.RunCompleted,
+					attempt+1,
+					base.Add(time.Duration(attempt)*time.Minute),
+				)
+				if _, err := db.CreateRun(ctx, run); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		page, err := db.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Limit: 50})
+		if err != nil || len(page.Jobs) != 50 {
+			t.Fatalf("page: %#v, %v", page, err)
+		}
+		ids := make([]string, 0, len(page.Jobs))
+		for _, job := range page.Jobs {
+			ids = append(ids, job.ID)
+		}
+		encoded, err := json.Marshal(ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query, err := automationLatestRunsSQL(automation.RunOwnerJob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		executor := &countingAutomationCatalogExecutor{automationCatalogExecutor: db.db}
+		latest, err := readLatestAutomationRuns(ctx, executor, query, automation.RunOwnerJob, string(encoded))
+		if err != nil || len(latest) != 50 || executor.reads != 1 {
+			t.Fatalf("latest count/reads/error = %d/%d/%v", len(latest), executor.reads, err)
+		}
+		for _, id := range ids {
+			if latest[id].Attempt != 10 {
+				t.Fatalf("latest attempt for %q = %d", id, latest[id].Attempt)
+			}
+		}
+		plan := automationCatalogQueryPlan(t, db.db, query, string(encoded))
+		if !strings.Contains(plan, "idx_automation_runs_job_latest") ||
+			strings.Contains(plan, "USE TEMP B-TREE FOR ORDER BY") {
+			t.Fatalf("latest run plan must use ordered index: %s", plan)
+		}
+	})
+}
+
+func TestGlobalDBAutomationScheduledClaimContention(t *testing.T) {
+	t.Run("Should wait for a competing writer without partially claiming the fire", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		job, err := db.CreateJob(ctx, automationJobForTest(
+			automation.AutomationScopeGlobal, "contended-scheduler", "", automation.JobSourceDynamic,
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+		claim := automation.SchedulerClaim{
+			ProfileID: job.ProfileID, JobID: job.ID, RunID: "run-contended", FireID: "fire-contended",
+			ScheduledAt: now, ClaimedAt: now, ScheduleHash: "schedule-v1",
+		}
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		claimCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, claimErr := db.ClaimScheduledRun(claimCtx, claim)
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(claimErr, context.DeadlineExceeded) {
+			t.Fatalf("contended claim error = %v, want context deadline", claimErr)
+		}
+		if _, err := db.GetRun(ctx, claim.RunID); !errors.Is(err, automation.ErrRunNotFound) {
+			t.Fatalf("cancelled claim persisted a run: %v", err)
+		}
+		if _, err := db.GetSchedulerState(ctx, job.ID); !errors.Is(err, automation.ErrSchedulerStateNotFound) {
+			t.Fatalf("cancelled claim advanced the schedule: %v", err)
+		}
+		result, err := db.ClaimScheduledRun(ctx, claim)
+		if err != nil || result.Run.ID != claim.RunID || result.State.LastFireID != claim.FireID {
+			t.Fatalf("claim after writer released = %#v, %v", result, err)
+		}
+	})
+}
+
+func TestGlobalDBAutomationTriggerUpdateContention(t *testing.T) {
+	t.Run("Should preserve the trigger while waiting for a competing writer", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		trigger, err := db.CreateTrigger(ctx, automationWebhookTriggerForTest(
+			automation.AutomationScopeGlobal, "contended-trigger", "", automation.JobSourceDynamic,
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		updated := trigger
+		updated.Name = "updated-trigger"
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		updateCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, updateErr := db.UpdateTrigger(updateCtx, updated)
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(updateErr, context.DeadlineExceeded) {
+			t.Fatalf("contended update error = %v, want context deadline", updateErr)
+		}
+		persisted, err := db.GetTrigger(ctx, trigger.ID)
+		if err != nil || persisted.Name != trigger.Name {
+			t.Fatalf("cancelled update changed trigger: %#v, %v", persisted, err)
+		}
+		persisted, err = db.UpdateTrigger(ctx, updated)
+		if err != nil || persisted.Name != updated.Name {
+			t.Fatalf("update after writer released = %#v, %v", persisted, err)
 		}
 	})
 }

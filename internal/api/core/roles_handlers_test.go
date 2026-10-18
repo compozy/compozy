@@ -34,21 +34,6 @@ func TestRoleStatusHandlers(t *testing.T) {
 					FallbackChain: []contract.RoleFallbackStatus{},
 					Diagnostics:   []contract.RoleDiagnostic{},
 				},
-				{
-					Role:          "dream",
-					FallbackChain: []contract.RoleFallbackStatus{},
-					Diagnostics:   []contract.RoleDiagnostic{},
-				},
-				{
-					Role:          "memory_controller",
-					FallbackChain: []contract.RoleFallbackStatus{},
-					Diagnostics:   []contract.RoleDiagnostic{},
-				},
-				{
-					Role:          "memory_extractor",
-					FallbackChain: []contract.RoleFallbackStatus{},
-					Diagnostics:   []contract.RoleDiagnostic{},
-				},
 			},
 		}
 		engine := roleStatusHandlerEngine(provider)
@@ -66,9 +51,6 @@ func TestRoleStatusHandlers(t *testing.T) {
 			"auto_title",
 			"checkpoint_summary",
 			"coordinator",
-			"dream",
-			"memory_controller",
-			"memory_extractor",
 		}
 		if len(payload.Roles) != len(wantRoles) || provider.workspace != "ws-a" {
 			t.Fatalf("roles/workspace = %d/%q, want %d/ws-a", len(payload.Roles), provider.workspace, len(wantRoles))

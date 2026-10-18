@@ -13,10 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -35,6 +32,8 @@ type bufferFlusher struct {
 func (bufferFlusher) Flush() {}
 
 func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
@@ -79,7 +78,7 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
@@ -96,6 +95,8 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 }
 
 func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
@@ -113,7 +114,7 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
@@ -161,7 +162,7 @@ func TestStreamSessionHandlerEmitsTerminalErrorWhenTranscriptInitializationFails
 		engine := newTestRouter(t, handlers)
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/workspaces/ws-workspace/sessions/sess-123/stream",
 			http.NoBody,
@@ -186,6 +187,8 @@ func TestStreamSessionHandlerEmitsTerminalErrorWhenTranscriptInitializationFails
 }
 
 func TestStreamLogsPollsForNewEvents(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
@@ -237,7 +240,7 @@ func TestStreamLogsPollsForNewEvents(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/logs/stream?workspace_id=ws-workspace",
 		http.NoBody,
@@ -289,7 +292,7 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/logs/stream?workspace_id=ws-workspace&replay=false",
 			http.NoBody,
@@ -327,7 +330,7 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/logs/stream?workspace_id=ws-workspace&replay=false",
 			http.NoBody,
@@ -344,20 +347,22 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 }
 
 func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
-	var doneOnce sync.Once
+	doneOnce := sync.OnceFunc(func() { close(done) })
 	var capturedQuery store.EventSummaryQuery
 	observer := stubObserver{
 		QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 			capturedQuery = query
-			doneOnce.Do(func() { close(done) })
+			doneOnce()
 			return []store.EventSummary{{
 				ID:        "sum-harness",
 				SessionID: "sess-harness",
 				Type:      "harness.context_resolved",
 				AgentName: "coder",
-				Summary:   "surface=startup sections=memory|skills|network",
+				Summary:   "surface=startup sections=skills|situation",
 				Timestamp: time.Date(2026, 4, 18, 13, 0, 0, 0, time.UTC),
 			}}, nil
 		},
@@ -368,7 +373,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/logs/stream?workspace_id=ws-workspace&session_id=sess-harness",
 		http.NoBody,
@@ -393,7 +398,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	if got, want := capturedQuery.SessionID, "sess-harness"; got != want {
 		t.Fatalf("observer query session_id = %q, want %q", got, want)
 	}
-	if !bytes.Contains(records[0].Data, []byte("sections=memory|skills|network")) {
+	if !bytes.Contains(records[0].Data, []byte("sections=skills|situation")) {
 		t.Fatalf("payload = %s, want harness summary content", string(records[0].Data))
 	}
 }
@@ -405,7 +410,7 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		done := make(chan struct{})
-		var doneOnce sync.Once
+		doneOnce := sync.OnceFunc(func() { close(done) })
 		var capturedQuery store.EventSummaryQuery
 		observer := stubObserver{
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -413,7 +418,7 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 				if query.Limit == 1 && !query.Forward {
 					return nil, nil
 				}
-				doneOnce.Do(func() { close(done) })
+				doneOnce()
 				// Profile events are global scope: they carry no workspace, session, or
 				// agent, and the registry allows that.
 				return []store.EventSummary{streamEventSummary(store.EventSummary{
@@ -432,7 +437,7 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/logs/stream?component=profile&replay=false",
 			http.NoBody,
@@ -466,168 +471,6 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 			t.Fatalf("payload.Content = %s, want snake_case profile payload", string(payload.Content))
 		}
 	})
-}
-
-func TestStreamBridgeHealthPollsForChangedSnapshots(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	done := make(chan struct{})
-	callCount := 0
-	lookupCalls := 0
-	var lookupIDs [][]string
-	observer := stubObserver{
-		QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
-			callCount++
-			switch callCount {
-			case 1, 2:
-				return []observe.BridgeInstanceHealth{{
-					BridgeInstanceID:  "brg-123",
-					Status:            bridgepkg.BridgeStatusAuthRequired,
-					AuthFailuresTotal: 1,
-				}}, nil
-			case 3:
-				return []observe.BridgeInstanceHealth{{
-					BridgeInstanceID:      "brg-123",
-					Status:                bridgepkg.BridgeStatusReady,
-					RouteCount:            2,
-					DeliveryFailuresTotal: 1,
-				}}, nil
-			default:
-				return nil, nil
-			}
-		},
-	}
-	handlers := newTestHandlersWithBridges(
-		t,
-		stubSessionManager{},
-		observer,
-		stubBridgeService{
-			ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
-				t.Fatal("ListInstances() must not run for the bounded stream")
-				return nil, nil
-			},
-			ListInstancesByIDsFn: func(_ context.Context, ids []string) ([]bridgepkg.BridgeInstance, error) {
-				lookupCalls++
-				lookupIDs = append(lookupIDs, append([]string(nil), ids...))
-				instance := bridgepkg.BridgeInstance{
-					ID: "brg-123", Scope: bridgepkg.ScopeGlobal, Enabled: true, Status: bridgepkg.BridgeStatusReady,
-				}
-				if lookupCalls == 3 {
-					instance.Scope = bridgepkg.ScopeWorkspace
-					instance.WorkspaceID = "ws-beta"
-					close(done)
-				}
-				return []bridgepkg.BridgeInstance{instance}, nil
-			},
-		},
-		stubWorkspaceService{},
-		homePaths,
-	)
-	handlers.setStreamDone(done)
-	engine := newTestRouter(t, handlers)
-
-	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/api/bridges/health/stream?scope=all&workspace_id=ws-alpha&bridge_ids=brg-123",
-		http.NoBody,
-	)
-	engine.ServeHTTP(recorder, req)
-
-	records := parseSSE(t, recorder.Body.String())
-	if len(records) != 2 {
-		t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
-	}
-	if records[0].Event != "snapshot" || records[1].Event != "snapshot" {
-		t.Fatalf("events = %#v, want snapshot events", records)
-	}
-	if records[0].ID == records[1].ID {
-		t.Fatalf("expected distinct snapshot ids, got %#v", records)
-	}
-
-	var first contract.BridgeHealthStreamPayload
-	if err := json.Unmarshal(records[0].Data, &first); err != nil {
-		t.Fatalf("json.Unmarshal(first snapshot) error = %v", err)
-	}
-	if got, want := first.BridgeHealth["brg-123"].Status, bridgepkg.BridgeStatusAuthRequired; got != want {
-		t.Fatalf("first status = %q, want %q", got, want)
-	}
-
-	var second contract.BridgeHealthStreamPayload
-	if err := json.Unmarshal(records[1].Data, &second); err != nil {
-		t.Fatalf("json.Unmarshal(second snapshot) error = %v", err)
-	}
-	if len(second.BridgeHealth) != 0 {
-		t.Fatalf("second bridge health = %#v, want foreign workspace bridge removed on poll", second.BridgeHealth)
-	}
-	if got, want := lookupCalls, 3; got != want {
-		t.Fatalf("ListInstancesByIDs() calls = %d, want %d", got, want)
-	}
-	for index, ids := range lookupIDs {
-		if len(ids) != 1 || ids[0] != "brg-123" {
-			t.Fatalf("ListInstancesByIDs() call %d ids = %#v, want bounded requested id", index+1, ids)
-		}
-	}
-}
-
-func TestStreamBridgeHealthEmitsErrorEventWhenPollingFails(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	callCount := 0
-	observer := stubObserver{
-		QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
-			callCount++
-			if callCount == 1 {
-				return []observe.BridgeInstanceHealth{
-					{BridgeInstanceID: "brg-123", Status: bridgepkg.BridgeStatusStarting},
-				}, nil
-			}
-			return nil, errors.New("bridge observer unavailable")
-		},
-	}
-	handlers := newTestHandlersWithBridges(
-		t,
-		stubSessionManager{},
-		observer,
-		stubBridgeService{
-			ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
-				t.Fatal("ListInstances() must not run for the bounded stream")
-				return nil, nil
-			},
-			ListInstancesByIDsFn: func(context.Context, []string) ([]bridgepkg.BridgeInstance, error) {
-				return []bridgepkg.BridgeInstance{{
-					ID: "brg-123", Scope: bridgepkg.ScopeGlobal, Enabled: true, Status: bridgepkg.BridgeStatusReady,
-				}}, nil
-			},
-		},
-		stubWorkspaceService{},
-		homePaths,
-	)
-	engine := newTestRouter(t, handlers)
-
-	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/api/bridges/health/stream?bridge_ids=brg-123",
-		http.NoBody,
-	)
-	engine.ServeHTTP(recorder, req)
-
-	records := parseSSE(t, recorder.Body.String())
-	if len(records) != 2 {
-		t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
-	}
-	if records[1].Event != "error" {
-		t.Fatalf("records[1].Event = %q, want error", records[1].Event)
-	}
-
-	var payload contract.ErrorPayload
-	if err := json.Unmarshal(records[1].Data, &payload); err != nil {
-		t.Fatalf("json.Unmarshal(error payload) error = %v", err)
-	}
-	if got, want := payload.Error, "bridge observer unavailable"; got != want {
-		t.Fatalf("payload.Error = %q, want %q", got, want)
-	}
 }
 
 func TestHelperBuildersCoverRemainingBranches(t *testing.T) {

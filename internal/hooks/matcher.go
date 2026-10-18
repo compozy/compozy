@@ -3,24 +3,23 @@ package hooks
 import (
 	"fmt"
 
-	"sort"
+	"slices"
 	"strings"
 )
 
 const (
-	matcherAgentNameKey            = "agent_name"
-	matcherParticipationChannelKey = "participation_channel"
-	matcherInputClassKey           = "input_class"
-	matcherLoopNameKey             = "loop_name"
-	matcherLoopRunIDKey            = "loop_run_id"
-	matcherNodeIDKey               = "node_id"
-	matcherReleaseReasonKey        = "release_reason"
-	matcherRunIDKey                = "run_id"
-	matcherTaskIDKey               = "task_id"
-	matcherWorkflowIDKey           = "workflow_id"
-	matcherWorkspaceIDKey          = "workspace_id"
-	matcherWorkspaceRootKey        = "workspace_root"
-	matcherWorktreeIDKey           = "worktree_id"
+	matcherAgentNameKey     = "agent_name"
+	matcherInputClassKey    = "input_class"
+	matcherLoopNameKey      = "loop_name"
+	matcherLoopRunIDKey     = "loop_run_id"
+	matcherNodeIDKey        = "node_id"
+	matcherReleaseReasonKey = "release_reason"
+	matcherRunIDKey         = "run_id"
+	matcherTaskIDKey        = "task_id"
+	matcherWorkflowIDKey    = "workflow_id"
+	matcherWorkspaceIDKey   = "workspace_id"
+	matcherWorkspaceRootKey = "workspace_root"
+	matcherWorktreeIDKey    = "worktree_id"
 )
 
 type matcherFunc[P any] func(HookMatcher, P) bool
@@ -32,16 +31,6 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherWorkspaceRootKey: {},
 		matcherWorktreeIDKey:    {},
 		"session_type":          {},
-	},
-	HookEventFamilySandbox: {
-		matcherAgentNameKey:     {},
-		matcherWorkspaceIDKey:   {},
-		matcherWorkspaceRootKey: {},
-		matcherWorktreeIDKey:    {},
-		"sandbox_id":            {},
-		"sandbox_backend":       {},
-		"sandbox_profile":       {},
-		"sync_direction":        {},
 	},
 	HookEventFamilyInput: {
 		matcherAgentNameKey:     {},
@@ -102,69 +91,56 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"message_delta_type": {},
 	},
 	HookEventFamilyContext: {
-		matcherWorktreeIDKey:  {},
-		"compaction_reason":   {},
-		"compaction_strategy": {},
+		matcherWorktreeIDKey: {},
+		"compaction_trigger": {},
 	},
 	HookEventFamilyCoordinator: {
-		matcherAgentNameKey:            {},
-		matcherWorkspaceIDKey:          {},
-		matcherWorkspaceRootKey:        {},
-		matcherTaskIDKey:               {},
-		matcherRunIDKey:                {},
-		matcherWorkflowIDKey:           {},
-		matcherParticipationChannelKey: {},
-		"coordinator_session_id":       {},
+		matcherAgentNameKey:      {},
+		matcherWorkspaceIDKey:    {},
+		matcherWorkspaceRootKey:  {},
+		matcherTaskIDKey:         {},
+		matcherRunIDKey:          {},
+		matcherWorkflowIDKey:     {},
+		"coordinator_session_id": {},
 	},
 	HookEventFamilyTask: {
-		matcherAgentNameKey:            {},
-		matcherWorkspaceIDKey:          {},
-		matcherTaskIDKey:               {},
-		matcherRunIDKey:                {},
-		matcherWorkflowIDKey:           {},
-		matcherParticipationChannelKey: {},
-		matcherReleaseReasonKey:        {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherTaskIDKey:        {},
+		matcherRunIDKey:         {},
+		matcherWorkflowIDKey:    {},
+		matcherReleaseReasonKey: {},
 	},
 	HookEventFamilyTaskRun: {
-		matcherAgentNameKey:            {},
-		matcherWorkspaceIDKey:          {},
-		matcherTaskIDKey:               {},
-		matcherRunIDKey:                {},
-		matcherLoopRunIDKey:            {},
-		matcherWorkflowIDKey:           {},
-		matcherParticipationChannelKey: {},
-		matcherReleaseReasonKey:        {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherTaskIDKey:        {},
+		matcherRunIDKey:         {},
+		matcherLoopRunIDKey:     {},
+		matcherWorkflowIDKey:    {},
+		matcherReleaseReasonKey: {},
 	},
 	HookEventFamilyLoop: {
-		matcherAgentNameKey:            {},
-		matcherWorkspaceIDKey:          {},
-		matcherTaskIDKey:               {},
-		matcherRunIDKey:                {},
-		matcherLoopRunIDKey:            {},
-		matcherLoopNameKey:             {},
-		matcherNodeIDKey:               {},
-		matcherWorkflowIDKey:           {},
-		matcherParticipationChannelKey: {},
+		matcherAgentNameKey:   {},
+		matcherWorkspaceIDKey: {},
+		matcherTaskIDKey:      {},
+		matcherRunIDKey:       {},
+		matcherLoopRunIDKey:   {},
+		matcherLoopNameKey:    {},
+		matcherNodeIDKey:      {},
+		matcherWorkflowIDKey:  {},
 	},
 	HookEventFamilySpawn: {
-		matcherAgentNameKey:            {},
-		matcherWorkspaceIDKey:          {},
-		matcherWorkspaceRootKey:        {},
-		matcherTaskIDKey:               {},
-		matcherRunIDKey:                {},
-		matcherWorkflowIDKey:           {},
-		matcherParticipationChannelKey: {},
-		"parent_session_id":            {},
-		"root_session_id":              {},
-		"child_session_id":             {},
-		"spawn_role":                   {},
-	},
-	HookEventFamilyNetwork: {
-		matcherChannelKey:   {},
-		"surface":           {},
-		"kind":              {},
-		"direction":         {},
-		matcherWorkStateKey: {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		matcherTaskIDKey:        {},
+		matcherRunIDKey:         {},
+		matcherWorkflowIDKey:    {},
+		"parent_session_id":     {},
+		"root_session_id":       {},
+		"child_session_id":      {},
+		"spawn_role":            {},
 	},
 	HookEventFamilyWindowManager: {
 		matcherWorkspaceIDKey: {},
@@ -180,18 +156,6 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 }
 
 var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{
-	HookNetworkParticipationPreResolve: {
-		matcherWorkspaceIDKey:         {},
-		matcherChannelKey:             {},
-		matcherParticipationModeKey:   {},
-		matcherParticipationSourceKey: {},
-	},
-	HookNetworkParticipationResolved: {
-		matcherWorkspaceIDKey:         {},
-		matcherChannelKey:             {},
-		matcherParticipationModeKey:   {},
-		matcherParticipationSourceKey: {},
-	},
 	HookAgentSoulSnapshotResolved: {
 		matcherAgentNameKey:   {},
 		matcherWorkspaceIDKey: {},
@@ -230,7 +194,7 @@ func ValidateMatcherForEvent(event HookEvent, matcher HookMatcher) error {
 		return validateMatcherPatterns(matcher)
 	}
 
-	sort.Strings(invalid)
+	slices.Sort(invalid)
 	return fmt.Errorf("hooks: matcher fields [%s] are not valid for event %q", strings.Join(invalid, ", "), event)
 }
 

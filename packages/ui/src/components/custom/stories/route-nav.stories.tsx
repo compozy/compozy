@@ -10,7 +10,7 @@ const meta: Meta<typeof RouteNav> = {
     docs: {
       description: {
         component:
-          'Peer sister-route navigation for the topbar `nav` zone (after identity in the 44px head). Real links inside a labeled `nav`; the active route carries `aria-current="page"` and gets the elevated segment. Panel `Tabs` and mode `PillGroup` keep their own semantics — this is routes only.',
+          'Peer sister-route navigation for the topbar `nav` zone (after identity in the 44px head). Real links inside a labeled `nav`; the links are PillGroup md segments with no track, and the active route carries `aria-current="page"` and gets the lifted `surface-2` + `shadow-card` segment. Counts are quiet `subtle` numerals. Panel `Tabs` and mode `PillGroup` keep their own semantics — this is routes only.',
       },
     },
   },

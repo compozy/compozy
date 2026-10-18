@@ -26,6 +26,7 @@ type windowOpenFlagValues struct {
 	pathname    string
 	searchJSON  string
 	insertTiled bool
+	floating    bool
 }
 
 func newWindowCommand(deps commandDeps) *cobra.Command {
@@ -129,6 +130,7 @@ func validateWindowRestoreFlags(cmd *cobra.Command) error {
 		cmd.Flags().Changed(windowManagerPathnameFlag) ||
 		cmd.Flags().Changed(windowManagerSearchJSONFlag) ||
 		cmd.Flags().Changed("tiled") ||
+		cmd.Flags().Changed("floating") ||
 		cmd.Flags().Changed("stack-target")
 	if newWindowFlagsChanged {
 		return newWindowManagerCLIValidationError(
@@ -172,6 +174,10 @@ func windowOpenSpec(
 	if err != nil {
 		return contract.WindowManagerWindowSpecPayload{}, err
 	}
+	// Public --app aliases are removed in v0.5.0; the daemon rewrites the command.
+	if replacement, retired := windowmanager.RetiredApp(app); retired {
+		cmd.PrintErrf("warning: app %q is deprecated and will be removed in v0.5.0; use %q\n", app, replacement)
+	}
 	return contract.WindowManagerWindowSpecPayload{
 		ID:                  windowmanager.WindowID(strings.TrimSpace(values.windowID)),
 		App:                 app,
@@ -180,6 +186,7 @@ func windowOpenSpec(
 		DesktopID:           windowmanager.DesktopID(strings.TrimSpace(values.desktopID)),
 		FloatingRect:        floatingRect,
 		InsertTiled:         values.insertTiled,
+		Floating:            values.floating,
 		StackTargetWindowID: stackTarget,
 	}, nil
 }
@@ -207,6 +214,12 @@ func (values *windowOpenFlagValues) addFlags(cmd *cobra.Command) {
 		"Floating rect as x,y,width,height in normalized coordinates",
 	)
 	cmd.Flags().BoolVar(&values.insertTiled, "tiled", false, "Insert beside client focus when possible")
+	cmd.Flags().BoolVar(
+		&values.floating,
+		"floating",
+		false,
+		"Open a free floating window whatever the new-window policy",
+	)
 	cmd.Flags().StringVar(&values.stackTarget, "stack-target", "", "Add the new window to this window's stack")
 	addWindowManagerRouteFlags(cmd, &values.pathname, &values.searchJSON)
 }
@@ -300,8 +313,7 @@ func newWindowFocusCommand(deps commandDeps) *cobra.Command {
 			}
 			var windowIDPtr *windowmanager.WindowID
 			if byID {
-				value := windowmanager.WindowID(strings.TrimSpace(windowID))
-				windowIDPtr = &value
+				windowIDPtr = new(windowmanager.WindowID(strings.TrimSpace(windowID)))
 			}
 			focusDirection := windowmanager.FocusDirection(strings.TrimSpace(direction))
 			if byDirection && !isWindowManagerFocusDirection(focusDirection) {

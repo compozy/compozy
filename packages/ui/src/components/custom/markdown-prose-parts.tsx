@@ -172,7 +172,7 @@ export function MarkdownTh({ className, node: _node, ...props }: MdProps<"th">) 
   return (
     <th
       className={cn(
-        "border-b border-line-strong bg-surface-glaze px-3 py-2 text-left text-form-label font-medium whitespace-nowrap text-fg-strong",
+        "border-b border-line px-3 py-2 text-left text-form-label font-medium whitespace-nowrap text-muted",
         "group-data-[compact=true]/md:px-2 group-data-[compact=true]/md:py-1.5",
         className
       )}

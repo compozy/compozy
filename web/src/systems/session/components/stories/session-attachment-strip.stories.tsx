@@ -57,7 +57,7 @@ const tiles: SessionAttachmentTileModel[] = [
 
 function StripPreview({ showGate = false }: { showGate?: boolean }) {
   return (
-    <div className="flex w-[28rem] flex-col gap-1.5 rounded-lg border border-line bg-elevated p-3">
+    <div className="flex w-[28rem] flex-col gap-1.5 rounded-lg bg-canvas shadow-card p-3">
       {showGate ? (
         <SessionAttachmentCapabilityGate
           message="This agent does not accept images."

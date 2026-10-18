@@ -25,19 +25,9 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/memory/consolidation"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-	localprovider "github.com/compozy/compozy/internal/memory/provider/local"
-	"github.com/compozy/compozy/internal/memory/provider/local/memstore"
 	"github.com/compozy/compozy/internal/profile"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
-	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
-
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
 
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -60,41 +50,31 @@ const (
 )
 
 type bootState struct {
-	cfg                    compozyconfig.Config
-	logger                 *slog.Logger
-	closeLogger            func() error
-	lock                   *Lock
-	harnessResolver        *HarnessContextResolver
-	harnessRecorder        *harnessLifecycleRecorder
-	memoryStore            *memory.Store
-	localMemoryProvider    *localprovider.Provider
-	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
-	memoryExtractor        *daemonMemoryExtractor
-	runtimeWorkers         daemonRuntimeWorkers
-	checkpointRuntime      *checkpointSummaryRuntime
-	memoryCatalogStore     *memory.Store
-	ledgerMaterializer     session.LedgerMaterializer
-	skillsRegistry         *skills.Registry
-	mcpResolver            *skills.MCPResolver
-	dreamSvc               consolidation.Service
-	dreamRuntime           *consolidation.Runtime
-	globalMemoryDir        string
-	situationContext       *situation.Service
-	promptAssembler        session.PromptAssembler
-	startupOverlay         session.StartupPromptOverlay
-	promptAugmenter        session.PromptInputAugmenter
-	commandService         session.CommandService
-	notifier               *hooksNotifier
-	registry               Registry
-	profiles               *profile.Manager
-	deadEntities           *deadentity.Service
-	loopTargetHealth       *loopTargetHealthSlot
-	processRegistry        *toolruntime.Registry
-	terminals              *terminalpkg.Service
-	terminalPermissions    *terminalPermissionBridge
-	sandboxRegistry        *sandbox.Registry
-	workspaceResolver      *workspacepkg.Resolver
-	worktrees              *worktree.Service
+	subagents           session.SubagentService
+	cfg                 compozyconfig.Config
+	logger              *slog.Logger
+	closeLogger         func() error
+	lock                *Lock
+	harnessResolver     *HarnessContextResolver
+	harnessRecorder     *harnessLifecycleRecorder
+	runtimeWorkers      daemonRuntimeWorkers
+	skillsRegistry      *skills.Registry
+	mcpResolver         *skills.MCPResolver
+	situationContext    *situation.Service
+	promptAssembler     session.PromptAssembler
+	startupOverlay      session.StartupPromptOverlay
+	promptAugmenter     session.PromptInputAugmenter
+	commandService      session.CommandService
+	notifier            *hooksNotifier
+	registry            Registry
+	profiles            *profile.Manager
+	deadEntities        *deadentity.Service
+	loopTargetHealth    *loopTargetHealthSlot
+	processRegistry     *toolruntime.Registry
+	terminals           *terminalpkg.Service
+	terminalPermissions *terminalPermissionBridge
+	workspaceResolver   *workspacepkg.Resolver
+	worktrees           *worktree.Service
 	windowManagerBootState
 	sessions              SessionManager
 	sessionWakeBridge     *sessionWakeBridge
@@ -109,11 +89,8 @@ type bootState struct {
 	spawnReaper           *spawnReaper
 	scheduler             *schedulerRuntime
 	coordinator           *coordinatorRuntime
-	network               networkRuntime
 	gateway               gateway.Policy
 	gatewayVerifier       *gateway.EndpointVerifier
-	networkWakeRunner     *networkWakeRunner
-	participationResolver participation.Resolver
 	accessPolicy          workspaceaccess.Policy
 	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
@@ -156,8 +133,6 @@ type bootState struct {
 	extensions            extensionRuntime
 	resourceReconcile     resources.ReconcileDriver
 	automation            automationRuntime
-	bridges               *bridgeRuntime
-	notificationPresets   *presetspkg.Service
 	supportBundles        supportBundleShutdowner
 	updateManager         settingsUpdateManager
 	backgroundUpdates     *backgroundUpdateRuntime
@@ -256,13 +231,11 @@ func (d *Daemon) beginBoot() error {
 		d.sessions != nil ||
 		d.modelCatalog != nil ||
 		d.marketplace != nil ||
-		d.network != nil ||
 		d.gateway != nil ||
 		d.toolRegistry != nil ||
 		d.observer != nil ||
 		d.resourceReconcile != nil ||
-		d.automation != nil ||
-		d.bridges != nil {
+		d.automation != nil {
 		return errors.New("daemon: already booted")
 	}
 	d.admission.Undrain()
@@ -271,15 +244,8 @@ func (d *Daemon) beginBoot() error {
 }
 
 func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) error {
-	var prependProviders []session.PromptProvider
 	var appendProviders []session.PromptProvider
-	if state.cfg.Memory.Enabled {
-		provider, err := d.bootMemoryPromptProvider(ctx, state)
-		if err != nil {
-			return err
-		}
-		prependProviders = append(prependProviders, provider)
-	}
+
 	if state.cfg.Skills.Enabled {
 		provider, err := d.bootSkillsPromptProvider(ctx, state)
 		if err != nil {
@@ -287,7 +253,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		}
 		appendProviders = append(appendProviders, provider)
 	}
-	return d.bootHarnessPromptRuntime(state, prependProviders, appendProviders)
+	return d.bootHarnessPromptRuntime(state, appendProviders)
 }
 
 func (d *Daemon) bootSkillsPromptProvider(
@@ -315,20 +281,16 @@ func (d *Daemon) bootSkillsPromptProvider(
 
 func (d *Daemon) bootHarnessPromptRuntime(
 	state *bootState,
-	prependProviders []session.PromptProvider,
 	appendProviders []session.PromptProvider,
 ) error {
 	state.situationContext = d.buildSituationContext(state)
 	state.harnessResolver = NewHarnessContextResolver(HarnessRuntimeSignals{
 		RuntimeIdentityPromptSectionEnabled: true,
 		SituationPromptSectionEnabled:       state.situationContext != nil,
-		MemoryPromptSectionEnabled:          state.memoryStore != nil,
 		SkillsPromptSectionEnabled:          state.skillsRegistry != nil,
 		ToolsPromptSectionEnabled:           state.cfg.Tools.Enabled,
-		WorkspaceKnowledgeAugmenter:         true,
 		SkillsAugmenter:                     state.skillsRegistry != nil,
 		SituationAugmenter:                  state.situationContext != nil,
-		DurableMemoryAugmenter:              state.memoryStore != nil,
 		SyntheticTurnsEnabled:               true,
 		DetachedTaskRuntimeEnabled:          true,
 	},
@@ -340,10 +302,8 @@ func (d *Daemon) bootHarnessPromptRuntime(
 		WithSectionSelector(NewSectionSelector(state.harnessResolver, state.harnessRecorder)),
 		WithPromptSectionDescriptors(
 			defaultStartupPromptSectionDescriptorsFromProviders(
-				prependProviders,
 				appendProviders,
 				state.situationContext,
-				0,
 			)...,
 		),
 	)
@@ -363,8 +323,6 @@ func (d *Daemon) bootHarnessPromptRuntime(
 		skillsCatalog = skillsCatalogAugmenter.Augment
 	}
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
-		situation.WorkspaceKnowledgeAugmenter,
-		memory.NewProfileRecallAugmenter(state.memoryStore, d.memoryRecallStoreResolver(state)),
 		skillsCatalog,
 		state.situationContext.Augment,
 	)
@@ -388,48 +346,15 @@ func (d *Daemon) bootHarnessPromptRuntime(
 	return nil
 }
 
-func (d *Daemon) bootMemoryPromptProvider(
-	ctx context.Context,
-	state *bootState,
-) (session.PromptProvider, error) {
-	if err := d.configureMemoryStore(ctx, state); err != nil {
-		return nil, err
-	}
-	state.localMemoryProvider = localprovider.New(
-		memstore.New(state.memoryStore),
-		localprovider.WithLogger(state.logger),
-		localprovider.WithClock(d.now),
-	)
-	providerCtx, cancel := d.memoryProviderInitContext(ctx, state)
-	if cancel != nil {
-		defer cancel()
-	}
-	if err := state.localMemoryProvider.Initialize(providerCtx, memcontract.ProviderInit{
-		Logger: state.logger,
-		Config: map[string]any{
-			bootNameKey: localprovider.Name,
-		},
-	}); err != nil {
-		return nil, fmt.Errorf("daemon: initialize local memory provider: %w", err)
-	}
-	return memory.NewAssembler(
-		state.memoryStore,
-		memory.WithSnapshotProvider(state.localMemoryProvider),
-	), nil
-}
-
-func (d *Daemon) memoryProviderInitContext(
-	ctx context.Context,
-	state *bootState,
-) (context.Context, context.CancelFunc) {
-	if state.cfg.Memory.Provider.Timeout <= 0 {
-		return ctx, nil
-	}
-	return context.WithTimeout(ctx, state.cfg.Memory.Provider.Timeout)
-}
-
 func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 	return situation.NewService(situation.Deps{
+		Subagents: func() situation.SubagentProvider {
+			provider, ok := state.registry.(situation.SubagentProvider)
+			if !ok {
+				return nil
+			}
+			return provider
+		},
 		Now: d.now,
 		WorkspaceResolverFunc: func() situation.WorkspaceResolver {
 			return state.workspaceResolver
@@ -451,9 +376,6 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 				return nil
 			}
 			return state.tasks.store
-		},
-		NetworkFunc: func() situation.NetworkReader {
-			return state.network
 		},
 		CoordinatorRoleFunc: func() situation.CoordinatorRoleResolver {
 			return state.deps.CoordinatorRole

@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Detail · Automations · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="automations.css">
+<!--
+  automations-detail · S2 — one detail page for every automation.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — trigger detail anatomy (drill-in head, sentence + switch, subhead, rule card,
+                 run accordion, webhook endpoint, lockbar, Inspect sheet, type-to-confirm delete),
+                 job Run now (POST /jobs/{id}/trigger), shared run formatter labels + skip reasons,
+                 next-runs list from the job preview, AutomationEnableSwitch (no optimistic flip).
+    delta      — one page for jobs + triggers; Starts / Only if / Does replaces When / If / Then and the
+                 job "Runs a loop / Creates a task / Prompt" sections; job "At a glance" metrics cut;
+                 scheduler internals → Inspect; rail = ONE card (patterns §03); scheduled = neutral.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="dt-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Automations</a><span class="w2-sep">/</span><h1 class="w2-title">S2 · Detail</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="automations-list.html">← Listing</a><a class="btn btn--sm" href="automations-editor.html">Next: Editor →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="au-contract" data-od-id="dt-contract" aria-label="What this board is">
+      <div class="au-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="au-contract__what"><b>S2 — open an automation and see three things:</b> what it does (in one sentence), whether it is on, and whether the last runs worked. The page is the same whether it starts on a schedule, on an event or from a webhook. Only the <b>Starts</b> row changes, and schedules gain <b>Run now</b>. Everything a developer needs (ids, cron, scheduler state, the raw envelope) is still there, one click away in <b>Inspect</b>.</p>
+        <p class="au-contract__file">automations-detail.html · S2 · route /automations/jobs/:jobId · /automations/triggers/:triggerId</p>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="au-mods">
+          <li><span class="au-mod au-mod--new">new</span><span><b>AutomationDetailLocation</b><i>systems/os/apps/automations/automation-detail-location.tsx</i>replaces job-detail-location + trigger-detail-location; topbar slot</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>trigger-detail/* → automation-detail/*</b><i>systems/automation/components/</i>head, rule card, rail, inspect sheet, lock, states now serve jobs too</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>AutomationRuleCard</b><i>automation-detail/automation-rule-card.tsx</i>Starts (schedule · event · webhook) / Only if / Does (agent · Loop · task)</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>AutomationRunList</b><i>automation-detail/automation-run-list.tsx</i>one accordion; replaces automation-run-history + trigger-run-list</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>useAutomationJobDetailPage · useAutomationTriggerDetailPage</b><i>systems/os/apps/automation/</i>one view-model shape; job metrics math removed</span></li>
+          <li><span class="au-mod au-mod--delete">delete</span><span><b>automation-detail-panel · automation-detail-sections · automation-run-history</b><i>systems/automation/components/</i>job-only page</span></li>
+          <li><span class="au-mod au-mod--reuse">reuse</span><span><b>Switch · Collapsible · PropertyRow · MonoId · CodeBlock · StateGlyph · Pill · Sheet · LaneTabs · ConfirmDialog · DropdownMenu</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="au-states">
+          <li><a href="#dt-schedule">Scheduled · ask an agent</a><code>detail VC-01</code></li>
+          <li><a href="#dt-event">On an event · start a Loop</a><code>detail VC-02</code></li>
+          <li><a href="#dt-webhook">Webhook · link + public delivery</a><code>detail VC-03</code></li>
+          <li><a href="#dt-off">Off · create a task</a><code>detail VC-04</code></li>
+          <li><a href="#dt-locked">From config — On/Off only</a><code>detail VC-05</code></li>
+          <li><a href="#dt-runs">Run statuses</a><code>detail VC-06</code></li>
+          <li><a href="#dt-inspect">Inspect</a><code>detail VC-07</code></li>
+          <li><a href="#dt-delete">Delete — confirm by name</a><code>detail VC-08</code></li>
+          <li><a href="#dt-states">Loading · missing · other project</a><code>detail VC-09</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · SCHEDULE ===== -->
+    <section class="lab-sec" id="dt-schedule" data-od-id="dt-schedule">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Scheduled · ask an agent — morning-digest</h2><span class="lab-sec__gist">detail VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Sentence first, controls opposite.</b> The page head is the automation as one sentence. The switch sits opposite it. Run now is the only filled action, and only schedules have it. Edit is a ghost button, shown only for automations created here. Try the switch, the runs, the prompt and the overflow.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad">
+            <section class="win win--inline is-focused au-win au-win--auto" data-au-entity data-od-id="dt-schedule-win">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <a class="w2-back" href="automations-list.html" aria-label="Back to Automations"><svg data-lucide="chevron-left"></svg></a>
+                <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="automations-list.html">Automations</a><span class="w2-sep">/</span><span class="w2-title">morning-digest</span></nav><i class="au-n">1</i>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions">
+                  <!-- production: POST /api/automation/jobs/{id}/trigger · "Starting…" while pending · schedules only -->
+                  <button class="btn btn--sm" type="button" data-toast="Queued run run_morning_digest_118." data-od-id="dt-run-now"><svg data-lucide="play"></svg>Run now</button>
+                  <!-- source=dynamic only -->
+                  <a class="btn btn--ghost btn--sm" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a>
+                  <div class="au-menu-host"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button>
+                    <div class="menu" role="menu"><button class="menu-item" role="menuitem" data-copy="morning-digest"><svg data-lucide="copy"></svg>Copy automation id</button><button class="menu-item" role="menuitem" data-toast="Opened Inspect."><svg data-lucide="search"></svg>Inspect</button><div class="menu-sep"></div><a class="menu-item menu-item--danger" role="menuitem" href="#dt-delete"><svg data-lucide="trash-2"></svg>Delete automation…</a></div></div>
+                <i class="au-n au-n--pin" style="top:-9px;right:-9px">2</i></div></div>
+              </header>
+              <div class="win-body"><div class="au-detail">
+                <div>
+                  <div class="au-lede">
+                    <div class="au-lede__copy">
+                      <h2 class="au-lede__s">Every weekday at <em>09:00 UTC</em>, ask <em>summarizer</em> to summarize yesterday's sessions.</h2><i class="au-n au-n--abs" style="left:-22px;top:5px">3</i>
+                      <p class="au-lede__pause" hidden><svg data-lucide="pause"></svg>Off. It won't run on its schedule until you turn it on.</p>
+                    </div>
+                    <!-- production: PATCH /api/automation/jobs/{id} { enabled } -->
+                    <button class="au-enable" type="button" role="switch" aria-checked="true" aria-label="Turn morning-digest on or off" data-au-enable="morning-digest"><span class="au-enable__lab">On</span><span class="switch" aria-hidden="true" aria-checked="true"><span class="knob"></span></span><i class="au-n au-n--pin" style="top:-9px;right:-12px">4</i></button>
+                  </div>
+                  <div class="au-sub"><span class="au-kind"><svg data-lucide="clock-3"></svg>On a schedule</span><span class="dotsep"></span><span>Project <b>checkout-api</b></span><span class="dotsep"></span><span>Next run <time datetime="2026-10-08T09:00:00Z" title="Thu Oct 8, 09:00 UTC">in 14h</time></span><span class="dotsep"></span><span>Updated <time datetime="2026-10-06T16:02:00Z">yesterday</time></span><i class="au-n">5</i></div>
+                </div>
+                <div class="layout">
+                  <main>
+                    <details class="au-sec" open>
+                      <summary><svg class="si" data-lucide="workflow"></svg><span class="st">How it works</span><span class="ssum">Weekdays 09:00 → summarizer</span><span class="spacer"></span><svg class="chev" data-lucide="chevron-down"></svg></summary>
+                      <div class="au-rule" data-od-id="dt-schedule-rule">
+                        <div class="au-rule__row">
+                          <span class="au-rule__k">Starts<i class="au-n">6</i></span>
+                          <div class="au-rule__v">
+                            <span class="au-rule__h"><svg data-lucide="clock-3"></svg>Every weekday at 09:00</span>
+                            <span class="au-rule__sub">Monday to Friday · times in UTC · <code>0 9 * * 1-5</code></span>
+                            <ol class="au-next" aria-label="Next runs">
+                              <li><span class="i">1</span><span class="rel">in 14h</span><span class="abs">Thu Oct 8, 09:00</span></li>
+                              <li><span class="i">2</span><span class="rel">in 1d 14h</span><span class="abs">Fri Oct 9, 09:00</span></li>
+                              <li><span class="i">3</span><span class="rel">in 4d 14h</span><span class="abs">Mon Oct 12, 09:00</span></li>
+                            </ol>
+                          </div>
+                        </div>
+                        <div class="au-rule__row">
+                          <span class="au-rule__k">Does</span>
+                          <div class="au-rule__v">
+                            <span class="au-rule__h"><span class="au-agent"><span class="au-agent__chip">s</span>Ask <b>summarizer</b></span></span>
+                            <span class="au-rule__sub">The agent gets this message, word for word, in a new session.</span>
+                            <div class="au-prompt" id="p-digest" data-open="false">Summarize yesterday's sessions in checkout-api for the team channel.
+Group them by outcome: finished, failed, still waiting on someone.
+For every failure, name the likely cause in one line and link the session.
+End with the approvals that are still pending and who they are waiting on.</div>
+                            <span class="au-pinrow"><button class="au-linkbtn" type="button" data-au-prompt-toggle="p-digest" aria-expanded="false">Show full prompt</button><i class="au-n">7</i></span>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                    <details class="au-sec" open>
+                      <summary><svg class="si" data-lucide="history"></svg><span class="st">Runs</span><span class="count-chip">5</span><span class="ssum">last 10 recorded</span><span class="spacer"></span><svg class="chev" data-lucide="chevron-down"></svg></summary>
+                      <div class="au-runs" data-od-id="dt-schedule-runs">
+                        <button class="au-run" type="button" aria-expanded="false"><span class="au-state"><span data-sg="done"></span>Completed</span><span class="au-run__what"><svg data-lucide="message-square"></svg>Session <span class="mono">sess_9f2a1c</span></span><span class="au-run__dur">42s</span><span class="au-run__when">Today 09:00</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>
+                        <div class="au-run__draw"><p>summarizer finished. Open the session to read the summary.</p><div class="acts"><button class="btn btn--sm" type="button" data-toast="Opens session sess_9f2a1c"><svg data-lucide="arrow-right"></svg>Open session</button></div></div>
+                        <button class="au-run" type="button" aria-expanded="false"><span class="au-state"><span data-sg="stopped"></span>Missed</span><span class="au-run__what"><svg data-lucide="power-off"></svg>CompozyOS was off at the start time<i class="au-n" style="margin-left:2px">8</i></span><span class="au-run__dur">—</span><span class="au-run__when">Tue 09:00</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>                        <div class="au-run__draw"><p>Skipped because it missed its start window. "Missed runs" is set to skip, so it waited for the next weekday.</p></div>
+                        <button class="au-run" type="button" aria-expanded="false"><span class="au-state"><span data-sg="failed"></span>Failed</span><span class="au-run__what"><svg data-lucide="bot"></svg>Agent summarizer was not available</span><span class="au-run__dur">0s</span><span class="au-run__when">Mon 09:00</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>
+                        <div class="au-run__draw"><p class="err">The agent was not running when the schedule fired.</p><p>Attempt 2. No retries are set, so it stopped here.</p><div class="acts"><a class="btn btn--sm" href="automations-editor.html#ed-options"><svg data-lucide="rotate-ccw"></svg>Set up retries</a></div></div>
+                        <button class="au-run" type="button" aria-expanded="false"><span class="au-state"><span data-sg="done"></span>Completed</span><span class="au-run__what"><svg data-lucide="message-square"></svg>Session <span class="mono">sess_7c11e0</span></span><span class="au-run__dur">38s</span><span class="au-run__when">Fri 09:00</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>
+                        <div class="au-run__draw"><p>summarizer finished. Open the session to read the summary.</p><div class="acts"><button class="btn btn--sm" type="button" data-toast="Opens session sess_7c11e0"><svg data-lucide="arrow-right"></svg>Open session</button></div></div>
+                        <button class="au-run" type="button" aria-expanded="false"><span class="au-state"><span data-sg="done"></span>Completed</span><span class="au-run__what"><svg data-lucide="play"></svg>Run now · Session <span class="mono">sess_4b80d2</span></span><span class="au-run__dur">51s</span><span class="au-run__when">Thu 14:12</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>
+                        <div class="au-run__draw"><p>Started by hand with Run now. summarizer finished.</p><div class="acts"><button class="btn btn--sm" type="button" data-toast="Opens session sess_4b80d2"><svg data-lucide="arrow-right"></svg>Open session</button></div></div>
+                      </div>
+                    </details>
+                  </main>
+                  <aside class="railbox au-rail" data-od-id="dt-schedule-rail">
+                    <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="info"></svg>Details</span></p>
+                      <div class="prow"><span class="prow__k">Starts</span><span class="prow__v">On a schedule</span></div>
+                      <div class="prow"><span class="prow__k">Does</span><span class="prow__v">Ask an agent</span></div>
+                      <div class="prow"><span class="prow__k">Agent</span><span class="prow__v">summarizer</span></div>
+                      <div class="prow"><span class="prow__k">Location</span><span class="prow__v">Project checkout-api</span></div>
+                      <div class="prow"><span class="prow__k">Source</span><span class="prow__v">You created this</span></div>
+                    </div>
+                    <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="calendar-clock"></svg>Schedule</span><i class="au-n" style="margin:0">9</i></p>
+                      <div class="prow"><span class="prow__k">Repeats</span><span class="prow__v">Weekdays at 09:00</span></div>
+                      <div class="prow"><span class="prow__k">Time zone</span><span class="prow__v">UTC</span></div>
+                      <div class="prow"><span class="prow__k">Missed runs</span><span class="prow__v">Skip them</span></div>
+                      <div class="prow"><span class="prow__k">Last run</span><span class="prow__v">Today 09:00</span></div>
+                    </div>
+                    <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="shield-check"></svg>Reliability</span></p>
+                      <div class="prow"><span class="prow__k">Retries</span><span class="prow__v">No retries</span></div>
+                      <div class="prow"><span class="prow__k">Run limit</span><span class="prow__v">Up to 12 runs per hour</span></div>
+                    </div>
+                    <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="hash"></svg>Identity</span></p>
+                      <div class="prow"><span class="prow__k">Created</span><span class="prow__v"><time datetime="2026-09-29T10:00:00Z">8 days ago</time></span></div>
+                      <div class="prow"><span class="prow__k">Id</span><span class="prow__v mono">morning-digest<button class="copy" type="button" data-copy="morning-digest" aria-label="Copy automation id"><svg data-lucide="copy"></svg></button></span></div>
+                    </div>
+                    <div class="au-rail-foot"><button class="btn btn--ghost btn--xs" type="button" onclick="location.hash='dt-inspect'"><svg data-lucide="search"></svg>Inspect</button><span class="cli">compozy automation jobs get morning-digest</span><i class="au-n" style="margin:0">10</i></div>
+                  </aside>
+                </div>
+              </div></div>
+            </section>
+          </div>
+          <ul class="au-legend">
+            <li><i class="au-n">1</i><span><b>Drill-in head</b> <em>"Automations" crumb plus the name. Back returns to the listing with its <code>start</code>, query and display mode kept.</em></span></li>
+            <li><i class="au-n">2</i><span><b>Actions</b> <em>Run now (schedules only; "Starting…" while pending; disabled while automations are unavailable) · ghost Edit (created here only) · overflow: Copy automation id · Inspect · Delete.</em></span></li>
+            <li><i class="au-n">3</i><span><b>Sentence</b> <em>describeAutomation(): one grammar for both kinds. 18px (detail-h1). The glue reads in fg-2; the parts that vary (time, agent, Loop) step up to fg-strong.</em></span></li>
+            <li><i class="au-n">4</i><span><b>On/Off</b> <em>labeled switch opposite the sentence. "Turning on…" / "Turning off…" while saving; it does not flip until the daemon answers. Toast "Turned on {name}."</em></span></li>
+            <li><i class="au-n">5</i><span><b>Subhead</b> <em>start kind as icon + word (structure, not a pill) · location · next run (schedules) or last ran (events) · updated.</em></span></li>
+            <li><i class="au-n">6</i><span><b>Starts row</b> <em>plain schedule words, then a faint line with the zone and the cron. The next 3 runs come from the job preview's NextRunsCard and replace the "At a glance" metrics.</em></span></li>
+            <li><i class="au-n">7</i><span><b>Does row</b> <em>agent chip and name. The prompt is clamped to 3 lines (CodeBlock). Schedules don't template, so it says "word for word".</em></span></li>
+            <li><i class="au-n">8</i><span><b>Run accordion</b> <em>the trigger run list, now shared: StateGlyph + word, faint meta glyph, muted text. Missed and Skipped come from the jobs' skip reasons. Danger text appears only in the drawer, which links to the fix ("Set up retries" opens S3 at Options).</em></span></li>
+            <li><i class="au-n">9</i><span><b>Rail = one card</b> <em>Details · Schedule (or Public link for webhooks) · Reliability · Identity, separated by line-soft dividers (patterns §03).</em></span></li>
+            <li><i class="au-n">10</i><span><b>Inspect + CLI hint</b> <em>the scheduler internals the old job page showed (registered, last fire id, missed count) now live in Inspect. See 07.</em></span></li>
+          </ul>
+          <div class="au-tags"><span class="au-tag"><b>state</b>on · dynamic · workspace · cron</span><span class="au-tag"><b>component</b>AutomationDetailLocation · AutomationRuleCard · AutomationRunList</span><span class="au-tag"><b>VC</b>detail/VC-01</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · EVENT + LOOP ===== -->
+    <section class="lab-sec" id="dt-event" data-od-id="dt-event">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">On an event · start a Loop — rerun-delivery</h2><span class="lab-sec__gist">detail VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same page, different Starts.</b> There is no Run now: the daemon has no run-now route for triggers. The <b>Only if</b> row shows up because this automation has conditions. A Loop target reads as labeled rows: "from the event" or "always". Runs that handed off link to the Loop run.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad">
+            <section class="win win--inline is-focused au-win au-win--auto" data-au-entity data-od-id="dt-event-win">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <a class="w2-back" href="automations-list.html" aria-label="Back to Automations"><svg data-lucide="chevron-left"></svg></a>
+                <nav class="w2-crumbs"><a class="w2-crumb" href="automations-list.html">Automations</a><span class="w2-sep">/</span><span class="w2-title">rerun-delivery</span></nav>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><a class="btn btn--ghost btn--sm" href="automations-editor.html#ed-edit"><svg data-lucide="pencil"></svg>Edit</a><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body"><div class="au-detail">
+                <div>
+                  <div class="au-lede">
+                    <div class="au-lede__copy"><h2 class="au-lede__s">When a session stops in <em>checkout-api</em> with an error, start the Loop <em>software-delivery</em>.</h2><p class="au-lede__pause" hidden><svg data-lucide="pause"></svg>Off. Matching events won't start the Loop until you turn it on.</p></div>
+                    <button class="au-enable" type="button" role="switch" aria-checked="true" aria-label="Turn rerun-delivery on or off" data-au-enable="rerun-delivery"><span class="au-enable__lab">On</span><span class="switch" aria-hidden="true" aria-checked="true"><span class="knob"></span></span></button>
+                  </div>
+                  <div class="au-sub"><span class="au-kind"><svg data-lucide="radio"></svg>On an event</span><span class="dotsep"></span><span>Project <b>checkout-api</b></span><span class="dotsep"></span><span>Last ran <time>2h ago</time></span><span class="dotsep"></span><span>Updated <time>3 days ago</time></span></div>
+                </div>
+                <div class="layout">
+                  <main>
+                    <details class="au-sec" open>
+                      <summary><svg class="si" data-lucide="workflow"></svg><span class="st">How it works</span><span class="ssum">Session stopped → software-delivery</span><span class="spacer"></span><svg class="chev" data-lucide="chevron-down"></svg></summary>
+                      <div class="au-rule">
+                        <div class="au-rule__row"><span class="au-rule__k">Starts</span><div class="au-rule__v"><span class="au-rule__h"><svg data-lucide="circle-stop"></svg>A session stops</span><span class="au-rule__sub">In project checkout-api · <code>session.stopped</code></span></div></div>
+                        <div class="au-rule__row"><span class="au-rule__k">Only if</span><div class="au-rule__v"><span class="au-rule__h"><svg data-lucide="filter"></svg>Stop reason is <span class="au-val">error</span></span><span class="au-rule__sub">Exact match on <code>data.stop_reason</code></span></div><i class="au-n au-n--abs" style="right:8px">1</i></div>
+                        <div class="au-rule__row"><span class="au-rule__k">Does</span><div class="au-rule__v">
+                          <span class="au-rule__h"><span class="au-agent"><span class="au-agent__chip"><svg data-lucide="repeat-2"></svg></span>Start the Loop <a href="#" style="color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px">software-delivery</a></span></span>
+                          <span class="au-rule__sub">Starts a Loop run in checkout-api with these inputs:</span>
+                          <div class="au-map"><span class="k">slug</span><span class="op">←</span><span class="v">data.session_name</span><span class="src">from the event</span><span class="k">implementer</span><span class="op">=</span><span class="v">code_implementer</span><span class="src">always</span><span class="k">target_branch</span><span class="op">=</span><span class="v">main</span><span class="src">always</span></div><i class="au-n au-n--abs" style="right:-7px;bottom:10px">2</i>
+                        </div></div>
+                      </div>
+                    </details>
+                    <details class="au-sec" open>
+                      <summary><svg class="si" data-lucide="history"></svg><span class="st">Runs</span><span class="count-chip">3</span><span class="ssum">last 10 recorded</span><span class="spacer"></span><svg class="chev" data-lucide="chevron-down"></svg></summary>
+                      <div class="au-runs">
+                        <button class="au-run" type="button" aria-expanded="true"><span class="au-state"><span data-sg="delegated"></span>Handed off</span><span class="au-run__what"><svg data-lucide="repeat-2"></svg>Loop run <span class="mono">looprun_8f3a2b</span><i class="au-n" style="margin-left:2px">3</i></span><span class="au-run__dur">—</span><span class="au-run__when">Today 13:41</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>
+                        <div class="au-run__draw"><p>Handed to software-delivery. The Loop owns the rest of the run.</p><div class="acts"><button class="btn btn--sm" type="button" data-toast="Opens loop run looprun_8f3a2bce41d07a55"><svg data-lucide="arrow-right"></svg>Open loop run</button></div></div>
+                        <button class="au-run" type="button" aria-expanded="false"><span class="au-state"><span data-sg="failed"></span>Failed</span><span class="au-run__what"><svg data-lucide="repeat-2"></svg>software-delivery is already running for this branch</span><span class="au-run__dur">0s</span><span class="au-run__when">Mon 22:10</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>
+                        <div class="au-run__draw"><p class="err">The Loop allows one run at a time for main. This event was dropped.</p></div>
+                        <button class="au-run" type="button" aria-expanded="false"><span class="au-state"><span data-sg="done"></span>Completed</span><span class="au-run__what"><svg data-lucide="repeat-2"></svg>Loop run <span class="mono">looprun_1d07a5</span></span><span class="au-run__dur">6m 12s</span><span class="au-run__when">Sun 18:02</span><svg class="au-run__chev" data-lucide="chevron-right"></svg></button>
+                        <div class="au-run__draw"><p>software-delivery finished. Open the loop run for the attempt ledger.</p><div class="acts"><button class="btn btn--sm" type="button" data-toast="Opens loop run looprun_1d07a5"><svg data-lucide="arrow-right"></svg>Open loop run</button></div></div>
+                      </div>
+                    </details>
+                  </main>
+                  <aside class="railbox au-rail">
+                    <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="info"></svg>Details</span></p>
+                      <div class="prow"><span class="prow__k">Starts</span><span class="prow__v">A session stops</span></div>
+                      <div class="prow"><span class="prow__k">Does</span><span class="prow__v">Start a Loop</span></div>
+                      <div class="prow"><span class="prow__k">Loop project</span><span class="prow__v">checkout-api</span></div>
+                      <div class="prow"><span class="prow__k">Location</span><span class="prow__v">Project checkout-api</span></div>
+                      <div class="prow"><span class="prow__k">Source</span><span class="prow__v">You created this</span></div>
+                    </div>
+                    <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="shield-check"></svg>Reliability</span></p>
+                      <div class="prow"><span class="prow__k">Retries</span><span class="prow__v">Up to 2, waiting longer each time</span></div>
+                      <div class="prow"><span class="prow__k">Run limit</span><span class="prow__v">Up to 4 runs per hour</span></div>
+                    </div>
+                    <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="hash"></svg>Identity</span></p>
+                      <div class="prow"><span class="prow__k">Created</span><span class="prow__v">12 days ago</span></div>
+                      <div class="prow"><span class="prow__k">Id</span><span class="prow__v mono">rerun-delivery<button class="copy" type="button" data-copy="rerun-delivery" aria-label="Copy automation id"><svg data-lucide="copy"></svg></button></span></div>
+                    </div>
+                    <div class="au-rail-foot"><button class="btn btn--ghost btn--xs" type="button"><svg data-lucide="search"></svg>Inspect</button><span class="cli">compozy automation triggers get rerun-delivery</span></div>
+                  </aside>
+                </div>
+              </div></div>
+            </section>
+          </div>
+          <ul class="au-legend">
+            <li><i class="au-n">1</i><span><b>Only if</b> <em>prose first ("Stop reason is error"), the path in a faint mono line. Several conditions read "and …" (AND). The row is absent when there are no conditions.</em></span></li>
+            <li><i class="au-n">2</i><span><b>Loop inputs</b> <em><code>←</code> "from the event" (input_mapping) and <code>=</code> "always" (static inputs). Replaces the job page's JSON dump and the trigger page's "static" tag.</em></span></li>
+            <li><i class="au-n">3</i><span><b>Handed off</b> <em>StateGlyph <code>delegated</code> (info ring + dot), Loop glyph, "Open loop run" when <code>loop_run_id</code> is recorded. The label matches the shared formatter (it was "Delegated" on the trigger page). Delta: the run formatter maps <code>delegated</code> to the existing <code>delegated</code> glyph instead of <code>running</code>.</em></span></li>
+          </ul>
+          <div class="au-tags"><span class="au-tag"><b>state</b>on · trigger · loop target · 1 condition</span><span class="au-tag"><b>VC</b>detail/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · WEBHOOK ===== -->
+    <section class="lab-sec" id="dt-webhook" data-od-id="dt-webhook">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Webhook · a link another app calls — deploy-webhook</h2><span class="lab-sec__gist">detail VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The link is the start.</b> The Starts row carries the local path with a copy button. The example request (with the signature headers) sits behind a disclosure. Whether the outside world can reach the link is a rail section, <b>Public link</b>, which reuses GatewayIngressStatus. The secret only ever reads "Set".</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" style="padding:20px">
+            <div class="layout">
+              <div class="au-rule">
+                <div class="au-rule__row"><span class="au-rule__k">Starts</span><div class="au-rule__v">
+                  <span class="au-rule__h"><svg data-lucide="webhook"></svg>Another app calls this link</span>
+                  <div class="au-endpoint"><span class="m">POST</span><code>/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123</code><button class="btn btn--ghost btn--xs btn--icon" type="button" data-copy="/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123" aria-label="Copy webhook path"><svg data-lucide="copy"></svg></button><i class="au-n au-n--pin">1</i></div>
+                  <details><summary class="au-linkbtn" style="list-style:none;cursor:pointer">Show example request</summary>
+<div class="au-code">curl -X POST "$COMPOZY_BASE/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123" \
+  -H "X-Compozy-Webhook-Timestamp: $(date +%s)" \
+  -H "X-Compozy-Webhook-Signature: sha256=&lt;hmac&gt;" \
+  -H "X-Compozy-Webhook-Delivery-ID: dlv_01" \
+  -d '{"action":"deploy","branch":"main"}'</div></details>
+                  <span class="au-rule__sub">Requests must be signed with the secret. Unsigned or older-than-5-minute requests are rejected.</span>
+                </div></div>
+                <div class="au-rule__row"><span class="au-rule__k">Only if</span><div class="au-rule__v"><span class="au-rule__h"><svg data-lucide="filter"></svg>Action is <span class="au-val">deploy</span> and branch is <span class="au-val">main</span></span><span class="au-rule__sub">All must match · <code>data.action</code> · <code>data.branch</code></span></div></div>
+                <div class="au-rule__row"><span class="au-rule__k">Does</span><div class="au-rule__v"><span class="au-rule__h"><span class="au-agent"><span class="au-agent__chip">d</span>Ask <b>deployer</b></span></span><span class="au-rule__sub">The message is filled in from each request.</span><div class="au-prompt" data-open="true">Deploy <span class="au-var">{{ .Data.branch }}</span> of checkout-api to production.
+Post the release notes and roll back if the health check fails.<i class="au-n au-n--abs" style="top:8px;right:8px">2</i></div></div></div>
+              </div>
+              <aside class="railbox au-rail">
+                <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="globe"></svg>Public link<i class="au-n" style="margin:0 0 0 2px">3</i></span></p>
+                  <div class="prow"><span class="prow__k">Status</span><span class="prow__v"><span class="d d--ok"></span>Live</span></div>
+                  <div class="prow"><span class="prow__k">Confirmed</span><span class="prow__v">3 days ago</span></div>
+                  <div class="prow"><span class="prow__k">Public address</span><span class="prow__v mono" title="ingress.url">ingress.url</span></div>
+                </div>
+                <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="key-round"></svg>Security</span></p>
+                  <div class="prow"><span class="prow__k">Signing secret</span><span class="prow__v">Set</span></div>
+                  <div class="prow"><span class="prow__k">Webhook id</span><span class="prow__v mono">wbh_abc123<button class="copy" type="button" data-copy="wbh_abc123" aria-label="Copy webhook id"><svg data-lucide="copy"></svg></button></span></div>
+                </div>
+                <div class="rail-sec"><p class="rail-sec__t"><span><svg data-lucide="info"></svg>Details</span></p>
+                  <div class="prow"><span class="prow__k">Location</span><span class="prow__v">Project checkout-api</span></div>
+                  <div class="prow"><span class="prow__k">Source</span><span class="prow__v">You created this</span></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+          <ul class="au-legend">
+            <li><i class="au-n">1</i><span><b>Endpoint bar</b> <em>TriggerWebhookEndpoint, restyled. POST eyebrow, mono path, copy ("Copied …"). curl from trigger-sentence.ts.</em></span></li>
+            <li><i class="au-n">2</i><span><b>Templated prompt</b> <em>event automations fill the message from the request. Variables render as info chips (Go template).</em></span></li>
+            <li><i class="au-n">3</i><span><b>Public link</b> <em>GatewayIngressStatus states: Off · Unconfirmed · Live · Broken · Reconfirm. The word plus a dot; danger only for Broken. The address shows <code>ingress.url</code> as is (placeholder here).</em></span></li>
+          </ul>
+          <div class="au-tags"><span class="au-tag"><b>state</b>webhook · 2 conditions · ingress live · secret present</span><span class="au-tag"><b>VC</b>detail/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · OFF + TASK ===== -->
+    <section class="lab-sec" id="dt-off" data-od-id="dt-off">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Off · create a task — dependency-review</h2><span class="lab-sec__gist">detail VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Off says what it means.</b> A pause line sits under the sentence. The next runs disappear from the subhead and from Starts. Run now stays available: a manual run works even while the automation is off (production). <b>Create a task</b> exists only for schedules, and its runs always read "Handed off" because the task owns the work.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" style="padding:20px">
+            <div class="au-lede"><div class="au-lede__copy"><h2 class="au-lede__s">Every Monday at <em>08:00 UTC</em>, create a task <em>Review dependency updates</em> for <em>reviewers</em>.</h2><p class="au-lede__pause"><svg data-lucide="pause"></svg>Off. It won't run on its schedule until you turn it on.</p></div><button class="au-enable" type="button" role="switch" aria-checked="false" aria-label="Turn dependency-review on or off" data-au-enable="dependency-review"><span class="au-enable__lab">Off</span><span class="switch" aria-hidden="true" aria-checked="false"><span class="knob"></span></span></button></div>
+            <div class="au-sub"><span class="au-kind"><svg data-lucide="clock-3"></svg>On a schedule</span><span class="dotsep"></span><span>Project <b>checkout-api</b></span><span class="dotsep"></span><span>No next run</span><span class="dotsep"></span><span>Updated <time>6 days ago</time></span></div>
+            <div class="au-rule" style="margin-top:18px;max-width:640px">
+              <div class="au-rule__row"><span class="au-rule__k">Starts</span><div class="au-rule__v"><span class="au-rule__h"><svg data-lucide="clock-3"></svg>Every Monday at 08:00</span><span class="au-rule__sub">Times in UTC · <code>0 8 * * 1</code></span></div></div>
+              <div class="au-rule__row"><span class="au-rule__k">Does</span><div class="au-rule__v"><span class="au-rule__h"><span class="au-agent"><span class="au-agent__chip"><svg data-lucide="square-check"></svg></span>Create a task</span></span>
+                <dl class="au-kv"><dt>Title</dt><dd>Review dependency updates</dd><dt>For</dt><dd>Agent pool <span class="mono">reviewers</span></dd></dl>
+                <span class="au-rule__sub">Each run creates a new task. The task handles its own retries.</span>
+              </div></div>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>state</b>enabled=false · task target</span><span class="au-tag"><b>VC</b>detail/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · LOCKED ===== -->
+    <section class="lab-sec" id="dt-locked" data-od-id="dt-locked">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">From config — On/Off only</h2><span class="lab-sec__gist">detail VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One lock message for both kinds.</b> The dashed lockbar (trigger production copy, now shared) says where the definition lives. Edit and Delete disappear. The switch and Run now stay. The rail Source reads "From configuration files".</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush plain--canvas">
+            <div class="win-head" style="border-bottom:1px solid var(--line)"><a class="w2-back" href="#" aria-label="Back"><svg data-lucide="chevron-left"></svg></a><nav class="w2-crumbs"><span class="w2-crumb">Automations</span><span class="w2-sep">/</span><span class="w2-title">release-checklist</span></nav><span class="w2-flex"></span><div class="w2-actions"><button class="btn btn--sm" type="button"><svg data-lucide="play"></svg>Run now</button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            <div class="au-detail">
+              <div class="au-lockbar"><svg data-lucide="lock"></svg><span>This automation is defined in configuration files. You can only turn it on or off here. Lives in <code>config.toml</code> — <code>[[automation.jobs]] name = "release-checklist"</code></span></div>
+              <div class="au-lede"><div class="au-lede__copy"><h2 class="au-lede__s">Every <em>30 minutes</em>, ask <em>release-manager</em> to check the release checklist.</h2></div><button class="au-enable" type="button" role="switch" aria-checked="true" aria-label="Turn release-checklist on or off" data-au-enable="release-checklist"><span class="au-enable__lab">On</span><span class="switch" aria-hidden="true" aria-checked="true"><span class="knob"></span></span></button></div>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>state</b>source=config · every 30m · global</span><span class="au-tag"><b>component</b>automation-detail-lock (from trigger-detail-lock)</span><span class="au-tag"><b>VC</b>detail/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · RUN STATUSES ===== -->
+    <section class="lab-sec" id="dt-runs" data-od-id="dt-runs">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Run statuses — one dictionary for both kinds</h2><span class="lab-sec__gist">detail VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The glyph carries the tone, the word stays quiet.</b> Six daemon statuses plus two skip reasons (on <code>canceled</code> runs, from <code>metadata.reason</code>), drawn with the production StateGlyph: no tinted plates, so a list of good runs reads calm. <b>Scheduled is neutral</b>: it is waiting, not a warning (ui-normie-pass C-04). Danger is used only for Failed, and its message text turns red only inside the drawer.</div>
+        <div class="spec__demo">
+          <div class="au-runs" style="max-width:820px">
+            <div class="au-run"><span class="au-state"><span data-sg="queued"></span>Scheduled</span><span class="au-run__what">Accepted · not started yet</span><span class="au-run__dur">—</span><span class="au-run__when">scheduled</span><span></span></div>
+            <div class="au-run"><span class="au-state"><span data-sg="running"></span>Running</span><span class="au-run__what"><svg data-lucide="message-square"></svg>Session <span class="mono">sess_platform_rollout</span></span><span class="au-run__dur">Running</span><span class="au-run__when">running</span><span></span></div>
+            <div class="au-run"><span class="au-state"><span data-sg="delegated"></span>Handed off</span><span class="au-run__what">Loop run or task owns the rest</span><span class="au-run__dur">—</span><span class="au-run__when">delegated</span><span></span></div>
+            <div class="au-run"><span class="au-state"><span data-sg="done"></span>Completed</span><span class="au-run__what">Finished</span><span class="au-run__dur">42s</span><span class="au-run__when">completed</span><span></span></div>
+            <div class="au-run"><span class="au-state"><span data-sg="failed"></span>Failed</span><span class="au-run__what">First line of error / delivery_error</span><span class="au-run__dur">0s</span><span class="au-run__when">failed</span><span></span></div>
+            <div class="au-run"><span class="au-state"><span data-sg="stopped"></span>Canceled</span><span class="au-run__what">This run was canceled</span><span class="au-run__dur">—</span><span class="au-run__when">canceled</span><span></span></div>
+            <div class="au-run"><span class="au-state"><span data-sg="stopped"></span>Skipped</span><span class="au-run__what">The previous run was still going</span><span class="au-run__dur">—</span><span class="au-run__when">self_overlap</span><span></span></div>
+            <div class="au-run"><span class="au-state"><span data-sg="stopped"></span>Missed</span><span class="au-run__what">It missed its start window</span><span class="au-run__dur">—</span><span class="au-run__when">misfire_grace</span><span></span></div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>source</b>automation-formatters.ts:175-251</span><span class="au-tag"><b>VC</b>detail/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · INSPECT ===== -->
+    <section class="lab-sec" id="dt-inspect" data-od-id="dt-inspect">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Inspect — the machine truth, one click away</h2><span class="lab-sec__gist">detail VC-07</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing is deleted, it moves.</b> The trigger Inspect sheet now also serves schedules. For jobs, Diagnostics gains the "Advanced details" rows of the old job page: registered, last scheduled, last fire id, times missed. The second tab is <b>Sample event</b> for events and <b>Request</b> (the scheduler state JSON) for schedules.</div>
+        <div class="spec__demo">
+          <div class="stage stage--center stage--auto" style="justify-content:flex-end;padding:0">
+            <aside class="dialog dialog--sheet" style="height:auto;max-height:none" role="dialog" aria-label="Inspect morning-digest">
+              <div class="dialog__head"><span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="search"></svg></span><div class="dialog__head-main"><span class="eyebrow">Operator</span><h3 class="dialog__title">Inspect</h3><p class="dialog__desc">Runtime fields for morning-digest. This is a job in the daemon's terms.</p></div><button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button></div>
+              <nav class="lane-tabs" style="padding:0 20px"><button class="lane-tab is-on">Diagnostics</button><button class="lane-tab">Scheduler state</button></nav>
+              <div class="dialog__body">
+                <div class="tiles">
+                  <div class="tile"><div class="tile__l">Kind</div><div class="tile__v"><span class="mono">job · cron</span></div></div>
+                  <div class="tile"><div class="tile__l">Source · scope</div><div class="tile__v"><span class="mono">dynamic · workspace</span></div></div>
+                  <div class="tile"><div class="tile__l">Scheduler</div><div class="tile__v"><span class="d d--ok"></span>Registered</div></div>
+                  <div class="tile"><div class="tile__l">Times missed</div><div class="tile__v"><span class="mono">1</span></div></div>
+                  <div class="tile"><div class="tile__l">Last fire id</div><div class="tile__v"><span class="mono">fire_morning_digest_118</span></div></div>
+                  <div class="tile"><div class="tile__l">Target</div><div class="tile__v"><span class="mono">agent · summarizer</span></div></div>
+                </div>
+                <p class="app-note" style="margin-top:10px">Expression <span class="mono">0 9 * * 1-5</span> · catch-up <span class="mono">skip_missed</span> · grace <span class="mono">30s</span> · fire limit <span class="mono">12 / 1h</span>. Target kind can't change after create.</p>
+              </div>
+            </aside>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>trigger-inspect-sheet → automation-inspect-sheet</span><span class="au-tag"><b>VC</b>detail/VC-07</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · DELETE ===== -->
+    <section class="lab-sec" id="dt-delete" data-od-id="dt-delete">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Delete — confirm by name</h2><span class="lab-sec__gist">detail VC-08</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same ConfirmDialog, one sentence per kind.</b> Type the name to enable the button. The consequence says what stops happening and that history stays. Success: toast "Deleted {name}." and back to /automations (replace).</div>
+        <div class="spec__demo">
+          <div class="stage stage--center stage--auto" style="padding:32px 20px">
+            <div class="dialog dialog--sm" role="alertdialog" aria-labelledby="del-t" style="grid-template-rows:auto auto auto;max-height:none">
+              <div class="dialog__head"><span class="dialog__head-icon dialog__head-icon--neutral" style="color:var(--danger)"><svg data-lucide="trash-2"></svg></span><div class="dialog__head-main"><h3 class="dialog__title" id="del-t">Delete automation?</h3><p class="dialog__desc">This permanently deletes <b>morning-digest</b>. Its schedule will stop asking summarizer. Past runs stay in the log.</p></div></div>
+              <div class="dialog__body"><div class="ffield"><label class="flabel" for="del-in">Type <span class="mono" style="font-size:12px">morning-digest</span> to confirm</label><input class="input input--mono" id="del-in" placeholder="morning-digest" oninput="document.getElementById('del-b').disabled=this.value!=='morning-digest'"></div></div>
+              <div class="dialog__foot"><span class="dialog__foot-note"><svg data-lucide="info"></svg><span>Event automations read: "Matching events will stop starting it."</span></span><button class="btn" type="button">Cancel</button><button class="btn btn--destructive" type="button" id="del-b" disabled data-toast="Deleted morning-digest."><svg data-lucide="trash-2"></svg>Delete automation</button></div>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>AutomationDeleteAction (ConfirmDialog type-to-confirm)</span><span class="au-tag"><b>VC</b>detail/VC-08</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 09 · STATES ===== -->
+    <section class="lab-sec" id="dt-states" data-od-id="dt-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">09</span><h2 class="lab-sec__t">Loading · missing · other project</h2><span class="lab-sec__gist">detail VC-09</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Each one has a way back.</b> The trigger states gain the jobs' twin and say "automation". Every empty offers "Back to Automations".</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--3">
+            <div class="lab-cell"><span class="lab-cell__t">loading</span><div class="plain plain--canvas" aria-label="Loading automation details"><span class="sk" style="display:block;width:78%;height:18px"></span><span class="sk" style="display:block;width:46%;height:10px;margin-top:10px"></span><span class="sk" style="display:block;height:96px;margin-top:20px;border-radius:14px"></span><span class="sk" style="display:block;height:64px;margin-top:12px;border-radius:14px"></span></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">missing</span><div class="plain plain--canvas"><div class="empty" style="padding:8px 0"><span class="empty__well"><svg data-lucide="search"></svg></span><b>Automation unavailable</b><p>This automation is no longer available.</p><div class="empty__acts"><a class="btn btn--sm" href="automations-list.html">Back to Automations</a></div></div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">other project</span><div class="plain plain--canvas"><div class="empty" style="padding:8px 0"><span class="empty__well"><svg data-lucide="folder-lock"></svg></span><b>Unable to load details</b><p>This automation belongs to another project. Switch to it to open this page.</p><div class="empty__acts"><a class="btn btn--sm" href="automations-list.html">Back to Automations</a></div></div></div></div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>automation-detail-states (from trigger-detail-states)</span><span class="au-tag"><b>VC</b>detail/VC-09</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: systems/automation/components/trigger-detail/* · automation-detail-panel.tsx · automation-run-history.tsx · automation-formatters.ts · job-form/preview/next-runs-card.tsx · systems/gateway/lib/gateway-copy.ts. Rhythm: design-system/patterns.html §03.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="automations.js"></script>
+</body>
+</html>

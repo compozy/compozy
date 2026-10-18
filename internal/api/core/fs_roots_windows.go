@@ -15,7 +15,7 @@ func filesystemRoots() ([]string, error) {
 	}
 
 	roots := make([]string, 0, 26)
-	for drive := 0; drive < 26; drive++ {
+	for drive := range 26 {
 		if mask&(1<<drive) == 0 {
 			continue
 		}

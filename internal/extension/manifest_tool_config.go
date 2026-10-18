@@ -2,10 +2,11 @@ package extensionpkg
 
 import (
 	"encoding/json"
+	"maps"
 
 	"fmt"
 
-	"sort"
+	"slices"
 
 	"strings"
 
@@ -106,11 +107,7 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 				DecisionClass:      strings.TrimSpace(hook.Matcher.DecisionClass),
 				MessageRole:        strings.TrimSpace(hook.Matcher.MessageRole),
 				MessageDeltaType:   strings.TrimSpace(hook.Matcher.MessageDeltaType),
-				Channel:            strings.TrimSpace(hook.Matcher.Channel),
-				Surface:            strings.TrimSpace(hook.Matcher.Surface),
-				Kind:               strings.TrimSpace(hook.Matcher.Kind),
-				Direction:          strings.TrimSpace(hook.Matcher.Direction),
-				WorkState:          strings.TrimSpace(hook.Matcher.WorkState),
+				CompactionTrigger:  strings.TrimSpace(hook.Matcher.CompactionTrigger),
 				CompactionReason:   strings.TrimSpace(hook.Matcher.CompactionReason),
 				CompactionStrategy: strings.TrimSpace(hook.Matcher.CompactionStrategy),
 			},
@@ -170,11 +167,8 @@ func normalizeStringMap(src map[string]string) map[string]string {
 }
 
 func sortedMapKeys[V any](src map[string]V) []string {
-	keys := make([]string, 0, len(src))
-	for key := range src {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(src)), maps.Keys(src))
+	slices.Sort(keys)
 	return keys
 }
 
@@ -182,16 +176,14 @@ func cloneIntPointer(value *int) *int {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneBoolPointer(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneManifestRawMessage(src json.RawMessage) json.RawMessage {

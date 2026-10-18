@@ -17,9 +17,8 @@ func main() {
 		Capabilities: compozysdk.CapabilitiesConfig{
 			Provides: []string{compozysdk.CapabilityProvideConnectivityProvider},
 		},
-		NetworkParticipation: &compozysdk.NetworkParticipationRequirement{
-			Required: true, Mode: "live",
-			ChannelScopes: []string{"gateway.private", "gateway.public"},
+		Gateway: &compozysdk.GatewayRequirement{
+			Permissions: []string{"gateway.private", "gateway.public"},
 		},
 	})
 	if err := compozysdk.ConnectivityProvider(extension, compozysdk.ConnectivityProviderHandlers{

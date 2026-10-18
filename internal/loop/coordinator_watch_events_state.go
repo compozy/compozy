@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -192,10 +193,7 @@ func watchEventsLedgerKinds(
 			}
 		}
 	}
-	kinds := make([]string, 0, len(kindSet))
-	for kind := range kindSet {
-		kinds = append(kinds, kind)
-	}
+	kinds := slices.AppendSeq(make([]string, 0, len(kindSet)), maps.Keys(kindSet))
 	slices.Sort(kinds)
 	return kinds, nil
 }

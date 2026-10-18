@@ -379,7 +379,7 @@ function enqueueBegin(
     } catch (error) {
       trigger.beginFailed({
         attemptId,
-        error: errorMessage(error, "Authorization could not be started."),
+        error: errorMessage(error, "Sign-in couldn't start."),
       });
     }
   });
@@ -406,7 +406,7 @@ function enqueueExchange(
     } catch (error) {
       trigger.exchangeFailed({
         attemptId,
-        error: errorMessage(error, "Authorization could not be completed."),
+        error: errorMessage(error, "Sign-in couldn't be finished."),
       });
     }
   });

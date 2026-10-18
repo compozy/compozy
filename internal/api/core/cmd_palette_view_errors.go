@@ -8,49 +8,53 @@ import (
 )
 
 func cmdPaletteViewStatus(err error) int {
-	var notFound *cmdpalette.ViewNotFoundError
-	var validation *cmdpalette.ViewValidationError
-	var unknownKind *cmdpalette.UnknownViewKindError
-	var mismatch *cmdpalette.ViewRevisionMismatchError
-	switch {
-	case errors.As(err, &notFound):
+	if _, ok := errors.AsType[*cmdpalette.ViewNotFoundError](err); ok {
 		return http.StatusNotFound
-	case errors.As(err, &validation), errors.As(err, &unknownKind):
-		return http.StatusUnprocessableEntity
-	case errors.As(err, &mismatch):
-		return http.StatusConflict
-	case cmdPaletteViewBadRequest(err):
-		return http.StatusBadRequest
-	default:
-		return http.StatusServiceUnavailable
 	}
+	if _, ok := errors.AsType[*cmdpalette.ViewValidationError](err); ok {
+		return http.StatusUnprocessableEntity
+	}
+	if _, ok := errors.AsType[*cmdpalette.UnknownViewKindError](err); ok {
+		return http.StatusUnprocessableEntity
+	}
+	if _, ok := errors.AsType[*cmdpalette.ViewRevisionMismatchError](err); ok {
+		return http.StatusConflict
+	}
+	if cmdPaletteViewBadRequest(err) {
+		return http.StatusBadRequest
+	}
+	return http.StatusServiceUnavailable
 }
 
 func cmdPaletteViewSessionStatus(err error) (int, string) {
-	var notFound *cmdpalette.ViewNotFoundError
-	var validation *cmdpalette.ViewValidationError
-	var unknownKind *cmdpalette.UnknownViewKindError
-	var mismatch *cmdpalette.ViewRevisionMismatchError
-	switch {
-	case errors.Is(err, cmdpalette.ErrClientUnauthorized):
+	if errors.Is(err, cmdpalette.ErrClientUnauthorized) {
 		return http.StatusUnauthorized, "client_unauthorized"
-	case errors.Is(err, cmdpalette.ErrViewSessionForbidden):
-		return http.StatusForbidden, "session_forbidden"
-	case errors.Is(err, cmdpalette.ErrViewSessionGone):
-		return http.StatusGone, "session_gone"
-	case errors.Is(err, cmdpalette.ErrViewBusy):
-		return http.StatusConflict, "view_busy"
-	case errors.As(err, &notFound):
-		return http.StatusNotFound, "view_not_found"
-	case errors.As(err, &validation), errors.As(err, &unknownKind):
-		return http.StatusUnprocessableEntity, "invalid_view"
-	case errors.As(err, &mismatch):
-		return http.StatusConflict, "revision_mismatch"
-	case cmdPaletteViewBadRequest(err):
-		return http.StatusBadRequest, cmdPaletteInvalidRequestError
-	default:
-		return http.StatusServiceUnavailable, runtimeUnavailableErrorCode
 	}
+	if errors.Is(err, cmdpalette.ErrViewSessionForbidden) {
+		return http.StatusForbidden, "session_forbidden"
+	}
+	if errors.Is(err, cmdpalette.ErrViewSessionGone) {
+		return http.StatusGone, "session_gone"
+	}
+	if errors.Is(err, cmdpalette.ErrViewBusy) {
+		return http.StatusConflict, "view_busy"
+	}
+	if _, ok := errors.AsType[*cmdpalette.ViewNotFoundError](err); ok {
+		return http.StatusNotFound, "view_not_found"
+	}
+	if _, ok := errors.AsType[*cmdpalette.ViewValidationError](err); ok {
+		return http.StatusUnprocessableEntity, "invalid_view"
+	}
+	if _, ok := errors.AsType[*cmdpalette.UnknownViewKindError](err); ok {
+		return http.StatusUnprocessableEntity, "invalid_view"
+	}
+	if _, ok := errors.AsType[*cmdpalette.ViewRevisionMismatchError](err); ok {
+		return http.StatusConflict, "revision_mismatch"
+	}
+	if cmdPaletteViewBadRequest(err) {
+		return http.StatusBadRequest, cmdPaletteInvalidRequestError
+	}
+	return http.StatusServiceUnavailable, runtimeUnavailableErrorCode
 }
 
 func cmdPaletteViewBadRequest(err error) bool {

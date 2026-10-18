@@ -13,7 +13,6 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -369,9 +368,6 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		if runs[0].ID != alpha.ID || runs[0].WorkspaceID != "ws-a" || runs[0].Inputs["ticket"] != "A" {
 			t.Fatalf("ListLoopRuns() run = %#v", runs[0])
 		}
-		if got, want := runs[0].NetworkSpec, participation.LocalSpec(); got != want {
-			t.Fatalf("ListLoopRuns() NetworkSpec = %#v, want %#v", got, want)
-		}
 
 		foreign, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
 			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-b", Limit: 10,
@@ -599,6 +595,32 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 				Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionUnsupported,
 				Reason: speedpkg.ReasonCapabilityAbsent,
 			},
+		}
+		writer, err := globalDB.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		writeCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		started := time.Now()
+		writeErr := globalDB.RecordAppliedRuntime(writeCtx, "ws-a", run.ID, 1, "work", 2, resolved)
+		elapsed := time.Since(started)
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(writeErr, context.DeadlineExceeded) || elapsed > time.Second {
+			t.Fatalf("contended runtime write = %v after %s, want prompt context cancellation", writeErr, elapsed)
 		}
 		if err := globalDB.RecordAppliedRuntime(ctx, "ws-a", run.ID, 1, "work", 2, resolved); err != nil {
 			t.Fatalf("RecordAppliedRuntime() error = %v", err)

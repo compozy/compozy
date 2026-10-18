@@ -25,20 +25,20 @@ func validateSchemaEnum(path string, raw json.RawMessage, value any) error {
 	return fmt.Errorf("%s: value is not allowed", path)
 }
 
-func validateSchemaAllOf(path string, raw json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaAllOf(path string, raw json.RawMessage, value any) error {
 	nodes, err := schemaNodeArray(raw)
 	if err != nil {
 		return fmt.Errorf("%s.allOf: %w", path, err)
 	}
 	for idx, node := range nodes {
-		if err := validateSchemaNode(fmt.Sprintf("%s.allOf[%d]", path, idx), node, value); err != nil {
+		if err := v.validateSchemaNode(fmt.Sprintf("%s.allOf[%d]", path, idx), node, value); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateSchemaAnyOf(path string, raw json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaAnyOf(path string, raw json.RawMessage, value any) error {
 	nodes, err := schemaNodeArray(raw)
 	if err != nil {
 		return fmt.Errorf("%s.anyOf: %w", path, err)
@@ -47,14 +47,14 @@ func validateSchemaAnyOf(path string, raw json.RawMessage, value any) error {
 		return nil
 	}
 	for idx, node := range nodes {
-		if err := validateSchemaNode(fmt.Sprintf("%s.anyOf[%d]", path, idx), node, value); err == nil {
+		if err := v.validateSchemaNode(fmt.Sprintf("%s.anyOf[%d]", path, idx), node, value); err == nil {
 			return nil
 		}
 	}
 	return fmt.Errorf("%s: value must match at least one anyOf schema", path)
 }
 
-func validateSchemaOneOf(path string, raw json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaOneOf(path string, raw json.RawMessage, value any) error {
 	nodes, err := schemaNodeArray(raw)
 	if err != nil {
 		return fmt.Errorf("%s.oneOf: %w", path, err)
@@ -64,7 +64,7 @@ func validateSchemaOneOf(path string, raw json.RawMessage, value any) error {
 	}
 	matches := 0
 	for idx, node := range nodes {
-		if err := validateSchemaNode(fmt.Sprintf("%s.oneOf[%d]", path, idx), node, value); err == nil {
+		if err := v.validateSchemaNode(fmt.Sprintf("%s.oneOf[%d]", path, idx), node, value); err == nil {
 			matches++
 		}
 	}
@@ -74,7 +74,7 @@ func validateSchemaOneOf(path string, raw json.RawMessage, value any) error {
 	return nil
 }
 
-func validateSchemaNot(path string, raw json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaNot(path string, raw json.RawMessage, value any) error {
 	node, ok, err := schemaNode(raw)
 	if err != nil {
 		return fmt.Errorf("%s.not: %w", path, err)
@@ -82,7 +82,7 @@ func validateSchemaNot(path string, raw json.RawMessage, value any) error {
 	if !ok {
 		return nil
 	}
-	if err := validateSchemaNode(path+".not", node, value); err == nil {
+	if err := v.validateSchemaNode(path+".not", node, value); err == nil {
 		return fmt.Errorf("%s: value matched forbidden schema", path)
 	}
 	return nil

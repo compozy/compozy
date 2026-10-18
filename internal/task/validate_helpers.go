@@ -78,8 +78,7 @@ func taskPatchHasMutableFields(p Patch) bool {
 		p.ApprovalPolicy != nil ||
 		p.Metadata != nil ||
 		p.Owner != nil ||
-		p.ClearOwner ||
-		p.NetworkParticipation != nil
+		p.ClearOwner
 }
 
 func validateTaskPatchTextAndSemantics(p Patch, path string) error {

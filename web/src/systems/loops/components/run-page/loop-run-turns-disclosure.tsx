@@ -54,7 +54,7 @@ export function LoopRunTurnsDisclosure({ read, isLive }: { read: GoalTurnsRead; 
             size="sm"
             variant="ghost"
           >
-            {read.isLoadingMore ? <Spinner className="size-3" /> : null}Load more turns
+            {read.isLoadingMore ? <Spinner className="size-3.5" /> : null}Load more turns
           </Button>
         ) : null}
       </CollapsibleContent>

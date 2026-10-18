@@ -27,32 +27,29 @@ describe("loop-limits", () => {
     expect(formatWallClock(90)).toBe("2m");
   });
 
-  it("Should pair each per-loop default with its hard daemon ceiling", () => {
+  it("Should pair each per-loop default with its hard ceiling in plain words", () => {
     const rows = buildLoopLimits(baseEffectiveConfig);
     const byLabel = new Map(rows.map(row => [row.label, row]));
-    expect(byLabel.get("Iteration cap")).toMatchObject({ value: "50", ceiling: "/ 100" });
-    expect(byLabel.get("Token budget")).toMatchObject({ value: "off", ceiling: "/ 20M" });
-    expect(byLabel.get("Wall clock")).toMatchObject({ value: "off", ceiling: "/ 7d" });
-    expect(byLabel.get("On exceeded")).toMatchObject({ value: "halt", ceiling: "→ exhausted" });
+    expect(byLabel.get("Max rounds")).toMatchObject({ value: "50", ceiling: "Up to 100" });
+    expect(byLabel.get("Token budget")).toMatchObject({ value: "off", ceiling: "Up to 20M" });
+    expect(byLabel.get("Time limit")).toMatchObject({ value: "off", ceiling: "Up to 7d" });
+    expect(byLabel.get("When a budget runs out")).toMatchObject({ value: "Stop the run" });
     expect(byLabel.has("Cost (USD)")).toBe(false);
-    expect(byLabel.get("Fan-out window")).toMatchObject({
+    expect(byLabel.get("Parallel workers")).toMatchObject({
       value: "4",
-      ceiling: "no fixed cap",
+      ceiling: "No fixed limit",
     });
   });
 
-  it("Should render the unbounded glyph for watch loops and escalate targets", () => {
+  it("Should render the unbounded glyph for watch loops and the escalate policy", () => {
     const rows = buildLoopLimits({
       ...baseEffectiveConfig,
       iteration_cap: 0,
       budget_on_exceeded: "escalate" as const,
     });
     const byLabel = new Map(rows.map(row => [row.label, row]));
-    expect(byLabel.get("Iteration cap")?.value).toBe("∞");
-    expect(byLabel.get("On exceeded")).toMatchObject({
-      value: "escalate",
-      ceiling: "→ needs-approval",
-    });
+    expect(byLabel.get("Max rounds")?.value).toBe("∞");
+    expect(byLabel.get("When a budget runs out")?.value).toBe("Pause and ask me");
   });
 
   it("Should render saved per-Loop limits instead of authored defaults", () => {
@@ -66,10 +63,10 @@ describe("loop-limits", () => {
     });
     const byLabel = new Map(rows.map(row => [row.label, row]));
 
-    expect(byLabel.get("Iteration cap")?.value).toBe("3");
-    expect(byLabel.get("No-progress window")?.value).toBe("2");
-    expect(byLabel.get("Fan-out window")?.value).toBe("4");
-    expect(byLabel.get("Gate max revisions")?.value).toBe("2");
-    expect(byLabel.get("On exceeded")?.value).toBe("escalate");
+    expect(byLabel.get("Max rounds")?.value).toBe("3");
+    expect(byLabel.get("Rounds without progress")?.value).toBe("2");
+    expect(byLabel.get("Parallel workers")?.value).toBe("4");
+    expect(byLabel.get("Max revision requests")?.value).toBe("2");
+    expect(byLabel.get("When a budget runs out")?.value).toBe("Pause and ask me");
   });
 });

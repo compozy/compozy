@@ -24,6 +24,7 @@ func (n *daemonNativeTools) sessionOrchestrationToolBindings(
 		toolspkg.ToolIDSessionClarifyAnswer: {
 			call: n.sessionClarifyAnswer, availability: clarifyAvailability,
 		},
+		toolspkg.ToolIDSessionCompact: {call: n.sessionCompact, availability: sessionAvailability},
 		toolspkg.ToolIDSessionPromptCancel: {
 			call: n.sessionPromptCancel, availability: sessionAvailability,
 		},

@@ -57,28 +57,6 @@ WHERE webhook_id IS NOT NULL
 ORDER BY source_order
 LIMIT 1;
 
--- name: GetGatewayBridgeIngressSubject :one
-SELECT scope_kind, workspace_id, COALESCE(provider_config, '') AS provider_config
-FROM (
-  SELECT
-    resource.scope_kind,
-    resource.scope_id AS workspace_id,
-    CAST(json_extract(resource.spec_json, '$.provider_config') AS TEXT) AS provider_config,
-    0 AS source_order
-  FROM resource_records AS resource
-  WHERE resource.kind = 'bridge.instance' AND resource.id = sqlc.arg(subject_id)
-  UNION ALL
-  SELECT
-    legacy.scope AS scope_kind,
-    legacy.workspace_id,
-    legacy.provider_config,
-    1 AS source_order
-  FROM bridge_instances AS legacy
-  WHERE legacy.id = sqlc.arg(subject_id)
-)
-ORDER BY source_order
-LIMIT 1;
-
 -- name: UpsertGatewayIngressBinding :one
 INSERT INTO gateway_ingress_bindings (
   subject_kind, subject_id, scope_kind, workspace_id, endpoint_generation, confirmed_at
@@ -123,34 +101,7 @@ WHERE binding.subject_kind = sqlc.arg(subject_kind)
     (binding.subject_kind = 'webhook_trigger' AND EXISTS (
       SELECT 1 FROM resource_records AS trigger
       WHERE trigger.kind = 'automation.trigger' AND trigger.id = binding.subject_id
-    )) OR
-    (binding.subject_kind = 'bridge_instance' AND EXISTS (
-      SELECT 1 FROM bridge_instances AS bridge WHERE bridge.id = binding.subject_id
-    )) OR
-    (binding.subject_kind = 'bridge_instance' AND EXISTS (
-      SELECT 1 FROM resource_records AS bridge
-      WHERE bridge.kind = 'bridge.instance' AND bridge.id = binding.subject_id
     ))
-  );
-
--- name: ListGatewayIngressBindings :many
-SELECT subject_kind, subject_id, scope_kind, workspace_id, endpoint_generation, confirmed_at
-FROM gateway_ingress_bindings AS binding
-WHERE (
-  (binding.subject_kind = 'webhook_trigger' AND EXISTS (
-    SELECT 1 FROM automation_triggers AS trigger WHERE trigger.id = binding.subject_id
-  )) OR
-  (binding.subject_kind = 'webhook_trigger' AND EXISTS (
-    SELECT 1 FROM resource_records AS trigger
-    WHERE trigger.kind = 'automation.trigger' AND trigger.id = binding.subject_id
-  )) OR
-  (binding.subject_kind = 'bridge_instance' AND EXISTS (
-    SELECT 1 FROM bridge_instances AS bridge WHERE bridge.id = binding.subject_id
-  )) OR
-  (binding.subject_kind = 'bridge_instance' AND EXISTS (
-    SELECT 1 FROM resource_records AS bridge
-    WHERE bridge.kind = 'bridge.instance' AND bridge.id = binding.subject_id
-  ))
 )
 ORDER BY subject_kind, subject_id;
 
@@ -163,11 +114,18 @@ WHERE (
     SELECT 1 FROM resource_records AS trigger
     WHERE trigger.kind = 'automation.trigger' AND trigger.id = binding.subject_id
   )
-) OR (
-  binding.subject_kind = 'bridge_instance' AND NOT EXISTS (
-    SELECT 1 FROM bridge_instances AS bridge WHERE bridge.id = binding.subject_id
-  ) AND NOT EXISTS (
-    SELECT 1 FROM resource_records AS bridge
-    WHERE bridge.kind = 'bridge.instance' AND bridge.id = binding.subject_id
-  )
 );
+
+-- name: ListGatewayIngressBindings :many
+SELECT subject_kind, subject_id, scope_kind, workspace_id, endpoint_generation, confirmed_at
+FROM gateway_ingress_bindings AS binding
+WHERE (
+  (binding.subject_kind = 'webhook_trigger' AND EXISTS (
+    SELECT 1 FROM automation_triggers AS trigger WHERE trigger.id = binding.subject_id
+  )) OR
+  (binding.subject_kind = 'webhook_trigger' AND EXISTS (
+    SELECT 1 FROM resource_records AS trigger
+    WHERE trigger.kind = 'automation.trigger' AND trigger.id = binding.subject_id
+  ))
+)
+ORDER BY subject_kind, subject_id;

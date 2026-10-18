@@ -5,7 +5,7 @@ title: Create update disable and delete Loop-target automations
 persona: Bruno
 journey: J-24
 expected: Job and trigger modals create valid Loop-target definitions, updates survive refresh, write-only webhook secrets are redacted from the request preview, disabled definitions do not fire, re-enabled definitions fire one real Loop run, and deletion removes only the chosen dynamic definition.
-entry_points: web /jobs; web /triggers; web Loop Start bindings
+entry_points: web /automations (New automation editor); web Loop Automate ▾ menu
 qa_status: blocked-verify
 bug_ids: BUG-20260713-loop-automation-shown-as-agent;BUG-20260713-loop-automation-start-mismatch-late;BUG-20260713-automation-delete-no-confirmation;BUG-20260713-workspace-trigger-loop-submit-inert;BUG-20260713-loop-watch-poll-error-stuck
 fix_status: fixed
@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-loop-job-target-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-loop-job-history-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-job-delete-confirmation-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-trigger-workspace-loop-fixed-created-final.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-system-stop-dispatch.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-dispatch.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/trigger-deleted-after-generation-zero-proof.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-replay-0714.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: LP-034;TA-065
+overlaps: LP-034; TA-065
 ---
 
 Exercise schedule and event trigger types plus invalid/empty payload mappings.
@@ -47,3 +47,24 @@ QA 2026-09-10: The existing store integration verifies that deleting either dyna
 QA 2026-09-10 follow-up: Scheduler shutdown cannot cancel an in-progress durable finalization. The existing deferred-fire restart integration passed 15 repetitions after reproducing the stale deferred cursor. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
 
 QA support 2026-09-10: the existing real automation trigger/history/run integration passed 20 repetitions after repairing identity persistence when shutdown cancels session startup. The session lifecycle suite separately verifies the stopped identity against SQLite. Evidence and cross-surface impact: `docs/qa/reports/2026-09-10-release-integration-repair.md`.
+
+Issue 689 acceptance: hold the SQLite writer while a scheduled fire becomes due. Failed claims
+must wait with capped exponential backoff; they must not advance the durable fire cursor or flood
+the log. After releasing the writer, exactly one run must retain the original scheduled fire ID.
+The existing real-store scheduler integration owns this backend scenario; see the
+[contention verification report](../reports/2026-10-03-issue-689-sqlite-contention.md).
+
+Release regression 2026-10-11: each scheduled claim must yield to scheduler backoff
+within its one-second attempt budget even when SQLite's busy timeout is longer.
+Keep the writer locked across two attempts, then release it and verify the original
+fire runs exactly once. Durable finalization retains its independent five-second budget.
+The unchanged real-store contention integration passed three repetitions with `-race`;
+this backend evidence does not change the scenario's browser/provider verdict.
+
+QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.
+
+SQLite audit 2026-10-09: Hold an external writer during scheduled claim and trigger update. Cancellation must return promptly without a partial cursor/run or trigger-rule mutation; retry after release must preserve the original fire and existing validation. Existing real SQLite automation integration owns these backend checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

@@ -37,9 +37,9 @@ func TestDaemonWorktreeExitJourneyE2E001IT033IT037(t *testing.T) {
 
 	root := initWorktreeE2ERepository(t)
 	remote := filepath.Join(t.TempDir(), "remote.git")
-	runWorktreeE2EGit(t, context.Background(), t.TempDir(), "init", "--bare", remote)
-	runWorktreeE2EGit(t, context.Background(), root, "remote", "add", "origin", remote)
-	runWorktreeE2EGit(t, context.Background(), root, "push", "-u", "origin", "main")
+	runWorktreeE2EGit(t, t.Context(), t.TempDir(), "init", "--bare", remote)
+	runWorktreeE2EGit(t, t.Context(), root, "remote", "add", "origin", remote)
+	runWorktreeE2EGit(t, t.Context(), root, "push", "-u", "origin", "main")
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		Workspace: e2etest.WorkspaceSeedOptions{Root: root},
@@ -49,12 +49,12 @@ func TestDaemonWorktreeExitJourneyE2E001IT033IT037(t *testing.T) {
 			PermissionMode:  config.PermissionModeApproveAll,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	t.Cleanup(cancel)
 
 	created := createWorktreeE2E(t, ctx, harness, harness.WorkspaceID, "exit-journey")
@@ -236,12 +236,12 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 			DefaultProvider: acpmock.ProviderName,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	t.Cleanup(cancel)
 
 	claimer := createBoundFixtureBackedSession(t, ctx, harness, "local-default", "per-run-claimer")
@@ -268,7 +268,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	}
 	assertTaskWorktreeProfileParity(t, ctx, harness, taskRecord.ID, cliProfile)
 
-	run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
+	run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID)
 	if run.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModePerRun || run.WorktreeID != "" {
 		t.Fatalf("queued run worktree snapshot = %#v, want unresolved per_run", run)
 	}
@@ -408,7 +408,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 
 	secondClaimer := createFixtureBackedSession(t, ctx, harness, "local-default", "root-claimer")
 	rootTask := createTaskViaUDS(t, ctx, harness, "Root snapshot authority")
-	rootRun := enqueueTaskRunViaUDS(t, ctx, harness, rootTask.ID, "")
+	rootRun := enqueueTaskRunViaUDS(t, ctx, harness, rootTask.ID)
 	if rootRun.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModeNone {
 		t.Fatalf("root queued run worktree mode = %q, want none", rootRun.ResolvedWorktreeMode)
 	}
@@ -456,12 +456,12 @@ func TestDaemonTaskFanOutPerRunIsolationIT029IT031(t *testing.T) {
 			DefaultProvider: acpmock.ProviderName,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	t.Cleanup(cancel)
 
 	taskRecord := createTaskViaUDS(t, ctx, harness, "Fan-out isolated workers")
@@ -619,12 +619,12 @@ func TestDaemonTaskFanOutSecondMaterializationFailureIT031(t *testing.T) {
 			DefaultProvider: acpmock.ProviderName,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	t.Cleanup(cancel)
 
 	const taskTitle = "Fan-out isolated failure attribution"
@@ -775,7 +775,7 @@ func TestDaemonWorktreeCLIJourneyE2E003(t *testing.T) {
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		Workspace: e2etest.WorkspaceSeedOptions{Root: root},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	var empty []compozycontract.WorktreePayload
@@ -922,7 +922,7 @@ func TestDaemonWorktreeStreamsAndIsolationIT034IT038(t *testing.T) {
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		Workspace: e2etest.WorkspaceSeedOptions{Root: rootA},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	workspaceA := harness.WorkspaceID
 	resolvedB, err := harness.ResolveWorkspace(ctx, rootB)
@@ -943,7 +943,6 @@ func TestDaemonWorktreeStreamsAndIsolationIT034IT038(t *testing.T) {
 		{name: "HTTP", get: harness.HTTPJSON},
 		{name: "UDS", get: harness.UDSJSON},
 	} {
-		transport := transport
 		t.Run("Should isolate "+transport.name+" worktree lists by workspace", func(t *testing.T) {
 			for _, target := range []struct {
 				name        string
@@ -1066,7 +1065,6 @@ func TestDaemonNativeWorktreeJourneyE2E004(t *testing.T) {
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			PermissionMode: config.PermissionModeApproveReads,
 			Mutate: func(cfg *config.Config) {
-				cfg.Memory.Enabled = false
 			},
 		},
 		MockAgents: []e2etest.MockAgentSpec{mockSpec, denyMockSpec},
@@ -1465,8 +1463,8 @@ func worktreeE2ECLIRemovalRefusal(
 	if err == nil || strings.TrimSpace(stdout) != "" {
 		t.Fatalf("worktree remove(dirty) = stdout %q, error %v, want structured refusal", stdout, err)
 	}
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 65 {
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != 65 {
 		t.Fatalf("worktree remove(dirty) error = %v, want exit 65", err)
 	}
 	var refusal compozycontract.WorktreeRemovalRefusalPayload

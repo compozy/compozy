@@ -14,29 +14,30 @@ const (
 	// activity before recovery marks it stalled.
 	DefaultLivenessStallAfter = 2 * time.Minute
 
-	resumeStopDetailAgentOrphaned = "daemon exited while session subprocess remained alive"
-	resumeStopDetailAgentStalled  = "daemon exited while stalled session subprocess remained alive"
+	resumeStopDetailRuntimeReleased = "daemon exited while the idle session runtime was released"
+	resumeStopDetailAgentOrphaned   = "daemon exited while session subprocess remained alive"
+	resumeStopDetailAgentStalled    = "daemon exited while stalled session subprocess remained alive"
 )
 
 // ClassifyInactiveMetaForRecovery preserves stopping until recorded process death is proven.
-func ClassifyInactiveMetaForRecovery(now time.Time, meta store.SessionMeta) (store.SessionMeta, bool) {
-	next := meta
+func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (store.SessionMeta, bool) {
+	if meta == nil {
+		return store.SessionMeta{}, false
+	}
+	next := *meta
 	next.Liveness = store.CloneSessionLivenessMeta(meta.Liveness)
-	// An accepted logical session has no subprocess until its first prompt binds
-	// one: there is no exit to prove and nothing crashed, so it survives a daemon
-	// restart as it is.
-	if meta.RuntimeStatus == store.SessionRuntimeUnbound && meta.Liveness == nil {
-		return next, false
+	if classified, changed, ok := classifyUnboundMetaForRecovery(meta, &next); ok {
+		return classified, changed
 	}
 	state := State(strings.TrimSpace(meta.State))
-	if interruptedStartupMeta(&meta) {
+	if interruptedStartupMeta(meta) {
 		state = StateStarting
 	}
 	if (state == StateActive || state == StateStopping || state == StateStarting) &&
-		!inactiveProcessExitVerified(&meta) {
+		!inactiveProcessExitVerified(meta) {
 		next.State = string(StateStopping)
 		next.StopVerificationFailed = true
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
+		next.StopReason = new(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(
 			meta,
 			now,
@@ -45,47 +46,92 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta store.SessionMeta) (sto
 		failureKind := store.FailureProcess
 		if state == StateStarting {
 			failureKind = store.FailureStartup
-			next.StopReason = resumeStopReasonPointer(store.StopError)
+			next.StopReason = new(store.StopError)
 			next.StopDetail = resumeStopDetailStartIncomplete
 		}
 		next.Failure = interruptedSessionFailure(meta.Failure, failureKind, next.StopDetail)
 		markInterruptedStall(&next, now)
-		return next, sessionMetaChanged(meta, next)
+		return recoveredMeta(meta, &next)
 	}
 
 	next.StopVerificationFailed = false
 	switch state {
 	case StateActive:
 		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
+		next.StopReason = new(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, resumeStopDetailAgentCrashed)
 		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureProcess, next.StopDetail)
 		markInterruptedStall(&next, now)
-		return next, sessionMetaChanged(meta, next)
+		return recoveredMeta(meta, &next)
 	case StateStopping:
 		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
+		next.StopReason = new(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, "stop did not complete")
 		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureProcess, next.StopDetail)
 		markInterruptedStall(&next, now)
-		return next, sessionMetaChanged(meta, next)
+		return recoveredMeta(meta, &next)
 	case StateStarting:
 		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopError)
+		next.StopReason = new(store.StopError)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, resumeStopDetailStartIncomplete)
 		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureStartup, next.StopDetail)
 		next.ACPSessionID = nil
+		next.AcceptedRoute = nil
 		markInterruptedStall(&next, now)
-		return next, sessionMetaChanged(meta, next)
+		return recoveredMeta(meta, &next)
 	case StateStopped:
 		if strings.TrimSpace(meta.StopDetail) == resumeStopDetailStartIncomplete && meta.ACPSessionID != nil {
 			next.ACPSessionID = nil
-			return next, sessionMetaChanged(meta, next)
+			next.AcceptedRoute = nil
+			return recoveredMeta(meta, &next)
 		}
-		return next, sessionMetaChanged(meta, next)
+		return recoveredMeta(meta, &next)
 	default:
 		return next, false
 	}
+}
+
+// classifyUnboundMetaForRecovery handles sessions without a subprocess to verify. An
+// accepted logical session has none until its first prompt binds one: nothing crashed,
+// so it survives a daemon restart as it is. A released idle runtime whose process exit
+// is verified ends like a clean shutdown and its next prompt resumes the ACP session; a
+// release interrupted while its recorded process may still run is not classified here.
+func classifyUnboundMetaForRecovery(meta, next *store.SessionMeta) (store.SessionMeta, bool, bool) {
+	if meta.RuntimeStatus == store.SessionRuntimeUnbound && meta.Liveness == nil {
+		return *next, false, true
+	}
+	if !releasedRuntimeMeta(meta) {
+		return store.SessionMeta{}, false, false
+	}
+	next.State = string(StateStopped)
+	next.StopVerificationFailed = false
+	next.StopReason = new(store.StopShutdown)
+	next.StopDetail = resumeStopDetailRuntimeReleased
+	classified, changed := recoveredMeta(meta, next)
+	return classified, changed, true
+}
+
+// releasedRuntimeMeta identifies the persisted shape of an idle runtime release: an
+// active session with an ACP session id, no runtime transition, and either no
+// subprocess (a completed release) or a recorded subprocess whose exit is verified (a
+// release interrupted after its stop took effect).
+func releasedRuntimeMeta(meta *store.SessionMeta) bool {
+	if State(strings.TrimSpace(meta.State)) != StateActive ||
+		meta.RuntimeStatus != store.SessionRuntimeUnbound ||
+		meta.RuntimeTransition != store.SessionRuntimeTransitionNone ||
+		strings.TrimSpace(derefString(meta.ACPSessionID)) == "" || meta.Liveness == nil {
+		return false
+	}
+	if meta.Liveness.SubprocessPID == 0 && meta.Liveness.SubprocessStartedAt == nil {
+		return true
+	}
+	return inactiveProcessExitVerified(meta)
+}
+
+// recoveredMeta returns the classified metadata and whether it differs from the source.
+func recoveredMeta(source, next *store.SessionMeta) (store.SessionMeta, bool) {
+	changed := sessionMetaChanged(source, next)
+	return *next, changed
 }
 
 // Interrupted startup retains its classification while the shared stop ladder
@@ -96,7 +142,7 @@ func interruptedStartupMeta(meta *store.SessionMeta) bool {
 			strings.TrimSpace(meta.StopDetail) == resumeStopDetailStartIncomplete)
 }
 
-func classifyPreviousStop(meta store.SessionMeta) (store.SessionMeta, bool) {
+func classifyPreviousStop(meta *store.SessionMeta) (store.SessionMeta, bool) {
 	return ClassifyInactiveMetaForRecovery(time.Now().UTC(), meta)
 }
 
@@ -118,7 +164,7 @@ func interruptedSessionFailure(
 	return normalizeSessionFailure(next, fallbackSummary)
 }
 
-func classifyInterruptedStopDetail(meta store.SessionMeta, now time.Time, fallback string) string {
+func classifyInterruptedStopDetail(meta *store.SessionMeta, now time.Time, fallback string) string {
 	switch {
 	case sessionMetaIsStalled(meta, now):
 		return resumeStopDetailAgentStalled
@@ -133,7 +179,7 @@ func markInterruptedStall(meta *store.SessionMeta, now time.Time) {
 	if meta == nil {
 		return
 	}
-	if !sessionMetaIsStalled(*meta, now) {
+	if !sessionMetaIsStalled(meta, now) {
 		if meta.Liveness != nil {
 			meta.Liveness.StallState = ""
 			meta.Liveness.StallReason = ""
@@ -149,7 +195,7 @@ func markInterruptedStall(meta *store.SessionMeta, now time.Time) {
 	}
 }
 
-func sessionMetaIsStalled(meta store.SessionMeta, now time.Time) bool {
+func sessionMetaIsStalled(meta *store.SessionMeta, now time.Time) bool {
 	if !sessionMetaOwnsLiveSubprocess(meta) {
 		return false
 	}
@@ -166,26 +212,30 @@ func sessionMetaIsStalled(meta store.SessionMeta, now time.Time) bool {
 	return now.UTC().Sub(lastActivityAt.UTC()) >= DefaultLivenessStallAfter
 }
 
-func sessionMetaOwnsLiveSubprocess(meta store.SessionMeta) bool {
-	if meta.Liveness == nil || meta.Liveness.SubprocessPID <= 0 || meta.Liveness.SubprocessStartedAt == nil {
+func sessionMetaOwnsLiveSubprocess(meta *store.SessionMeta) bool {
+	if meta == nil || meta.Liveness == nil || meta.Liveness.SubprocessPID <= 0 ||
+		meta.Liveness.SubprocessStartedAt == nil {
 		return false
 	}
 	return procutil.MatchesStartTime(meta.Liveness.SubprocessPID, *meta.Liveness.SubprocessStartedAt)
 }
 
 func inactiveProcessExitVerified(meta *store.SessionMeta) bool {
-	if recoveredProcessRequiresRemoteProof(meta) || meta.Liveness == nil || meta.Liveness.SubprocessStartedAt == nil {
+	if meta.Liveness == nil || meta.Liveness.SubprocessStartedAt == nil {
 		return false
 	}
 	verified, err := procutil.VerifyProcessExit(meta.Liveness.SubprocessPID, *meta.Liveness.SubprocessStartedAt)
 	return err == nil && verified
 }
 
-func sessionMetaChanged(before store.SessionMeta, after store.SessionMeta) bool {
+func sessionMetaChanged(before *store.SessionMeta, after *store.SessionMeta) bool {
+	if before == nil || after == nil {
+		return before != after
+	}
 	return before.State != after.State ||
 		before.StopVerificationFailed != after.StopVerificationFailed ||
 		before.StopDetail != after.StopDetail ||
-		sessionMetaStopReason(&before) != sessionMetaStopReason(&after) ||
+		sessionMetaStopReason(before) != sessionMetaStopReason(after) ||
 		stringValue(before.ACPSessionID) != stringValue(after.ACPSessionID) ||
 		!sessionFailureEqual(before.Failure, after.Failure) ||
 		!sessionLivenessEqual(before.Liveness, after.Liveness)
@@ -262,8 +312,11 @@ func timesEqual(left *time.Time, right *time.Time) bool {
 // AnnotateUnpersistedRecovery appends persistence failure detail to the
 // recovered stopped-state metadata returned to callers when the synthetic crash
 // classification could not be durably written.
-func AnnotateUnpersistedRecovery(meta store.SessionMeta, err error) store.SessionMeta {
-	annotated := meta
+func AnnotateUnpersistedRecovery(meta *store.SessionMeta, err error) store.SessionMeta {
+	if meta == nil {
+		return store.SessionMeta{}
+	}
+	annotated := *meta
 	detail := strings.TrimSpace(meta.StopDetail)
 	suffix := fmt.Sprintf("classification not persisted: %v", err)
 	if detail == "" {

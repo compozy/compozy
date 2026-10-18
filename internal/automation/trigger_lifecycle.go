@@ -160,18 +160,6 @@ func (e *TriggerEngine) FireSessionStopped(ctx context.Context, sess *session.Se
 	return e.Fire(ctx, envelope)
 }
 
-// FireMemoryConsolidated normalizes a dream-consolidation completion into the shared matching path.
-func (e *TriggerEngine) FireMemoryConsolidated(
-	ctx context.Context,
-	event MemoryConsolidatedEvent,
-) (TriggerResult, error) {
-	envelope, err := memoryConsolidatedEnvelope(event)
-	if err != nil {
-		return TriggerResult{}, err
-	}
-	return e.Fire(ctx, envelope)
-}
-
 // FireHookCompletion normalizes one hook-completion telemetry record into the shared matching path.
 func (e *TriggerEngine) FireHookCompletion(
 	ctx context.Context,

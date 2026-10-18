@@ -7,6 +7,8 @@ interface OsWindowErrorBoundaryProps {
   children: ReactNode;
   /** Window identity for the alert copy (the app title). */
   title: string;
+  /** A shell feature can provide its own contained recovery surface. */
+  fallback?: ReactNode;
 }
 
 interface OsWindowErrorBoundaryState {
@@ -41,6 +43,7 @@ export class OsWindowErrorBoundary extends Component<
   render(): ReactNode {
     const { error } = this.state;
     if (error === null) return this.props.children;
+    if (this.props.fallback !== undefined) return this.props.fallback;
 
     return (
       <div
@@ -50,16 +53,14 @@ export class OsWindowErrorBoundary extends Component<
       >
         <Empty
           className="max-w-md"
-          description={
-            error.message.trim().length > 0
-              ? error.message
-              : `The ${this.props.title} window could not be rendered.`
-          }
+          // Raw render errors may carry secrets or internals; the console keeps them.
+          cause="The window stopped before CompozyOS could show it."
+          description="Try again. If it keeps happening, close and reopen the window."
           icon={AlertTriangle}
-          title={`${this.props.title} failed to render`}
+          title={`${this.props.title} couldn't open`}
           action={
-            <Button onClick={this.handleRetry} size="sm" type="button" variant="outline">
-              <RefreshCw className="size-3" />
+            <Button onClick={this.handleRetry} size="sm" type="button" variant="secondary">
+              <RefreshCw aria-hidden="true" data-icon="inline-start" />
               Retry
             </Button>
           }

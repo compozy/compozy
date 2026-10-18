@@ -33,7 +33,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 1. Read `.agents/skills/eng/eng-qa-bootstrap/references/bootstrap-contract.md` in full.
 2. Check that the emitted manifest, required paths, launch policy, and teardown command match the selected profile. Use helper diagnostics and the strict auditor for machine-checkable fields; do not manually repeat each schema check.
-3. When a playbook was supplied, also validate the materialized playbook, agents, open-task tree, knowledge files, required deliverables/collaboration, and populated charter.
+3. When a playbook was supplied, also validate the materialized playbook, agents, open-task tree, required deliverables/collaboration, and populated charter.
 4. Treat scaffolding as empty evidence until downstream QA records real actions and the strict auditor passes.
 
 *Done when:* manifest, env, paths, scenario contract, charter, playbook artifacts, and filesystem all describe the same isolated lab with no placeholders in a playbook run.

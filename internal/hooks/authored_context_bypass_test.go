@@ -37,20 +37,18 @@ func TestAuthoredContextHooksRemainObservationOnly(t *testing.T) {
 		}
 
 		payload := AgentSoulMutationAfterPayload{
-			PayloadBase: PayloadBase{Event: HookAgentSoulMutationAfter},
-			AuthoredContextProvenance: AuthoredContextProvenance{
-				WorkspaceID:  "ws-1",
-				AgentName:    "coder",
-				SourcePath:   ".compozy/agents/coder/SOUL.md",
-				SnapshotID:   "srev-1",
-				Digest:       "sha256:managed",
-				Valid:        true,
-				Active:       true,
-				ConfigDigest: "sha256:config",
-			},
-			RevisionID: "srev-1",
-			Action:     "put",
-			NewDigest:  "sha256:managed",
+			Event:        HookAgentSoulMutationAfter,
+			WorkspaceID:  "ws-1",
+			AgentName:    "coder",
+			SourcePath:   ".compozy/agents/coder/SOUL.md",
+			SnapshotID:   "srev-1",
+			Digest:       "sha256:managed",
+			Valid:        true,
+			Active:       true,
+			ConfigDigest: "sha256:config",
+			RevisionID:   "srev-1",
+			Action:       "put",
+			NewDigest:    "sha256:managed",
 		}
 
 		got, err := hooks.DispatchAgentSoulMutationAfter(t.Context(), payload)
@@ -98,18 +96,16 @@ func TestAuthoredContextHooksRemainObservationOnly(t *testing.T) {
 		}
 
 		payload := AgentHeartbeatPolicyResolvedPayload{
-			PayloadBase: PayloadBase{Event: HookAgentHeartbeatPolicyResolved},
-			AuthoredContextProvenance: AuthoredContextProvenance{
-				WorkspaceID:  "ws-1",
-				AgentName:    "ops",
-				SourcePath:   ".compozy/agents/ops/HEARTBEAT.md",
-				SnapshotID:   "hrev-1",
-				Digest:       "sha256:managed",
-				Valid:        true,
-				Active:       true,
-				ConfigDigest: "sha256:config",
-			},
-			Summary: "managed summary",
+			Event:        HookAgentHeartbeatPolicyResolved,
+			WorkspaceID:  "ws-1",
+			AgentName:    "ops",
+			SourcePath:   ".compozy/agents/ops/HEARTBEAT.md",
+			SnapshotID:   "hrev-1",
+			Digest:       "sha256:managed",
+			Valid:        true,
+			Active:       true,
+			ConfigDigest: "sha256:config",
+			Summary:      "managed summary",
 		}
 
 		got, err := hooks.DispatchAgentHeartbeatPolicyResolved(t.Context(), payload)

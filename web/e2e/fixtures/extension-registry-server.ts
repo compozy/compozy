@@ -47,6 +47,7 @@ export interface ExtensionRegistryTestServer {
   server: Server;
   artifactURLFor(tag: string): string;
   digestFor(tag: string): string;
+  replaceArchive(tag: string, archive: Buffer): void;
 }
 
 export async function startExtensionRegistryServer(
@@ -125,6 +126,12 @@ export async function startExtensionRegistryServer(
       return `${baseURL}/assets/${asset.id}`;
     },
     baseURL,
+    replaceArchive: (tag, archive) => {
+      const asset = releases.find(candidate => candidate.tag === tag)?.assets[0];
+      if (!asset) throw new Error(`unknown extension release tag ${tag}`);
+      asset.archive = archive;
+      asset.digest = createHash("sha256").update(archive).digest("hex");
+    },
     digestFor: tag => {
       const release = releases.find(candidate => candidate.tag === tag);
       if (!release?.assets[0]) throw new Error(`unknown extension release tag ${tag}`);

@@ -14,7 +14,6 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Tasks | [`tasks/`](tasks/) | [`tasks/task-detail.html`](tasks/task-detail.html) |
 | Settings | [`settings/`](settings/) | [`settings/settings-general.html`](settings/settings-general.html) |
 | Electron shell updates | [`electron-shell/`](electron-shell/) | [`electron-shell/index.html`](electron-shell/index.html) |
-| Network | [`network/`](network/) | [`network/network.html`](network/network.html) |
 | Loops (active) | [`loops/`](loops/) | [`loops/index.html`](loops/index.html) · final pages + labs |
 | Loop graph | [`graph-eng/`](graph-eng/) | [`graph-eng/index.html`](graph-eng/index.html) |
 | Command palette | [`command-palette/`](command-palette/) | [`command-palette/index.html`](command-palette/index.html) |
@@ -25,7 +24,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Session continue & fork (active · for approval) | [`session-continue-fork/`](session-continue-fork/) | [`session-continue-fork/index.html`](session-continue-fork/index.html) · contract [`DESIGN-NOTES.md`](session-continue-fork/DESIGN-NOTES.md) |
 | Sessions bulk actions (active · for approval) | [`sessions-bulk-actions/`](sessions-bulk-actions/) | [`sessions-bulk-actions/index.html`](sessions-bulk-actions/index.html) · single board, contract block inline |
 | Session (retired → `_done/session/`) | [`_done/session/`](_done/session/) | [`_done/session/index.html`](_done/session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](_done/session/SESSION-REDESIGN-SPEC.md) |
-| Systems (vault/sandbox) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
+| Systems (vault) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
 | Shipped archives | [`_done/`](_done/) | agents · loops · marketplace · shell |
 
 Tooling (not product surfaces):

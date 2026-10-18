@@ -1,6 +1,7 @@
 package update
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -283,10 +284,7 @@ func goBinDirs(env installEnvironment) []string {
 		dirs = append(dirs, gobin)
 	}
 
-	gopath := strings.TrimSpace(env.gopath)
-	if gopath == "" {
-		gopath = build.Default.GOPATH
-	}
+	gopath := cmp.Or(strings.TrimSpace(env.gopath), build.Default.GOPATH)
 	for _, root := range filepath.SplitList(gopath) {
 		root = strings.TrimSpace(root)
 		if root == "" {

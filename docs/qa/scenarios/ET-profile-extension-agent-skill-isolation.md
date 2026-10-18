@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 3bfa4da4;1e6a6315;7c53637c
 evidence: qa-artifacts/qa/public-cli-api/agents-default-final-2.json;qa-artifacts/qa/public-cli-api/agents-finance-final-2.json;qa-artifacts/qa/public-cli-api/skill-global-view.json;qa-artifacts/qa/public-cli-api/skill-default-view.json;qa-artifacts/qa/public-cli-api/skill-finance-view.json;qa-artifacts/qa/public-cli-api/skill-workspace-profile-repeat-view.json;qa-artifacts/qa/qa-audit-report.json;qa-artifacts/qa/teardown.json
 last_report: docs/qa/reports/2026-09-01-profile-extension-agent-skill-isolation.md
-overlaps: ET-001;ET-skill-source-agent-parity
+overlaps: ET-001; ET-skill-source-agent-parity
 ---
 
 Start from an isolated home and workspace. Install and enable a local extension whose manifest binds

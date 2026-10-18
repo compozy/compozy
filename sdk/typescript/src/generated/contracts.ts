@@ -31,37 +31,15 @@ export type HostAPIMethod =
   | "automation/triggers/get"
   | "automation/triggers/runs"
   | "automation/triggers/update"
-  | "bridges/instances/get"
-  | "bridges/instances/list"
-  | "bridges/instances/report_state"
-  | "bridges/messages/ingest"
   | "clarify/ask"
   | "logs/list"
-  | "memory/forget"
-  | "memory/recall"
-  | "memory/store"
   | "models/list"
   | "models/refresh"
   | "models/status"
-  | "network/channels"
-  | "network/direct/messages"
-  | "network/direct/resolve"
-  | "network/directs"
-  | "network/peers"
-  | "network/send"
-  | "network/status"
-  | "network/thread/get"
-  | "network/thread/messages"
-  | "network/threads"
-  | "network/usage"
-  | "network/work/get"
   | "observe/health"
   | "resources/get"
   | "resources/list"
   | "resources/snapshot"
-  | "sandbox/exec"
-  | "sandbox/info"
-  | "sandbox/list"
   | "sessions/archive"
   | "sessions/create"
   | "sessions/events"
@@ -110,6 +88,7 @@ export interface AgentCrashedPatch {
 }
 
 export type HookEvent =
+  | "subagent.settled"
   | "session.pre_create"
   | "session.post_create"
   | "session.pre_resume"
@@ -120,11 +99,6 @@ export type HookEvent =
   | "session.runtime_recovery.started"
   | "session.runtime_recovery.succeeded"
   | "session.runtime_recovery.exhausted"
-  | "sandbox.prepare"
-  | "sandbox.ready"
-  | "sandbox.sync.before"
-  | "sandbox.sync.after"
-  | "sandbox.stop"
   | "input.pre_submit"
   | "prompt.post_assemble"
   | "event.pre_record"
@@ -190,16 +164,6 @@ export type HookEvent =
   | "spawn.ttl_expired"
   | "spawn.reaped"
   | "session.attention.changed"
-  | "network.thread.opened"
-  | "network.direct_room.opened"
-  | "network.message.persisted"
-  | "network.work.opened"
-  | "network.work.transitioned"
-  | "network.work.closed"
-  | "network.peer.joined"
-  | "network.peer.left"
-  | "network.participation.pre_resolve"
-  | "network.participation.resolved"
   | "window_manager.layout.applied"
   | "window_manager.desktop.created"
   | "window_manager.desktop.deleted"
@@ -534,7 +498,6 @@ export interface AgentSoulFrontmatterPayload {
   principles?: string[];
   constraints?: string[];
   collaboration?: string[];
-  memory_policy?: string[];
   tags?: string[];
 }
 
@@ -783,37 +746,10 @@ export interface Ownership {
   ref: string;
 }
 
-export type NetworkParticipationRequest =
-  | {
-      mode?: "local";
-      channel_strategy?: never;
-      channel_id?: never;
-      bounds?: never;
-    }
-  | {
-      mode: "live";
-      channel_strategy: "named";
-      channel_id: string;
-      bounds?: NetworkParticipationBoundsRequest;
-    }
-  | {
-      mode: "live";
-      channel_strategy: "run";
-      channel_id?: never;
-      bounds?: NetworkParticipationBoundsRequest;
-    }
-  | {
-      mode: "live";
-      channel_strategy: "loop_run";
-      channel_id?: never;
-      bounds?: NetworkParticipationBoundsRequest;
-    };
-
 export interface JobTaskConfig {
   title?: string;
   description?: string;
   owner?: Ownership;
-  network_participation?: NetworkParticipationRequest;
 }
 
 export interface LoopTarget {
@@ -821,7 +757,6 @@ export interface LoopTarget {
   loop_name: string;
   inputs?: Record<string, JSONValue>;
   input_mapping?: Record<string, string>;
-  network_participation?: NetworkParticipationRequest;
 }
 
 export type RetryStrategy = string;
@@ -1079,6 +1014,16 @@ export interface GatewayIngressPayload {
   enable_path?: string;
 }
 
+export type SchedulerSkipReason = string;
+
+export interface AutomationLastRunPayload {
+  id: string;
+  status: RunStatus;
+  started_at?: ISODateTime;
+  ended_at?: ISODateTime;
+  skip_reason?: SchedulerSkipReason;
+}
+
 export interface Trigger {
   id: string;
   profile_id: string;
@@ -1105,6 +1050,7 @@ export interface Trigger {
   ingress?: GatewayIngressPayload;
   created_at: ISODateTime;
   updated_at: ISODateTime;
+  last_run?: AutomationLastRunPayload;
 }
 
 export interface AutomationTriggersResult {
@@ -1119,7 +1065,6 @@ export interface AutonomyMatcher {
   loop_name?: string;
   node_id?: string;
   workflow_id?: string;
-  participation_channel?: string;
   coordinator_session_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
@@ -1130,126 +1075,6 @@ export interface AutonomyMatcher {
 
 export interface AutonomyObservationPatch {
   labels?: Record<string, string>;
-}
-
-export type BridgeCheckStatus = "pass" | "warn" | "fail" | "skipped";
-
-export interface BridgeCheckRecord {
-  check: string;
-  status: BridgeCheckStatus;
-  remediation: string;
-}
-
-export interface BridgeCheckRequest {
-  bridge_instance_id: string;
-}
-
-export interface BridgeCheckResponse {
-  checks: BridgeCheckRecord[];
-}
-
-export type BridgeScope = string;
-
-export type BridgeInstanceSource = string;
-
-export type BridgeStatus = string;
-
-export type BridgeDMPolicy = string;
-
-export interface RoutingPolicy {
-  include_peer: boolean;
-  include_thread: boolean;
-  include_group: boolean;
-}
-
-export type BridgeDegradationReason = string;
-
-export interface BridgeDegradation {
-  reason: BridgeDegradationReason;
-  message?: string;
-}
-
-export interface BridgeInstance {
-  id: string;
-  profile_id: string;
-  profile_name?: string;
-  profile_color?: string;
-  profile_icon?: string;
-  profile_emoji?: string;
-  profile_archived?: boolean;
-  scope: BridgeScope;
-  workspace_id?: string;
-  platform: string;
-  extension_name: string;
-  display_name: string;
-  source?: BridgeInstanceSource;
-  enabled: boolean;
-  status: BridgeStatus;
-  dm_policy?: BridgeDMPolicy;
-  routing_policy: RoutingPolicy;
-  provider_config?: JSONValue;
-  delivery_defaults?: JSONValue;
-  notification_suppress: boolean;
-  degradation?: BridgeDegradation;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-}
-
-export interface BridgeInstanceTargetParams {
-  bridge_instance_id: string;
-}
-
-export type BridgeRuntimePurpose = "service" | "control";
-
-export type BridgeTargetType = string;
-
-export interface BridgeTargetSnapshot {
-  canonical_route: string;
-  display_name: string;
-  target_type: BridgeTargetType;
-  qualifier?: string;
-  capabilities?: string[];
-  last_seen_at?: ISODateTime;
-}
-
-export interface BridgeTargetSnapshotRequest {
-  bridge_instance_id: string;
-}
-
-export interface BridgeTargetSnapshotResponse {
-  targets: BridgeTargetSnapshot[];
-}
-
-export interface BridgeWebhookRegistrationRequest {
-  bridge_instance_id: string;
-  public_url?: string;
-}
-
-export interface BridgeWebhookRegistrationResponse {
-  status: BridgeCheckStatus;
-  remediation: string;
-}
-
-export interface BridgesInstancesReportStateParams {
-  bridge_instance_id: string;
-  status: BridgeStatus;
-  degradation?: BridgeDegradation;
-  clear_degradation?: boolean;
-}
-
-export interface RoutingKey {
-  scope: BridgeScope;
-  workspace_id?: string;
-  bridge_instance_id: string;
-  peer_id?: string;
-  thread_id?: string;
-  group_id?: string;
-}
-
-export interface BridgesMessagesIngestResult {
-  session_id: string;
-  route_created: boolean;
-  routing_key: RoutingKey;
 }
 
 export interface ClarifyAnswer {
@@ -1341,8 +1166,7 @@ export interface CommandFlag {
 }
 
 export interface CompactionMatcher {
-  compaction_reason?: string;
-  compaction_strategy?: string;
+  compaction_trigger?: string;
 }
 
 export interface ConnectivityAdvertisedEndpoint {
@@ -1391,7 +1215,11 @@ export interface ContextBlock {
   metadata?: Record<string, string>;
 }
 
-export interface ContextCompactPayload {
+export interface ContextCompactionPatch {
+  labels?: Record<string, string>;
+}
+
+export interface ContextCompactionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   profile_id?: string;
@@ -1409,26 +1237,15 @@ export interface ContextCompactPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
-  reason?: string;
-  strategy?: string;
+  compaction_id: string;
+  trigger: string;
+  status?: string;
   summary?: string;
-  context_blocks?: ContextBlock[];
-}
-
-export interface ContextCompactionPatch {
-  deny?: boolean;
-  deny_reason?: string;
-  reason?: string;
-  strategy?: string;
-  context_blocks?: ContextBlock[];
+  error?: string;
 }
 
 export interface ContextPostCompactPatch {
-  deny?: boolean;
-  deny_reason?: string;
-  reason?: string;
-  strategy?: string;
-  context_blocks?: ContextBlock[];
+  labels?: Record<string, string>;
 }
 
 export interface ContextPostCompactPayload {
@@ -1449,18 +1266,15 @@ export interface ContextPostCompactPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
-  reason?: string;
-  strategy?: string;
+  compaction_id: string;
+  trigger: string;
+  status?: string;
   summary?: string;
-  context_blocks?: ContextBlock[];
+  error?: string;
 }
 
 export interface ContextPreCompactPatch {
-  deny?: boolean;
-  deny_reason?: string;
-  reason?: string;
-  strategy?: string;
-  context_blocks?: ContextBlock[];
+  labels?: Record<string, string>;
 }
 
 export interface ContextPreCompactPayload {
@@ -1481,38 +1295,17 @@ export interface ContextPreCompactPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
-  reason?: string;
-  strategy?: string;
+  compaction_id: string;
+  trigger: string;
+  status?: string;
   summary?: string;
-  context_blocks?: ContextBlock[];
+  error?: string;
 }
-
-export type ControlMethod = "bridges/check" | "bridges/webhook/register";
 
 export interface ControlPatch {
   deny?: boolean;
   deny_reason?: string;
 }
-
-export type NetworkParticipationSpec =
-  | {
-      version: "network-participation/v1";
-      mode: "local";
-      workspace_id?: never;
-      channel_strategy?: never;
-      channel_id?: never;
-      source: NetworkParticipationSource;
-      bounds?: never;
-    }
-  | {
-      version: "network-participation/v1";
-      mode: "live";
-      workspace_id: string;
-      channel_strategy: "named" | "run" | "loop_run";
-      channel_id: string;
-      source: NetworkParticipationSource;
-      bounds: NetworkParticipationBounds;
-    };
 
 export interface CoordinatorContext {
   profile_id?: string;
@@ -1523,7 +1316,6 @@ export interface CoordinatorContext {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
 }
@@ -1539,7 +1331,6 @@ export interface CoordinatorDecisionPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1559,7 +1350,6 @@ export interface CoordinatorFailedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1579,7 +1369,6 @@ export interface CoordinatorLifecyclePayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1603,7 +1392,6 @@ export interface CoordinatorPreSpawnPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   reason?: string;
@@ -1630,7 +1418,6 @@ export interface CoordinatorSpawnedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1650,7 +1437,6 @@ export interface CoordinatorStoppedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1659,123 +1445,13 @@ export interface CoordinatorStoppedPayload {
   error?: string;
 }
 
-export type DeliveryAckOutcome = "success" | "committed_result_unavailable";
-
-export interface DeliveryErrorDetail {
-  message: string;
-}
-
-export interface DeliveryAck {
-  delivery_id: string;
-  seq: number;
-  remote_message_id?: string;
-  replace_remote_message_id?: string;
-  outcome?: DeliveryAckOutcome;
-  error?: DeliveryErrorDetail;
-}
-
-export type DeliveryMode = string;
-
-export interface DeliveryTarget {
-  bridge_instance_id: string;
-  peer_id?: string;
-  thread_id?: string;
-  group_id?: string;
-  mode?: DeliveryMode;
-}
-
-export type DeliveryEventType =
-  | "start"
-  | "delta"
-  | "final"
-  | "error"
-  | "resume"
-  | "delete"
-  | "progress";
-
-export interface MessageContent {
-  text?: string;
-}
-
-export type DeliveryOperation = string;
-
-export interface DeliveryMessageReference {
-  delivery_id?: string;
-  remote_message_id?: string;
-}
-
-export interface DeliveryResumeState {
-  latest_event_type: DeliveryEventType;
-}
-
-export type ToolProgressPhase = "started" | "completed" | "failed";
-
-export interface ToolProgress {
-  tool_call_id: string;
-  tool_id: string;
-  phase: ToolProgressPhase;
-  label: string;
-  preview?: string;
-  emoji?: string;
-  duration_ms?: number;
-  error?: string;
-  index: number;
-}
-
-export interface DeliveryEvent {
-  delivery_id: string;
-  bridge_instance_id: string;
-  routing_key: RoutingKey;
-  delivery_target: DeliveryTarget;
-  seq: number;
-  event_type: DeliveryEventType;
-  content: MessageContent;
-  final: boolean;
-  operation?: DeliveryOperation;
-  reference?: DeliveryMessageReference;
-  error?: DeliveryErrorDetail;
-  resume?: DeliveryResumeState;
-  progress?: ToolProgress;
-  provider_metadata?: JSONValue;
-}
-
-export interface DeliverySnapshot {
-  delivery_id: string;
-  session_id: string;
-  turn_id: string;
-  bridge_instance_id: string;
-  routing_key: RoutingKey;
-  delivery_target: DeliveryTarget;
-  latest_seq: number;
-  latest_event_type: DeliveryEventType;
-  current_content: MessageContent;
-  operation?: DeliveryOperation;
-  reference?: DeliveryMessageReference;
-  provider_metadata?: JSONValue;
-  last_sent_seq?: number;
-  last_acked_seq?: number;
-  remote_message_id?: string;
-  replace_remote_message_id?: string;
-  final: boolean;
-  error?: string;
-  updated_at: ISODateTime;
-}
-
-export interface DeliveryRequest {
-  event: DeliveryEvent;
-  snapshot?: DeliverySnapshot;
-}
-
-export interface DescribeNetworkParticipation {
-  required: boolean;
-  mode: string;
-  channel_scopes?: string[];
+export interface DescribeGatewayRequirement {
+  permissions: string[];
 }
 
 export interface DescribeProfileDefaults {
   agent?: string;
   provider?: string;
-  sandbox?: string;
 }
 
 export interface DescribeProfileCredential {
@@ -1869,7 +1545,7 @@ export interface DescribePayload {
   profiles?: DescribeProfile[];
   resources: DescribeResources;
   subprocess: DescribeSubprocess;
-  network_participation?: DescribeNetworkParticipation;
+  gateway?: DescribeGatewayRequirement;
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: DescribeHookEvent[];
   watch_source_kinds?: string[];
@@ -2081,6 +1757,7 @@ export interface ForgeCapabilitiesResponse {
 export interface ForgePRCreateRequest {
   remote_urls: string[];
   head: string;
+  head_sha?: string;
   base: string;
   title: string;
   body?: string;
@@ -2097,6 +1774,8 @@ export interface ForgePRCreateResponse {
 export interface ForgeStatusRequest {
   remote_urls: string[];
   branch: string;
+  base?: string;
+  head_sha?: string;
 }
 
 export interface ForgeStatusResponse {
@@ -2104,6 +1783,10 @@ export interface ForgeStatusResponse {
   pr_number?: number;
   pr_state?: string;
   pr_url?: string;
+  head?: string;
+  base?: string;
+  head_sha?: string;
+  draft?: boolean;
   merged?: boolean;
   fetched_at: ISODateTime;
   cause?: string;
@@ -2407,10 +2090,6 @@ export interface HookMatcher {
   worktree_id?: string;
   workspace_root?: string;
   session_type?: string;
-  sandbox_id?: string;
-  sandbox_backend?: string;
-  sandbox_profile?: string;
-  sync_direction?: string;
   input_class?: string;
   acp_event_type?: string;
   turn_id?: string;
@@ -2420,15 +2099,7 @@ export interface HookMatcher {
   decision_class?: string;
   message_role?: string;
   message_delta_type?: string;
-  channel?: string;
-  surface?: string;
-  kind?: string;
-  direction?: string;
-  work_state?: string;
-  participation_mode?: string;
-  participation_source?: string;
-  compaction_reason?: string;
-  compaction_strategy?: string;
+  compaction_trigger?: string;
   autonomy?: AutonomyMatcher;
 }
 
@@ -2456,8 +2127,8 @@ export interface HookDecl {
 }
 
 export type HookEventFamily =
+  | "subagent"
   | "session"
-  | "sandbox"
   | "input"
   | "prompt"
   | "event"
@@ -2473,7 +2144,6 @@ export type HookEventFamily =
   | "task.run"
   | "loop"
   | "spawn"
-  | "network"
   | "window_manager"
   | "worktree"
   | "terminal";
@@ -2488,108 +2158,6 @@ export type HookSkillSource =
   | "additional"
   | "workspace"
   | "workspace_profile";
-
-export interface InboundAction {
-  action_id: string;
-  message_id?: string;
-  value?: string;
-  trigger_id?: string;
-}
-
-export interface InboundCommand {
-  command: string;
-  text?: string;
-  trigger_id?: string;
-}
-
-export type InboundEditOperation = "updated" | "deleted";
-
-export interface InboundEdit {
-  message_id: string;
-  new_text: string;
-  original_timestamp: ISODateTime;
-  operation: InboundEditOperation;
-}
-
-export type InboundEventFamily = "message" | "command" | "action" | "reaction" | "edit";
-
-export interface MessageSender {
-  id?: string;
-  username?: string;
-  display_name?: string;
-}
-
-export interface MessageAttachment {
-  id?: string;
-  name?: string;
-  mime_type?: string;
-  url?: string;
-}
-
-export interface InboundReaction {
-  message_id: string;
-  emoji: string;
-  raw_emoji?: string;
-  added: boolean;
-}
-
-export type NetworkConversationSurface = string;
-
-export interface NetworkConversationRef {
-  channel: string;
-  surface: NetworkConversationSurface;
-  thread_id?: string;
-  direct_id?: string;
-  work_id?: string;
-  reply_to?: string;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface InboundMessageEnvelope {
-  bridge_instance_id: string;
-  scope: BridgeScope;
-  workspace_id?: string;
-  peer_id?: string;
-  thread_id?: string;
-  group_id?: string;
-  platform_message_id?: string;
-  received_at: ISODateTime;
-  sender: MessageSender;
-  content?: MessageContent;
-  attachments?: MessageAttachment[];
-  event_family: InboundEventFamily;
-  command?: InboundCommand;
-  action?: InboundAction;
-  reaction?: InboundReaction;
-  edit?: InboundEdit;
-  reply_to_text?: string;
-  reply_to_author_id?: string;
-  reply_to_author_name?: string;
-  conversation?: NetworkConversationRef;
-  provider_metadata?: JSONValue;
-  idempotency_key: string;
-}
-
-export interface InitializeBridgeBoundSecret {
-  binding_name: string;
-  kind: string;
-  value: string;
-}
-
-export interface InitializeBridgeManagedInstance {
-  instance: BridgeInstance;
-  bound_secrets?: InitializeBridgeBoundSecret[];
-}
-
-export interface InitializeBridgeRuntime {
-  runtime_version: string;
-  purpose: BridgeRuntimePurpose;
-  provider: string;
-  platform: string;
-  allowed_methods?: string[];
-  managed_instances?: InitializeBridgeManagedInstance[];
-}
 
 export interface InitializeCapabilities {
   provides: string[];
@@ -2622,7 +2190,6 @@ export interface InitializeRuntime {
   shutdown_timeout_ms: number;
   default_hook_timeout_ms: number;
   default_view_timeout_ms?: number;
-  bridge?: InitializeBridgeRuntime;
 }
 
 export interface InitializeRequest {
@@ -2719,7 +2286,6 @@ export interface LoopContext {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2747,7 +2313,6 @@ export interface LoopGatePostPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2784,7 +2349,6 @@ export interface LoopGatePrePayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2825,7 +2389,6 @@ export interface LoopGenerationPostPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2860,7 +2423,6 @@ export interface LoopGenerationPrePayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2890,7 +2452,6 @@ export interface LoopLifecyclePayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2917,7 +2478,6 @@ export interface LoopNodeTerminalPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2952,7 +2512,6 @@ export interface LoopStartedPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2979,7 +2538,6 @@ export interface LoopTerminalPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2990,35 +2548,6 @@ export interface LoopTerminalPayload {
   cause?: string;
   reason_code?: string;
   details?: JSONValue;
-}
-
-export type MemoryScope = "profile" | "workspace" | "agent";
-
-export interface MemoryForgetParams {
-  key: string;
-  scope?: MemoryScope;
-  workspace?: string;
-}
-
-export interface MemoryRecallEntry {
-  key: string;
-  content: string;
-  score: number;
-}
-
-export interface MemoryRecallParams {
-  query: string;
-  limit?: number;
-  scope?: MemoryScope;
-  workspace?: string;
-}
-
-export interface MemoryStoreParams {
-  key: string;
-  content: string;
-  scope?: MemoryScope;
-  workspace?: string;
-  tags?: string[];
 }
 
 export interface MessageDeltaPatch {
@@ -3255,662 +2784,6 @@ export interface ModelsStatusParams {
   provider_id?: string;
 }
 
-export interface NetworkChannelPayload {
-  profile_id: string;
-  profile_name: string;
-  profile_color?: string;
-  profile_icon?: string;
-  profile_emoji?: string;
-  profile_archived?: boolean;
-  channel: string;
-  workspace_id?: string;
-  purpose?: string;
-  fanout_policy?: string;
-  coordinator_peer_id?: string;
-  created_by?: string;
-  created_at?: ISODateTime;
-  peer_count: number;
-  local_peer_count?: number;
-  session_count?: number;
-  message_count?: number;
-  presence_count?: number;
-  historical_participant_count?: number;
-  last_activity_at?: ISODateTime;
-  last_presence_at?: ISODateTime;
-  last_message_preview?: string;
-}
-
-export interface NetworkChannelsParams {
-  workspace_id: string;
-}
-
-export interface NetworkDirectMessagesParams {
-  workspace_id: string;
-  channel: string;
-  direct_id: string;
-  before?: string;
-  after?: string;
-  kind?: string;
-  work_id?: string;
-  limit?: number;
-}
-
-export interface NetworkDirectResolveParams {
-  workspace_id: string;
-  channel: string;
-  session_id: string;
-  peer_id: string;
-}
-
-export interface NetworkConversationMessagePayload {
-  profile_id: string;
-  profile_name: string;
-  profile_color?: string;
-  profile_icon?: string;
-  profile_emoji?: string;
-  profile_archived?: boolean;
-  message_id: string;
-  workspace_id?: string;
-  channel: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  kind: string;
-  direction: string;
-  peer_from: string;
-  peer_to?: string;
-  mentions?: string[];
-  display_name?: string;
-  session_id?: string;
-  local?: boolean;
-  work_id?: string;
-  reply_to?: string;
-  trace_id?: string;
-  causation_id?: string;
-  intent?: string;
-  text?: string;
-  preview_text?: string;
-  size_bytes?: number;
-  body: JSONValue;
-  timestamp: ISODateTime;
-}
-
-export interface CursorPagePayload {
-  next_cursor?: string;
-  has_more: boolean;
-  limit: number;
-}
-
-export interface NetworkDirectRoomMessagesResponse {
-  messages: NetworkConversationMessagePayload[];
-  page: CursorPagePayload;
-}
-
-export interface NetworkDirectRoomOpenedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkDirectRoomPayload {
-  profile_id: string;
-  profile_name: string;
-  profile_color?: string;
-  profile_icon?: string;
-  profile_emoji?: string;
-  profile_archived?: boolean;
-  workspace_id?: string;
-  channel: string;
-  direct_id: string;
-  session_a: string;
-  session_b: string;
-  opened_at?: ISODateTime;
-  last_activity_at?: ISODateTime;
-  message_count: number;
-  open_work_count: number;
-  last_message_preview?: string;
-}
-
-export interface NetworkDirectRoomsResponse {
-  directs: NetworkDirectRoomPayload[];
-  page: CountedCursorPagePayload;
-}
-
-export interface NetworkDirectsParams {
-  workspace_id: string;
-  channel: string;
-  query?: string;
-  peer_id?: string;
-  sort?: string;
-  has_work?: boolean;
-  limit?: number;
-  after?: string;
-}
-
-export interface NetworkMatcher {
-  channel?: string;
-  surface?: string;
-  kind?: string;
-  direction?: string;
-  work_state?: string;
-  participation_mode?: string;
-  participation_source?: string;
-}
-
-export interface NetworkMessagePersistedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkObservationPatch {
-  labels?: Record<string, string>;
-}
-
-export interface NetworkParticipationBounds {
-  max_wakes: number;
-  max_wake_wall_time: string;
-  max_total_wall_time: string;
-  max_input_tokens: number;
-  max_output_tokens: number;
-  max_wake_depth: number;
-  coalesce_window: string;
-}
-
-export interface NetworkParticipationBoundsRequest {
-  max_wakes?: number;
-  max_wake_wall_time?: string;
-  max_total_wall_time?: string;
-  max_input_tokens?: number;
-  max_output_tokens?: number;
-  max_wake_depth?: number;
-  coalesce_window?: string;
-}
-
-export type NetworkParticipationChannelStrategy = "named" | "run" | "loop_run";
-
-export type NetworkParticipationMode = "local" | "live";
-
-export type NetworkParticipationOwnerKind = "session" | "task_run" | "loop_run" | "automation_run";
-
-export interface NetworkParticipationPreResolvePatch {
-  deny?: boolean;
-  deny_reason?: string;
-  request?: NetworkParticipationRequest;
-}
-
-export interface NetworkParticipationOwnerRef {
-  workspace_id: string;
-  kind: NetworkParticipationOwnerKind;
-  id: string;
-}
-
-export type NetworkParticipationSource =
-  | "explicit_request"
-  | "task_profile"
-  | "workspace_coordination"
-  | "loop_definition"
-  | "automation_job"
-  | "built_in_local";
-
-export interface NetworkParticipationPreResolvePayload {
-  workspace_id: string;
-  owner: NetworkParticipationOwnerRef;
-  request?: NetworkParticipationRequest;
-  source?: NetworkParticipationSource;
-  owner_key?: string;
-}
-
-export type NetworkParticipationResolvedPatch = Record<string, never>;
-
-export interface NetworkParticipationResolvedPayload {
-  workspace_id: string;
-  owner: NetworkParticipationOwnerRef;
-  owner_key?: string;
-  resolved_network_participation: NetworkParticipationSpec;
-}
-
-export interface NetworkPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkPeerJoinedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkPeerLeftPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkCapabilityBriefPayload {
-  id: string;
-  summary: string;
-}
-
-export interface NetworkPeerCardPayload {
-  peer_id: string;
-  display_name?: string;
-  profiles_supported: string[];
-  capabilities: NetworkCapabilityBriefPayload[];
-  artifacts_supported: string[];
-  trust_modes_supported: string[];
-  ext?: Record<string, JSONValue>;
-}
-
-export interface NetworkPeerPayload {
-  workspace_id?: string;
-  session_id?: string;
-  peer_id: string;
-  display_name?: string;
-  channel: string;
-  local: boolean;
-  peer_card: NetworkPeerCardPayload;
-  joined_at?: ISODateTime;
-  presence_state: string;
-}
-
-export interface NetworkPeersParams {
-  workspace_id: string;
-  channel?: string;
-}
-
-export interface NetworkSendParams {
-  workspace_id?: string;
-  session_id: string;
-  channel: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  kind: string;
-  to?: string;
-  mentions?: string[];
-  body: JSONValue;
-  work_id?: string;
-  reply_to?: string;
-  trace_id?: string;
-  causation_id?: string;
-  expires_at?: number;
-  id?: string;
-  ext?: Record<string, JSONValue>;
-}
-
-export interface NetworkSendPayload {
-  id: string;
-  workspace_id?: string;
-  session_id: string;
-  channel: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  kind: string;
-  to?: string;
-  mentions?: string[];
-  work_id?: string;
-  reply_to?: string;
-  trace_id?: string;
-  causation_id?: string;
-  expires_at?: number;
-  ext?: Record<string, JSONValue>;
-}
-
-export interface NetworkKindMetricPayload {
-  kind: string;
-  sent: number;
-  received: number;
-  rejected: number;
-  delivered: number;
-}
-
-export interface NetworkStatusPayload {
-  enabled: boolean;
-  status: string;
-  local_peers: number;
-  channels: number;
-  messages_sent: number;
-  messages_received: number;
-  messages_rejected: number;
-  messages_delivered: number;
-  workflow_tagged_events: number;
-  handoff_tagged_events: number;
-  open_threads: number;
-  open_direct_rooms: number;
-  open_work_items: number;
-  conversation_messages: number;
-  work_transitions: number;
-  direct_resolves: number;
-  kind_metrics: NetworkKindMetricPayload[];
-}
-
-export interface NetworkThreadMessagesParams {
-  workspace_id: string;
-  channel: string;
-  thread_id: string;
-  before?: string;
-  after?: string;
-  kind?: string;
-  work_id?: string;
-  limit?: number;
-}
-
-export interface NetworkThreadMessagesResponse {
-  messages: NetworkConversationMessagePayload[];
-  page: CursorPagePayload;
-}
-
-export interface NetworkThreadOpenedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkCoordinationCostPayload {
-  delivered_count?: number;
-  prompt_size_bytes?: number;
-  estimated_prompt_tokens?: number;
-}
-
-export interface NetworkThreadSummaryPayload {
-  profile_id: string;
-  profile_name: string;
-  profile_color?: string;
-  profile_icon?: string;
-  profile_emoji?: string;
-  profile_archived?: boolean;
-  workspace_id?: string;
-  channel: string;
-  thread_id: string;
-  root_message_id: string;
-  title?: string;
-  opened_by_peer_id?: string;
-  opened_session_id?: string;
-  opened_at?: ISODateTime;
-  last_activity_at?: ISODateTime;
-  message_count: number;
-  participant_count: number;
-  open_work_count: number;
-  coordination_cost?: NetworkCoordinationCostPayload;
-  last_message_preview?: string;
-}
-
-export interface NetworkThreadTargetParams {
-  workspace_id: string;
-  channel: string;
-  thread_id: string;
-}
-
-export interface NetworkThreadsParams {
-  workspace_id: string;
-  channel: string;
-  query?: string;
-  peer_id?: string;
-  sort?: string;
-  has_work?: boolean;
-  limit?: number;
-  after?: string;
-}
-
-export interface NetworkThreadsResponse {
-  threads: NetworkThreadSummaryPayload[];
-  page: CountedCursorPagePayload;
-}
-
-export interface NetworkUsageParams {
-  workspace_id: string;
-  owner_kind?: string;
-  owner_id?: string;
-  run_id?: string;
-  channel?: string;
-  cursor?: string;
-  limit?: number;
-}
-
-export interface NetworkParticipationStatus {
-  owner: NetworkParticipationOwnerRef;
-  available: boolean;
-  participating: boolean;
-  reason?: string;
-}
-
-export interface NetworkUsageDetailPayload {
-  wake_id: string;
-  task_run_id: string;
-  participation_status: NetworkParticipationStatus;
-  workspace_id: string;
-  channel: string;
-  root_id: string;
-  depth: number;
-  state: string;
-  usage_state: string;
-  charged_wall_time: string;
-  input_tokens: number;
-  output_tokens: number;
-  reserved_at: ISODateTime;
-  settled_at?: ISODateTime;
-  reason?: string;
-}
-
-export interface NetworkUsageSummaryPayload {
-  wake_count: number;
-  reserved_wake_count: number;
-  actual_wake_count: number;
-  unavailable_wake_count: number;
-  charged_wall_time: string;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-export interface NetworkBudgetUsagePayload {
-  participation_status: NetworkParticipationStatus;
-  wakes_used: number;
-  wall_time_used: string;
-  input_tokens_used: number;
-  output_tokens_used: number;
-  exhausted_reason?: string;
-  updated_at: ISODateTime;
-}
-
-export interface NetworkUsageResponse {
-  workspace_id: string;
-  details: NetworkUsageDetailPayload[];
-  total: NetworkUsageSummaryPayload;
-  budget?: NetworkBudgetUsagePayload;
-  next_cursor?: string;
-}
-
-export interface NetworkWorkClosedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkWorkGetParams {
-  workspace_id: string;
-  work_id: string;
-}
-
-export interface NetworkWorkOpenedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
-export interface NetworkWorkPayload {
-  profile_id: string;
-  profile_name: string;
-  profile_color?: string;
-  profile_icon?: string;
-  profile_emoji?: string;
-  profile_archived?: boolean;
-  work_id: string;
-  workspace_id?: string;
-  channel: string;
-  surface: string;
-  thread_id?: string;
-  direct_id?: string;
-  opened_session_id?: string;
-  target_session_id?: string;
-  state: string;
-  opened_at?: ISODateTime;
-  last_activity_at?: ISODateTime;
-  terminal_at?: ISODateTime;
-}
-
-export interface NetworkWorkTransitionedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id?: string;
-  session_id?: string;
-  channel?: string;
-  surface?: string;
-  thread_id?: string;
-  direct_id?: string;
-  message_id?: string;
-  kind?: string;
-  direction?: string;
-  work_id?: string;
-  work_state?: string;
-  peer_id?: string;
-  peer_from?: string;
-  peer_to?: string;
-  last_seen_at?: ISODateTime;
-  trace_id?: string;
-  causation_id?: string;
-}
-
 export interface PersistenceHealth {
   status: string;
   global_db_size_bytes: number;
@@ -3963,27 +2836,7 @@ export interface ProbeResult {
   duration_ms: number;
 }
 
-export interface BridgeStatusCounts {
-  disabled: number;
-  starting: number;
-  ready: number;
-  degraded: number;
-  auth_required: number;
-  error: number;
-}
-
-export interface BridgeAggregateHealth {
-  total_instances: number;
-  route_count: number;
-  delivery_backlog: number;
-  delivery_dropped_total: number;
-  delivery_failures_total: number;
-  auth_failures_total: number;
-  status_counts: BridgeStatusCounts;
-}
-
 export interface TaskQueueDepth {
-  channel_id?: string;
   count: number;
   oldest_queued_at: ISODateTime;
   oldest_queue_age_ms: number;
@@ -3996,7 +2849,6 @@ export interface StuckTaskRun {
   run_id: string;
   status: RunStatus;
   origin_kind: OriginKind;
-  channel_id?: string;
   session_id?: string;
   age_ms: number;
 }
@@ -4006,14 +2858,12 @@ export type Status = string;
 export interface TaskStatusTotal {
   scope: Scope;
   status: Status;
-  channel_id?: string;
   count: number;
 }
 
 export interface TaskRunTotal {
   status: RunStatus;
   origin_kind: OriginKind;
-  channel_id?: string;
   count: number;
 }
 
@@ -4041,8 +2891,6 @@ export interface TaskHealth {
   run_totals?: TaskRunTotal[];
   owner_totals?: TaskOwnerTotal[];
   forced_stops_since_start: number;
-  duplicate_ingress_since_start: number;
-  channel_mismatch_since_start: number;
   recovery_since_start: TaskRecoveryTotals;
 }
 
@@ -4077,7 +2925,6 @@ export interface ObserveHealth {
   retention: RetentionHealth;
   failures: FailureHealth;
   agent_probes?: ProbeResult[];
-  bridges: BridgeAggregateHealth;
   tasks: TaskHealth;
   activities?: SessionActivityHealth[];
   version: string;
@@ -4234,8 +3081,6 @@ export interface PermissionSet {
   skills?: string[];
   mcp_servers?: string[];
   workspace_paths?: string[];
-  network_channels?: string[];
-  sandbox_profiles?: string[];
 }
 
 export interface PromptPatch {
@@ -4339,6 +3184,7 @@ export interface ProviderModelListResponse {
 }
 
 export interface ModelCatalogSourceStatusPayload {
+  failure_reason?: string;
   source_id: string;
   source_kind: string;
   provider_id: string;
@@ -4437,232 +3283,7 @@ export interface Run {
   error?: string;
   delivery_error?: string;
   delivery_error_at?: ISODateTime;
-  network_participation?: NetworkParticipationRequest;
   metadata?: Record<string, JSONValue>;
-}
-
-export interface SandboxExecParams {
-  workspace_id: string;
-  session_id: string;
-  command: string;
-  timeout?: number;
-}
-
-export interface SandboxExecResult {
-  exit_code: number;
-  stdout?: string;
-  stderr?: string;
-}
-
-export interface SandboxInfoParams {
-  workspace_id: string;
-  session_id: string;
-}
-
-export interface SandboxInfoResult {
-  sandbox_id: string;
-  backend: string;
-  profile: string;
-  instance_id: string;
-  runtime_root: string;
-  sync_state: string;
-  created_at: ISODateTime;
-  last_sync_error: string;
-}
-
-export interface SandboxListParams {
-  workspace?: string;
-}
-
-export interface SandboxSummary {
-  session_id: string;
-  sandbox_id: string;
-  backend: string;
-  profile?: string;
-  instance_id?: string;
-  state: string;
-  sync_state?: string;
-}
-
-export interface SandboxListResult {
-  sandboxes: SandboxSummary[];
-}
-
-export type SandboxObservationPatch = Record<string, never>;
-
-export interface SandboxPreparePatch {
-  deny?: boolean;
-  deny_reason?: string;
-  env_overrides?: Record<string, string>;
-}
-
-export interface SandboxProfilePayload {
-  profile?: string;
-  backend?: string;
-  sync_mode?: string;
-  persistence?: string;
-  runtime_root?: string;
-  destroy_on_stop?: boolean;
-  env?: Record<string, string>;
-  secret_env?: Record<string, string>;
-}
-
-export interface SandboxPreparePayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  profile_id?: string;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  worktree_id?: string;
-  acp_session_id?: string;
-  state?: string;
-  soul_snapshot_id?: string;
-  soul_digest?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  sandbox_id?: string;
-  backend?: string;
-  profile: SandboxProfilePayload;
-  local_root?: string;
-  local_additional_dirs?: string[];
-  agent_command?: string;
-  agent_env?: string[];
-  permissions?: string;
-  resume_acp_state?: string;
-  env_overrides?: Record<string, string>;
-  denied?: boolean;
-  deny_reason?: string;
-}
-
-export type SandboxReadyPatch = Record<string, never>;
-
-export interface SandboxReadyPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  profile_id?: string;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  worktree_id?: string;
-  acp_session_id?: string;
-  state?: string;
-  soul_snapshot_id?: string;
-  soul_digest?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  sandbox_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  runtime_additional_dirs?: string[];
-}
-
-export interface SandboxStopPatch {
-  deny?: boolean;
-  deny_reason?: string;
-}
-
-export interface SandboxStopPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  profile_id?: string;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  worktree_id?: string;
-  acp_session_id?: string;
-  state?: string;
-  soul_snapshot_id?: string;
-  soul_digest?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  sandbox_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  stop_reason?: string;
-  will_destroy?: boolean;
-  denied?: boolean;
-  deny_reason?: string;
-}
-
-export type SandboxSyncAfterPatch = Record<string, never>;
-
-export interface SandboxSyncAfterPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  profile_id?: string;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  worktree_id?: string;
-  acp_session_id?: string;
-  state?: string;
-  soul_snapshot_id?: string;
-  soul_digest?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  sandbox_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  direction?: string;
-  reason?: string;
-  files_synced?: number;
-  bytes_transferred?: number;
-  duration_ms?: number;
-  errors?: string[];
-}
-
-export interface SandboxSyncBeforePatch {
-  deny?: boolean;
-  deny_reason?: string;
-  exclude_patterns?: string[];
-}
-
-export interface SandboxSyncBeforePayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  profile_id?: string;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  worktree_id?: string;
-  acp_session_id?: string;
-  state?: string;
-  soul_snapshot_id?: string;
-  soul_digest?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  sandbox_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  direction?: string;
-  reason?: string;
-  exclude_patterns?: string[];
-  denied?: boolean;
-  deny_reason?: string;
 }
 
 export interface SessionAttentionChangedPayload {
@@ -5240,6 +3861,8 @@ export interface RuntimeSelectionPayload {
 
 export interface ACPCapsPayload {
   supports_load_session: boolean;
+  supports_fork_session: boolean;
+  supports_resume_session: boolean;
   prompt_image: boolean;
   prompt_audio: boolean;
   prompt_embedded_context: boolean;
@@ -5292,6 +3915,14 @@ export interface SessionStatusGetParams {
   session_id: string;
 }
 
+export interface ReplyWatchPayload {
+  id: string;
+  target_session_id: string;
+  message_id: string;
+  state: string;
+  created_at: ISODateTime;
+}
+
 export interface SessionQueueSummaryPayload {
   entries: number;
   cap: number;
@@ -5315,7 +3946,48 @@ export interface PendingInteractionPayload {
   resolved_by?: string;
 }
 
+export type LineageKind = string;
+
+export interface SpawnBudgetPayload {
+  max_children: number;
+  max_depth: number;
+  ttl_seconds: number;
+  max_active_per_workspace?: number;
+}
+
+export interface SpawnPermissionPolicyPayload {
+  tools: string[];
+  skills: string[];
+  mcp_servers: string[];
+  workspace_paths: string[];
+}
+
+export interface SessionLineagePayload {
+  parent_session_id?: string;
+  root_session_id?: string;
+  spawn_depth: number;
+  spawn_role?: string;
+  kind?: LineageKind;
+  origin_message_id?: string;
+  origin_agent_name?: string;
+  ttl_expires_at?: ISODateTime;
+  auto_stop_on_parent: boolean;
+  notify_creator: boolean;
+  spawn_budget: SpawnBudgetPayload;
+  permission_policy: SpawnPermissionPolicyPayload;
+}
+
+export interface SessionDerivationPayload {
+  kind: LineageKind;
+  source_session_id: string;
+  seed: string;
+  native_state?: string;
+  native_fork_error?: string;
+  first_prompt: string;
+}
+
 export interface SessionStatusResponse {
+  reply_watches?: ReplyWatchPayload[];
   queue?: SessionQueueSummaryPayload;
   lifecycle_state?: State;
   verified?: boolean;
@@ -5333,6 +4005,8 @@ export interface SessionStatusResponse {
   ineligibility_reason?: SessionHealthIneligibilityReason;
   wake_state?: HeartbeatWakeStatePayload;
   pending_interactions: PendingInteractionPayload[];
+  lineage?: SessionLineagePayload;
+  derivation?: SessionDerivationPayload;
   updated_at: ISODateTime;
 }
 
@@ -5355,7 +4029,6 @@ export interface SessionTargetParams {
 export interface SessionsCreateParams {
   agent: string;
   workspace?: string;
-  network_participation?: NetworkParticipationRequest;
 }
 
 export interface SessionsListParams {
@@ -5426,7 +4099,6 @@ export interface SpawnContext {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -5458,7 +4130,6 @@ export interface SpawnCreatedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -5486,7 +4157,6 @@ export interface SpawnLifecyclePayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -5518,7 +4188,6 @@ export interface SpawnParentStoppedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -5529,7 +4198,16 @@ export interface SpawnParentStoppedPayload {
   error?: string;
 }
 
+export interface SubagentSpawnPayload {
+  isolation: string;
+  worktree_id?: string;
+  title: string;
+  role: string;
+  task_chars: number;
+}
+
 export interface SpawnPreCreatePayload {
+  subagent?: SubagentSpawnPayload;
   event: HookEvent;
   timestamp: ISODateTime;
   profile_id?: string;
@@ -5546,7 +4224,6 @@ export interface SpawnPreCreatePayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -5573,7 +4250,6 @@ export interface SpawnReapedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -5601,7 +4277,6 @@ export interface SpawnTTLExpiredPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -5610,6 +4285,52 @@ export interface SpawnTTLExpiredPayload {
   stop_reason?: string;
   reap_reason?: string;
   error?: string;
+}
+
+export interface SubagentObservationPatch {
+  labels?: Record<string, string>;
+}
+
+export interface SubagentPullRequestPayload {
+  url: string;
+  number: number;
+  state: string;
+}
+
+export interface SubagentWorktreePayload {
+  id: string;
+  name: string;
+  branch: string;
+  base_ref: string;
+  base_sha?: string;
+  path: string;
+  head_sha?: string;
+  commits_ahead?: number;
+  dirty_files?: number;
+  observed_at?: ISODateTime;
+  pull_request_status?: string;
+  pull_request?: SubagentPullRequestPayload;
+}
+
+export interface SubagentRuntimePayload {
+  provider: string;
+  model: string;
+}
+
+export interface SubagentSettledPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  isolation: string;
+  worktree?: SubagentWorktreePayload;
+  profile_id?: string;
+  workspace_id: string;
+  subagent_id: string;
+  parent_session_id: string;
+  child_session_id?: string;
+  origin: string;
+  status: string;
+  runtime: SubagentRuntimePayload;
+  duration_ms: number;
 }
 
 export type Priority = string;
@@ -5663,7 +4384,6 @@ export interface Task {
   scope: Scope;
   workspace_id?: string;
   parent_task_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   title: string;
   description?: string;
   priority?: Priority;
@@ -5705,7 +4425,6 @@ export interface TaskBlockedPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -5735,7 +4454,6 @@ export interface TaskContext {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -5752,7 +4470,6 @@ export interface TaskCreateParams {
   identifier?: string;
   scope: Scope;
   workspace?: string;
-  network_participation?: NetworkParticipationRequest;
   title: string;
   description?: string;
   priority?: Priority;
@@ -5837,7 +4554,6 @@ export interface TaskDashboardStatusBreakdownPayload {
 }
 
 export interface TaskDashboardQueueDepthPayload {
-  channel_id?: string;
   count: number;
   oldest_queued_at: ISODateTime;
   oldest_queue_age_ms: number;
@@ -5875,7 +4591,6 @@ export interface TaskDashboardActiveRunPayload {
   attempt: number;
   max_attempts: number;
   session_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   last_activity_at: ISODateTime;
   age_ms: number;
   health_status: string;
@@ -5918,7 +4633,6 @@ export interface TaskDashboardParams {
   worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
-  participation_channel?: string;
   origin_kind?: OriginKind;
 }
 
@@ -5949,20 +4663,6 @@ export interface TaskDependencyReferencePayload {
 
 export type ResolvedWorktreeMode = string;
 
-export type CoordinationMessageKind = string;
-
-export interface CoordinationChannelPayload {
-  id: string;
-  display_name: string;
-  purpose?: string;
-  workspace_id?: string;
-  task_id?: string;
-  run_id?: string;
-  workflow_id?: string;
-  allowed_message_kinds: CoordinationMessageKind[];
-  last_activity_at?: ISODateTime;
-}
-
 export interface RunDesignationSummary {
   index: number;
   brief?: string;
@@ -5985,8 +4685,6 @@ export interface TaskRunSummaryPayload {
   claim_token_hash?: string;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
-  resolved_network_participation?: NetworkParticipationSpec;
-  coordination_channel?: CoordinationChannelPayload;
   designation_group_id?: string;
   designation?: RunDesignationSummary;
   queued_at: ISODateTime;
@@ -6006,7 +4704,6 @@ export interface TaskSummaryPayload {
   scope: Scope;
   workspace_id?: string;
   parent_task_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   title: string;
   priority?: Priority;
   max_attempts?: number;
@@ -6068,12 +4765,10 @@ export interface TaskRun {
   resolved_worktree_ref?: string;
   origin: Origin;
   idempotency_key?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   designation_group_id?: string;
   claim_token_hash?: string;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
-  coordination_channel?: CoordinationChannelPayload;
   designation?: RunDesignationSummary;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
@@ -6145,7 +4840,6 @@ export interface TaskCatalogRunPayload {
   claimed_by?: ActorIdentity;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
-  resolved_network_participation?: NetworkParticipationSpec;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;
@@ -6229,7 +4923,6 @@ export interface TaskNeedsAttentionPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -6256,7 +4949,6 @@ export interface TaskRecoveredPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -6312,7 +5004,6 @@ export interface TaskRunCompletedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6344,7 +5035,6 @@ export interface TaskRunContext {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6389,31 +5079,16 @@ export interface TaskRunOperationalSummaryPayload {
   cost_source?: CostSource;
 }
 
-export interface TaskRunConversationRefPayload {
-  workspace_id: string;
-  channel: string;
-  surface: string;
-  thread_id: string;
-  stream_url: string;
-}
-
-export interface TaskRunNetworkPayload {
-  conversation: TaskRunConversationRefPayload;
-  usage: NetworkUsageResponse;
-}
-
 export interface TaskRunDetail {
   run: TaskRun;
   task?: TaskReferencePayload;
   session?: TaskRunSessionPayload;
   summary: TaskRunOperationalSummaryPayload;
-  network?: TaskRunNetworkPayload;
 }
 
 export interface TaskRunEnqueueParams {
   task_id: string;
   idempotency_key?: string;
-  network_participation?: NetworkParticipationRequest;
   metadata?: JSONValue;
 }
 
@@ -6430,7 +5105,6 @@ export interface TaskRunEnqueuedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6467,7 +5141,6 @@ export interface TaskRunFailedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6505,7 +5178,6 @@ export interface TaskRunLeaseExpiredPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6539,7 +5211,6 @@ export interface TaskRunLeaseExtendedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6573,7 +5244,6 @@ export interface TaskRunLeasePayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6607,7 +5277,6 @@ export interface TaskRunLeaseRecoveredPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6645,7 +5314,6 @@ export interface TaskRunPostClaimPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6683,7 +5351,6 @@ export interface TaskRunPreClaimPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6716,7 +5383,6 @@ export interface TaskRunReleasedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -6763,7 +5429,6 @@ export interface TaskRunsParams {
   id: string;
   status?: RunStatus;
   session_id?: string;
-  participation_channel?: string;
   limit?: number;
 }
 
@@ -6775,7 +5440,6 @@ export interface TaskStatusChangedPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -6838,7 +5502,6 @@ export interface TaskUnblockedPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -6865,7 +5528,6 @@ export interface TaskUpdateParams {
   auto_enqueue_on_ready?: boolean;
   approval_policy?: ApprovalPolicy;
   metadata?: JSONValue;
-  network_participation?: NetworkParticipationRequest;
   owner?: Ownership;
   clear_owner?: boolean;
 }
@@ -6885,7 +5547,6 @@ export interface TasksParams {
   owner_ref?: string;
   parent_task_id?: string;
   worktree?: string;
-  participation_channel?: string;
   query?: string;
   sort?: CatalogSort;
   cursor?: string;
@@ -6902,7 +5563,6 @@ export interface TaskCatalogItemPayload {
   scope: Scope;
   workspace_id?: string;
   parent_task_id?: string;
-  resolved_network_participation?: NetworkParticipationSpec;
   title: string;
   priority?: Priority;
   max_attempts?: number;
@@ -7146,6 +5806,8 @@ export interface BackendRef {
   requires_capabilities?: string[];
 }
 
+export type ErrorCode = string;
+
 export type SourceKind = "builtin" | "mcp" | "extension" | "dynamic";
 
 export interface SourceRef {
@@ -7170,6 +5832,9 @@ export interface Tool {
   display_title?: string;
   friendly_verb?: string;
   preview?: string;
+  max_result_bytes?: number;
+  idempotent?: boolean;
+  input_error_code?: ErrorCode;
   description: string;
   input_schema: JSONValue;
   output_schema?: JSONValue;
@@ -7183,7 +5848,6 @@ export interface Tool {
   open_world: boolean;
   requires_interaction: boolean;
   concurrency_safe: boolean;
-  max_result_bytes?: number;
   toolsets?: ToolsetID[];
   tags?: string[];
   search_hints?: string[];
@@ -7830,6 +6494,7 @@ export interface WorktreePreRemovePayload {
 }
 
 export interface HookPayloadByEvent {
+  "subagent.settled": SubagentSettledPayload;
   "session.pre_create": SessionPreCreatePayload;
   "session.post_create": SessionPostCreatePayload;
   "session.pre_resume": SessionPreResumePayload;
@@ -7840,11 +6505,6 @@ export interface HookPayloadByEvent {
   "session.runtime_recovery.started": SessionRuntimeRecoveryStartedPayload;
   "session.runtime_recovery.succeeded": SessionRuntimeRecoverySucceededPayload;
   "session.runtime_recovery.exhausted": SessionRuntimeRecoveryExhaustedPayload;
-  "sandbox.prepare": SandboxPreparePayload;
-  "sandbox.ready": SandboxReadyPayload;
-  "sandbox.sync.before": SandboxSyncBeforePayload;
-  "sandbox.sync.after": SandboxSyncAfterPayload;
-  "sandbox.stop": SandboxStopPayload;
   "input.pre_submit": InputPreSubmitPayload;
   "prompt.post_assemble": PromptPayload;
   "event.pre_record": EventPreRecordPayload;
@@ -7910,16 +6570,6 @@ export interface HookPayloadByEvent {
   "spawn.ttl_expired": SpawnTTLExpiredPayload;
   "spawn.reaped": SpawnReapedPayload;
   "session.attention.changed": SessionAttentionChangedPayload;
-  "network.thread.opened": NetworkThreadOpenedPayload;
-  "network.direct_room.opened": NetworkDirectRoomOpenedPayload;
-  "network.message.persisted": NetworkMessagePersistedPayload;
-  "network.work.opened": NetworkWorkOpenedPayload;
-  "network.work.transitioned": NetworkWorkTransitionedPayload;
-  "network.work.closed": NetworkWorkClosedPayload;
-  "network.peer.joined": NetworkPeerJoinedPayload;
-  "network.peer.left": NetworkPeerLeftPayload;
-  "network.participation.pre_resolve": NetworkParticipationPreResolvePayload;
-  "network.participation.resolved": NetworkParticipationResolvedPayload;
   "window_manager.layout.applied": WindowManagerLayoutAppliedPayload;
   "window_manager.desktop.created": WindowManagerDesktopCreatedPayload;
   "window_manager.desktop.deleted": WindowManagerDesktopDeletedPayload;
@@ -7947,6 +6597,7 @@ export interface HookPayloadByEvent {
 }
 
 export interface HookPatchByEvent {
+  "subagent.settled": SubagentObservationPatch;
   "session.pre_create": SessionCreatePatch;
   "session.post_create": SessionPostCreatePatch;
   "session.pre_resume": SessionPreResumePatch;
@@ -7957,11 +6608,6 @@ export interface HookPatchByEvent {
   "session.runtime_recovery.started": AuthoredContextObservationPatch;
   "session.runtime_recovery.succeeded": AuthoredContextObservationPatch;
   "session.runtime_recovery.exhausted": AuthoredContextObservationPatch;
-  "sandbox.prepare": SandboxPreparePatch;
-  "sandbox.ready": SandboxReadyPatch;
-  "sandbox.sync.before": SandboxSyncBeforePatch;
-  "sandbox.sync.after": SandboxSyncAfterPatch;
-  "sandbox.stop": SandboxStopPatch;
   "input.pre_submit": InputPreSubmitPatch;
   "prompt.post_assemble": PromptPatch;
   "event.pre_record": EventPreRecordPatch;
@@ -8027,16 +6673,6 @@ export interface HookPatchByEvent {
   "spawn.ttl_expired": SpawnObservationPatch;
   "spawn.reaped": SpawnObservationPatch;
   "session.attention.changed": SessionAttentionObservationPatch;
-  "network.thread.opened": NetworkObservationPatch;
-  "network.direct_room.opened": NetworkObservationPatch;
-  "network.message.persisted": NetworkObservationPatch;
-  "network.work.opened": NetworkObservationPatch;
-  "network.work.transitioned": NetworkObservationPatch;
-  "network.work.closed": NetworkObservationPatch;
-  "network.peer.joined": NetworkObservationPatch;
-  "network.peer.left": NetworkObservationPatch;
-  "network.participation.pre_resolve": NetworkParticipationPreResolvePatch;
-  "network.participation.resolved": NetworkParticipationResolvedPatch;
   "window_manager.layout.applied": WindowManagerObservationPatch;
   "window_manager.desktop.created": WindowManagerObservationPatch;
   "window_manager.desktop.deleted": WindowManagerObservationPatch;
@@ -8131,30 +6767,6 @@ export interface HostAPIMethodMap {
   "sessions/status/get": {
     params: SessionStatusGetParams;
     result: SessionStatusResponse;
-  };
-  "sandbox/list": {
-    params: SandboxListParams | undefined;
-    result: SandboxListResult;
-  };
-  "sandbox/info": {
-    params: SandboxInfoParams;
-    result: SandboxInfoResult;
-  };
-  "sandbox/exec": {
-    params: SandboxExecParams;
-    result: SandboxExecResult;
-  };
-  "memory/recall": {
-    params: MemoryRecallParams;
-    result: MemoryRecallEntry[];
-  };
-  "memory/store": {
-    params: MemoryStoreParams;
-    result: EmptyResult;
-  };
-  "memory/forget": {
-    params: MemoryForgetParams;
-    result: EmptyResult;
   };
   "observe/health": {
     params: undefined;
@@ -8372,54 +6984,6 @@ export interface HostAPIMethodMap {
     params: TaskRunCancelParams;
     result: TaskRun;
   };
-  "network/status": {
-    params: undefined;
-    result: NetworkStatusPayload;
-  };
-  "network/usage": {
-    params: NetworkUsageParams;
-    result: NetworkUsageResponse;
-  };
-  "network/channels": {
-    params: NetworkChannelsParams;
-    result: NetworkChannelPayload[];
-  };
-  "network/peers": {
-    params: NetworkPeersParams;
-    result: NetworkPeerPayload[];
-  };
-  "network/threads": {
-    params: NetworkThreadsParams;
-    result: NetworkThreadsResponse;
-  };
-  "network/thread/get": {
-    params: NetworkThreadTargetParams;
-    result: NetworkThreadSummaryPayload;
-  };
-  "network/thread/messages": {
-    params: NetworkThreadMessagesParams;
-    result: NetworkThreadMessagesResponse;
-  };
-  "network/directs": {
-    params: NetworkDirectsParams;
-    result: NetworkDirectRoomsResponse;
-  };
-  "network/direct/resolve": {
-    params: NetworkDirectResolveParams;
-    result: NetworkDirectRoomPayload;
-  };
-  "network/direct/messages": {
-    params: NetworkDirectMessagesParams;
-    result: NetworkDirectRoomMessagesResponse;
-  };
-  "network/work/get": {
-    params: NetworkWorkGetParams;
-    result: NetworkWorkPayload;
-  };
-  "network/send": {
-    params: NetworkSendParams;
-    result: NetworkSendPayload;
-  };
   "resources/list": {
     params: ResourcesListParams | undefined;
     result: ResourceRecord[];
@@ -8432,22 +6996,6 @@ export interface HostAPIMethodMap {
     params: ResourcesSnapshotParams;
     result: EmptyResult;
   };
-  "bridges/instances/list": {
-    params: undefined;
-    result: BridgeInstance[];
-  };
-  "bridges/messages/ingest": {
-    params: InboundMessageEnvelope;
-    result: BridgesMessagesIngestResult;
-  };
-  "bridges/instances/get": {
-    params: BridgeInstanceTargetParams;
-    result: BridgeInstance;
-  };
-  "bridges/instances/report_state": {
-    params: BridgesInstancesReportStateParams;
-    result: BridgeInstance;
-  };
   "clarify/ask": {
     params: ClarifyAskParams;
     result: ClarifyAnswer;
@@ -8455,7 +7003,6 @@ export interface HostAPIMethodMap {
 }
 
 export const REQUIRED_METHODS_BY_PROVIDE = {
-  "bridge.adapter": ["bridges/deliver", "bridges/targets/snapshot"],
   "connectivity.provider": [
     "connectivity/establish",
     "connectivity/status",
@@ -8463,7 +7010,6 @@ export const REQUIRED_METHODS_BY_PROVIDE = {
   ],
   "forge.provider": ["forge/capabilities", "forge/pr_create", "forge/status"],
   "loop.watch_source": ["watch/poll"],
-  "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
   "model.source": ["models/list"],
   "tool.provider": ["provide_tools", "tools/call"],
   "view.provider": ["view/close", "view/event", "view/open"],
@@ -8484,7 +7030,6 @@ export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFix
     provide: "loop.watch_source",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],
   },
-  { provide: "memory.backend", required_methods: REQUIRED_METHODS_BY_PROVIDE["memory.backend"] },
   { provide: "model.source", required_methods: REQUIRED_METHODS_BY_PROVIDE["model.source"] },
   { provide: "tool.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["tool.provider"] },
   { provide: "view.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["view.provider"] },

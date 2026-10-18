@@ -1,9 +1,10 @@
 package windowmanager
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -240,11 +241,11 @@ func (m *Manager) Clients(ctx context.Context, workspaceID WorkspaceID) ([]Clien
 		views = append(views, cloneClientView(view))
 	}
 	m.mu.Unlock()
-	sort.Slice(views, func(left, right int) bool {
-		if views[left].ConnectedAt.Equal(views[right].ConnectedAt) {
-			return views[left].ClientID < views[right].ClientID
+	slices.SortFunc(views, func(a, b ClientView) int {
+		if a.ConnectedAt.Equal(b.ConnectedAt) {
+			return cmp.Compare(a.ClientID, b.ClientID)
 		}
-		return views[left].ConnectedAt.Before(views[right].ConnectedAt)
+		return a.ConnectedAt.Compare(b.ConnectedAt)
 	})
 	return views, nil
 }

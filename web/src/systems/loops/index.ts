@@ -107,7 +107,7 @@ export {
 } from "./lib/loops-route-search";
 
 // Start-binding helpers
-export type { LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";
+export type { LoopAutomateStart, LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";
 export { bindingKindLabel, summarizeBindingKinds } from "./lib/loop-bindings";
 export type { LoopStartKinds } from "./lib/loop-start-kinds";
 export { describeStartKinds, RUN_FORM_START_KIND } from "./lib/loop-start-kinds";
@@ -203,7 +203,6 @@ export { projectLoopRunPageView } from "./lib/loop-run-page-view";
 export { useNowTick } from "./hooks/use-now-tick";
 
 // Formatters and helpers
-export type { LoopStatusSignal } from "./lib/loop-formatters";
 export { isLiveLoopRun, isTerminalLoopStatus } from "./lib/loop-formatters";
 
 // Read hooks
@@ -278,14 +277,13 @@ export { useLoopStream } from "./hooks/use-loop-stream";
 export type { LoopStreamEventSource } from "./hooks/use-loop-stream";
 
 // Components
-export { LoopStatusPill } from "./components/loop-status-pill";
-export type { LoopStatusPillProps } from "./components/loop-status-pill";
+export { LoopStatusMark } from "./components/loop-status-mark";
+export type { LoopStatusMarkProps } from "./components/loop-status-mark";
 export { LoopSection } from "./components/loop-section";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
 export { LoopCatalogLede } from "./components/catalog/loop-catalog-lede";
-export { MonoTag } from "./components/mono-tag";
 export { LoopDetailView } from "./components/detail/loop-detail";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";
 export { LoopRunsView } from "./components/runs/loop-runs-view";

@@ -1,4 +1,4 @@
-import { Eraser, Pencil, Square, Trash2 } from "lucide-react";
+import { Eraser, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
 import {
@@ -8,17 +8,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Spinner,
+  StateGlyph,
   TopbarOverflowIcon,
   useTopbarSlot,
 } from "@compozy/ui";
 
+import { SessionDeriveMenuItems } from "../components/session-derive-menu-items";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
 
 import type { WorktreePayload } from "@/systems/workspace";
 
 import { getSessionDisplayTitle } from "../lib/session-display-title";
-import { isSessionRunning, isUserControllableSession } from "../lib/session-running";
+import { sessionBadgeOf, sessionBadgeSignal } from "../lib/session-badge";
+import type { SessionOriginView } from "../lib/session-origin";
+import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
 import { SessionWorktreeBindingChip } from "../components/session-worktree-binding-chip";
@@ -39,7 +43,6 @@ interface UseSessionTopbarSlotInput {
   isDeleting: boolean;
   isRenaming: boolean;
   isStopping: boolean;
-  isResuming: boolean;
   isUnarchiving: boolean;
   isClearing: boolean;
   canClear: boolean;
@@ -54,15 +57,20 @@ interface UseSessionTopbarSlotInput {
   onDelete: () => void;
   onRename: () => void;
   onStop: () => void;
-  onResume: () => void;
   onUnarchive: () => void;
   onClear: () => void;
+  /** Opens the Continue dialog for this session; absent where no dialog host exists. */
+  onContinue?: () => void;
+  /** Opens the Fork dialog for the whole session; absent where no dialog host exists. */
+  onFork?: () => void;
+  /** Continued/forked origin shown as the status-line pill. */
+  origin?: SessionOriginView | null;
+  onOpenOriginSource?: (sessionId: string) => void;
 }
 
 function sessionTopbarActions({
   session,
   isStopping,
-  isResuming,
   isUnarchiving,
   isDeleting,
   isRenaming,
@@ -70,19 +78,12 @@ function sessionTopbarActions({
   const isActive = session.state === "active" || session.state === "starting";
   const isArchived = session.archived_at !== null;
   const lifecycleControllable = isUserControllableSession(session);
-  const canResume =
-    session.archived_at === null &&
-    session.attachable === true &&
-    lifecycleControllable &&
-    !isSessionRunning(session);
   const showUnarchiveAction = lifecycleControllable && isArchived;
-  const showStopAction = lifecycleControllable && isActive && !canResume;
-  const controlsBusy = isStopping || isResuming || isUnarchiving || isDeleting || isRenaming;
+  const showStopAction = lifecycleControllable && isActive;
+  const controlsBusy = isStopping || isUnarchiving || isDeleting || isRenaming;
 
   return {
-    isActive,
     lifecycleControllable,
-    canResume,
     showUnarchiveAction,
     showStopAction,
     controlsBusy,
@@ -91,30 +92,47 @@ function sessionTopbarActions({
 
 type SessionTopbarActions = ReturnType<typeof sessionTopbarActions>;
 
+/**
+ * Overflow-menu open state whose dialog-opening items wait for the menu to finish
+ * closing, so its focus return does not land on the trigger after the dialog
+ * took focus.
+ */
+function useDeferredMenuAction() {
+  const [open, setOpen] = useState(false);
+  const deferredAction = useRef<(() => void) | null>(null);
+  const deferToClose = (action: () => void) => {
+    deferredAction.current = action;
+    setOpen(false);
+  };
+  const onOpenChangeComplete = (nextOpen: boolean) => {
+    const action = deferredAction.current;
+    if (nextOpen || !action) return;
+    deferredAction.current = null;
+    action();
+  };
+  return { open, setOpen, deferToClose, onOpenChangeComplete };
+}
+
 function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: SessionTopbarActions) {
   const {
     onRename,
     isRenaming,
-    isStopping,
-    onStop,
     canClear,
     isClearing,
     onClear,
     isDeleting,
     onDelete,
+    onContinue,
+    onFork,
+    session,
   } = input;
-  const { lifecycleControllable, controlsBusy, isActive, canResume } = actions;
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const renameRequested = useRef(false);
+  const { lifecycleControllable, controlsBusy } = actions;
+  const menu = useDeferredMenuAction();
   return lifecycleControllable ? (
     <DropdownMenu
-      open={overflowOpen}
-      onOpenChange={setOverflowOpen}
-      onOpenChangeComplete={open => {
-        if (open || !renameRequested.current) return;
-        renameRequested.current = false;
-        onRename();
-      }}
+      open={menu.open}
+      onOpenChange={menu.setOpen}
+      onOpenChangeComplete={menu.onOpenChangeComplete}
     >
       <DropdownMenuTrigger
         aria-label="More actions"
@@ -122,36 +140,34 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
         render={
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             size="icon-sm"
-            className="size-11 focus-visible:shadow-focus-inset"
+            className="focus-visible:shadow-focus-inset"
           />
         }
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" data-testid="session-topbar-overflow-menu">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-56"
+        data-testid="session-topbar-overflow-menu"
+      >
         <DropdownMenuItem
           data-testid="rename-button"
           disabled={controlsBusy}
-          onClick={() => {
-            renameRequested.current = true;
-            setOverflowOpen(false);
-          }}
+          onClick={() => menu.deferToClose(onRename)}
         >
           {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
           Rename session
         </DropdownMenuItem>
-        {isActive && canResume ? (
-          <DropdownMenuItem
-            data-testid="stop-menu-item"
-            disabled={controlsBusy && !isStopping}
-            onClick={onStop}
-          >
-            {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
-            Stop session
-          </DropdownMenuItem>
-        ) : null}
+        <SessionDeriveMenuItems
+          archived={session.archived_at !== null}
+          disabled={controlsBusy}
+          onContinue={onContinue}
+          onFork={onFork}
+          onSelect={menu.deferToClose}
+        />
         <DropdownMenuItem
           data-testid="composer-clear-button"
           disabled={!canClear || isClearing}
@@ -178,7 +194,6 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
 export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { session, worktreeBinding, transportChip } = input;
   const actions = sessionTopbarActions(input);
-  const { isActive } = actions;
   const overflow = useSessionTopbarOverflow(input, actions);
   // The slot consumer (the OS head) renders outside this window's session
   // runtime provider, so a node that reads the transport — the chip — would
@@ -188,20 +203,17 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const transport = useSessionTransportState();
 
   useTopbarSlot({
-    glyph: (
-      <span
-        className={
-          isActive
-            ? "size-[7px] rounded-full bg-accent motion-safe:animate-pulse"
-            : "size-[7px] rounded-full bg-faint"
-        }
-      />
-    ),
+    glyph: <StateGlyph size="sm" state={sessionBadgeSignal(sessionBadgeOf(session)).state} />,
     glyphPresentation: "state",
     crumb: getSessionDisplayTitle(session),
     status: (
       <span className="flex min-w-0 items-center gap-2">
-        <SessionStatusLine session={session} showState={false} />
+        <SessionStatusLine
+          onOpenOriginSource={input.onOpenOriginSource}
+          origin={input.origin}
+          session={session}
+          showState={false}
+        />
         {/* OQ7: the binding chip mounts here; the exit control never does. */}
         {worktreeBinding ? (
           <SessionWorktreeBindingChip
@@ -218,15 +230,16 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         ) : null}
       </span>
     ),
+    // The run verbs lead; the two panel toggles trail as quiet icons.
     actions: (
       <>
+        {input.goalAction}
+        <SessionPrimaryAction {...input} {...actions} />
         <SessionPanelToggle
           panel="sidebar"
           open={input.sidebarOpen}
           onToggle={input.onSidebarToggle}
         />
-        {input.goalAction}
-        <SessionPrimaryAction {...input} {...actions} />
         <SessionPanelToggle
           panel="inspector"
           open={input.inspectorOpen}

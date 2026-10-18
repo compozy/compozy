@@ -19,13 +19,6 @@ const ROOT_TO_ENVELOPE_KEY: Record<string, keyof TriggerEnvelope> = {
   Source: "source",
 };
 
-/** Builds the click-to-insert variable chips for the selected event. */
-export function buildVariableChips(dataFields: string[]): string[] {
-  const roots = VARIABLE_ROOTS.map(root => `{{ .${root} }}`);
-  const data = dataFields.map(field => `{{ .${field.replace(/^data\./, "Data.")} }}`);
-  return [...roots, ...data];
-}
-
 export type RenderToken =
   | { id: string; type: "text"; value: string }
   | { id: string; type: "var"; value: string }

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -113,7 +112,6 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 	h := newManagerHarness(t)
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(h.db),
-		taskpkg.WithParticipationResolver(automationIntegrationParticipationResolver(t)),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
@@ -138,9 +136,8 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 			Interval: "1h",
 		},
 		Task: &JobTaskConfig{
-			Title:                "Direct automation review",
-			Description:          "Persist a durable review task.",
-			NetworkParticipation: automationRunParticipation(),
+			Title:       "Direct automation review",
+			Description: "Persist a durable review task.",
 			Owner: &taskpkg.Ownership{
 				Kind: taskpkg.OwnerKindAutomation,
 				Ref:  "job:direct-task-backed",
@@ -180,10 +177,6 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 	}
 	if got, want := storedRun.TaskRunID, run.TaskRunID; got != want {
 		t.Fatalf("storedRun.TaskRunID = %q, want %q", got, want)
-	}
-	if storedRun.NetworkParticipation == nil || storedRun.NetworkParticipation.ChannelStrategy == nil ||
-		*storedRun.NetworkParticipation.ChannelStrategy != participation.StrategyRun {
-		t.Fatalf("storedRun.NetworkParticipation = %#v, want run strategy", storedRun.NetworkParticipation)
 	}
 
 	taskRecord, err := h.db.GetTask(h.ctx, run.TaskID)
@@ -226,102 +219,6 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 	if got, want := taskRun.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("taskRun.IdempotencyKey = %q, want %q", got, want)
 	}
-	snapshot := taskRun.NetworkSpecSnapshot()
-	if snapshot.Mode != participation.ModeLive || snapshot.Source != participation.SourceAutomationJob {
-		t.Fatalf("taskRun.NetworkSpec = %#v, want live automation-job resolution", snapshot)
-	}
-	if snapshot.ChannelStrategy != participation.StrategyRun || snapshot.ChannelID == "" {
-		t.Fatalf("taskRun.NetworkSpec = %#v, want derived run channel", snapshot)
-	}
-}
-
-func TestManagerIntegrationTaskTargetDefaultsLocalWithoutDeclaration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should materialize a Local task run", func(t *testing.T) {
-		t.Parallel()
-
-		h := newManagerHarness(t)
-		taskManager, err := taskpkg.NewManager(taskpkg.WithStore(h.db))
-		if err != nil {
-			t.Fatalf("task.NewManager() error = %v", err)
-		}
-		manager := h.newManager(t, integrationAutomationConfig(), WithTasks(taskManager))
-		if err := manager.Start(h.ctx); err != nil {
-			t.Fatalf("manager.Start() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := manager.Shutdown(testutil.Context(t)); err != nil {
-				t.Fatalf("manager.Shutdown() error = %v", err)
-			}
-		})
-
-		job, err := manager.CreateJob(h.ctx, Job{
-			Scope:       AutomationScopeWorkspace,
-			Name:        "local-task-target",
-			WorkspaceID: h.workspace.ID,
-			Schedule: &ScheduleSpec{
-				Mode:     ScheduleModeEvery,
-				Interval: "1h",
-			},
-			Task:      &JobTaskConfig{Title: "Local automation task"},
-			Enabled:   true,
-			Retry:     DefaultRetryConfig(),
-			FireLimit: DefaultFireLimitConfig(),
-		})
-		if err != nil {
-			t.Fatalf("CreateJob() error = %v", err)
-		}
-		run, err := manager.TriggerJob(h.ctx, job.ID)
-		if err != nil {
-			t.Fatalf("TriggerJob() error = %v", err)
-		}
-		if run.NetworkParticipation != nil {
-			t.Fatalf("automation run participation = %#v, want absent request", run.NetworkParticipation)
-		}
-		taskRun, err := h.db.GetTaskRun(h.ctx, run.TaskRunID)
-		if err != nil {
-			t.Fatalf("GetTaskRun() error = %v", err)
-		}
-		if got := taskRun.NetworkSpecSnapshot(); got != participation.LocalSpec() {
-			t.Fatalf("task run participation = %#v, want canonical Local", got)
-		}
-	})
-}
-
-func automationRunParticipation() *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyRun
-	return &participation.Request{Mode: &mode, ChannelStrategy: &strategy}
-}
-
-func automationIntegrationParticipationResolver(t *testing.T) participation.Resolver {
-	t.Helper()
-	resolver, err := participation.NewResolver(participation.ResolverOptions{
-		Defaults: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
-		Limits: participation.Limits{
-			MaxWakes:          16,
-			MaxWakeWallTime:   "2m",
-			MaxTotalWallTime:  "10m",
-			MaxInputTokens:    65536,
-			MaxOutputTokens:   65536,
-			MaxWakeDepth:      16,
-			MinCoalesceWindow: "100ms",
-			MaxCoalesceWindow: "5s",
-		},
-	})
-	if err != nil {
-		t.Fatalf("participation.NewResolver() error = %v", err)
-	}
-	return resolver
 }
 
 func TestManagerIntegrationAutomationSessionCanCreateTaskWithAutomationOrigin(t *testing.T) {

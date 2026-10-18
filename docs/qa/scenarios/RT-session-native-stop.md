@@ -6,13 +6,13 @@ persona: Ada
 journey: J-15
 expected: compozy__session_stop stops one live same-workspace target through the canonical session stop path, returns the terminal winner once, applies destructive approval policy, denies self or foreign-workspace targets, and leaves repeated or raced callers with deterministic structured outcomes.
 entry_points: compozy__session_stop; compozy session stop; POST /api/workspaces/{workspace_id}/sessions/{session_id}/stop over HTTP and UDS; compozy session status <session-id>
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260906-stop-receipt-outcome-race
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json;docs/qa/reports/2026-09-05-sessions-stability-task01-02.md;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkA2-stop-wait.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkA2-events.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkE-status-after-restart.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/screenshots/f2-02-stopping-4s.png;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/screenshots/f2-03-stopped-confirmed.png
-last_report: docs/qa/reports/2026-09-06-sessions-stability.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-session-wait-state; RT-session-prompt-cancel
 ---
 
@@ -61,11 +61,7 @@ session detail and re-reads the transcript only once that read is no longer live
 lands while the page still shows active/stopping never fakes a stopped state. Another open session
 in the same or another workspace must not re-read its transcript.
 
-Restart with an unresolved stop, reconnect, and retry the catalog-only session. Verify the
-persisted attention and metadata survive another unverified attempt. For a remote sandbox,
-a missing or reused local PID must neither prove remote exit nor trigger host process-group
-signals. Exercise the verified local orphan path and concurrent retry/resume before accepting
-this journey; those end-to-end cases remain unverified.
+Restart with an unresolved stop, reconnect, and retry the catalog-only session. Verify the persisted attention and metadata survive another unverified attempt. A missing or reused PID must not trigger process-group signals. Exercise verified orphan recovery and concurrent retry/resume before accepting the journey.
 
 For recovered local stops, exercise a temporary terminal metadata/catalog failure after process
 exit. Retry the same session after restoring persistence: confirm the original cause/phase remain,
@@ -109,13 +105,8 @@ Malformed, incompatible or wrong-owner settlement receipts must remain intact an
 During boot, an orphan with matching PID/start identity must use the same stop ladder as an
 operator request, retaining agent_crashed attribution and canonical escalation/terminal events.
 There is no second daemon-owned TERM/KILL attempt after the manager settles or exhausts a stop.
-An unverified remote process keeps stopping/attention and permits boot only after its diagnostic
+An unverified process keeps stopping/attention and permits boot only after its diagnostic
 is durable; failure to persist recovered metadata, catalog state or stop events aborts recovery.
-
-For a recovered local sandbox, verify sync-from-runtime precedes optional destruction according
-to its stored profile. Cover both destroy policies and a provider sync failure: terminal state
-stays stopped, sandbox diagnostics/state match the catalog, and session name and creation
-metadata remain intact. The full runtime walk remains deferred to final QA.
 
 Exercise delayed pre-record and post-record hooks during stop for both individual messages and
 chunk batches. Release the hook after stop settles: a closed recorder must not produce a new
@@ -123,11 +114,7 @@ prompt transport failure, and delayed output must not reach attach/notifier cons
 committed before stop remains in history before the terminal event; the discarded delivery gets
 a post-stop marker. Also verify ordinary active-session persistence failures still surface.
 
-Inject ledger and network cleanup timeout after verified exit. Confirm stopped metadata and
-notification still settle, then reopen history and inspect the redacted runtime_warning for
-the failed step. Ledger errors remain available from the stop result; canceled network cleanup
-keeps its existing successful-stop behavior only if the warning persists. Diagnostic persistence
-failure must be returned, and no cleanup error may turn the session active again.
+Inject a ledger cleanup timeout after verified exit. Confirm stopped metadata and notification settle, then inspect the redacted runtime_warning for the failed step. The ledger error remains available from the stop result. Diagnostic persistence failure must be returned; no cleanup error may turn the session active again.
 
 Repeat boot recovery with a process that died before inventory, while metadata still says active
 or stopping. Verify recorded PID/start exit proof, one new terminal event/notification, crash
@@ -152,73 +139,84 @@ shared ladder terminates and verifies the process. Clear the incomplete ACP ID o
 retain any provider-auth diagnostic without relabeling it as a generic process error. Repeat
 completed recovery and confirm no additional event, notification or escalation.
 
-For Daytona sidecar stop failures, confirm DELETE retains the process record and repeated
-requests preserve the original failure rather than returning a false success or missing record.
-Successful stop still removes the record after termination. The full remote-restart journey
-must also validate durable launcher identity, remote exit proof and existing-sidecar upgrade;
-local sidecar tests alone do not establish those properties.
-
-Query the Daytona sidecar process status before and after termination. A live process has no
-exit code; command completion exposes its exit code, while `exitVerified` is true only after
-the sidecar has verified process-group exit. An unknown or deleted ID returns 404 and is not
-exit proof. Repeat through daemon recovery once durable remote identity integration is available.
-
-For new Daytona starts, verify provider state contains the reserved launcher process ID before
-agent creation and the launch response preserves it. Diagnostic probes must not consume that ID.
-Concurrent duplicate launches create one process; subsequent reuse after removal is rejected
-within the same sidecar lifetime. An older sidecar must reject identified launch before creating
-an anonymous process. Sidecar restart persistence and safe upgrade remain part of the full journey.
-
-Recover a session with a valid stored Daytona launcher identity and a still-running sidecar.
-Verify the daemon applies close-input, terminate and kill through the provider as needed, with
-each call bounded by the shared phase deadline. Signals retain the remote record; status must
-match the requested ID and include command completion, exit code and process-group proof before
-terminal settlement. Missing IDs, unavailable transport and mismatched sandbox/process identities
-retain attention. Recovery must not bootstrap or replace a sidecar while looking up exit proof.
-
-Upgrade a sandbox with a running v1 sidecar: new preparations reserve v2 and use its separate
-binary path and port, leaving v1 processes intact. The saved launcher_sidecar_version must
-route recovery to the original endpoint; an older identified record without this field maps
-to v1. Unknown versions fail explicitly before connection. Reusing a healthy current sidecar
-must not upload its executable again. Verify HTTP and websocket tunnel dialing respects cancellation.
-
-If the sidecar's exit observer fails to finish after forced termination, Stop must return a
-deadline error after its bounded observer wait rather than hang. Keep the process record and
-unverified status available; a completed process-group action alone must not fabricate the
-missing command-exit observation. Repeated requests retain the original failure.
-
 With a known process handle and an unfinished exit observer, repeat Stop after a failed attempt.
 Concurrent callers must share one new bounded attempt, rather than reuse the exhausted attempt
 forever or run parallel termination sequences. Completed outcomes and failures without a pending
 process retain their existing result.
 
-QA 2026-09-05 sessions-stability task_02: `compozy session stop --wait -o json` on an acpmock agent returned
-stopped / verified true / escalated true / phase forced with the process gone and session.stop_escalated +
-session_stopped persisted; a cancel-ignoring turn (acpmock hold_ignoring_cancel) kept the Web primary
-control on "Stopping…" through the 10 s cooperative grace before the ladder escalated (stop_escalated
-scope turn, elapsed_ms 10000) and the session stayed promptable; `kill -9` of the daemon mid-turn followed
-by restart left the session stopped / failed / dead with stop_reason agent_crashed and no phantom or orphan.
-Not walked here: compozy__session_stop from a governed agent session, UDS parity, the unverifiable-kill
-attention branch, delete-after-stop replay, and the Daytona remote-exit journey — the scenario stays
-blocked-verify for those branches.
+Supervision branch (introduced by sessions-stability task_05 on 2026-09-06; narrowed to in-flight
+turns by #782 on 2026-10-17): configure short `quiet_after`/`stop_grace` intervals in the isolated
+lab. Hold a turn in flight that stops producing work (for example a provider that hangs inside a
+prompt). Exercise fresh progress, verified tool, active child, recent Loop reconciliation, task
+lease, and scheduled wait independently; each must suppress the warning. Provider waiting and an
+open subscriber must not. Observe one quiet warning: no window banner, and the working status line
+under the transcript reads `Working for … · quiet for …`, also for a turn that hangs before its
+first token (it must not stay on `Thinking`); CLI/HTTP/UDS/resource/native describe
+fields match. Then observe the verified inactivity stop (`session.supervision_stopped`,
+`stop_reason: "timeout"`, `stop_detail: "inactivity"`). Resume real work during grace and confirm
+warning cancellation; end the turn during grace and confirm the warning clears and no stop follows.
+A turn blocked on a pending permission or clarify request must not accrue silence. Let a session
+finish its turn and sit idle past `quiet_after + stop_grace`: no quiet warning, no stop, the badge
+stays `idle`. Check zero quiet, zero grace, source-error unknown/attention, stale-source attention,
+and warning append retry without duplication. Existing waits without expiry must use their
+original creation time for admission-horizon expiry.
 
-Blocker 2026-09-05 (decision + external): the operator scoped this delivery to sessions-stability
-task_01 + task_02 and deferred the unwalked branches above to the program's QA tail (tasks 09–10),
-which owns this scenario's re-walk. The Daytona remote-exit journey also needs external sandbox
-credentials that the isolated lab does not hold, and the unverifiable-kill branch needs a process the
-daemon is not permitted to signal, which the lab host does not provide. Each deferred branch has
-green owning coverage in `internal/session` (native/UDS stop parity, delete-after-stop replay,
-unverified-death attention) and `internal/sandbox/daytona` on PR #555 CI; no repair is pending.
+Idle-release branch (#782): set `session.supervision.idle_release_after` to a short value (for
+example `2m`) with `compozy config set` in the isolated lab and use an agent that advertises ACP
+`session/load` (`runtime.acp_caps.supports_load_session: true`). Let a session finish its turn and
+sit idle past the release period. Confirm `compozy session status <id> -o json` reports
+`state: "active"`, `runtime.status: "unbound"`, the same ACP session ID, and the `idle` badge; the
+agent subprocess is gone; the session window shows no banner and no Stopped presentation; the event
+log has no `session.supervision_warning`, `session.supervision_stopped`, or `session_stopped`; no
+`session.post_stop` hook ran while the `agent.stopped` hook did. Send the next prompt from the
+composer and again (after another release) from `compozy session prompt`: each continues the same
+conversation without a Resume step, and the agent recalls an earlier fact from the transcript. A
+session with a pending permission/clarify request or a work signal is not released. Repeat with an
+agent that does not advertise `session/load`: its runtime is never released. With a runtime
+released, kill the daemon uncleanly and restart: the session is `stopped` with
+`stop_reason: "shutdown"` and detail `daemon exited while the idle session runtime was released`,
+and the next prompt resumes it. Setting `idle_release_after = "0"` disables the release.
+Stop a session while its release is still stopping the agent: the stop completes only after the
+released subprocess exits. If the release cannot stop the subprocess, the next prompt fails rather
+than loading the ACP session into a second process while the old one runs. A daemon killed before a
+release verified the subprocess exit keeps that subprocess identity in `meta.json`; on restart the
+session reads `shutdown` only if the recorded subprocess is gone, otherwise it stays under stop
+verification.
 
-QA impact 2026-09-06 sessions-stability task_05 (walk owned by final task_10): configure short
-quiet/grace intervals in the isolated lab. Exercise fresh progress, verified tool, active child,
-recent Loop reconciliation, task lease, and scheduled wait independently; each must suppress the
-warning. Provider waiting and an open subscriber must not. Observe one quiet warning in the open
-session, matching CLI/HTTP/UDS/resource/native describe fields, then verified inactivity stop.
-Resume real work during grace and confirm warning cancellation. Check zero quiet, zero grace,
-source-error unknown/attention, stale-source attention, and warning append retry without duplication.
-Existing waits without expiry must use their original creation time for admission-horizon expiry.
+QA impact 2026-10-17 (#787 follow-up): the quiet span now also covers a turn hung before its first
+token, and the idle-release branch gained the stop-during-release, failed-release, and
+interrupted-release steps above. Both branches need the re-walk already pending.
 
-QA 2026-09-06 — sessions-stability selected scope: PASS for the selected local native/supervision branch: governed same-workspace Stop returned verified=true with forced escalation, replay returned already-stopped, self/foreign-workspace requests were denied, and quiet warning/progress cancellation/inactivity terminal facts agreed. Unverifiable-death and Daytona host constraints remain the previously documented external branches; exhaustive owning integration evidence is reused. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
+QA 2026-09-06 — sessions-stability selected scope: PASS for the selected local native/supervision branch: governed same-workspace Stop returned verified=true with forced escalation, replay returned already-stopped, self/foreign-workspace requests were denied, and quiet warning/progress cancellation/inactivity terminal facts agreed. Unverifiable-death constraints remain the previously documented external branch; exhaustive owning integration evidence is reused. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
 
 QA re-walk 2026-09-06: Stop settlement preserves the same cause, phase, escalation and elapsed time through acknowledgement-write failure and manager restart. One-core canonical recovery, full session race and actual subprocess stop/crash/resume checks pass. Previously documented external branches retain their limits. See BUG-20260906-stop-receipt-outcome-race and the integrated report.
+
+
+2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.
+
+QA impact 2026-10-17 (#782): silence supervision is now a hung-turn watchdog and idle sessions
+release their runtime silently instead of being warned and stopped. The supervision branch above
+was rewritten and the idle-release branch added; both need a re-walk against a real daemon. Stale
+verdict reset to untested; historical evidence preserved.
+
+QA walk 2026-10-17 (#782, idle-release branch, CLI/HTTP only): PASS for the walked steps. An isolated
+lab daemon built from the branch ran the real `claude` provider (`claude-agent-acp`, which advertises
+`session/load`) with `idle_release_after = "1m"`. After the first turn the session stayed `active`
+with `runtime.status: "ready"`. About a minute later it read `active`/`unbound` with the same badge
+and no quiet warning, the agent subprocess had exited, the daemon logged
+`session.runtime.idle_released`, and the 28 recorded events had no supervision or stop event. The
+next `compozy session prompt` rebound the runtime under the same ACP session ID and the agent
+recalled a code word from the first turn. After a second release the daemon was killed with
+`kill -9` and restarted: the session read `stopped`, `stop_reason: "shutdown"`, with the
+released-runtime detail and no failure. The next prompt resumed it and the agent still recalled the
+code word. Lab teardown was clean.
+
+Not walked: the composer/Web steps, the hook checks, the agent without `session/load`, and the
+pending-interaction guard. The supervision branch was also not walked. These are covered only by the
+owning `internal/session` suites (`TestSupervisionReleasesIdleRuntime`,
+`TestSupervisionIgnoresSessionWaitingForOperator`) and the daemon integration test
+`TestReplyWatchLongWaitIntegration`, so `qa_status` stays `untested` until a full re-walk.

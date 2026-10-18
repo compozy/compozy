@@ -107,11 +107,10 @@ func printResult(output io.Writer, result demoseed.Result) error {
 	}
 	if _, err := fmt.Fprintf(
 		output,
-		"\nCreated %d agents, %d sessions, %d tasks, and %d Network messages.\n",
+		"\nCreated %d agents, %d sessions, and %d tasks.\n",
 		result.Counts.Agents,
 		result.Counts.Sessions,
 		result.Counts.Tasks,
-		result.Counts.NetworkMessages,
 	); err != nil {
 		return fmt.Errorf("demo seed: print result summary: %w", err)
 	}

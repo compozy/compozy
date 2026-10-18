@@ -4,6 +4,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"slices"
 )
 
 // BackendKind identifies the executable backend class.
@@ -16,14 +17,12 @@ const (
 	BackendExtensionHost BackendKind = "extension_host"
 	// BackendMCP executes through daemon-owned MCP client adapters.
 	BackendMCP BackendKind = "mcp"
-	// BackendBridge is reserved for a later bridge adapter TechSpec.
-	BackendBridge BackendKind = "bridge"
 )
 
 // Validate ensures the backend kind is documented.
 func (k BackendKind) Validate(field string) error {
 	switch k {
-	case BackendNativeGo, BackendExtensionHost, BackendMCP, BackendBridge:
+	case BackendNativeGo, BackendExtensionHost, BackendMCP:
 		return nil
 	default:
 		return NewValidationError(field, ReasonBackendNotExecutable, "unsupported backend kind")
@@ -73,8 +72,6 @@ func (b BackendRef) Validate(field string) error {
 		if b.MCPTool == "" {
 			return NewValidationError(field+".mcp_tool", ReasonDependencyMissing, "mcp backend requires mcp_tool")
 		}
-	case BackendBridge:
-		return NewValidationError(field+".kind", ReasonBackendNotExecutable, "bridge backend is reserved post-MVP")
 	}
 	return nil
 }
@@ -253,9 +250,21 @@ type ResultProcessor interface {
 
 // HookRunner runs typed registry hooks around dispatch.
 type HookRunner interface {
-	PreCall(ctx context.Context, call CallRequest) (CallRequest, EffectiveToolDecision, error)
-	PostCall(ctx context.Context, call CallRequest, result ToolResult) (ToolResult, error)
-	PostError(ctx context.Context, call CallRequest, err error) error
+	PreCall(
+		ctx context.Context,
+		scope Scope,
+		descriptor Descriptor,
+		call CallRequest,
+	) (CallRequest, EffectiveToolDecision, error)
+	PostCall(
+		ctx context.Context,
+		scope Scope,
+		descriptor Descriptor,
+		call CallRequest,
+		result ToolResult,
+	) (ToolResult, error)
+	// PostError returns the annotated call failure and any hook execution failure separately.
+	PostError(ctx context.Context, scope Scope, descriptor Descriptor, call CallRequest, err error) (error, error)
 }
 
 // ApprovalBridge mediates approval-required calls before provider execution.
@@ -291,16 +300,16 @@ type Scope struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 	RunID       string `json:"run_id,omitempty"`
-	Generation  int64  `json:"generation,omitempty"`
+	Generation  int64  `json:"generation,omitzero"`
 	AgentName   string `json:"agent_name,omitempty"`
 	ActorKind   string `json:"actor_kind,omitempty"`
-	Operator    bool   `json:"operator,omitempty"`
+	Operator    bool   `json:"operator,omitzero"`
 }
 
 // SearchQuery describes a registry search request.
 type SearchQuery struct {
 	Query string `json:"query"`
-	Limit int    `json:"limit,omitempty"`
+	Limit int    `json:"limit,omitzero"`
 }
 
 // ToolView is a descriptor plus effective diagnostics for a caller.
@@ -316,7 +325,7 @@ type CallRequest struct {
 	ToolCallID           string          `json:"tool_call_id,omitempty"`
 	TurnID               string          `json:"turn_id,omitempty"`
 	RunID                string          `json:"run_id,omitempty"`
-	Generation           int64           `json:"generation,omitempty"`
+	Generation           int64           `json:"generation,omitzero"`
 	ProfileID            string          `json:"profile_id,omitempty"`
 	SessionID            string          `json:"session_id,omitempty"`
 	WorkspaceID          string          `json:"workspace_id,omitempty"`
@@ -365,6 +374,7 @@ const (
 
 // ToolCallEvent is the redacted dispatch event envelope emitted by Registry.Call.
 type ToolCallEvent struct {
+	SubagentID           string            `json:"subagent_id,omitempty"`
 	Kind                 ToolCallEventKind `json:"kind"`
 	ToolID               ToolID            `json:"tool_id"`
 	DisplayTitle         string            `json:"display_title,omitempty"`
@@ -375,7 +385,7 @@ type ToolCallEvent struct {
 	SessionID            string            `json:"session_id,omitempty"`
 	TurnID               string            `json:"turn_id,omitempty"`
 	RunID                string            `json:"run_id,omitempty"`
-	Generation           int64             `json:"generation,omitempty"`
+	Generation           int64             `json:"generation,omitzero"`
 	AgentName            string            `json:"agent_name,omitempty"`
 	ActorKind            string            `json:"actor_kind,omitempty"`
 	Risk                 RiskClass         `json:"risk,omitempty"`
@@ -385,8 +395,8 @@ type ToolCallEvent struct {
 	ApprovalMode         string            `json:"approval_mode,omitempty"`
 	Decision             string            `json:"decision,omitempty"`
 	ReasonCodes          []ReasonCode      `json:"reason_codes,omitempty"`
-	DurationMS           int64             `json:"duration_ms,omitempty"`
-	ResultBytes          int64             `json:"result_bytes,omitempty"`
+	DurationMS           int64             `json:"duration_ms,omitzero"`
+	ResultBytes          int64             `json:"result_bytes,omitzero"`
 	Truncated            bool              `json:"truncated"`
 	CorrelationID        string            `json:"correlation_id,omitempty"`
 	ErrorCode            ErrorCode         `json:"error_code,omitempty"`
@@ -428,19 +438,19 @@ func cloneRawMessage(src json.RawMessage) json.RawMessage {
 	if len(src) == 0 {
 		return nil
 	}
-	return append(json.RawMessage(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneStrings(src []string) []string {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]string(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneToolsets(src []ToolsetID) []ToolsetID {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]ToolsetID(nil), src...)
+	return slices.Clone(src)
 }

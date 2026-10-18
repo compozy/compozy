@@ -112,7 +112,7 @@ type SessionGoalCommandRequest struct {
 	Operation     SessionGoalOperation           `json:"operation"`
 	Objective     string                         `json:"objective,omitempty"`
 	ExpectedRunID string                         `json:"expected_run_id,omitempty"`
-	Runtime       *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Runtime       *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
 }
 
 // Validate enforces operation-specific fields before the command reaches the daemon aggregate.
@@ -190,11 +190,11 @@ type GoalCriterionResult struct {
 	Type           string                  `json:"type"`
 	Outcome        GoalVerdictOutcome      `json:"outcome"`
 	Passed         bool                    `json:"passed"`
-	Broken         bool                    `json:"broken,omitempty"`
-	ExitCode       *int                    `json:"exit_code,omitempty"`
+	Broken         bool                    `json:"broken,omitzero"`
+	ExitCode       *int                    `json:"exit_code,omitzero"`
 	Stdout         string                  `json:"stdout,omitempty"`
 	Stderr         string                  `json:"stderr,omitempty"`
-	Score          *float64                `json:"score,omitempty"`
+	Score          *float64                `json:"score,omitzero"`
 	Evidence       json.RawMessage         `json:"evidence,omitempty"`
 	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues,omitempty"`
 	Warnings       []GoalDiagnosticWarning `json:"warnings,omitempty"`

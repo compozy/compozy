@@ -23,10 +23,15 @@ import type {
   TaskRunResultPage,
 } from "../types";
 import { TasksApiError } from "./tasks-api-errors";
+import type { ProfileScopeParams } from "@/systems/profiles";
 
-export async function getTaskRun(id: string, signal?: AbortSignal): Promise<TaskRunDetailView> {
+export async function getTaskRun(
+  id: string,
+  scope: ProfileScopeParams,
+  signal?: AbortSignal
+): Promise<TaskRunDetailView> {
   const { data, error, response } = await apiClient.GET("/api/task-runs/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: scope },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -43,10 +48,11 @@ export async function readTaskRunResult(
   id: string,
   offset: number,
   limit: number,
+  scope: ProfileScopeParams,
   signal?: AbortSignal
 ): Promise<TaskRunResultPage> {
   const { data, error, response } = await apiClient.GET("/api/task-runs/{id}/result", {
-    params: { path: { id }, query: { offset, limit } },
+    params: { path: { id }, query: { offset, limit, ...scope } },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -61,9 +67,13 @@ export async function readTaskRunResult(
   return requireResponseData(data, response, `Failed to fetch task run result "${id}"`);
 }
 
-export async function inspectRun(id: string, signal?: AbortSignal): Promise<TaskRunInspectView> {
+export async function inspectRun(
+  id: string,
+  scope: ProfileScopeParams,
+  signal?: AbortSignal
+): Promise<TaskRunInspectView> {
   const { data, error, response } = await apiClient.GET("/api/runs/{id}/inspect", {
-    params: { path: { id } },
+    params: { path: { id }, query: scope },
     signal,
   });
   if (apiRequestFailed(response, error)) {

@@ -53,7 +53,6 @@ func (m *Manager) handlePromptPumpChunkBatch(
 		loop.fileMutations.Observe(event)
 		m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, event)
 		m.notifyManagedPromptEvent(ctx, session, turnState, event)
-		m.scheduleCompactionFromUsage(session, event)
 		if kind, summary, evidence, ok := promptTranscriptMarker(event); ok {
 			m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
 		}
@@ -142,6 +141,7 @@ func (m *Manager) dispatchPersistedRecordedEvent(
 	}
 
 	m.recordPersistedWorkProgress(session, event)
+	m.publishNativeSubagentEvent(ctx, session, persisted, event)
 	m.dispatchEventPostRecord(ctx, session, event, persisted.Content, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, persisted.Content)
 	m.publishSessionEvent(ctx, session, persisted)

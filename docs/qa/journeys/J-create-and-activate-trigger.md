@@ -31,7 +31,7 @@ journey:
   actions:
     - step: 1
       verb: "Choose or enter a trigger event"
-      expected_observable: "Only session.created, session.stopped, memory.consolidated, hook.<hook_name>.completed, webhook, and ext.* can be submitted; invalid or padded values are rejected"
+      expected_observable: "Only session.created, session.stopped, hook.<hook_name>.completed, webhook, and ext.* can be submitted; invalid or padded values are rejected"
     - step: 2
       verb: "Create the trigger and read it again"
       expected_observable: "The independent get/list surface returns the exact event, filter, scope, and workspace binding"
@@ -54,5 +54,5 @@ journey:
     - at_step: 3
       how: "The producer action is skipped or fails."
       resume: "History remains unchanged; the product never claims an activation that did not complete."
-  crosses: [automation-trigger-crud, config-validation, session-hooks, memory-consolidation, extension-host-api, workspace-scope]
+  crosses: [automation-trigger-crud, config-validation, session-hooks, extension-host-api, workspace-scope]
 ```

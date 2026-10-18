@@ -31,20 +31,20 @@ type Node struct {
 	ID                  NodeID       `json:"id"                       yaml:"id"`
 	Class               NodeClass    `json:"class"                    yaml:"class"`
 	Kind                string       `json:"kind"                     yaml:"kind"`
-	Session             *SessionSpec `json:"session,omitempty"        yaml:"session,omitempty"`
+	Session             *SessionSpec `json:"session,omitzero"         yaml:"session,omitempty"`
 	Timeout             string       `json:"timeout,omitempty"        yaml:"timeout,omitempty"`
-	Retry               *RetrySpec   `json:"retry,omitempty"          yaml:"retry,omitempty"`
-	Review              *ReviewSpec  `json:"review,omitempty"         yaml:"review,omitempty"`
+	Retry               *RetrySpec   `json:"retry,omitzero"           yaml:"retry,omitempty"`
+	Review              *ReviewSpec  `json:"review,omitzero"          yaml:"review,omitempty"`
 	*NodeLifecycleState `                                                    yaml:",inline"`
-	Harvest             *HarvestSpec        `json:"harvest,omitempty"        yaml:"harvest,omitempty"`
+	Harvest             *HarvestSpec        `json:"harvest,omitzero"         yaml:"harvest,omitempty"`
 	Produces            Schema              `json:"produces,omitempty"       yaml:"produces,omitempty"`
 	Params              NodeParams          `json:"params,omitempty"         yaml:"params,omitempty"`
 	Collection          string              `json:"collection,omitempty"     yaml:"collection,omitempty"`
 	Filter              string              `json:"filter,omitempty"         yaml:"filter,omitempty"`
-	BatchSize           int                 `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"`
-	MaxParallel         int                 `json:"max_parallel,omitempty"   yaml:"max_parallel,omitempty"`
-	MaxFanOut           int                 `json:"max_fan_out,omitempty"    yaml:"max_fan_out,omitempty"`
-	Strategy            *StrategySpec       `json:"strategy,omitempty"       yaml:"strategy,omitempty"`
+	BatchSize           int                 `json:"batch_size,omitzero"      yaml:"batch_size,omitempty"`
+	MaxParallel         int                 `json:"max_parallel,omitzero"    yaml:"max_parallel,omitempty"`
+	MaxFanOut           int                 `json:"max_fan_out,omitzero"     yaml:"max_fan_out,omitempty"`
+	Strategy            *StrategySpec       `json:"strategy,omitzero"        yaml:"strategy,omitempty"`
 	BindAs              string              `json:"bind_as,omitempty"        yaml:"bind_as,omitempty"`
 	IndexAs             string              `json:"index_as,omitempty"       yaml:"index_as,omitempty"`
 	Condition           string              `json:"condition,omitempty"      yaml:"condition,omitempty"`
@@ -54,10 +54,10 @@ type Node struct {
 	Criteria            []GateCriterion     `json:"criteria,omitempty"       yaml:"criteria,omitempty"`
 	VerdictPolicy       VerdictPolicy       `json:"verdict_policy,omitempty" yaml:"verdict_policy,omitempty"`
 	OnResult            map[string]any      `json:"on_result,omitempty"      yaml:"on_result,omitempty"`
-	MaxRevisions        int                 `json:"max_revisions,omitempty"  yaml:"max_revisions,omitempty"`
-	Expires             *WaitExpiry         `json:"expires,omitempty"        yaml:"expires,omitempty"`
-	Body                *Graph              `json:"body,omitempty"           yaml:"body,omitempty"`
-	Contract            *Contract           `json:"contract,omitempty"       yaml:"contract,omitempty"`
+	MaxRevisions        int                 `json:"max_revisions,omitzero"   yaml:"max_revisions,omitempty"`
+	Expires             *WaitExpiry         `json:"expires,omitzero"         yaml:"expires,omitempty"`
+	Body                *Graph              `json:"body,omitzero"            yaml:"body,omitempty"`
+	Contract            *Contract           `json:"contract,omitzero"        yaml:"contract,omitempty"`
 	InputRef            string              `json:"input_ref,omitempty"      yaml:"input_ref,omitempty"`
 	Pattern             string              `json:"pattern,omitempty"        yaml:"pattern,omitempty"`
 	Parse               FileParseKind       `json:"parse,omitempty"          yaml:"parse,omitempty"`

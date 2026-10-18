@@ -79,13 +79,13 @@ func IsTerminalErrorCode(code TerminalErrorCode) bool {
 type TerminalErrorDetail struct {
 	Code    string                `json:"code"`
 	Message string                `json:"message"`
-	Details *TerminalErrorDetails `json:"details,omitempty"`
+	Details *TerminalErrorDetails `json:"details,omitzero"`
 }
 
 // TerminalErrorDetails preserves actionable domain metadata without parsing messages.
 type TerminalErrorDetails struct {
-	Current  *int         `json:"current,omitempty"`
-	Max      *int         `json:"max,omitempty"`
+	Current  *int         `json:"current,omitzero"`
+	Max      *int         `json:"max,omitzero"`
 	Path     string       `json:"path,omitempty"`
 	Mode     TerminalMode `json:"mode,omitempty"`
 	Platform string       `json:"platform,omitempty"`

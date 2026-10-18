@@ -14,7 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -29,12 +29,12 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-loop-worker", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-loop-worker", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-loop-worker", taskRecord.ID)
 		run.LoopRunID = "loop-run-1"
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		runtime := newTaskRoleRuntimeForTest(t, store, &taskRoleRuntimeSessions{})
 
-		_, ok, err := runtime.activationForRun(context.Background(), taskRecord, run)
+		_, ok, err := runtime.activationForRun(t.Context(), taskRecord, run)
 		if err != nil {
 			t.Fatalf("activationForRun() error = %v", err)
 		}
@@ -47,13 +47,14 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-frontend", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-frontend", taskRecord.ID, "design-review")
+		taskRecord.ProfileID = "profile-editorial"
+		run := taskRoleRuntimeRun("run-frontend", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
 
@@ -61,17 +62,19 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 			t.Fatalf("create count = %d, want %d", got, want)
 		}
 		call := sessions.createCall(0)
+		if got, want := call.ProfileID, taskRecord.ProfileID; got != want {
+			t.Fatalf("CreateOpts.ProfileID = %q, want task owner %q", got, want)
+		}
+		if !strings.Contains(call.Name, run.ID) {
+			t.Fatalf("CreateOpts.Name = %q, want owning run identity %q", call.Name, run.ID)
+		}
 		if got, want := call.AgentName, "frontend-engineer-agent"; got != want {
 			t.Fatalf("CreateOpts.AgentName = %q, want %q", got, want)
 		}
 		if got, want := call.Workspace, taskRecord.WorkspaceID; got != want {
 			t.Fatalf("CreateOpts.Workspace = %q, want %q", got, want)
 		}
-		if got, want := participationSnapshotValue(
-			call.ResolvedNetworkParticipation,
-		).ChannelID, "design-review"; got != want {
-			t.Fatalf("CreateOpts resolved participation channel = %q, want %q", got, want)
-		}
+
 		if got, want := call.Type, session.SessionTypeSystem; got != want {
 			t.Fatalf("CreateOpts.Type = %q, want %q", got, want)
 		}
@@ -85,7 +88,6 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 			"compozy__task_run_claim_next",
 			"`run_id` set to \"run-frontend\"",
 			run.ID,
-			"design-review",
 		} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
@@ -119,7 +121,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-detached", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-detached", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-detached", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := newBlockingTaskRoleRuntimeSessions()
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
@@ -127,8 +129,8 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 
 		returned := make(chan struct{})
 		go func() {
-			runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-				TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+			runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+				TaskID: taskRecord.ID, RunID: run.ID,
 			})
 			close(returned)
 		}()
@@ -144,7 +146,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 			t.Fatal("OnTaskRunEnqueued blocked on session provisioning")
 		}
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		if err := runtime.shutdown(shutdownCtx); err != nil {
 			t.Fatalf("shutdown() error = %v", err)
@@ -163,12 +165,12 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-daemon-shutdown", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-daemon-shutdown", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-daemon-shutdown", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := newShutdownOrderingSessionManager()
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 
 		select {
@@ -183,12 +185,11 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		var shutdownErrs []error
-		d.shutdownRuntimeWorkers(shutdownCtx, &shutdownTargets{daemonRuntimeState: daemonRuntimeState{
-			tasks: tasks, sessions: sessions,
-		}}, &shutdownErrs)
+		d.shutdownRuntimeWorkers(shutdownCtx, &shutdownTargets{
+			tasks: tasks, sessions: sessions}, &shutdownErrs)
 		if err := errors.Join(shutdownErrs...); err != nil {
 			t.Fatalf("shutdownRuntimeWorkers() error = %v", err)
 		}
@@ -212,15 +213,15 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-fanout", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-fanout", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-fanout", taskRecord.ID)
 		run.DesignationGroupID = "tdg-fanout"
 		run.Metadata = json.RawMessage(`{"designation":{"index":2,"brief":"Audit billing latency"}}`)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
 
@@ -247,18 +248,18 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		firstTask := taskRoleRuntimeTask("task-frontend-a", "frontend-engineer-agent")
-		firstRun := taskRoleRuntimeRun("run-frontend-a", firstTask.ID, "design-review")
+		firstRun := taskRoleRuntimeRun("run-frontend-a", firstTask.ID)
 		secondTask := taskRoleRuntimeTask("task-frontend-b", "frontend-engineer-agent")
-		secondRun := taskRoleRuntimeRun("run-frontend-b", secondTask.ID, "design-review")
+		secondRun := taskRoleRuntimeRun("run-frontend-b", secondTask.ID)
 		store := newTaskRoleRuntimeStore(firstTask, secondTask, firstRun, secondRun)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: firstTask.ID, RunID: firstRun.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: firstTask.ID, RunID: firstRun.ID,
 		})
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: secondTask.ID, RunID: secondRun.ID,
 		})
 		runtime.wg.Wait()
 
@@ -276,43 +277,12 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep local role identity and prompt free of fictional channels", func(t *testing.T) {
-		t.Parallel()
-
-		taskRecord := taskRoleRuntimeTask("task-local", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-local", taskRecord.ID, "design-review")
-		run.SetNetworkState(participation.LocalSpec(), "", "", "")
-		store := newTaskRoleRuntimeStore(taskRecord, run)
-		sessions := &taskRoleRuntimeSessions{}
-		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
-
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
-		})
-		runtime.wg.Wait()
-
-		call := sessions.createCall(0)
-		if !strings.Contains(call.Name, "run-local") {
-			t.Fatalf("CreateOpts.Name = %q, want owning run identity", call.Name)
-		}
-		for _, forbidden := range []string{"Coordination channel", "default", "design-review"} {
-			if strings.Contains(call.PromptOverlay, forbidden) || strings.Contains(call.Name, forbidden) {
-				t.Fatalf(
-					"local role identity contains fictional channel %q: name=%q prompt=%q",
-					forbidden,
-					call.Name,
-					call.PromptOverlay,
-				)
-			}
-		}
-	})
-
 	t.Run("Should not reuse an active role session with different profile startup settings", func(t *testing.T) {
 		t.Parallel()
 
 		firstTask := taskRoleRuntimeTask("task-profile-a", "")
 		firstTask.Owner = nil
-		firstRun := taskRoleRuntimeRun("run-profile-a", firstTask.ID, "design-review")
+		firstRun := taskRoleRuntimeRun("run-profile-a", firstTask.ID)
 		firstProfile := taskpkg.ExecutionProfile{
 			TaskID: firstTask.ID,
 			Worker: taskpkg.WorkerProfile{
@@ -321,12 +291,12 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 				Provider:  "claude",
 				Model:     "sonnet",
 			},
-			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "evidence-lab-a"},
+
 			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 		}
 		secondTask := taskRoleRuntimeTask("task-profile-b", "")
 		secondTask.Owner = nil
-		secondRun := taskRoleRuntimeRun("run-profile-b", secondTask.ID, "design-review")
+		secondRun := taskRoleRuntimeRun("run-profile-b", secondTask.ID)
 		secondProfile := taskpkg.ExecutionProfile{
 			TaskID: secondTask.ID,
 			Worker: taskpkg.WorkerProfile{
@@ -335,18 +305,18 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 				Provider:  "claude",
 				Model:     "sonnet",
 			},
-			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "evidence-lab-b"},
-			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+
+			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeDefault},
 		}
 		store := newTaskRoleRuntimeStore(firstTask, firstRun, firstProfile, secondTask, secondRun, secondProfile)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: firstTask.ID, RunID: firstRun.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: firstTask.ID, RunID: firstRun.ID,
 		})
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: secondTask.ID, RunID: secondRun.ID,
 		})
 		runtime.wg.Wait()
 
@@ -360,17 +330,36 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a role session from another profile", func(t *testing.T) {
+		t.Parallel()
+		activation := taskRoleActivation{
+			TaskID: "task-editorial", RunID: "run-editorial", ProfileID: "profile-editorial",
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-editorial", AgentName: "writer",
+		}
+		info := &session.Info{
+			ID: "sess-old-role", ProfileID: store.DefaultProfileID, State: session.StateActive,
+			AgentName: activation.AgentName, WorkspaceID: activation.WorkspaceID,
+			Name: taskRoleSessionName(activation),
+		}
+		if taskRoleSessionMatches(info, activation) {
+			t.Fatal("foreign profile role session matched the task owner")
+		}
+		info.ProfileID = activation.ProfileID
+		if !taskRoleSessionMatches(info, activation) {
+			t.Fatal("matching owner role session was not reusable")
+		}
+	})
+
 	t.Run("Should fingerprint worktree placement and structurally reject per-run reuse", func(t *testing.T) {
 		t.Parallel()
 
-		network := daemonTestLiveParticipation("ws-growth", "design-review")
 		base := taskRoleActivation{
-			RunID:                "run-fingerprint",
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          "ws-growth",
-			AgentName:            "frontend-engineer",
-			NetworkParticipation: &network,
-			Worktree:             taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeNone},
+			RunID:       "run-fingerprint",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-growth",
+			AgentName:   "frontend-engineer",
+
+			Worktree: taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeNone},
 		}
 		withRef := base
 		withRef.Worktree = taskpkg.WorktreePolicy{
@@ -384,12 +373,11 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		perRun := base
 		perRun.Worktree = taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModePerRun}
 		info := &session.Info{
-			ID:                   "sess-role",
-			State:                session.StateActive,
-			AgentName:            perRun.AgentName,
-			Name:                 taskRoleSessionName(perRun),
-			WorkspaceID:          perRun.WorkspaceID,
-			NetworkParticipation: network,
+			ID:          "sess-role",
+			State:       session.StateActive,
+			AgentName:   perRun.AgentName,
+			Name:        taskRoleSessionName(perRun),
+			WorkspaceID: perRun.WorkspaceID,
 		}
 		if taskRoleSessionMatches(info, perRun) {
 			t.Fatal("taskRoleSessionMatches(per_run) = true, want structural no-reuse")
@@ -401,7 +389,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 
 		taskRecord := taskRoleRuntimeTask("task-profile-worker", "")
 		taskRecord.Owner = nil
-		run := taskRoleRuntimeRun("run-profile-worker", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-profile-worker", taskRecord.ID)
 		profile := taskpkg.ExecutionProfile{
 			TaskID: taskRecord.ID,
 			Worker: taskpkg.WorkerProfile{
@@ -411,18 +399,15 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 				Model:                "grok-4.5[effort=high,fast=true]",
 				RequiredCapabilities: []string{"frontend"},
 			},
-			Sandbox: taskpkg.SandboxPolicy{
-				Mode:       taskpkg.SandboxModeRef,
-				SandboxRef: "evidence-lab",
-			},
+
 			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 		}
 		store := newTaskRoleRuntimeStore(taskRecord, run, profile)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
 
@@ -439,12 +424,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got, want := call.Model, "grok-4.5[effort=high,fast=true]"; got != want {
 			t.Fatalf("CreateOpts.Model = %q, want %q", got, want)
 		}
-		if got, want := call.Permissions, compozyconfig.PermissionModeApproveAll; got != want {
+		if got, want := call.Permissions, compozyconfig.PermissionMode(""); got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
-		if got, want := call.SandboxRef, "evidence-lab"; got != want {
-			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
-		}
+
 		if !strings.Contains(call.PromptOverlay, "Runtime evidence mode is enabled") {
 			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", call.PromptOverlay)
 		}
@@ -463,17 +446,17 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		frontendTask := taskRoleRuntimeTask("task-frontend", "frontend-engineer-agent")
-		frontendRun := taskRoleRuntimeRun("run-frontend", frontendTask.ID, "design-review")
+		frontendRun := taskRoleRuntimeRun("run-frontend", frontendTask.ID)
 		analyticsTask := taskRoleRuntimeTask("task-analytics", "analytics-engineer-agent")
-		analyticsRun := taskRoleRuntimeRun("run-analytics", analyticsTask.ID, "data-watch")
+		analyticsRun := taskRoleRuntimeRun("run-analytics", analyticsTask.ID)
 		humanTask := taskRoleRuntimeTask("task-human", "human-owner")
 		humanTask.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "local-user"}
-		humanRun := taskRoleRuntimeRun("run-human", humanTask.ID, "ops")
+		humanRun := taskRoleRuntimeRun("run-human", humanTask.ID)
 		store := newTaskRoleRuntimeStore(frontendTask, frontendRun, analyticsTask, analyticsRun, humanTask, humanRun)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.Recover(context.Background())
+		runtime.Recover(t.Context())
 
 		if got, want := sessions.createCount(), 2; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
@@ -496,7 +479,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 
 		taskRecord := taskRoleRuntimeTask("task-loop-starved", "")
 		taskRecord.Owner = nil
-		run := taskRoleRuntimeRun("run-loop-starved", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-loop-starved", taskRecord.ID)
 		run.LoopRunID = "loop-run-starved"
 		run.RequiredCapabilities = []string{"go"}
 		sessions := &taskRoleRuntimeSessions{}
@@ -504,7 +487,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		resolverErr := errors.New("loop worker must not resolve a starvation agent")
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{workspaces: &fakeSpawnWorkspaceResolver{err: resolverErr}},
@@ -520,13 +503,14 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-starved", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-starved", taskRecord.ID, "design-review")
+		taskRecord.ProfileID = "profile-editorial"
+		run := taskRoleRuntimeRun("run-starved", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -537,6 +521,9 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			t.Fatalf("create count = %d, want %d", got, want)
 		}
 		call := sessions.createCall(0)
+		if got, want := call.ProfileID, taskRecord.ProfileID; got != want {
+			t.Fatalf("CreateOpts.ProfileID = %q, want task owner %q", got, want)
+		}
 		if got, want := call.AgentName, "frontend-engineer-agent"; got != want {
 			t.Fatalf("CreateOpts.AgentName = %q, want %q", got, want)
 		}
@@ -583,13 +570,13 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-prompt-retry", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-prompt-retry", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-prompt-retry", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		dispatchErr := errors.New("synthetic prompt unavailable")
 		sessions := &taskRoleRuntimeSessions{promptErrors: []error{dispatchErr, nil}}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		err := runtime.activateForStarvation(context.Background(), taskRecord, run, starvationSpawner{})
+		err := runtime.activateForStarvation(t.Context(), taskRecord, run, starvationSpawner{})
 		if !errors.Is(err, dispatchErr) {
 			t.Fatalf("first activateForStarvation() error = %v, want %v", err, dispatchErr)
 		}
@@ -608,7 +595,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -627,7 +614,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-prompt-cleanup", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-prompt-cleanup", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-prompt-cleanup", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		dispatchErr := errors.New("synthetic prompt unavailable")
 		cleanupErr := errors.New("session stop unavailable")
@@ -637,7 +624,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		err := runtime.activateForStarvation(context.Background(), taskRecord, run, starvationSpawner{})
+		err := runtime.activateForStarvation(t.Context(), taskRecord, run, starvationSpawner{})
 		if !errors.Is(err, dispatchErr) {
 			t.Fatalf("activateForStarvation() error = %v, want prompt error %v", err, dispatchErr)
 		}
@@ -655,7 +642,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			t.Parallel()
 
 			taskRecord := taskRoleRuntimeTask("task-cap-owner", "frontend-engineer-agent")
-			run := taskRoleRuntimeRun("run-cap-owner", taskRecord.ID, "design-review")
+			run := taskRoleRuntimeRun("run-cap-owner", taskRecord.ID)
 			run.RequiredCapabilities = []string{"sqlite"}
 			store := newTaskRoleRuntimeStore(taskRecord, run)
 			sessions := &taskRoleRuntimeSessions{}
@@ -673,7 +660,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 				},
 			}
 
-			if err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner); err != nil {
+			if err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner); err != nil {
 				t.Fatalf("activateForStarvation() error = %v", err)
 			}
 			if got, want := sessions.createCount(), 1; got != want {
@@ -692,7 +679,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 
 			taskRecord := taskRoleRuntimeTask("task-no-cap-owner", "")
 			taskRecord.Owner = nil
-			run := taskRoleRuntimeRun("run-no-cap-owner", taskRecord.ID, "design-review")
+			run := taskRoleRuntimeRun("run-no-cap-owner", taskRecord.ID)
 			store := newTaskRoleRuntimeStore(taskRecord, run)
 			sessions := &taskRoleRuntimeSessions{}
 			runtime := newTaskRoleRuntimeForTest(t, store, sessions)
@@ -709,7 +696,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 				},
 			}
 
-			if err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner); err != nil {
+			if err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner); err != nil {
 				t.Fatalf("activateForStarvation() error = %v", err)
 			}
 			if got, want := sessions.createCount(), 1; got != want {
@@ -726,7 +713,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 
 		taskRecord := taskRoleRuntimeTask("task-cap", "")
 		taskRecord.Owner = nil
-		run := taskRoleRuntimeRun("run-cap", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-cap", taskRecord.ID)
 		run.RequiredCapabilities = []string{"go"}
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -740,7 +727,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			agents: reviewRouterAgentResolverStub{"docs-agent": spawnAgentDef("docs-agent", "docs")},
 		}
 
-		err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner)
+		err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner)
 		if !errors.Is(err, errStarvationSpawnUnresolvable) {
 			t.Fatalf("activateForStarvation() error = %v, want errStarvationSpawnUnresolvable", err)
 		}
@@ -753,13 +740,13 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-dup", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-dup", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-dup", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -768,7 +755,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime.wg.Wait()
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -787,13 +774,13 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-reconstructed", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-reconstructed", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-reconstructed", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
 		firstRuntime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := firstRuntime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -804,7 +791,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 
 		reconstructed := newTaskRoleRuntimeForTest(t, store, sessions)
 		if err := reconstructed.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -820,13 +807,13 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-replacement", "frontend-engineer-agent")
-		run := taskRoleRuntimeRun("run-replacement", taskRecord.ID, "design-review")
+		run := taskRoleRuntimeRun("run-replacement", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -835,7 +822,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime.wg.Wait()
 		if err := sessions.StopWithCause(
-			context.Background(),
+			t.Context(),
 			"role-1",
 			session.CauseUserRequested,
 			"explicit replacement",
@@ -844,7 +831,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -853,7 +840,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime.wg.Wait()
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -876,7 +863,7 @@ func TestEscalationActorAdapterRequestWorkerSpawn(t *testing.T) {
 		t.Parallel()
 
 		adapter := escalationActorAdapter{tasks: &taskRuntime{}}
-		err := adapter.RequestWorkerSpawn(context.Background(), &schedulerpkg.RunSnapshot{})
+		err := adapter.RequestWorkerSpawn(t.Context(), &schedulerpkg.RunSnapshot{})
 		if !errors.Is(err, schedulerpkg.ErrSpawnUnresolvable) {
 			t.Fatalf("RequestWorkerSpawn() error = %v, want %v", err, schedulerpkg.ErrSpawnUnresolvable)
 		}
@@ -927,7 +914,7 @@ func taskRoleRuntimeTask(id string, ownerRef string) taskpkg.Task {
 	}
 }
 
-func taskRoleRuntimeRun(id string, taskID string, channel string) taskpkg.Run {
+func taskRoleRuntimeRun(id string, taskID string) taskpkg.Run {
 	run := taskpkg.Run{
 		ID:       id,
 		TaskID:   taskID,
@@ -937,7 +924,7 @@ func taskRoleRuntimeRun(id string, taskID string, channel string) taskpkg.Run {
 		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task-role-test"},
 		QueuedAt: time.Date(2026, 5, 6, 12, 1, 0, 0, time.UTC),
 	}
-	run.SetNetworkState(daemonTestLiveParticipation("ws-growth", channel), "", "", "")
+
 	return run
 }
 
@@ -1114,29 +1101,31 @@ func (s *taskRoleRuntimeSessions) Create(_ context.Context, opts session.CreateO
 	s.createCalls = append(s.createCalls, opts)
 	id := fmt.Sprintf("role-%d", len(s.createCalls))
 	info := &session.Info{
-		ID:                   id,
-		Name:                 opts.Name,
-		AgentName:            opts.AgentName,
-		Provider:             opts.Provider,
-		WorkspaceID:          opts.Workspace,
-		Workspace:            firstNonEmpty(opts.Workspace, opts.WorkspacePath),
-		NetworkParticipation: daemonTestParticipationFromCreateOpts(opts),
-		Type:                 opts.Type,
-		State:                session.StateActive,
-		CreatedAt:            time.Date(2026, 5, 6, 12, 2, 0, len(s.createCalls), time.UTC),
+		ID:          id,
+		ProfileID:   opts.ProfileID,
+		Name:        opts.Name,
+		AgentName:   opts.AgentName,
+		Provider:    opts.Provider,
+		WorkspaceID: opts.Workspace,
+		Workspace:   firstNonEmpty(opts.Workspace, opts.WorkspacePath),
+
+		Type:      opts.Type,
+		State:     session.StateActive,
+		CreatedAt: time.Date(2026, 5, 6, 12, 2, 0, len(s.createCalls), time.UTC),
 	}
 	s.infos = append(s.infos, info)
 	return &session.Session{
-		ID:                   info.ID,
-		Name:                 info.Name,
-		AgentName:            info.AgentName,
-		Provider:             info.Provider,
-		WorkspaceID:          info.WorkspaceID,
-		Workspace:            info.Workspace,
-		NetworkParticipation: info.NetworkParticipation,
-		Type:                 info.Type,
-		State:                info.State,
-		CreatedAt:            info.CreatedAt,
+		ID:          info.ID,
+		ProfileID:   info.ProfileID,
+		Name:        info.Name,
+		AgentName:   info.AgentName,
+		Provider:    info.Provider,
+		WorkspaceID: info.WorkspaceID,
+		Workspace:   info.Workspace,
+
+		Type:      info.Type,
+		State:     info.State,
+		CreatedAt: info.CreatedAt,
 	}, nil
 }
 

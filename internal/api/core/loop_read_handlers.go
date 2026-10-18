@@ -118,24 +118,21 @@ func (h *BaseHandlers) requireLoopRunReadService(c *gin.Context) (LoopRunReadSer
 }
 
 func (h *BaseHandlers) respondLoopRunReadError(c *gin.Context, runID string, err error) {
-	var invalidState *looppkg.InvalidNodeStateError
-	var timelinePosition *looppkg.TimelinePositionError
-	switch {
-	case errors.Is(err, looppkg.ErrRunNotFound):
+	if errors.Is(err, looppkg.ErrRunNotFound) {
 		c.JSON(http.StatusNotFound, contract.ErrorPayload{
 			Error: "loop_run_not_found", Code: "loop_run_not_found", Details: map[string]string{"run_id": runID},
 		})
-	case errors.Is(err, looppkg.ErrTimelineBranchChanged):
+	} else if errors.Is(err, looppkg.ErrTimelineBranchChanged) {
 		c.JSON(http.StatusConflict, contract.ErrorPayload{
 			Error: "timeline_branch_changed",
 			Code:  "timeline_branch_changed",
 		})
-	case errors.Is(err, looppkg.ErrInvalidTimelineCursor), errors.Is(err, looppkg.ErrInvalidRosterCursor):
+	} else if errors.Is(err, looppkg.ErrInvalidTimelineCursor) || errors.Is(err, looppkg.ErrInvalidRosterCursor) {
 		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
 			Error: loopInvalidCursor,
 			Code:  loopInvalidCursor,
 		})
-	case errors.As(err, &timelinePosition):
+	} else if timelinePosition, ok := errors.AsType[*looppkg.TimelinePositionError](err); ok {
 		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
 			Error: timelinePosition.Error(),
 			Code:  looppkg.ErrTimelinePositionBeyondHead.Error(),
@@ -144,13 +141,13 @@ func (h *BaseHandlers) respondLoopRunReadError(c *gin.Context, runID string, err
 				"head_seq": strconv.FormatInt(timelinePosition.Head, 10),
 			},
 		})
-	case errors.As(err, &invalidState):
+	} else if invalidState, ok := errors.AsType[*looppkg.InvalidNodeStateError](err); ok {
 		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
 			Error:   "invalid_node_state",
 			Code:    "invalid_node_state",
 			Details: map[string]string{"allowed": strings.Join(invalidState.Allowed, ",")},
 		})
-	default:
+	} else {
 		h.respondLoopError(c, err)
 	}
 }

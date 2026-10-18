@@ -91,11 +91,11 @@ func TestGatewayTierListeners(t *testing.T) {
 			return server, nil
 		})
 
-		first, err := listeners.Bind(context.Background(), gateway.TierPrivate)
+		first, err := listeners.Bind(t.Context(), gateway.TierPrivate)
 		if err != nil {
 			t.Fatalf("Bind(first) error = %v", err)
 		}
-		second, err := listeners.Bind(context.Background(), gateway.TierPrivate)
+		second, err := listeners.Bind(t.Context(), gateway.TierPrivate)
 		if err != nil {
 			t.Fatalf("Bind(second) error = %v", err)
 		}
@@ -110,10 +110,10 @@ func TestGatewayTierListeners(t *testing.T) {
 		if startCalls != 1 || shutdownCalls != 0 {
 			t.Fatalf("server calls before unbind = (start=%d, shutdown=%d)", startCalls, shutdownCalls)
 		}
-		if err := listeners.Unbind(context.Background(), gateway.TierPrivate); err != nil {
+		if err := listeners.Unbind(t.Context(), gateway.TierPrivate); err != nil {
 			t.Fatalf("Unbind(first) error = %v", err)
 		}
-		if err := listeners.Unbind(context.Background(), gateway.TierPrivate); err != nil {
+		if err := listeners.Unbind(t.Context(), gateway.TierPrivate); err != nil {
 			t.Fatalf("Unbind(second) error = %v", err)
 		}
 		_, shutdownCalls = server.counts()
@@ -139,7 +139,7 @@ func TestGatewayTierListeners(t *testing.T) {
 			return server, nil
 		})
 
-		_, err := listeners.Bind(context.Background(), gateway.TierPublic)
+		_, err := listeners.Bind(t.Context(), gateway.TierPublic)
 		if !errors.Is(err, startErr) {
 			t.Fatalf("Bind() error = %v, want start failure", err)
 		}
@@ -165,7 +165,7 @@ func TestGatewayTierListeners(t *testing.T) {
 			return server, nil
 		})
 
-		if _, err := listeners.Bind(context.Background(), gateway.TierPrivate); err == nil {
+		if _, err := listeners.Bind(t.Context(), gateway.TierPrivate); err == nil {
 			t.Fatal("Bind() error = nil, want resolved-port failure")
 		}
 		_, shutdownCalls := server.counts()

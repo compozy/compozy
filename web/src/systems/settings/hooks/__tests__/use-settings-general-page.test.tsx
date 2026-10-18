@@ -2,6 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { statusFixture } from "@/systems/status/mocks";
+
+vi.mock("@/systems/status/adapters/daemon-api", () => ({
+  fetchStatus: vi.fn(async () => statusFixture),
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
@@ -46,9 +51,10 @@ import {
   settingsUpdateBothAvailableFixture,
   settingsUpdateStagedFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
+import { settingsRestartRequiredMutationFixture } from "@/systems/settings/mocks/fixtures";
 
 import { useSettingsGeneralPage } from "../use-settings-general-page";
-import type { SettingsGeneralSection } from "@/systems/settings";
+import type { SettingsGeneralSection, SettingsMutationResult } from "@/systems/settings";
 
 const envelope: SettingsGeneralSection = {
   section: "general",
@@ -60,7 +66,7 @@ const envelope: SettingsGeneralSection = {
   config: {
     daemon: {
       memory_report_interval: "5m",
-      reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+      reload_timeouts: { mcp: "10s", providers: "5s" },
       socket: "/tmp/compozy.sock",
     },
     http: { host: "127.0.0.1", port: 2123 },
@@ -68,6 +74,7 @@ const envelope: SettingsGeneralSection = {
     permissions: { mode: "approve-all" },
     redact: { enabled: true },
     session_timeout: "0s",
+    idle_release_after: "30m0s",
     terminal: {
       default_shell: "",
       shell_integration: true,
@@ -106,6 +113,14 @@ function createWrapper() {
   return { queryClient, wrapper };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(next => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   workspaceState.activeWorkspaceId = "ws_alpha";
@@ -129,53 +144,14 @@ afterEach(() => {
 });
 
 describe("useSettingsGeneralPage", () => {
-  it("loads the envelope and seeds the draft", async () => {
+  it("clears a dirty draft when the active workspace changes", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(envelope.config);
     });
-  });
-
-  it("records a restart-required applied label after a save mutation succeeds", async () => {
-    vi.mocked(updateSettingsGeneral).mockResolvedValue({
-      section: "general",
-      scope: "user",
-      applied: true,
-      active_config_hash: "sha256:test-active",
-      active_generation: 1,
-      apply_record_id: "cfg_apply_test",
-      lifecycle: "live",
-      next_action: "none",
-      restart_required: true,
-      write_target: "global-config",
-    });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
-
-    act(() => {
-      result.current.setDraft({
-        ...envelope.config,
-        limits: { ...envelope.config.limits, max_concurrent_agents: 50 },
-      });
-      result.current.handleSave();
-    });
-
-    await waitFor(() => {
-      expect(result.current.lastAppliedLabel).toContain("restart required");
-    });
-  });
-
-  it("clears a dirty draft when the active workspace changes", async () => {
-    const { wrapper } = createWrapper();
-    const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({
@@ -197,7 +173,91 @@ describe("useSettingsGeneralPage", () => {
     });
   });
 
-  it("Should send all requested targets to the apply endpoint and expose the daemon's answer", async () => {
+  it("Should adopt the saved canonical duration and clear the acknowledged draft", async () => {
+    const canonical = {
+      ...envelope,
+      config: { ...envelope.config, idle_release_after: "4h0m0s" },
+    };
+    vi.mocked(updateSettingsGeneral).mockImplementation(async () => {
+      vi.mocked(getSettingsGeneral).mockResolvedValue(canonical);
+      return settingsRestartRequiredMutationFixture;
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft({ ...envelope.config, idle_release_after: "14400s" });
+    });
+    expect(result.current.isDirty).toBe(true);
+    act(() => result.current.handleSave());
+
+    await waitFor(() => {
+      expect(result.current.isSaving).toBe(false);
+      expect(result.current.draft?.idle_release_after).toBe("4h0m0s");
+      expect(result.current.isDirty).toBe(false);
+    });
+    expect(updateSettingsGeneral).toHaveBeenCalledExactlyOnceWith({
+      config: { ...envelope.config, idle_release_after: "14400s" },
+    });
+    expect(result.current.lastAppliedLabel).toContain("restart required");
+  });
+
+  it.each(["ws_alpha", "ws_beta"])(
+    "Should retain a newer draft in %s when an earlier save finishes",
+    async workspace => {
+      const pending = deferred<SettingsMutationResult>();
+      vi.mocked(updateSettingsGeneral).mockReturnValue(pending.promise);
+      const { wrapper } = createWrapper();
+      const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+      await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+      act(() => {
+        result.current.setDraft({ ...envelope.config, idle_release_after: "14400s" });
+      });
+      act(() => result.current.handleSave());
+      await waitFor(() => expect(updateSettingsGeneral).toHaveBeenCalledTimes(1));
+
+      act(() => {
+        workspaceState.activeWorkspaceId = workspace;
+        rerender();
+      });
+      act(() => {
+        result.current.setDraft({ ...envelope.config, idle_release_after: "3600s" });
+      });
+      vi.mocked(getSettingsGeneral).mockResolvedValue({
+        ...envelope,
+        config: { ...envelope.config, idle_release_after: "4h0m0s" },
+      });
+      await act(async () => pending.resolve(settingsRestartRequiredMutationFixture));
+
+      await waitFor(() => {
+        expect(result.current.isSaving).toBe(false);
+        expect(result.current.envelope?.config.idle_release_after).toBe("4h0m0s");
+      });
+      expect(result.current.draft?.idle_release_after).toBe("3600s");
+      expect(result.current.isDirty).toBe(true);
+    }
+  );
+
+  it("Should retain the dirty draft when the save fails", async () => {
+    vi.mocked(updateSettingsGeneral).mockRejectedValue(new Error("Couldn't save General"));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft({ ...envelope.config, idle_release_after: "14400s" });
+    });
+    act(() => result.current.handleSave());
+
+    await waitFor(() => expect(result.current.saveError).toBe("Couldn't save General"));
+    expect(result.current.draft?.idle_release_after).toBe("14400s");
+    expect(result.current.isDirty).toBe(true);
+    expect(result.current.lastAppliedLabel).toBeNull();
+  });
+
+  it("Should apply every eligible target in one request and expose the daemon's answer", async () => {
     vi.mocked(applySettingsUpdate).mockResolvedValue({
       targets: ["runtime", "app"],
       status: "accepted",
@@ -211,7 +271,7 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.update.data).toBeTruthy());
 
     act(() => {
-      result.current.updateActions.apply(["runtime", "app"]);
+      result.current.updateActions.apply();
     });
 
     await waitFor(() => {
@@ -243,7 +303,7 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.update.data).toBeTruthy());
 
     act(() => {
-      result.current.updateActions.apply(["runtime"]);
+      result.current.updateActions.apply();
     });
 
     await waitFor(() => {

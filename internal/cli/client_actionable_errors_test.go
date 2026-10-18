@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -35,7 +34,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 			t.Fatalf("NewClient() error = %v", err)
 		}
 
-		_, err = client.DaemonStatus(context.Background())
+		_, err = client.DaemonStatus(t.Context())
 		if err == nil {
 			t.Fatal("DaemonStatus() error = nil, want missing daemon socket failure")
 		}
@@ -62,7 +61,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 			},
 		}
 
-		_, err := client.DaemonStatus(context.Background())
+		_, err := client.DaemonStatus(t.Context())
 		if err == nil {
 			t.Fatal("DaemonStatus() error = nil, want stale daemon socket failure")
 		}

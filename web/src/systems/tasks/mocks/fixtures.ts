@@ -1,8 +1,6 @@
 import type {
   AgentContextView,
   CreateTaskRequest,
-  TaskBridgeNotificationCursor,
-  TaskBridgeNotificationSubscription,
   TaskChildSummary,
   TaskContextBundle,
   TaskDashboardView,
@@ -27,14 +25,9 @@ import {
   storyAgentNames,
   storyCoordinatorAgentName,
   storyDefaultWorkspaceId,
-  storyHeroNetworkChannel,
   storyPeople,
   storySessionIds,
 } from "@/storybook/fintech-scenario";
-import {
-  buildLiveNetworkParticipationFixture,
-  buildLocalNetworkParticipationFixture,
-} from "@/test/network-participation-fixtures";
 
 type TaskDependencyReference = NonNullable<TaskDetailView["dependency_references"]>[number];
 type TaskActiveRun = NonNullable<TaskListItem["active_run"]>;
@@ -50,7 +43,6 @@ type TaskInboxItemFixtureOverrides = Omit<Partial<TaskInboxItem>, "task"> & {
 };
 
 const STORYBOOK_WORKSPACE_ID = storyDefaultWorkspaceId;
-const STORYBOOK_CHANNEL = storyHeroNetworkChannel;
 
 export function buildTaskRunFixture(overrides: Partial<TaskActiveRun> = {}): TaskActiveRun {
   return {
@@ -64,7 +56,6 @@ export function buildTaskRunFixture(overrides: Partial<TaskActiveRun> = {}): Tas
     started_at: "2026-04-17T09:59:00Z",
     session_id: storySessionIds.product,
     claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
-    resolved_network_participation: buildLocalNetworkParticipationFixture(),
     // No worktree policy resolved for this run, so it binds nothing:
     // `worktree_id` and `resolved_worktree_ref` stay absent rather than empty.
     resolved_worktree_mode: "none",
@@ -85,23 +76,6 @@ export function buildTaskRunRecordFixture(overrides: Partial<TaskRun> = {}): Tas
     claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
     origin: { kind: "cli", ref: storyPeople.primaryOperator },
     claim_token_hash: "sha256:launch-command-run",
-    resolved_network_participation: buildLocalNetworkParticipationFixture(),
-    coordination_channel: {
-      id: "coord-launch-001",
-      display_name: "TASK-1 coordination",
-      workspace_id: STORYBOOK_WORKSPACE_ID,
-      task_id: "task_001",
-      run_id: "run_001",
-      allowed_message_kinds: [
-        "status",
-        "request",
-        "reply",
-        "blocker",
-        "handoff",
-        "result",
-        "review_request",
-      ],
-    },
     ...overrides,
   } as TaskRun;
 }
@@ -162,10 +136,6 @@ const approvalPendingActiveRun = buildTaskRunFixture({
   id: "run_006",
   task_id: "task_006",
   status: "needs_attention",
-  resolved_network_participation: buildLiveNetworkParticipationFixture({
-    workspaceId: STORYBOOK_WORKSPACE_ID,
-    channelId: STORYBOOK_CHANNEL,
-  }),
 });
 
 export const TASK_FIXTURES: TaskListItem[] = [
@@ -186,12 +156,6 @@ export const TASK_FIXTURES: TaskListItem[] = [
       started_at: "2026-04-17T17:42:00Z",
       session_id: storySessionIds.frontend,
       claimed_by: { kind: "agent_session", ref: storyAgentNames.frontend },
-      resolved_network_participation: buildLiveNetworkParticipationFixture({
-        workspaceId: STORYBOOK_WORKSPACE_ID,
-        channelId: "coord-launch-002",
-        channelStrategy: "run",
-        source: "workspace_coordination",
-      }),
     }),
     child_count: 0,
     dependency_count: 0,
@@ -249,7 +213,6 @@ export const TASK_FIXTURES: TaskListItem[] = [
     approval_state: "pending",
     parent_task_id: "task_001",
     active_run: approvalPendingActiveRun,
-    resolved_network_participation: approvalPendingActiveRun.resolved_network_participation,
     owner: { kind: "human", ref: storyPeople.productLead },
   }),
   buildTaskFixture({
@@ -345,12 +308,6 @@ export const TASK_FIXTURES: TaskListItem[] = [
       started_at: null,
       session_id: undefined,
       claimed_by: undefined,
-      resolved_network_participation: buildLiveNetworkParticipationFixture({
-        workspaceId: STORYBOOK_WORKSPACE_ID,
-        channelId: "coord-launch-014",
-        channelStrategy: "run",
-        source: "workspace_coordination",
-      }),
     }),
     child_count: 0,
     dependency_count: 0,
@@ -1201,7 +1158,7 @@ export function buildCreatedTaskFixture(body?: Partial<CreateTaskRequest>): Task
 /**
  * Saved-intent fixture: a user-created task that has not been published or
  * started yet. Renders as `saved_intent` in the lifecycle pill, no active run,
- * and no coordination channel binding.
+ * and no active worker binding.
  */
 export const savedIntentTaskFixture: TaskListItem = buildTaskFixture({
   id: "task_saved_intent",
@@ -1315,8 +1272,7 @@ export const awaitingApprovalTaskFixture: TaskListItem = buildTaskFixture({
 });
 
 /**
- * Queued-with-coordination fixture: a coordinator-handoff run was enqueued and
- * is bound to a stable coordination channel, but no worker has claimed it yet.
+ * A coordinator-handoff run was enqueued, but no worker has claimed it yet.
  */
 export const queuedCoordinatedTaskFixture: TaskListItem = buildTaskFixture({
   id: "task_queued_coordinated",
@@ -1332,12 +1288,6 @@ export const queuedCoordinatedTaskFixture: TaskListItem = buildTaskFixture({
     queued_at: "2026-04-17T09:55:00Z",
     started_at: null,
     session_id: undefined,
-    resolved_network_participation: buildLiveNetworkParticipationFixture({
-      workspaceId: STORYBOOK_WORKSPACE_ID,
-      channelId: "coord-task-queued",
-      channelStrategy: "run",
-      source: "workspace_coordination",
-    }),
   }),
   child_count: 0,
   dependency_count: 0,
@@ -1354,14 +1304,12 @@ export interface CoordinatorEnabledWorkspaceFixture {
   workspaceId: string;
   coordinatorEnabled: boolean;
   coordinatorAgentName: string;
-  defaultChannelDisplayName: string;
 }
 
 export const coordinatorEnabledWorkspaceFixture: CoordinatorEnabledWorkspaceFixture = {
   workspaceId: STORYBOOK_WORKSPACE_ID,
   coordinatorEnabled: true,
   coordinatorAgentName: storyCoordinatorAgentName,
-  defaultChannelDisplayName: "Launch War Room coordination",
 };
 
 export function buildTaskExecutionProfileFixture(
@@ -1395,11 +1343,6 @@ export function buildTaskExecutionProfileFixture(
       preferred_capabilities: ["review.run"],
       required_capabilities: ["review.run"],
       ...overrides.review,
-    },
-    sandbox: {
-      mode: "ref",
-      sandbox_ref: "fintech-launch",
-      ...overrides.sandbox,
     },
     worktree: {
       mode: "inherit",
@@ -1486,12 +1429,6 @@ export function buildTaskRunReviewVerdictResultFixture(
       started_at: null,
       session_id: undefined,
       claim_token_hash: "sha256:continuation-launch-command",
-      resolved_network_participation: buildLiveNetworkParticipationFixture({
-        workspaceId: STORYBOOK_WORKSPACE_ID,
-        channelId: "coord-launch-001",
-        channelStrategy: "run",
-        source: "workspace_coordination",
-      }),
     }) as TaskRunReviewVerdictResult["continuation_run"],
     circuit_opened: false,
     ...overrides,
@@ -1500,75 +1437,6 @@ export function buildTaskRunReviewVerdictResultFixture(
 
 export const taskRunReviewVerdictResultFixture: TaskRunReviewVerdictResult =
   buildTaskRunReviewVerdictResultFixture();
-
-export function buildBridgeNotificationCursorFixture(
-  overrides: Partial<TaskBridgeNotificationCursor> = {}
-): TaskBridgeNotificationCursor {
-  return {
-    consumer_id: "bsub_001",
-    stream_name: "task_events",
-    subject_id: "task_001",
-    last_sequence: 14,
-    last_delivery_id: "delivery_evt_014",
-    last_delivered_at: "2026-04-17T18:01:00Z",
-    last_error: undefined,
-    updated_at: "2026-04-17T18:01:00Z",
-    ...overrides,
-  } as TaskBridgeNotificationCursor;
-}
-
-export function buildTaskBridgeNotificationSubscriptionFixture(
-  overrides: Partial<TaskBridgeNotificationSubscription> = {}
-): TaskBridgeNotificationSubscription {
-  return {
-    subscription_id: overrides.subscription_id ?? "bsub_001",
-    task_id: overrides.task_id ?? "task_001",
-    bridge_instance_id: overrides.bridge_instance_id ?? "bridge_instance_alpha",
-    delivery_mode: overrides.delivery_mode ?? "direct-send",
-    scope: overrides.scope ?? "workspace",
-    workspace_id: overrides.workspace_id ?? STORYBOOK_WORKSPACE_ID,
-    peer_id: overrides.peer_id ?? "peer_launch_observer",
-    group_id: overrides.group_id,
-    thread_id: overrides.thread_id,
-    created_by: overrides.created_by ?? {
-      kind: "human",
-      ref: storyPeople.primaryOperator,
-    },
-    created_at: overrides.created_at ?? "2026-04-17T16:00:00Z",
-    updated_at: overrides.updated_at ?? "2026-04-17T18:01:00Z",
-    cursor:
-      overrides.cursor ??
-      buildBridgeNotificationCursorFixture({
-        subject_id: overrides.task_id ?? "task_001",
-        consumer_id: overrides.subscription_id ?? "bsub_001",
-      }),
-  } as TaskBridgeNotificationSubscription;
-}
-
-export const taskBridgeNotificationSubscriptionFixture: TaskBridgeNotificationSubscription =
-  buildTaskBridgeNotificationSubscriptionFixture();
-
-export const taskBridgeNotificationSubscriptionsFixture: TaskBridgeNotificationSubscription[] = [
-  taskBridgeNotificationSubscriptionFixture,
-  buildTaskBridgeNotificationSubscriptionFixture({
-    subscription_id: "bsub_002",
-    bridge_instance_id: "bridge_instance_beta",
-    delivery_mode: "reply",
-    scope: "global",
-    workspace_id: undefined,
-    peer_id: "peer_partner_observer",
-    group_id: "launch_observers",
-    thread_id: "thread_launch_partner",
-    cursor: buildBridgeNotificationCursorFixture({
-      consumer_id: "bsub_002",
-      subject_id: "task_001",
-      last_sequence: 0,
-      last_delivery_id: undefined,
-      last_delivered_at: null,
-      updated_at: null,
-    }),
-  }),
-];
 
 export function buildTaskContextBundleFixture(
   overrides: Partial<TaskContextBundle> = {}
@@ -1604,12 +1472,6 @@ export function buildTaskContextBundleFixture(
       max_attempts: 3,
       session_id: storySessionIds.product,
       claim_token_hash: "sha256:launch-command-run",
-      resolved_network_participation: buildLiveNetworkParticipationFixture({
-        workspaceId: STORYBOOK_WORKSPACE_ID,
-        channelId: "coord-launch-001",
-        channelStrategy: "run",
-        source: "workspace_coordination",
-      }),
     },
     execution_profile: overrides.execution_profile ?? buildTaskExecutionProfileFixture(),
     latest_event_seq: overrides.latest_event_seq ?? 14,
@@ -1654,25 +1516,6 @@ export function buildAgentContextFixture(
       capabilities: [{ id: "task.execute", summary: "Execute tasks" }],
       section: { limit: 64, returned: 1, truncated: false },
     },
-    coordination_channel: {
-      available: true,
-      channel: {
-        id: "coord-launch-001",
-        display_name: "TASK-1 coordination",
-        workspace_id: STORYBOOK_WORKSPACE_ID,
-        task_id: "task_001",
-        run_id: "run_001",
-        allowed_message_kinds: [
-          "status",
-          "request",
-          "reply",
-          "blocker",
-          "handoff",
-          "result",
-          "review_request",
-        ],
-      },
-    },
     inbox_summary: {
       unread_count: 0,
       items: [],
@@ -1683,10 +1526,6 @@ export function buildAgentContextFixture(
       max_active_task_leases: 4,
       max_children: 8,
       max_spawn_depth: 3,
-    },
-    peer_roster: {
-      peers: [],
-      section: { limit: 16, returned: 0, truncated: false },
     },
     provenance: {
       generated_at: "2026-04-17T18:01:00Z",

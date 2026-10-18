@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	memorypkg "github.com/compozy/compozy/internal/memory"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -54,37 +53,31 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
-	Logger                *slog.Logger
-	Registry              func() toolspkg.Registry
-	CmdPalette            func() cmdpalette.Registry
-	ToolArtifacts         toolspkg.ToolArtifactStore
-	Config                compozyconfig.Config
-	Skills                daemonNativeSkillsRegistry
-	SkillExposures        store.SkillExposureRepository
-	SkillExposureEvents   store.EventSummaryStore
-	Sessions              core.SessionManager
-	Profiles              nativeProfileReader
-	ProfileManager        *profilepkg.Manager
-	SessionAttachments    attachmentspkg.Store
-	Workspaces            core.WorkspaceService
-	Worktrees             core.WorktreeService
-	WorkspaceResolver     workspacepkg.RuntimeResolver
-	ModelCatalog          core.ModelCatalogService
-	MarketplaceCatalog    core.MarketplaceCatalogService
-	Settings              func() core.SettingsService
-	Network               core.NetworkService
-	NetworkStore          core.NetworkStore
-	NetworkUsage          store.NetworkUsageStore
-	Tasks                 taskpkg.Manager
-	TaskClaimHandoff      taskClaimHandoffCoordinator
-	MemoryStore           *memorypkg.Store
-	MemoryToolWrites      memoryToolWriteRecorder
-	DreamTrigger          core.DreamTrigger
-	Roles                 core.RolesStatusProvider
-	MemoryExtractor       core.MemoryExtractorService
-	MemoryProviders       core.MemoryProviderService
-	MemorySessionLedger   core.MemorySessionLedgerService
-	Bridges               core.BridgeService
+	Subagents           func() sessionpkg.SubagentService
+	Logger              *slog.Logger
+	Registry            func() toolspkg.Registry
+	CmdPalette          func() cmdpalette.Registry
+	ToolArtifacts       toolspkg.ToolArtifactStore
+	Config              compozyconfig.Config
+	Skills              daemonNativeSkillsRegistry
+	SkillExposures      store.SkillExposureRepository
+	SkillExposureEvents store.EventSummaryStore
+	Sessions            core.SessionManager
+	Profiles            nativeProfileReader
+	ProfileManager      *profilepkg.Manager
+	SessionAttachments  attachmentspkg.Store
+	Workspaces          core.WorkspaceService
+	Worktrees           core.WorktreeService
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	ModelCatalog        core.ModelCatalogService
+	MarketplaceCatalog  core.MarketplaceCatalogService
+	Settings            func() core.SettingsService
+
+	Tasks            taskpkg.Manager
+	TaskDesignations core.TaskDesignationStore
+	TaskClaimHandoff taskClaimHandoffCoordinator
+	Roles            core.RolesStatusProvider
+
 	Gateway               func() core.GatewayService
 	GatewayPermissionMode func(context.Context, string) (string, error)
 	HomePaths             compozyconfig.HomePaths
@@ -118,6 +111,9 @@ type daemonNativeToolsDeps struct {
 	WindowManagers        windowManagerProvider
 	Terminals             func() terminalpkg.Manager
 	TerminalExecApprover  terminalExecApprover
+
+	// ProjectionEpoch reports the daemon tool projection epoch that invalidates cached Goal availability.
+	ProjectionEpoch func() uint64
 }
 
 func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {

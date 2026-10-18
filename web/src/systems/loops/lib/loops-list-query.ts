@@ -18,6 +18,8 @@ export function normalizeLoopCatalogFilter(
     status: filters.status,
     sort: filters.sort,
     limit: filters.limit,
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 

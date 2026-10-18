@@ -75,7 +75,7 @@ export interface WindowManagerLayoutWindow {
 }
 
 export interface WindowManagerLayoutDocument {
-  version: 4;
+  version: 5;
   workspaceId: string;
   desktops: WindowManagerLayoutDesktop[];
   windows: Record<string, WindowManagerLayoutWindow>;

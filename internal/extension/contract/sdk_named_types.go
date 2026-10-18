@@ -2,11 +2,14 @@ package contract
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/compozy/compozy/internal/hooks"
 )
 
 var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
+	"SubagentSettledPayload":        {Name: "SubagentSettledPayload", Value: hooks.SubagentSettledPayload{}},
+	"SubagentObservationPatch":      {Name: "SubagentObservationPatch", Value: hooks.SubagentObservationPatch{}},
 	sdkPayloadBaseValue:             {Name: sdkPayloadBaseValue, Value: hooks.PayloadBase{}},
 	sdkSessionContextValue:          {Name: sdkSessionContextValue, Value: hooks.SessionContext{}},
 	sdkTurnContextValue:             {Name: sdkTurnContextValue, Value: hooks.TurnContext{}},
@@ -41,30 +44,6 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 	"SessionPostResumePatch":      {Name: "SessionPostResumePatch", Value: hooks.SessionPostResumePatch{}},
 	"SessionPreStopPatch":         {Name: "SessionPreStopPatch", Value: hooks.SessionPreStopPatch{}},
 	"SessionPostStopPatch":        {Name: "SessionPostStopPatch", Value: hooks.SessionPostStopPatch{}},
-	sdkSandboxProfilePayloadValue: {Name: sdkSandboxProfilePayloadValue, Value: hooks.SandboxProfilePayload{}},
-	sdkSandboxPreparePayloadValue: {Name: sdkSandboxPreparePayloadValue, Value: hooks.SandboxPreparePayload{}},
-	sdkSandboxReadyPayloadValue:   {Name: sdkSandboxReadyPayloadValue, Value: hooks.SandboxReadyPayload{}},
-	sdkSandboxSyncBeforePayloadValue: {
-		Name:  sdkSandboxSyncBeforePayloadValue,
-		Value: hooks.SandboxSyncBeforePayload{},
-	},
-	sdkSandboxSyncAfterPayloadValue: {
-		Name:  sdkSandboxSyncAfterPayloadValue,
-		Value: hooks.SandboxSyncAfterPayload{},
-	},
-	sdkSandboxStopPayloadValue:  {Name: sdkSandboxStopPayloadValue, Value: hooks.SandboxStopPayload{}},
-	sdkSandboxPreparePatchValue: {Name: sdkSandboxPreparePatchValue, Value: hooks.SandboxPreparePatch{}},
-	sdkSandboxSyncBeforePatchValue: {
-		Name:  sdkSandboxSyncBeforePatchValue,
-		Value: hooks.SandboxSyncBeforePatch{},
-	},
-	sdkSandboxObservationPatchValue: {
-		Name:  sdkSandboxObservationPatchValue,
-		Value: hooks.SandboxObservationPatch{},
-	},
-	"SandboxReadyPatch":           {Name: "SandboxReadyPatch", Value: hooks.SandboxReadyPatch{}},
-	"SandboxSyncAfterPatch":       {Name: "SandboxSyncAfterPatch", Value: hooks.SandboxSyncAfterPatch{}},
-	sdkSandboxStopPatchValue:      {Name: sdkSandboxStopPatchValue, Value: hooks.SandboxStopPatch{}},
 	sdkInputPreSubmitPayloadValue: {Name: sdkInputPreSubmitPayloadValue, Value: hooks.InputPreSubmitPayload{}},
 	"InputAttachmentMetadata":     {Name: "InputAttachmentMetadata", Value: hooks.InputAttachmentMetadata{}},
 	sdkInputPreSubmitPatchValue:   {Name: sdkInputPreSubmitPatchValue, Value: hooks.InputPreSubmitPatch{}},
@@ -201,35 +180,16 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  "WorktreeObservationPatch",
 		Value: hooks.WorktreeObservationPatch{},
 	},
-	sdkNetworkPayloadValue:       {Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
-	"NetworkPeerJoinedPayload":   {Name: "NetworkPeerJoinedPayload", Value: hooks.NetworkPeerJoinedPayload{}},
-	"NetworkPeerLeftPayload":     {Name: "NetworkPeerLeftPayload", Value: hooks.NetworkPeerLeftPayload{}},
-	"NetworkThreadOpenedPayload": {Name: "NetworkThreadOpenedPayload", Value: hooks.NetworkThreadOpenedPayload{}},
-	"NetworkDirectRoomOpenedPayload": {
-		Name:  "NetworkDirectRoomOpenedPayload",
-		Value: hooks.NetworkDirectRoomOpenedPayload{},
-	},
-	sdkNetworkMessagePersistedPayloadValue: {
-		Name:  sdkNetworkMessagePersistedPayloadValue,
-		Value: hooks.NetworkMessagePersistedPayload{},
-	},
-	"NetworkWorkOpenedPayload": {Name: "NetworkWorkOpenedPayload", Value: hooks.NetworkWorkOpenedPayload{}},
-	"NetworkWorkTransitionedPayload": {
-		Name:  "NetworkWorkTransitionedPayload",
-		Value: hooks.NetworkWorkTransitionedPayload{},
-	},
-	sdkNetworkWorkClosedPayloadValue: {Name: sdkNetworkWorkClosedPayloadValue, Value: hooks.NetworkWorkClosedPayload{}},
-	sdkNetworkObservationPatchValue:  {Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},
-	sdkTurnPayloadValue:              {Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
-	"TurnStartPayload":               {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
-	"TurnEndPayload":                 {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
-	sdkTurnPatchValue:                {Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
-	"TurnStartPatch":                 {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
-	"TurnEndPatch":                   {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
-	sdkMessagePayloadValue:           {Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
-	"MessageStartPayload":            {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
-	"MessageDeltaPayload":            {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
-	"MessageEndPayload":              {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
+	sdkTurnPayloadValue:    {Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
+	"TurnStartPayload":     {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
+	"TurnEndPayload":       {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
+	sdkTurnPatchValue:      {Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
+	"TurnStartPatch":       {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
+	"TurnEndPatch":         {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
+	sdkMessagePayloadValue: {Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
+	"MessageStartPayload":  {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
+	"MessageDeltaPayload":  {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
+	"MessageEndPayload":    {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
 	sdkSessionMessagePersistedPayloadValue: {
 		Name:  sdkSessionMessagePersistedPayloadValue,
 		Value: hooks.SessionMessagePersistedPayload{},
@@ -252,17 +212,17 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  sdkPermissionResolutionPayloadValue,
 		Value: hooks.PermissionResolutionPayload{},
 	},
-	"PermissionResolvedPayload":    {Name: "PermissionResolvedPayload", Value: hooks.PermissionResolvedPayload{}},
-	"PermissionDeniedPayload":      {Name: "PermissionDeniedPayload", Value: hooks.PermissionDeniedPayload{}},
-	sdkPermissionRequestPatchValue: {Name: sdkPermissionRequestPatchValue, Value: hooks.PermissionRequestPatch{}},
-	"PermissionResolvedPatch":      {Name: "PermissionResolvedPatch", Value: hooks.PermissionResolvedPatch{}},
-	"PermissionDeniedPatch":        {Name: "PermissionDeniedPatch", Value: hooks.PermissionDeniedPatch{}},
-	sdkContextCompactPayloadValue:  {Name: sdkContextCompactPayloadValue, Value: hooks.ContextCompactPayload{}},
-	"ContextPreCompactPayload":     {Name: "ContextPreCompactPayload", Value: hooks.ContextPreCompactPayload{}},
-	"ContextPostCompactPayload":    {Name: "ContextPostCompactPayload", Value: hooks.ContextPostCompactPayload{}},
-	sdkContextCompactionPatchValue: {Name: sdkContextCompactionPatchValue, Value: hooks.ContextCompactionPatch{}},
-	"ContextPreCompactPatch":       {Name: "ContextPreCompactPatch", Value: hooks.ContextPreCompactPatch{}},
-	"ContextPostCompactPatch":      {Name: "ContextPostCompactPatch", Value: hooks.ContextPostCompactPatch{}},
+	"PermissionResolvedPayload":      {Name: "PermissionResolvedPayload", Value: hooks.PermissionResolvedPayload{}},
+	"PermissionDeniedPayload":        {Name: "PermissionDeniedPayload", Value: hooks.PermissionDeniedPayload{}},
+	sdkPermissionRequestPatchValue:   {Name: sdkPermissionRequestPatchValue, Value: hooks.PermissionRequestPatch{}},
+	"PermissionResolvedPatch":        {Name: "PermissionResolvedPatch", Value: hooks.PermissionResolvedPatch{}},
+	"PermissionDeniedPatch":          {Name: "PermissionDeniedPatch", Value: hooks.PermissionDeniedPatch{}},
+	sdkContextCompactionPayloadValue: {Name: sdkContextCompactionPayloadValue, Value: hooks.ContextCompactionPayload{}},
+	"ContextPreCompactPayload":       {Name: "ContextPreCompactPayload", Value: hooks.ContextPreCompactPayload{}},
+	"ContextPostCompactPayload":      {Name: "ContextPostCompactPayload", Value: hooks.ContextPostCompactPayload{}},
+	sdkContextCompactionPatchValue:   {Name: sdkContextCompactionPatchValue, Value: hooks.ContextCompactionPatch{}},
+	"ContextPreCompactPatch":         {Name: "ContextPreCompactPatch", Value: hooks.ContextPreCompactPatch{}},
+	"ContextPostCompactPatch":        {Name: "ContextPostCompactPatch", Value: hooks.ContextPostCompactPatch{}},
 	sdkAutonomyObservationPatchValue: {
 		Name:  sdkAutonomyObservationPatchValue,
 		Value: hooks.AutonomyObservationPatch{},
@@ -414,7 +374,7 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 	sdkSpawnCreatePatchValue: {Name: sdkSpawnCreatePatchValue, Value: hooks.SpawnCreatePatch{}},
 	"SpawnObservationPatch":  {Name: "SpawnObservationPatch", Value: hooks.SpawnObservationPatch{}},
 	sdkAutonomyMatcherValue:  {Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
-}, networkParticipationNamedHookTypes(), windowManagerNamedHookTypes(), terminalNamedHookTypes())
+}, windowManagerNamedHookTypes(), terminalNamedHookTypes())
 
 func namedHookType(name string) (NamedType, error) {
 	namedType, ok := namedHookTypes[name]
@@ -422,4 +382,11 @@ func namedHookType(name string) (NamedType, error) {
 		return NamedType{}, fmt.Errorf("unknown hook contract type %q", name)
 	}
 	return namedType, nil
+}
+
+func mergeNamedHookTypes(base map[string]NamedType, overlays ...map[string]NamedType) map[string]NamedType {
+	for _, overlay := range overlays {
+		maps.Copy(base, overlay)
+	}
+	return base
 }

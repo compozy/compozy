@@ -1,8 +1,9 @@
 package loop
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 )
 
 const diffOutputChangeSkipped = "skipped"
@@ -59,11 +60,8 @@ func diffOutputKeys(
 			keys = append(keys, key)
 		}
 	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].node == keys[j].node {
-			return keys[i].item < keys[j].item
-		}
-		return keys[i].node < keys[j].node
+	slices.SortFunc(keys, func(a, b diffOutputKey) int {
+		return cmp.Or(cmp.Compare(a.node, b.node), cmp.Compare(a.item, b.item))
 	})
 	return keys
 }

@@ -4,7 +4,7 @@ import { cn, Pill } from "@compozy/ui";
 
 import { ARCHIVED_OWNER_SUFFIX } from "../lib/profile-copy";
 import type { ProfileOwner } from "../lib/profile-scope";
-import { ProfileGlyph } from "./profile-glyph";
+import { ProfileGlyph, type ProfileGlyphSize } from "./profile-glyph";
 
 export interface ProfileOwnerTagProps extends Omit<ComponentProps<"span">, "children" | "color"> {
   "data-testid"?: string;
@@ -16,6 +16,8 @@ export interface ProfileOwnerTagProps extends Omit<ComponentProps<"span">, "chil
    * the owner's name moves to the accessible label and the hover title.
    */
   compact?: boolean;
+  /** Glyph size for the compact rendering; dense two-line rows use `xs`. */
+  size?: Extract<ProfileGlyphSize, "xs" | "sm">;
 }
 
 /**
@@ -35,6 +37,7 @@ export function ProfileOwnerTag({
   className,
   "data-testid": dataTestId,
   compact = false,
+  size = "sm",
   ...props
 }: ProfileOwnerTagProps) {
   const ownerLabel = owner.archived ? `${owner.name}${ARCHIVED_OWNER_SUFFIX}` : owner.name;
@@ -51,7 +54,7 @@ export function ProfileOwnerTag({
         color={owner.color}
         icon={owner.icon}
         emoji={owner.emoji}
-        size="sm"
+        size={size}
         surface={surface}
         title={ownerLabel}
         className={className}

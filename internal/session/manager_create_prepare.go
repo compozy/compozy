@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/identifier"
-	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -38,47 +38,37 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	sandboxID, err := m.prepareCreateSandboxID(location.sandboxDisabled)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
 	lineage, err := m.normalizeCreateOptsLineage(ctx, sessionID, sessionType, location.workspace.ID, opts)
 	if err != nil {
-		return sessionStartSpec{}, err
-	}
-	networkParticipation, networkOwnerKey, participationObservation, err := m.prepareCreateParticipation(
-		ctx, opts, location.workspace.ID, sessionID,
-	)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-	if err := validateCreateNetworkParticipant(agentName, sessionID, networkParticipation.Mode); err != nil {
 		return sessionStartSpec{}, err
 	}
 	requestedSpeed, acpOptions, err := normalizeCreateRuntimeOptions(opts)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	selectedRuntime, selectionRevision, err := deriveSelectedRuntime(opts, requestedSpeed, acpOptions)
+	if err != nil {
+		return sessionStartSpec{}, err
+	}
 	return sessionStartSpec{
 		sessionID:                sessionID,
 		profileID:                normalizeCreateProfileID(opts.ProfileID),
-		sandboxID:                sandboxID,
 		sessionName:              strings.TrimSpace(opts.Name),
 		agentName:                strings.TrimSpace(agentName),
 		provider:                 strings.TrimSpace(opts.Provider),
 		model:                    strings.TrimSpace(opts.Model),
+		command:                  strings.TrimSpace(opts.Command),
+		chainOwner:               opts.ChainOwner,
 		reasoningEffort:          strings.TrimSpace(opts.ReasoningEffort),
 		speed:                    requestedSpeed,
 		acpOptions:               acpOptions,
+		selectedRuntime:          selectedRuntime,
+		runtimeSelectionRevision: selectionRevision,
 		permissions:              opts.Permissions,
-		sandboxDisabled:          location.sandboxDisabled,
 		workspace:                location.workspace,
 		worktreeID:               location.worktreeID,
 		worktreeRoot:             location.worktreeRoot,
 		cwd:                      location.cwd,
-		networkParticipation:     networkParticipation,
-		networkOwnerKey:          networkOwnerKey,
-		participationObservation: participationObservation,
 		promptOverlay:            strings.TrimSpace(opts.PromptOverlay),
 		contractOverlay:          strings.TrimSpace(opts.ContractOverlay),
 		runtimeMode:              strings.TrimSpace(opts.RuntimeMode),
@@ -92,10 +82,35 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		creationIdentityEnabled:  true,
 		discardStartFailure:      opts.DiscardStartFailure,
 		parentSoulDigest:         strings.TrimSpace(opts.ParentSoulDigest),
+		derivation:               store.CloneSessionDerivation(opts.Derivation),
+		importedContext:          store.CloneSessionImportedContext(opts.ImportedContext),
+		deriveReceipt:            cloneDerivationReceipt(opts.deriveReceipt),
 		postEvent:                hookspkg.HookSessionPostCreate,
 		startAction:              sessionStartActionCreate,
 		cleanupSessionDir:        true,
 	}, nil
+}
+
+// deriveSelectedRuntime returns the selected runtime a continued or forked child starts
+// with: the runtime its derive chose, recorded as the first selection write.
+func deriveSelectedRuntime(
+	opts CreateOpts,
+	speed speedpkg.Speed,
+	acpOptions []acp.SessionConfigOptionSelection,
+) (*RuntimeSelection, int64, error) {
+	// A runtime without a provider (a model or speed alone) refines the agent default at
+	// the bind and records no selection.
+	if !opts.deriveSelectsRuntime || strings.TrimSpace(opts.Provider) == "" {
+		return nil, 0, nil
+	}
+	selection, err := NormalizeRuntimeSelection(RuntimeSelection{
+		Provider: opts.Provider, Model: opts.Model, ReasoningEffort: opts.ReasoningEffort,
+		Speed: speed, ACPOptions: acpOptions,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return &selection, 1, nil
 }
 
 func normalizeCreateProfileID(profileID string) string {
@@ -106,19 +121,11 @@ func normalizeCreateProfileID(profileID string) string {
 	return profileID
 }
 
-func validateCreateNetworkParticipant(agentName string, sessionID string, mode participation.Mode) error {
-	if mode != participation.ModeLive {
-		return nil
-	}
-	return validateLiveNetworkPeerID(agentName, sessionID)
-}
-
 type createLocation struct {
-	workspace       workspacepkg.ResolvedWorkspace
-	worktreeID      string
-	worktreeRoot    string
-	cwd             string
-	sandboxDisabled bool
+	workspace    workspacepkg.ResolvedWorkspace
+	worktreeID   string
+	worktreeRoot string
+	cwd          string
 }
 
 func (m *Manager) resolveCreateLocation(ctx context.Context, opts CreateOpts) (createLocation, error) {
@@ -127,10 +134,6 @@ func (m *Manager) resolveCreateLocation(ctx context.Context, opts CreateOpts) (c
 		return createLocation{}, err
 	}
 	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, resolved.ID, opts.Worktree)
-	if err != nil {
-		return createLocation{}, err
-	}
-	disabled, err := applyCreateSandboxOverride(&resolved, opts)
 	if err != nil {
 		return createLocation{}, err
 	}
@@ -144,7 +147,7 @@ func (m *Manager) resolveCreateLocation(ctx context.Context, opts CreateOpts) (c
 	}
 	return createLocation{
 		workspace: resolved, worktreeID: worktreeID, worktreeRoot: worktreeRoot,
-		cwd: cwd, sandboxDisabled: disabled,
+		cwd: cwd,
 	}, nil
 }
 
@@ -161,51 +164,6 @@ func validateCoordinatorExecutionTarget(opts CreateOpts, sessionType Type) error
 	return nil
 }
 
-func (m *Manager) prepareCreateSandboxID(disabled bool) (string, error) {
-	if disabled {
-		return "", nil
-	}
-	sandboxID, err := m.newSandboxID()
-	if err != nil {
-		return "", fmt.Errorf("session: generate sandbox id: %w", err)
-	}
-	sandboxID = strings.TrimSpace(sandboxID)
-	if sandboxID == "" {
-		return "", errors.New("session: sandbox id generator returned empty id")
-	}
-	return sandboxID, nil
-}
-
-func (m *Manager) prepareCreateParticipation(
-	ctx context.Context,
-	opts CreateOpts,
-	workspaceID string,
-	sessionID string,
-) (participation.Spec, string, *participation.ResolvedObservation, error) {
-	spec, observation, err := m.resolveCreateParticipation(
-		ctx,
-		workspaceID,
-		sessionID,
-		opts.NetworkParticipation,
-		opts.ResolvedNetworkParticipation,
-		opts.NetworkAuthority,
-	)
-	if err != nil {
-		return participation.Spec{}, "", nil, err
-	}
-	ownerKey := strings.TrimSpace(opts.NetworkOwnerKey)
-	if ownerKey == "" {
-		ownerKey = participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindSession,
-			ID:   sessionID,
-		})
-	}
-	if err := participation.ValidateOwnerKey(ownerKey); err != nil {
-		return participation.Spec{}, "", nil, fmt.Errorf("session: validate network owner key: %w", err)
-	}
-	return spec, ownerKey, observation, nil
-}
-
 func (m *Manager) createSessionID(desired string) (string, error) {
 	sessionID := strings.TrimSpace(desired)
 	if sessionID == "" {
@@ -218,7 +176,7 @@ func (m *Manager) createSessionID(desired string) (string, error) {
 			return "", errors.New("session: session id generator returned empty id")
 		}
 	}
-	if len(sessionID) > identifier.PeerIDMaxLength || sessionID == "." || sessionID == ".." ||
+	if sessionID == "." || sessionID == ".." ||
 		filepath.Base(sessionID) != sessionID ||
 		strings.ContainsAny(sessionID, `/\\`) {
 		return "", fmt.Errorf("%w: invalid preallocated session id %q", ErrValidation, sessionID)

@@ -77,8 +77,7 @@ func (m *Manager) enrichNotifiedAgentEvent(session *Session, event any) any {
 		if typed == nil {
 			return event
 		}
-		enriched := m.enrichRecordedAgentEvent(session, *typed)
-		return &enriched
+		return new(m.enrichRecordedAgentEvent(session, *typed))
 	default:
 		return event
 	}

@@ -4,16 +4,16 @@ area: RT
 title: Reject authored builtin agent identities
 persona: Ada
 journey: J-32
-expected: Create, rename, duplicate, native-tool, and extension kit publication attempts for coordinator or dreaming-curator fail with agent_name_reserved, create no authored directory, and leave the agent catalog unchanged.
+expected: Create, rename, duplicate, native-tool, and extension kit publication attempts for coordinator fail with agent_name_reserved, create no authored directory, and leave the agent catalog unchanged; `dreaming-curator` is no longer a builtin or reserved name.
 entry_points: compozy agent create|update|duplicate; POST/PUT /api/agents over HTTP or UDS; compozy__agent_create; extension enable; pre-existing $COMPOZY_HOME/agents/<reserved-name>/ directory at boot (discovery skip); docs configuration/agent-md reserved builtin names
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-08-02-bundles-removal.md
-overlaps: RT-081;MS-inspect-background-role-routing
+overlaps: RT-081; MS-inspect-background-role-routing
 ---
 
 QA impact 2026-07-23: builtin identities are newly reserved across every authoring surface. Planning flag only; the next QA cycle owns the real-user rejection sweep.
@@ -24,3 +24,5 @@ The create/update/duplicate/native/normalization/near-miss sweep and a pre-exist
 
 QA impact 2026-08-02: packaged agents now publish only through extension enable. Reset to verify the
 same reserved-name invariant through that surviving lifecycle.
+
+QA impact 2026-10-07 (memory removal): the builtin `dreaming-curator` agent was deleted with Dream, so `coordinator` is the only reserved builtin identity. Creating, renaming, or duplicating an agent named `dreaming-curator` is now an ordinary authoring operation, and a pre-existing `$COMPOZY_HOME/agents/dreaming-curator/` directory is discovered like any other agent. Stale verdict reset to untested; historical evidence preserved; no QA session ran.

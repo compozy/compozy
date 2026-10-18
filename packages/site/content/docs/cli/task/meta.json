@@ -17,7 +17,6 @@
         "list",
         "next",
         "pause",
-        "promote",
         "publish",
         "recover",
         "reject",
@@ -29,7 +28,6 @@
         "update",
         "child",
         "dependency",
-        "notification",
         "profile",
         "review",
         "run"

@@ -1,12 +1,13 @@
 package clientstate
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -376,10 +377,7 @@ func contextError(ctx context.Context) error {
 }
 
 func sortEntries(entries []Entry) {
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Domain == entries[j].Domain {
-			return entries[i].Key < entries[j].Key
-		}
-		return entries[i].Domain < entries[j].Domain
+	slices.SortFunc(entries, func(left, right Entry) int {
+		return cmp.Or(strings.Compare(left.Domain, right.Domain), strings.Compare(left.Key, right.Key))
 	})
 }

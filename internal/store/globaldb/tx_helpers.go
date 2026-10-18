@@ -9,13 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-type networkSQLExecutor interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
 type globalSQLExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
@@ -55,47 +48,6 @@ func joinCleanupError(target *error, cleanupErr error) {
 	*target = errors.Join(*target, cleanupErr)
 }
 
-func (g *NetworkRepo) withNetworkImmediateTransaction(
-	ctx context.Context,
-	action string,
-	run func(exec networkSQLExecutor) error,
-) (err error) {
-	return g.withImmediateTransaction(ctx, action, func(exec globalSQLExecutor) error {
-		return run(exec)
-	})
-}
-
-func (g *NetworkRepo) withNetworkReadTransaction(
-	ctx context.Context,
-	action string,
-	run func(exec networkSQLExecutor) error,
-) (err error) {
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return fmt.Errorf("store: begin %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if finished {
-			return
-		}
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			joinCleanupError(&err, fmt.Errorf("store: rollback %s transaction: %w", action, rollbackErr))
-		}
-	}()
-
-	if err := run(tx); err != nil {
-		return err
-	}
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit %s transaction: %w", action, err)
-	}
-	finished = true
-	return nil
-}
-
 func (r *repoBase) withImmediateTransaction(
 	ctx context.Context,
 	action string,
@@ -104,11 +56,18 @@ func (r *repoBase) withImmediateTransaction(
 	if r == nil || r.db == nil {
 		return errors.New("store: repository is required")
 	}
-	if err := store.ExecuteWrite(ctx, r.db, func(_ context.Context, tx *store.WriteTx) error {
-		return run(tx)
+	var committedSignals outboxSignalKind
+	if err := store.ExecuteWriteOperation(ctx, r.db, action, func(_ context.Context, tx *store.WriteTx) error {
+		transaction := &outboxSignalExecutor{globalSQLExecutor: tx}
+		if err := run(transaction); err != nil {
+			return err
+		}
+		committedSignals = transaction.load()
+		return nil
 	}); err != nil {
 		return fmt.Errorf("store: %s transaction: %w", action, err)
 	}
+	r.outboxSignals.fire(committedSignals)
 	return nil
 }
 

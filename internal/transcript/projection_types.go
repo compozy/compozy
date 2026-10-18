@@ -10,7 +10,7 @@ import (
 
 const (
 	// ProjectionVersion identifies the deterministic transcript projection contract.
-	ProjectionVersion = 1
+	ProjectionVersion = 3
 	defaultPageLimit  = 200
 	maxPageLimit      = 1000
 )
@@ -48,7 +48,7 @@ type Page struct {
 	Generation         int64   `json:"generation"`
 	MaxSequence        int64   `json:"max_sequence"`
 	HasOlder           bool    `json:"has_older"`
-	NextBeforeSequence int64   `json:"next_before_sequence,omitempty"`
+	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
 }
 
 // ChangeQuery selects materialized entries updated after an event cursor.
@@ -78,7 +78,7 @@ type ChangePage struct {
 	Generation  int64   `json:"generation"`
 	MaxSequence int64   `json:"max_sequence"`
 	HasMore     bool    `json:"has_more"`
-	NextAfter   int64   `json:"next_after_sequence,omitempty"`
+	NextAfter   int64   `json:"next_after_sequence,omitzero"`
 }
 
 // Reader exposes proportional transcript page and change reads.
@@ -98,10 +98,11 @@ type ProjectionState struct {
 type EntryKind string
 
 const (
-	EntryKindAssistant EntryKind = "assistant"
-	EntryKindUser      EntryKind = "user"
-	EntryKindSystem    EntryKind = "system"
-	EntryKindMarker    EntryKind = "marker"
+	EntryKindAssistant  EntryKind = "assistant"
+	EntryKindUser       EntryKind = "user"
+	EntryKindSystem     EntryKind = "system"
+	EntryKindMarker     EntryKind = "marker"
+	EntryKindCompaction EntryKind = "compaction"
 )
 
 // EntryIdentity is the stable metadata for one logical transcript segment.

@@ -145,7 +145,6 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
   const requestedId = matchTerminalInstance(pathname);
   const terminals = catalog.data ?? [];
   const terminalSettings = settings.data?.config.terminal;
-  const interactiveAvailable = !workspace.runtimeWorkspace?.sandbox_ref;
 
   if (requestedId === null && create.completedTerminal) {
     const terminal = create.completedTerminal;
@@ -153,12 +152,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <Empty
           action={
-            <Button
-              onClick={() => retargetTerminal(terminal.id)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
+            <Button onClick={() => retargetTerminal(terminal.id)} type="button" variant="primary">
               Open terminal
             </Button>
           }
@@ -179,7 +173,6 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
       inputRequestTitles={new Map(terminals.map(terminal => [terminal.id, terminal.title]))}
       inputRequests={inputRequests.data ?? []}
-      interactiveAvailable={interactiveAvailable}
       resolvedInputRequests={resolvedInputRequests}
       journal={
         <TerminalWindowJournal openTerminal={openTerminal} retargetTerminal={retargetTerminal} />
@@ -309,7 +302,7 @@ function TerminalWindowError({
     <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
       <Empty
         action={
-          <Button onClick={() => void retry()} size="sm" type="button" variant="outline">
+          <Button onClick={() => void retry()} size="sm" type="button" variant="secondary">
             Retry
           </Button>
         }

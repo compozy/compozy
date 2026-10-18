@@ -20,9 +20,8 @@ export interface RuntimeConfigInput {
   host: string;
   includeMockAgentProvider?: boolean;
   modelsDevEnabled?: boolean;
-  memoryEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
-  networkEnabled?: boolean;
+  newWindowPolicy?: "floating" | "beside_focus" | "tab";
   port: number;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";
@@ -59,6 +58,10 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     "[daemon]",
     `socket = ${tomlString(input.socketPath)}`,
     "",
+    // E2E runners are often saturated; host-load admission would delay background work.
+    "[daemon.load]",
+    "admission_threshold = 0",
+    "",
     "[http]",
     `host = ${tomlString(input.host)}`,
     `port = ${input.port}`,
@@ -73,12 +76,6 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
           `enabled = ${input.modelsDevEnabled ? "true" : "false"}`,
           "",
         ]),
-    ...(input.memoryEnabled === undefined
-      ? []
-      : ["[memory]", `enabled = ${input.memoryEnabled ? "true" : "false"}`, ""]),
-    ...(input.networkEnabled === undefined
-      ? []
-      : ["[network]", `enabled = ${input.networkEnabled ? "true" : "false"}`, ""]),
     ...(input.extensionsAllowUnverified === undefined
       ? []
       : [
@@ -103,6 +100,9 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
           'timeout = "5s"',
           "",
         ]),
+    ...(input.newWindowPolicy === undefined
+      ? []
+      : ["[window_manager]", `new_window_policy = ${tomlString(input.newWindowPolicy)}`, ""]),
     ...(input.toolsExternalDefault === undefined
       ? []
       : ["[tools.policy]", `external_default = ${tomlString(input.toolsExternalDefault)}`, ""]),

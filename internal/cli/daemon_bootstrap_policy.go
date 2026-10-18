@@ -96,12 +96,9 @@ func (g *bootstrapAttemptGate) Begin() (func(), error) {
 		return nil, errBootstrapAttemptInFlight
 	}
 	g.inFlight = true
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			g.mu.Lock()
-			g.inFlight = false
-			g.mu.Unlock()
-		})
-	}, nil
+	return sync.OnceFunc(func() {
+		g.mu.Lock()
+		g.inFlight = false
+		g.mu.Unlock()
+	}), nil
 }

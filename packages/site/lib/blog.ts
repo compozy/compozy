@@ -1,16 +1,10 @@
 import { authors, posts, type Author, type Post } from "#site/content";
 
-export const BLOG_CATEGORIES = ["protocol", "runtime", "engineering", "network"] as const;
+export const BLOG_CATEGORIES = ["runtime", "engineering"] as const;
 export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
 export type BlogCover = { src: string; alt: string; width: number; height: number };
 
 const FEATURED_COVER_BY_SLUG: Record<string, BlogCover> = {
-  "posts/introducing-compozyos": {
-    src: "/static/blog/introducing-compozy-cover.png",
-    alt: "compozy-network/v0, three peers exchanging direct, receipt, and trace envelopes",
-    width: 1600,
-    height: 1000,
-  },
   "posts/graph-loop-editor-local-gateway": {
     src: "/static/blog/graph-loop-editor-local-gateway.png",
     alt: "CompozyOS graph/loop editor and local gateway triggers",

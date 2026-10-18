@@ -97,6 +97,8 @@ func TestKernelPutRawUpdateDeleteAndNotFound(t *testing.T) {
 }
 
 func TestKernelWriteTransactionsRetryBusyLocks(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should retry PutRaw until the competing write lock is released", func(t *testing.T) {
 		t.Parallel()
 
@@ -1359,12 +1361,14 @@ func holdResourceWriteLock(ctx context.Context, t *testing.T, db *sql.DB) {
 
 	releaseDone := make(chan error, 1)
 	timer := time.AfterFunc(10*time.Millisecond, func() {
-		_, commitErr := lockConn.ExecContext(ctx, "COMMIT")
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 45*time.Second)
+		defer cancel()
+		_, commitErr := lockConn.ExecContext(releaseCtx, "COMMIT")
 		releaseDone <- commitErr
 	})
 	t.Cleanup(func() {
 		if timer.Stop() {
-			if _, err := lockConn.ExecContext(ctx, "COMMIT"); err != nil {
+			if _, err := lockConn.ExecContext(testutil.Context(t), "COMMIT"); err != nil {
 				t.Fatalf("manual lock release error = %v", err)
 			}
 			return

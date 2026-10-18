@@ -30,7 +30,13 @@ export function GatewayDeviceList({
     <SettingsGroup
       action={
         onPair ? (
-          <Button data-testid="gateway-pair-device" onClick={onPair} size="sm" type="button">
+          <Button
+            data-testid="gateway-pair-device"
+            onClick={onPair}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
             Pair a device
           </Button>
         ) : undefined

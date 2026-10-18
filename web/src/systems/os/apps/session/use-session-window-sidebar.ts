@@ -1,19 +1,29 @@
 import { useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
+import { runViewTransition } from "@compozy/ui";
+
+import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
   type SessionPayload,
-  sessionListSortParam,
   useSessionCreateActions,
   useSessionLifecycleActions,
   useSessionListView,
-  useSessions,
   useSessionSidebarState,
+  useSessionTransportState,
+  useTransportGraceElapsed,
   type SessionListViewModel,
 } from "@/systems/session";
+
+/** A session to open by id; the agent name lets this window retarget in place. */
+export interface SessionWindowSidebarTarget {
+  sessionId: string;
+  agentName: string;
+  workspaceId: string;
+}
 
 export interface SessionWindowSidebarModel {
   open: boolean;
@@ -24,7 +34,9 @@ export interface SessionWindowSidebarModel {
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
-  onNewSession: () => void;
+  /** Drill-in by id (subagent rows): this window, or a split with `newWindow`. */
+  openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
+  onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
   rowDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
   rowRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
@@ -49,63 +61,76 @@ export function useSessionWindowSidebar({
   sessionId?: string;
 }): SessionWindowSidebarModel {
   const sidebar = useSessionSidebarState();
+  const transport = useSessionTransportState();
+  const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
-  const lifecycle = useSessionLifecycleActions({ workspaceId });
-  const view = useSessionListView();
-  // Scoped to this window: two session windows can hold different worktrees and
-  // must list different sessions.
+  const lifecycle = useSessionLifecycleActions();
   const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
     enabled: sidebar.open,
   });
-  const sessionsQuery = useSessions(workspaceId || null, {
+  const view = useSessionListView({
+    workspaceId,
+    worktreeId: worktree.worktreeId,
     enabled: sidebar.open && worktree.resolved && workspaceId !== "",
-    // The narrow breadth lists this workspace's complete catalog, so the rail
-    // and the shell modal never disagree about what exists.
-    loadAll: view.scope === "workspace",
-    filters: {
-      include_health: true,
-      limit: 100,
-      // Ordering is served, not re-sorted client-side: the daemon owns the
-      // attention band and its tie-breaks.
-      sort: sessionListSortParam(view.sort),
-      worktree: worktree.worktreeId,
-      ...(view.archived ? { archive: "only" as const } : {}),
-    },
   });
 
-  const onSelectSession = (target: SessionPayload) => {
-    if (sessionId !== undefined && target.id === sessionId) return;
-    if (target.workspace_id !== workspaceId) {
+  const reducedMotion = useOsReducedMotion();
+
+  const openSession = (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
+    if (sessionId !== undefined && target.sessionId === sessionId) return;
+    const targetWorkspaceId = target.workspaceId || workspaceId;
+    if (options.newWindow || targetWorkspaceId !== workspaceId || !target.agentName) {
       jumpToSession({
-        sessionId: target.id,
-        agentName: target.agent_name,
-        workspaceId: target.workspace_id ?? workspaceId,
+        sessionId: target.sessionId,
+        agentName: target.agentName || undefined,
+        workspaceId: targetWorkspaceId,
+        ...(options.newWindow ? { placement: "split" as const } : {}),
       });
       return;
     }
-    void coordinator.userRetarget(windowId, {
-      app: "session",
-      instanceKey: target.id,
-      route: {
-        pathname: `/agents/${encodeURIComponent(target.agent_name)}/sessions/${encodeURIComponent(target.id)}`,
-        search: {},
+    // Same window, different conversation: the pane (named per window in
+    // session-window-content) cross-fades instead of snapping to the skeleton.
+    void runViewTransition(
+      () => {
+        void coordinator.userRetarget(windowId, {
+          app: "session",
+          instanceKey: target.sessionId,
+          route: {
+            pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
+            search: {},
+          },
+        });
       },
-    });
+      { reduced: reducedMotion }
+    );
   };
+
+  const onSelectSession = (target: SessionPayload) =>
+    openSession(
+      {
+        sessionId: target.id,
+        agentName: target.agent_name,
+        workspaceId: target.workspace_id ?? workspaceId,
+      },
+      { newWindow: false }
+    );
 
   return {
     open: sidebar.open,
     toggle: sidebar.toggle,
-    sessions: sessionsQuery.data ?? [],
+    sessions: view.catalog?.sessions ?? [],
     disconnected:
-      sidebar.open && worktree.resolved && (sessionsQuery.isError || transportDisconnected),
+      sidebar.open &&
+      worktree.resolved &&
+      (view.catalog?.failed || (transportDisconnected && transportGraceElapsed)),
     collapsedThreadIds: sidebar.collapsedThreadIds,
     view,
     onToggleThread: sidebar.toggleThread,
     onSelectSession,
-    onNewSession: () => openForAgent(""),
+    openSession,
+    onNewSession: options => openForAgent("", options),
     sessionActions: lifecycle.actions,
     rowDeleteDialog: lifecycle.deleteDialog,
     rowRenameDialog: lifecycle.renameDialog,

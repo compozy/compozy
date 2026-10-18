@@ -10,8 +10,7 @@ import (
 type EffectiveChecksJSON string
 
 func newEffectiveChecksJSON(value json.RawMessage) *EffectiveChecksJSON {
-	compact := EffectiveChecksJSON(string(value))
-	return &compact
+	return new(EffectiveChecksJSON(string(value)))
 }
 
 func effectiveChecksBytes(value *EffectiveChecksJSON) json.RawMessage {

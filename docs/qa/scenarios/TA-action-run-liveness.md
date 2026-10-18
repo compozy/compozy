@@ -44,3 +44,15 @@ Run the integration through the required
 `Supervised work recovery (integration)` CI lane; no host sessions or local QA labs are used.
 The original reporter's 41-minute measurements remain unverified. A successful bounded fixture does
 not establish exactly-once external effects or remeasure the production default timers.
+
+QA impact 2026-10-16 (issue #763): a Goal segment drives an already-bound session, so it never
+reported that session to the action heartbeat and every tick recorded "no evidence". Any Goal running
+past `silence_window` (default 30m) raised `attention_flag = silence`, and the bound session showed
+`needs-attention` while it was working. The Goal executor now names its bound session as liveness
+evidence only (`ReportActionLivenessSession`). It transfers no run-session link and no confirmed-death
+resume, which remain owned by the Goal binding and recovery. Walk: start a session-origin Goal under
+`loops.defaults.delivery.liveness.silence_window = "1m"`. While the bound session keeps producing tool
+calls for longer than the window, `loop_node_controls.attention_flag` stays empty and the session
+badge stays `running`. A Goal whose session stops producing activity still raises `silence`.
+Automated owners: `TestLoopActionRuntimeEnforcesActionLiveness` (daemon) and
+`TestExecutorShouldConvergeOnThirdTurnWithDurableAudit` (Goal executor).

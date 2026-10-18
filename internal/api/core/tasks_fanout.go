@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -59,12 +58,11 @@ func enqueueFanOutTaskRuns(
 	runs := make([]taskpkg.Run, 0, len(req.Designations))
 	for index := range req.Designations {
 		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
-			TaskID:               taskID,
-			IdempotencyKey:       prepared[index].idempotencyKey,
-			DesignationGroupID:   groupID,
-			WorktreePerRun:       req.WorktreePerRun,
-			Metadata:             prepared[index].metadata,
-			NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+			TaskID:             taskID,
+			IdempotencyKey:     prepared[index].idempotencyKey,
+			DesignationGroupID: groupID,
+			WorktreePerRun:     req.WorktreePerRun,
+			Metadata:           prepared[index].metadata,
 		}, actor)
 		if err != nil {
 			return nil, err

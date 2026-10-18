@@ -1,5 +1,6 @@
 import { PillGroup, type PillGroupItem } from "@compozy/ui";
 
+import { taskPriorityPresentation } from "../../lib/task-properties-presentation";
 import type { TaskPriority } from "../../types";
 
 interface PrioritySectionProps {
@@ -7,33 +8,25 @@ interface PrioritySectionProps {
   onPriority: (priority: TaskPriority) => void;
 }
 
-interface PriorityOption {
-  value: TaskPriority;
-  label: string;
-  dot: string;
-}
+const PRIORITY_ORDER: readonly TaskPriority[] = ["low", "medium", "high", "urgent"];
 
-const PRIORITY_OPTIONS: PriorityOption[] = [
-  { value: "low", label: "Low", dot: "bg-neutral" },
-  { value: "medium", label: "Medium", dot: "bg-info" },
-  { value: "high", label: "High", dot: "bg-warning" },
-  { value: "urgent", label: "Urgent", dot: "bg-accent-strong" },
-];
-
-const PRIORITY_ITEMS: PillGroupItem<TaskPriority>[] = PRIORITY_OPTIONS.map(option => ({
-  value: option.value,
-  label: (
-    <span className="flex items-center gap-1.5">
-      <span aria-hidden="true" className={`size-1.5 rounded-full ${option.dot}`} />
-      {option.label}
-    </span>
-  ),
-  testId: `task-priority-${option.value}`,
-}));
+const PRIORITY_ITEMS: PillGroupItem<TaskPriority>[] = PRIORITY_ORDER.map(value => {
+  const { dotClass, label } = taskPriorityPresentation(value);
+  return {
+    value,
+    label: (
+      <span className="flex items-center gap-1.5">
+        <span aria-hidden="true" className={`size-1.5 rounded-full ${dotClass}`} />
+        {label}
+      </span>
+    ),
+    testId: `task-priority-${value}`,
+  };
+});
 
 /**
- * Task priority selector — a segmented PillGroup whose segments carry a
- * signal-colored dot ahead of each label. Higher priority is claimed sooner.
+ * Task priority selector — a segmented PillGroup whose segments carry the
+ * shared neutral priority dot ahead of each label. Higher priority is claimed sooner.
  */
 export function PrioritySection({ priority, onPriority }: PrioritySectionProps) {
   return (

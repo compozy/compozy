@@ -38,8 +38,6 @@ func (r *RunReview) Normalize(now time.Time) (RunReview, error) {
 	normalized.ReviewText = RedactClaimTokens(strings.TrimSpace(normalized.ReviewText))
 	normalized.ReviewerSessionID = strings.TrimSpace(normalized.ReviewerSessionID)
 	normalized.ReviewerAgentName = strings.TrimSpace(normalized.ReviewerAgentName)
-	normalized.ReviewerPeerID = strings.TrimSpace(normalized.ReviewerPeerID)
-	normalized.ReviewerChannelID = strings.TrimSpace(normalized.ReviewerChannelID)
 	if normalized.ReviewedBy != nil {
 		reviewedBy := *normalized.ReviewedBy
 		reviewedBy.Kind = reviewedBy.Kind.Normalize()

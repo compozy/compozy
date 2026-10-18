@@ -1,17 +1,13 @@
-import type { PillTone } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import type {
   AutomationCatchUpPolicy,
-  AutomationKind,
   AutomationFireLimit,
   AutomationJob,
   AutomationRetry,
   AutomationRun,
   AutomationRunStatus,
-  AutomationSchedule,
   AutomationScope,
-  AutomationScopeFilter,
-  AutomationTrigger,
 } from "../types";
 
 export function formatRelativeTime(dateStr?: string | null): string {
@@ -45,122 +41,37 @@ export function formatRelativeTime(dateStr?: string | null): string {
   return diffMinutes >= 0 ? `In ${absDays}d` : `${absDays}d ago`;
 }
 
-export function formatDateTime(dateStr?: string | null): string {
-  if (!dateStr) {
-    return "Unavailable";
-  }
-
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) {
-    return dateStr;
-  }
-
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-export function formatDate(dateStr?: string | null): string {
-  if (!dateStr) {
-    return "Unavailable";
-  }
-
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) {
-    return dateStr;
-  }
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-export function describeSchedule(schedule?: AutomationSchedule | null): string {
-  if (!schedule) {
-    return "Manual";
-  }
-
-  switch (schedule.mode) {
-    case "cron":
-      return schedule.expr ? `Cron ${schedule.expr}` : "Cron";
-    case "every":
-      return schedule.interval ? `Every ${schedule.interval}` : "Every interval";
-    case "at":
-      return schedule.time ? `At ${formatDateTime(schedule.time)}` : "One-shot";
-    default:
-      return "Manual";
-  }
-}
-
-export function describeTrigger(trigger: AutomationTrigger): string {
-  if (trigger.event !== "webhook") {
-    return trigger.event;
-  }
-
-  if (trigger.endpoint_slug) {
-    return `webhook:${trigger.endpoint_slug}`;
-  }
-
-  if (trigger.webhook_id) {
-    return `webhook:${trigger.webhook_id}`;
-  }
-
-  return "webhook";
-}
-
-export function describeRetry(retry: AutomationRetry): string {
-  if (retry.strategy === "none") {
-    return "No retries";
-  }
-
-  return `${retry.max_retries} retries from ${retry.base_delay}`;
-}
-
 export function describeFireLimit(limit: AutomationFireLimit): string {
-  return `${limit.max} fires / ${limit.window}`;
+  return `Up to ${limit.max} ${limit.max === 1 ? "run" : "runs"} per ${humanizeFireWindow(limit.window)}`;
 }
 
 /** `1h` → `hour`, `30m` → `30 minutes`; unknown formats stay verbatim. */
 export function humanizeFireWindow(window: string): string {
-  const match = /^(\d+)([smh])$/.exec(window.trim());
+  const match = /^(\d+)([smhd])$/.exec(window.trim());
   if (!match) return window;
   const count = Number(match[1]);
-  const unit = { h: "hour", m: "minute", s: "second" }[match[2] as "h" | "m" | "s"];
+  const unit = { d: "day", h: "hour", m: "minute", s: "second" }[match[2] as "d" | "h" | "m" | "s"];
   return count === 1 ? unit : `${count} ${unit}s`;
 }
 
-function pluralizeTimes(count: number): string {
-  return count === 1 ? "1 time" : `${count} times`;
-}
-
-/** Rail Reliability row: `Backoff · 2 times` / `No retries`. */
-export function describeTriggerRetry(retry: AutomationRetry): string {
+/** Rail Reliability row: `No retries` / `Up to 2, waiting longer each time`. */
+export function describeRetryPlain(retry: AutomationRetry): string {
   if (retry.strategy === "none") return "No retries";
-  return `Backoff · ${pluralizeTimes(retry.max_retries)}`;
+  return `Up to ${retry.max_retries}, waiting longer each time`;
 }
 
-/** Rail Reliability row: `4 times / hour`. */
-export function describeTriggerFireLimit(limit: AutomationFireLimit): string {
-  return `${pluralizeTimes(limit.max)} / ${humanizeFireWindow(limit.window)}`;
-}
+const AUTOMATION_RUN_STATUS_LABELS = {
+  running: "Running",
+  scheduled: "Scheduled",
+  delegated: "Handed off",
+  completed: "Completed",
+  failed: "Failed",
+  canceled: "Canceled",
+} as const satisfies Record<AutomationRunStatus, string>;
 
-/** Rail Reliability summary: `Backoff · 4 / hour`. */
-export function summarizeTriggerReliability(
-  retry: AutomationRetry,
-  limit: AutomationFireLimit
-): string {
-  const strategy = retry.strategy === "backoff" ? "Backoff" : "No retry";
-  return `${strategy} · ${limit.max} / ${humanizeFireWindow(limit.window)}`;
-}
-
-export function formatRunTitle(run: AutomationRun): string {
-  return `${run.status.toUpperCase()} · attempt ${run.attempt}`;
+/** Sentence-case label for a job/trigger run status. */
+export function automationRunStatusLabel(status: AutomationRunStatus): string {
+  return AUTOMATION_RUN_STATUS_LABELS[status] ?? status;
 }
 
 export function formatRunDuration(run: AutomationRun): string {
@@ -205,28 +116,30 @@ export function formatPromptPreview(prompt: string, maxLength = 72): string {
   return `${normalized.slice(0, maxLength - 1).trimEnd()}...`;
 }
 
-type AutomationStatusKey = AutomationRunStatus | "enabled" | "disabled";
+/**
+ * Run status → canonical `StateGlyph` state: scheduled runs wait their turn,
+ * running runs are in flight, handed-off runs are parked with their owner,
+ * completed runs are done, failures fail and canceled runs (including durable
+ * skips) read as stopped.
+ */
+const AUTOMATION_RUN_GLYPH = {
+  scheduled: "queued",
+  running: "running",
+  delegated: "delegated",
+  completed: "done",
+  failed: "failed",
+  canceled: "stopped",
+} as const satisfies Record<AutomationRunStatus, StateGlyphState>;
 
-const AUTOMATION_STATUS_TONE = {
-  running: "info",
-  scheduled: "warning",
-  delegated: "info",
-  completed: "success",
-  enabled: "success",
-  failed: "danger",
-  canceled: "neutral",
-  disabled: "neutral",
-} as const satisfies Record<AutomationStatusKey, PillTone>;
-
-export function automationStatusTone(status: AutomationStatusKey): PillTone {
-  return AUTOMATION_STATUS_TONE[status] ?? "neutral";
+export function automationRunStateGlyph(status: AutomationRunStatus): StateGlyphState {
+  return AUTOMATION_RUN_GLYPH[status] ?? "idle";
 }
 
 const CATCH_UP_POLICY_LABELS = {
   skip_missed: "Skip missed",
-  coalesce: "Coalesce",
-  replay: "Replay",
-  run_once_on_catchup: "Run once",
+  coalesce: "Catch up once",
+  replay: "Run every missed time",
+  run_once_on_catchup: "Run once, then continue",
 } as const satisfies Record<AutomationCatchUpPolicy, string>;
 
 /**
@@ -238,27 +151,13 @@ export function catchUpPolicyLabel(policy?: AutomationCatchUpPolicy): string {
   return policy ? CATCH_UP_POLICY_LABELS[policy] : "Default";
 }
 
-interface AutomationSkipReasonInfo {
-  label: string;
-  tone: PillTone;
-  detail: string;
-}
-
 /** Durable skip reasons the daemon records on a canceled run's `metadata.reason`. */
-const AUTOMATION_SKIP_REASONS = {
-  self_overlap: {
-    label: "Overlap",
-    tone: "info",
-    detail: "A previous run was still active.",
-  },
-  misfire_grace_exceeded: {
-    label: "Grace window",
-    tone: "warning",
-    detail: "Missed its grace window.",
-  },
-} as const satisfies Record<string, AutomationSkipReasonInfo>;
+const AUTOMATION_SKIP_REASON_LABELS = {
+  self_overlap: "Skipped",
+  misfire_grace_exceeded: "Missed",
+} as const;
 
-export type AutomationSkipReason = keyof typeof AUTOMATION_SKIP_REASONS;
+export type AutomationSkipReason = keyof typeof AUTOMATION_SKIP_REASON_LABELS;
 
 /**
  * Narrow a run's durable skip evidence to a known scheduler skip reason. The
@@ -278,78 +177,79 @@ export function automationRunSkipReason(run: AutomationRun): AutomationSkipReaso
 }
 
 export function automationSkipReasonLabel(reason: AutomationSkipReason): string {
-  return AUTOMATION_SKIP_REASONS[reason].label;
-}
-
-export function automationSkipReasonTone(reason: AutomationSkipReason): PillTone {
-  return AUTOMATION_SKIP_REASONS[reason].tone;
-}
-
-export function automationSkipReasonDetail(reason: AutomationSkipReason): string {
-  return AUTOMATION_SKIP_REASONS[reason].detail;
+  return AUTOMATION_SKIP_REASON_LABELS[reason];
 }
 
 export function automationSourceLabel(source: AutomationJob["source"]): string {
-  return { config: "CONFIG", dynamic: "DYNAMIC", package: "PACKAGE" }[source];
+  return { config: "From config", dynamic: "Created here", package: "From package" }[source];
 }
 
+/** Scope label: `workspace` reads as "Project" per the COPY.md surface aliases. */
 export function automationScopeLabel(scope: AutomationScope): string {
-  return scope === "workspace" ? "WORKSPACE" : "GLOBAL";
+  return scope === "workspace" ? "Project" : "Global";
 }
 
-export function automationSourceTone(source: AutomationJob["source"]): PillTone {
-  return source === "dynamic" ? "info" : "neutral";
-}
-
-export function automationScopeTone(scope: AutomationScope): PillTone {
-  return scope === "workspace" ? "info" : "neutral";
-}
-
-export function formatAutomationListSummary({
-  activeWorkspaceName,
-  kind,
-  scopeFilter,
-  searchQuery,
-  totalCount,
-  visibleCount,
-}: {
-  activeWorkspaceName?: string;
-  kind: AutomationKind;
-  scopeFilter: AutomationScopeFilter;
-  searchQuery: string;
-  totalCount: number;
-  visibleCount: number;
+/** Run label that names a durable skip: `Skipped` / `Missed`, else the status label. */
+export function automationLastRunLabel(run: {
+  status: AutomationRunStatus;
+  skipReason?: AutomationSkipReason;
 }): string {
-  const totalNoun =
-    kind === "jobs"
-      ? totalCount === 1
-        ? "job"
-        : "jobs"
-      : totalCount === 1
-        ? "trigger"
-        : "triggers";
-  const trimmedQuery = searchQuery.trim();
-  const count = visibleCount < totalCount ? `Showing ${visibleCount} of ${totalCount}` : totalCount;
-
-  if (trimmedQuery !== "") {
-    return `${count} ${totalNoun} matching current search`;
+  if (run.status === "canceled" && run.skipReason) {
+    return automationSkipReasonLabel(run.skipReason);
   }
+  return automationRunStatusLabel(run.status);
+}
 
-  if (totalCount === 0) {
-    return `0 ${kind} found`;
+export interface AutomationLastRunMeta {
+  tone: "danger" | "neutral";
+  /** `fail` = alert glyph (danger); `skip` = skip glyph (subtle). */
+  glyph: "fail" | "skip" | null;
+  text: string;
+  /** Relative-time anchor rendered after `text`; absent for skips and running runs. */
+  at?: string;
+}
+
+const LAST_RUN_SKIP_TEXT = {
+  self_overlap: "Last run skipped — the one before was still going",
+  misfire_grace_exceeded: "Last run missed — CompozyOS was off at the start time",
+} as const satisfies Record<AutomationSkipReason, string>;
+
+const LAST_RUN_TEXT = {
+  scheduled: "Last run scheduled",
+  running: "Running now",
+  delegated: "Last run handed off",
+  completed: "Last run completed",
+  failed: "Last run failed",
+  canceled: "Last run canceled",
+} as const satisfies Record<AutomationRunStatus, string>;
+
+/** The one instant a last run is dated by, on every surface: its start, else its end. */
+export function automationLastRunAt(
+  run: { startedAt?: string; endedAt?: string } | undefined
+): string | undefined {
+  return run?.startedAt ?? run?.endedAt;
+}
+
+/** Row meta for an automation's last run (Business Rule 7); null when it never ran. */
+export function automationLastRunMeta(
+  run:
+    | {
+        status: AutomationRunStatus;
+        startedAt?: string;
+        endedAt?: string;
+        skipReason?: AutomationSkipReason;
+      }
+    | undefined
+): AutomationLastRunMeta | null {
+  if (!run) return null;
+  if (run.status === "canceled" && run.skipReason) {
+    return { tone: "neutral", glyph: "skip", text: LAST_RUN_SKIP_TEXT[run.skipReason] };
   }
-
-  if (scopeFilter === "all") {
-    return `${totalCount} ${totalNoun} across all scopes`;
-  }
-
-  if (scopeFilter === "global") {
-    return `${count} ${totalNoun} in global scope`;
-  }
-
-  if (activeWorkspaceName) {
-    return `${count} ${totalNoun} in ${activeWorkspaceName}`;
-  }
-
-  return `${count} ${totalNoun} in workspace scope`;
+  const at = automationLastRunAt(run);
+  return {
+    tone: run.status === "failed" ? "danger" : "neutral",
+    glyph: run.status === "failed" ? "fail" : null,
+    text: LAST_RUN_TEXT[run.status],
+    ...(run.status !== "running" && at ? { at } : {}),
+  };
 }

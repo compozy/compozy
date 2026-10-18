@@ -6,7 +6,7 @@ import { cn } from "../../lib/utils";
 
 function DockBody({ children, className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="dock-body" className={cn("mt-2", className)} {...props}>
+    <div data-slot="dock-body" className={cn(className)} {...props}>
       {children}
     </div>
   );

@@ -3,6 +3,11 @@ title: Every domain opens inside the palette
 type: feature
 ---
 
+> Historical note for #441: Network and Bridges were subsequently removed. Their views and
+> command IDs below are no longer available. See the
+> [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal)
+> for the current product boundaries and upgrade steps.
+
 The palette is not only a launcher — it browses. Sessions, Tasks, Loops, Jobs, Agents, Triggers, Marketplace, Bridges, Knowledge, Vault, Worktrees, Network channels, and Extensions each open as a view without leaving the overlay, and views stack so one selection can push the next. (#441)
 
 - Four view kinds ship: **list**, **detail**, **grid**, and **form**. Lists carry domain chips with truthful counts and single-select semantics; a chip with zero matches names the filter and clears in one keystroke.

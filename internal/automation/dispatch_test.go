@@ -2,13 +2,13 @@ package automation
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -130,9 +129,8 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 
 	job := testJob(AutomationScopeWorkspace, "job-task-backed", "ws_alpha")
 	job.Task = &JobTaskConfig{
-		Title:                "Review automation findings",
-		Description:          "Create a durable review task.",
-		NetworkParticipation: testNamedParticipation("ops-automation"),
+		Title:       "Review automation findings",
+		Description: "Create a durable review task.",
 		Owner: &taskpkg.Ownership{
 			Kind: taskpkg.OwnerKindAutomation,
 			Ref:  "job-task-backed",
@@ -197,7 +195,6 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := createCall.spec.ProfileID, job.ProfileID; got != want {
 		t.Fatalf("CreateTask().profile_id = %q, want %q", got, want)
 	}
-	assertNamedParticipation(t, createCall.spec.NetworkParticipation, "ops-automation")
 	if got, want := len(tasks.enqueueCalls), 1; got != want {
 		t.Fatalf("len(EnqueueRun calls) = %d, want %d", got, want)
 	}
@@ -208,11 +205,6 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := enqueueCall.spec.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("EnqueueRun().idempotency_key = %q, want %q", got, want)
 	}
-	assertNamedParticipation(t, enqueueCall.spec.NetworkParticipation, "ops-automation")
-	if got, want := enqueueCall.spec.NetworkParticipationSource, participation.SourceAutomationJob; got != want {
-		t.Fatalf("EnqueueRun().network_participation_source = %q, want %q", got, want)
-	}
-	assertNamedParticipation(t, run.NetworkParticipation, "ops-automation")
 }
 
 func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *testing.T) {
@@ -304,13 +296,6 @@ func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *tes
 		if got, want := call.Inputs["tasks"], "task-ref"; got != want {
 			t.Fatalf("StartLoop().Inputs[tasks] = %v, want %v", got, want)
 		}
-		if call.NetworkParticipation != nil || run.NetworkParticipation != nil {
-			t.Fatalf(
-				"participation = call:%#v run:%#v, want no declaration and no implicit enrollment",
-				call.NetworkParticipation,
-				run.NetworkParticipation,
-			)
-		}
 	})
 }
 
@@ -327,17 +312,15 @@ func TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter(t *testing.T
 	trigger.Prompt = ""
 	trigger.TargetKind = TargetKindLoop
 	trigger.LoopTarget = &LoopTarget{
-		WorkspaceID:          "ws_alpha",
-		LoopName:             "deploy",
-		NetworkParticipation: testNamedParticipation("definition-channel"),
+		WorkspaceID: "ws_alpha",
+		LoopName:    "deploy",
 		InputMapping: map[string]string{
 			"title": "{{ .trigger.payload.title }}",
 		},
 	}
 	envelope := testEnvelope(AutomationScopeWorkspace, "ws_alpha")
 	envelope.Data = map[string]any{
-		"title":                 "Deploy release",
-		"network_participation": testNamedParticipation("payload-channel"),
+		"title": "Deploy release",
 	}
 
 	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
@@ -379,8 +362,6 @@ func TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter(t *testing.T
 	if got, want := call.Actor.Origin.Ref, "run:"+run.ID; got != want {
 		t.Fatalf("StartLoop().Actor.Origin.Ref = %q, want %q", got, want)
 	}
-	assertNamedParticipation(t, call.NetworkParticipation, "definition-channel")
-	assertNamedParticipation(t, run.NetworkParticipation, "definition-channel")
 }
 
 func TestDispatchLoopTargetFailsRunWhenLoopStarterRejects(t *testing.T) {
@@ -484,7 +465,7 @@ func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
 	}
 }
 
-func TestDispatchLoopTargetRetryShouldReuseDefinitionParticipation(t *testing.T) {
+func TestDispatchLoopTargetRetryPreservesAutomationRunAttribution(t *testing.T) {
 	t.Parallel()
 
 	store := newMemoryRunStore()
@@ -504,9 +485,8 @@ func TestDispatchLoopTargetRetryShouldReuseDefinitionParticipation(t *testing.T)
 	job.Prompt = ""
 	job.TargetKind = TargetKindLoop
 	job.LoopTarget = &LoopTarget{
-		WorkspaceID:          "ws_alpha",
-		LoopName:             "triage",
-		NetworkParticipation: testNamedParticipation("retry-channel"),
+		WorkspaceID: "ws_alpha",
+		LoopName:    "triage",
 	}
 	job.Retry = RetryConfig{Strategy: RetryStrategyBackoff, MaxRetries: 1, BaseDelay: "1ms"}
 
@@ -525,13 +505,9 @@ func TestDispatchLoopTargetRetryShouldReuseDefinitionParticipation(t *testing.T)
 		t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
 	}
 	for index, call := range calls {
-		assertNamedParticipation(t, call.NetworkParticipation, "retry-channel")
 		if strings.TrimSpace(call.AutomationRunID) == "" {
 			t.Fatalf("StartLoop call %d AutomationRunID = empty", index)
 		}
-	}
-	for _, stored := range store.listRuns() {
-		assertNamedParticipation(t, stored.NetworkParticipation, "retry-channel")
 	}
 }
 
@@ -752,6 +728,34 @@ func TestDispatchStopsCreatedSessionWhenRunCompletes(t *testing.T) {
 	}
 }
 
+func TestDispatchProfileAdmissionFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain actionable profile refusal in failed run history", func(t *testing.T) {
+		t.Parallel()
+		runs := newMemoryRunStore()
+		refusal := &store.ProfileAdmissionError{ProfileID: "profile-editorial", Archived: true}
+		creator := newRecordingSessionCreator(sessionAttemptPlan{
+			createErr: fmt.Errorf("session: persist accepted start: %w", refusal),
+		})
+		dispatcher := newTestDispatcher(t, creator, runs)
+		job := testJob(AutomationScopeGlobal, "job-profile-archive", "")
+		run, err := dispatcher.Dispatch(t.Context(), DispatchRequest{Kind: DispatchKindManual, Job: &job})
+		if !errors.Is(err, refusal) {
+			t.Fatalf("Dispatch() error = %v, want profile admission refusal", err)
+		}
+		if run == nil || run.Status != RunFailed || run.SessionID != "" || run.Error != refusal.Error() {
+			t.Fatalf("run = %#v, want failed attempt with recovery guidance", run)
+		}
+		if len(creator.createCalls()) != 1 || len(creator.promptCalls()) != 0 {
+			t.Fatal("profile admission refusal should not retry or send a prompt")
+		}
+		stored, err := runs.GetRun(t.Context(), run.ID)
+		if err != nil || stored.Error != refusal.Error() {
+			t.Fatalf("stored run = %#v, error = %v, want durable recovery guidance", stored, err)
+		}
+	})
+}
+
 func TestDispatchStopsCreatedSessionWhenRunFails(t *testing.T) {
 	t.Parallel()
 
@@ -845,12 +849,15 @@ func TestDispatchFireLimitPersistsAcrossDispatcherRecreation(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	if err := automationTestStoreSeed.Clone(dbPath); err != nil {
+		t.Fatalf("Clone(global store seed) error = %v", err)
+	}
 	db, err := globaldb.OpenGlobalDB(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(ctx); err != nil {
+		if err := db.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
@@ -928,8 +935,8 @@ func TestDispatchScheduledReservedRunCancelsOnFireLimit(t *testing.T) {
 				JobID:     job.ID,
 				Status:    RunCompleted,
 				Attempt:   1,
-				StartedAt: timePointer(earlierStartedAt),
-				EndedAt:   timePointer(earlierStartedAt.Add(time.Minute)),
+				StartedAt: new(earlierStartedAt),
+				EndedAt:   new(earlierStartedAt.Add(time.Minute)),
 			}); err != nil {
 				t.Fatalf("CreateRun(existing) error = %v", err)
 			}
@@ -939,8 +946,8 @@ func TestDispatchScheduledReservedRunCancelsOnFireLimit(t *testing.T) {
 				JobID:       job.ID,
 				Status:      RunScheduled,
 				Attempt:     1,
-				ScheduledAt: timePointer(now),
-				StartedAt:   timePointer(now),
+				ScheduledAt: new(now),
+				StartedAt:   new(now),
 			})
 			if err != nil {
 				t.Fatalf("CreateRun(reserved) error = %v", err)
@@ -1002,9 +1009,8 @@ func TestDispatchReservedRunAdvancesAttemptAcrossRetry(t *testing.T) {
 	job.Prompt = ""
 	job.TargetKind = TargetKindLoop
 	job.LoopTarget = &LoopTarget{
-		WorkspaceID:          "ws_alpha",
-		LoopName:             "triage",
-		NetworkParticipation: testNamedParticipation("reserved-retry"),
+		WorkspaceID: "ws_alpha",
+		LoopName:    "triage",
 	}
 	job.Retry = RetryConfig{
 		Strategy:   RetryStrategyBackoff,
@@ -1012,12 +1018,11 @@ func TestDispatchReservedRunAdvancesAttemptAcrossRetry(t *testing.T) {
 		BaseDelay:  "1s",
 	}
 	reserved, err := store.CreateRun(ctx, Run{
-		ID:                   "run-reserved-retry",
-		JobID:                job.ID,
-		Status:               RunScheduled,
-		Attempt:              1,
-		StartedAt:            timePointer(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
-		NetworkParticipation: cloneParticipationRequest(job.LoopTarget.NetworkParticipation),
+		ID:        "run-reserved-retry",
+		JobID:     job.ID,
+		Status:    RunScheduled,
+		Attempt:   1,
+		StartedAt: new(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
 	})
 	if err != nil {
 		t.Fatalf("CreateRun(reserved) error = %v", err)
@@ -1083,8 +1088,8 @@ func TestDispatchFireLimitIgnoresCancelledRuns(t *testing.T) {
 			JobID:     job.ID,
 			Status:    RunCancelled,
 			Attempt:   1,
-			StartedAt: timePointer(cancelledAt),
-			EndedAt:   timePointer(cancelledAt.Add(time.Minute)),
+			StartedAt: new(cancelledAt),
+			EndedAt:   new(cancelledAt.Add(time.Minute)),
 		}); err != nil {
 			t.Fatalf("CreateRun(canceled) error = %v", err)
 		}
@@ -1171,8 +1176,8 @@ func TestDispatchBackoffRetryRecordsAttemptMetadata(t *testing.T) {
 	if got, want := len(runs), 2; got != want {
 		t.Fatalf("len(runs) = %d, want %d", got, want)
 	}
-	sort.Slice(runs, func(i, j int) bool {
-		return runs[i].Attempt < runs[j].Attempt
+	slices.SortFunc(runs, func(a, b Run) int {
+		return cmp.Compare(a.Attempt, b.Attempt)
 	})
 	if got, want := runs[0].Status, RunFailed; got != want {
 		t.Fatalf("runs[0].Status = %q, want %q", got, want)
@@ -1308,7 +1313,7 @@ func TestDispatchRequestValidateRejectsInvalidShapes(t *testing.T) {
 			req: DispatchRequest{
 				Kind:    DispatchKindTrigger,
 				Trigger: &trigger,
-				Envelope: pointerToEnvelope(ActivationEnvelope{
+				Envelope: new(ActivationEnvelope{
 					Kind:   "session.stopped",
 					Scope:  AutomationScopeGlobal,
 					Source: ActivationSourceWebhook,
@@ -1319,8 +1324,8 @@ func TestDispatchRequestValidateRejectsInvalidShapes(t *testing.T) {
 			name: "trigger workspace mismatch",
 			req: DispatchRequest{
 				Kind:    DispatchKindTrigger,
-				Trigger: pointerToTrigger(testTrigger(AutomationScopeWorkspace, "trigger-workspace", "ws_alpha")),
-				Envelope: pointerToEnvelope(ActivationEnvelope{
+				Trigger: new(testTrigger(AutomationScopeWorkspace, "trigger-workspace", "ws_alpha")),
+				Envelope: new(ActivationEnvelope{
 					Kind:        "webhook",
 					Scope:       AutomationScopeWorkspace,
 					WorkspaceID: "ws_bravo",
@@ -1333,7 +1338,7 @@ func TestDispatchRequestValidateRejectsInvalidShapes(t *testing.T) {
 			req: DispatchRequest{
 				Kind:    DispatchKindTrigger,
 				Trigger: &trigger,
-				Envelope: pointerToEnvelope(ActivationEnvelope{
+				Envelope: new(ActivationEnvelope{
 					Kind:   envelope.Kind,
 					Scope:  AutomationScopeWorkspace,
 					Source: ActivationSourceWebhook,
@@ -1366,7 +1371,7 @@ func TestDispatchTriggerRendersPromptTemplateAndUsesTriggerMetadata(t *testing.T
 	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
 		Kind:     DispatchKindTrigger,
 		Trigger:  &trigger,
-		Envelope: pointerToEnvelope(envelope),
+		Envelope: new(envelope),
 	})
 	if err != nil {
 		t.Fatalf("Dispatch() error = %v", err)
@@ -1909,29 +1914,6 @@ func (s *recordingTaskService) EnqueueRun(
 	}, nil
 }
 
-func testNamedParticipation(channelID string) *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	return &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &channelID,
-	}
-}
-
-func assertNamedParticipation(t *testing.T, request *participation.Request, channelID string) {
-	t.Helper()
-	if request == nil || request.Mode == nil || *request.Mode != participation.ModeLive {
-		t.Fatalf("network participation = %#v, want live", request)
-	}
-	if request.ChannelStrategy == nil || *request.ChannelStrategy != participation.StrategyNamed {
-		t.Fatalf("network participation strategy = %#v, want named", request.ChannelStrategy)
-	}
-	if request.ChannelID == nil || *request.ChannelID != channelID {
-		t.Fatalf("network participation channel_id = %#v, want %q", request.ChannelID, channelID)
-	}
-}
-
 type recordingLoopStarter struct {
 	mu              sync.Mutex
 	validateCalls   []LoopTargetValidationRequest
@@ -2018,19 +2000,18 @@ func cloneLoopTargetValidationRequest(req LoopTargetValidationRequest) LoopTarge
 
 func cloneLoopStartRequest(req LoopStartRequest) LoopStartRequest {
 	return LoopStartRequest{
-		ProfileID:            strings.TrimSpace(req.ProfileID),
-		WorkspaceID:          strings.TrimSpace(req.WorkspaceID),
-		LoopName:             strings.TrimSpace(req.LoopName),
-		Kind:                 req.Kind,
-		Inputs:               cloneJSONMap(req.Inputs),
-		InputMapping:         cloneStringMap(req.InputMapping),
-		TriggerPayload:       cloneJSONMap(req.TriggerPayload),
-		NetworkParticipation: cloneParticipationRequest(req.NetworkParticipation),
-		Actor:                req.Actor,
-		AutomationRunID:      strings.TrimSpace(req.AutomationRunID),
-		ScheduledAt:          cloneTimePointer(req.ScheduledAt),
-		CatchUp:              req.CatchUp,
-		CatchUpPolicy:        req.CatchUpPolicy,
+		ProfileID:       strings.TrimSpace(req.ProfileID),
+		WorkspaceID:     strings.TrimSpace(req.WorkspaceID),
+		LoopName:        strings.TrimSpace(req.LoopName),
+		Kind:            req.Kind,
+		Inputs:          cloneJSONMap(req.Inputs),
+		InputMapping:    cloneStringMap(req.InputMapping),
+		TriggerPayload:  cloneJSONMap(req.TriggerPayload),
+		Actor:           req.Actor,
+		AutomationRunID: strings.TrimSpace(req.AutomationRunID),
+		ScheduledAt:     cloneTimePointer(req.ScheduledAt),
+		CatchUp:         req.CatchUp,
+		CatchUpPolicy:   req.CatchUpPolicy,
 	}
 }
 
@@ -2286,14 +2267,4 @@ func testEnvelope(scope Scope, workspaceID string) ActivationEnvelope {
 			"payload": "deploy",
 		},
 	}
-}
-
-func pointerToTrigger(trigger Trigger) *Trigger {
-	clone := trigger
-	return &clone
-}
-
-func pointerToEnvelope(envelope ActivationEnvelope) *ActivationEnvelope {
-	clone := envelope
-	return &clone
 }

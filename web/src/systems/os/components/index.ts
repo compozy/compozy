@@ -1,16 +1,12 @@
-export { OsDock, OsDockZone, type OsDockProps } from "./os-dock";
-export {
-  isOsDockSeparator,
-  type OsDockItemData,
-  type OsDockEntry,
-  type OsDockSeparator,
-} from "../lib/os-dock-model";
+export { OsDock, type OsDockProps } from "./os-dock";
+export type { OsDockItemData } from "../lib/os-dock-model";
 export type { DockIconId } from "../lib/os-dock-model";
 export { OsMenuBar, type OsMenuBarProps } from "./os-menubar";
 export { OsHydrationStatus, type OsHydrationStatusProps } from "./os-hydration-status";
 export {
   MenubarUpdateIndicator,
   type MenubarUpdateIndicatorProps,
+  type MenubarUpdateModel,
 } from "./menubar/menubar-update-indicator";
 export { OsWorkspacesOverview, type OsWorkspacesOverviewProps } from "./os-workspaces-overview";
 export { DesktopPager, type DesktopPagerProps } from "./desktop-pager";

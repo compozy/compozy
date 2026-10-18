@@ -41,12 +41,8 @@ Observe-only events cannot change the outcome; they receive an annotate-only pat
 Every `loop.*` payload carries the standard event base plus a **loop context**:
 
 `loop_run_id`, `parent_loop_run_id`, `workspace_id`, `loop_name`, `generation`, `task_id`,
-`run_id`, `run_kind`, `node_id`, `resolved_network_participation`, `agent_name`, `session_id`,
+`run_id`, `run_kind`, `node_id`, `agent_name`, `session_id`,
 `actor_kind`, `actor_id`, `origin_kind`, and `origin_ref`.
-
-`resolved_network_participation` is the immutable Local/Live snapshot owned by that Loop run. It
-contains any resolved channel and finite bounds; hooks must not infer participation from availability
-or from mutable channel metadata.
 
 Events add their own fields on top:
 

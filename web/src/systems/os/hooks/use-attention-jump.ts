@@ -7,6 +7,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
+import type { OsOpenTarget } from "../lib/os-types";
 import type { RoutingCoordinator } from "../lib/routing-coordinator";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 
@@ -14,12 +15,26 @@ export interface AttentionJumpTarget {
   sessionId: string;
   agentName?: string;
   workspaceId: string;
+  /**
+   * Where the session opens when it has no window yet. Omitted follows the
+   * new-window policy (a tab in the focused window); a surface that promises
+   * to keep the current window visible asks for `split`.
+   */
+  placement?: OsOpenTarget["placement"];
+  /**
+   * The desktop the session opens on when it has no window yet. Omitted uses
+   * the active desktop; a launcher that started on a specific desktop names it
+   * so a desktop switch while the session is created cannot move it.
+   */
+  desktopId?: string;
 }
 
 interface ResolvedAttentionJumpTarget {
   sessionId: string;
   agentName: string;
   workspaceId: string;
+  placement?: OsOpenTarget["placement"];
+  desktopId?: string;
 }
 
 export type AttentionJump = (target: AttentionJumpTarget) => void;
@@ -36,6 +51,8 @@ function openAttentionTarget(
         pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
         search: {},
       },
+      ...(target.placement ? { placement: target.placement } : {}),
+      ...(target.desktopId ? { desktopId: target.desktopId } : {}),
     })
     .catch(() => notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" }));
 }
@@ -88,13 +105,15 @@ export function useAttentionJump(): AttentionJump {
     const sessionId = target.sessionId.trim();
     const workspaceId = target.workspaceId.trim();
     const agentName = target.agentName?.trim();
+    const placement = target.placement;
+    const desktopId = target.desktopId?.trim() || undefined;
     const activation = ++activationRef.current;
     if (sessionId === "" || workspaceId === "") {
       notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" });
       return;
     }
     if (agentName) {
-      queueResolvedTarget({ sessionId, workspaceId, agentName });
+      queueResolvedTarget({ sessionId, workspaceId, agentName, placement, desktopId });
       return;
     }
 
@@ -107,7 +126,13 @@ export function useAttentionJump(): AttentionJump {
           notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" });
           return;
         }
-        queueResolvedTarget({ sessionId, workspaceId, agentName: resolvedAgentName });
+        queueResolvedTarget({
+          sessionId,
+          workspaceId,
+          agentName: resolvedAgentName,
+          placement,
+          desktopId,
+        });
       })
       .catch(error => {
         if (activation !== activationRef.current) return;

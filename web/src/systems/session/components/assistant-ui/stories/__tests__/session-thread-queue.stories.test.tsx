@@ -88,7 +88,7 @@ class ClipboardEventShim extends Event {
 }
 
 describe("SessionThread queue stories", () => {
-  beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
+  beforeAll(() => server.listen({ onUnhandledFrame: "bypass" }));
   // Stubs are dropped after every case (`unstubAllGlobals`), so both go in per case.
   beforeEach(() => {
     vi.stubGlobal("scrollTo", vi.fn());
@@ -120,7 +120,7 @@ describe("SessionThread queue stories", () => {
 
   it("Should attribute another actor's rows and drop their verbs (VC-02)", async () => {
     await mountStory(composed.OtherActor);
-    const rows = screen.getAllByTestId("composer-queued-prompt-row");
+    const rows = await screen.findAllByTestId("composer-queued-prompt-row");
     expect(rows).toHaveLength(3);
     expect(within(rows[0]!).getByTestId("composer-queued-edit")).toBeInTheDocument();
     expect(within(rows[1]!).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
@@ -128,9 +128,39 @@ describe("SessionThread queue stories", () => {
     expect(within(rows[2]!).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
   });
 
+  it("Should name a session message's sender and offer Steer and Remove, never Edit (VC-05, #760)", async () => {
+    await mountStory(composed.SessionMessages);
+    const rows = await screen.findAllByTestId("composer-queued-prompt-row");
+    expect(rows).toHaveLength(4);
+    expect(within(rows[0]!).getByTestId("composer-queued-edit")).toBeInTheDocument();
+    const sent = rows[1]!;
+    expect(sent).toHaveAttribute("data-origin", "session");
+    await waitFor(() =>
+      expect(within(sent).getByTestId("composer-queued-sender")).toHaveTextContent(
+        /From\s*Refactor billing$/
+      )
+    );
+    expect(within(sent).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
+    expect(
+      within(sent).getByRole("button", { name: "Steer message from Refactor billing" })
+    ).toBeInTheDocument();
+    expect(
+      within(sent).getByRole("button", { name: "Remove message from Refactor billing" })
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(rows[2]!).getByTestId("composer-queued-sender")).toHaveTextContent(
+        /From\s*a deleted session$/
+      )
+    );
+    expect(within(rows[3]!).queryByTestId("composer-queued-remove")).not.toBeInTheDocument();
+  });
+
   it("Should refuse the edit of a dispatching head entry and hand the text to the composer (VC-03)", async () => {
     await mountStory(composed.DispatchingEditRefused);
-    expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent("entry_dispatching");
+    expect(screen.getByTestId("composer-feedback-note")).toHaveAttribute(
+      "data-code",
+      "entry_dispatching"
+    );
     const rows = screen.getAllByTestId("composer-queued-prompt-row");
     expect(within(rows[0]!).getByTestId("composer-queued-state")).toHaveTextContent("Sending…");
     expect(within(rows[0]!).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
@@ -153,7 +183,7 @@ describe("SessionThread queue stories", () => {
 
   it("Should read full at cap and drop the queue affordance (VC-05)", async () => {
     await mountStory(composed.Full);
-    expect(screen.getByTestId("composer-queue-full")).toBeInTheDocument();
+    expect(await screen.findByTestId("composer-queue-full")).toBeInTheDocument();
     expect(screen.getByTestId("composer-queue-count")).toHaveTextContent("10");
     expect(screen.queryByTestId("composer-queue-button")).not.toBeInTheDocument();
     expect(screen.getByTestId("composer-steer-button")).toBeInTheDocument();

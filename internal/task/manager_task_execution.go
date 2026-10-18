@@ -7,8 +7,6 @@ import (
 	"fmt"
 
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // PublishTask transitions one durable draft into manager-owned runnable reconciliation,
@@ -91,8 +89,8 @@ func (m *Service) executeTaskBoundary(
 	if err := m.store.WithTaskExecutionTransaction(ctx, command); err != nil {
 		return nil, err
 	}
+	result.execution.Run.ProfileID = result.execution.Task.ProfileID
 	m.publishTaskEventsAfterCommand(ctx, result.events)
-	m.observeCommittedRunParticipation(ctx, result.participationObservation)
 	if result.enqueued {
 		m.dispatchTaskRunEnqueued(
 			ctx,
@@ -106,10 +104,9 @@ func (m *Service) executeTaskBoundary(
 }
 
 type taskExecutionCommandResult struct {
-	execution                Execution
-	events                   []Event
-	participationObservation *participation.ResolvedObservation
-	enqueued                 bool
+	execution Execution
+	events    []Event
+	enqueued  bool
 }
 
 func (m *Service) executeTaskBoundaryWithStore(
@@ -164,10 +161,9 @@ func (m *Service) executeTaskBoundaryWithStore(
 	}
 
 	enqueued, err := m.enqueueRunWithStore(ctx, store, EnqueueRun{
-		TaskID:               taskID,
-		IdempotencyKey:       idempotencyKey,
-		NetworkParticipation: req.NetworkParticipation,
-		Metadata:             req.Metadata,
+		TaskID:         taskID,
+		IdempotencyKey: idempotencyKey,
+		Metadata:       req.Metadata,
 	}, actor)
 	if err != nil {
 		return taskExecutionCommandResult{}, err
@@ -179,9 +175,8 @@ func (m *Service) executeTaskBoundaryWithStore(
 			Action:      action,
 			ExistingRun: enqueued.existing,
 		},
-		events:                   append(boundaryEvents, enqueued.event),
-		participationObservation: enqueued.participationObservation,
-		enqueued:                 !enqueued.existing,
+		events:   append(boundaryEvents, enqueued.event),
+		enqueued: !enqueued.existing,
 	}, nil
 }
 
@@ -294,10 +289,9 @@ func (m *Service) approvalAutoEnqueueExecutionWithStore(
 		Ref:  approvalTask.ID,
 	}
 	enqueued, err := m.enqueueRunWithStore(ctx, store, EnqueueRun{
-		TaskID:               approvalTask.ID,
-		IdempotencyKey:       trigger.idempotencyKey(approvalTask.ID),
-		NetworkParticipation: req.NetworkParticipation,
-		Metadata:             req.Metadata,
+		TaskID:         approvalTask.ID,
+		IdempotencyKey: trigger.idempotencyKey(approvalTask.ID),
+		Metadata:       req.Metadata,
 	}, actor)
 	if err != nil {
 		return taskExecutionCommandResult{}, false, err
@@ -345,9 +339,8 @@ func (m *Service) approvalAutoEnqueueExecutionWithStore(
 			Action:      ExecutionActionApproval,
 			ExistingRun: enqueued.existing,
 		},
-		events:                   events,
-		participationObservation: enqueued.participationObservation,
-		enqueued:                 !enqueued.existing,
+		events:   events,
+		enqueued: !enqueued.existing,
 	}, true, nil
 }
 

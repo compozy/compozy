@@ -34,6 +34,7 @@ func (m *Manager) ValidateLayout(
 	if err != nil {
 		return Validation{}, err
 	}
+	document = canonicalLayoutApps(ctx, document, m.appDeprecationObserver, "command")
 	return validateLayoutDocument(defaults, workspaceID, document)
 }
 

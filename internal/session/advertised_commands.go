@@ -96,3 +96,20 @@ func normalizeAdvertisedCommands(commands []store.SessionAdvertisedCommand) []st
 	}
 	return result
 }
+
+// ResolveCompactionCommand selects the native compaction command, preferring compact.
+func ResolveCompactionCommand(commands []store.SessionAdvertisedCommand) (string, bool) {
+	compress := false
+	for _, command := range commands {
+		switch command.Name {
+		case "compact":
+			return "compact", true
+		case "compress":
+			compress = true
+		}
+	}
+	if compress {
+		return "compress", true
+	}
+	return "", false
+}

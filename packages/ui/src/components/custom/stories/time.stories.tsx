@@ -10,7 +10,7 @@ const meta: Meta<typeof Time> = {
     docs: {
       description: {
         component:
-          "Relative (default) or absolute timestamp. Renders `<time dateTime title>` with the alternate format in the title attribute. Refreshes every 30 s for relative mode.",
+          "Relative (default), compact, or absolute timestamp. Renders `<time dateTime title>` with the alternate format in the title attribute. Refreshes every 30 s for relative mode.",
       },
     },
   },
@@ -32,6 +32,16 @@ export const RelativeMinutes: Story = {
 /** Relative — hours ago. */
 export const RelativeHours: Story = {
   args: { iso: new Date(Date.now() - 3 * 3_600_000).toISOString() },
+};
+
+/** Compact — the dense-row form (`5m`, `3h`); the full timestamp stays in the title. */
+export const Compact: Story = {
+  args: { iso: new Date(Date.now() - 5 * 60_000).toISOString(), mode: "compact" },
+};
+
+/** Compact — a future timestamp reads `in 3h`. */
+export const CompactFuture: Story = {
+  args: { iso: new Date(Date.now() + 3 * 3_600_000).toISOString(), mode: "compact" },
 };
 
 /** Absolute timestamp. */

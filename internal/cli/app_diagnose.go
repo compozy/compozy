@@ -166,8 +166,8 @@ func resolveAppDiagnosticReport(
 }
 
 func isAppNotRunningError(err error) bool {
-	var appErr *appCommandError
-	return errors.As(err, &appErr) && appErr.code == appNotRunningCode
+	appErr, appErrOK := errors.AsType[*appCommandError](err)
+	return appErrOK && appErr.code == appNotRunningCode
 }
 
 func readLocalAppDiagnosticReport(homePaths compozyconfig.HomePaths) (appDiagnosticReport, error) {
@@ -233,7 +233,7 @@ func appDiagnosticReportOutput(report appDiagnosticReport) outputBundle {
 		human: func() (string, error) {
 			rows := []keyValue{
 				{Label: "Boot", Value: report.BootID},
-				{Label: networkStateValue, Value: report.BootPhase},
+				{Label: cliOutputStateValue, Value: report.BootPhase},
 				{Label: versionValue, Value: report.AppVersion},
 			}
 			if report.RuntimeVersion != nil {

@@ -1,10 +1,11 @@
 package task
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -57,24 +58,23 @@ func (s CatalogSort) Normalize() CatalogSort {
 
 // CatalogQuery captures one bounded task catalog request.
 type CatalogQuery struct {
-	ReadScope            store.ReadScope
-	Scope                CatalogScope
-	WorkspaceID          string
-	Status               Status
-	Priority             Priority
-	IncludeDrafts        bool
-	ApprovalState        ApprovalState
-	OwnerKind            OwnerKind
-	OwnerRef             string
-	ParentTaskID         string
-	WorktreeID           string
-	ParticipationChannel string
-	ExcludeCreatedBy     []ActorRef
-	LoopRunID            string
-	Search               string
-	Sort                 CatalogSort
-	Cursor               string
-	Limit                int
+	ReadScope        store.ReadScope
+	Scope            CatalogScope
+	WorkspaceID      string
+	Status           Status
+	Priority         Priority
+	IncludeDrafts    bool
+	ApprovalState    ApprovalState
+	OwnerKind        OwnerKind
+	OwnerRef         string
+	ParentTaskID     string
+	WorktreeID       string
+	ExcludeCreatedBy []ActorRef
+	LoopRunID        string
+	Search           string
+	Sort             CatalogSort
+	Cursor           string
+	Limit            int
 }
 
 // CatalogStatusFacet is one exact status count before the page cut.
@@ -108,23 +108,22 @@ type CatalogCursor struct {
 }
 
 type catalogFingerprint struct {
-	ProfileID            string        `json:"profile_id"`
-	AllProfiles          bool          `json:"all_profiles"`
-	Scope                CatalogScope  `json:"scope"`
-	WorkspaceID          string        `json:"workspace_id"`
-	Status               Status        `json:"status"`
-	Priority             Priority      `json:"priority"`
-	IncludeDrafts        bool          `json:"include_drafts"`
-	ApprovalState        ApprovalState `json:"approval_state"`
-	OwnerKind            OwnerKind     `json:"owner_kind"`
-	OwnerRef             string        `json:"owner_ref"`
-	ParentTaskID         string        `json:"parent_task_id"`
-	WorktreeID           string        `json:"worktree_id"`
-	ParticipationChannel string        `json:"participation_channel"`
-	ExcludeCreatedBy     []ActorRef    `json:"exclude_created_by"`
-	LoopRunID            string        `json:"loop_run_id"`
-	Search               string        `json:"q"`
-	Sort                 CatalogSort   `json:"sort"`
+	ProfileID        string        `json:"profile_id"`
+	AllProfiles      bool          `json:"all_profiles"`
+	Scope            CatalogScope  `json:"scope"`
+	WorkspaceID      string        `json:"workspace_id"`
+	Status           Status        `json:"status"`
+	Priority         Priority      `json:"priority"`
+	IncludeDrafts    bool          `json:"include_drafts"`
+	ApprovalState    ApprovalState `json:"approval_state"`
+	OwnerKind        OwnerKind     `json:"owner_kind"`
+	OwnerRef         string        `json:"owner_ref"`
+	ParentTaskID     string        `json:"parent_task_id"`
+	WorktreeID       string        `json:"worktree_id"`
+	ExcludeCreatedBy []ActorRef    `json:"exclude_created_by"`
+	LoopRunID        string        `json:"loop_run_id"`
+	Search           string        `json:"q"`
+	Sort             CatalogSort   `json:"sort"`
 }
 
 // CatalogReader is the batched persistence capability used by public task catalogs.
@@ -170,7 +169,6 @@ func normalizeCatalogQuery(query CatalogQuery) CatalogQuery {
 	query.OwnerRef = strings.TrimSpace(query.OwnerRef)
 	query.ParentTaskID = strings.TrimSpace(query.ParentTaskID)
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
-	query.ParticipationChannel = strings.TrimSpace(query.ParticipationChannel)
 	query.ExcludeCreatedBy = normalizeCatalogActorRefs(query.ExcludeCreatedBy)
 	query.LoopRunID = strings.TrimSpace(query.LoopRunID)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
@@ -318,23 +316,22 @@ func CatalogQueryWithoutCursor(query CatalogQuery) CatalogQuery {
 
 func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(catalogFingerprint{
-		ProfileID:            query.ReadScope.ProfileID,
-		AllProfiles:          query.ReadScope.AllProfiles,
-		Scope:                query.Scope,
-		WorkspaceID:          query.WorkspaceID,
-		Status:               query.Status,
-		Priority:             query.Priority,
-		IncludeDrafts:        query.IncludeDrafts,
-		ApprovalState:        query.ApprovalState,
-		OwnerKind:            query.OwnerKind,
-		OwnerRef:             query.OwnerRef,
-		ParentTaskID:         query.ParentTaskID,
-		WorktreeID:           query.WorktreeID,
-		ParticipationChannel: query.ParticipationChannel,
-		ExcludeCreatedBy:     query.ExcludeCreatedBy,
-		LoopRunID:            query.LoopRunID,
-		Search:               query.Search,
-		Sort:                 query.Sort,
+		ProfileID:        query.ReadScope.ProfileID,
+		AllProfiles:      query.ReadScope.AllProfiles,
+		Scope:            query.Scope,
+		WorkspaceID:      query.WorkspaceID,
+		Status:           query.Status,
+		Priority:         query.Priority,
+		IncludeDrafts:    query.IncludeDrafts,
+		ApprovalState:    query.ApprovalState,
+		OwnerKind:        query.OwnerKind,
+		OwnerRef:         query.OwnerRef,
+		ParentTaskID:     query.ParentTaskID,
+		WorktreeID:       query.WorktreeID,
+		ExcludeCreatedBy: query.ExcludeCreatedBy,
+		LoopRunID:        query.LoopRunID,
+		Search:           query.Search,
+		Sort:             query.Sort,
 	})
 	if err != nil {
 		return "", fmt.Errorf("task: fingerprint catalog query: %w", err)
@@ -356,11 +353,8 @@ func normalizeCatalogActorRefs(refs []ActorRef) []ActorRef {
 		seen[candidate] = struct{}{}
 		normalized = append(normalized, candidate)
 	}
-	sort.Slice(normalized, func(left int, right int) bool {
-		if normalized[left].Kind != normalized[right].Kind {
-			return normalized[left].Kind < normalized[right].Kind
-		}
-		return normalized[left].Ref < normalized[right].Ref
+	slices.SortFunc(normalized, func(a, b ActorRef) int {
+		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Ref, b.Ref))
 	})
 	return normalized
 }

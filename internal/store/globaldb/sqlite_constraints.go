@@ -8,6 +8,7 @@ import (
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -39,6 +40,19 @@ func isSQLitePrimaryKeyConstraint(err error) bool {
 func isSQLiteTriggerConstraint(err error) bool {
 	code, ok := sqliteConstraintCode(err)
 	return ok && code == sqlite3.SQLITE_CONSTRAINT_TRIGGER
+}
+
+func mapProfileAdmissionConstraint(profileID string, err error) error {
+	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+	if !ok || sqliteErr.Code() != sqlite3.SQLITE_CONSTRAINT_TRIGGER {
+		return err
+	}
+	for _, code := range []string{"profile_archived", "profile_unavailable"} {
+		if strings.HasSuffix(sqliteErr.Error(), fmt.Sprintf(": %s (%d)", code, sqlite3.SQLITE_CONSTRAINT_TRIGGER)) {
+			return &store.ProfileAdmissionError{ProfileID: profileID, Archived: code == "profile_archived"}
+		}
+	}
+	return err
 }
 
 // mapTerminalRunCommandGuardError translates the SQLite trigger ABI into the domain error once.

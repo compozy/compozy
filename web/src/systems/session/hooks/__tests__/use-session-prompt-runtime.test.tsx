@@ -107,24 +107,24 @@ describe("useSessionPromptRuntime", () => {
           runtime_provider: "codex",
         },
         {
-          display_name: "Groq",
+          display_name: "OpenRouter",
           harness: "pi_acp",
-          name: "groq",
-          runtime_provider: "groq",
+          name: "openrouter",
+          runtime_provider: "openrouter",
         },
       ],
     };
     const globalProviders: ProviderListResponse = {
       providers: [
         provider("codex", "authenticated"),
-        provider("groq", "missing_credential"),
+        provider("openrouter", "missing_credential"),
         provider("claude", "authenticated"),
       ],
     };
     const catalog: AllModelsListResponse = {
       models: [
         model("codex", "gpt-5.6-sol"),
-        model("groq", "llama-4"),
+        model("openrouter", "llama-4"),
         model("claude", "claude-fable-5"),
       ],
     };
@@ -163,14 +163,19 @@ describe("useSessionPromptRuntime", () => {
     const { result, unmount } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
 
     await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
-    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex", "groq"]);
-    expect(result.current.catalog.providers.find(entry => entry.id === "groq")?.needs_auth).toBe(
-      true
-    );
+    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual([
+      "codex",
+      "openrouter",
+    ]);
+    expect(
+      result.current.catalog.providers.find(entry => entry.id === "openrouter")?.needs_auth
+    ).toBe(true);
     expect(result.current.catalog.models.find(entry => entry.provider === "codex")?.disabled).toBe(
       false
     );
-    expect(result.current.catalog.models.find(entry => entry.provider === "groq")).toMatchObject({
+    expect(
+      result.current.catalog.models.find(entry => entry.provider === "openrouter")
+    ).toMatchObject({
       disabled: true,
       disabled_reason: "Sign in",
     });
@@ -294,6 +299,49 @@ describe("useSessionPromptRuntime", () => {
       speed: "fast",
     });
   });
+
+  // A continued or forked session is unbound with the runtime its dialog chose as its
+  // selection; the composer and its first prompt must use it, not the agent default.
+  it("Should prefer an unbound session's selected runtime over the agent default", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const { queryClient, wrapper } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
+      ...workspaceDetailFixture,
+      providers: [
+        { display_name: "Codex", harness: "acp", name: "codex", runtime_provider: "codex" },
+        { display_name: "Claude", harness: "acp", name: "claude", runtime_provider: "claude" },
+      ],
+    } satisfies WorkspaceDetailPayload);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), [
+      { name: "general", provider: "codex", model: "gpt-6.1-sol" } as AgentPayload,
+    ]);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [provider("codex", "authenticated"), provider("claude", "authenticated")],
+    } satisfies ProviderListResponse);
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [model("codex", "gpt-6.1-sol"), model("claude", "claude-fable-5")],
+    } satisfies AllModelsListResponse);
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: "general",
+        canPrompt: true,
+        effectiveRuntime: undefined,
+        selectedRuntime: { provider: "claude", model: "claude-fable-5", speed: "normal" },
+        selectionRevision: 1,
+        sessionId: primarySessionFixture.id,
+        workspaceId,
+      })
+    );
+
+    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+
+    await waitFor(() => expect(result.current.catalog.loaded).toBe(true));
+    expect(result.current.value).toMatchObject({ provider: "claude", model: "claude-fable-5" });
+    expect(getSessionPromptRuntimeSnapshot(store)).toEqual({
+      provider: "claude",
+      model: "claude-fable-5",
+    });
+  });
 });
 
 describe("SessionPromptRuntimeProvider hydration", () => {
@@ -334,7 +382,9 @@ describe("SessionPromptRuntimeProvider hydration", () => {
             prompt_audio: false,
             prompt_image: false,
             prompt_embedded_context: false,
+            supports_fork_session: false,
             supports_load_session: true,
+            supports_resume_session: false,
             config_options: [
               {
                 id: "deliberation",

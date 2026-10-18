@@ -3,7 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -294,7 +294,7 @@ func inferredReviewSchema(value any) map[string]any {
 			properties[key] = inferredReviewSchema(child)
 			required = append(required, key)
 		}
-		sort.Strings(required)
+		slices.Sort(required)
 		return map[string]any{
 			jsonSchemaTypeKey: jsonSchemaObjectType, jsonSchemaPropertiesKey: properties,
 			jsonSchemaRequiredKey: required, jsonSchemaAdditionalPropertiesKey: false,
@@ -332,6 +332,5 @@ func reviewExpiresAt(review *dsl.ReviewSpec, fallback string, now time.Time) (*t
 	if err != nil || duration <= 0 {
 		return nil, fmt.Errorf("%w: expiry is invalid", ErrValidation)
 	}
-	value := now.Add(duration)
-	return &value, nil
+	return new(now.Add(duration)), nil
 }

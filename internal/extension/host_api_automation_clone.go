@@ -4,7 +4,6 @@ import (
 	"maps"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func cloneHostAPIAutomationLoopTarget(source *automationpkg.LoopTarget) *automationpkg.LoopTarget {
@@ -14,6 +13,5 @@ func cloneHostAPIAutomationLoopTarget(source *automationpkg.LoopTarget) *automat
 	cloned := *source
 	cloned.Inputs = maps.Clone(source.Inputs)
 	cloned.InputMapping = maps.Clone(source.InputMapping)
-	cloned.NetworkParticipation = participation.CloneRequest(source.NetworkParticipation)
 	return &cloned
 }

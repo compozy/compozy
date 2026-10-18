@@ -45,6 +45,7 @@ const (
 	windowManagerFrameFlag        = "frame"
 	windowManagerGroupFlag        = "group"
 	windowManagerResourceFlag     = "resource"
+	windowManagerKeepFramesFlag   = "keep-frames"
 	windowManagerDiagnostics      = "diagnostics"
 	windowManagerNameField        = "name"
 	windowManagerDesktopID        = "desktop_id"
@@ -221,8 +222,7 @@ func requiredWindowManagerRevision(
 			contract.WindowManagerMaxSafeRevision,
 		)
 	}
-	revision := contract.WindowManagerRevision(value)
-	return &revision, nil
+	return new(contract.WindowManagerRevision(value)), nil
 }
 
 func optionalWindowManagerRevision(
@@ -236,8 +236,7 @@ func optionalWindowManagerRevision(
 	if value > uint64(contract.WindowManagerMaxSafeRevision) {
 		return nil, fmt.Errorf("cli: --%s must not exceed %d", flagName, contract.WindowManagerMaxSafeRevision)
 	}
-	revision := contract.WindowManagerRevision(value)
-	return &revision, nil
+	return new(contract.WindowManagerRevision(value)), nil
 }
 
 func optionalWindowManagerID[T ~string](
@@ -256,8 +255,7 @@ func optionalWindowManagerID[T ~string](
 		}
 		return nil, nil
 	}
-	converted := T(trimmed)
-	return &converted, nil
+	return new(T(trimmed)), nil
 }
 
 func requiredWindowManagerClient(flags windowManagerMutationFlags) error {

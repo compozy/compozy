@@ -30,10 +30,10 @@ type automationJobCreateInput struct {
 	WorkspaceID string                         `json:"workspace,omitempty"`
 	Prompt      string                         `json:"prompt"`
 	Schedule    automationpkg.ScheduleSpec     `json:"schedule"`
-	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
-	Enabled     *bool                          `json:"enabled,omitempty"`
-	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	Task        *automationpkg.JobTaskConfig   `json:"task,omitzero"`
+	Enabled     *bool                          `json:"enabled,omitzero"`
+	Retry       *automationpkg.RetryConfig     `json:"retry,omitzero"`
+	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitzero"`
 }
 
 func (i automationJobCreateInput) request() contract.CreateJobRequest {
@@ -54,13 +54,13 @@ func (i automationJobCreateInput) request() contract.CreateJobRequest {
 type automationJobUpdateInput struct {
 	JobID       string                         `json:"job_id"`
 	WorkspaceID string                         `json:"workspace,omitempty"`
-	Name        *string                        `json:"name,omitempty"`
-	Prompt      *string                        `json:"prompt,omitempty"`
-	Schedule    *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
-	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
-	Enabled     *bool                          `json:"enabled,omitempty"`
-	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	Name        *string                        `json:"name,omitzero"`
+	Prompt      *string                        `json:"prompt,omitzero"`
+	Schedule    *automationpkg.ScheduleSpec    `json:"schedule,omitzero"`
+	Task        *automationpkg.JobTaskConfig   `json:"task,omitzero"`
+	Enabled     *bool                          `json:"enabled,omitzero"`
+	Retry       *automationpkg.RetryConfig     `json:"retry,omitzero"`
+	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitzero"`
 }
 
 func (i automationJobUpdateInput) request() contract.UpdateJobRequest {
@@ -83,12 +83,12 @@ type automationTriggerCreateInput struct {
 	Prompt             string                         `json:"prompt"`
 	Event              string                         `json:"event"`
 	Filter             map[string]string              `json:"filter,omitempty"`
-	Enabled            *bool                          `json:"enabled,omitempty"`
-	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	Enabled            *bool                          `json:"enabled,omitzero"`
+	Retry              *automationpkg.RetryConfig     `json:"retry,omitzero"`
+	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitzero"`
 	WebhookID          string                         `json:"webhook_id,omitempty"`
 	EndpointSlug       string                         `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
+	WebhookSecretValue *string                        `json:"webhook_secret_value,omitzero"`
 }
 
 func (i automationTriggerCreateInput) request() contract.CreateTriggerRequest {
@@ -120,16 +120,16 @@ func (i automationTriggerCreateInput) webhookSecretWrite() automationpkg.Webhook
 type automationTriggerUpdateInput struct {
 	TriggerID          string                         `json:"trigger_id"`
 	WorkspaceID        string                         `json:"workspace,omitempty"`
-	Name               *string                        `json:"name,omitempty"`
-	Prompt             *string                        `json:"prompt,omitempty"`
-	Event              *string                        `json:"event,omitempty"`
+	Name               *string                        `json:"name,omitzero"`
+	Prompt             *string                        `json:"prompt,omitzero"`
+	Event              *string                        `json:"event,omitzero"`
 	Filter             map[string]string              `json:"filter,omitempty"`
-	Enabled            *bool                          `json:"enabled,omitempty"`
-	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
-	WebhookID          *string                        `json:"webhook_id,omitempty"`
-	EndpointSlug       *string                        `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
+	Enabled            *bool                          `json:"enabled,omitzero"`
+	Retry              *automationpkg.RetryConfig     `json:"retry,omitzero"`
+	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitzero"`
+	WebhookID          *string                        `json:"webhook_id,omitzero"`
+	EndpointSlug       *string                        `json:"endpoint_slug,omitzero"`
+	WebhookSecretValue *string                        `json:"webhook_secret_value,omitzero"`
 }
 
 func (i automationTriggerUpdateInput) request() contract.UpdateTriggerRequest {
@@ -151,8 +151,5 @@ func (i automationTriggerUpdateInput) webhookSecretWrite() *automationpkg.Webhoo
 	if i.WebhookSecretValue == nil {
 		return nil
 	}
-	write := automationpkg.WebhookSecretWrite{}
-	value := strings.TrimSpace(*i.WebhookSecretValue)
-	write.Value = &value
-	return &write
+	return &automationpkg.WebhookSecretWrite{Value: new(strings.TrimSpace(*i.WebhookSecretValue))}
 }

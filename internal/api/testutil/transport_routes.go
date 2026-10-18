@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"slices"
-	"sort"
 	"strings"
 
 	apispec "github.com/compozy/compozy/internal/api/spec"
@@ -22,7 +21,7 @@ func RoutesFromEngine(routes gin.RoutesInfo, matches func(string) bool) []string
 			filtered = append(filtered, route.Method+" "+route.Path)
 		}
 	}
-	sort.Strings(filtered)
+	slices.Sort(filtered)
 	return filtered
 }
 
@@ -34,7 +33,7 @@ func DocumentedRoutesForTransport(transport apispec.Transport, matches func(stri
 			routes = append(routes, operation.Method+" "+normalizeSpecRoutePath(operation.Path))
 		}
 	}
-	sort.Strings(routes)
+	slices.Sort(routes)
 	return routes
 }
 

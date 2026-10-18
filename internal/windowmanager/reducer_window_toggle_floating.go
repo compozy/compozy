@@ -60,9 +60,12 @@ func (r *reducer) toggleFloating(snapshot *Snapshot, command ToggleFloatingComma
 	return true, nil
 }
 
+// cascadeStep is the down-right offset between cascaded floating windows.
+const cascadeStep = 0.02
+
 func cascadeRect(rect NormalizedRect) NormalizedRect {
-	rect.X += 0.02
-	rect.Y += 0.02
+	rect.X += cascadeStep
+	rect.Y += cascadeStep
 	return clampRect(rect)
 }
 

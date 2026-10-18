@@ -20,7 +20,7 @@ func (m *Manager) recordEventWithPreviousName(
 		return
 	}
 	m.events.RecordProfileEvent(Event{
-		Name: name, ProfileID: profile.ID, ProfileName: profile.Name,
+		Name: name, ProfileID: profile.ID, ProfileName: profile.Name, ProfileState: profile.State,
 		PreviousProfileName: previousProfileName, OperationID: opID,
 	})
 }

@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/subprocess"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
 type preparedLaunchIdentity struct {
 	prepared   bool
-	spec       sandbox.LaunchSpec
+	spec       LaunchSpec
 	resolution subprocess.ExecutableResolution
 }
 
@@ -73,7 +73,7 @@ func (d *Driver) prepareLaunchIdentity(
 		return next, nil
 	}
 	baseSpec := launchSpecFromStartOpts(next)
-	preparer, ok := next.Launcher.(sandbox.LaunchPreparer)
+	preparer, ok := next.Launcher.(LaunchPreparer)
 	if !ok {
 		next.launchIdentity = &preparedLaunchIdentity{prepared: true, spec: baseSpec}
 		next = applyProviderLaunchIdentity(next)
@@ -96,9 +96,9 @@ func (d *Driver) prepareLaunchIdentity(
 	next = applyProviderLaunchIdentity(next)
 	if err != nil {
 		return next, fmt.Errorf(
-			"acp: start agent %q subprocess %q in %q: %w",
+			"acp: start agent %q subprocess %s in %q: %w",
 			strings.TrimSpace(opts.AgentName),
-			strings.TrimSpace(opts.Command),
+			launchCommandIdentity(opts.Command),
 			strings.TrimSpace(opts.Cwd),
 			err,
 		)
@@ -106,8 +106,21 @@ func (d *Driver) prepareLaunchIdentity(
 	return next, nil
 }
 
-func launchSpecFromStartOpts(opts StartOpts) sandbox.LaunchSpec {
-	return sandbox.LaunchSpec{
+// launchCommandIdentity names a launch command in errors and logs without its
+// raw text: a route command can carry private NAME=value assignments and
+// account arguments (fallback-account ADR-001/002). It keeps the executable
+// name and the shared sha256 fingerprint.
+func launchCommandIdentity(command string) string {
+	fingerprint := compozyconfig.CommandFingerprint(strings.TrimSpace(command))
+	parsed, err := compozyconfig.ParseLaunchCommand(command)
+	if err != nil || parsed.Executable == "" {
+		return fmt.Sprintf("(command %s)", fingerprint)
+	}
+	return fmt.Sprintf("%q (command %s)", parsed.Executable, fingerprint)
+}
+
+func launchSpecFromStartOpts(opts StartOpts) LaunchSpec {
+	return LaunchSpec{
 		Command:        opts.Command,
 		Cwd:            opts.Cwd,
 		AdditionalDirs: append([]string(nil), opts.AdditionalDirs...),
@@ -115,7 +128,7 @@ func launchSpecFromStartOpts(opts StartOpts) sandbox.LaunchSpec {
 	}
 }
 
-func applyLaunchSpecToStartOpts(opts StartOpts, spec sandbox.LaunchSpec) StartOpts {
+func applyLaunchSpecToStartOpts(opts StartOpts, spec LaunchSpec) StartOpts {
 	next := opts
 	next.Command = spec.Command
 	next.Cwd = spec.Cwd
@@ -124,7 +137,7 @@ func applyLaunchSpecToStartOpts(opts StartOpts, spec sandbox.LaunchSpec) StartOp
 	return next
 }
 
-func cloneLaunchSpec(spec sandbox.LaunchSpec) sandbox.LaunchSpec {
+func cloneLaunchSpec(spec LaunchSpec) LaunchSpec {
 	clone := spec
 	clone.Args = append([]string(nil), spec.Args...)
 	clone.AdditionalDirs = append([]string(nil), spec.AdditionalDirs...)
@@ -132,20 +145,20 @@ func cloneLaunchSpec(spec sandbox.LaunchSpec) sandbox.LaunchSpec {
 	return clone
 }
 
-func (d *Driver) launcherForStart(opts StartOpts) sandbox.Launcher {
+func (d *Driver) launcherForStart(opts StartOpts) Launcher {
 	if opts.Launcher != nil {
 		return opts.Launcher
 	}
 	if d.launcher != nil {
 		return d.launcher
 	}
-	return newLocalLauncher(d.logger, d.stopTimeout)
+	return newLocalLauncher(d.logger, d.stopTimeout, d.agentNiceness)
 }
 
 func (l *localLauncher) PrepareLaunch(
 	ctx context.Context,
-	spec sandbox.LaunchSpec,
-) (sandbox.LaunchSpec, error) {
+	spec LaunchSpec,
+) (LaunchSpec, error) {
 	if ctx == nil {
 		return spec, errors.New("acp: prepare launch context is required")
 	}
@@ -160,10 +173,17 @@ func (l *localLauncher) PrepareLaunch(
 		return next, nil
 	}
 
-	command, args, err := parseCommandString(next.Command)
+	// Leading NAME=value tokens (a route's account, e.g. CLAUDE_CONFIG_DIR=… claude --acp)
+	// are private environment for this process, never the executable.
+	parsed, err := compozyconfig.ParseLaunchCommand(next.Command)
 	if err != nil {
-		return next, err
+		return next, fmt.Errorf("acp: %w", err)
 	}
+	for _, assignment := range parsed.Environment {
+		key, value, _ := strings.Cut(assignment, "=")
+		next.Env = setEnvValue(next.Env, key, value)
+	}
+	command, args := parsed.Executable, parsed.Args
 	next.Args = append([]string(nil), args...)
 	resolved, err := subprocess.ResolveExecutable(command, next.Env, next.Cwd)
 	if err != nil {

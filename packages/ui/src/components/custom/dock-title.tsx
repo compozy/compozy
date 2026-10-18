@@ -8,7 +8,7 @@ function DockTitle({ children, className, ...props }: React.ComponentProps<"span
   return (
     <span
       data-slot="dock-title"
-      className={cn("text-small-body font-medium text-fg", className)}
+      className={cn("text-item-title font-medium text-fg", className)}
       {...props}
     >
       {children}

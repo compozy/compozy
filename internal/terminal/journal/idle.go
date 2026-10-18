@@ -229,7 +229,7 @@ func (l *terminalLane) finishIdleCandidate(candidate idleCandidate) {
 	finishedAt := l.service.now()
 	duration := finishedAt.Sub(candidate.startedAt).Milliseconds()
 	row := terminalpkg.CommandRow{
-		ID: id, TerminalID: terminalIDPointer(l.info.ID), ProfileID: l.info.ProfileID,
+		ID: id, TerminalID: new(l.info.ID), ProfileID: l.info.ProfileID,
 		Actor: candidate.actor, Command: candidate.command, Cwd: l.info.Cwd,
 		StartedAt: candidate.startedAt, DurationMs: &duration, ExitCause: "unknown",
 		DetectedBy: "idle", Approval: approvalForActor(candidate.actor),

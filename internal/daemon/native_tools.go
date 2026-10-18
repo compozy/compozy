@@ -13,22 +13,19 @@ import (
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
 const (
 	daemonBlockKey          = "block"
+	daemonTimeoutKey        = "timeout"
 	nativeToolsClaimedKey   = "claimed"
-	nativeToolsDirectKey    = "direct"
 	nativeToolsEventsKey    = "events"
 	nativeToolsHealthKey    = "health"
 	nativeToolsHistoryKey   = "history"
 	nativeToolsLeaseKey     = "lease"
 	nativeToolsLogsKey      = "logs"
-	nativeToolsMessagesKey  = "messages"
-	nativeToolsNetworkKey   = "network"
 	nativeToolsNoteKey      = "note"
 	nativeToolsProvidersKey = "providers"
 	nativeToolsRedactedKey  = "redacted"
@@ -39,30 +36,16 @@ const (
 	nativeToolsSkillsKey    = "skills"
 	nativeToolsTaskKey      = "task"
 	nativeToolsTextKey      = "text"
-	nativeToolsWorkKey      = "work"
 	nativeToolsWorkspaceKey = "workspace"
 	nativeToolsAgentsKey    = "agents"
 	nativeToolsArgsKey      = "args"
 	nativeToolsContentKey   = "content"
 )
 
-type nativeMemoryActorKind string
-
-const (
-	nativeMemoryActorKindRoot     nativeMemoryActorKind = "agent_root"
-	nativeMemoryActorKindSubagent nativeMemoryActorKind = "agent_subagent"
-)
-
-func normalizeNativeMemoryActorKind(actorKind string) nativeMemoryActorKind {
-	return nativeMemoryActorKind(taskpkg.ActorKind(actorKind).Normalize())
-}
-
 type daemonNativeTools struct {
 	deps *daemonNativeToolsDeps
-}
-
-type memoryToolWriteRecorder interface {
-	RecordToolWrite(sessionID string, turnSeq int64)
+	// goalAvailability is nil when no projection epoch is wired, which keeps Goal availability live.
+	goalAvailability *nativeGoalAvailabilityCache
 }
 
 type nativeToolBinding struct {
@@ -76,7 +59,10 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 	if deps == nil {
 		return nil, errors.New("daemon: native tool dependencies are required")
 	}
-	adapter := &daemonNativeTools{deps: deps}
+	adapter := &daemonNativeTools{
+		deps:             deps,
+		goalAvailability: newNativeGoalAvailabilityCache(deps.ProjectionEpoch, nil),
+	}
 	bindings := adapter.bindings()
 	descriptors := builtintools.NativeDescriptors()
 	if err := validateNativeToolBindings(descriptors, bindings); err != nil {
@@ -87,16 +73,11 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 		binding := bindings[descriptor.ID]
 		if binding.call != nil {
 			call := binding.call
-			toolID := descriptor.ID
 			binding.call = func(
 				ctx context.Context,
 				scope toolspkg.Scope,
 				req toolspkg.CallRequest,
 			) (toolspkg.ToolResult, error) {
-				if nativeMemoryToolRequiresCallerProfile(toolID) &&
-					strings.TrimSpace(scope.ProfileID) == "" && strings.TrimSpace(scope.SessionID) == "" {
-					return call(ctx, scope, req)
-				}
 				effectiveScope, err := adapter.nativeEffectiveScope(ctx, scope)
 				if err != nil {
 					return toolspkg.ToolResult{}, err
@@ -184,6 +165,7 @@ func validateNativeToolBindings(
 }
 
 func appendToolEventSinkOption(
+	lifetime context.Context,
 	options []toolspkg.RegistryOption,
 	registry extensionLifecycleEventWriter,
 	now func() time.Time,
@@ -194,7 +176,7 @@ func appendToolEventSinkOption(
 		return options
 	}
 	return append(options, toolspkg.WithToolEventSink(&daemonToolEventSink{
-		writer: writer, now: now, profileForSession: profileForSession,
+		writer: writer, lifetime: lifetime, now: now, profileForSession: profileForSession,
 	}))
 }
 

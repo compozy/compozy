@@ -8,9 +8,10 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e-desktop test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
+.PHONY: go-fixture-check deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e-desktop test-e2e-desktop-nightly test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
 
-DEMO_HOME ?= $(HOME)/.agh
+DEMO_HOME ?= $(HOME)/.compozy-demo
+DEMO_PORT ?= 2124
 
 deps:
 	@$(MAGE_RUN) deps
@@ -29,6 +30,9 @@ lint:
 
 go-lint:
 	@$(MAGE_RUN) goLint
+
+go-fixture-check:
+	@$(MAGE_RUN) goFixtureCheck "$(GO_FIXTURE_MODULE)"
 
 source-policy:
 	@$(MAGE_RUN) sourcePolicy
@@ -56,6 +60,12 @@ test-e2e-desktop: web-build desktop-build
 	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a desktop/scripts/run-e2e-linux.sh"; fi; \
 	if [ -n "$$runner" ]; then $$runner; exit $$?; fi; \
 	$$runner bun run --cwd desktop test:e2e
+
+test-e2e-desktop-nightly: web-build desktop-build
+	@runner=""; \
+	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a desktop/scripts/run-e2e-linux.sh test:e2e:nightly"; fi; \
+	if [ -n "$$runner" ]; then $$runner; exit $$?; fi; \
+	$$runner bun run --cwd desktop test:e2e:nightly
 
 test-e2e:
 	@$(MAGE_RUN) testE2E
@@ -101,8 +111,15 @@ bun-test:
 installer-check:
 	@$(MAGE_RUN) installerCheck
 
-demo-seed:
+.PHONY: demo-seed-desktop
+
+demo-seed: build web-build
 	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --replace
+	@COMPOZY_HOME="$(DEMO_HOME)" ./bin/compozy config set http.port "$(DEMO_PORT)" --scope user
+	@COMPOZY_HOME="$(DEMO_HOME)" COMPOZY_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/compozy daemon start
+
+demo-seed-desktop: demo-seed
+	@COMPOZY_HOME="$(abspath $(DEMO_HOME))" COMPOZY_WEB_DIST_DIR="$(CURDIR)/web/dist" bun run --cwd desktop dev
 
 # Desktop shell
 #

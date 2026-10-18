@@ -18,13 +18,13 @@ import (
 	"testing/iotest"
 	"time"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/transcript"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
+
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -150,8 +150,8 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 			"ext.notes.capture",
 			contract.CmdPaletteInvokeRequest{Workspace: "workspace-1", Args: map[string]any{}},
 		)
-		var paletteErr *cmdPaletteAPIError
-		if !errors.As(err, &paletteErr) || err.Error() != `invalid arguments — missing required "title"` {
+		_, paletteErrOK := errors.AsType[*cmdPaletteAPIError](err)
+		if !paletteErrOK || err.Error() != `invalid arguments — missing required "title"` {
 			t.Fatalf("InvokeCmdPaletteCommand() error = %#v", err)
 		}
 	})
@@ -186,8 +186,8 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 			"workspace-1",
 			contract.UpdateSettingsWindowManagerRequest{Shortcuts: &shortcuts},
 		)
-		var mutationErr *cmdPaletteMutationAPIError
-		if !errors.As(err, &mutationErr) || err.Error() !=
+		_, mutationErrOK := errors.AsType[*cmdPaletteMutationAPIError](err)
+		if !mutationErrOK || err.Error() !=
 			`shortcut conflict — meta+KeyN is used by "session.new". Re-run with --overwrite to take it.` {
 			t.Fatalf("UpdateCmdPaletteBindings() error = %#v", err)
 		}
@@ -236,6 +236,17 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 				wantMethod = http.MethodPost
 				wantPath += "/cancel"
 			}
+			if calls == 3 {
+				wantMethod = http.MethodPost
+				wantPath += "/resolve"
+				var body contract.ResolveToolApprovalRequest
+				if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+					t.Fatalf("decode resolution request: %v", err)
+				}
+				if body.Decision != "approved" {
+					t.Fatalf("approval decision = %q, want approved", body.Decision)
+				}
+			}
 			if request.Method != wantMethod || request.URL.Path != wantPath {
 				t.Fatalf(
 					"request %d = %s %s, want %s %s",
@@ -256,6 +267,10 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 		}
 		if _, err := client.CancelPendingToolApproval(t.Context(), "approval-1"); err != nil {
 			t.Fatalf("CancelPendingToolApproval() error = %v", err)
+		}
+		if _, err := client.ResolvePendingToolApproval(t.Context(), "approval-1",
+			contract.ResolveToolApprovalRequest{Decision: "approved"}); err != nil {
+			t.Fatalf("ResolvePendingToolApproval() error = %v", err)
 		}
 	})
 }
@@ -987,7 +1002,7 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 			},
 		}
 
-		me, err := client.AgentMe(context.Background(), agentidentity.Credentials{
+		me, err := client.AgentMe(t.Context(), agentidentity.Credentials{
 			SessionID: "sess-1",
 			AgentName: "coder",
 		})
@@ -1022,7 +1037,7 @@ func TestUnixSocketClientAgentNotifySendsIdentityAndDecodesOutcome(t *testing.T)
 		})},
 	}
 
-	result, err := client.AgentNotify(context.Background(), AgentNotifyRequest{
+	result, err := client.AgentNotify(t.Context(), AgentNotifyRequest{
 		Title: "Done", Body: "No blockers",
 	}, credentials)
 	if err != nil {
@@ -1061,7 +1076,7 @@ func TestUnixSocketClientUpdateSettingsAttentionRoundTripsContract(t *testing.T)
 		})},
 	}
 
-	result, err := client.UpdateSettingsAttention(context.Background(), want)
+	result, err := client.UpdateSettingsAttention(t.Context(), want)
 	if err != nil {
 		t.Fatalf("UpdateSettingsAttention() error = %v", err)
 	}
@@ -1096,7 +1111,7 @@ func TestUnixSocketClientUpdateSettingsShellRoundTripsContract(t *testing.T) {
 		})},
 	}
 
-	result, err := client.UpdateSettingsShell(context.Background(), want)
+	result, err := client.UpdateSettingsShell(t.Context(), want)
 	if err != nil {
 		t.Fatalf("UpdateSettingsShell() error = %v", err)
 	}
@@ -1134,7 +1149,7 @@ func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
 		})},
 	}
 
-	summary, err := client.GetSessionAttentionSummary(context.Background())
+	summary, err := client.GetSessionAttentionSummary(t.Context())
 	if err != nil {
 		t.Fatalf("GetSessionAttentionSummary() error = %v", err)
 	}
@@ -1142,161 +1157,13 @@ func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
 		t.Fatalf("GetSessionAttentionSummary() = %#v, want 2/1", summary)
 	}
 	interactions, err := client.ListSessionInteractions(
-		context.Background(), "sess-1", []string{" pending ", "", "orphaned"},
+		t.Context(), "sess-1", []string{" pending ", "", "orphaned"},
 	)
 	if err != nil {
 		t.Fatalf("ListSessionInteractions() error = %v", err)
 	}
 	if len(interactions.Interactions) != 0 {
 		t.Fatalf("ListSessionInteractions() = %#v, want empty list", interactions)
-	}
-}
-
-func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
-	t.Parallel()
-
-	credentials := agentidentity.Credentials{
-		SessionID: "sess-1",
-		AgentName: "coder",
-	}
-	metadata := contract.CoordinationMessageMetadataPayload{
-		TaskID:        "task-1",
-		RunID:         "run-1",
-		ChannelID:     "builders",
-		MessageKind:   contract.CoordinationMessageStatus,
-		CorrelationID: "run-1",
-	}
-
-	tests := []struct {
-		name string
-		run  func(t *testing.T, client *daemonClient)
-	}{
-		{
-			name: "Should list agent channels",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				channels, err := client.AgentChannels(context.Background(), credentials)
-				if err != nil {
-					t.Fatalf("AgentChannels() error = %v", err)
-				}
-				if len(channels) != 1 || channels[0].ID != "builders" {
-					t.Fatalf("AgentChannels() = %#v, want builders", channels)
-				}
-			},
-		},
-		{
-			name: "Should receive agent channel messages",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				messages, err := client.AgentChannelRecv(
-					context.Background(),
-					"builders",
-					AgentChannelRecvQuery{Wait: true, Limit: 3},
-					credentials,
-				)
-				if err != nil {
-					t.Fatalf("AgentChannelRecv() error = %v", err)
-				}
-				if len(messages) != 1 || messages[0].MessageID != "msg-1" {
-					t.Fatalf("AgentChannelRecv() = %#v, want msg-1", messages)
-				}
-			},
-		},
-		{
-			name: "Should send agent channel messages",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				message, err := client.AgentChannelSend(context.Background(), "builders", AgentChannelSendRequest{
-					Body:     json.RawMessage(`{"text":"ok"}`),
-					Metadata: metadata,
-				}, credentials)
-				if err != nil {
-					t.Fatalf("AgentChannelSend() error = %v", err)
-				}
-				if message.MessageID != "msg-send" {
-					t.Fatalf("AgentChannelSend() = %#v, want msg-send", message)
-				}
-			},
-		},
-		{
-			name: "Should reply to agent channel messages",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				message, err := client.AgentChannelReply(context.Background(), AgentChannelReplyRequest{
-					ReplyToMessageID: "msg-1",
-					Body:             json.RawMessage(`{"text":"ack"}`),
-				}, credentials)
-				if err != nil {
-					t.Fatalf("AgentChannelReply() error = %v", err)
-				}
-				if message.MessageID != "msg-reply" {
-					t.Fatalf("AgentChannelReply() = %#v, want msg-reply", message)
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client := &daemonClient{
-				target: LocalClientTarget("/tmp/compozy.sock"),
-				httpClient: &http.Client{
-					Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-						assertAgentRequestHeaders(t, req, credentials)
-						switch {
-						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels":
-							return newHTTPResponse(
-								http.StatusOK,
-								`{"channels":[{"id":"builders","display_name":"builders","workspace_id":"ws-1","allowed_message_kinds":["status","request","reply","blocker","handoff","result","review_request"]}]}`,
-							), nil
-						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels/builders/recv":
-							if req.URL.Query().Get("wait") != "true" || req.URL.Query().Get("limit") != "3" {
-								t.Fatalf("recv query = %s, want wait=true&limit=3", req.URL.RawQuery)
-							}
-							return newHTTPResponse(
-								http.StatusOK,
-								`{"messages":[{"message_id":"msg-1","channel_id":"builders","from_session_id":"sess-peer","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
-							), nil
-						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/builders/send":
-							body, err := io.ReadAll(req.Body)
-							if err != nil {
-								t.Fatalf("io.ReadAll(send body) error = %v", err)
-							}
-							if !strings.Contains(string(body), `"task_id":"task-1"`) ||
-								!strings.Contains(string(body), `"body":{"text":"ok"}`) {
-								t.Fatalf("send body = %s, want message and metadata", body)
-							}
-							return newHTTPResponse(
-								http.StatusAccepted,
-								`{"message":{"message_id":"msg-send","channel_id":"builders","from_session_id":"sess-1","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
-							), nil
-						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/reply":
-							body, err := io.ReadAll(req.Body)
-							if err != nil {
-								t.Fatalf("io.ReadAll(reply body) error = %v", err)
-							}
-							if !strings.Contains(string(body), `"reply_to_message_id":"msg-1"`) {
-								t.Fatalf("reply body = %s, want reply_to_message_id", body)
-							}
-							return newHTTPResponse(
-								http.StatusAccepted,
-								`{"message":{"message_id":"msg-reply","channel_id":"builders","from_session_id":"sess-1","to_session_id":"sess-peer","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"reply","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
-							), nil
-						default:
-							t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
-							return nil, nil
-						}
-					}),
-				},
-			}
-			tt.run(t, client)
-		})
 	}
 }
 
@@ -1395,7 +1262,7 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		response, err := client.RunLoop(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"release",
 			contract.RunLoopRequest{Inputs: map[string]any{"target": "prod"}},
@@ -1414,7 +1281,7 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		err := client.ApproveLoopRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"run-1",
 			contract.ApproveLoopRunRequest{GateID: "human", Decision: contract.LoopGateDecisionApprove},
@@ -1447,7 +1314,7 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 		{
 			name: "Should reject nil task execution profile request",
 			run: func() error {
-				_, err := client.SetTaskExecutionProfile(context.Background(), "task-1", nil)
+				_, err := client.SetTaskExecutionProfile(t.Context(), "task-1", nil)
 				return err
 			},
 			want: "cli: task execution profile request is required",
@@ -1455,23 +1322,15 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 		{
 			name: "Should reject nil task worktree policy request",
 			run: func() error {
-				_, err := client.SetTaskWorktreePolicy(context.Background(), "task-1", nil)
+				_, err := client.SetTaskWorktreePolicy(t.Context(), "task-1", nil)
 				return err
 			},
 			want: "cli: task worktree policy request is required",
 		},
 		{
-			name: "Should reject nil bridge notification subscription request",
-			run: func() error {
-				_, err := client.CreateTaskBridgeNotificationSubscription(context.Background(), "task-1", nil)
-				return err
-			},
-			want: "cli: task bridge notification subscription request is required",
-		},
-		{
 			name: "Should reject nil task run review request",
 			run: func() error {
-				_, err := client.RequestTaskRunReview(context.Background(), "run-1", nil)
+				_, err := client.RequestTaskRunReview(t.Context(), "run-1", nil)
 				return err
 			},
 			want: "cli: task run review request is required",
@@ -1479,7 +1338,7 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 		{
 			name: "Should reject nil task run review verdict request",
 			run: func() error {
-				_, err := client.SubmitTaskRunReviewVerdict(context.Background(), "review-1", nil)
+				_, err := client.SubmitTaskRunReviewVerdict(t.Context(), "review-1", nil)
 				return err
 			},
 			want: "cli: task run review verdict request is required",
@@ -1536,7 +1395,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 						payload.RequiredCapabilities[0] != "go" {
 						t.Fatalf("claim-next body = %#v, want parsed request", payload)
 					}
-					resolved := testLiveResolvedParticipation("builders")
+
 					body := mustJSON(t, contract.AgentTaskClaimResponse{Claim: contract.AgentTaskClaimPayload{
 						Task: contract.TaskReferencePayload{
 							ID: "task-1", Title: "Run task", Status: taskpkg.TaskStatusInProgress,
@@ -1548,12 +1407,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 						},
 						Lease: contract.TaskRunLeaseSummaryPayload{
 							TaskID: "task-1", RunID: "run-1", Status: taskpkg.TaskRunStatusClaimed,
-							SessionID: "sess-1", ResolvedNetworkParticipation: resolved,
+							SessionID:      "sess-1",
 							ClaimTokenHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						},
-						CoordinationChannel: &contract.CoordinationChannelPayload{
-							ID: "builders", DisplayName: "Builders",
-							AllowedMessageKinds: []contract.CoordinationMessageKind{contract.CoordinationMessageStatus},
 						},
 					}})
 					return newHTTPResponse(http.StatusOK, string(body)), nil
@@ -1607,7 +1462,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	}
 
 	t.Run("Should claim next task", func(t *testing.T) {
-		claim, err := client.AgentTaskClaimNext(context.Background(), AgentTaskClaimNextRequest{
+		claim, err := client.AgentTaskClaimNext(t.Context(), AgentTaskClaimNextRequest{
 			WorkspaceID:          "ws-1",
 			RequiredCapabilities: []string{"go"},
 			PriorityMin:          2,
@@ -1620,15 +1475,10 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if !claim.Claimed || claim.Claim == nil || claim.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatalf("AgentTaskClaimNext() = %#v, want claimed session-bound lease response", claim)
 		}
-		assertResolvedParticipation(
-			t,
-			claim.Claim.Lease.ResolvedNetworkParticipation,
-			*testLiveResolvedParticipation("builders"),
-		)
 	})
 	t.Run("Should return no work", func(t *testing.T) {
 		noWork, err := client.AgentTaskClaimNext(
-			context.Background(),
+			t.Context(),
 			AgentTaskClaimNextRequest{WorkspaceID: "empty"},
 			credentials,
 		)
@@ -1641,7 +1491,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	})
 	t.Run("Should heartbeat claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskHeartbeat(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskHeartbeatRequest{LeaseSeconds: 60},
 			credentials,
@@ -1649,11 +1499,10 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusClaimed {
 			t.Fatalf("AgentTaskHeartbeat() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should complete claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskComplete(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 			credentials,
@@ -1661,11 +1510,10 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusCompleted {
 			t.Fatalf("AgentTaskComplete() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should fail claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskFail(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskFailRequest{
 				Error:    "boom",
@@ -1676,11 +1524,10 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusFailed {
 			t.Fatalf("AgentTaskFail() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should release claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskRelease(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskReleaseRequest{Reason: "handoff"},
 			credentials,
@@ -1688,7 +1535,6 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("AgentTaskRelease() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	if !sawClaim || !sawNoWork || !sawHeartbeat || !sawComplete || !sawFail || !sawRelease {
 		t.Fatalf(
@@ -1722,7 +1568,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			},
 		}
 		_, err := client.AgentTaskRelease(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskReleaseRequest{},
 			agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"},
@@ -1807,7 +1653,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			http.StatusConflict,
 			"409 Conflict",
 			[]byte(
-				`{"error":"confirmation required","code":"extension_network_confirmation_required","current_digest":"digest-current","agents":["writer"],"diagnostic":{"id":"extension.network_confirmation_required","code":"extension_network_confirmation_required","category":"extension","title":"Network confirmation is required","message":"Confirm the current digest.","severity":"error","freshness":"live","suggested_command":"compozy extension enable alpha --confirm-network-requirement digest-current"}}`,
+				`{"error":"confirmation required","code":"extension_gateway_confirmation_required","current_digest":"digest-current","agents":["writer"],"diagnostic":{"id":"extension.gateway_confirmation_required","code":"extension_gateway_confirmation_required","category":"extension","title":"Gateway confirmation is required","message":"Confirm the current digest.","severity":"error","freshness":"live","suggested_command":"compozy extension enable alpha --confirm-gateway-requirement digest-current"}}`,
 			),
 		)
 
@@ -1816,13 +1662,13 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			t.Fatalf("readAPIErrorBody() error = %T %v, want extensionOperationAPIError", err, err)
 		}
 		payload := operationErr.extensionOperationErrorPayload()
-		if payload.Code != diagnosticcontract.CodeExtensionNetworkConfirmRequired ||
+		if payload.Code != diagnosticcontract.CodeExtensionGatewayConfirmRequired ||
 			payload.CurrentDigest != "digest-current" || !reflect.DeepEqual(payload.Agents, []string{"writer"}) {
 			t.Fatalf("extension operation payload = %#v", payload)
 		}
 		item, ok := diagnosticspkg.ItemFromError(err)
 		if !ok || item.SuggestedCommand !=
-			"compozy extension enable alpha --confirm-network-requirement digest-current" {
+			"compozy extension enable alpha --confirm-gateway-requirement digest-current" {
 			t.Fatalf("diagnostic = %#v, %v", item, ok)
 		}
 	})
@@ -1831,11 +1677,10 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 func agentTaskLeaseHTTPResponse(t *testing.T, status taskpkg.RunStatus) *http.Response {
 	t.Helper()
 	body := mustJSON(t, contract.AgentTaskLeaseResponse{Lease: contract.TaskRunLeaseSummaryPayload{
-		TaskID:                       "task-1",
-		RunID:                        "run-1",
-		Status:                       status,
-		SessionID:                    "sess-1",
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		TaskID:    "task-1",
+		RunID:     "run-1",
+		Status:    status,
+		SessionID: "sess-1",
 	}})
 	return newHTTPResponse(http.StatusOK, string(body))
 }
@@ -1913,7 +1758,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should list tools", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.ListTools(context.Background(), ToolQuery{
+		response, err := client.ListTools(t.Context(), ToolQuery{
 			WorkspaceID: "ws-1",
 			SessionID:   "sess-1",
 			AgentName:   "coder",
@@ -1929,7 +1774,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should search tools", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.SearchTools(context.Background(), ToolSearchRequest{
+		response, err := client.SearchTools(t.Context(), ToolSearchRequest{
 			Query:       " skill ",
 			Limit:       2,
 			WorkspaceID: " ws-1 ",
@@ -1945,7 +1790,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should get tool info", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.GetTool(context.Background(), toolspkg.ToolIDSkillView.String(), ToolQuery{
+		response, err := client.GetTool(t.Context(), toolspkg.ToolIDSkillView.String(), ToolQuery{
 			WorkspaceID: "ws-1",
 		})
 		if err != nil {
@@ -1959,7 +1804,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should invoke tool", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.InvokeTool(context.Background(), toolspkg.ToolIDToolInfo.String(), ToolInvokeRequest{
+		response, err := client.InvokeTool(t.Context(), toolspkg.ToolIDToolInfo.String(), ToolInvokeRequest{
 			SessionID:            " sess-1 ",
 			Input:                json.RawMessage(`{"tool_id":"compozy__skill_view"}`),
 			SensitiveInputFields: []string{" token "},
@@ -2018,7 +1863,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should list toolsets", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.ListToolsets(context.Background(), ToolQuery{AgentName: "coder"})
+		response, err := client.ListToolsets(t.Context(), ToolQuery{AgentName: "coder"})
 		if err != nil {
 			t.Fatalf("ListToolsets() error = %v", err)
 		}
@@ -2030,7 +1875,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should get toolset", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.GetToolset(context.Background(), toolspkg.ToolsetIDCatalog.String(), ToolQuery{
+		response, err := client.GetToolset(t.Context(), toolspkg.ToolsetIDCatalog.String(), ToolQuery{
 			SessionID: "sess-1",
 		})
 		if err != nil {
@@ -2186,7 +2031,7 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tc.run(context.Background())
+			err := tc.run(t.Context())
 
 			toolErr, toolErrMatched := errors.AsType[*toolAPIError](err)
 			if !toolErrMatched {
@@ -2276,7 +2121,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			},
 		}
 
-		bind, err := client.BindHostedMCP(context.Background(), mcppkg.HostedBindRequest{
+		bind, err := client.BindHostedMCP(t.Context(), mcppkg.HostedBindRequest{
 			SessionID: "sess-1",
 			Nonce:     "nonce-test",
 		})
@@ -2287,7 +2132,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			t.Fatalf("BindHostedMCP() = %#v, want bind response", bind)
 		}
 
-		projection, err := client.HostedMCPProjection(context.Background(), " bind-1 ")
+		projection, err := client.HostedMCPProjection(t.Context(), " bind-1 ")
 		if err != nil {
 			t.Fatalf("HostedMCPProjection() error = %v", err)
 		}
@@ -2297,7 +2142,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 
 		var streamedDigest string
 		err = client.StreamHostedMCPProjection(
-			context.Background(),
+			t.Context(),
 			" bind-1 ",
 			" digest-1 ",
 			func(snapshot mcppkg.HostedProjectionResponse) error {
@@ -2312,7 +2157,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			t.Fatalf("streamed digest = %q, want digest-3", streamedDigest)
 		}
 
-		call, err := client.CallHostedMCP(context.Background(), mcppkg.HostedCallRequest{
+		call, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{
 			BindID:   "bind-1",
 			ToolName: "skill_view",
 			Input:    json.RawMessage(`{"ok":true}`),
@@ -2325,7 +2170,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 		}
 
 		if err := client.ReleaseHostedMCP(
-			context.Background(),
+			t.Context(),
 			mcppkg.HostedReleaseRequest{BindID: "bind-1"},
 		); err != nil {
 			t.Fatalf("ReleaseHostedMCP() error = %v", err)
@@ -2352,7 +2197,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			})},
 		}
 
-		call, err := client.CallHostedMCP(context.Background(), mcppkg.HostedCallRequest{
+		call, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{
 			BindID: "bind-1", ToolName: "skill_view", Input: json.RawMessage(`{"ok":true}`),
 		})
 		if err != nil {
@@ -2381,7 +2226,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 				}),
 			},
 		}
-		err := client.StreamHostedMCPProjection(context.Background(), "bind-1", "", nil)
+		err := client.StreamHostedMCPProjection(t.Context(), "bind-1", "", nil)
 		if err == nil {
 			t.Fatal("StreamHostedMCPProjection(error event) error = nil, want redacted error")
 		}
@@ -2432,7 +2277,7 @@ func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 
 		var events []SSEEvent
 		err := client.StreamSessionEvents(
-			context.Background(),
+			t.Context(),
 			" sess-1 ",
 			SessionEventQuery{Type: "tool_call", AgentName: "coder", Last: 2},
 			"evt-0",
@@ -2469,7 +2314,7 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
 							t.Fatalf("decode task execution body: %v", err)
 						}
-						assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
+
 						if request.IdempotencyKey != "idem-1" {
 							t.Fatalf("task execution request = %#v, want idempotency", request)
 						}
@@ -2482,26 +2327,26 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 			},
 		}
 		request := TaskExecutionRequest{
-			IdempotencyKey:       "idem-1",
-			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
-			Metadata:             json.RawMessage(`{"source":"cli-test"}`),
+			IdempotencyKey: "idem-1",
+
+			Metadata: json.RawMessage(`{"source":"cli-test"}`),
 		}
 
-		published, err := client.PublishTask(context.Background(), " task-1 ", request)
+		published, err := client.PublishTask(t.Context(), " task-1 ", request)
 		if err != nil {
 			t.Fatalf("PublishTask() error = %v", err)
 		}
 		if published.Task.ID == "" || published.Run.ID == "" {
 			t.Fatalf("PublishTask() = %#v, want task and run", published)
 		}
-		started, err := client.StartTask(context.Background(), " task-1 ", request)
+		started, err := client.StartTask(t.Context(), " task-1 ", request)
 		if err != nil {
 			t.Fatalf("StartTask() error = %v", err)
 		}
 		if started.Task.ID != published.Task.ID {
 			t.Fatalf("StartTask() task id = %q, want %q", started.Task.ID, published.Task.ID)
 		}
-		approved, err := client.ApproveTask(context.Background(), " task-1 ", request)
+		approved, err := client.ApproveTask(t.Context(), " task-1 ", request)
 		if err != nil {
 			t.Fatalf("ApproveTask() error = %v", err)
 		}
@@ -2552,7 +2397,7 @@ func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 			},
 		}
 
-		contextRecord, err := client.AgentContext(context.Background(), credentials)
+		contextRecord, err := client.AgentContext(t.Context(), credentials)
 		if err != nil {
 			t.Fatalf("AgentContext() error = %v", err)
 		}
@@ -2560,7 +2405,7 @@ func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 			t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
 		}
 
-		spawn, err := client.AgentSpawn(context.Background(), AgentSpawnRequest{
+		spawn, err := client.AgentSpawn(t.Context(), AgentSpawnRequest{
 			AgentName: "worker",
 			SpawnRole: "reviewer",
 		}, credentials)
@@ -2658,7 +2503,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			},
 		}
 
-		record, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		record, err := client.UploadSessionAttachment(t.Context(), "sess-1", filePath)
 		if err != nil {
 			t.Fatalf("UploadSessionAttachment() error = %v", err)
 		}
@@ -2701,7 +2546,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			})},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		_, err := client.UploadSessionAttachment(ctx, "sess-1", filePath)
 		if !errors.Is(err, transportErr) {
@@ -2746,7 +2591,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			})},
 		}
 
-		_, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		_, err := client.UploadSessionAttachment(t.Context(), "sess-1", filePath)
 		if err == nil || !strings.Contains(err.Error(), "exceeds maximum file size") {
 			t.Fatalf("UploadSessionAttachment() error = %v, want daemon size rejection", err)
 		}
@@ -2796,7 +2641,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 		}
 
 		_, err := client.UploadSessionAttachment(
-			context.Background(),
+			t.Context(),
 			"sess-1",
 			filepath.Join(t.TempDir(), "missing.png"),
 		)
@@ -3103,7 +2948,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 				case req.Method == http.MethodGet && req.URL.Path == "/api/status":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/compozy.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
+						`{"schema_version":"2026-10-07","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/compozy.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/drain":
 					return newHTTPResponse(http.StatusOK, `{"state":"draining"}`), nil
@@ -3113,120 +2958,15 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					if got := req.URL.Query()["only"]; len(got) != 1 || got[0] != "provider" {
 						t.Fatalf("doctor only query = %#v, want provider", got)
 					}
-					if got := req.URL.Query()["exclude"]; len(got) != 1 || got[0] != "network" {
-						t.Fatalf("doctor exclude query = %#v, want network", got)
+					if got := req.URL.Query()["exclude"]; len(got) != 1 || got[0] != "terminal" {
+						t.Fatalf("doctor exclude query = %#v, want terminal", got)
 					}
 					if got := req.URL.Query().Get("quiet"); got != "true" {
 						t.Fatalf("doctor quiet query = %q, want true", got)
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","duration_ms":1,"status":"ok","summary":{"total":0,"counts_by_severity":{}},"items":[]}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/health":
-					if got := req.URL.Query().Get("workspace"); got != "/workspace/project" {
-						t.Fatalf("memory health workspace = %q, want /workspace/project", got)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"status":"ok","enabled":true,"configured":true,"global_files":1,"workspace_files":1,"workspace_count":1,"indexed_files":2,"operation_count":3,"last_operation_at":"2026-04-03T12:00:00Z"}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/history":
-					if got := req.URL.Query().Get("scope"); got != "workspace" {
-						t.Fatalf("memory history scope = %q, want workspace", got)
-					}
-					if got := req.URL.Query().Get("operation"); got != "memory.write" {
-						t.Fatalf("memory history operation = %q, want memory.write", got)
-					}
-					if got := req.URL.Query().Get("since"); got != "2026-04-03T11:00:00Z" {
-						t.Fatalf("memory history since = %q, want 2026-04-03T11:00:00Z", got)
-					}
-					if got := req.URL.Query().Get("limit"); got != "4" {
-						t.Fatalf("memory history limit = %q, want 4", got)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"operations":[{"id":"memevt_1","operation":"memory.write","scope":"workspace","workspace":"/workspace/project","filename":"memory.md","agent_name":"daemon","summary":"scope=workspace filename=memory.md","timestamp":"2026-04-03T12:00:00Z"}]}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory":
-					if got := req.URL.Query().Get("scope"); got != "profile" {
-						t.Fatalf("memory scope query = %q, want %q", got, "profile")
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"memories":[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user","scope":"profile","injection":true}]}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/search":
-					var body contract.MemorySearchRequest
-					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-						t.Fatalf("decode memory search request error = %v", err)
-					}
-					if body.QueryText != "release plan" || body.Scope != memcontract.ScopeWorkspace ||
-						body.WorkspaceID != "/workspace/project" || body.TopK != 5 {
-						t.Fatalf("memory search body = %#v", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"results":[{"memory":{"filename":"release.md","scope":"workspace","workspace_id":"/workspace/project","type":"project","name":"Release Plan","description":"plan","mod_time":"2026-04-03T12:00:00Z","injection":true},"score":3.4,"snippet":"Ship phases incrementally"}],"recall":{"blocks":null}}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
-					if got := req.URL.Query().Get("scope"); got != "profile" {
-						t.Fatalf("show memory scope query = %q, want %q", got, "profile")
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"profile","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory":
-					var body contract.MemoryCreateRequest
-					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-						t.Fatalf("decode memory create request error = %v", err)
-					}
-					if body.Scope != memcontract.ScopeProfile ||
-						body.Type != memcontract.TypeUser ||
-						body.Name != "Memory" ||
-						body.Content != "payload" {
-						t.Fatalf("memory create body = %#v", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"profile","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
-					), nil
-				case req.Method == http.MethodDelete && req.URL.Path == "/api/memory/memory.md":
-					if got := req.URL.Query().Get("scope"); got != "workspace" {
-						t.Fatalf("delete memory scope query = %q, want %q", got, "workspace")
-					}
-					if got := req.URL.Query().Get("workspace_id"); got != "/workspace/project" {
-						t.Fatalf("delete memory workspace_id query = %q, want %q", got, "/workspace/project")
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"decision":{"id":"dec-delete","candidate_hash":"sha256:test","op":"delete","scope":"workspace","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/dreams/trigger":
-					var body contract.MemoryDreamTriggerRequest
-					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-						t.Fatalf("decode memory dream trigger request error = %v", err)
-					}
-					if body.Scope != memcontract.ScopeWorkspace || body.WorkspaceID != "/workspace/project" {
-						t.Fatalf("memory dream trigger body = %#v", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"dream":{"id":"dream-1","status":"running","scope":"workspace","workspace_id":"/workspace/project","candidate_count":0,"promoted_count":0,"started_at":"2026-04-03T12:00:00Z"},"triggered":true}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/reindex":
-					body, err := io.ReadAll(req.Body)
-					if err != nil {
-						t.Fatalf("io.ReadAll(memory reindex body) error = %v", err)
-					}
-					if !strings.Contains(string(body), `"scope":"workspace"`) ||
-						!strings.Contains(string(body), `"workspace_id":"/workspace/project"`) {
-						t.Fatalf("memory reindex body = %s, want scope/workspace", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"indexed_files":2,"scope":"workspace","workspace_id":"/workspace/project","completed_at":"2026-04-03T12:00:00Z"}`,
+						`{"schema_version":"2026-10-07","generated_at":"2026-04-03T12:00:00Z","duration_ms":1,"status":"ok","summary":{"total":0,"counts_by_severity":{}},"items":[]}`,
 					), nil
 				default:
 					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
@@ -3235,7 +2975,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	status, err := client.DaemonStatus(ctx)
 	if err != nil || status.Status != "running" {
@@ -3444,88 +3184,95 @@ func TestUnixSocketClientMethods(t *testing.T) {
 
 	doctor, err := client.Doctor(ctx, DoctorQuery{
 		Only:    []string{"provider"},
-		Exclude: []string{"network"},
+		Exclude: []string{"terminal"},
 		Quiet:   true,
 	})
 	if err != nil || doctor.Status != "ok" {
 		t.Fatalf("Doctor() = %#v, %v", doctor, err)
 	}
-
-	memoryHealth, err := client.MemoryHealth(ctx, "/workspace/project")
-	if err != nil || memoryHealth.Status != "ok" || memoryHealth.OperationCount != 3 {
-		t.Fatalf("MemoryHealth() = %#v, %v", memoryHealth, err)
-	}
-
-	memoryHistoryRecords, err := client.MemoryHistory(ctx, MemoryHistoryQuery{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-		Operation:   "memory.write",
-		Since:       time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Limit:       4,
-	})
-	if err != nil || len(memoryHistoryRecords) != 1 || memoryHistoryRecords[0].Operation != "memory.write" {
-		t.Fatalf("MemoryHistory() = %#v, %v", memoryHistoryRecords, err)
-	}
-
-	memories, err := client.ListMemory(ctx, MemoryListQuery{
-		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeProfile},
-	})
-	if err != nil || len(memories.Memories) != 1 {
-		t.Fatalf("ListMemory() = %#v, %v", memories, err)
-	}
-
-	searchResults, err := client.SearchMemory(ctx, MemorySearchRequest{
-		QueryText:   "release plan",
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-		TopK:        5,
-	})
-	if err != nil || len(searchResults.Results) != 1 || searchResults.Results[0].Memory.Filename != "release.md" {
-		t.Fatalf("SearchMemory() = %#v, %v", searchResults, err)
-	}
-
-	memoryRecord, err := client.ShowMemory(ctx, "memory.md", MemorySelectorQuery{Scope: memcontract.ScopeProfile})
-	if err != nil || !strings.Contains(memoryRecord.Memory.Content, "hello") {
-		t.Fatalf("ShowMemory() = %#v, %v", memoryRecord, err)
-	}
-
-	written, err := client.CreateMemory(ctx, MemoryCreateRequest{
-		Scope:   memcontract.ScopeProfile,
-		Type:    memcontract.TypeUser,
-		Name:    "Memory",
-		Content: "payload",
-	})
-	if err != nil || !written.Applied {
-		t.Fatalf("CreateMemory() = %#v, %v", written, err)
-	}
-
-	deleted, err := client.DeleteMemory(ctx, "memory.md", MemorySelectorQuery{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-	})
-	if err != nil || !deleted.Applied {
-		t.Fatalf("DeleteMemory() = %#v, %v", deleted, err)
-	}
-
-	reindexed, err := client.ReindexMemory(ctx, MemoryReindexRequest{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-	})
-	if err != nil || reindexed.IndexedFiles != 2 {
-		t.Fatalf("ReindexMemory() = %#v, %v", reindexed, err)
-	}
-
-	dreamed, err := client.TriggerMemoryDream(ctx, MemoryDreamTriggerRequest{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-	})
-	if err != nil || !dreamed.Triggered {
-		t.Fatalf("TriggerMemoryDream() = %#v, %v", dreamed, err)
-	}
 }
 
 func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 	t.Parallel()
+
+	for _, workspaceID := range []string{"ws-target", ""} {
+		t.Run("Should read retained history for owner "+workspaceID, func(t *testing.T) {
+			t.Parallel()
+			for _, method := range []string{
+				"transcript", "transcript/search", "transcript/outline", "status", "events", "history", "stream",
+			} {
+				t.Run("Should load "+method, func(t *testing.T) {
+					t.Parallel()
+					base := "/api/sessions/sess-target"
+					if workspaceID != "" {
+						base = "/api/workspaces/" + workspaceID + "/sessions/sess-target"
+					}
+					var paths []string
+					client := &daemonClient{
+						target: LocalClientTarget("/tmp/compozy.sock"),
+						httpClient: &http.Client{
+							Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+								paths = append(paths, req.URL.Path)
+								if req.Method != http.MethodGet {
+									t.Fatalf("history request method = %s, want GET", req.Method)
+								}
+								if req.URL.Path == "/api/sessions/sess-target" {
+									return newHTTPResponse(http.StatusOK, fmt.Sprintf(
+										`{"session":{"id":"sess-target","workspace_id":%q,"state":"stopped"}}`,
+										workspaceID,
+									)), nil
+								}
+								if req.URL.Path != base+"/"+method {
+									t.Fatalf("history path = %s, want %s/%s", req.URL.Path, base, method)
+								}
+								if method == "transcript/search" {
+									if req.URL.Query().Get("q") != "retained" || req.URL.Query().Get("limit") != "50" {
+										t.Fatalf("search query = %s", req.URL.RawQuery)
+									}
+								}
+								return newHTTPResponse(
+									http.StatusOK,
+									`{"entries":[],"matches":[],"truncated":false}`,
+								), nil
+							}),
+						},
+					}
+					var err error
+					switch method {
+					case "transcript":
+						_, err = client.GetSessionTranscript(t.Context(), "sess-target")
+					case "transcript/search":
+						_, err = client.SearchSessionTranscript(
+							t.Context(),
+							"sess-target",
+							transcript.SearchQuery{Query: "retained", Limit: 50},
+						)
+					case "transcript/outline":
+						_, err = client.GetSessionOutline(t.Context(), "sess-target")
+					case "status":
+						_, err = client.GetSessionStatus(t.Context(), "sess-target")
+					case "events":
+						_, err = client.SessionEvents(t.Context(), "sess-target", SessionEventQuery{})
+					case "history":
+						_, err = client.SessionHistory(t.Context(), "sess-target", SessionEventQuery{})
+					case "stream":
+						err = client.StreamSessionEvents(
+							t.Context(),
+							"sess-target",
+							SessionEventQuery{},
+							"",
+							func(SSEEvent) error {
+								return nil
+							},
+						)
+					}
+					if err != nil || len(paths) != 2 {
+						t.Fatalf("read %s: paths=%v error=%v", method, paths, err)
+					}
+				})
+			}
+		})
+	}
 
 	t.Run("Should never scan the paged session catalog", func(t *testing.T) {
 		t.Parallel()
@@ -3591,7 +3338,7 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 		}
 
 		repaired, err := client.RepairSession(
-			context.Background(),
+			t.Context(),
 			"sess-1",
 			SessionRepairQuery{DryRun: true, Force: true},
 		)
@@ -3649,7 +3396,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"name":"ext-preview","declared_profiles":[{"name":"default","create":false}],"placements":[],"network_requirement_digest":"sha256:preview"}`,
+							`{"name":"ext-preview","declared_profiles":[{"name":"default","create":false}],"placements":[],"gateway_requirement_digest":"sha256:preview"}`,
 						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
 						body, err := io.ReadAll(req.Body)
@@ -3660,8 +3407,8 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						if err := json.Unmarshal(body, &input); err != nil {
 							t.Fatalf("json.Unmarshal(extension enable body) error = %v", err)
 						}
-						if input.ConfirmNetworkDigest != "network-digest" {
-							t.Fatalf("extension enable body = %#v, want network digest", input)
+						if input.ConfirmGatewayDigest != "gateway-digest" {
+							t.Fatalf("extension enable body = %#v, want gateway digest", input)
 						}
 						return newHTTPResponse(
 							http.StatusOK,
@@ -3689,7 +3436,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/preview":
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"network_requirement_digest":"digest","network_confirmation_required":true}`,
+							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"gateway_requirement_digest":"digest","gateway_confirmation_required":true}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/secrets" &&
 						req.URL.Query().Get(workspaceFlagName) == "ws-alpha":
@@ -3730,15 +3477,6 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 							http.StatusOK,
 							`{"extension":{"name":"ext-dev","workspace_id":"ws-alpha","version":"0.1.0","type":"resource","source":"workspace","enabled":true,"state":"active","dev":true,"daemon_running":true}}`,
 						), nil
-					case req.Method == http.MethodPut && req.URL.Path == "/api/notifications/presets/quiet/enablement":
-						var input contract.SetNotificationPresetEnablementRequest
-						if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-							t.Fatalf("decode notification preset enablement request error = %v", err)
-						}
-						if input.Profile != "work" || !input.Enabled {
-							t.Fatalf("notification preset enablement body = %#v, want work enabled", input)
-						}
-						return newHTTPResponse(http.StatusOK, `{"name":"quiet","profile":"work","enabled":true}`), nil
 					default:
 						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
 					}
@@ -3784,7 +3522,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 			Source: contract.InstallExtensionSourceLocalPath,
 			Ref:    "/tmp/ext-preview",
 		})
-		if err != nil || preview.Name != "ext-preview" || preview.NetworkRequirementDigest != "sha256:preview" {
+		if err != nil || preview.Name != "ext-preview" || preview.GatewayRequirementDigest != "sha256:preview" {
 			t.Fatalf("PreviewExtensionInstall() = %#v, %v", preview, err)
 		}
 	})
@@ -3795,7 +3533,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		enabled, err := newClient(t).EnableExtension(
 			t.Context(),
 			" ext-a ",
-			EnableExtensionRequest{ConfirmNetworkDigest: "network-digest"},
+			EnableExtensionRequest{ConfirmGatewayDigest: "gateway-digest"},
 		)
 		if err != nil || !enabled.Extension.Enabled || len(enabled.AutomationStarted) != 1 ||
 			enabled.AutomationStarted[0] != "ext-a/daily" {
@@ -3821,19 +3559,6 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("Should set notification preset profile enablement", func(t *testing.T) {
-		t.Parallel()
-
-		enablement, err := newClient(t).SetNotificationPresetEnablement(
-			t.Context(),
-			" quiet ",
-			contract.SetNotificationPresetEnablementRequest{Profile: "work", Enabled: true},
-		)
-		if err != nil || enablement.Name != "quiet" || enablement.Profile != "work" || !enablement.Enabled {
-			t.Fatalf("SetNotificationPresetEnablement() = %#v, %v", enablement, err)
-		}
-	})
-
 	t.Run("Should read the extension inventory payload", func(t *testing.T) {
 		t.Parallel()
 
@@ -3847,8 +3572,8 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		t.Parallel()
 
 		preview, err := newClient(t).PreviewExtensionEnable(t.Context(), " ext-a ")
-		if err != nil || preview.NetworkRequirementDigest != "digest" ||
-			!preview.NetworkConfirmationRequired || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
+		if err != nil || preview.GatewayRequirementDigest != "digest" ||
+			!preview.GatewayConfirmationRequired || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
 			t.Fatalf("PreviewExtensionEnable() = %#v, %v", preview, err)
 		}
 	})
@@ -3956,6 +3681,9 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					if got := req.URL.Query().Get("enabled"); got != "false" {
 						t.Fatalf("job enabled query = %q, want %q", got, "false")
 					}
+					if got := req.URL.Query().Get("target"); got != "loop" {
+						t.Fatalf("target query = %q, want loop", got)
+					}
 					if got := req.URL.Query().Get("loop"); got != "triage" {
 						t.Fatalf("job loop query = %q, want %q", got, "triage")
 					}
@@ -4042,6 +3770,9 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					}
 					if got := req.URL.Query().Get("enabled"); got != "true" {
 						t.Fatalf("trigger enabled query = %q, want %q", got, "true")
+					}
+					if got := req.URL.Query().Get("target"); got != "loop" {
+						t.Fatalf("target query = %q, want loop", got)
 					}
 					if got := req.URL.Query().Get("loop"); got != "triage" {
 						t.Fatalf("trigger loop query = %q, want %q", got, "triage")
@@ -4138,7 +3869,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should preserve workspace suggestion routes", func(t *testing.T) {
 		suggestions, err := client.ListAutomationSuggestions(
@@ -4169,6 +3900,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Source:      automationpkg.JobSourcePackage,
 			Enabled:     new(false),
 			LoopName:    "triage",
+			Target:      "loop",
 			Search:      "digest",
 			Cursor:      "job-cursor",
 			Limit:       3,
@@ -4245,6 +3977,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Source:      automationpkg.JobSourcePackage,
 			Enabled:     new(true),
 			LoopName:    "triage",
+			Target:      "loop",
 			Search:      "review",
 			Cursor:      "trigger-cursor",
 			Limit:       2,
@@ -4356,9 +4089,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if got := req.URL.Query().Get("worktree"); got != "wt-alpha" {
 						t.Fatalf("task worktree query = %q, want %q", got, "wt-alpha")
 					}
-					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
-						t.Fatalf("task participation_channel query = %q, want %q", got, "builders")
-					}
 					if got := req.URL.Query().Get("limit"); got != "3" {
 						t.Fatalf("task limit query = %q, want %q", got, "3")
 					}
@@ -4372,7 +4102,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(create task body) error = %v", err)
 					}
-					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "builders")
+
 					if payload.Scope != taskpkg.ScopeWorkspace ||
 						payload.Workspace != "alpha" ||
 						payload.Title != "Investigate flaky task runs" ||
@@ -4391,13 +4121,13 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(update task body) error = %v", err)
 					}
-					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "ops")
+
 					if payload.Title == nil || *payload.Title != "Investigate resolved" {
 						t.Fatalf("update task payload = %#v", payload)
 					}
 					updated := sampleTaskRecord()
 					updated.Title = "Investigate resolved"
-					updated.ResolvedNetworkParticipation = testLiveResolvedParticipation("ops")
+
 					body := mustJSON(t, contract.TaskResponse{Task: updated})
 					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/cancel":
@@ -4444,7 +4174,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(enqueue run body) error = %v", err)
 					}
-					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "builders")
+
 					if payload.IdempotencyKey != "idem-1" {
 						t.Fatalf("enqueue run payload = %#v", payload)
 					}
@@ -4459,9 +4189,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					}
 					if got := req.URL.Query().Get("session_id"); got != "sess-1" {
 						t.Fatalf("task runs session_id query = %q, want %q", got, "sess-1")
-					}
-					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
-						t.Fatalf("task runs participation_channel query = %q, want %q", got, "builders")
 					}
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("task runs limit query = %q, want %q", got, "2")
@@ -4547,19 +4274,19 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should list tasks", func(t *testing.T) {
 		tasks, err := client.ListTasks(ctx, TaskListQuery{
-			Scope:                taskpkg.CatalogScopeWorkspace,
-			Workspace:            "alpha",
-			Status:               taskpkg.TaskStatusReady,
-			OwnerKind:            taskpkg.OwnerKindPool,
-			OwnerRef:             "triage",
-			ParentTaskID:         "task-root",
-			Worktree:             "wt-alpha",
-			ParticipationChannel: "builders",
-			Limit:                3,
+			Scope:        taskpkg.CatalogScopeWorkspace,
+			Workspace:    "alpha",
+			Status:       taskpkg.TaskStatusReady,
+			OwnerKind:    taskpkg.OwnerKindPool,
+			OwnerRef:     "triage",
+			ParentTaskID: "task-root",
+			Worktree:     "wt-alpha",
+
+			Limit: 3,
 		})
 		if err != nil || len(tasks.Tasks) != 1 || tasks.Tasks[0].ID != "task-1" {
 			t.Fatalf("ListTasks() = %#v, %v", tasks, err)
@@ -4568,11 +4295,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should create get update and cancel tasks", func(t *testing.T) {
 		created, err := client.CreateTask(ctx, CreateTaskRequest{
-			Scope:                taskpkg.ScopeWorkspace,
-			Workspace:            "alpha",
-			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
-			Title:                "Investigate flaky task runs",
-			Owner:                &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+			Scope:     taskpkg.ScopeWorkspace,
+			Workspace: "alpha",
+
+			Title: "Investigate flaky task runs",
+			Owner: &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
 		})
 		if err != nil || created.ID != "task-1" {
 			t.Fatalf("CreateTask() = %#v, %v", created, err)
@@ -4584,13 +4311,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		updated, err := client.UpdateTask(ctx, "task-1", UpdateTaskRequest{
-			Title:                new("Investigate resolved"),
-			NetworkParticipation: testLiveNamedParticipationRequest("ops"),
+			Title: new("Investigate resolved"),
 		})
 		if err != nil || updated.Title != "Investigate resolved" {
 			t.Fatalf("UpdateTask() = %#v, %v", updated, err)
 		}
-		assertResolvedParticipation(t, updated.ResolvedNetworkParticipation, *testLiveResolvedParticipation("ops"))
 
 		canceled, err := client.CancelTask(ctx, "task-1", CancelTaskRequest{Reason: "operator-request"})
 		if err != nil || canceled.Status != taskpkg.TaskStatusCanceled {
@@ -4622,19 +4347,19 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
-			IdempotencyKey:       "idem-1",
-			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
-			Metadata:             json.RawMessage(`{"schema":"compozy.harness.detached.v1"}`),
+			IdempotencyKey: "idem-1",
+
+			Metadata: json.RawMessage(`{"schema":"compozy.harness.detached.v1"}`),
 		})
 		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)
 		}
 
 		runs, err := client.ListTaskRuns(ctx, "task-1", TaskRunListQuery{
-			Status:               taskpkg.TaskRunStatusRunning,
-			SessionID:            "sess-1",
-			ParticipationChannel: "builders",
-			Limit:                2,
+			Status:    taskpkg.TaskRunStatusRunning,
+			SessionID: "sess-1",
+
+			Limit: 2,
 		})
 		if err != nil || len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusRunning {
 			t.Fatalf("ListTaskRuns() = %#v, %v", runs, err)
@@ -4689,255 +4414,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 			t.Fatalf("CancelTaskRun() = %#v, %v", canceled, err)
 		}
 	})
-}
-
-func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize every bounded bridge catalog query parameter", func(t *testing.T) {
-		t.Parallel()
-
-		client := &daemonClient{
-			target: LocalClientTarget("/tmp/compozy.sock"),
-			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method != http.MethodGet || req.URL.Path != "/api/bridges" {
-					t.Fatalf("request = %s %s, want GET /api/bridges", req.Method, req.URL.Path)
-				}
-				want := map[string]string{
-					"scope":        "all",
-					"workspace_id": "ws-alpha",
-					"q":            "needle",
-					"platform":     "slack",
-					"status":       "error",
-					"sort":         "name",
-					"cursor":       "cursor-1",
-					"limit":        "25",
-				}
-				for key, value := range want {
-					if got := req.URL.Query().Get(key); got != value {
-						t.Fatalf("query[%s] = %q, want %q; raw=%s", key, got, value, req.URL.RawQuery)
-					}
-				}
-				return newHTTPResponse(
-					http.StatusOK,
-					`{"bridges":[],"bridge_health":{},"facets":{"platforms":{},"statuses":{"disabled":0,"starting":0,"ready":0,"degraded":0,"auth_required":0,"error":0}},"page":{"has_more":false,"total":0,"limit":25}}`,
-				), nil
-			})},
-		}
-		result, err := client.ListBridges(context.Background(), BridgeListQuery{
-			Scope:       "all",
-			WorkspaceID: "ws-alpha",
-			Search:      "needle",
-			Platform:    "slack",
-			Status:      "error",
-			Sort:        "name",
-			Cursor:      "cursor-1",
-			Limit:       25,
-		})
-		if err != nil {
-			t.Fatalf("ListBridges() error = %v", err)
-		}
-		if result.Page.Total != 0 || result.Page.Limit != 25 || result.Bridges == nil {
-			t.Fatalf("ListBridges() = %#v, want explicit empty counted page", result)
-		}
-	})
-}
-
-func TestUnixSocketClientBridgeMethods(t *testing.T) {
-	t.Parallel()
-
-	client := &daemonClient{
-		target: LocalClientTarget("/tmp/compozy.sock"),
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				switch {
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridges":[{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}],"bridge_health":{"brg-a":{"bridge_instance_id":"brg-a","status":"ready","route_count":0,"delivery_backlog":0,"delivery_dropped_total":0,"delivery_failures_total":0,"auth_failures_total":0}},"facets":{"platforms":{"telegram":1},"statuses":{"disabled":0,"starting":0,"ready":1,"degraded":0,"auth_required":0,"error":0}},"page":{"has_more":false,"total":1,"limit":50}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges":
-					var payload contract.CreateBridgeRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(create bridge body) error = %v", err)
-					}
-					if payload.Scope != bridgepkg.ScopeGlobal ||
-						payload.WorkspaceID != "" ||
-						payload.Platform != "telegram" ||
-						payload.ExtensionName != "ext-telegram" ||
-						payload.DisplayName != "Support" ||
-						!payload.Enabled ||
-						!reflect.DeepEqual(payload.RoutingPolicy, bridgepkg.RoutingPolicy{IncludePeer: true}) ||
-						len(payload.DeliveryDefaults) != 0 {
-						t.Fatalf("create bridge payload = %#v", payload)
-					}
-					return newHTTPResponse(
-						http.StatusCreated,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPatch && req.URL.Path == "/api/bridges/brg-a":
-					var payload contract.UpdateBridgeRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(update bridge body) error = %v", err)
-					}
-					if payload.DisplayName == nil ||
-						*payload.DisplayName != "Support Ops" ||
-						payload.RoutingPolicy == nil ||
-						!reflect.DeepEqual(
-							*payload.RoutingPolicy,
-							bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
-						) ||
-						payload.DeliveryDefaults != nil {
-						t.Fatalf("update bridge payload = %#v, want updated display name", payload)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support Ops","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:05:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/enable":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:06:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/disable":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":false,"status":"disabled","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:07:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/restart":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:08:00Z"}}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a/routes":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"routes":[{"routing_key_hash":"hash-a","scope":"global","bridge_instance_id":"brg-a","peer_id":"peer-1","thread_id":"thread-1","session_id":"sess-1","agent_name":"coder","last_activity_at":"2026-04-11T12:09:00Z","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:09:00Z"}]}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a/targets":
-					if req.URL.Query().Get("q") != "support" || req.URL.Query().Get("limit") != "25" {
-						t.Fatalf("bridge targets query = %s, want q=support&limit=25", req.URL.RawQuery)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge_id":"brg-a","targets":[{"bridge_id":"brg-a","canonical_route":"telegram:channel:support","display_name":"Support room","normalized":"support room","target_type":"channel","qualifier":"telegram","capabilities":["reply"],"updated_at":"2026-04-11T12:09:00Z","last_seen_at":"2026-04-11T12:09:00Z"}],"total":1,"cache_stale":false,"generated_at":"2026-04-11T12:09:30Z"}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/resolve":
-					var payload contract.BridgeResolveTargetRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(resolve target body) error = %v", err)
-					}
-					if payload.Name != "Support room" {
-						t.Fatalf("resolve target payload = %#v, want Support room", payload)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"result":{"step":2,"ambiguous":false,"match":{"bridge_id":"brg-a","canonical_route":"telegram:channel:support","display_name":"Support room","normalized":"support room","target_type":"channel","qualifier":"telegram","capabilities":["reply"],"updated_at":"2026-04-11T12:09:00Z","last_seen_at":"2026-04-11T12:09:00Z"}}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/test-delivery":
-					var payload contract.BridgeTestDeliveryRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(test delivery body) error = %v", err)
-					}
-					if payload.Message != "hello" || payload.Target.PeerID != "peer-1" ||
-						payload.Target.ThreadID != "thread-1" ||
-						payload.Target.Mode != bridgepkg.DeliveryModeReply {
-						t.Fatalf("test delivery payload = %#v", payload)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"status":"resolved","message":"hello","delivery_target":{"bridge_instance_id":"brg-a","peer_id":"peer-1","thread_id":"thread-1","mode":"reply"}}`,
-					), nil
-				default:
-					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
-				}
-			}),
-		},
-	}
-
-	ctx := context.Background()
-
-	listed, err := client.ListBridges(ctx, BridgeListQuery{})
-	if err != nil || len(listed.Bridges) != 1 || listed.Bridges[0].ID != "brg-a" || listed.Page.Total != 1 {
-		t.Fatalf("ListBridges() = %#v, %v", listed, err)
-	}
-
-	created, err := client.CreateBridge(ctx, CreateBridgeRequest{
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "ext-telegram",
-		DisplayName:   "Support",
-		Enabled:       true,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	if err != nil || created.ID != "brg-a" {
-		t.Fatalf("CreateBridge() = %#v, %v", created, err)
-	}
-
-	status, err := client.GetBridge(ctx, "brg-a")
-	if err != nil || status.Status != bridgepkg.BridgeStatusReady {
-		t.Fatalf("GetBridge() = %#v, %v", status, err)
-	}
-
-	updated, err := client.UpdateBridge(ctx, "brg-a", UpdateBridgeRequest{
-		DisplayName: new("Support Ops"),
-		RoutingPolicy: &bridgepkg.RoutingPolicy{
-			IncludePeer:   true,
-			IncludeThread: true,
-		},
-	})
-	if err != nil || updated.DisplayName != "Support Ops" || !updated.RoutingPolicy.IncludeThread {
-		t.Fatalf("UpdateBridge() = %#v, %v", updated, err)
-	}
-
-	enabled, err := client.EnableBridge(ctx, " brg-a ")
-	if err != nil || enabled.Status != bridgepkg.BridgeStatusStarting || !enabled.Enabled {
-		t.Fatalf("EnableBridge() = %#v, %v", enabled, err)
-	}
-
-	disabled, err := client.DisableBridge(ctx, " brg-a ")
-	if err != nil || disabled.Status != bridgepkg.BridgeStatusDisabled || disabled.Enabled {
-		t.Fatalf("DisableBridge() = %#v, %v", disabled, err)
-	}
-
-	restarted, err := client.RestartBridge(ctx, " brg-a ")
-	if err != nil || restarted.Status != bridgepkg.BridgeStatusStarting || !restarted.Enabled {
-		t.Fatalf("RestartBridge() = %#v, %v", restarted, err)
-	}
-
-	routes, err := client.BridgeRoutes(ctx, "brg-a")
-	if err != nil || len(routes) != 1 || routes[0].ThreadID != "thread-1" {
-		t.Fatalf("BridgeRoutes() = %#v, %v", routes, err)
-	}
-
-	targets, err := client.BridgeTargets(ctx, "brg-a", "support", 25)
-	if err != nil || len(targets.Targets) != 1 || targets.Targets[0].CanonicalRoute != "telegram:channel:support" {
-		t.Fatalf("BridgeTargets() = %#v, %v", targets, err)
-	}
-
-	resolved, err := client.ResolveBridgeTarget(ctx, "brg-a", "Support room")
-	if err != nil || resolved.Result.Match == nil ||
-		resolved.Result.Match.CanonicalRoute != "telegram:channel:support" {
-		t.Fatalf("ResolveBridgeTarget() = %#v, %v", resolved, err)
-	}
-
-	delivery, err := client.TestBridgeDelivery(ctx, "brg-a", BridgeTestDeliveryRequest{
-		Message: "hello",
-		Target: BridgeDeliveryTargetInput{
-			PeerID:   "peer-1",
-			ThreadID: "thread-1",
-			Mode:     bridgepkg.DeliveryModeReply,
-		},
-	})
-	if err != nil || delivery.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply ||
-		delivery.DeliveryTarget.ThreadID != "thread-1" {
-		t.Fatalf("TestBridgeDelivery() = %#v, %v", delivery, err)
-	}
 }
 
 func TestReadAPIErrorAndHelpers(t *testing.T) {
@@ -5065,66 +4541,6 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("hookEventsValues() = %v, want family/sync_only", got)
 	}
 
-	if got := memorySelectorValues(MemorySelectorQuery{
-		Scope:         memcontract.ScopeWorkspace,
-		WorkspaceID:   "/workspace/project",
-		AgentName:     "reviewer",
-		AgentTier:     memcontract.AgentTierWorkspace,
-		IncludeSystem: true,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("workspace_id") != "/workspace/project" ||
-		got.Get("agent_name") != "reviewer" ||
-		got.Get("agent_tier") != "workspace" ||
-		got.Get("include_system") != "true" {
-		t.Fatalf("memorySelectorValues() = %v, want selector filters", got)
-	}
-
-	if got := memoryListValues(MemoryListQuery{
-		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeWorkspace},
-		Type:                memcontract.TypeProject,
-		Sort:                "name",
-		Cursor:              "next-page",
-		Limit:               25,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("type") != "project" ||
-		got.Get("sort") != "name" ||
-		got.Get("cursor") != "next-page" ||
-		got.Get("limit") != "25" {
-		t.Fatalf("memoryListValues() = %v, want list filters", got)
-	}
-
-	if got := memoryHistoryValues(MemoryHistoryQuery{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-		Operation:   "memory.delete",
-		Since:       time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Limit:       6,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("workspace_id") != "/workspace/project" ||
-		got.Get("operation") != "memory.delete" ||
-		got.Get("since") != "2026-04-03T11:00:00Z" ||
-		got.Get("limit") != "6" {
-		t.Fatalf("memoryHistoryValues() = %v, want all history filters", got)
-	}
-
-	if got := memoryDecisionValues(MemoryDecisionListQuery{
-		Scope:          memcontract.ScopeWorkspace,
-		WorkspaceID:    "/workspace/project",
-		Operation:      "update",
-		TargetFilename: "project.md",
-		Since:          time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Reason:         "accepted",
-		Limit:          1,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("workspace_id") != "/workspace/project" ||
-		got.Get("op") != "update" ||
-		got.Get("filename") != "project.md" ||
-		got.Get("since") != "2026-04-03T11:00:00Z" ||
-		got.Get("reason") != "accepted" ||
-		got.Get("limit") != "1" {
-		t.Fatalf("memoryDecisionValues() = %v, want all decision filters", got)
-	}
-
 	if got := automationJobValues(AutomationJobQuery{
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		WorkspaceID: "ws-alpha",
@@ -5160,28 +4576,28 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	}
 
 	if got := taskValues(TaskListQuery{
-		Scope:                taskpkg.CatalogScopeWorkspace,
-		Workspace:            "alpha",
-		Status:               taskpkg.TaskStatusReady,
-		OwnerKind:            taskpkg.OwnerKindPool,
-		OwnerRef:             "triage",
-		ParentTaskID:         "task-root",
-		Worktree:             "wt-alpha",
-		IncludeLoop:          true,
-		LoopRunID:            "looprun-alpha",
-		ParticipationChannel: "builders",
-		Limit:                3,
-	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("worktree") != "wt-alpha" || got.Get("include_loop") != "true" || got.Get("loop_run_id") != "looprun-alpha" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
+		Scope:        taskpkg.CatalogScopeWorkspace,
+		Workspace:    "alpha",
+		Status:       taskpkg.TaskStatusReady,
+		OwnerKind:    taskpkg.OwnerKindPool,
+		OwnerRef:     "triage",
+		ParentTaskID: "task-root",
+		Worktree:     "wt-alpha",
+		IncludeLoop:  true,
+		LoopRunID:    "looprun-alpha",
+
+		Limit: 3,
+	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("worktree") != "wt-alpha" || got.Get("include_loop") != "true" || got.Get("loop_run_id") != "looprun-alpha" || got.Get("limit") != "3" {
 		t.Fatalf("taskValues() = %v, want all task filters", got)
 	}
 
 	if got := taskRunValues(TaskRunListQuery{
-		Status:               taskpkg.TaskRunStatusRunning,
-		SessionID:            "sess-1",
-		ParticipationChannel: "builders",
-		Limit:                2,
+		Status:    taskpkg.TaskRunStatusRunning,
+		SessionID: "sess-1",
+
+		Limit: 2,
 	}); got.Get("status") != "running" || got.Get("session_id") != "sess-1" ||
-		got.Get("participation_channel") != "builders" || got.Get("limit") != "2" {
+		got.Get("limit") != "2" {
 		t.Fatalf("taskRunValues() = %v, want all task run filters", got)
 	}
 
@@ -5465,7 +4881,7 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	}
 
 	err := client.doSSE(
-		context.Background(),
+		t.Context(),
 		"/api/logs/stream",
 		logsListValues(LogsListQuery{Since: time.Now().UTC()}),
 		"cursor-9",
@@ -5768,404 +5184,120 @@ func TestDoRequestRejectsNilContext(t *testing.T) {
 	}
 }
 
-func TestCLIUsesSharedContractAliases(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		cliType any
-		want    any
-	}{
-		{
-			name:    "Should alias CreateSessionRequest to the shared contract",
-			cliType: CreateSessionRequest{},
-			want:    contract.CreateSessionRequest{},
-		},
-		{
-			name:    "Should alias SessionRecord to the shared contract",
-			cliType: SessionRecord{},
-			want:    contract.SessionPayload{},
-		},
-		{
-			name:    "Should alias SessionAttachmentRecord to the shared contract",
-			cliType: SessionAttachmentRecord{},
-			want:    contract.SessionAttachmentPayload{},
-		},
-		{
-			name:    "Should alias SessionEventRecord to the shared contract",
-			cliType: SessionEventRecord{},
-			want:    contract.SessionEventPayload{},
-		},
-		{
-			name:    "Should alias TurnHistoryRecord to the shared contract",
-			cliType: TurnHistoryRecord{},
-			want:    contract.TurnHistoryPayload{},
-		},
-		{
-			name:    "Should alias SessionRepairRecord to the shared contract",
-			cliType: SessionRepairRecord{},
-			want:    contract.SessionRepairPayload{},
-		},
-		{
-			name:    "Should alias SessionRepairIssueRecord to the shared contract",
-			cliType: SessionRepairIssueRecord{},
-			want:    contract.SessionRepairIssuePayload{},
-		},
-		{
-			name:    "Should alias SessionRepairActionRecord to the shared contract",
-			cliType: SessionRepairActionRecord{},
-			want:    contract.SessionRepairActionPayload{},
-		},
-		{
-			name:    "Should alias AgentRecord to the shared contract",
-			cliType: AgentRecord{},
-			want:    contract.AgentPayload{},
-		},
-		{
-			name:    "Should alias AgentEventRecord to the shared contract",
-			cliType: AgentEventRecord{},
-			want:    contract.AgentEventPayload{},
-		},
-		{
-			name:    "Should alias HookCatalogQuery to the shared contract",
-			cliType: HookCatalogQuery{},
-			want:    contract.HookCatalogQuery{},
-		},
-		{
-			name:    "Should alias HookCatalogRecord to the shared contract",
-			cliType: HookCatalogRecord{},
-			want:    contract.HookCatalogPayload{},
-		},
-		{
-			name:    "Should alias HookRunsQuery to the shared contract",
-			cliType: HookRunsQuery{},
-			want:    contract.HookRunsQuery{},
-		},
-		{
-			name:    "Should alias HookRunRecord to the shared contract",
-			cliType: HookRunRecord{},
-			want:    contract.HookRunPayload{},
-		},
-		{
-			name:    "Should alias HookEventsQuery to the shared contract",
-			cliType: HookEventsQuery{},
-			want:    contract.HookEventsQuery{},
-		},
-		{
-			name:    "Should alias HookEventRecord to the shared contract",
-			cliType: HookEventRecord{},
-			want:    contract.HookEventPayload{},
-		},
-		{
-			name:    "Should alias LogEventRecord to the shared contract",
-			cliType: LogEventRecord{},
-			want:    contract.LogEventPayload{},
-		},
-		{
-			name:    "Should alias WorkspaceCreateRequest to the shared contract",
-			cliType: WorkspaceCreateRequest{},
-			want:    contract.CreateWorkspaceRequest{},
-		},
-		{
-			name:    "Should alias WorkspaceUpdateRequest to the shared contract",
-			cliType: WorkspaceUpdateRequest{},
-			want:    contract.UpdateWorkspaceRequest{},
-		},
-		{
-			name:    "Should alias WorkspaceRecord to the shared contract",
-			cliType: WorkspaceRecord{},
-			want:    contract.WorkspacePayload{},
-		},
-		{
-			name:    "Should alias WorkspaceSkillRecord to the shared contract",
-			cliType: WorkspaceSkillRecord{},
-			want:    contract.WorkspaceSkillPayload{},
-		},
-		{
-			name:    "Should alias MemoryEntryRecord to the shared contract",
-			cliType: MemoryEntryRecord{},
-			want:    contract.MemoryEntryResponse{},
-		},
-		{
-			name:    "Should alias MemoryCreateRequest to the shared contract",
-			cliType: MemoryCreateRequest{},
-			want:    contract.MemoryCreateRequest{},
-		},
-		{
-			name:    "Should alias MemoryHealthRecord to the shared contract",
-			cliType: MemoryHealthRecord{},
-			want:    contract.MemoryHealthPayload{},
-		},
-		{
-			name:    "Should alias MemoryHistoryRecord to the shared contract",
-			cliType: MemoryHistoryRecord{},
-			want:    contract.MemoryOperationHistoryPayload{},
-		},
-		{
-			name:    "Should alias MemoryMutationRecord to the shared contract",
-			cliType: MemoryMutationRecord{},
-			want:    contract.MemoryMutationDecisionResponse{},
-		},
-		{
-			name:    "Should alias MemoryDreamTriggerRecord to the shared contract",
-			cliType: MemoryDreamTriggerRecord{},
-			want:    contract.MemoryDreamTriggerResponse{},
-		},
-		{
-			name:    "Should alias AutomationJobCreateRequest to the shared contract",
-			cliType: AutomationJobCreateRequest{},
-			want:    contract.CreateJobRequest{},
-		},
-		{
-			name:    "Should alias AutomationJobUpdateRequest to the shared contract",
-			cliType: AutomationJobUpdateRequest{},
-			want:    contract.UpdateJobRequest{},
-		},
-		{
-			name:    "Should alias AutomationTriggerCreateRequest to the shared contract",
-			cliType: AutomationTriggerCreateRequest{},
-			want:    contract.CreateTriggerRequest{},
-		},
-		{
-			name:    "Should alias AutomationTriggerUpdateRequest to the shared contract",
-			cliType: AutomationTriggerUpdateRequest{},
-			want:    contract.UpdateTriggerRequest{},
-		},
-		{name: "Should alias JobRecord to the shared contract", cliType: JobRecord{}, want: contract.JobPayload{}},
-		{
-			name:    "Should alias TriggerRecord to the shared contract",
-			cliType: TriggerRecord{},
-			want:    contract.TriggerPayload{},
-		},
-		{name: "Should alias RunRecord to the shared contract", cliType: RunRecord{}, want: contract.RunPayload{}},
-		{
-			name:    "Should alias DaemonStatus to the shared contract",
-			cliType: DaemonStatus{},
-			want:    contract.DaemonStatusPayload{},
-		},
-		{
-			name:    "Should alias CreateBridgeRequest to the shared contract",
-			cliType: CreateBridgeRequest{},
-			want:    contract.CreateBridgeRequest{},
-		},
-		{
-			name:    "Should alias UpdateBridgeRequest to the shared contract",
-			cliType: UpdateBridgeRequest{},
-			want:    contract.UpdateBridgeRequest{},
-		},
-		{
-			name:    "Should alias BridgeTestDeliveryRequest to the shared contract",
-			cliType: BridgeTestDeliveryRequest{},
-			want:    contract.BridgeTestDeliveryRequest{},
-		},
-		{
-			name:    "Should alias BridgeDeliveryTargetInput to the shared contract",
-			cliType: BridgeDeliveryTargetInput{},
-			want:    contract.BridgeDeliveryTargetInput{},
-		},
-		{
-			name:    "Should alias BridgeRecord to the bridge domain type",
-			cliType: BridgeRecord{},
-			want:    bridgepkg.BridgeInstance{},
-		},
-		{
-			name:    "Should alias BridgeRouteRecord to the bridge domain type",
-			cliType: BridgeRouteRecord{},
-			want:    bridgepkg.BridgeRoute{},
-		},
-		{
-			name:    "Should alias DeliveryTargetRecord to the bridge domain type",
-			cliType: DeliveryTargetRecord{},
-			want:    bridgepkg.DeliveryTarget{},
-		},
-		{
-			name:    "Should alias BridgeTestDeliveryRecord to the shared contract",
-			cliType: BridgeTestDeliveryRecord{},
-			want:    contract.BridgeTestDeliveryResponse{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			gotType := reflect.TypeOf(tt.cliType)
-			wantType := reflect.TypeOf(tt.want)
-			if gotType != wantType {
-				t.Fatalf("reflect.TypeOf(%s) = %v, want %v", tt.name, gotType, wantType)
-			}
-		})
-	}
-}
-
 func TestSharedContractJSONParity(t *testing.T) {
 	t.Parallel()
 
-	sessionResponse := `{"sessions":[{"id":"sess-1","name":"demo","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","runtime":{"acp_caps":{"supports_load_session":true,"supported_modes":["chat"]}},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`
-	var cliSessions struct {
-		Sessions []SessionRecord `json:"sessions"`
-	}
-	if err := json.Unmarshal([]byte(sessionResponse), &cliSessions); err != nil {
-		t.Fatalf("json.Unmarshal(cli session response) error = %v", err)
-	}
-	if len(cliSessions.Sessions) != 1 || cliSessions.Sessions[0].Runtime.ACPCaps == nil ||
-		!cliSessions.Sessions[0].Runtime.ACPCaps.SupportsLoadSession {
-		t.Fatalf("cli session decode = %#v, want decoded shared contract payload", cliSessions)
-	}
+	t.Run("Should decode shared session capabilities", func(t *testing.T) {
+		t.Parallel()
 
-	memoryRequest := MemoryCreateRequest{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-		Type:        memcontract.TypeProject,
-		Name:        "Memory",
-		Content:     "payload",
-	}
-	cliMemoryJSON, err := json.Marshal(memoryRequest)
-	if err != nil {
-		t.Fatalf("json.Marshal(cli memory request) error = %v", err)
-	}
-	var sharedMemoryRequest = memoryRequest
-	sharedMemoryJSON, err := json.Marshal(sharedMemoryRequest)
-	if err != nil {
-		t.Fatalf("json.Marshal(shared memory request) error = %v", err)
-	}
-	if !bytes.Equal(cliMemoryJSON, sharedMemoryJSON) {
-		t.Fatalf("memory request json = %s, want %s", cliMemoryJSON, sharedMemoryJSON)
-	}
+		sessionResponse := `{"sessions":[{"id":"sess-1","name":"demo","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","runtime":{"acp_caps":{"supports_load_session":true,"supported_modes":["chat"]}},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`
+		var cliSessions struct {
+			Sessions []SessionRecord `json:"sessions"`
+		}
+		if err := json.Unmarshal([]byte(sessionResponse), &cliSessions); err != nil {
+			t.Fatalf("json.Unmarshal(cli session response) error = %v", err)
+		}
+		if len(cliSessions.Sessions) != 1 || cliSessions.Sessions[0].Runtime.ACPCaps == nil ||
+			!cliSessions.Sessions[0].Runtime.ACPCaps.SupportsLoadSession {
+			t.Fatalf("cli session decode = %#v, want decoded shared contract payload", cliSessions)
+		}
+	})
+}
 
-	bridgeRequest := CreateBridgeRequest{
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "ext-telegram",
-		DisplayName:   "Support",
-		Enabled:       true,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	}
-	cliBridgeJSON, err := json.Marshal(bridgeRequest)
-	if err != nil {
-		t.Fatalf("json.Marshal(cli bridge request) error = %v", err)
-	}
-	var sharedBridgeRequest = bridgeRequest
-	sharedBridgeJSON, err := json.Marshal(sharedBridgeRequest)
-	if err != nil {
-		t.Fatalf("json.Marshal(shared bridge request) error = %v", err)
-	}
-	if !bytes.Equal(cliBridgeJSON, sharedBridgeJSON) {
-		t.Fatalf("bridge request json = %s, want %s", cliBridgeJSON, sharedBridgeJSON)
-	}
-
-	readResponse := `{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"project","scope":"workspace","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"stored memory body"}}`
-	var cliRead MemoryEntryRecord
-	if err := json.Unmarshal([]byte(readResponse), &cliRead); err != nil {
-		t.Fatalf("json.Unmarshal(cli memory show) error = %v", err)
-	}
-	var sharedRead contract.MemoryEntryResponse
-	if err := json.Unmarshal([]byte(readResponse), &sharedRead); err != nil {
-		t.Fatalf("json.Unmarshal(shared memory show) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliRead, sharedRead) {
-		t.Fatalf("memory show decode = %#v, want %#v", cliRead, sharedRead)
-	}
-
-	observeResponse := `{"events":[{"id":"sum-1","session_id":"sess-1","type":"done","agent_name":"coder","summary":"complete","timestamp":"2026-04-03T12:00:00Z"}]}`
-	var cliObserve struct {
-		Events []LogEventRecord `json:"events"`
-	}
-	if err := json.Unmarshal([]byte(observeResponse), &cliObserve); err != nil {
-		t.Fatalf("json.Unmarshal(cli observe response) error = %v", err)
-	}
-	var sharedObserve struct {
-		Events []contract.LogEventPayload `json:"events"`
-	}
-	if err := json.Unmarshal([]byte(observeResponse), &sharedObserve); err != nil {
-		t.Fatalf("json.Unmarshal(shared observe response) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliObserve, sharedObserve) {
-		t.Fatalf("observe decode = %#v, want %#v", cliObserve, sharedObserve)
-	}
-
-	hookCatalogResponse := `{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess","matcher":{"tool_id":"compozy__shell"},"metadata":{"origin":"config"}}]}`
-	var cliHookCatalog struct {
-		Hooks []HookCatalogRecord `json:"hooks"`
-	}
-	if err := json.Unmarshal([]byte(hookCatalogResponse), &cliHookCatalog); err != nil {
-		t.Fatalf("json.Unmarshal(cli hook catalog response) error = %v", err)
-	}
-	var sharedHookCatalog struct {
-		Hooks []contract.HookCatalogPayload `json:"hooks"`
-	}
-	if err := json.Unmarshal([]byte(hookCatalogResponse), &sharedHookCatalog); err != nil {
-		t.Fatalf("json.Unmarshal(shared hook catalog response) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliHookCatalog, sharedHookCatalog) {
-		t.Fatalf("hook catalog decode = %#v, want %#v", cliHookCatalog, sharedHookCatalog)
-	}
-
-	hookRunsResponse := `{"runs":[{"hook_name":"permission-guard","event":"permission.request","source":"config","mode":"sync","duration_ms":12,"outcome":"failed","error":"boom","recorded_at":"2026-04-03T12:00:00Z"}]}`
-	var cliHookRuns struct {
-		Runs []HookRunRecord `json:"runs"`
-	}
-	if err := json.Unmarshal([]byte(hookRunsResponse), &cliHookRuns); err != nil {
-		t.Fatalf("json.Unmarshal(cli hook runs response) error = %v", err)
-	}
-	var sharedHookRuns struct {
-		Runs []contract.HookRunPayload `json:"runs"`
-	}
-	if err := json.Unmarshal([]byte(hookRunsResponse), &sharedHookRuns); err != nil {
-		t.Fatalf("json.Unmarshal(shared hook runs response) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliHookRuns, sharedHookRuns) {
-		t.Fatalf("hook runs decode = %#v, want %#v", cliHookRuns, sharedHookRuns)
-	}
-
-	hookEventsResponse := `{"events":[{"event":"tool.pre_call","family":"tool","sync_eligible":true,"payload_schema":"ToolPreCallPayload","patch_schema":"ToolCallPatch"}]}`
-	var cliHookEvents struct {
-		Events []HookEventRecord `json:"events"`
-	}
-	if err := json.Unmarshal([]byte(hookEventsResponse), &cliHookEvents); err != nil {
-		t.Fatalf("json.Unmarshal(cli hook events response) error = %v", err)
-	}
-	var sharedHookEvents struct {
-		Events []contract.HookEventPayload `json:"events"`
-	}
-	if err := json.Unmarshal([]byte(hookEventsResponse), &sharedHookEvents); err != nil {
-		t.Fatalf("json.Unmarshal(shared hook events response) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliHookEvents, sharedHookEvents) {
-		t.Fatalf("hook events decode = %#v, want %#v", cliHookEvents, sharedHookEvents)
-	}
-
-	daemonResponse := `{"daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/compozy.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":2,"version":"dev"}}`
-	var cliDaemon struct {
-		Daemon DaemonStatus `json:"daemon"`
-	}
-	if err := json.Unmarshal([]byte(daemonResponse), &cliDaemon); err != nil {
-		t.Fatalf("json.Unmarshal(cli daemon response) error = %v", err)
-	}
-	var sharedDaemon struct {
-		Daemon contract.DaemonStatusPayload `json:"daemon"`
-	}
-	if err := json.Unmarshal([]byte(daemonResponse), &sharedDaemon); err != nil {
-		t.Fatalf("json.Unmarshal(shared daemon response) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliDaemon, sharedDaemon) {
-		t.Fatalf("daemon decode = %#v, want %#v", cliDaemon, sharedDaemon)
-	}
-
-	bridgeResponse := `{"bridge":{"id":"brg-1","scope":"workspace","workspace_id":"ws-alpha","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"delivery_defaults":{"mode":"reply"},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`
-	var cliBridge struct {
-		Bridge BridgeRecord `json:"bridge"`
-	}
-	if err := json.Unmarshal([]byte(bridgeResponse), &cliBridge); err != nil {
-		t.Fatalf("json.Unmarshal(cli bridge response) error = %v", err)
-	}
-	var sharedBridge struct {
-		Bridge bridgepkg.BridgeInstance `json:"bridge"`
-	}
-	if err := json.Unmarshal([]byte(bridgeResponse), &sharedBridge); err != nil {
-		t.Fatalf("json.Unmarshal(shared bridge response) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliBridge, sharedBridge) {
-		t.Fatalf("bridge decode = %#v, want %#v", cliBridge, sharedBridge)
+// UT-047: daemon errors retain the documented subagent codes at the CLI boundary.
+func TestSubagentClientRequests(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve a subagent ID without a workspace or registered cwd", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				switch request.URL.Path {
+				case "/api/workspaces":
+					return newHTTPResponse(200, `{"workspaces":[{"id":"other"},{"id":"owner"}]}`), nil
+				case "/api/workspaces/other/subagents/sub-1":
+					return newHTTPResponse(404, `{"code":"subagent_not_found"}`), nil
+				case "/api/workspaces/owner/subagents/sub-1":
+					return newHTTPResponse(200, `{"subagent_id":"sub-1","workspace_id":"owner"}`), nil
+				default:
+					t.Fatalf("unexpected request: %s", request.URL)
+					return nil, nil
+				}
+			})},
+		}
+		row, err := client.GetSubagent(t.Context(), "", "sub-1")
+		if err != nil || row.WorkspaceID != "owner" {
+			t.Fatalf("row=%#v error=%v", row, err)
+		}
+	})
+	t.Run("Should encode list filters and preserve the page envelope", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Path == "/api/sessions/parent" {
+					return newHTTPResponse(200, `{"session":{"id":"parent","workspace_id":"ws"}}`), nil
+				}
+				if request.URL.Path != "/api/workspaces/ws/sessions/parent/subagents" ||
+					request.URL.Query().Get("origin") != "delegated" ||
+					request.URL.Query().Get("status") != "running,completed" ||
+					request.URL.Query().Get("limit") != "20" ||
+					request.URL.Query().Get("cursor") != "opaque" {
+					t.Fatalf("request=%s", request.URL)
+				}
+				return newHTTPResponse(200, `{"subagents":[],"next_cursor":"next"}`), nil
+			})},
+		}
+		page, err := client.ListSessionSubagents(
+			t.Context(),
+			"parent",
+			SubagentListQuery{Origin: "delegated", Status: "running,completed", Limit: 20, Cursor: "opaque"},
+		)
+		if err != nil || page.NextCursor == nil || *page.NextCursor != "next" || page.Subagents == nil {
+			t.Fatalf("page=%+v error=%v", page, err)
+		}
+	})
+	t.Run("Should preserve cancellation reason and accepted status", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				if request.Method != "POST" || request.URL.Path != "/api/workspaces/ws/subagents/sub-1/cancel" {
+					t.Fatalf("request=%s %s", request.Method, request.URL)
+				}
+				var body contract.SubagentCancelRequest
+				if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				if body.Reason != "Direction abandoned." {
+					t.Fatalf("reason=%q", body.Reason)
+				}
+				return newHTTPResponse(202, `{"subagent_id":"sub-1","status":"cancel_requested"}`), nil
+			})},
+		}
+		result, err := client.CancelSubagent(t.Context(), "ws", "sub-1", "Direction abandoned.")
+		if err != nil || result.Status != "cancel_requested" {
+			t.Fatalf("result=%+v error=%v", result, err)
+		}
+	})
+	for _, kind := range []string{"session", "subagent"} {
+		t.Run("Should map unknown "+kind+" to the documented code", func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+					return newHTTPResponse(404, `{"error":"not found"}`), nil
+				})},
+			}
+			var err error
+			if kind == "session" {
+				_, err = client.ListSessionSubagents(t.Context(), "missing", SubagentListQuery{})
+			} else {
+				_, err = client.GetSubagent(t.Context(), "ws", "missing")
+			}
+			if err == nil || !strings.HasPrefix(err.Error(), kind+"_not_found:") {
+				t.Fatalf("error=%v", err)
+			}
+		})
 	}
 }

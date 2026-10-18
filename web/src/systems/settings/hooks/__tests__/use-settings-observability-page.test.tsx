@@ -3,6 +3,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { statusFixture } from "@/systems/status/mocks";
+
+vi.mock("@/systems/status/adapters/daemon-api", () => ({
+  fetchStatus: vi.fn(async () => statusFixture),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
 }));
@@ -11,6 +17,7 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsObservability: vi.fn(),
   updateSettingsObservability: vi.fn(),
   getSettingsRestartStatus: vi.fn(),
+  listSettingsApplyRecords: vi.fn().mockResolvedValue({ entries: [] }),
   triggerSettingsRestart: vi.fn(),
   SettingsApiError: class SettingsApiError extends Error {
     status = 500;
@@ -74,7 +81,9 @@ afterEach(() => {
 });
 
 describe("useSettingsObservabilityPage", () => {
-  it("loads the envelope and seeds the draft", async () => {
+  it("surfaces the save error when the mutation rejects", async () => {
+    vi.mocked(updateSettingsObservability).mockRejectedValue(new Error("rejected by service"));
+
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsObservabilityPage(), { wrapper });
 
@@ -82,15 +91,6 @@ describe("useSettingsObservabilityPage", () => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(envelope.config);
     });
-  });
-
-  it("surfaces the save error when the mutation rejects", async () => {
-    vi.mocked(updateSettingsObservability).mockRejectedValue(new Error("rejected by service"));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsObservabilityPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({

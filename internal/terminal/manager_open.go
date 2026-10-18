@@ -198,18 +198,15 @@ func (m *Service) reserveAdmission(ctx context.Context, request OpenRequest, set
 	m.pendingByScope[scope]++
 	m.pendingDaemon++
 	m.mu.Unlock()
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			m.mu.Lock()
-			m.pendingByScope[scope]--
-			if m.pendingByScope[scope] == 0 {
-				delete(m.pendingByScope, scope)
-			}
-			m.pendingDaemon--
-			m.mu.Unlock()
-		})
-	}, nil
+	return sync.OnceFunc(func() {
+		m.mu.Lock()
+		m.pendingByScope[scope]--
+		if m.pendingByScope[scope] == 0 {
+			delete(m.pendingByScope, scope)
+		}
+		m.pendingDaemon--
+		m.mu.Unlock()
+	}), nil
 }
 
 func (m *Service) insert(key terminalKey, item *session) error {

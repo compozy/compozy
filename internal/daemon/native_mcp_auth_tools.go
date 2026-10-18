@@ -36,7 +36,7 @@ type mcpStatusPayload struct {
 	ServerName            string                              `json:"server_name"`
 	State                 string                              `json:"state"`
 	Auth                  toolspkg.MCPAuthStatus              `json:"auth"`
-	Runtime               *settingspkg.MCPServerRuntimeStatus `json:"runtime,omitempty"`
+	Runtime               *settingspkg.MCPServerRuntimeStatus `json:"runtime,omitzero"`
 	RepairPaths           mcpAuthRepairPaths                  `json:"repair_paths"`
 	CallableDiscoveryNote string                              `json:"callable_discovery_note"`
 }

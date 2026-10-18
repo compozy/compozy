@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func claimActiveApprovalWait(
@@ -72,6 +73,9 @@ func claimActiveApprovalWait(
 	if err := requireSingleWaitMutation(result); err != nil {
 		return err
 	}
+	if err := rearmDecidedApprovalGate(ctx, exec, wait, decision.Decision); err != nil {
+		return err
+	}
 	parkedFor := decision.DecidedAt.UTC().Sub(wait.CreatedAt.UTC())
 	parkedFor = max(parkedFor, 0)
 	if err := shiftLoopWallClockIfUnparked(ctx, exec, run.ID, parkedFor); err != nil {
@@ -88,4 +92,26 @@ func claimActiveApprovalWait(
 			loopRunEventPayloadKeyWaitKind:    looppkg.NodeWaitKindApprovalEscalation,
 			"decision":                        decision.Decision,
 		}, decision.DecidedAt)
+}
+
+func rearmDecidedApprovalGate(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	wait looppkg.NodeWait,
+	decision looppkg.GateDecision,
+) error {
+	if decision == looppkg.GateDecisionReject {
+		return nil
+	}
+	affected, err := sqlcgen.New(exec).RearmLoopApprovalGate(ctx, sqlcgen.RearmLoopApprovalGateParams{
+		LoopRunID: string(wait.LoopRunID), Generation: int64(wait.Generation),
+		NodeID: string(wait.NodeID), ItemIndex: int64(wait.ItemIndex), ExpectedEpoch: wait.IssuedEpoch,
+	})
+	if err != nil {
+		return fmt.Errorf("store: rearm decided approval gate: %w", err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("%w: approval gate changed before its decision", looppkg.ErrTransitionConflict)
+	}
+	return nil
 }

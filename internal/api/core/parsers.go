@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
@@ -91,6 +92,11 @@ func ParseLogsQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 		return store.EventSummaryQuery{}, err
 	}
 
+	component := strings.TrimSpace(c.Query("component"))
+	if !eventspkg.ValidComponent(component) {
+		return store.EventSummaryQuery{}, fmt.Errorf("invalid event summary component %q", component)
+	}
+
 	return store.EventSummaryQuery{
 		WorkspaceID:   strings.TrimSpace(workspaceID),
 		SessionID:     strings.TrimSpace(c.Query("session_id")),
@@ -101,7 +107,7 @@ func ParseLogsQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 		ActorID:       actorID,
 		Provider:      strings.TrimSpace(c.Query("provider")),
 		Outcome:       strings.TrimSpace(c.Query("outcome")),
-		Component:     strings.TrimSpace(c.Query("component")),
+		Component:     component,
 		ErrorOnly:     errorOnly,
 		AfterSequence: afterSequence,
 		Since:         since,
@@ -321,6 +327,40 @@ func ParseOptionalBool(raw string) (bool, error) {
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return false, fmt.Errorf("invalid boolean %q: %w", value, err)
+	}
+	return parsed, nil
+}
+
+func parseBoolQuery(c *gin.Context, key string) (bool, error) {
+	if c == nil {
+		return false, nil
+	}
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return false, nil
+	}
+	parsed, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("query parameter %q must be a boolean: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func parsePositiveIntQuery(c *gin.Context) (int, error) {
+	const key = "limit"
+	if c == nil {
+		return 0, nil
+	}
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return 0, nil
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("query parameter %q must be a positive integer: %w", key, err)
+	}
+	if parsed <= 0 {
+		return 0, fmt.Errorf("query parameter %q must be a positive integer: %d", key, parsed)
 	}
 	return parsed, nil
 }

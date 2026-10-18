@@ -1,8 +1,9 @@
 package core_test
 
 import (
-	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subagentid"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestDeliverPromptEventStream(t *testing.T) {
@@ -86,7 +90,7 @@ func TestDeliverPromptEventStream(t *testing.T) {
 		close(events)
 
 		core.DeliverPromptEventStream(
-			context.Background(),
+			t.Context(),
 			make(chan struct{}),
 			events,
 			func() {},
@@ -383,6 +387,101 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 	})
 }
 
+func TestPromptStreamEncoderSubagentParts(t *testing.T) {
+	// Live parity with the transcript projection (UT-038 / S1, S8): the prompt stream emits the
+	// same `data-compozy-subagent` cards and keeps provider-native subagent work attributed, so
+	// a running turn renders cards and nesting before its transcript entry reconciles.
+	t.Run("Should stream subagent cards and attribute native subagent work", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 10, 9, 9, 0, 0, 0, time.UTC)
+		})
+		encoder.SetSessionID("sess-parent")
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeToolCall, TurnID: "turn-1", ToolCallID: "toolu_agent", Title: "Review the diff",
+		}.WithProviderToolMetadata("", "Agent", "pending"))
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "turn-1", Text: "Inside",
+		}.WithProviderToolMetadata("toolu_agent", "", ""))
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "turn-1", Text: "Outside",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeToolResult, TurnID: "turn-1", ToolCallID: "delegate",
+			Raw: json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`),
+		}.WithTool("compozy__subagent_delegate", nil, false))
+
+		type frame struct {
+			Type             string `json:"type"`
+			ID               string `json:"id"`
+			ToolCallID       string `json:"toolCallId"`
+			Delta            string `json:"delta"`
+			ProviderMetadata *struct {
+				Compozy struct {
+					ParentToolCallID string `json:"parentToolCallId"`
+				} `json:"compozy"`
+			} `json:"providerMetadata"`
+			Data struct {
+				SubagentID string `json:"subagent_id"`
+				ToolCallID string `json:"tool_call_id"`
+				TurnID     string `json:"turn_id"`
+				Origin     string `json:"origin"`
+			} `json:"data"`
+		}
+		var frames []frame
+		for record := range strings.SplitSeq(writer.String(), "\n\n") {
+			data := promptSSEData(strings.TrimSpace(record))
+			if data == "" || data == "[DONE]" {
+				continue
+			}
+			var decoded frame
+			if err := json.Unmarshal([]byte(data), &decoded); err != nil {
+				t.Fatalf("decode frame: %v", err)
+			}
+			frames = append(frames, decoded)
+		}
+		var cards []frame
+		textParents := map[string]string{}
+		blockText := map[string]string{}
+		for _, decoded := range frames {
+			switch decoded.Type {
+			case "data-compozy-subagent":
+				cards = append(cards, decoded)
+			case "text-start":
+				parent := ""
+				if decoded.ProviderMetadata != nil {
+					parent = decoded.ProviderMetadata.Compozy.ParentToolCallID
+				}
+				textParents[decoded.ID] = parent
+			case "text-delta":
+				blockText[decoded.Delta] = decoded.ID
+			}
+		}
+		if len(cards) != 2 {
+			t.Fatalf("cards = %#v, want native and delegated", cards)
+		}
+		native, delegated := cards[0], cards[1]
+		if native.ID != subagentid.Derive("sess-parent", "toolu_agent") || native.ID != native.Data.SubagentID ||
+			native.Data.Origin != "provider_native" || native.Data.TurnID != "turn-1" ||
+			native.Data.ToolCallID != "toolu_agent" {
+			t.Fatalf("native card = %#v", native)
+		}
+		if delegated.ID != "sub-delegated" || delegated.Data.Origin != "delegated" ||
+			delegated.Data.ToolCallID != "delegate" {
+			t.Fatalf("delegated card = %#v", delegated)
+		}
+		inside, outside := blockText["Inside"], blockText["Outside"]
+		if inside == outside || textParents[inside] != "toolu_agent" || textParents[outside] != "" {
+			t.Fatalf(
+				"text blocks inside=%q(%q) outside=%q(%q)",
+				inside, textParents[inside], outside, textParents[outside],
+			)
+		}
+	})
+}
+
 func TestPromptStreamEncoderToolNameResolution(t *testing.T) {
 	t.Run("Should prefer typed tool metadata over conflicting legacy raw fields", func(t *testing.T) {
 		t.Parallel()
@@ -611,4 +710,201 @@ func promptSSEData(record string) string {
 		}
 	}
 	return data.String()
+}
+
+// UT-014: live session-message parts preserve tool-call correlation.
+func TestPromptStreamSessionMessage(t *testing.T) {
+	t.Run("Should emit running and completed reply cards with one stable id UT-014", func(t *testing.T) {
+		t.Parallel()
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(
+			func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		)
+		mustEmitPromptEvent(
+			t,
+			encoder,
+			writer,
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				TurnID:     "turn",
+				ToolCallID: "send",
+			}.WithTool(
+				"compozy__session_prompt",
+				json.RawMessage(`{"session_id":"target","message_id":"message","mode":"queue"}`),
+				false,
+			),
+		)
+		mustEmitPromptEvent(
+			t,
+			encoder,
+			writer,
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolResult,
+				TurnID:     "turn",
+				ToolCallID: "send",
+			}.WithSessionMessageCard(
+				json.RawMessage(
+					`{"tool_call_id":"send","message_id":"message","reply_watch_id":"rw-1","state":"done"}`,
+				),
+			),
+		)
+		var states []string
+		for line := range strings.SplitSeq(writer.String(), "\n") {
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var frame struct {
+				Type string `json:"type"`
+				ID   string `json:"id"`
+				Data struct {
+					Target string `json:"target_session_id"`
+					State  string `json:"state"`
+					Watch  string `json:"reply_watch_id"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &frame); err != nil {
+				continue
+			}
+			if frame.Type != "data-compozy-session-message" {
+				continue
+			}
+			if frame.ID != "send" || frame.Data.Target != "target" {
+				t.Fatalf("frame = %+v", frame)
+			}
+			if frame.Data.State == "done" && frame.Data.Watch != "rw-1" {
+				t.Fatalf("reply = %+v", frame)
+			}
+			states = append(states, frame.Data.State)
+		}
+		if strings.Join(states, ",") != "running,done" {
+			t.Fatalf("states = %v", states)
+		}
+	})
+	// Recorded Claude and Codex sends (#742), delivered as the session manager does: each stored
+	// event decoded and annotated with the turn's SessionMessageCards fold.
+	for _, tc := range []struct {
+		fixture string
+		want    map[string]transcript.UISessionMessagePayload
+	}{
+		{fixture: "claude.jsonl", want: map[string]transcript.UISessionMessagePayload{
+			"toolu_01L3DE1yXY8CcKF8hkd3k8Z5": {
+				ToolCallID: "toolu_01L3DE1yXY8CcKF8hkd3k8Z5", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "issue742-goal-unavailable-v1", Mode: "queue",
+				Delivery: "direct", ReplyWatchID: "rw-f9a45066bce98c57", State: "done",
+			},
+		}},
+		{fixture: "codex.jsonl", want: map[string]transcript.UISessionMessagePayload{
+			"exec-2536d1eb-7fab-4bd7-b971-e62f6b970e22": {
+				ToolCallID: "exec-2536d1eb-7fab-4bd7-b971-e62f6b970e22", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-review-remediation-1", Mode: "queue",
+				Delivery: "after_turn", State: "done",
+			},
+			"exec-5f2789fa-43ce-4158-a1b6-190745d05f03": {
+				ToolCallID: "exec-5f2789fa-43ce-4158-a1b6-190745d05f03", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-fixture-remediation-1518", Mode: "steer",
+				Delivery: "interrupt_then_prompt", SteerDelivery: "injected", State: "done",
+			},
+		}},
+	} {
+		t.Run("Should stream the settled card of every recorded send in "+tc.fixture, func(t *testing.T) {
+			t.Parallel()
+			writer := &bufferFlusher{}
+			encoder := core.NewPromptStreamEncoder(
+				func() time.Time { return time.Date(2026, 10, 16, 14, 45, 0, 0, time.UTC) },
+			)
+			var cards transcript.SessionMessageCards
+			for _, stored := range recordedPromptStream(t, tc.fixture) {
+				event, err := transcript.UnmarshalAgentEvent(stored.Content)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if card, ok := cards.Card(stored); ok {
+					data, err := json.Marshal(card)
+					if err != nil {
+						t.Fatal(err)
+					}
+					event = event.WithSessionMessageCard(data)
+				}
+				mustEmitPromptEvent(t, encoder, writer, event)
+			}
+			got := make(map[string]transcript.UISessionMessagePayload)
+			for line := range strings.SplitSeq(writer.String(), "\n") {
+				var frame struct {
+					Type string                             `json:"type"`
+					Data transcript.UISessionMessagePayload `json:"data"`
+				}
+				if json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &frame) != nil ||
+					frame.Type != "data-compozy-session-message" {
+					continue
+				}
+				// Every frame names its target: no client ever receives a card it cannot draw.
+				if frame.Data.TargetSessionID == "" {
+					t.Fatalf("frame without a target: %+v", frame.Data)
+				}
+				got[frame.Data.ToolCallID] = frame.Data
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("settled cards = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+	t.Run("Should attribute a send made inside a provider-native subagent to its parent call", func(t *testing.T) {
+		t.Parallel()
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(
+			func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		)
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeToolCall, TurnID: "turn", ToolCallID: "child-send",
+		}.WithTool(
+			"compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		).WithProviderToolMetadata("native-task", "compozy__session_prompt", ""))
+		found := false
+		for line := range strings.SplitSeq(writer.String(), "\n") {
+			var frame struct {
+				Type             string `json:"type"`
+				ProviderMetadata *struct {
+					Compozy struct {
+						ParentToolCallID string `json:"parentToolCallId"`
+					} `json:"compozy"`
+				} `json:"providerMetadata"`
+			}
+			if json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &frame) != nil ||
+				frame.Type != "data-compozy-session-message" {
+				continue
+			}
+			found = true
+			if frame.ProviderMetadata == nil || frame.ProviderMetadata.Compozy.ParentToolCallID != "native-task" {
+				t.Fatalf("session message frame = %+v, want parent attribution", frame)
+			}
+		}
+		if !found {
+			t.Fatal("no session message frame")
+		}
+	})
+}
+
+// recordedPromptStream loads a recorded provider stream shared with the transcript suite.
+func recordedPromptStream(t *testing.T, name string) []store.SessionEvent {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "..", "transcript", "testdata", "session-prompt", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []store.SessionEvent
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		var recorded struct {
+			Type    string          `json:"type"`
+			Content json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal([]byte(line), &recorded); err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, store.SessionEvent{
+			Sequence: int64(len(rows) + 1), Type: recorded.Type, Content: string(recorded.Content),
+		})
+	}
+	return rows
 }

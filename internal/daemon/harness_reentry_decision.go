@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -101,11 +100,10 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 	metadata detachedHarnessRunMetadata,
 ) harnessWakeTargetSnapshot {
 	target := harnessWakeTargetSnapshot{
-		SessionID:            strings.TrimSpace(metadata.WakeTarget.SessionID),
-		Type:                 session.Type(strings.TrimSpace(metadata.WakeTarget.SessionType)),
-		WorkspaceID:          strings.TrimSpace(metadata.WakeTarget.WorkspaceID),
-		NetworkParticipation: participation.LocalSpec(),
-		Missing:              true,
+		SessionID:   strings.TrimSpace(metadata.WakeTarget.SessionID),
+		Type:        session.Type(strings.TrimSpace(metadata.WakeTarget.SessionType)),
+		WorkspaceID: strings.TrimSpace(metadata.WakeTarget.WorkspaceID),
+		Missing:     true,
 	}
 
 	info, err := b.sessions.Status(b.operationContext(), target.SessionID)
@@ -117,7 +115,6 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 		if workspaceID := strings.TrimSpace(info.WorkspaceID); workspaceID != "" {
 			target.WorkspaceID = workspaceID
 		}
-		target.NetworkParticipation = info.NetworkParticipation
 		target.Missing = false
 	case errors.Is(err, session.ErrSessionNotFound):
 		target.Missing = true
@@ -155,9 +152,8 @@ func (b *harnessReentryBridge) evaluateDecision(
 	input := HarnessResolutionInput{
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
-			Type:                 target.Type,
-			NetworkParticipation: target.NetworkParticipation,
-			WorkspaceID:          target.WorkspaceID,
+			Type:        target.Type,
+			WorkspaceID: target.WorkspaceID,
 		},
 		Turn: HarnessTurnRequest{
 			Source: session.TurnSourceSynthetic,

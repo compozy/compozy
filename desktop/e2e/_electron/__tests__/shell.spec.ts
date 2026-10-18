@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createServer, request as forwardRequest } from "node:http";
+import type { AddressInfo } from "node:net";
+import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { extract } from "tar";
-import type { Locator, Page } from "@playwright/test";
+import type { Locator, Page, Request } from "@playwright/test";
 
 import {
   availableLoopbackPort,
@@ -554,32 +556,6 @@ test("E2E-003: runtime below the minimum stays on version-skew guidance", async 
   await expect(desktop.boot.getByRole("button", { name: "Retry operation" })).toHaveCount(0);
 });
 
-test("E2E-004: launch bursts reuse one window and deliver the last deep link", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
-  await Promise.all([
-    desktop.spawnSecondary([]),
-    desktop.spawnSecondary(["compozyos://open/tasks"]),
-  ]);
-  await desktop.spawnSecondary(["compozyos://open/settings/general"]);
-  await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
-  const windows = await desktop.app.evaluate(
-    ({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().filter(window => {
-        const url = window.webContents.getURL();
-        return url.startsWith("http://") || url.startsWith("https://");
-      }).length
-  );
-  expect(windows).toBe(1);
-  expect(
-    await desktop.app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().some(window => window.isVisible())
-    )
-  ).toBe(true);
-});
-
 test("E2E-007: quitting during bootstrap completes cleanup and preserves the daemon", async ({
   launchDesktop,
 }) => {
@@ -604,32 +580,70 @@ test("E2E-007: quitting during bootstrap completes cleanup and preserves the dae
   expect(record.state).not.toBe("product");
 });
 
-test("E2E-005 E2E-007: relaunch attaches, stopped runtime starts once, and shell quit leaves it alive", async ({
+test("E2E-005 E2E-007 E2E-024: healthy diagnostics and shell relaunch preserve daemon ownership", async ({
   launchDesktop,
 }) => {
   const first = await launchDesktop();
   await first.product();
-  const initial = await jsonCommand(first, ["status", "-o", "json"]);
-  await first.closeShell();
-  const alive = await jsonCommand(first, ["status", "-o", "json"]);
-  const initialDaemon = initial.daemon as Record<string, unknown>;
-  expect(alive).toMatchObject({
-    daemon: { status: "running", pid: initialDaemon.pid },
+  await test.step("E2E-024: healthy retry and diagnostic export", async () => {
+    const recordPath = join(first.home, "app.json");
+    await expect
+      .poll(async () => Reflect.get(JSON.parse(await readFile(recordPath, "utf8")), "state"))
+      .toBe("product");
+    const before = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
+    expect(await jsonCommand(first, ["app", "retry", "-o", "json"])).toMatchObject({
+      action: "retry",
+      result: { ok: true },
+    });
+    const after = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
+    expect(after).toMatchObject({ pid: before.pid, state: "product" });
+    const report = await jsonCommand(first, ["app", "diagnose", "-o", "json"]);
+    expect(report).toMatchObject({ schema_version: 1, boot_phase: "product" });
+    const bundle = await jsonCommand(first, ["app", "diagnose", "--bundle", "--yes", "-o", "json"]);
+    const bundlePath = Reflect.get(bundle.bundle as Record<string, unknown>, "path");
+    expect(typeof bundlePath).toBe("string");
+    expect((await stat(String(bundlePath))).isFile()).toBe(true);
+    const extracted = await mkdtemp(join(tmpdir(), "compozy-diagnostic-bundle-"));
+    try {
+      await extract({ cwd: extracted, file: String(bundlePath) });
+      const manifest = JSON.parse(await readFile(join(extracted, "manifest.json"), "utf8")) as {
+        kind?: unknown;
+        report?: { boot_id?: unknown };
+        schema_version?: unknown;
+      };
+      expect(manifest).toMatchObject({
+        schema_version: 1,
+        kind: "compozyos_desktop_diagnostics",
+        report: { boot_id: report.boot_id },
+      });
+    } finally {
+      await rm(extracted, { recursive: true, force: true });
+    }
   });
 
-  const attached = await launchDesktop({ home: first.home });
-  await attached.product();
-  const attachEvents = await bootstrapEvents(first.home);
-  expect(attachEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "attach" });
-  await attached.closeShell();
-  await attached.cli(["daemon", "stop"]);
+  await test.step("E2E-005 E2E-007: attach, restart, and preserve daemon ownership", async () => {
+    const initial = await jsonCommand(first, ["status", "-o", "json"]);
+    await first.closeShell();
+    const alive = await jsonCommand(first, ["status", "-o", "json"]);
+    const initialDaemon = initial.daemon as Record<string, unknown>;
+    expect(alive).toMatchObject({
+      daemon: { status: "running", pid: initialDaemon.pid },
+    });
 
-  const started = await launchDesktop({ home: first.home });
-  await started.product();
-  const startEvents = await bootstrapEvents(first.home);
-  expect(startEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "start" });
-  const restarted = await jsonCommand(started, ["status", "-o", "json"]);
-  expect((restarted.daemon as Record<string, unknown>).pid).not.toBe(initialDaemon.pid);
+    const attached = await launchDesktop({ home: first.home });
+    await attached.product();
+    const attachEvents = await bootstrapEvents(first.home);
+    expect(attachEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "attach" });
+    await attached.closeShell();
+    await attached.cli(["daemon", "stop"]);
+
+    const started = await launchDesktop({ home: first.home });
+    await started.product();
+    const startEvents = await bootstrapEvents(first.home);
+    expect(startEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "start" });
+    const restarted = await jsonCommand(started, ["status", "-o", "json"]);
+    expect((restarted.daemon as Record<string, unknown>).pid).not.toBe(initialDaemon.pid);
+  });
 });
 
 test("an updated app replaces its stale app-owned runtime without deleting home state", async ({
@@ -708,7 +722,7 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   await expect(await desktop.product()).toHaveTitle(/CompozyOS/u);
 });
 
-test("E2E-008: native product chrome and window geometry survive relaunch", async ({
+test("E2E-008 E2E-009: native chrome, geometry, and menu and shortcut zoom survive relaunch", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
@@ -730,60 +744,12 @@ test("E2E-008: native product chrome and window geometry survive relaunch", asyn
       };
     });
     expect(overlay).toEqual({
-      height: 44,
+      height: 52,
       narrowerThanWindow: true,
       visible: true,
     });
   }
-  await desktop.app.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows().find(candidate => {
-      const url = candidate.webContents.getURL();
-      return url.startsWith("http://") || url.startsWith("https://");
-    });
-    if (!window) throw new Error("Product window missing.");
-    window.setBounds({ x: 80, y: 70, width: 960, height: 720 });
-    window.maximize();
-  });
-  await desktop.closeShell();
-  const maximized = await launchDesktop({ home: desktop.home });
-  await maximized.product();
-  expect(
-    await maximized.app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().some(window => window.isMaximized())
-    )
-  ).toBe(true);
-  await maximized.closeShell();
-  await writeFile(
-    join(desktop.home, "desktop-window.json"),
-    `${JSON.stringify({ x: 999999, y: 999999, width: 960, height: 720, maximized: false, zoom_level: 0 })}\n`,
-    { mode: 0o600 }
-  );
-  const clamped = await launchDesktop({ home: desktop.home });
-  await clamped.product();
-  expect(
-    await clamped.app.evaluate(({ BrowserWindow, screen }) => {
-      const window = BrowserWindow.getAllWindows().find(candidate => {
-        const url = candidate.webContents.getURL();
-        return url.startsWith("http://") || url.startsWith("https://");
-      });
-      if (!window) return false;
-      const bounds = window.getBounds();
-      const area = screen.getDisplayMatching(bounds).workArea;
-      return (
-        bounds.x >= area.x &&
-        bounds.y >= area.y &&
-        bounds.x + bounds.width <= area.x + area.width &&
-        bounds.y + bounds.height <= area.y + area.height
-      );
-    })
-  ).toBe(true);
-});
-
-test("E2E-009: menu and shortcut zoom share one persisted bounded value", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
+  // Zoom and geometry share the same native window persistence and relaunch.
   await desktop.app.evaluate(({ Menu }) => {
     const view = Menu.getApplicationMenu()?.items.find(item => item.label === "View");
     if (!view?.submenu) throw new Error("The View menu is missing.");
@@ -816,11 +782,26 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
         )
     )
     .toBe(1);
+
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find(candidate => {
+      const url = candidate.webContents.getURL();
+      return url.startsWith("http://") || url.startsWith("https://");
+    });
+    if (!window) throw new Error("Product window missing.");
+    window.setBounds({ x: 80, y: 70, width: 960, height: 720 });
+    window.maximize();
+  });
   await desktop.closeShell();
-  const relaunched = await launchDesktop({ home: desktop.home });
-  await relaunched.product();
+  const maximized = await launchDesktop({ home: desktop.home });
+  await maximized.product();
   expect(
-    await relaunched.app.evaluate(({ BrowserWindow }) =>
+    await maximized.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().some(window => window.isMaximized())
+    )
+  ).toBe(true);
+  expect(
+    await maximized.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
         .find(window => {
           const url = window.webContents.getURL();
@@ -829,39 +810,31 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
         ?.webContents.getZoomLevel()
     )
   ).toBe(1);
-});
-
-test("native Edit shortcuts copy and paste editable renderer content", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
-  await completeOnboarding(product);
-  expect(
-    await desktop.app.evaluate(({ Menu }) => {
-      const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
-      return edit?.submenu?.items.map(item => item.role) ?? [];
-    })
-  ).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
-  await product.evaluate(() => {
-    const source = document.createElement("input");
-    source.setAttribute("aria-label", "Copy source");
-    source.value = "Copied through the Electron Edit menu";
-    const target = document.createElement("input");
-    target.setAttribute("aria-label", "Paste target");
-    document.body.append(source, target);
-    source.focus();
-    source.select();
-  });
-
-  const modifier = process.platform === "darwin" ? "Meta" : "Control";
-  await product.keyboard.press(`${modifier}+C`);
-  await product.getByRole("textbox", { name: "Paste target" }).focus();
-  await product.keyboard.press(`${modifier}+V`);
-
-  await expect(product.getByRole("textbox", { name: "Paste target" })).toHaveValue(
-    "Copied through the Electron Edit menu"
+  await maximized.closeShell();
+  await writeFile(
+    join(desktop.home, "desktop-window.json"),
+    `${JSON.stringify({ x: 999999, y: 999999, width: 960, height: 720, maximized: false, zoom_level: 0 })}\n`,
+    { mode: 0o600 }
   );
+  const clamped = await launchDesktop({ home: desktop.home });
+  await clamped.product();
+  expect(
+    await clamped.app.evaluate(({ BrowserWindow, screen }) => {
+      const window = BrowserWindow.getAllWindows().find(candidate => {
+        const url = candidate.webContents.getURL();
+        return url.startsWith("http://") || url.startsWith("https://");
+      });
+      if (!window) return false;
+      const bounds = window.getBounds();
+      const area = screen.getDisplayMatching(bounds).workArea;
+      return (
+        bounds.x >= area.x &&
+        bounds.y >= area.y &&
+        bounds.x + bounds.width <= area.x + area.width &&
+        bounds.y + bounds.height <= area.y + area.height
+      );
+    })
+  ).toBe(true);
 });
 
 test("desktop-owned runtime resolves a provider available only on the login PATH", async ({
@@ -929,59 +902,324 @@ test("E2E-010: external navigation opens only safe web URLs and never leaves the
     .toEqual(["https://example.com/safe", "https://example.com/top-level"]);
 });
 
-test("E2E-011: the daemon-served shell preserves the browser Settings journey and Chromium effects", async ({
+test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and native Edit shortcuts", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
   await completeOnboarding(product);
-  await desktop.cli(["app", "open", "/settings/general"]);
-  await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
-  await expect(product.getByTestId("settings-shell")).toBeVisible();
-  await expect(product.getByTestId("settings-section-nav")).toBeVisible();
-  await expect(
-    product.locator('[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]')
-  ).toHaveText([
-    "General",
-    "Terminal",
-    "Defaults",
-    "Appearance",
-    "Layouts",
-    "Profiles",
-    "Palette",
-    "Providers",
-    "Memory",
-    "Roles",
-    "Skills",
-    "MCP servers",
-    "Automation",
-    "Network",
-    "Notifications",
-    "Diagnostics",
-    "Remote access",
-    "Hooks",
-    "Extensions",
-    "Marketplace",
-  ]);
-  await expect(product.getByText("Updates", { exact: true })).toBeVisible();
-  for (const section of [
-    "network",
-    "hooks",
-    "extensions",
-    "mcp",
-    "marketplace",
-    "general",
-  ] as const) {
-    await product.getByTestId(`settings-section-${section}`).click();
-    await expect(product).toHaveURL(new RegExp(`/settings/${section}(?:\\?|$)`, "u"));
-    await expect(product.getByTestId(`settings-page-${section}`)).toBeVisible();
+  await test.step("Settings navigation and Chromium effects", async () => {
+    await desktop.cli(["app", "open", "/settings/general"]);
+    await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
+    await expect(product.getByTestId("settings-shell")).toBeVisible();
+    await expect(product.getByTestId("settings-section-nav")).toBeVisible();
+    await expect(
+      product.locator('[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]')
+    ).toHaveText([
+      "General",
+      "Terminal",
+      "Defaults",
+      "Appearance",
+      "Layouts",
+      "Profiles",
+      "Providers",
+      "Palette",
+      "Notifications",
+      "Diagnostics",
+      "Roles",
+      "Skills",
+      "MCP servers",
+      "Automation",
+      "Remote access",
+      "Hooks",
+      "Extensions",
+      "Marketplace",
+    ]);
+    await expect(product.getByText("Updates", { exact: true })).toBeVisible();
+    for (const section of ["hooks", "extensions", "mcp", "marketplace", "general"] as const) {
+      await product.getByTestId(`settings-section-${section}`).click();
+      await expect(product).toHaveURL(new RegExp(`/settings/${section}(?:\\?|$)`, "u"));
+      await expect(product.getByTestId(`settings-page-${section}`)).toBeVisible();
+    }
+    expect(
+      await product.evaluate(() => ({
+        backdropFilter: CSS.supports("backdrop-filter", "blur(1px)"),
+        chromium: navigator.userAgent.includes("Chrome/"),
+      }))
+    ).toEqual({ backdropFilter: true, chromium: true });
+  });
+
+  await test.step("Native Edit shortcuts copy and paste editable content", async () => {
+    expect(
+      await desktop.app.evaluate(({ Menu }) => {
+        const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
+        return edit?.submenu?.items.map(item => item.role) ?? [];
+      })
+    ).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
+    await product.evaluate(() => {
+      const source = document.createElement("input");
+      source.setAttribute("aria-label", "Copy source");
+      source.value = "Copied through the Electron Edit menu";
+      const target = document.createElement("input");
+      target.setAttribute("aria-label", "Paste target");
+      document.body.append(source, target);
+      source.focus();
+      source.select();
+    });
+
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+    await product.keyboard.press(`${modifier}+C`);
+    await product.getByRole("textbox", { name: "Paste target" }).focus();
+    await product.keyboard.press(`${modifier}+V`);
+
+    await expect(product.getByRole("textbox", { name: "Paste target" })).toHaveValue(
+      "Copied through the Electron Edit menu"
+    );
+  });
+});
+
+/**
+ * A loopback proxy that strips Cache-Control, as every runtime before #742 served its shell: a
+ * document fetched through it is cached heuristically fresh, like the shell an update leaves behind.
+ */
+async function startPreviousRuntimeProxy(): Promise<{ readonly port: number; close(): void }> {
+  const proxy = createServer((request, response) => {
+    const target = new URL(request.url ?? "/");
+    const upstream = forwardRequest(
+      {
+        host: target.hostname,
+        port: target.port,
+        path: `${target.pathname}${target.search}`,
+        method: request.method,
+        headers: request.headers,
+      },
+      reply => {
+        const headers = { ...reply.headers };
+        delete headers["cache-control"];
+        response.writeHead(reply.statusCode ?? 502, headers);
+        reply.pipe(response);
+      }
+    );
+    upstream.on("error", () => response.destroy());
+    request.pipe(upstream);
+  });
+  await new Promise<void>(resolveListen => proxy.listen(0, "127.0.0.1", resolveListen));
+  return { port: (proxy.address() as AddressInfo).port, close: () => proxy.close() };
+}
+
+test("a relaunch replaces a shell the renderer cached before a runtime update (#742)", async ({
+  launchDesktop,
+}) => {
+  // The runtime serves the shell; an update must never boot the previous release's bundle from
+  // the renderer's HTTP cache. An old Last-Modified makes the cached shell heuristically fresh.
+  const dist = await mkdtemp(join(tmpdir(), "compozy-shell-cache-"));
+  const proxy = await startPreviousRuntimeProxy();
+  try {
+    await cp(join(repositoryRoot, "web", "dist"), dist, { recursive: true });
+    const index = join(dist, "index.html");
+    const original = await readFile(index, "utf8");
+    const stamp = (release: string) =>
+      original.replace("</head>", `<meta name="compozy-e2e-release" content="${release}"></head>`);
+    const release = (product: Page) =>
+      product.locator('meta[name="compozy-e2e-release"]').getAttribute("content");
+    const prepare = async ({ environment }: { environment: Record<string, string> }) => {
+      environment.COMPOZY_WEB_DIST_DIR = dist;
+    };
+    await writeFile(index, stamp("previous"));
+    const released = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    await utimes(index, released, released);
+
+    const first = await launchDesktop({ prepare });
+    const product = await first.product();
+    const shell = new URL("/", product.url()).toString();
+    // Cache the shell the way an older runtime served it: through the proxy, without Cache-Control.
+    await first.app.evaluate(async ({ session }, port) => {
+      await session.defaultSession.clearCache();
+      await session.defaultSession.setProxy({
+        proxyRules: `http=127.0.0.1:${port}`,
+        proxyBypassRules: "<-loopback>",
+      });
+    }, proxy.port);
+    await product.goto(shell);
+    expect(await release(product)).toBe("previous");
+    await first.app.evaluate(async ({ session }) => {
+      await session.defaultSession.setProxy({ mode: "direct" });
+    });
+    await first.closeShell();
+
+    await writeFile(index, stamp("updated"));
+    const relaunched = await launchDesktop({ home: first.home, prepare });
+    expect(await release(await relaunched.product())).toBe("updated");
+  } finally {
+    proxy.close();
+    await rm(dist, { recursive: true, force: true });
   }
+});
+
+test("native context menu copies text and preserves spelling preferences after relaunch", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop();
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  await desktop.app.evaluate(({ Menu }) => {
+    const popup = Menu.prototype.popup;
+    Menu.prototype.popup = function (options) {
+      Reflect.set(globalThis, "__observedContextMenu", this);
+      return popup.call(this, options);
+    };
+  });
+  await product.evaluate(() => {
+    const input = document.createElement("textarea");
+    input.setAttribute("aria-label", "Native context source");
+    input.value = "Copy through the native context menu";
+    input.style.cssText =
+      "position:fixed;top:100px;left:100px;z-index:2147483647;width:400px;height:100px";
+    document.body.append(input);
+    input.focus();
+    input.select();
+  });
+  const input = product.getByRole("textbox", { name: "Native context source" });
+  await input.click({ button: "right" });
+  await expect
+    .poll(
+      async () =>
+        await desktop.app.evaluate(() => {
+          const menu = Reflect.get(globalThis, "__observedContextMenu") as
+            | Electron.Menu
+            | undefined;
+          return menu?.items.map(item => item.role);
+        })
+    )
+    .toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    const menu = Reflect.get(globalThis, "__observedContextMenu") as Electron.Menu;
+    menu.closePopup();
+    const window = BrowserWindow.getAllWindows().find(candidate =>
+      /^https?:/u.test(candidate.webContents.getURL())
+    );
+    if (!window) throw new Error("The product window is missing.");
+    window.focus();
+  });
+  await expect
+    .poll(() =>
+      desktop.app.evaluate(({ BrowserWindow }) =>
+        /^https?:/u.test(BrowserWindow.getFocusedWindow()?.webContents.getURL() ?? "")
+      )
+    )
+    .toBe(true);
+  await desktop.app.evaluate(({ BrowserWindow, Menu }) => {
+    const menu = Reflect.get(globalThis, "__observedContextMenu") as Electron.Menu;
+    const copy = menu.items.find(item => item.role === "copy");
+    if (!copy?.enabled) throw new Error("Copy is not available for the selected text.");
+    const window = BrowserWindow.getFocusedWindow();
+    if (!window) throw new Error("The product window is not focused.");
+    if (process.platform === "darwin") {
+      // AppKit dispatches native roles through the responder chain, not MenuItem.click.
+      Menu.sendActionToFirstResponder("copy:");
+    } else {
+      copy.click({}, window, window.webContents);
+    }
+    const spelling = menu.items.find(item => item.label === "Spelling")?.submenu;
+    if (process.platform !== "darwin") {
+      const languages = spelling?.items.find(item => item.label === "Languages")?.submenu;
+      for (const language of ["en-US", "pt-BR"]) {
+        const item = languages?.items.find(candidate => candidate.label === language);
+        if (!item) throw new Error(`Dictionary ${language} is missing.`);
+        if (!item.checked) item.click();
+      }
+      for (const language of ["en-US", "pt-BR"]) {
+        if (!window.webContents.session.getSpellCheckerLanguages().includes(language)) {
+          throw new Error(`Dictionary ${language} was not selected.`);
+        }
+      }
+    }
+    const check = spelling?.items.find(item => item.label === "Check spelling");
+    if (!check) throw new Error("Spelling setting missing.");
+    if (!check.checked) throw new Error("Spellchecking should start enabled.");
+    check.click();
+  });
+  await expect
+    .poll(async () => await desktop.app.evaluate(({ clipboard }) => clipboard.readText()))
+    .toBe("Copy through the native context menu");
+  await desktop.closeShell();
+  const persisted = JSON.parse(await readFile(join(desktop.home, "desktop-window.json"), "utf8"));
+  expect(persisted.spellcheck.enabled).toBe(false);
+  const reopened = await launchDesktop({ home: desktop.home });
+  await reopened.product();
   expect(
-    await product.evaluate(() => ({
-      backdropFilter: CSS.supports("backdrop-filter", "blur(1px)"),
-      chromium: navigator.userAgent.includes("Chrome/"),
-    }))
-  ).toEqual({ backdropFilter: true, chromium: true });
+    await reopened.app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find(candidate =>
+        /^https?:/u.test(candidate.webContents.getURL())
+      );
+      return window?.webContents.session.isSpellCheckerEnabled();
+    })
+  ).toBe(false);
+  if (process.platform !== "darwin") {
+    expect(
+      await reopened.app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find(candidate => /^https?:/u.test(candidate.webContents.getURL()))
+          ?.webContents.session.getSpellCheckerLanguages()
+      )
+    ).toEqual(expect.arrayContaining(["en-US", "pt-BR"]));
+  }
+  const reopenedProduct = await reopened.product();
+  const workspaceID = await ensureProjectWorkspaceID(reopened, reopenedProduct);
+  const tasksDockItem = reopenedProduct
+    .locator('[data-slot="os-dock"]')
+    .getByRole("button", { name: "Tasks", exact: true });
+  await tasksDockItem.click({ button: "right" });
+  await expect(reopenedProduct.getByTestId("os-dock-app-menu-tasks")).toBeVisible();
+  await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
+  await tasksDockItem.click({ button: "right" });
+  await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
+  await reopenedProduct
+    .locator('[data-testid^="os-window-tab-menu-"]')
+    .first()
+    .click({ button: "right" });
+  await expect(reopenedProduct.getByRole("menuitem", { name: "Close other tabs" })).toBeVisible();
+  await reopenedProduct.keyboard.press("Escape");
+
+  const definitionPath = join(reopened.home, "context-menu-loop.json");
+  await writeFile(
+    definitionPath,
+    JSON.stringify({
+      apiVersion: "compozy.loop/v1",
+      kind: "Loop",
+      meta: { name: "context-menu-loop", version: 1 },
+      contract: {
+        goal: "Verify the loop editor context menu in the desktop shell",
+        definition_of_done: "The wait completes",
+        stop_when: "nodes.wait.status == 'succeeded'",
+        iteration_cap: 1,
+        no_progress: { window: 1 },
+        budget: { on_exceeded: "halt" },
+      },
+      graph: {
+        nodes: [{ id: "wait", class: "control", kind: "wait", params: { for: "1s" } }],
+        edges: [],
+      },
+      start: [{ kind: "uds" }],
+    })
+  );
+  await reopened.cli([
+    "loop",
+    "create",
+    "--workspace",
+    workspaceID,
+    "--file",
+    definitionPath,
+    "-o",
+    "json",
+  ]);
+  await reopened.cli(["app", "open", "/loops/context-menu-loop/editor"]);
+  await reopenedProduct
+    .locator('[data-testid="loop-editor-node"][data-node-id="wait"]')
+    .click({ button: "right" });
+  for (const verb of ["duplicate", "copy", "delete"]) {
+    await expect(reopenedProduct.getByTestId(`loop-node-menu-${verb}`)).toBeEnabled();
+  }
 });
 
 test("E2E-018: the real Settings API projects a journaled runtime swap through restart", async ({
@@ -1030,9 +1268,10 @@ test("E2E-018: the real Settings API projects a journaled runtime swap through r
 
   try {
     await desktop.cli(["app", "open", "/settings/general"]);
-    const progress = product.getByTestId("settings-page-general-update-progress-runtime");
+    const progress = product.getByTestId("settings-page-general-update-progress");
     for (const phase of ["download", "verify", "install", "start"]) {
-      await expect(progress).toContainText(phase, { timeout: 30_000 });
+      // The daemon's named phase rides on data-phase; the visible label is plain words.
+      await expect(progress).toHaveAttribute("data-phase", phase, { timeout: 30_000 });
     }
     if (!updateResult) throw new Error("The runtime update fixture did not start.");
     const result = await updateResult;
@@ -1123,23 +1362,47 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
   ).toBe("running");
 });
 
-test("E2E-013 E2E-014: running deep links navigate valid paths and collapse hostile payloads to home", async ({
+test("E2E-004 E2E-013 E2E-014: running deep links reject hostile paths and launch bursts reuse one window", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
-  await desktop.spawnSecondary(["compozyos://open/agents"]);
-  await expect(product).toHaveURL(/\/agents(?:\?|$)/u);
-  await desktop.spawnSecondary(["compozyos://open/route-that-does-not-exist"]);
-  await expect(product.getByRole("heading", { name: "Page not found" })).toBeVisible();
-  for (const hostile of [
-    "compozyos://open/http://evil.com",
-    "compozyos://open/../../etc",
-    "compozyos://open//host",
-  ]) {
-    await desktop.spawnSecondary([hostile]);
-    await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
-  }
+  await test.step("E2E-013 E2E-014: running deep links preserve the validation boundary", async () => {
+    await desktop.spawnSecondary(["compozyos://open/agents"]);
+    await expect(product).toHaveURL(/\/agents(?:\?|$)/u);
+    await desktop.spawnSecondary(["compozyos://open/route-that-does-not-exist"]);
+    await expect(product.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    for (const hostile of [
+      "compozyos://open/http://evil.com",
+      "compozyos://open/../../etc",
+      "compozyos://open//host",
+    ]) {
+      await desktop.spawnSecondary([hostile]);
+      await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+    }
+  });
+
+  await test.step("E2E-004: launch bursts reuse one window and deliver the last deep link", async () => {
+    await Promise.all([
+      desktop.spawnSecondary([]),
+      desktop.spawnSecondary(["compozyos://open/tasks"]),
+    ]);
+    await desktop.spawnSecondary(["compozyos://open/settings/general"]);
+    await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
+    const windows = await desktop.app.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().filter(window => {
+          const url = window.webContents.getURL();
+          return url.startsWith("http://") || url.startsWith("https://");
+        }).length
+    );
+    expect(windows).toBe(1);
+    expect(
+      await desktop.app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some(window => window.isVisible())
+      )
+    ).toBe(true);
+  });
 });
 
 test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validation boundary", async ({
@@ -1157,46 +1420,6 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   await expect(product).toHaveURL(/\/tasks(?:\?|$)/u);
   for (const invalid of ["../etc", "/../etc", "//host", "/http://evil.com", "/bad\\path"]) {
     expect(await invalidAppOpenCode(hostile, invalid)).toBe("invalid_target_path");
-  }
-});
-
-test("E2E-024: status, healthy retry, diagnose, and diagnostic bundle remain agent-manageable", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  await desktop.product();
-  const recordPath = join(desktop.home, "app.json");
-  await expect
-    .poll(async () => Reflect.get(JSON.parse(await readFile(recordPath, "utf8")), "state"))
-    .toBe("product");
-  const before = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
-  expect(await jsonCommand(desktop, ["app", "retry", "-o", "json"])).toMatchObject({
-    action: "retry",
-    result: { ok: true },
-  });
-  const after = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
-  expect(after).toMatchObject({ pid: before.pid, state: "product" });
-  const report = await jsonCommand(desktop, ["app", "diagnose", "-o", "json"]);
-  expect(report).toMatchObject({ schema_version: 1, boot_phase: "product" });
-  const bundle = await jsonCommand(desktop, ["app", "diagnose", "--bundle", "--yes", "-o", "json"]);
-  const bundlePath = Reflect.get(bundle.bundle as Record<string, unknown>, "path");
-  expect(typeof bundlePath).toBe("string");
-  expect((await stat(String(bundlePath))).isFile()).toBe(true);
-  const extracted = await mkdtemp(join(tmpdir(), "compozy-diagnostic-bundle-"));
-  try {
-    await extract({ cwd: extracted, file: String(bundlePath) });
-    const manifest = JSON.parse(await readFile(join(extracted, "manifest.json"), "utf8")) as {
-      kind?: unknown;
-      report?: { boot_id?: unknown };
-      schema_version?: unknown;
-    };
-    expect(manifest).toMatchObject({
-      schema_version: 1,
-      kind: "compozyos_desktop_diagnostics",
-      report: { boot_id: report.boot_id },
-    });
-  } finally {
-    await rm(extracted, { recursive: true, force: true });
   }
 });
 
@@ -1375,6 +1598,13 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
         )
     )
     .toBe(true);
+  // Detached DevTools can own native focus; sendInputEvent requires the product window focused.
+  const nativeProduct = await desktop.app.browserWindow(product);
+  await nativeProduct.evaluate(window => {
+    window.focus();
+    window.webContents.focus();
+  });
+  await expect.poll(() => nativeProduct.evaluate(window => window.isFocused())).toBe(true);
   await desktop.app.evaluate(({ BrowserWindow }) => {
     const productWindow = BrowserWindow.getAllWindows().find(window =>
       /^https?:/u.test(window.webContents.getURL())
@@ -1683,7 +1913,8 @@ test("E2E-027: a global summon restores and focuses the palette without crossing
   await product.keyboard.press("Escape");
   await expect(product.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 
-  await product.getByRole("button", { name: "New session" }).last().click();
+  await product.getByRole("menuitem", { name: "Session", exact: true }).click();
+  await product.getByTestId("os-menubar-command-session.new").click();
   const modal = product.getByRole("dialog").first();
   await expect(modal).toBeVisible();
   await invokeGlobalShortcut(desktop, "CommandOrControl+Shift+Space");
@@ -1835,8 +2066,8 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
     ).toBeDisabled();
 
     await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
-      "title",
-      /^Command palette · /u
+      "aria-keyshortcuts",
+      /^(?:Meta|Control)\+/u
     );
     if (process.platform === "darwin") {
       // Chromium reserves Command-based browser shortcuts before Playwright can
@@ -1861,5 +2092,320 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   } finally {
     await browser.close();
+  }
+});
+
+// Invariant: real desktop uptime and catalog activity keep per-client requests within a fixed budget.
+// Owner: packaged renderer and real daemon; canonical Electron shell E2E suite.
+test("@nightly Should bound catalog requests during sixty minutes of native desktop uptime", async ({
+  launchDesktop,
+}, testInfo) => {
+  test.setTimeout(90 * 60_000);
+  let ownedDesktop: DesktopInstance | undefined;
+  let ownedProduct: Page | undefined;
+  let receiptWorkspaceID: string | undefined;
+  let receiptRunID: string | undefined;
+  let sourceHead: string | undefined;
+  let runtimePath: string | undefined;
+  let stage = "source-head";
+  let seeded = 0;
+  let failed = false;
+  let failure: unknown;
+  const cleanupErrors: unknown[] = [];
+  const budget: Record<string, number> = {
+    "/api/sessions": 26,
+    "/api/sessions/facets": 13,
+    "/api/sessions/attention-summary": 13,
+  };
+  const requests: Array<{ elapsed_ms: number; path: string; client_id: string }> = [];
+  const windows: Record<string, number[]> = {};
+  const maxima: Record<string, number> = {};
+  const clientIDs = new Set<string>();
+  const lifecycle: Array<{
+    elapsed_ms: number;
+    visible: boolean;
+    focused: boolean;
+    loop_status: string;
+    churn: number;
+  }> = [];
+  const violations: string[] = [];
+  let began = 0;
+  let measured = false;
+  let completed = false;
+  let churn = 0;
+  const onRequest = (request: Request) => {
+    if (!measured || request.method() !== "GET") return;
+    const path = new URL(request.url()).pathname;
+    const pathLimit = budget[path];
+    if (pathLimit === undefined) return;
+    const clientID = request.headers()["x-compozy-client-id"] ?? "";
+    if (!/^web-[A-Za-z0-9_-]{1,76}$/u.test(clientID)) {
+      violations.push(`Missing renderer client identity: ${path}`);
+      return;
+    }
+    clientIDs.add(clientID);
+    const elapsed = performance.now() - began;
+    requests.push({ elapsed_ms: elapsed, path, client_id: clientID });
+    for (const [key, limit] of [
+      [path, pathLimit],
+      ["all", 52],
+    ] as const) {
+      const window = windows[key] ?? (windows[key] = []);
+      window.push(elapsed);
+      while (window[0] !== undefined && window[0] < elapsed - 60_000) window.shift();
+      maxima[key] = Math.max(maxima[key] ?? 0, window.length);
+      if (window.length > limit)
+        violations.push(`${key}: ${window.length} > ${limit} in rolling 60s`);
+    }
+  };
+  try {
+    const head = await runCommand("git", ["rev-parse", "HEAD"], {
+      cwd: repositoryRoot,
+      env: process.env,
+    });
+    sourceHead = head.stdout.trim();
+    expect(head.exitCode).toBe(0);
+    stage = "desktop-launch";
+    const desktop = await launchDesktop({
+      prepare: async context => {
+        runtimePath = context.bundleRuntimePath;
+        await prepareLoginPathProvider(context);
+      },
+      environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+    });
+    ownedDesktop = desktop;
+    stage = "renderer-boot";
+    const product = await desktop.product();
+    ownedProduct = product;
+    stage = "onboarding";
+    await completeOnboarding(product);
+    stage = "workspace";
+    const workspaceID = await ensureProjectWorkspaceID(desktop, product);
+    receiptWorkspaceID = workspaceID;
+    const createStoppedSession = async (name: string) => {
+      const created = await jsonCommand(desktop, [
+        "session",
+        "new",
+        "--workspace",
+        workspaceID,
+        "--agent",
+        loginPathAgent,
+        "--name",
+        name,
+        "-o",
+        "json",
+      ]);
+      expect(typeof created.id).toBe("string");
+      const stopped = await jsonCommand(desktop, [
+        "session",
+        "stop",
+        String(created.id),
+        "--wait",
+        "-o",
+        "json",
+      ]);
+      expect(stopped).toMatchObject({ session_id: created.id, state: "stopped", verified: true });
+    };
+    stage = "seed-history";
+    for (let index = 0; index < 600; index++) {
+      await createStoppedSession(`catalog-history-${index}`);
+      seeded++;
+    }
+    stage = "verify-history";
+    const history = await product.request.get(
+      new URL(
+        `/api/sessions?workspace_id=${encodeURIComponent(workspaceID)}&state=stopped&limit=1`,
+        product.url()
+      ).toString()
+    );
+    expect(history.ok()).toBe(true);
+    expect((await history.json()).page.total).toBeGreaterThanOrEqual(600);
+
+    stage = "create-loop";
+    const definition = {
+      apiVersion: "compozy.loop/v1",
+      kind: "Loop",
+      meta: { name: "catalog-uptime", version: 1 },
+      contract: {
+        goal: "Keep a real Loop active during the catalog regression",
+        definition_of_done: "The wait completes",
+        stop_when: "nodes.wait.status == 'succeeded'",
+        iteration_cap: 1,
+        no_progress: { window: 1 },
+        budget: { on_exceeded: "halt" },
+      },
+      graph: {
+        nodes: [{ id: "wait", class: "control", kind: "wait", params: { for: "90m" } }],
+        edges: [],
+      },
+      start: [{ kind: "uds" }],
+    };
+    const definitionPath = join(desktop.home, "catalog-uptime.json");
+    await writeFile(definitionPath, JSON.stringify(definition));
+    await desktop.cli([
+      "loop",
+      "create",
+      "--workspace",
+      workspaceID,
+      "--file",
+      definitionPath,
+      "-o",
+      "json",
+    ]);
+    stage = "start-loop";
+    const started = await jsonCommand(desktop, [
+      "loop",
+      "run",
+      "--workspace",
+      workspaceID,
+      "--name",
+      "catalog-uptime",
+      "--no-prompt",
+      "-o",
+      "json",
+    ]);
+    const runID = (started.run as { id: string }).id;
+    expect(typeof runID).toBe("string");
+    expect(runID).not.toBe("");
+    receiptRunID = runID;
+    const runURL = new URL(
+      `/api/workspaces/${encodeURIComponent(workspaceID)}/loop-runs/${encodeURIComponent(runID)}`,
+      product.url()
+    ).toString();
+    stage = "open-catalog";
+    await product.getByRole("menuitem", { name: "Session", exact: true }).click();
+    await product.getByTestId("os-menubar-command-shell.sessions.toggle").click();
+    await expect(product.getByTestId("os-sessions-modal")).toBeVisible();
+    const window = await desktop.app.browserWindow(product);
+    await window.evaluate(nativeWindow => {
+      nativeWindow.show();
+      nativeWindow.focus();
+    });
+    await expect.poll(() => product.evaluate(() => document.hasFocus())).toBe(true);
+    // Initial navigation/seed reconciliation is outside the steady-state budget.
+    await product.waitForTimeout(10_000);
+    product.on("request", onRequest);
+    began = performance.now();
+    measured = true;
+    stage = "measurement";
+    while (performance.now() - began < 3_600_000) {
+      const native = await window.evaluate(nativeWindow => ({
+        visible: nativeWindow.isVisible(),
+        focused: nativeWindow.isFocused(),
+      }));
+      const run = await product.request.get(runURL);
+      expect(run.ok()).toBe(true);
+      const status = (await run.json()).run.status as string;
+      lifecycle.push({
+        elapsed_ms: performance.now() - began,
+        ...native,
+        loop_status: status,
+        churn,
+      });
+      expect(native).toEqual({ visible: true, focused: true });
+      expect(await product.evaluate(() => document.visibilityState)).toBe("visible");
+      expect(status).toBe("running");
+      expect(violations).toEqual([]);
+      // Public lifecycle changes keep delivering real catalog wakes throughout.
+      await createStoppedSession(`catalog-churn-${churn++}`);
+      await product.waitForTimeout(
+        Math.min(10_000, Math.max(0, 3_600_000 - (performance.now() - began)))
+      );
+    }
+    expect(performance.now() - began).toBeGreaterThanOrEqual(3_600_000);
+    expect(churn).toBeGreaterThan(100);
+    expect(clientIDs.size).toBe(1);
+    expect(requests.some(request => request.path === "/api/sessions")).toBe(true);
+    expect(violations).toEqual([]);
+    completed = true;
+    stage = "completed";
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
+  } finally {
+    measured = false;
+    const elapsedMS = began === 0 ? 0 : performance.now() - began;
+    ownedProduct?.off("request", onRequest);
+    let runtimeDigest: string | undefined;
+    if (runtimePath) {
+      try {
+        runtimeDigest = (await executableSha256File(runtimePath)).toString("hex");
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    if (ownedDesktop) {
+      if (receiptWorkspaceID && receiptRunID) {
+        try {
+          await ownedDesktop.cli([
+            "loop",
+            "cancel",
+            "--workspace",
+            receiptWorkspaceID,
+            "--run-id",
+            receiptRunID,
+            "-o",
+            "json",
+          ]);
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      }
+    }
+    try {
+      const receiptPath = testInfo.outputPath("catalog-sixty-minute-rate.json");
+      await writeFile(
+        receiptPath,
+        JSON.stringify(
+          {
+            head: sourceHead,
+            runtime_sha256: runtimeDigest,
+            setup_stage: stage,
+            error: failed
+              ? failure instanceof Error
+                ? { message: failure.message, stack: failure.stack }
+                : String(failure)
+              : undefined,
+            cleanup_errors: cleanupErrors.map(String),
+            completed,
+            elapsed_ms: elapsedMS,
+            seed_stopped_sessions: seeded,
+            workspace_id: receiptWorkspaceID,
+            run_id: receiptRunID,
+            budget,
+            combined_budget: 52,
+            minute_buckets: requests.reduce<Record<string, Record<string, number>>>(
+              (buckets, request) => {
+                const minute = String(Math.floor(request.elapsed_ms / 60_000));
+                const bucket = buckets[minute] ?? (buckets[minute] = {});
+                bucket[request.path] = (bucket[request.path] ?? 0) + 1;
+                return buckets;
+              },
+              {}
+            ),
+            client_ids: [...clientIDs],
+            maxima,
+            churn,
+            lifecycle,
+            requests,
+            violations,
+          },
+          null,
+          2
+        )
+      );
+      await testInfo.attach("catalog-sixty-minute-rate", {
+        path: receiptPath,
+        contentType: "application/json",
+      });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    // launchDesktop's existing finalizer closes only this shell and its daemon,
+    // including any active session left by a failed public churn command.
+  }
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(cleanupErrors, "Catalog regression artifact or cleanup failed.");
   }
 });

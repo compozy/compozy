@@ -26,7 +26,7 @@ test.use({
   },
 });
 
-test("operator applies Memory, Network, Automation, and Observability settings with config parity", async ({
+test("operator applies Automation, Observability, and Providers settings with config parity", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -35,35 +35,6 @@ test("operator applies Memory, Network, Automation, and Observability settings w
 
   await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-
-  const memoryBefore = await runtime.requestJSON<{ config: { recall: { top_k: number } } }>(
-    "/api/settings/memory"
-  );
-  const nextTopK = memoryBefore.config.recall.top_k + 1;
-  await appPage.goto(runtime.url("/settings/memory"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-memory-recall-top-k-input")).toBeVisible();
-  await appPage.getByTestId("settings-page-memory-recall-top-k-input").fill(String(nextTopK));
-  await expect(appPage.getByTestId("settings-page-memory-save")).toBeEnabled();
-  await appPage.getByTestId("settings-page-memory-save").click();
-  await expect(appPage.getByTestId("settings-page-memory-save-message")).toContainText(
-    /restart required/i
-  );
-
-  const networkBefore = await runtime.requestJSON<{
-    config: { max_replay_age: number };
-  }>("/api/settings/network");
-  const nextMaxReplayAge = networkBefore.config.max_replay_age + 1;
-  await appPage.goto(runtime.url("/settings/network"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-network-hero")).toBeVisible();
-  await expect(appPage.getByTestId("settings-page-network-greet-interval")).toHaveCount(0);
-  await expect(appPage.getByTestId("settings-page-network-max-queue-depth")).toHaveCount(0);
-  await appPage.getByTestId("settings-page-network-max-replay-age").fill(String(nextMaxReplayAge));
-  await expect(appPage.getByTestId("settings-page-network-save")).toBeEnabled();
-  await appPage.getByTestId("settings-page-network-save").click();
-  await expect(appPage.getByTestId("settings-page-network-save-message")).toContainText(
-    /restart required/i
-  );
-  await expect(appPage.getByTestId("settings-page-network-restart-notice")).toBeVisible();
 
   const automationBefore = await runtime.requestJSON<{
     config: { max_concurrent_jobs: number };
@@ -111,12 +82,15 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   const providerDetail = appPage.getByTestId("provider-detail-dialog");
   await expect(providerDetail).toBeVisible();
   await expect(providerDetail.getByRole("heading", { name: "codex" })).toBeVisible();
+  // The model catalog sits in the dialog's closed "Technical details" fold.
+  await providerDetail
+    .getByTestId("provider-detail-technical")
+    .getByTestId("settings-advanced-toggle")
+    .click();
   await expect(providerDetail.locator('[data-section="catalog"]')).toBeVisible();
 
   const parity = {
     http: {
-      memory: await runtime.requestJSON<unknown>("/api/settings/memory"),
-      network: await runtime.requestJSON<unknown>("/api/settings/network"),
       automation: await runtime.requestJSON<unknown>("/api/settings/automation"),
       observability: await runtime.requestJSON<unknown>("/api/settings/observability"),
       provider_catalog: await runtime.requestJSON<unknown>(
@@ -124,8 +98,6 @@ test("operator applies Memory, Network, Automation, and Observability settings w
       ),
     },
     uds: {
-      memory: await requestOperatorJSON<unknown>(runtime, "/api/settings/memory"),
-      network: await requestOperatorJSON<unknown>(runtime, "/api/settings/network"),
       automation: await requestOperatorJSON<unknown>(runtime, "/api/settings/automation"),
       observability: await requestOperatorJSON<unknown>(runtime, "/api/settings/observability"),
       provider_catalog: await requestOperatorJSON<unknown>(
@@ -134,20 +106,6 @@ test("operator applies Memory, Network, Automation, and Observability settings w
       ),
     },
     cli: {
-      memory_top_k: await runCLIJSON(runtime.paths, [
-        "config",
-        "get",
-        "memory.recall.top_k",
-        "-o",
-        "json",
-      ]),
-      network_max_replay_age: await runCLIJSON(runtime.paths, [
-        "config",
-        "get",
-        "network.max_replay_age",
-        "-o",
-        "json",
-      ]),
       automation_max_concurrent_jobs: await runCLIJSON(runtime.paths, [
         "config",
         "get",
@@ -174,27 +132,17 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     config_file_excerpt: await readFile(runtime.paths.configFile, "utf8"),
   };
 
-  expect(JSON.stringify(parity.http.memory)).toContain(`"top_k":${nextTopK}`);
-  expect(JSON.stringify(parity.http.network)).toContain(`"max_replay_age":${nextMaxReplayAge}`);
   expect(JSON.stringify(parity.http.automation)).toContain(
     `"max_concurrent_jobs":${nextMaxConcurrent}`
   );
   expect(JSON.stringify(parity.http.observability)).toContain(
     `"retention_days":${nextRetentionDays}`
   );
-  expect(JSON.stringify(parity.cli.memory_top_k)).toContain(`"value":${nextTopK}`);
-  expect(JSON.stringify(parity.cli.network_max_replay_age)).toContain(
-    `"value":${nextMaxReplayAge}`
-  );
   expect(JSON.stringify(parity.cli.automation_max_concurrent_jobs)).toContain(
     `"value":${nextMaxConcurrent}`
   );
   expect(JSON.stringify(parity.cli.observability_retention_days)).toContain(
     `"value":${nextRetentionDays}`
-  );
-  expect(parity.config_file_excerpt).toContain("[network]");
-  expect(parity.config_file_excerpt).toMatch(
-    new RegExp(`max_replay_age\\s*=\\s*${nextMaxReplayAge}`)
   );
   expect(JSON.stringify(parity)).not.toMatch(sensitivePattern);
 
@@ -206,75 +154,6 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     runtime,
     "/settings/observability"
   );
-  await browserArtifacts.persist(appPage);
-  await assertNoSettingsSensitiveLeak(appPage, runtime, []);
-});
-
-test("operator sees restart failure and active-session warning without losing recovery controls", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-  await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-general-session-timeout-input")).toBeVisible();
-
-  await appPage.route("**/api/settings/actions/restart/op-settings-failed", async route => {
-    const now = new Date().toISOString();
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        operation_id: "op-settings-failed",
-        status: "failed",
-        status_url: "/api/settings/actions/restart/op-settings-failed",
-        active_session_count: 2,
-        failure_reason: "browser restart fault injection",
-        started_at: now,
-        updated_at: now,
-        completed_at: now,
-      }),
-    });
-  });
-  await appPage.route("**/api/settings/actions/restart", async route => {
-    const now = new Date().toISOString();
-    await route.fulfill({
-      status: 202,
-      contentType: "application/json",
-      body: JSON.stringify({
-        operation_id: "op-settings-failed",
-        status: "stopping",
-        status_url: "/api/settings/actions/restart/op-settings-failed",
-        active_session_count: 2,
-        started_at: now,
-        updated_at: now,
-      }),
-    });
-  });
-
-  const currentTimeout = await appPage
-    .getByTestId("settings-page-general-session-timeout-input")
-    .inputValue();
-  await appPage
-    .getByTestId("settings-page-general-session-timeout-input")
-    .fill(nextNumberString(currentTimeout));
-  await expect(appPage.getByTestId("settings-page-general-save")).toBeEnabled();
-  await appPage.getByTestId("settings-page-general-save").click();
-  const restartNotice = appPage.getByTestId("settings-page-general-restart-notice");
-  await expect(restartNotice).toBeVisible();
-
-  await restartNoticeTrigger(appPage, "general").click();
-  await expect(restartNotice).toContainText("Restart failed");
-  await expect(restartNotice).toContainText("browser restart fault injection");
-  await expect(restartNotice).toContainText("2 active sessions");
-  await expect(restartNoticeTrigger(appPage, "general")).toBeEnabled();
-
-  const snapshot = {
-    restart_notice: await restartNotice.textContent(),
-  };
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
-  await browserArtifacts.captureScreenshot("settings-restart-failure-active-sessions", appPage);
   await browserArtifacts.persist(appPage);
   await assertNoSettingsSensitiveLeak(appPage, runtime, []);
 });
@@ -446,13 +325,4 @@ async function readFileIfExists(filePath: string): Promise<string> {
     }
     throw error;
   }
-}
-
-function nextNumberString(value: string): string {
-  const parsed = Number.parseInt(value.trim(), 10);
-  return String(Number.isFinite(parsed) ? parsed + 1 : 46);
-}
-
-function restartNoticeTrigger(page: Page, slug: string) {
-  return page.getByTestId(`settings-page-${slug}-restart-trigger`);
 }

@@ -15,6 +15,8 @@ import {
 
 import "@xyflow/react/dist/style.css";
 
+import { useThemePreference } from "@/systems/theme";
+
 import type { EditorEdge, EditorNode } from "../../lib/codec";
 import {
   EDITOR_NODE_HEIGHT,
@@ -94,6 +96,7 @@ export function LoopEditorCanvas({
   loopDefaultEnvironment,
 }: LoopEditorCanvasProps) {
   const { getZoom, screenToFlowPosition, setCenter } = useReactFlow();
+  const { resolvedTheme } = useThemePreference();
   const lastHandledSeq = useRef(0);
   const displayNodes = nodes.map(node => ({
     ...node,
@@ -145,9 +148,7 @@ export function LoopEditorCanvas({
 
   return (
     <ReactFlow
-      // Dark-only for v1 (CompozyOS ships a single dark theme); wire `colorMode` to the app theme
-      // if a light theme lands.
-      colorMode="dark"
+      colorMode={resolvedTheme}
       nodes={displayNodes}
       edges={displayEdges}
       nodeTypes={nodeTypes}

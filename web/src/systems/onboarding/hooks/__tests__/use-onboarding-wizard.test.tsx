@@ -1,5 +1,6 @@
 // Suite: first-run onboarding progression
-// Invariant: onboarding completes after the runtime and workspace steps without creating a session.
+// Invariant: onboarding completes without creating a session; explicit Skip selects Global only
+// after persistence succeeds, while normal Finish retains the selected project.
 // Boundary IN: onboarding wizard orchestration and draft reset.
 // Boundary OUT: provider/workspace adapters and completion persistence.
 import { act, renderHook } from "@testing-library/react";
@@ -7,6 +8,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { onboardingDraftStore } from "../../stores/use-onboarding-draft-store";
 import { ONBOARDING_STEP_COUNT, useOnboardingWizard } from "../use-onboarding-wizard";
+import {
+  activeWorkspaceStore,
+  clearActiveWorkspaceSelection,
+  setActiveWorkspaceId,
+} from "@/systems/workspace/stores/active-workspace-store";
 
 const mocks = vi.hoisted(() => ({
   commitDefaultModel: vi.fn(),
@@ -46,6 +52,7 @@ describe("useOnboardingWizard", () => {
     mocks.isRemoving = false;
     mocks.isResolving = false;
     onboardingDraftStore.trigger.draftCleared();
+    clearActiveWorkspaceSelection();
   });
 
   it("Should complete directly from the workspace step", async () => {
@@ -78,6 +85,47 @@ describe("useOnboardingWizard", () => {
     expect(result.current.maxStep).toBe(2);
   });
 
+  it.each([
+    { action: "next" as const, scope: "workspace" },
+    { action: "skipToGlobal" as const, scope: "global" },
+  ])("Should finish through $action in $scope while remembering the project", async testCase => {
+    setActiveWorkspaceId("ws_main");
+    onboardingDraftStore.trigger.stepVisited({ step: 2 });
+    const onComplete = vi.fn();
+    const { result } = renderHook(() => useOnboardingWizard(onComplete));
+
+    await act(async () => {
+      await result.current[testCase.action]();
+    });
+
+    expect(activeWorkspaceStore.getSnapshot().context).toMatchObject({
+      scope: testCase.scope,
+      selectedWorkspaceId: "ws_main",
+    });
+    expect(onComplete).toHaveBeenCalledOnce();
+    expect(onboardingDraftStore.getSnapshot().context.step).toBe(1);
+  });
+
+  it("Should preserve the project and setup draft when Skip cannot persist completion", async () => {
+    setActiveWorkspaceId("ws_main");
+    onboardingDraftStore.trigger.stepVisited({ step: 2 });
+    mocks.completeOnboarding.mockRejectedValueOnce(new Error("Daemon unavailable"));
+    const onComplete = vi.fn();
+    const { result } = renderHook(() => useOnboardingWizard(onComplete));
+
+    await act(async () => {
+      await result.current.skipToGlobal();
+    });
+
+    expect(result.current.commitError).toBe("Daemon unavailable");
+    expect(activeWorkspaceStore.getSnapshot().context).toMatchObject({
+      scope: "workspace",
+      selectedWorkspaceId: "ws_main",
+    });
+    expect(onboardingDraftStore.getSnapshot().context.step).toBe(2);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
   it.each(["isResolving", "isRemoving"] as const)(
     "Should block completion while a workspace operation reports %s",
     async busyFlag => {
@@ -89,6 +137,7 @@ describe("useOnboardingWizard", () => {
       expect(result.current.isBusy).toBe(true);
       await act(async () => {
         await result.current.next();
+        await result.current.skipToGlobal();
       });
 
       expect(mocks.completeOnboarding).not.toHaveBeenCalled();

@@ -125,11 +125,3 @@ func dereferenceSchema(schema *dsl.Schema) dsl.Schema {
 	}
 	return *schema
 }
-
-func renderCompactionPrompt(segment *segmentState) string {
-	return fmt.Sprintf(
-		"Compact the active session context for this durable Goal without changing its objective or claiming completion. "+
-			"Preserve decisions, evidence, current work, and the pinned criteria.\n\nObjective:\n%s",
-		strings.TrimSpace(segment.params.Objective),
-	)
-}

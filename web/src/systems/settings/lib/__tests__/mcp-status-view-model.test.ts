@@ -10,12 +10,10 @@ import {
   formatStatusLabel,
   isOAuthCapable,
   isOAuthRepairable,
-  MCP_AUTH_STATUSES,
-  MCP_PROBE_STATES,
-  MCP_RUNTIME_STATES,
   probeTone,
   probeToolLabel,
   runtimeTone,
+  summarizeMCPStatus,
 } from "../mcp-status-view-model";
 
 type AuthStatus = NonNullable<SettingsMCPServerEntry["auth_status"]>;
@@ -118,28 +116,11 @@ describe("mcp status tone mapping", () => {
     expect(runtimeTone("some_future_state")).toBe("neutral");
   });
 
-  it("covers the full runtime vocabulary with a defined tone", () => {
-    for (const state of MCP_RUNTIME_STATES) {
-      expect(["success", "warning", "danger", "neutral", "info"]).toContain(runtimeTone(state));
-    }
-  });
-
   it("maps probe states and never renders skipped as a failure", () => {
     expect(probeTone("succeeded")).toBe("success");
     expect(probeTone("failed")).toBe("danger");
     expect(probeTone("skipped")).toBe("neutral");
     expect(probeTone("skipped")).not.toBe("danger");
-  });
-
-  it("keeps the vocabularies aligned with the daemon", () => {
-    expect([...MCP_AUTH_STATUSES]).toEqual([
-      "unconfigured",
-      "needs_login",
-      "authenticated",
-      "expired",
-      "invalid",
-    ]);
-    expect([...MCP_PROBE_STATES]).toEqual(["skipped", "succeeded", "failed"]);
   });
 });
 
@@ -491,5 +472,64 @@ describe("composeMCPRowStatus", () => {
     expect(status.runtime.tone).toBe("neutral");
     expect(status.probe.tone).toBe("neutral");
     expect(status.probe.code).toBeUndefined();
+  });
+});
+
+describe("summarizeMCPStatus", () => {
+  // Invariant: the row's single status is the most severe signal, and only a ready runtime is green.
+  it.each([
+    [
+      "a runtime failure over a healthy sign-in",
+      {
+        authStatus: { status: "authenticated", token_present: true },
+        runtimeStatus: { state: "dead", probe: "skipped" },
+      },
+      { label: "Unavailable", tone: "danger" },
+    ],
+    [
+      "an invalid sign-in",
+      { authStatus: { status: "invalid" }, runtimeStatus: { state: "ready", probe: "skipped" } },
+      { label: "Sign-in failed", tone: "danger" },
+    ],
+    [
+      "a failed probe on a ready runtime",
+      { runtimeStatus: { state: "ready", probe: "failed" } },
+      { label: "Couldn't connect", tone: "danger" },
+    ],
+    [
+      "a server that needs sign-in",
+      {
+        authStatus: { status: "needs_login" },
+        runtimeStatus: { state: "auth_required", probe: "skipped" },
+      },
+      { label: "Needs sign-in", tone: "warning" },
+    ],
+    [
+      "an expired sign-in",
+      {
+        authStatus: { status: "expired" },
+        runtimeStatus: { state: "auth_expired", probe: "skipped" },
+      },
+      { label: "Sign-in expired", tone: "warning" },
+    ],
+    [
+      "a ready server",
+      { runtimeStatus: { state: "ready", probe: "succeeded", tool_count: 3 } },
+      { label: "Ready", tone: "success" },
+    ],
+    [
+      "a server with no runtime status",
+      { runtimeStatus: null },
+      { label: "Not checked yet", tone: "neutral" },
+    ],
+    [
+      "an unknown future runtime state",
+      { runtimeStatus: { state: "warming_up", probe: "skipped" } },
+      { label: "Warming up", tone: "neutral" },
+    ],
+  ] as const)("summarizes %s", (_name, overrides, expected) => {
+    const entry = makeEntry(overrides as EntryOverrides);
+    expect(summarizeMCPStatus(entry)).toEqual(expected);
+    expect(composeMCPRowStatus(entry).summary).toEqual(expected);
   });
 });

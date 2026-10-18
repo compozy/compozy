@@ -1,7 +1,7 @@
 package testutil
 
 import (
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,7 +18,7 @@ func WorktreeRouteKeysFromGin(routes gin.RoutesInfo) []string {
 			keys = append(keys, route.Method+" "+route.Path)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 
@@ -40,7 +40,7 @@ func ExpectedWorktreeRouteKeys() []string {
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 		"POST /api/workspaces/:workspace_id/worktrees/adopt",
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 

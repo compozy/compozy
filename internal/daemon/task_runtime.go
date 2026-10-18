@@ -41,7 +41,6 @@ type taskRuntime struct {
 	reentry              *harnessReentryBridge
 	wakeBridge           *taskWakeBridge
 	claimHandoff         *taskClaimHandoffRuntime
-	bridgeNotifications  *bridgeTerminalTaskNotificationObserver
 	taskStatusProjection *taskStatusProjectionObserver
 	loopActions          *loopActionRuntime
 	coordinatorBackstop  *loopCoordinatorBootGate

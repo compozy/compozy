@@ -2,11 +2,9 @@ package daemon
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
-	redactpkg "github.com/compozy/compozy/internal/redact"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -31,22 +29,5 @@ func untrustedTerminalResult(value any, preview string) (toolspkg.ToolResult, er
 		return toolspkg.ToolResult{}, err
 	}
 	result.Trust = toolspkg.ResultTrustUntrustedModel
-	return result, nil
-}
-
-func structuredNetworkResult(value any, preview string) (toolspkg.ToolResult, error) {
-	result, err := structuredResult(value, preview)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	redactedStructured := json.RawMessage(redactpkg.String(string(result.Structured)))
-	if !json.Valid(redactedStructured) {
-		return toolspkg.ToolResult{}, errors.New("daemon: redacted network tool result is invalid JSON")
-	}
-	result.Structured = redactedStructured
-	result.Preview = strings.TrimSpace(redactpkg.String(result.Preview))
-	for idx := range result.Content {
-		result.Content[idx].Text = redactpkg.String(result.Content[idx].Text)
-	}
 	return result, nil
 }

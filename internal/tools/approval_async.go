@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const approvalExecutionTimeout = 10 * time.Minute
@@ -42,7 +42,7 @@ func NewApprovalCoordinator(store ApprovalPendingStore, dispatcher ApprovalDispa
 	ctx, cancel := context.WithCancel(context.Background())
 	return &asyncApprovalCoordinator{
 		store: store, dispatcher: dispatcher,
-		now: time.Now, newID: func() string { return "apr_" + uuid.NewString() },
+		now: time.Now, newID: func() string { return "apr_" + uuid.NewV4().String() },
 		logger: slog.Default(),
 		ctx:    ctx, cancel: cancel, timers: make(map[string]*time.Timer),
 		completions: make(map[string]chan struct{}),

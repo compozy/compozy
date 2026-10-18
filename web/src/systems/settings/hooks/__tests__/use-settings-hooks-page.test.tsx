@@ -6,10 +6,7 @@ import { useSettingsHooksPage } from "../use-settings-hooks-page";
 const scope = vi.hoisted(() => ({ destination: "marketing" }));
 const workspace = vi.hoisted(() => ({ activeWorkspaceId: "ws-a" as string | null }));
 const mutations = vi.hoisted(() => ({
-  createPreset: vi.fn(),
-  deletePreset: vi.fn(),
   putHook: vi.fn(),
-  setPresetEnablement: vi.fn(),
 }));
 
 vi.mock("../use-settings-page", () => ({
@@ -25,21 +22,6 @@ vi.mock("@/systems/profiles", () => ({
 
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: workspace.activeWorkspaceId }),
-}));
-
-vi.mock("@/systems/notifications", () => ({
-  useCreateNotificationPreset: () => ({ error: null, mutate: mutations.createPreset }),
-  useDeleteNotificationPreset: () => ({ error: null, mutate: mutations.deletePreset }),
-  useNotificationPresets: () => ({
-    data: { presets: [] },
-    error: null,
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
-  useSetNotificationPresetEnablement: () => ({
-    error: null,
-    mutate: mutations.setPresetEnablement,
-  }),
 }));
 
 vi.mock("@/systems/settings", () => ({

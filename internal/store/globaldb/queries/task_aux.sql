@@ -76,9 +76,33 @@ WHERE id = sqlc.arg(id);
 SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE (CAST(sqlc.arg(task_id) AS TEXT) = '' OR task_id = CAST(sqlc.arg(task_id) AS TEXT))
+WHERE CAST(sqlc.arg(task_id) AS TEXT) <> ''
+  AND task_id = CAST(sqlc.arg(task_id) AS TEXT)
   AND (CAST(sqlc.arg(run_id) AS TEXT) = '' OR run_id = CAST(sqlc.arg(run_id) AS TEXT))
   AND (CAST(sqlc.arg(event_type) AS TEXT) = '' OR event_type = CAST(sqlc.arg(event_type) AS TEXT))
+UNION ALL
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(run_id) AS TEXT) <> ''
+  AND run_id = CAST(sqlc.arg(run_id) AS TEXT)
+  AND (CAST(sqlc.arg(event_type) AS TEXT) = '' OR event_type = CAST(sqlc.arg(event_type) AS TEXT))
+UNION ALL
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(run_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(event_type) AS TEXT) <> ''
+  AND event_type = CAST(sqlc.arg(event_type) AS TEXT)
+UNION ALL
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(run_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(event_type) AS TEXT) = ''
 ORDER BY timestamp DESC, id DESC
 LIMIT sqlc.arg(result_limit);
 
@@ -95,8 +119,30 @@ SELECT EXISTS(
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE (CAST(sqlc.arg(task_id) AS TEXT) = '' OR task_id = CAST(sqlc.arg(task_id) AS TEXT))
-  AND (CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0 OR event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER))
+WHERE CAST(sqlc.arg(task_id) AS TEXT) <> ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) > 0
+  AND task_id = CAST(sqlc.arg(task_id) AS TEXT)
+  AND event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) <> ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0
+  AND task_id = CAST(sqlc.arg(task_id) AS TEXT)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) > 0
+  AND event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0
 ORDER BY event_seq ASC
 LIMIT sqlc.arg(result_limit);
 
@@ -104,8 +150,30 @@ LIMIT sqlc.arg(result_limit);
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE (CAST(sqlc.arg(task_id) AS TEXT) = '' OR task_id = CAST(sqlc.arg(task_id) AS TEXT))
-  AND (CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0 OR event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER))
+WHERE CAST(sqlc.arg(task_id) AS TEXT) <> ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) > 0
+  AND task_id = CAST(sqlc.arg(task_id) AS TEXT)
+  AND event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) <> ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0
+  AND task_id = CAST(sqlc.arg(task_id) AS TEXT)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) > 0
+  AND event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
+  AND CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0
 ORDER BY event_seq DESC
 LIMIT sqlc.arg(result_limit);
 

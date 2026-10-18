@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -32,12 +31,10 @@ func TestValidatePermissionSubset(t *testing.T) {
 	t.Parallel()
 
 	parent := store.SessionPermissionPolicy{
-		Tools:           []string{testToolEdit, testToolRead},
-		Skills:          []string{"go", "tests"},
-		MCPServers:      []string{"filesystem"},
-		WorkspacePaths:  []string{"/repo"},
-		NetworkChannels: []string{"builders"},
-		SandboxProfiles: []string{"default"},
+		Tools:          []string{testToolEdit, testToolRead},
+		Skills:         []string{"go", "tests"},
+		MCPServers:     []string{"filesystem"},
+		WorkspacePaths: []string{"/repo"},
 	}
 
 	tests := []struct {
@@ -52,12 +49,10 @@ func TestValidatePermissionSubset(t *testing.T) {
 		{
 			name: "Should accept subset permissions",
 			child: store.SessionPermissionPolicy{
-				Tools:           []string{testToolRead},
-				Skills:          []string{"go"},
-				MCPServers:      []string{"filesystem"},
-				WorkspacePaths:  []string{"/repo"},
-				NetworkChannels: []string{"builders"},
-				SandboxProfiles: []string{"default"},
+				Tools:          []string{testToolRead},
+				Skills:         []string{"go"},
+				MCPServers:     []string{"filesystem"},
+				WorkspacePaths: []string{"/repo"},
 			},
 		},
 		{
@@ -265,12 +260,10 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 		h := newHostedMCPHarness(t, WithNow(func() time.Time { return now }))
 		parentPolicy := store.SessionPermissionPolicy{
-			Tools:           []string{testToolEdit, testToolRead},
-			Skills:          []string{"go", "tests"},
-			MCPServers:      []string{"filesystem"},
-			WorkspacePaths:  []string{h.workspace},
-			NetworkChannels: []string{"builders"},
-			SandboxProfiles: []string{"default"},
+			Tools:          []string{testToolEdit, testToolRead},
+			Skills:         []string{"go", "tests"},
+			MCPServers:     []string{"filesystem"},
+			WorkspacePaths: []string{h.workspace},
 		}
 		parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{
 			MaxChildren:           2,
@@ -287,12 +280,10 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			TTL:              30 * time.Minute,
 			AutoStopOnParent: true,
 			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools:           []string{testToolRead},
-				Skills:          []string{"go"},
-				MCPServers:      []string{"filesystem"},
-				WorkspacePaths:  []string{h.workspace},
-				NetworkChannels: []string{"builders"},
-				SandboxProfiles: []string{"default"},
+				Tools:          []string{testToolRead},
+				Skills:         []string{"go"},
+				MCPServers:     []string{"filesystem"},
+				WorkspacePaths: []string{h.workspace},
 			},
 		})
 		if err != nil {
@@ -303,9 +294,6 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		info := child.Info()
 		if info.Type != SessionTypeSpawned {
 			t.Fatalf("child type = %q, want %q", info.Type, SessionTypeSpawned)
-		}
-		if got, want := info.NetworkParticipation, participation.LocalSpec(); got != want {
-			t.Fatalf("child participation = %#v, want %#v", got, want)
 		}
 		if info.Lineage == nil {
 			t.Fatal("child lineage = nil, want durable lineage")
@@ -452,158 +440,6 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		if got := len(h.driver.startCalls); got != startsBefore {
 			t.Fatalf("driver starts after missing binding = %d, want %d", got, startsBefore)
-		}
-	})
-
-	t.Run("Should keep children local by default and enforce their delegated channel scope", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHostedMCPHarness(t, WithParticipationResolver(newTestSessionParticipationResolver(t, true)))
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName:                    "coder",
-			Workspace:                    h.workspaceID,
-			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-			Lineage: &store.SessionLineage{
-				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
-				PermissionPolicy: store.SessionPermissionPolicy{
-					Tools:           []string{testToolRead},
-					NetworkChannels: []string{"builders", "restricted"},
-				},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Create(parent) error = %v", err)
-		}
-		cleanupSessionStop(t, h, parent.ID)
-
-		localChild, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
-			ParentSessionID: parent.ID,
-			AgentName:       "coder",
-			TTL:             time.Minute,
-			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools: []string{testToolRead},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Spawn(local) error = %v", err)
-		}
-		cleanupSessionStop(t, h, localChild.ID)
-		if got, want := localChild.Info().NetworkParticipation, participation.LocalSpec(); got != want {
-			t.Fatalf("local child participation = %#v, want %#v", got, want)
-		}
-
-		live := participation.ModeLive
-		named := participation.StrategyNamed
-		builders := "builders"
-		liveChild, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
-			ParentSessionID: parent.ID,
-			AgentName:       "coder",
-			TTL:             time.Minute,
-			NetworkParticipation: &participation.Request{
-				Mode:            &live,
-				ChannelStrategy: &named,
-				ChannelID:       &builders,
-			},
-			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools:           []string{testToolRead},
-				NetworkChannels: []string{"builders"},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Spawn(live) error = %v", err)
-		}
-		cleanupSessionStop(t, h, liveChild.ID)
-		if got, want := liveChild.Info().NetworkParticipation.ChannelID, builders; got != want {
-			t.Fatalf("live child channel = %q, want %q", got, want)
-		}
-
-		activeBefore := len(h.manager.List())
-		restricted := "restricted"
-		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
-			ParentSessionID: parent.ID,
-			AgentName:       "coder",
-			TTL:             time.Minute,
-			NetworkParticipation: &participation.Request{
-				Mode:            &live,
-				ChannelStrategy: &named,
-				ChannelID:       &restricted,
-			},
-			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools:           []string{testToolRead},
-				NetworkChannels: []string{"builders"},
-			},
-		})
-		if !errors.Is(err, participation.ErrAuthorityDenied) {
-			t.Fatalf("Spawn(denied) error = %v, want %v", err, participation.ErrAuthorityDenied)
-		}
-		if got := len(h.manager.List()); got != activeBefore {
-			t.Fatalf("active sessions after denial = %d, want %d", got, activeBefore)
-		}
-	})
-
-	t.Run("Should keep an automatic-title child off collaboration channels", func(t *testing.T) {
-		t.Parallel()
-
-		wakeNotifier := &recordingSpawnWakeNotifier{}
-		h := newHarness(
-			t,
-			WithParticipationResolver(newTestSessionParticipationResolver(t, true)),
-			WithSpawnWakeNotifier(wakeNotifier),
-		)
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName:                    "coder",
-			Workspace:                    h.workspaceID,
-			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-			Lineage: &store.SessionLineage{
-				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 1, MaxDepth: 1},
-				PermissionPolicy: store.SessionPermissionPolicy{
-					NetworkChannels: []string{"builders"},
-				},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Create(parent) error = %v", err)
-		}
-		cleanupSessionStop(t, h, parent.ID)
-
-		live := participation.ModeLive
-		named := participation.StrategyNamed
-		builders := "builders"
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
-			ParentSessionID: parent.ID,
-			AgentName:       "coder",
-			NetworkParticipation: &participation.Request{
-				Mode:            &live,
-				ChannelStrategy: &named,
-				ChannelID:       &builders,
-			},
-			SpawnRole:        SpawnRoleAutoTitle,
-			TTL:              time.Minute,
-			AutoStopOnParent: true,
-			PermissionPolicy: store.SessionPermissionPolicy{
-				NetworkChannels: []string{"builders"},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Spawn() error = %v", err)
-		}
-		cleanupSessionStop(t, h, child.ID)
-
-		if got, want := child.Info().NetworkParticipation, participation.LocalSpec(); got != want {
-			t.Fatalf("child participation = %#v, want %#v", got, want)
-		}
-		if got, want := readMeta(t, child.MetaPath()).NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-			t.Fatalf("persisted child participation = %#v, want %#v", got, want)
-		}
-		if child.Info().Lineage == nil || child.Info().Lineage.NotifyCreator {
-			t.Fatalf("child lineage = %#v, want creator wake disabled", child.Info().Lineage)
-		}
-		meta := readMeta(t, child.MetaPath())
-		if meta.Lineage == nil || meta.Lineage.NotifyCreator {
-			t.Fatalf("persisted child lineage = %#v, want creator wake disabled", meta.Lineage)
-		}
-		if parents, events := wakeNotifier.calls(); len(parents) != 0 || len(events) != 0 {
-			t.Fatalf("internal child wakes = parents %#v events %#v, want none", parents, events)
 		}
 	})
 
@@ -806,105 +642,6 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
-		})
-		if !errors.Is(err, ErrSpawnValidation) {
-			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnValidation)
-		}
-	})
-
-	t.Run("Should allow daemon memory extractor spawns from stopped parents", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHostedMCPHarness(t)
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName:                    "coder",
-			Name:                         "networked parent",
-			Workspace:                    h.workspaceID,
-			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-			Type:                         SessionTypeUser,
-			Lineage: &store.SessionLineage{
-				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
-				PermissionPolicy: store.SessionPermissionPolicy{
-					Tools:           []string{testToolRead},
-					NetworkChannels: []string{"builders"},
-				},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Create(parent) error = %v", err)
-		}
-		if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
-			t.Fatalf("Stop(parent) error = %v", err)
-		}
-
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
-			ParentSessionID:    parent.ID,
-			AgentName:          "coder",
-			SpawnRole:          SpawnRoleMemoryExtractor,
-			TTL:                time.Minute,
-			AllowStoppedParent: true,
-			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools: []string{testToolRead},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Spawn() error = %v", err)
-		}
-		cleanupSessionStop(t, h, child.ID)
-
-		if got, want := child.Info().NetworkParticipation, participation.LocalSpec(); got != want {
-			t.Fatalf("child participation = %#v, want %#v", got, want)
-		}
-		if got, want := readMeta(t, child.MetaPath()).NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-			t.Fatalf("persisted child participation = %#v, want %#v", got, want)
-		}
-
-		lineage := child.Info().Lineage
-		if lineage == nil ||
-			lineage.ParentSessionID != parent.ID ||
-			lineage.RootSessionID != parent.ID ||
-			lineage.SpawnRole != SpawnRoleMemoryExtractor ||
-			lineage.AutoStopOnParent {
-			t.Fatalf("child lineage = %#v, want extractor child linked to stopped parent without auto-stop", lineage)
-		}
-	})
-
-	t.Run("Should reject stopped parent override outside memory extractor role", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHostedMCPHarness(t)
-		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
-			Tools: []string{testToolRead},
-		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
-		cleanupSessionStop(t, h, parent.ID)
-
-		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
-			ParentSessionID:    parent.ID,
-			AgentName:          "coder",
-			TTL:                time.Minute,
-			AllowStoppedParent: true,
-		})
-		if !errors.Is(err, ErrSpawnValidation) {
-			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnValidation)
-		}
-	})
-
-	t.Run("Should reject stopped parent override with auto stop lineage", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHostedMCPHarness(t)
-		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
-			Tools: []string{testToolRead},
-		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
-		cleanupSessionStop(t, h, parent.ID)
-
-		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
-			ParentSessionID:    parent.ID,
-			AgentName:          "coder",
-			SpawnRole:          SpawnRoleMemoryExtractor,
-			TTL:                time.Minute,
-			AutoStopOnParent:   true,
-			AllowStoppedParent: true,
 		})
 		if !errors.Is(err, ErrSpawnValidation) {
 			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnValidation)
@@ -1276,6 +1013,7 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 		childCommand     string
 		childProvider    string
 		override         string
+		attemptCommand   string
 		want             string
 		isolatedHome     bool
 		isolatedEnv      bool
@@ -1289,6 +1027,10 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 		{name: "Should keep isolated child home routing", childProvider: "claude", isolatedHome: true, want: "account-a"},
 		{name: "Should keep changed child environment routing", childProvider: "claude", isolatedEnv: true, want: "account-a"},
 		{name: "Should keep an authorized foreign workspace routing", childProvider: "claude", foreignWorkspace: true, want: "account-a"},
+		// UT-034: an attempt command wins over inheritance and over the agent command.
+		{name: "Should launch an attempt command instead of inheriting", childProvider: "claude", attemptCommand: "SEAT=2 claude --acp", want: "SEAT=2 claude --acp"},
+		{name: "Should launch an attempt command over the child agent command", childProvider: "claude", childCommand: "account-c", attemptCommand: "SEAT=2 claude --acp", want: "SEAT=2 claude --acp"},
+		{name: "Should launch an attempt command on a different provider", childProvider: "claude", override: "codex", attemptCommand: "CODEX_HOME=/x codex acp", want: "CODEX_HOME=/x codex acp"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1343,6 +1085,8 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 					Provider:        tt.override,
 					Workspace:       workspace.ID,
 					TTL:             time.Minute,
+					Command:         tt.attemptCommand,
+					ChainOwner:      ChainOwnerCaller,
 				},
 			)
 			if err != nil {
@@ -1453,4 +1197,212 @@ func TestSpawnProviderRouteDiagnostics(t *testing.T) {
 			}
 		},
 	)
+}
+
+// Invariant: an agent-requested spawn (session-owned) runs the child's agent chain inside
+// one acceptance lifetime; exhaustion persists exactly one failed child start (IT-004).
+func TestManagerSpawnRunsAgentFallbackChain(t *testing.T) {
+	t.Parallel()
+
+	spawnReviewer := func(t *testing.T, h *harness) (*Session, error) {
+		t.Helper()
+		parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, parent.ID)
+		return h.manager.Spawn(t.Context(), SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "reviewer", Workspace: h.workspaceID, TTL: time.Minute,
+		})
+	}
+
+	t.Run("Should bind the child on the next route without a failed start", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h))
+		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+		child, err := spawnReviewer(t, h)
+		if err != nil {
+			t.Fatalf("Spawn(reviewer) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if got := startCommands(h); len(got) != 3 || got[1] != fallbackSeatZero || got[2] != fallbackSeatOne {
+			t.Fatalf("start commands = %v, want parent, refused seat zero, accepted seat one", got)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if meta.Failure != nil || meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 1 ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
+			t.Fatalf(
+				"child meta failure=%#v accepted_route=%#v, want seat one accepted",
+				meta.Failure,
+				meta.AcceptedRoute,
+			)
+		}
+		rows := ledger.fallbackRows()
+		if len(rows) != 1 || rows[0].SessionID != child.ID ||
+			decodeFallbackPayload(t, rows[0]).Phase != fallbackPhaseCreate {
+			t.Fatalf("session.fallback.used rows = %#v, want one create row for the child", rows)
+		}
+	})
+
+	t.Run("Should persist one failed child start when the chain is exhausted", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h))
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  rateLimitRefusal(),
+		})
+		_, err := spawnReviewer(t, h)
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 2 attempt(s)") {
+			t.Fatalf("Spawn(reviewer) error = %v, want exhaustion", err)
+		}
+		failed := 0
+		for _, meta := range persistedSessionMetas(t, h) {
+			if meta.AgentName == "reviewer" {
+				if meta.Failure == nil {
+					t.Fatalf("reviewer meta = %#v, want a failed start", meta)
+				}
+				failed++
+			}
+		}
+		if failed != 1 || len(ledger.fallbackRows()) != 1 {
+			t.Fatalf("failed child starts = %d rows = %d, want 1 and 1", failed, len(ledger.fallbackRows()))
+		}
+	})
+}
+
+// Invariant: only subagent spawns bypass numeric governance, retain narrowing, and reject TTL rewrites.
+// Owner: Safe Spawn; canonical suite: spawn_test.go (UT-013, UT-014, UT-042).
+func TestSubagentSpawn(t *testing.T) {
+	t.Parallel()
+	// Invariant: isolated bindings override inheritance and hooks cannot rebind them (UT-026, UT-032).
+	for _, mode := range []string{"shared", "worktree", "rebind"} {
+		t.Run("Should preserve structural worktree binding "+mode, func(t *testing.T) {
+			t.Parallel()
+			hooks := &recordingSessionSpawnHooks{}
+			if mode == "rebind" {
+				hooks.preCreatePatch = func(p hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload {
+					p.Subagent.WorktreeID = "forbidden"
+					return p
+				}
+			}
+			resolver := &fakeSessionWorktreeResolver{id: "wt-parent", root: t.TempDir()}
+			h := newHostedMCPHarness(t, WithWorktreeResolver(resolver), WithHookSet(HookSet{Spawn: hooks}))
+			parent, err := h.manager.Create(
+				t.Context(),
+				CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-parent"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, parent.ID)
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			output, err := h.manager.Prompt(t.Context(), parent.ID, "delegate")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { close(source); collectEvents(t, output) }()
+			opts := SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", SpawnRole: store.SubagentSpawnRole,
+				Subagent: &hookspkg.SubagentSpawnPayload{Isolation: "shared"}}
+			expected := "wt-parent"
+			if mode != "shared" {
+				expected = "wt-b"
+				opts.IsolatedWorktreeID = expected
+				opts.Subagent.Isolation, opts.Subagent.WorktreeID = "worktree", expected
+			}
+			prepared, _, _, err := h.manager.prepareSpawn(t.Context(), opts)
+			if mode == "rebind" {
+				if !errors.Is(err, ErrSubagentCapabilityDenied) ||
+					!strings.Contains(err.Error(), "inherited worktree binding is immutable") {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil || prepared.InheritedWorktreeID != expected {
+				t.Fatal(prepared, err)
+			}
+			if mode == "worktree" &&
+				(len(hooks.preCreate) != 1 || hooks.preCreate[0].Subagent.Isolation != "worktree" || hooks.preCreate[0].Subagent.WorktreeID != expected) {
+				t.Fatal(hooks.preCreate)
+			}
+		})
+	}
+
+	for _, denyTTL := range []bool{false, true} {
+		name := "Should spawn without TTL or caps UT-013 UT-014 UT-042"
+		if denyTTL {
+			name = "Should reject hook TTL rewrite UT-042"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			hooks := &recordingSessionSpawnHooks{}
+			if denyTTL {
+				hooks.preCreatePatch = func(p hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload { p.TTLSeconds = 1; return p }
+			}
+			h := newHarness(t, WithHookSet(HookSet{Spawn: hooks}))
+			parent := createSpawnParent(
+				t,
+				h,
+				store.SessionPermissionPolicy{},
+				store.SessionSpawnBudget{MaxDepth: 1, MaxChildren: 1},
+			)
+			cleanupSessionStop(t, h, parent.ID)
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			output, err := h.manager.Prompt(t.Context(), parent.ID, "delegate while active")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { close(source); collectEvents(t, output) }()
+			opts := SpawnOpts{
+				ParentSessionID: parent.ID,
+				AgentName:       "coder",
+				SpawnRole:       store.SubagentSpawnRole,
+				IdempotencyKey:  "sub-test",
+				Subagent:        &hookspkg.SubagentSpawnPayload{Title: "Review", Role: "review", TaskChars: 7},
+			}
+			child, err := h.manager.Spawn(t.Context(), opts)
+			if denyTTL {
+				if !errors.Is(err, ErrSubagentCapabilityDenied) {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, child.ID)
+			if child.ID != subagentChildSessionID(parent.ID, opts.IdempotencyKey) {
+				t.Fatalf(
+					"spawn ID %s differs from recovery ID %s",
+					child.ID,
+					subagentChildSessionID(parent.ID, opts.IdempotencyKey),
+				)
+			}
+			if child.Info().Lineage.TTLExpiresAt != nil || child.Info().Lineage.NotifyCreator ||
+				!child.Info().Lineage.AutoStopOnParent {
+				t.Fatal(child.Info().Lineage)
+			}
+			if len(hooks.preCreate) != 1 || hooks.preCreate[0].Subagent == nil ||
+				hooks.preCreate[0].Subagent.TaskChars != 7 {
+				t.Fatal(hooks.preCreate)
+			}
+			replay, err := h.manager.Spawn(t.Context(), opts)
+			if err != nil || replay.ID != child.ID {
+				t.Fatal(replay, err)
+			}
+			opts.IdempotencyKey = "sub-test-2"
+			second, err := h.manager.Spawn(t.Context(), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, second.ID)
+			opts.SpawnRole = DefaultSpawnRole
+			if _, err := h.manager.Spawn(t.Context(), opts); !errors.Is(err, ErrSpawnValidation) {
+				t.Fatal(err)
+			}
+		})
+	}
 }

@@ -46,7 +46,7 @@ export const PreserveCase: Story = {
 /** Inline with surrounding mono text. */
 export const Inline: Story = {
   render: () => (
-    <div className="flex items-center gap-2 text-[12px] text-muted">
+    <div className="flex items-center gap-2 text-eyebrow text-muted">
       <span>run</span>
       <MonoId value="run_4qzpnzdnif" />
       <span>started 3m ago</span>

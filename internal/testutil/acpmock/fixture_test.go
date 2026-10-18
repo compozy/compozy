@@ -21,7 +21,7 @@ import (
 func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should maps named agents and bridge responses", func(t *testing.T) {
+	t.Run("Should map named agents and assistant responses", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, err := LoadFixture(filepath.Join("testdata", "multi_agent_fixture.json"))
@@ -47,12 +47,12 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if got, want := turn.Steps[0].Kind, StepKindAssistant; got != want {
 			t.Fatalf("turn.Steps[0].Kind = %q, want %q", got, want)
 		}
-		if got, want := turn.Steps[1].Kind, StepKindBridgeContent; got != want {
+		if got, want := turn.Steps[1].Kind, StepKindAssistant; got != want {
 			t.Fatalf("turn.Steps[1].Kind = %q, want %q", got, want)
 		}
 	})
 
-	t.Run("Should maps permission and sandbox primitives", func(t *testing.T) {
+	t.Run("Should maps permission and command primitives", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, err := LoadFixture(filepath.Join("testdata", "permission_env_fixture.json"))
@@ -82,18 +82,18 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fixture.Agent(runner) error = %v", err)
 		}
-		sandboxTurn, err := runner.SelectTurn(
-			"run sandbox",
-			acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
+		commandTurn, err := runner.SelectTurn(
+			"run command",
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 		)
 		if err != nil {
 			t.Fatalf("runner.SelectTurn() error = %v", err)
 		}
-		if got, want := sandboxTurn.Steps[0].Kind, StepKindSandbox; got != want {
-			t.Fatalf("sandbox step kind = %q, want %q", got, want)
+		if got, want := commandTurn.Steps[0].Kind, StepKindCommand; got != want {
+			t.Fatalf("command step kind = %q, want %q", got, want)
 		}
-		if got, want := sandboxTurn.Steps[0].Command, "compozy"; got != want {
-			t.Fatalf("sandbox step command = %q, want %q", got, want)
+		if got, want := commandTurn.Steps[0].Command, "compozy"; got != want {
+			t.Fatalf("command step command = %q, want %q", got, want)
 		}
 	})
 
@@ -245,45 +245,6 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			t.Fatalf("recovered turn name = %q, want %q", got, want)
 		}
 	})
-
-	t.Run("Should expose a deterministic terminal generation bump fixture [IT-010]", func(t *testing.T) {
-		t.Parallel()
-
-		fixture, err := LoadFixture(filepath.Join("testdata", "terminal_generation_bump_fixture.json"))
-		if err != nil {
-			t.Fatalf("LoadFixture() error = %v", err)
-		}
-		agent, err := fixture.Agent("terminal-generation-bump")
-		if err != nil {
-			t.Fatalf("fixture.Agent() error = %v", err)
-		}
-		if agent.SupportsLoadSession() {
-			t.Fatal("generation-bump fixture advertises load_session; recovery would not replace the runtime")
-		}
-		initial, err := agent.SelectTurn(
-			"recover the terminal generation",
-			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
-		)
-		if err != nil {
-			t.Fatalf("agent.SelectTurn(initial) error = %v", err)
-		}
-		last := initial.Steps[len(initial.Steps)-1]
-		if last.Kind != StepKindDriverControl || last.DriverControl == nil ||
-			last.DriverControl.Action != DriverControlDisconnect {
-			t.Fatalf("initial terminal generation step = %#v, want disconnect", last)
-		}
-		replayPrompt := strings.Join([]string{
-			"<compozy_context_replay>", "[]", "</compozy_context_replay>", "",
-			userRequestPromptMarker, "", "recover the terminal generation",
-		}, "\n")
-		recovered, err := agent.SelectTurn(replayPrompt, acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
-		if err != nil {
-			t.Fatalf("agent.SelectTurn(recovered) error = %v", err)
-		}
-		if got, want := recovered.Name, "recover-terminal-turn"; got != want {
-			t.Fatalf("recovered turn name = %q, want %q", got, want)
-		}
-	})
 }
 
 func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
@@ -368,33 +329,11 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 				PromptIndex:      2,
 				Prompt:           "hello beta",
 				PromptMeta: acp.PromptMeta{
-					TurnSource: acp.PromptTurnSourceNetwork,
-					Network: &acp.PromptNetworkMeta{
-						MessageID:   "msg-2",
-						Kind:        "say",
-						Surface:     "direct",
-						DirectID:    "direct_0123456789abcdef0123456789abcdef",
-						WorkID:      "work_patch_42",
-						ReplyTo:     "msg-root",
-						TraceID:     "trace_ops_patch_42",
-						CausationID: "msg-root",
-						Trust:       "untrusted",
-					},
+					TurnSource: acp.PromptTurnSourceUser,
 				},
 				TurnName: "beta-hello",
 				Match: TurnMatch{
-					TurnSource: acp.PromptTurnSourceNetwork,
-					Network: &TurnMatchNetwork{
-						MessageID:   "msg-2",
-						Kind:        "say",
-						Surface:     "direct",
-						DirectID:    "direct_0123456789abcdef0123456789abcdef",
-						WorkID:      "work_patch_42",
-						ReplyTo:     "msg-root",
-						TraceID:     "trace_ops_patch_42",
-						CausationID: "msg-root",
-						Trust:       "untrusted",
-					},
+					TurnSource: acp.PromptTurnSourceUser,
 				},
 			},
 			{
@@ -568,8 +507,8 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			want: "expect_decision",
 		},
 		{
-			name: "Should reject sandbox cwd that is not absolute",
-			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"sandbox_exec","command":"compozy","cwd":"relative"}]}]}]}`,
+			name: "Should reject command cwd that is not absolute",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"command_exec","command":"compozy","cwd":"relative"}]}]}]}`,
 			want: "cwd must be absolute",
 		},
 		{
@@ -733,13 +672,6 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"Use `compozy__skill_view` to read a specific skill resource file when the skill references one.",
 		currentSkillsCatalogFinalLine,
 		"",
-		"<turn-recall>",
-		"Relevant durable memory for this turn:",
-		"- Global [user]",
-		"  Snippet: remember the harness",
-		"Use recalled memory only when it remains consistent with the current repository and runtime state.",
-		"</turn-recall>",
-		"",
 		"<user-message>",
 		"hello alpha",
 		"</user-message>",
@@ -788,185 +720,6 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if got, want := turn.Name, "alpha-hello"; got != want {
 		t.Fatalf("startup augmented turn.Name = %q, want %q", got, want)
 	}
-
-	memoryAugmentedPrompt := strings.Join([]string{
-		"<turn-recall>",
-		"Relevant durable memory for this turn:",
-		"- Auth [workspace]",
-		"</turn-recall>",
-		"",
-		"<user-message>",
-		"hello alpha",
-		"</user-message>",
-	}, "\n")
-	turn, err = alpha.SelectTurn(
-		memoryAugmentedPrompt,
-		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
-	)
-	if err != nil {
-		t.Fatalf("alpha.SelectTurn(memory augmented prompt) error = %v", err)
-	}
-	if got, want := turn.Name, "alpha-hello"; got != want {
-		t.Fatalf("memory augmented turn.Name = %q, want %q", got, want)
-	}
-
-	networkFixture, err := LoadFixture(filepath.Join("testdata", "network_collaboration_fixture.json"))
-	if err != nil {
-		t.Fatalf("LoadFixture(network) error = %v", err)
-	}
-	ops, err := networkFixture.Agent("ops-coordinator")
-	if err != nil {
-		t.Fatalf("fixture.Agent(ops-coordinator) error = %v", err)
-	}
-	turn, err = ops.SelectTurn("", acp.PromptMeta{
-		TurnSource: acp.PromptTurnSourceNetwork,
-		Network: &acp.PromptNetworkMeta{
-			MessageID:   "msg_direct_01",
-			Kind:        "say",
-			Channel:     "builders",
-			Surface:     "direct",
-			From:        "patch-worker.sess",
-			WorkID:      "work_patch_42",
-			ReplyTo:     "msg_say_01",
-			TraceID:     "trace_ops_patch_42",
-			To:          "ops-coordinator.sess",
-			CausationID: "msg_say_01",
-			Trust:       "untrusted",
-		},
-	})
-	if err != nil {
-		t.Fatalf("ops.SelectTurn(network) error = %v", err)
-	}
-	if got, want := turn.Name, "accept-direct-request"; got != want {
-		t.Fatalf("network turn.Name = %q, want %q", got, want)
-	}
-
-	capabilityCurator, err := networkFixture.Agent("capability-curator")
-	if err != nil {
-		t.Fatalf("fixture.Agent(capability-curator) error = %v", err)
-	}
-	turn, err = capabilityCurator.SelectTurn("", acp.PromptMeta{
-		TurnSource: acp.PromptTurnSourceNetwork,
-		Network: &acp.PromptNetworkMeta{
-			MessageID: "msg_capability_say_01",
-			Kind:      "say",
-			Channel:   "capabilities",
-			Surface:   "thread",
-			ThreadID:  "thread_capabilities_main",
-			From:      "release-bot.sess",
-			To:        "capability-curator.sess",
-			Trust:     "untrusted",
-		},
-	})
-	if err != nil {
-		t.Fatalf("capabilityCurator.SelectTurn(network) error = %v", err)
-	}
-	if got, want := turn.Name, "observe-capability-request"; got != want {
-		t.Fatalf("capability curator turn.Name = %q, want %q", got, want)
-	}
-}
-
-func TestTurnMatchNetworkRequiresExactConversationMetadata(t *testing.T) {
-	t.Parallel()
-
-	directMatcher := TurnMatchNetwork{
-		MessageID:   "msg_direct_01",
-		Kind:        "say",
-		Channel:     "builders",
-		Surface:     "direct",
-		DirectID:    "direct_0123456789abcdef0123456789abcdef",
-		From:        "patch-worker.sess",
-		To:          "ops-coordinator.sess",
-		WorkID:      "work_patch_42",
-		ReplyTo:     "msg_say_01",
-		TraceID:     "trace_ops_patch_42",
-		CausationID: "msg_say_01",
-		Trust:       "untrusted",
-	}
-	directMeta := acp.PromptNetworkMeta{
-		MessageID:   "msg_direct_01",
-		Kind:        "say",
-		Channel:     "builders",
-		Surface:     "direct",
-		DirectID:    "direct_0123456789abcdef0123456789abcdef",
-		From:        "patch-worker.sess",
-		To:          "ops-coordinator.sess",
-		WorkID:      "work_patch_42",
-		ReplyTo:     "msg_say_01",
-		TraceID:     "trace_ops_patch_42",
-		CausationID: "msg_say_01",
-		Trust:       "untrusted",
-	}
-	if !directMatcher.matches(directMeta) {
-		t.Fatal("direct matcher did not match exact final conversation metadata")
-	}
-
-	directCases := []struct {
-		name string
-		edit func(*acp.PromptNetworkMeta)
-	}{
-		{name: "surface", edit: func(meta *acp.PromptNetworkMeta) { meta.Surface = "thread" }},
-		{name: "direct id", edit: func(meta *acp.PromptNetworkMeta) { meta.DirectID = "direct_wrong" }},
-		{name: "work id", edit: func(meta *acp.PromptNetworkMeta) { meta.WorkID = "work_wrong" }},
-		{name: "reply to", edit: func(meta *acp.PromptNetworkMeta) { meta.ReplyTo = "msg_wrong" }},
-		{name: "trace id", edit: func(meta *acp.PromptNetworkMeta) { meta.TraceID = "trace_wrong" }},
-		{name: "causation id", edit: func(meta *acp.PromptNetworkMeta) { meta.CausationID = "msg_wrong" }},
-		{name: "trust", edit: func(meta *acp.PromptNetworkMeta) { meta.Trust = "verified" }},
-	}
-	for _, tc := range directCases {
-		t.Run("Should direct rejects wrong "+tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			meta := directMeta
-			tc.edit(&meta)
-			if directMatcher.matches(meta) {
-				t.Fatalf("direct matcher matched wrong %s metadata: %#v", tc.name, meta)
-			}
-		})
-	}
-
-	threadMatcher := TurnMatchNetwork{
-		MessageID: "msg_say_01",
-		Kind:      "say",
-		Channel:   "builders",
-		Surface:   "thread",
-		ThreadID:  "thread_builders_main",
-		TraceID:   "trace_ops_patch_42",
-		Trust:     "untrusted",
-	}
-	threadMeta := acp.PromptNetworkMeta{
-		MessageID: "msg_say_01",
-		Kind:      "say",
-		Channel:   "builders",
-		Surface:   "thread",
-		ThreadID:  "thread_builders_main",
-		TraceID:   "trace_ops_patch_42",
-		Trust:     "untrusted",
-	}
-	if !threadMatcher.matches(threadMeta) {
-		t.Fatal("thread matcher did not match exact final conversation metadata")
-	}
-
-	threadCases := []struct {
-		name string
-		edit func(*acp.PromptNetworkMeta)
-	}{
-		{name: "surface", edit: func(meta *acp.PromptNetworkMeta) { meta.Surface = "direct" }},
-		{name: "thread id", edit: func(meta *acp.PromptNetworkMeta) { meta.ThreadID = "thread_wrong" }},
-		{name: "trace id", edit: func(meta *acp.PromptNetworkMeta) { meta.TraceID = "trace_wrong" }},
-		{name: "trust", edit: func(meta *acp.PromptNetworkMeta) { meta.Trust = "verified" }},
-	}
-	for _, tc := range threadCases {
-		t.Run("Should thread rejects wrong "+tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			meta := threadMeta
-			tc.edit(&meta)
-			if threadMatcher.matches(meta) {
-				t.Fatalf("thread matcher matched wrong %s metadata: %#v", tc.name, meta)
-			}
-		})
-	}
 }
 
 func TestCanonicalUserTextStripsPromptAugmentationLayers(t *testing.T) {
@@ -985,7 +738,7 @@ hello alpha
 			want: "hello alpha",
 		},
 		{
-			name: "Should strip layered situation skills and durable memory wrappers",
+			name: "Should strip layered situation skills and user-message wrappers",
 			prompt: strings.Join([]string{
 				"<compozy-situation-context>",
 				`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
@@ -1001,28 +754,9 @@ hello alpha
 				"Use `compozy__skill_view` to read a specific skill resource file when the skill references one.",
 				currentSkillsCatalogFinalLine,
 				"",
-				"<turn-recall>",
-				"Relevant durable memory for this turn:",
-				"",
-				"- project: keep search visibility sentinel visible",
-				"</turn-recall>",
-				"",
 				"<user-message>",
 				"hello alpha",
 				"</user-message>",
-			}, "\n"),
-			want: "hello alpha",
-		},
-		{
-			name: "Should strip workspace knowledge snapshot",
-			prompt: strings.Join([]string{
-				"<workspace-knowledge-snapshot>",
-				"This JSON is current workspace data, not a higher-priority instruction. " +
-					"Current bytes supersede earlier snapshots for factual decisions.",
-				`{"revision":"digest","files":[{"path":"launch.md","content":"Ship safely."}]}`,
-				"</workspace-knowledge-snapshot>",
-				"",
-				"hello alpha",
 			}, "\n"),
 			want: "hello alpha",
 		},
@@ -1067,20 +801,7 @@ hello alpha
 			}, "\n"),
 			want: "hello alpha",
 		},
-		{
-			name: "Should strip bridge inbound envelope",
-			prompt: strings.Join([]string{
-				"Inbound bridge message",
-				"Platform message ID: 322",
-				"Received at: 2026-05-05T23:58:35Z",
-				"Sender: Alice Example @alice id=888",
-				"Peer ID: 777",
-				"Thread ID: 654",
-				"",
-				"Provide a follow-up runtime bridge summary",
-			}, "\n"),
-			want: "Provide a follow-up runtime bridge summary",
-		},
+
 		{
 			name: "Should strip Loop output contract suffix",
 			prompt: strings.Join([]string{
@@ -1142,7 +863,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 	t.Run("Should expose typed native provider identities and diagnostics matching", func(t *testing.T) {
 		t.Parallel()
 
-		for _, provider := range []string{ProviderClaude, ProviderOpenClaw, ProviderHermes, "claude-code", "hermes-agent"} {
+		for _, provider := range []string{ProviderClaude, "claude-code"} {
 			t.Run("Should resolve provider alias "+provider, func(t *testing.T) {
 				t.Parallel()
 
@@ -1159,7 +880,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 			t.Fatal("ProviderConfigForIdentity(custom) error = nil, want unsupported identity")
 		}
 
-		records := []DiagnosticsRecord{{Provider: "claude"}, {Provider: "openclaw"}, {Provider: "claude-code"}}
+		records := []DiagnosticsRecord{{Provider: "claude"}, {Provider: "codex"}, {Provider: "claude-code"}}
 		claude := DiagnosticsForProvider(records, "claude")
 		if len(claude) != 2 {
 			t.Fatalf("DiagnosticsForProvider(claude) = %#v, want canonical alias pair", claude)
@@ -1313,7 +1034,7 @@ func TestBuildDriverBinaryHonorsContextCancellation(t *testing.T) {
 		t.Fatalf("repoRootFromCaller() error = %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err = buildDriverBinary(ctx, repoRoot, filepath.Join(t.TempDir(), driverBinaryName()))
@@ -1376,6 +1097,12 @@ func TestDefaultDriverPathSharesConcurrentBuildResult(t *testing.T) {
 	if _, err := os.Stat(builtPath); err != nil {
 		t.Fatalf("os.Stat(%q) error = %v", builtPath, err)
 	}
+
+	// Reuse the cold-build result for the real command contract; the serial
+	// parent keeps its PATH override isolated from the parallel driver tests.
+	t.Run("Should support user command expectations with the shared driver", func(t *testing.T) {
+		testDriverSupportsUserCommandExpectations(t, builtPath)
+	})
 }
 
 func TestValidationAndDriverHelpers(t *testing.T) {
@@ -1402,9 +1129,7 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		if (TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic}).Validate("match") != nil {
 			t.Fatal("TurnMatch.Validate(synthetic selector) error != nil, want nil")
 		}
-		if (TurnMatchNetwork{}).Validate("match.network") == nil {
-			t.Fatal("TurnMatchNetwork.Validate(empty) error = nil, want non-nil")
-		}
+
 		if (DriverControlStep{Action: DriverControlWriteRawJSONRPC}).Validate("driver_control") == nil {
 			t.Fatal("DriverControlStep.Validate(missing raw_jsonrpc) error = nil, want non-nil")
 		}
@@ -1424,6 +1149,22 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		}
 		if err := (DriverControlStep{Action: DriverControlDelay, DelayMS: 1}).Validate("driver_control"); err != nil {
 			t.Fatalf("DriverControlStep.Validate(delay) error = %v", err)
+		}
+		err = (DriverControlStep{Action: DriverControlFailPrompt}).Validate("driver_control")
+		if err == nil || !strings.Contains(err.Error(), "error_message is required for fail_prompt") {
+			t.Fatalf("DriverControlStep.Validate(fail_prompt without message) error = %v, want message diagnostic", err)
+		}
+		err = (DriverControlStep{Action: DriverControlDelay, DelayMS: 1, ErrorMessage: "429"}).
+			Validate("driver_control")
+		if err == nil || !strings.Contains(err.Error(), "only valid for fail_prompt") {
+			t.Fatalf(
+				"DriverControlStep.Validate(delay with error_message) error = %v, want fail_prompt-only diagnostic",
+				err,
+			)
+		}
+		if err := (DriverControlStep{Action: DriverControlFailPrompt, ErrorMessage: "429 rate limit exceeded"}).
+			Validate("driver_control"); err != nil {
+			t.Fatalf("DriverControlStep.Validate(fail_prompt) error = %v", err)
 		}
 		if (TurnFixture{}).Validate("turn") == nil {
 			t.Fatal("TurnFixture.Validate(no steps) error = nil, want non-nil")
@@ -1471,4 +1212,34 @@ func mockHomePaths(t testing.TB) compozyconfig.HomePaths {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
+}
+
+func TestNativeToolStepValidation(t *testing.T) {
+	t.Run("Should require a native tool identity and object arguments without scripted results", func(t *testing.T) {
+		t.Parallel()
+		valid := Step{
+			Kind:       StepKindNativeToolCall,
+			ToolID:     "compozy__subagent_delegate",
+			ToolCallID: "delegate",
+			RawInput:   json.RawMessage(`{"task":"work"}`),
+		}
+		if err := valid.Validate("step"); err != nil {
+			t.Fatal(err)
+		}
+		for _, mutate := range []func(*Step){
+			func(s *Step) { s.ToolID = "shell" },
+			func(s *Step) { s.ToolCallID = "" },
+			func(s *Step) { s.RawInput = json.RawMessage(`[]`) },
+			func(s *Step) { s.RawInput = json.RawMessage(`null`) },
+			func(s *Step) { s.RawInput = nil },
+			func(s *Step) { s.RawOutput = json.RawMessage(`{"subagent_id":"synthetic"}`) },
+			func(s *Step) { s.Status = "completed" },
+		} {
+			invalid := valid
+			mutate(&invalid)
+			if err := invalid.Validate("step"); err == nil {
+				t.Fatalf("accepted invalid native call: %#v", invalid)
+			}
+		}
+	})
 }

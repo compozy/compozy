@@ -124,20 +124,21 @@ func resolveOptions(opts []Option) (resolverOptions, error) {
 	}
 
 	resolved := resolverOptions{
-		homePaths: homePaths,
-		loadConfig: func(rootDir string) (compozyconfig.Config, error) {
-			return compozyconfig.Load(compozyconfig.WithWorkspaceRoot(rootDir))
-		},
-		loadProfileConfig: func(rootDir string, profileName string) (compozyconfig.Config, error) {
-			return compozyconfig.Load(
-				compozyconfig.WithWorkspaceRoot(rootDir),
-				compozyconfig.WithProfile(profileName),
-			)
-		},
+		homePaths:   homePaths,
 		logger:      slog.Default(),
 		now:         time.Now,
 		cacheTTL:    defaultCacheTTL,
 		idGenerator: generateID,
+	}
+	resolved.loadConfig = func(rootDir string) (compozyconfig.Config, error) {
+		return compozyconfig.LoadForHome(resolved.homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
+	}
+	resolved.loadProfileConfig = func(rootDir string, profileName string) (compozyconfig.Config, error) {
+		return compozyconfig.LoadForHome(
+			resolved.homePaths,
+			compozyconfig.WithWorkspaceRoot(rootDir),
+			compozyconfig.WithProfile(profileName),
+		)
 	}
 	for _, opt := range opts {
 		if opt != nil {

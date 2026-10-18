@@ -32,7 +32,7 @@ type SkillResourceSpec struct {
 	ActivationGates        ActivationGates     `json:"activation_gates,omitzero"`
 	MCPServers             []MCPServerDecl     `json:"mcp_servers,omitempty"`
 	Hooks                  []hookspkg.HookDecl `json:"hooks,omitempty"`
-	Provenance             *Provenance         `json:"provenance,omitempty"`
+	Provenance             *Provenance         `json:"provenance,omitzero"`
 	InstalledFrom          string              `json:"installed_from,omitempty"`
 	InstalledFromExtension string              `json:"installed_from_extension,omitempty"`
 	Origin                 string              `json:"origin,omitempty"`
@@ -275,8 +275,7 @@ func cloneSkillHookDecls(src []hookspkg.HookDecl) []hookspkg.HookDecl {
 		next.SecretEnv = cloneStringMap(decl.SecretEnv)
 		next.Metadata = cloneStringMap(decl.Metadata)
 		if decl.Matcher.ToolReadOnly != nil {
-			value := *decl.Matcher.ToolReadOnly
-			next.Matcher.ToolReadOnly = &value
+			next.Matcher.ToolReadOnly = new(*decl.Matcher.ToolReadOnly)
 		}
 		cloned = append(cloned, next)
 	}

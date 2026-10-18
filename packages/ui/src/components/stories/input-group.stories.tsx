@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CommandIcon, MailIcon, SearchIcon } from "lucide-react";
+import { ArrowUp, Bot, CommandIcon, MailIcon, Paperclip, SearchIcon } from "lucide-react";
 
 import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import {
@@ -115,6 +115,30 @@ export const TextareaWithActions: Story = {
         </InputGroup>
         <FieldDescription>Press ⌘⏎ to submit or continue typing to refine.</FieldDescription>
       </Field>
+    </div>
+  ),
+};
+
+/** Chat composer: canvas card, quiet tool pills, round inverted send. Focus lifts the card. */
+export const Composer: Story = {
+  args: {},
+  render: () => (
+    <div className="w-xl">
+      <InputGroup variant="composer">
+        <InputGroupTextarea aria-label="Message" placeholder="Message the agent..." rows={1} />
+        <InputGroupAddon align="block-end">
+          <InputGroupButton size="tool" aria-label="Attach files">
+            <Paperclip />
+          </InputGroupButton>
+          <InputGroupButton size="tool">
+            <Bot />
+            codex · high
+          </InputGroupButton>
+          <InputGroupButton size="send" aria-label="Send message">
+            <ArrowUp />
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
     </div>
   ),
 };

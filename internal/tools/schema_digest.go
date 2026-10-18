@@ -7,7 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -56,6 +57,7 @@ func SchemaDigest(raw json.RawMessage) (string, error) {
 // DescriptorWithSchemaDigests returns a descriptor with canonical schema digests populated.
 func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
 	descriptor.ToolPresentation = CloneToolPresentation(descriptor.ToolPresentation)
+	descriptor.ToolExecutionMetadata = CloneToolExecutionMetadata(descriptor.ToolExecutionMetadata)
 	inputDigest, err := SchemaDigest(descriptor.InputSchema)
 	if err != nil {
 		return Descriptor{}, wrapField(err, "input_schema")
@@ -118,11 +120,7 @@ func appendCanonicalValue(builder *strings.Builder, value any) error {
 		}
 		builder.WriteByte(']')
 	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(typed))
 		builder.WriteByte('{')
 		for i, key := range keys {
 			if i > 0 {

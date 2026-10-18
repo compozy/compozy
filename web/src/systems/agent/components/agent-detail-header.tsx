@@ -19,7 +19,7 @@ export function AgentDetailHeader({ agent }: AgentDetailHeaderProps) {
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-4" data-testid="agent-detail-header">
       {origin ? (
-        <Pill mono size="sm" data-testid="agent-detail-header-origin">
+        <Pill size="sm" data-testid="agent-detail-header-origin">
           {origin}
         </Pill>
       ) : null}

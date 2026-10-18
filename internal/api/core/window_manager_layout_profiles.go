@@ -1,11 +1,12 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -38,14 +39,12 @@ func (h *BaseHandlers) ListWindowManagerLayoutProfiles(c *gin.Context) {
 		}
 		records = append(records, visible...)
 	}
-	sort.Slice(records, func(left, right int) bool {
-		if records[left].ID != records[right].ID {
-			return records[left].ID < records[right].ID
-		}
-		if records[left].Scope.Kind != records[right].Scope.Kind {
-			return records[left].Scope.Kind < records[right].Scope.Kind
-		}
-		return records[left].Scope.ID < records[right].Scope.ID
+	slices.SortFunc(records, func(a, b resources.RawRecord) int {
+		return cmp.Or(
+			cmp.Compare(a.ID, b.ID),
+			cmp.Compare(a.Scope.Kind, b.Scope.Kind),
+			cmp.Compare(a.Scope.ID, b.Scope.ID),
+		)
 	})
 	c.JSON(http.StatusOK, contract.ResourcesResponse{Records: ResourceRecordPayloadsFromRaw(records)})
 }

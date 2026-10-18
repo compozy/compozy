@@ -6,63 +6,12 @@ import (
 	"io"
 	"log/slog"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
-
-type compactionHandlerStub struct {
-	mu      sync.Mutex
-	calls   []CompactionRequest
-	compact func(context.Context, CompactionRequest) (CompactionResult, error)
-}
-
-func (s *compactionHandlerStub) CompactSessionContext(
-	ctx context.Context,
-	request CompactionRequest,
-) (CompactionResult, error) {
-	s.mu.Lock()
-	s.calls = append(s.calls, request)
-	compact := s.compact
-	s.mu.Unlock()
-	if compact == nil {
-		return CompactionResult{}, nil
-	}
-	return compact(ctx, request)
-}
-
-func (s *compactionHandlerStub) callCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.calls)
-}
-
-func recordCompactionTurn(
-	t *testing.T,
-	manager *Manager,
-	session *Session,
-	turnID string,
-	text string,
-	complete bool,
-) {
-	t.Helper()
-	for _, event := range []acp.AgentEvent{
-		{Type: acp.EventTypeUserMessage, TurnID: turnID, Text: text, Timestamp: time.Now().UTC()},
-		{Type: acp.EventTypeDone, TurnID: turnID, Timestamp: time.Now().UTC()},
-	} {
-		if !complete && event.Type == acp.EventTypeDone {
-			continue
-		}
-		if err := manager.recordEvent(testutil.Context(t), session, event); err != nil {
-			t.Fatalf("recordEvent(%s) error = %v", event.Type, err)
-		}
-	}
-}
 
 func newNativeHookDispatcher(
 	t *testing.T,
@@ -409,46 +358,6 @@ type orderedRecorder struct {
 
 func (r *orderedRecorder) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
 	return nil, nil
-}
-
-type recordingNetworkPeerLifecycle struct {
-	joinErr  error
-	leaveErr error
-	joins    []networkJoinCall
-	leaves   []string
-}
-
-type networkJoinCall struct {
-	sessionID    string
-	peerID       string
-	channel      string
-	capabilities []NetworkPeerCapability
-}
-
-func (r *recordingNetworkPeerLifecycle) JoinChannel(
-	_ context.Context,
-	join NetworkPeerJoin,
-) error {
-	r.joins = append(r.joins, networkJoinCall{
-		sessionID:    join.SessionID,
-		peerID:       join.PeerID,
-		channel:      join.Channel,
-		capabilities: cloneNetworkPeerCapabilities(join.Capabilities),
-	})
-	return r.joinErr
-}
-
-func (r *recordingNetworkPeerLifecycle) LeaveChannel(_ context.Context, sessionID string) error {
-	r.leaves = append(r.leaves, sessionID)
-	return r.leaveErr
-}
-
-func (r *recordingNetworkPeerLifecycle) joinCount() int {
-	return len(r.joins)
-}
-
-func (r *recordingNetworkPeerLifecycle) leaveCount() int {
-	return len(r.leaves)
 }
 
 func (r *orderedRecorder) Record(_ context.Context, event store.SessionEvent) error {

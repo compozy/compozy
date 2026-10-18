@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"maps"
 
-	"sort"
+	"slices"
 	"strings"
 
 	tomlast "github.com/pelletier/go-toml/v2/unstable"
@@ -75,15 +75,7 @@ func clonePath(path []string) []string {
 }
 
 func pathsEqual(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for idx := range left {
-		if left[idx] != right[idx] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
 
 func pathHasPrefix(path []string, prefix []string) bool {
@@ -107,11 +99,8 @@ func unsupportedTOMLMutation(path []string, reason string) error {
 }
 
 func sortedStringKeys(values map[string]any) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(values)), maps.Keys(values))
+	slices.Sort(keys)
 	return keys
 }
 

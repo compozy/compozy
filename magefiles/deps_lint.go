@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io/fs"
@@ -11,7 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -102,6 +103,10 @@ func runGolangCILint() error {
 	if err != nil {
 		return err
 	}
+	cacheDir, err = filepath.Abs(cacheDir)
+	if err != nil {
+		return fmt.Errorf("resolve lint cache directory: %w", err)
+	}
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return fmt.Errorf("create golangci-lint cache directory: %w", err)
 	}
@@ -113,23 +118,12 @@ func runGolangCILint() error {
 			return err
 		}
 	}
-	args := []string{
-		"run",
-		"--allow-parallel-runners",
-		"--timeout",
-		golangciLintTimeout,
-		"--concurrency",
-		golangciLintConcurrency(),
-	}
-	if !formattersInRun {
-		linters, err := golangciEnabledLinters(golangciConfigPath)
-		if err != nil {
+	for _, target := range golangciLintTargets(os.Getenv(goLintScopesEnvVar)) {
+		if err := runGolangciTarget(projectRoot, env, target, formattersInRun); err != nil {
 			return err
 		}
-		args = append(args, "--enable-only", strings.Join(linters, ","))
 	}
-	args = append(args, golangciLintScopes(os.Getenv(goLintScopesEnvVar))...)
-	return runGolangciCommand(env, args...)
+	return nil
 }
 
 func runGolangciCommand(env map[string]string, args ...string) error {
@@ -199,7 +193,7 @@ func hasPinnedTool(name string, wantVersion string, versionArgs ...string) bool 
 	if err != nil {
 		return false
 	}
-	output, err := exec.Command(path, versionArgs...).CombinedOutput()
+	output, err := exec.CommandContext(context.Background(), path, versionArgs...).CombinedOutput()
 	if err != nil {
 		return false
 	}
@@ -231,6 +225,6 @@ func goFiles(root string) ([]string, error) {
 		return nil, err
 	}
 
-	sort.Strings(files)
+	slices.Sort(files)
 	return files, nil
 }

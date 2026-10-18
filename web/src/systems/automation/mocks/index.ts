@@ -10,3 +10,8 @@ export {
   primaryAutomationJobFixture,
   primaryAutomationTriggerFixture,
 } from "./fixtures";
+export {
+  automationStoryJobs,
+  automationStoryRuns,
+  automationStoryTriggers,
+} from "./story-fixtures";

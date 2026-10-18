@@ -37,16 +37,16 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 	}); err != nil {
 		return contract.DoctorPayload{}, err
 	}
-	if h.Bridges != nil {
-		if err := registry.Register(&doctor.BridgeProbe{Source: h.Bridges}); err != nil {
-			return contract.DoctorPayload{}, err
-		}
-	}
 	if err := h.registerExtensionDoctorProbe(registry); err != nil {
 		return contract.DoctorPayload{}, err
 	}
 	if h.RuntimeMemory != nil {
 		if err := registry.Register(&doctor.RuntimeMemoryProbe{Source: h.RuntimeMemory}); err != nil {
+			return contract.DoctorPayload{}, err
+		}
+	}
+	if h.HostLoad != nil {
+		if err := registry.Register(&doctor.HostLoadProbe{Source: h.HostLoad}); err != nil {
 			return contract.DoctorPayload{}, err
 		}
 	}
@@ -61,7 +61,6 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 	if h.DeadEntities != nil && h.Workspaces != nil {
 		for _, kind := range []store.DeadEntityKind{
 			store.DeadEntityKindMCPSidecar,
-			store.DeadEntityKindBridge,
 			store.DeadEntityKindExtension,
 		} {
 			if err := registry.Register(&doctor.DeadEntityProbe{

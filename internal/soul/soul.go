@@ -77,7 +77,6 @@ type Profile struct {
 	Principles    []string
 	Constraints   []string
 	Collaboration []string
-	MemoryPolicy  []string
 	Tags          []string
 	Body          string
 	Truncated     bool
@@ -122,7 +121,6 @@ type Frontmatter struct {
 	Principles    []string
 	Constraints   []string
 	Collaboration []string
-	MemoryPolicy  []string
 	Tags          []string
 }
 
@@ -248,7 +246,6 @@ func Parse(ctx context.Context, req ParseRequest) (ResolvedSoul, error) {
 		Principles:    cloneStrings(front.Principles),
 		Constraints:   cloneStrings(front.Constraints),
 		Collaboration: cloneStrings(front.Collaboration),
-		MemoryPolicy:  cloneStrings(front.MemoryPolicy),
 		Tags:          cloneStrings(front.Tags),
 		Body:          body,
 	}

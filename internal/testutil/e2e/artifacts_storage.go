@@ -1,13 +1,14 @@
 package e2e
 
 import (
+	"cmp"
 	"encoding/json"
+	"slices"
 
 	"fmt"
 
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -115,11 +116,8 @@ func (c *ArtifactCollector) manifestLocked() ArtifactManifest {
 	for _, entry := range c.entries {
 		items = append(items, entry)
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Path != items[j].Path {
-			return items[i].Path < items[j].Path
-		}
-		return items[i].Kind < items[j].Kind
+	slices.SortFunc(items, func(a, b ArtifactEntry) int {
+		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Kind, b.Kind))
 	})
 	return ArtifactManifest{
 		Version:   1,

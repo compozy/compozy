@@ -26,6 +26,7 @@ type Checker interface {
 // Gate is a concurrency-safe, in-memory daemon admission gate.
 type Gate struct {
 	draining atomic.Bool
+	load     atomic.Pointer[LoadMonitor]
 }
 
 var _ Checker = (*Gate)(nil)
@@ -46,6 +47,14 @@ func (g *Gate) Undrain() bool {
 	return g.draining.Swap(false)
 }
 
+// SetLoadMonitor attaches host-load-aware admission for background work; nil detaches it.
+func (g *Gate) SetLoadMonitor(monitor *LoadMonitor) {
+	if g == nil {
+		return
+	}
+	g.load.Store(monitor)
+}
+
 // State returns the current admission state.
 func (g *Gate) State() State {
 	if g != nil && g.draining.Load() {
@@ -54,11 +63,29 @@ func (g *Gate) State() State {
 	return StateActive
 }
 
-// Check admits active daemons and rejects new work while draining.
+// Check admits active daemons and rejects new work while draining. Background
+// work (see WithBackgroundWork) first waits, bounded, for host CPU pressure to clear.
 func (g *Gate) Check(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("admission: context is required")
 	}
+	if err := g.checkState(ctx); err != nil {
+		return err
+	}
+	if g == nil || !IsBackgroundWork(ctx) {
+		return nil
+	}
+	monitor := g.load.Load()
+	if monitor == nil {
+		return nil
+	}
+	if err := monitor.Wait(ctx); err != nil {
+		return err
+	}
+	return g.checkState(ctx)
+}
+
+func (g *Gate) checkState(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

@@ -3,7 +3,6 @@ package settings
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -50,7 +49,7 @@ func normalizeAttentionSettings(settings AttentionSettings) AttentionSettings {
 	for index := range settings.MutedWorkspaces {
 		settings.MutedWorkspaces[index] = strings.TrimSpace(settings.MutedWorkspaces[index])
 	}
-	sort.Strings(settings.MutedWorkspaces)
+	slices.Sort(settings.MutedWorkspaces)
 	return settings
 }
 

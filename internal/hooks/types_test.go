@@ -235,37 +235,16 @@ func TestRegisteredHookValidate(t *testing.T) {
 	}
 }
 
-func TestResolvedHookValidate(t *testing.T) {
-	t.Parallel()
-
-	hook := ResolvedHook{
-		RegisteredHook: RegisteredHook{
-			Name:     "resolved-hook",
-			Event:    HookToolPreCall,
-			Source:   HookSourceNative,
-			Mode:     HookModeSync,
-			Executor: stubExecutor{kind: HookExecutorNative},
-		},
-		Decl: HookDecl{Name: "other-name"},
-	}
-
-	if err := hook.Validate(); err == nil {
-		t.Fatal("ResolvedHook.Validate() error = nil, want non-nil")
-	}
-}
-
 func TestResolvedHookValidateSuccess(t *testing.T) {
 	t.Parallel()
 
 	hook := ResolvedHook{
-		RegisteredHook: RegisteredHook{
-			Name:     "resolved-hook",
-			Event:    HookToolPreCall,
-			Source:   HookSourceNative,
-			Mode:     HookModeSync,
-			Executor: stubExecutor{kind: HookExecutorNative},
-		},
-		Decl: HookDecl{Name: "resolved-hook", ExecutorKind: HookExecutorNative},
+		Name:     "resolved-hook",
+		Event:    HookToolPreCall,
+		Source:   HookSourceNative,
+		Mode:     HookModeSync,
+		Executor: stubExecutor{kind: HookExecutorNative},
+		Decl:     HookDecl{Name: "resolved-hook", ExecutorKind: HookExecutorNative},
 	}
 
 	if err := hook.Validate(); err != nil {
@@ -277,13 +256,11 @@ func TestResolvedHookValidateRequiresExecutor(t *testing.T) {
 	t.Parallel()
 
 	hook := ResolvedHook{
-		RegisteredHook: RegisteredHook{
-			Name:   "resolved-hook",
-			Event:  HookToolPreCall,
-			Source: HookSourceNative,
-			Mode:   HookModeSync,
-		},
-		Decl: HookDecl{Name: "resolved-hook", ExecutorKind: HookExecutorNative},
+		Name:   "resolved-hook",
+		Event:  HookToolPreCall,
+		Source: HookSourceNative,
+		Mode:   HookModeSync,
+		Decl:   HookDecl{Name: "resolved-hook", ExecutorKind: HookExecutorNative},
 	}
 
 	if err := hook.Validate(); err == nil {

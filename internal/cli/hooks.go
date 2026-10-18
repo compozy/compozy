@@ -3,7 +3,8 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -454,16 +455,8 @@ func hookMatcherRows(matcher hookspkg.HookMatcher) [][]string {
 	appendRow("decision_class", matcher.DecisionClass)
 	appendRow("message_role", matcher.MessageRole)
 	appendRow("message_delta_type", matcher.MessageDeltaType)
-	if matcher.NetworkMatcher != nil {
-		appendRow("channel", matcher.Channel)
-		appendRow("surface", matcher.Surface)
-		appendRow("kind", matcher.Kind)
-		appendRow("direction", matcher.Direction)
-		appendRow("work_state", matcher.WorkState)
-	}
 	if matcher.CompactionMatcher != nil {
-		appendRow("compaction_reason", matcher.Reason)
-		appendRow("compaction_strategy", matcher.Strategy)
+		appendRow("compaction_trigger", matcher.Trigger)
 	}
 	return rows
 }
@@ -473,11 +466,7 @@ func hookMetadataRows(metadata map[string]string) [][]string {
 		return nil
 	}
 
-	keys := make([]string, 0, len(metadata))
-	for key := range metadata {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(metadata))
 
 	rows := make([][]string, 0, len(keys))
 	for _, key := range keys {

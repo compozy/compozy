@@ -83,7 +83,7 @@ type ProviderAuthStatusPayload struct {
 type ProviderAuthProbeResponse struct {
 	Provider   string                    `json:"provider"`
 	AuthStatus ProviderAuthStatusPayload `json:"auth_status"`
-	Probe      *ProviderAuthProbeResult  `json:"probe,omitempty"`
+	Probe      *ProviderAuthProbeResult  `json:"probe,omitzero"`
 }
 
 // ProviderAuthProbeResult is the redacted raw output from a provider auth probe.

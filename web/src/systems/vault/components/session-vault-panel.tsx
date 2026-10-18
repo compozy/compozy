@@ -47,12 +47,14 @@ export function SessionVaultPanel({
       />
       <DataSurface.Error
         icon={KeyRound}
+        size="compact"
         title="Vault unavailable"
         description={error?.message}
         data-testid="session-inspector-vault-error"
       />
       <DataSurface.Empty
         icon={KeyRound}
+        size="compact"
         title="No session vault secrets"
         description="Session-scoped vault metadata appears here when tools store write-only values."
         data-testid="session-inspector-vault-empty"
@@ -64,14 +66,14 @@ export function SessionVaultPanel({
               <ItemMedia>
                 <span
                   aria-hidden="true"
-                  className="inline-flex size-6 items-center justify-center rounded-sm bg-canvas-soft text-muted"
+                  className="inline-flex size-6 items-center justify-center rounded-sm bg-surface-2 text-muted"
                 >
                   <KeyRound className="size-3" />
                 </span>
               </ItemMedia>
               <ItemContent>
                 <ItemTitle
-                  className="text-small-body text-fg-strong"
+                  className="text-small-body text-fg"
                   data-testid="session-inspector-vault-title"
                 >
                   Vault secret

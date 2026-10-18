@@ -62,10 +62,6 @@ const (
 	ReasonMCPAuthInvalid ReasonCode = "mcp_auth_invalid"
 	// ReasonMCPAuthRefreshFailed reports failed MCP auth refresh.
 	ReasonMCPAuthRefreshFailed ReasonCode = "mcp_auth_refresh_failed"
-	// ReasonNetworkRawTokenRejected reports raw claim-token fields in network payloads.
-	ReasonNetworkRawTokenRejected ReasonCode = "network_raw_token_rejected"
-	// ReasonNetworkNotParticipating reports a Local session attempting a Network operation.
-	ReasonNetworkNotParticipating ReasonCode = "not_participating"
 	// ReasonSourceDisabled reports a disabled source.
 	ReasonSourceDisabled ReasonCode = "source_disabled"
 	// ReasonPolicyDenied reports a policy denial.
@@ -120,8 +116,6 @@ const (
 	ReasonScopeMismatch ReasonCode = "scope_mismatch"
 	// ReasonWorkspaceAccessDenied reports a workspace-axis policy denial.
 	ReasonWorkspaceAccessDenied ReasonCode = "workspace_access_denied"
-	// ReasonMemorySubagentWriteDenied reports a sub-agent direct memory write denial.
-	ReasonMemorySubagentWriteDenied ReasonCode = "memory_subagent_write_denied"
 	// ReasonHookDenied reports hook denial.
 	ReasonHookDenied ReasonCode = "hook_denied"
 	// ReasonSchemaInvalid reports invalid JSON schema.
@@ -222,8 +216,6 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonMCPAuthExpired:                 {},
 	ReasonMCPAuthInvalid:                 {},
 	ReasonMCPAuthRefreshFailed:           {},
-	ReasonNetworkRawTokenRejected:        {},
-	ReasonNetworkNotParticipating:        {},
 	ReasonSourceDisabled:                 {},
 	ReasonPolicyDenied:                   {},
 	ReasonVisibilityDenied:               {},
@@ -249,7 +241,6 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonLoopNodeNotPaused:              {},
 	ReasonLoopNodeNotQuarantined:         {},
 	ReasonLoopAlreadyDecided:             {},
-	ReasonMemorySubagentWriteDenied:      {},
 	ReasonWorkspaceAccessDenied:          {},
 	ReasonHookDenied:                     {},
 	ReasonSchemaInvalid:                  {},

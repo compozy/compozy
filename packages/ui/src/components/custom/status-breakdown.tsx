@@ -54,7 +54,7 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
                 {item.label}
               </span>
               {item.showBar !== false ? (
-                <div className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-canvas-tint">
+                <div className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-2">
                   <span
                     data-slot="status-breakdown-bar"
                     className={cn("absolute inset-y-0 left-0 rounded-pill", toneBg(tone))}

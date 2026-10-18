@@ -284,8 +284,7 @@ func projectPreviousNodes(
 			Output: generationOutputRuntimeValue(output),
 		}
 		if attempt, ok := failures[generationOutputKey{nodeID: nodeID, itemIndex: output.ItemIndex}]; ok {
-			failure := classifiedFailureFromAttempt(attempt)
-			projection.Failure = &failure
+			projection.Failure = new(classifiedFailureFromAttempt(attempt))
 			projection.Disposition = attempt.Disposition
 		}
 		nodes[nodeID][output.ItemIndex] = projection
@@ -418,6 +417,5 @@ func cloneFloat64(value *float64) *float64 {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -109,12 +110,9 @@ func (g *WatchEventsRepo) openSessionWatchEventsReader(
 }
 
 func sessionWatchEventRequested(kinds []string) bool {
-	for _, kind := range kinds {
-		if strings.TrimSpace(kind) == string(hookspkg.HookEventPostRecord) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(kinds, func(kind string) bool {
+		return strings.TrimSpace(kind) == string(hookspkg.HookEventPostRecord)
+	})
 }
 
 func sessionWatchEventFromMetadata(

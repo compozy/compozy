@@ -52,11 +52,9 @@ func settingsSectionValues() []string {
 	return []string{
 		string(contract.SettingsSectionGeneral),
 		string(contract.SettingsSectionPersona),
-		string(contract.SettingsSectionMemory),
 		string(contract.SettingsSectionRoles),
 		string(contract.SettingsSectionSkills),
 		string(contract.SettingsSectionAutomation),
-		string(contract.SettingsSectionNetwork),
 		string(contract.SettingsSectionWindowManager),
 		string(contract.SettingsSectionCmdPalette),
 		string(contract.SettingsSectionAttention),
@@ -71,11 +69,9 @@ func settingsApplyTargetValues() []string {
 	return []string{
 		string(contract.SettingsApplyTargetGeneral),
 		string(contract.SettingsApplyTargetPersona),
-		string(contract.SettingsApplyTargetMemory),
 		string(contract.SettingsApplyTargetRoles),
 		string(contract.SettingsApplyTargetSkills),
 		string(contract.SettingsApplyTargetAutomation),
-		string(contract.SettingsApplyTargetNetwork),
 		string(contract.SettingsApplyTargetWindowManager),
 		string(contract.SettingsApplyTargetCmdPalette),
 		string(contract.SettingsApplyTargetAttention),
@@ -85,7 +81,6 @@ func settingsApplyTargetValues() []string {
 		string(contract.SettingsApplyTargetMarketplace),
 		string(contract.SettingsApplyTargetProviders),
 		string(contract.SettingsApplyTargetMCPServers),
-		string(contract.SettingsApplyTargetSandboxes),
 		string(contract.SettingsApplyTargetHooks),
 	}
 }
@@ -94,7 +89,6 @@ func settingsCollectionValues() []string {
 	return []string{
 		string(contract.SettingsCollectionProviders),
 		string(contract.SettingsCollectionMCPServers),
-		string(contract.SettingsCollectionSandboxes),
 		string(contract.SettingsCollectionHooks),
 	}
 }

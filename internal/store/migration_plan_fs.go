@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -68,8 +68,8 @@ func (m *migrationPlanFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	for _, entry := range entries {
 		result = append(result, entry)
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name() < result[j].Name()
+	slices.SortFunc(result, func(left, right fs.DirEntry) int {
+		return strings.Compare(left.Name(), right.Name())
 	})
 	return result, nil
 }

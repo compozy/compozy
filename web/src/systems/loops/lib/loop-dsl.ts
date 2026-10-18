@@ -46,7 +46,7 @@ function emit(value: unknown, indent: number, lines: string[]): void {
     for (const [key, child] of Object.entries(value)) {
       // An empty object/array is a flow-style leaf (`key: {}` / `key: []`); only a
       // non-empty container gets a block header + recursion. Emitting `{}` for an empty
-      // object closes the `[object Object]` hole (Channel post / Call tool / Gate seeds).
+      // object closes the `[object Object]` hole (Call tool / Gate seeds).
       if (isPlainObject(child) && Object.keys(child).length > 0) {
         lines.push(`${pad}${key}:`);
         emit(child, indent + 1, lines);

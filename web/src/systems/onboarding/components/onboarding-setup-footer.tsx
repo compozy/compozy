@@ -34,31 +34,28 @@ export function OnboardingSetupFooter({
   return (
     <footer
       data-slot="onboarding-setup-footer"
-      className="flex h-setup-footer flex-none items-center gap-4 border-t border-line bg-canvas-soft px-4 max-md:h-auto max-md:flex-wrap max-md:py-3"
+      className="flex h-setup-footer flex-none items-center gap-4 border-t border-line-soft px-4 max-md:h-auto max-md:flex-wrap max-md:py-3"
     >
       <div
         className="flex min-w-0 flex-1 flex-col gap-0.5"
         data-tone={summary.tone}
         {...(danger ? { role: "alert", "data-testid": "onboarding-commit-error" } : {})}
       >
-        <Eyebrow className={danger ? "text-danger" : "text-faint"}>{summary.label}</Eyebrow>
+        <Eyebrow className={danger ? "text-danger" : "text-subtle"}>{summary.label}</Eyebrow>
         <span
           id={ONBOARDING_SUMMARY_ID}
           data-testid="onboarding-summary-value"
-          className={cn("truncate text-form-hint", danger ? "text-danger" : "font-mono text-muted")}
+          className={cn("truncate text-small-body", danger ? "text-danger" : "text-muted")}
         >
           {summary.value}
         </span>
       </div>
       <div className="flex flex-none items-center gap-2">
-        <Button
-          variant="ghost"
-          size="lg"
-          onClick={onBack}
-          disabled={!actions.canGoBack || actions.busy}
-        >
-          Back
-        </Button>
+        {actions.canGoBack ? (
+          <Button variant="ghost" size="lg" onClick={onBack} disabled={actions.busy}>
+            Back
+          </Button>
+        ) : null}
         <Button
           size="lg"
           onClick={onContinue}

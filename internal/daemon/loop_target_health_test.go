@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -39,7 +38,7 @@ func TestBootDeadEntityRegistryShouldIsolateLoopTargetPolicy(t *testing.T) {
 			t.Fatal("loop target service shares the generic service instance")
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		loopKey := store.DeadEntityKey{
 			ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", Kind: store.DeadEntityKindLoopTarget,
 			EntityID: "toolcall:compozy__search",

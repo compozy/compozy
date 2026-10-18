@@ -143,7 +143,7 @@ func copySourceInstallFiles(destRoot string) error {
 }
 
 func gitSourceInstallFiles() ([]string, error) {
-	cmd := exec.Command("git", "ls-files", "-z", "-c", "-o", "--exclude-standard")
+	cmd := exec.CommandContext(context.Background(), "git", "ls-files", "-z", "-c", "-o", "--exclude-standard")
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("list source install files: %w", err)

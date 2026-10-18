@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/session-delete/; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/session-delete-fresh-web.png;/Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: RT-034;RT-035;TA-task-create-async-activation
+overlaps: RT-034; RT-035; TA-task-create-async-activation
 ---
 
 Exercise a real provider session with tool permission and token history; an empty synthetic session does not prove the ownership boundary.
@@ -42,3 +42,8 @@ The issue-specific automated verdict, exact commit and CI job receipts are recor
 [PR #647 — How you verified it](https://github.com/compozy/compozy/pull/647).
 That record covers this stopped/unbound deletion slice; the historical evidence above is separate
 and is not promoted to a new full manual-scenario pass.
+
+
+QA impact 2026-10-10 (verification pending): On native Windows, remove a stopped session with attachment files and nested directories after querying its history and again after a daemon restart. Confirm no Access is denied error, no remaining catalog row, and no staged/committed tombstone leak. Exercise catalog-failure rollback and interrupted tombstone recovery. Owning suite: TestManagerDelete, including pooled-reader quiescence, rollback, and recovery cases.
+
+Automated retest 2026-10-10: The startup/rooted-write/deletion step in [native Windows CI](https://github.com/compozy/compozy/actions/runs/38112607881/job/114392299915) passed at `3cabffd82`. It covers stopped-session deletion, reader quiescence, catalog-failure rollback, interrupted recovery for all catalog states, and bound removal of files plus nested directories without leftover private directories. Cleanup retains mandatory directory flushes and checks the identity of its writable handle. This is owning-suite native evidence, not a full manual provider-session walk.

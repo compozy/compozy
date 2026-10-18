@@ -12,12 +12,27 @@ import {
 } from "../fixtures/scenario-contracts";
 import { expect, test } from "../fixtures/test";
 
-test("boots against the daemon-served onboarding shell and captures a trace plus screenshot bundle", async ({
+test("boots without a view-transition callback and captures the default trace and screenshot bundle", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
   await expect(appPage.getByTestId("onboarding-setup-panel")).toBeVisible();
+  const coldPage = await appPage.context().newPage();
+  try {
+    await coldPage.addInitScript(() => {
+      Object.defineProperty(document, "startViewTransition", {
+        configurable: true,
+        value: () => undefined,
+      });
+    });
+
+    await coldPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+
+    await expect(coldPage.getByTestId("onboarding-setup-panel")).toBeVisible();
+  } finally {
+    await coldPage.close();
+  }
 
   const manifest = await browserArtifacts.persist(appPage);
   expect(manifest.artifacts).toEqual(
@@ -34,28 +49,7 @@ test("boots against the daemon-served onboarding shell and captures a trace plus
   expect(screenshots.length).toBeGreaterThan(0);
 });
 
-test("boots when the optional view transition never invokes its update callback", async ({
-  appPage,
-  runtime,
-}) => {
-  const coldPage = await appPage.context().newPage();
-  try {
-    await coldPage.addInitScript(() => {
-      Object.defineProperty(document, "startViewTransition", {
-        configurable: true,
-        value: () => undefined,
-      });
-    });
-
-    await coldPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-
-    await expect(coldPage.getByTestId("onboarding-setup-panel")).toBeVisible();
-  } finally {
-    await coldPage.close();
-  }
-});
-
-test("records harness scenario contract, viewport evidence, and HTTP UDS CLI parity", async ({
+test("records harness contracts, viewport evidence, transport parity, and failure diagnostics", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -103,39 +97,6 @@ test("records harness scenario contract, viewport evidence, and HTTP UDS CLI par
     transport_snapshot: transportSnapshot,
     viewport_evidence: viewportEvidence,
   });
-  const manifest = await browserArtifacts.persist(appPage);
-  expect(manifest.artifacts).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ kind: "browser_api_snapshots" }),
-      expect.objectContaining({ kind: "browser_route_state" }),
-      expect.objectContaining({ kind: "browser_transport_snapshots" }),
-    ])
-  );
-});
-
-function daemonStatusProjection(payload: Record<string, unknown>): Record<string, unknown> {
-  const nested = payload.daemon;
-  if (nested !== null && typeof nested === "object" && !Array.isArray(nested)) {
-    const daemon = nested as Record<string, unknown>;
-    if (typeof daemon.status === "string") {
-      return { status: daemon.status };
-    }
-  }
-  if (typeof payload.status === "string") {
-    return { status: payload.status };
-  }
-  throw new Error(
-    `runtime status payload did not expose a status field: ${JSON.stringify(payload)}`
-  );
-}
-
-test("captures console and network diagnostics after a forced failure path", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  await expect(appPage.getByTestId("onboarding-setup-panel")).toBeVisible();
-
   const failure = await appPage.evaluate(async () => {
     console.error("compozy-playwright-forced-console-error");
     const response = await fetch("/api/not-found");
@@ -144,7 +105,14 @@ test("captures console and network diagnostics after a forced failure path", asy
 
   expect(failure).toEqual({ ok: false, status: 404 });
 
-  await browserArtifacts.persist(appPage);
+  const manifest = await browserArtifacts.persist(appPage);
+  expect(manifest.artifacts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ kind: "browser_api_snapshots" }),
+      expect.objectContaining({ kind: "browser_route_state" }),
+      expect.objectContaining({ kind: "browser_transport_snapshots" }),
+    ])
+  );
 
   const consoleEntries = JSON.parse(
     await readFile(runtime.artifactCollector.artifactPath("browser_console"), "utf8")
@@ -163,3 +131,19 @@ test("captures console and network diagnostics after a forced failure path", asy
     )
   ).toBe(true);
 });
+
+function daemonStatusProjection(payload: Record<string, unknown>): Record<string, unknown> {
+  const nested = payload.daemon;
+  if (nested !== null && typeof nested === "object" && !Array.isArray(nested)) {
+    const daemon = nested as Record<string, unknown>;
+    if (typeof daemon.status === "string") {
+      return { status: daemon.status };
+    }
+  }
+  if (typeof payload.status === "string") {
+    return { status: payload.status };
+  }
+  throw new Error(
+    `runtime status payload did not expose a status field: ${JSON.stringify(payload)}`
+  );
+}

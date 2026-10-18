@@ -5,12 +5,16 @@
         "approve",
         "archive",
         "commands",
+        "compact",
+        "continue",
         "events",
+        "fork",
         "health",
         "history",
         "inspect",
         "interactions",
         "list",
+        "move",
         "new",
         "outline",
         "prompt",
@@ -18,6 +22,7 @@
         "recap",
         "remove",
         "rename",
+        "reorder",
         "repair",
         "resume",
         "rewind",
@@ -29,9 +34,11 @@
         "wait",
         "attachments",
         "clarify",
+        "folder",
         "goal",
         "input",
         "runtime",
-        "soul"
+        "soul",
+        "subagents"
     ]
 }

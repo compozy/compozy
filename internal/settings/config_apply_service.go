@@ -21,6 +21,8 @@ type activeConfigState struct {
 	hash        string
 	generation  int64
 	config      compozyconfig.Config
+	// Scoped overlays are outside the global config hash and become active on daemon boot.
+	scopedRestartRequired bool
 }
 
 // ApplySection persists a section mutation through the config apply lifecycle.
@@ -32,9 +34,6 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	result, err := s.UpdateSection(ctx, req)
 	if err != nil {
 		return s.recordFailedApply(ctx, req.Section, req.Scope, req.WorkspaceID, configLifecycle, err)
-	}
-	if result.Section == SectionNetwork {
-		return s.recordNetworkSectionApply(ctx, result)
 	}
 	if result.Section == SectionGateway {
 		return s.recordGatewaySectionApply(ctx, result)

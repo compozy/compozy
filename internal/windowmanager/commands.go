@@ -92,14 +92,21 @@ type DeleteDesktopCommand struct {
 func (DeleteDesktopCommand) CommandID() CommandID { return CommandDesktopDelete }
 
 type WindowSpec struct {
-	ID                  WindowID       `json:"id,omitempty"`
-	App                 string         `json:"app"`
-	InstanceKey         *string        `json:"instance_key,omitempty"`
-	Route               RouteIntent    `json:"route"`
-	DesktopID           DesktopID      `json:"desktop_id"`
-	FloatingRect        NormalizedRect `json:"floating_rect"`
-	InsertTiled         bool           `json:"insert_tiled,omitempty"`
-	StackTargetWindowID *WindowID      `json:"stack_target_window_id,omitempty"`
+	ID           WindowID       `json:"id,omitempty"`
+	App          string         `json:"app"`
+	InstanceKey  *string        `json:"instance_key,omitzero"`
+	Route        RouteIntent    `json:"route"`
+	DesktopID    DesktopID      `json:"desktop_id"`
+	FloatingRect NormalizedRect `json:"floating_rect"`
+	InsertTiled  bool           `json:"insert_tiled,omitzero"`
+	// Floating opens a free window at FloatingRect whatever the new-window
+	// policy; it cannot be combined with a tiled or stacked placement.
+	Floating            bool      `json:"floating,omitzero"`
+	StackTargetWindowID *WindowID `json:"stack_target_window_id,omitzero"`
+	// BesideWindowID anchors a tiled open (beside_focus, tab, or InsertTiled)
+	// to this window instead of the client's focus. Daemon-originated opens
+	// have no client focus; they name the window the new one belongs next to.
+	BesideWindowID *WindowID `json:"beside_window_id,omitzero"`
 }
 
 type OpenWindowCommand struct {
@@ -114,7 +121,7 @@ type NavigateWindowCommand struct {
 	Route    RouteIntent `json:"route,omitzero"`
 	// InstanceKey retargets the window to another app instance in the same
 	// navigation; valid only with replace mode and resets the nav stack.
-	InstanceKey *string      `json:"instance_key,omitempty"`
+	InstanceKey *string      `json:"instance_key,omitzero"`
 	Mode        NavigateMode `json:"mode,omitempty"`
 }
 
@@ -123,7 +130,7 @@ func (NavigateWindowCommand) CommandID() CommandID { return CommandWindowNavigat
 // CloseWindowCommand minimizes instead of deleting when Minimize is true.
 type CloseWindowCommand struct {
 	WindowID WindowID   `json:"window_id"`
-	Minimize bool       `json:"minimize,omitempty"`
+	Minimize bool       `json:"minimize,omitzero"`
 	Scope    CloseScope `json:"scope,omitempty"`
 }
 
@@ -149,7 +156,7 @@ const (
 type GroupWindowsCommand struct {
 	TargetWindowID WindowID   `json:"target_window_id"`
 	WindowIDs      []WindowID `json:"window_ids"`
-	InsertIndex    *int       `json:"insert_index,omitempty"`
+	InsertIndex    *int       `json:"insert_index,omitzero"`
 }
 
 func (GroupWindowsCommand) CommandID() CommandID { return CommandWindowStackGroup }
@@ -253,6 +260,9 @@ const (
 	ArrangementVertical   Arrangement = "vertical"
 	ArrangementGrid       Arrangement = "grid"
 	ArrangementStack      Arrangement = "stack"
+	// ArrangementMainStack gives the first participant the main column and
+	// splits the remaining participants vertically in the side column.
+	ArrangementMainStack Arrangement = "main_stack"
 )
 
 type ArrangeLayoutCommand struct {
@@ -262,6 +272,11 @@ type ArrangeLayoutCommand struct {
 	Frame       NormalizedRect
 	GroupID     GroupID
 	ResourceID  string
+	// KeepFrames makes each named window stand for its whole tab frame: a deck
+	// is arranged as one participant with its members, active tab and identity
+	// kept, and later names inside an already-named frame are absorbed. Without
+	// it every named window is its own participant.
+	KeepFrames bool
 }
 
 func (ArrangeLayoutCommand) CommandID() CommandID { return CommandLayoutArrange }
@@ -325,8 +340,8 @@ type Result struct {
 	Applied     bool         `json:"applied"`
 	Changes     ChangeSet    `json:"changes"`
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	Client      *ClientView  `json:"client,omitempty"`
-	RebasedFrom *Revision    `json:"rebased_from,omitempty"`
+	Client      *ClientView  `json:"client,omitzero"`
+	RebasedFrom *Revision    `json:"rebased_from,omitzero"`
 }
 
 // Preview reports a validated proposal without a durable write.
@@ -335,5 +350,14 @@ type Preview struct {
 	Changed     bool         `json:"changed"`
 	Changes     ChangeSet    `json:"changes"`
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	Client      *ClientView  `json:"client,omitempty"`
+	Client      *ClientView  `json:"client,omitzero"`
+}
+
+// Public app aliases are removed in v0.5.0.
+func (spec WindowSpec) canonicalApp() WindowSpec {
+	if replacement, retired := RetiredApp(spec.App); retired {
+		spec.Route = RewriteRetiredAppRoute(spec.App, spec.Route)
+		spec.App = replacement
+	}
+	return spec
 }

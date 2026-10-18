@@ -83,6 +83,251 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 func TestPageSessionsVisibilityExclusion(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should hide persisted verdict-only judges while preserving actionable system sessions", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "system-audit", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		for _, id := range []string{"user", "automation", "judge"} {
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base)
+			info.SessionType = "system"
+			if id == "user" {
+				info.SessionType = "user"
+			}
+			if id != "judge" {
+				if err := db.RegisterSession(ctx, info); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
+			profile := store.SessionCreationProfile{
+				Version:     store.SessionCreationProfileVersion,
+				AgentName:   "judge",
+				Provider:    "mock",
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: workspace,
+				CWD:         t.TempDir(),
+				RuntimeMode: "verdict-only",
+			}
+			ref, err := db.PutSessionCreationProfile(ctx, profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy, err := profile.PolicySpecDigest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			digest, err := profile.CreationDigest(
+				store.SessionCreationOptions{SessionID: id, SessionType: info.SessionType},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{
+				CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspace, Sort: sessionCatalogSortRecent, Limit: 1, ExcludeVerdictOnly: true}
+		page, err := db.PageSessions(ctx, query)
+		if err != nil || page.Total != 2 || len(page.Sessions) != 1 || page.Sessions[0].ID == "judge" {
+			t.Fatalf("page = %#v, %v", page, err)
+		}
+		facets, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 2 {
+			t.Fatalf("facets = %#v, %v", facets, err)
+		}
+		query.ExcludeVerdictOnly = false
+		query.SessionType = "system"
+		query.Limit = 10
+		page, err = db.PageSessions(ctx, query)
+		if err != nil || page.Total != 2 || len(page.Sessions) != 2 {
+			t.Fatalf("audit = %#v, %v", page, err)
+		}
+		if !slices.ContainsFunc(
+			page.Sessions,
+			func(info store.SessionInfo) bool { return info.ID == "judge" && info.VerdictOnly },
+		) {
+			t.Fatalf("missing typed judge = %#v", page)
+		}
+	})
+
+	t.Run("Should count all scoped terminal approvals without excluding live durable records", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "terminal-count", filepath.Join(t.TempDir(), "workspace"))
+		foreignWorkspace := registerWorkspaceForGlobalTests(
+			t,
+			db,
+			"terminal-foreign",
+			filepath.Join(t.TempDir(), "foreign"),
+		)
+		base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+		const foreignProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'foreign','#8E8EB5','circle','active',?)`,
+			foreignProfile,
+			store.FormatTimestamp(base),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for index := range 115 {
+			id := fmt.Sprintf("terminal-count-%03d", index)
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateActive, base)
+			if index == 111 {
+				info.State = globalDBSessionStateStopped
+			}
+			if index == 110 {
+				info.WorkspaceID = foreignWorkspace
+			}
+			if index == 112 {
+				info.SessionType = "dream"
+			}
+			if index == 113 {
+				info.ProfileID = foreignProfile
+			}
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+			tool := "compozy__terminal_write"
+			if index == 114 {
+				tool = "compozyXterminal_write"
+			}
+			if _, err := db.CreatePendingInteraction(
+				ctx,
+				store.PendingInteractionCreate{
+					InteractionID:     id + "-approval",
+					SessionID:         id,
+					Kind:              "permission",
+					ProviderRequestID: id,
+					Payload:           store.PendingInteractionPayload{ToolID: tool},
+					CreatedAt:         base,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if index == 111 {
+				if _, err := db.SetSessionArchived(ctx, workspace, id, true); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		query := store.SessionCatalogPageQuery{
+			ReadScope:           store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:         workspace,
+			Archive:             store.SessionArchiveExclude,
+			Limit:               1,
+			Sort:                sessionCatalogSortRecent,
+			ExcludeSessionTypes: []string{"dream"},
+			ExcludeIDs:          []string{"terminal-count-000"},
+		}
+		facets, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 110 || len(facets.ByWorkspace) != 1 ||
+			facets.ByWorkspace[0].Facets.TerminalApprovals != 110 {
+			t.Fatalf("scoped approval facets=%#v error=%v", facets, err)
+		}
+		if _, err := db.TransitionPendingInteraction(
+			ctx,
+			store.PendingInteractionTransition{
+				InteractionID: "terminal-count-001-approval",
+				Status:        store.PendingInteractionStatusResolved,
+				Resolution:    "allow",
+				ResolvedBy:    "operator",
+				At:            base.Add(time.Minute),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 109 {
+			t.Fatalf("resolved approval facets=%#v error=%v", facets, err)
+		}
+		query.ReadScope = store.ReadScope{ProfileID: foreignProfile}
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 1 {
+			t.Fatalf("foreign profile facets=%#v error=%v", facets, err)
+		}
+	})
+
+	t.Run("Should search visible titles and preserve scoped metadata facets", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"facet-search",
+			filepath.Join(t.TempDir(), "facet-search"),
+		)
+		base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+		for _, tc := range []struct{ id, name, agent, state string }{
+			{"session-identity", "session-identity", "coder", globalDBSessionStateStopped},
+			{"session-title", "Árvore ΟΣ", "coder", globalDBSessionStateActive},
+			{"session-agent", "Équipe İ", "Équipe İ", globalDBSessionStateStopped},
+		} {
+			info := sessionInfoForWorkspaceStateIndexTest(tc.id, workspaceID, tc.state, base)
+			info.Name = tc.name
+			info.AgentName = tc.agent
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := store.SessionCatalogPageQuery{
+			ReadScope:    store.ReadScope{AllProfiles: true},
+			WorkspaceID:  workspaceID,
+			Archive:      store.SessionArchiveExclude,
+			Sort:         sessionCatalogSortRecent,
+			Limit:        1,
+			SkipTotal:    true,
+			SearchFields: "title_agent",
+			Search:       "New session",
+		}
+		page, err := globalDB.PageSessions(ctx, query)
+		if err != nil || len(page.Sessions) != 1 || page.Sessions[0].ID == "session-title" {
+			t.Fatalf("visible fallback page=%#v error=%v", page, err)
+		}
+		for _, match := range []struct{ query, id string }{{"árvore", "session-title"}, {"équipe", "session-agent"}, {"ος", "session-title"}, {"i̇", "session-agent"}, {"ΟΣ", "session-title"}, {"İ", "session-agent"}} {
+			query.Search = match.query
+			page, err = globalDB.PageSessions(ctx, query)
+			if err != nil || len(page.Sessions) != 1 || page.Sessions[0].ID != match.id {
+				t.Fatalf("Unicode visible search %q page=%#v error=%v", match.query, page, err)
+			}
+		}
+		query.Search = "session-identity"
+		page, err = globalDB.PageSessions(ctx, query)
+		if err != nil || len(page.Sessions) != 0 {
+			t.Fatalf("hidden identity search=%#v error=%v", page, err)
+		}
+		query.SearchFields = ""
+		page, err = globalDB.PageSessions(ctx, query)
+		if err != nil || len(page.Sessions) != 1 {
+			t.Fatalf("legacy identity search=%#v error=%v", page, err)
+		}
+		if _, err := globalDB.SetSessionArchived(ctx, workspaceID, "session-agent", true); err != nil {
+			t.Fatal(err)
+		}
+		query.Archive = store.SessionArchiveExclude
+		facets, err := globalDB.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 2 || facets.Facets.Idle != 1 {
+			t.Fatalf("scoped facets=%#v error=%v", facets, err)
+		}
+		query.Archive = store.SessionArchiveOnly
+		facets, err = globalDB.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 1 {
+			t.Fatalf("archive facets=%#v error=%v", facets, err)
+		}
+		query.ReadScope = store.ReadScope{ProfileID: "other-profile"}
+		facets, err = globalDB.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 0 {
+			t.Fatalf("foreign profile facets=%#v error=%v", facets, err)
+		}
+	})
+
 	t.Run("Should keep archive state workspace scoped and outside lifecycle state", func(t *testing.T) {
 		t.Parallel()
 
@@ -404,6 +649,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			ParentSessionID: "sess-prov-root",
 			RootSessionID:   "sess-prov-root",
 			SpawnDepth:      1,
+			Kind:            store.LineageKindProvenance,
 		}
 		grandchild := sessionInfoForWorkspaceStateIndexTest(
 			"sess-prov-grandchild",
@@ -415,6 +661,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			ParentSessionID: "sess-prov-child",
 			RootSessionID:   "sess-prov-root",
 			SpawnDepth:      2,
+			Kind:            store.LineageKindProvenance,
 		}
 		foreign := sessionInfoForWorkspaceStateIndexTest(
 			"sess-prov-foreign",
@@ -620,6 +867,20 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				coderStopped.UpdatedAt,
 			)
 		}
+		globalMetrics, err := globalDB.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
+			ReadScope:           store.ReadScope{ProfileID: store.DefaultProfileID},
+			ExcludeIDs:          []string{reviewer.ID},
+			ExcludeSessionTypes: []string{"dream"},
+			ExcludeSpawnRoles:   []string{"memory-extractor"},
+		})
+		if err != nil {
+			t.Fatalf("AggregateSessionsByAgent(Global) error = %v", err)
+		}
+		if len(globalMetrics) != 1 || globalMetrics[0].Total != 3 ||
+			globalMetrics[0].Active != 2 || globalMetrics[0].Failed != 1 ||
+			globalMetrics[0].RuntimeSeconds != wantRuntime+int64(now.Sub(foreign.CreatedAt).Seconds()) {
+			t.Fatalf("Global agent metrics = %#v, want both project populations with exclusions", globalMetrics)
+		}
 	})
 }
 
@@ -730,6 +991,234 @@ func TestDeleteSessionRemovesDurableCatalogTruth(t *testing.T) {
 
 func TestPageSessionsStableKeyset(t *testing.T) {
 	t.Parallel()
+
+	t.Run(
+		"Should page navigator bands before recent history and preserve latest-created selection",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openTestGlobalDB(t)
+			workspace := registerWorkspaceForGlobalTests(
+				t,
+				db,
+				"navigator-history",
+				filepath.Join(t.TempDir(), "workspace"),
+			)
+			base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+			for index := range 110 {
+				info := sessionInfoForWorkspaceStateIndexTest(
+					fmt.Sprintf("quiet-%03d", index),
+					workspace,
+					globalDBSessionStateStopped,
+					base.Add(time.Duration(index)*time.Minute),
+				)
+				info.UpdatedAt = base.Add(48 * time.Hour)
+				if err := db.RegisterSession(ctx, info); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, id := range []string{"needs-old", "finished-old", "working-a", "working-b"} {
+				info := sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateActive, base)
+				if strings.HasPrefix(id, "working") {
+					info.State = "starting"
+					info.CreatedAt = base.Add(72 * time.Hour)
+				}
+				if err := db.RegisterSession(ctx, info); err != nil {
+					t.Fatal(err)
+				}
+				if id == "needs-old" {
+					if _, err := db.CreatePendingInteraction(
+						ctx,
+						store.PendingInteractionCreate{
+							InteractionID:     "navigator-pending",
+							SessionID:         id,
+							Kind:              "clarify",
+							ProviderRequestID: "navigator-request",
+							CreatedAt:         base,
+						},
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if id == "finished-old" {
+					if _, err := db.db.ExecContext(
+						ctx,
+						"UPDATE sessions SET last_settled_revision=1 WHERE id=?",
+						id,
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			query := store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspace,
+				Archive:     store.SessionArchiveExclude,
+				Limit:       1,
+				Sort:        sessionCatalogSortNavigator,
+				SkipTotal:   true,
+			}
+			seen := []string{}
+			for {
+				page, err := db.PageSessions(ctx, query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(page.Sessions) == 0 {
+					break
+				}
+				info := page.Sessions[0]
+				seen = append(seen, info.ID)
+				band := 3
+				switch {
+				case info.ID == "needs-old":
+					band = 0
+				case info.ID == "finished-old":
+					band = 1
+				case strings.HasPrefix(info.ID, "working"):
+					band = 2
+				}
+				primary := info.UpdatedAt
+				if info.AttentionSnapshot().AttentionChangedAt != nil {
+					primary = *info.AttentionSnapshot().AttentionChangedAt
+				}
+				query.After = &store.SessionCatalogPosition{
+					NavigatorBand: &band,
+					PrimaryAt:     primary,
+					SecondaryAt:   info.CreatedAt,
+					CreatedAt:     info.CreatedAt,
+					ID:            info.ID,
+				}
+			}
+			if len(seen) != 114 ||
+				!slices.Equal(seen[:4], []string{"needs-old", "finished-old", "working-a", "working-b"}) {
+				t.Fatalf("navigator walk=%#v", seen)
+			}
+			for index, id := range seen[4:] {
+				if id != fmt.Sprintf("quiet-%03d", index) {
+					t.Fatalf("rest tie order=%#v", seen[4:])
+				}
+			}
+			query.Sort = sessionCatalogSortCreated
+			query.After = nil
+			page, err := db.PageSessions(ctx, query)
+			if err != nil || len(page.Sessions) != 1 || page.Sessions[0].ID != "working-b" {
+				t.Fatalf("latest-created page=%#v error=%v", page, err)
+			}
+			info := page.Sessions[0]
+			query.After = &store.SessionCatalogPosition{
+				PrimaryAt:   info.CreatedAt,
+				SecondaryAt: info.CreatedAt,
+				CreatedAt:   info.CreatedAt,
+				ID:          info.ID,
+			}
+			page, err = db.PageSessions(ctx, query)
+			if err != nil || len(page.Sessions) != 1 || page.Sessions[0].ID != "working-a" {
+				t.Fatalf("created tie cursor page=%#v error=%v", page, err)
+			}
+			order, err := sessionCatalogOrderClause(sessionCatalogSortNavigator)
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan := explainQueryPlan(
+				t,
+				db.db,
+				"SELECT id FROM sessions WHERE workspace_id = ? AND archived_at IS NULL"+order+" LIMIT 1",
+				workspace,
+			)
+			if !strings.Contains(plan, "catalog_navigator") || strings.Contains(plan, "TEMP B-TREE") {
+				t.Fatalf("navigator index plan=%s", plan)
+			}
+		},
+	)
+
+	t.Run("Should filter attention in one bounded count-free durable page", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"catalog-load",
+			filepath.Join(t.TempDir(), "catalog-load"),
+		)
+		base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+		for index := range 305 {
+			info := sessionInfoForWorkspaceStateIndexTest(
+				fmt.Sprintf("catalog-%03d", index),
+				workspaceID,
+				globalDBSessionStateStopped,
+				base,
+			)
+			if index < 5 {
+				info.State = globalDBSessionStateActive
+				info.Attention = &store.SessionAttention{PendingClarifyCount: 1}
+			}
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatalf("RegisterSession error=%v", err)
+			}
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			"UPDATE sessions SET pending_clarify_count = 1 WHERE id < 'catalog-005'",
+		); err != nil {
+			t.Fatalf("seed pending attention error=%v", err)
+		}
+
+		query := store.SessionCatalogPageQuery{
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			Archive:       store.SessionArchiveExclude,
+			AttentionOnly: true,
+			Sort:          sessionCatalogSortAttention,
+			Limit:         3,
+			SkipTotal:     true,
+		}
+		page, err := globalDB.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatalf("PageSessions error=%v", err)
+		}
+		if len(page.Sessions) != 3 || page.Total != 0 {
+			t.Fatalf("count-free page=%#v", page)
+		}
+		for _, info := range page.Sessions {
+			if info.AttentionSnapshot().PendingClarifyCount != 1 {
+				t.Fatalf("unexpected quiet row=%s", info.ID)
+			}
+		}
+		query.SkipTotal = false
+		counted, err := globalDB.PageSessions(ctx, query)
+		if err != nil || counted.Total != 5 {
+			t.Fatalf("counted page=%#v error=%v", counted, err)
+		}
+		// Facets are exact metadata, independent of selected badge/text and rich JSON.
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			"UPDATE sessions SET acp_options_json = '{}' WHERE id = 'catalog-304'",
+		); err != nil {
+			t.Fatal(err)
+		}
+		query.Badges = []string{"idle"}
+		query.Search = "not a visible title"
+		facets, err := globalDB.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 305 || facets.Facets.NeedsYou != 5 || len(facets.ByWorkspace) != 1 ||
+			facets.ByWorkspace[0].WorkspaceID != workspaceID {
+			t.Fatalf("facets=%#v error=%v", facets, err)
+		}
+		query.ExcludeIDs = []string{"catalog-000"}
+		facets, err = globalDB.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 304 || facets.Facets.NeedsYou != 4 {
+			t.Fatalf("overlay-excluded facets=%#v error=%v", facets, err)
+		}
+
+		order, err := sessionCatalogOrderClause(query.Sort)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan := explainQueryPlan(t, globalDB.db, "SELECT id FROM sessions WHERE archived_at IS NULL"+order+" LIMIT 3")
+		if !strings.Contains(plan, "idx_sessions_global_catalog_attention") || strings.Contains(plan, "TEMP B-TREE") {
+			t.Fatalf("attention cursor plan=%s", plan)
+		}
+	})
 
 	t.Run("Should walk matches after an anchor mutation without gaps or duplicates", func(t *testing.T) {
 		t.Parallel()
@@ -995,6 +1484,11 @@ last_settled_revision = ?, attention_changed_at = ? WHERE id = ?`,
 			WorkspaceID: workspaceID,
 			Sort:        sessionCatalogSortAttention,
 			Limit:       3,
+		}
+		facets, err := globalDB.SessionCatalogFacets(ctx, query)
+		wantFacets := store.SessionCatalogFacets{All: 8, NeedsYou: 4, Working: 1, Finished: 1, Idle: 1}
+		if err != nil || facets.Facets != wantFacets {
+			t.Fatalf("canonical badge facets=%#v error=%v, want %#v", facets, err, wantFacets)
 		}
 		first, err := globalDB.PageSessions(ctx, query)
 		if err != nil {
@@ -1470,6 +1964,314 @@ func sessionIDsForWorkspaceStateIndexTest(sessions []store.SessionInfo) []string
 	ids := make([]string, 0, len(sessions))
 	for _, sessionInfo := range sessions {
 		ids = append(ids, sessionInfo.ID)
+	}
+	return ids
+}
+
+// UT-053, IT-029: subagent visibility is filtered before pagination and summaries are batched.
+func TestGlobalDBSubagentCatalog(t *testing.T) {
+	t.Run("Should filter subagents before the limit and summarize parents", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		for i := range 119 {
+			id := fmt.Sprintf("catalog-%03d", i)
+			role, parentID := "", ""
+			if i < 30 {
+				role, parentID = store.SubagentSpawnRole, parent
+			}
+			registerSubagentSession(t, db, workspace, id, parentID, role, now.Add(time.Duration(i+1)*time.Second))
+			if i < 30 {
+				r := reserveSubagent(t, db.SessionRepo, workspace, parent, "sub-"+id, now)
+				if _, err := db.LinkChild(ctx, r.ID, id, now); err != nil {
+					t.Fatal(err)
+				}
+				if i >= 3 {
+					status := store.SubagentStatusCompleted
+					if i == 3 {
+						status = store.SubagentStatusFailed
+					}
+					if _, _, err := db.FinalizeSubagent(
+						ctx,
+						store.SubagentFinalize{ID: r.ID, Status: status, SettledAt: now},
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+		}
+		for _, filter := range []string{"", "include", "exclude", "only"} {
+			expected := 100
+			if filter == "exclude" {
+				expected = 90
+			}
+			if filter == "only" {
+				expected = 30
+			}
+			listed, err := db.ListSessions(
+				ctx,
+				store.SessionListQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
+					WorkspaceID: workspace,
+					Limit:       100,
+					Subagents:   filter,
+					Sort:        "recent",
+				},
+			)
+			if err != nil || len(listed) != expected {
+				t.Fatalf("list %s = %d %v", filter, len(listed), err)
+			}
+			page, err := db.PageSessions(
+				ctx,
+				store.SessionCatalogPageQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
+					WorkspaceID: workspace,
+					Limit:       100,
+					Subagents:   filter,
+					Sort:        "recent",
+				},
+			)
+			if err != nil || len(page.Sessions) != expected {
+				t.Fatalf("page %s = %#v %v", filter, page, err)
+			}
+			total := 120
+			if filter == "exclude" {
+				total = 90
+			}
+			if filter == "only" {
+				total = 30
+			}
+			if page.Total != total {
+				t.Fatalf("total %s = %d", filter, page.Total)
+			}
+			facets, err := db.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspace,
+				Limit: 1, Subagents: filter, Sort: "recent",
+			})
+			if err != nil || facets.Facets.All != total || len(facets.ByWorkspace) != 1 ||
+				facets.ByWorkspace[0].WorkspaceID != workspace || facets.ByWorkspace[0].Facets.All != total {
+				t.Fatalf("facets %q = %#v, error=%v; want global and workspace total %d", filter, facets, err, total)
+			}
+			foundParent := false
+			for _, r := range page.Sessions {
+				isSub := r.Lineage != nil && r.Lineage.SpawnRole == store.SubagentSpawnRole
+				if filter == "exclude" && isSub || filter == "only" && !isSub {
+					t.Fatalf("filter %s returned %s", filter, r.ID)
+				}
+				foundParent = foundParent || r.ID == parent
+			}
+			if filter == "exclude" && !foundParent {
+				t.Fatal("parent lost to child pagination")
+			}
+		}
+		if _, err := db.ListSessions(
+			ctx,
+			store.SessionListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Limit: 100, Subagents: "bogus"},
+		); err == nil {
+			t.Fatal("accepted invalid filter")
+		}
+		if _, err := db.PageSessions(
+			ctx,
+			store.SessionCatalogPageQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+				Limit:     100,
+				Subagents: "bogus",
+			},
+		); err == nil {
+			t.Fatal("accepted invalid page filter")
+		}
+		if _, err := db.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Limit: 100, Subagents: "bogus",
+		}); err == nil {
+			t.Fatal("accepted invalid facets filter")
+		}
+		sums, err := db.Summaries(ctx, []string{parent, "empty"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := store.SubagentSummary{Total: 30, Live: 3, Failed: 1, MostUrgent: "failed"}
+		if sums[parent] != want {
+			t.Fatalf("summary=%#v want=%#v", sums[parent], want)
+		}
+		if _, ok := sums["empty"]; ok {
+			t.Fatal("empty summary should be omitted")
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE session_subagents SET status='waiting' WHERE id='sub-catalog-000'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		sums, err = db.Summaries(ctx, []string{parent})
+		if err != nil || sums[parent].Attention != 1 || sums[parent].Live != 3 ||
+			sums[parent].MostUrgent != "attention" {
+			t.Fatalf("attention=%v %v", sums, err)
+		}
+	})
+}
+
+// UT-054, IT-030: archive changes are atomic across subagent descendants only.
+func TestGlobalDBSubagentArchive(t *testing.T) {
+	t.Run(
+		"Should cascade archive and restore while rejecting live children and standalone changes",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db, workspace, parent, now := subagentFixture(t)
+			for _, lookup := range []struct{ workspace, session string }{
+				{"foreign-workspace", parent},
+				{workspace, "missing-session"},
+			} {
+				if _, err := db.SessionArchivedAt(
+					ctx,
+					lookup.workspace,
+					lookup.session,
+				); !errors.Is(
+					err,
+					store.ErrSessionNotFound,
+				) {
+					t.Fatalf("archive metadata outside scope = %v, want ErrSessionNotFound", err)
+				}
+			}
+			registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+			registerSubagentSession(t, db, workspace, "grandchild", "child", store.SubagentSpawnRole, now)
+			registerSubagentSession(t, db, workspace, "plain", parent, "worker", now)
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET state='stopping' WHERE id='grandchild'`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.SetSessionArchived(
+				ctx,
+				workspace,
+				parent,
+				true,
+			); !errors.Is(err, store.ErrSessionArchiveRequiresStopped) ||
+				!strings.Contains(err.Error(), "grandchild") {
+				t.Fatalf("live descendant=%v", err)
+			}
+			for _, id := range []string{parent, "child", "grandchild", "plain"} {
+				at, err := db.SessionArchivedAt(ctx, workspace, id)
+				if err != nil || at != nil {
+					t.Fatalf("partial archive %s = %v %v", id, at, err)
+				}
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET state='stopped' WHERE id='grandchild'`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			for _, archived := range []bool{true, false} {
+				if _, err := db.SetSessionArchived(ctx, workspace, parent, archived); err != nil {
+					t.Fatal(err)
+				}
+				for _, id := range []string{parent, "child", "grandchild"} {
+					at, err := db.SessionArchivedAt(ctx, workspace, id)
+					if err != nil || (at != nil) != archived {
+						t.Fatalf("cascade %s = %v %v", id, at, err)
+					}
+				}
+				if _, err := db.SetSessionArchived(
+					ctx,
+					workspace,
+					"child",
+					archived,
+				); !errors.Is(
+					err,
+					store.ErrSubagentArchiveFollowsParent,
+				) {
+					t.Fatalf("standalone=%v", err)
+				}
+				at, err := db.SessionArchivedAt(ctx, workspace, "plain")
+				if err != nil || at != nil {
+					t.Fatalf("plain child=%v %v", at, err)
+				}
+			}
+		},
+	)
+}
+
+func TestPageSessionsManualOrder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should order folders, then unplaced and pinned root sessions across keyset pages", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db, scope := openSessionLayoutTestDB(t, "manual-page")
+		base := time.Date(2026, 10, 17, 8, 0, 0, 0, time.UTC)
+		for index, id := range []string{"old", "pinned-a", "pinned-b", "in-x", "in-y", "new"} {
+			info := sessionInfoForWorkspaceStateIndexTest(id, scope.WorkspaceID, globalDBSessionStateStopped,
+				base.Add(time.Duration(index)*time.Minute))
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		createLayoutFolder(ctx, t, db, scope, "sfold-y", "Y")
+		createLayoutFolder(ctx, t, db, scope, "sfold-x", "X")
+		if err := db.MoveSession(ctx, scope, "in-x", "sfold-x"); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.MoveSession(ctx, scope, "in-y", "sfold-y"); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ReorderSessions(ctx, scope, "", []string{"pinned-b", "pinned-a"}); err != nil {
+			t.Fatal(err)
+		}
+
+		want := []string{"in-x", "in-y", "new", "old", "pinned-b", "pinned-a"}
+		full := pageManual(ctx, t, db, scope.WorkspaceID, nil)
+		if got := sessionIDsFromInfos(full.Sessions); !slices.Equal(got, want) {
+			t.Fatalf("manual order = %v, want %v", got, want)
+		}
+
+		var walked []string
+		var after *store.SessionCatalogPosition
+		for range len(want) {
+			page, err := db.PageSessions(ctx, store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: scope.WorkspaceID,
+				Archive:     store.SessionArchiveInclude,
+				Sort:        "manual",
+				Limit:       1,
+				After:       after,
+			})
+			if err != nil {
+				t.Fatalf("PageSessions(manual, limit 1) error = %v", err)
+			}
+			if len(page.Sessions) == 0 {
+				break
+			}
+			last := page.Sessions[0]
+			walked = append(walked, last.ID)
+			placements := readPlacements(ctx, t, db, last.ID)
+			rank, position := store.SessionManualRootRank, store.SessionManualUnplacedPosition
+			if placement, ok := placements[last.ID]; ok {
+				position = placement.Position
+				if placement.FolderID != "" {
+					rank = placement.FolderPosition
+				}
+			}
+			after = &store.SessionCatalogPosition{
+				ManualFolderRank: &rank,
+				ManualPosition:   &position,
+				PrimaryAt:        last.CreatedAt,
+				SecondaryAt:      last.CreatedAt,
+				CreatedAt:        last.CreatedAt,
+				ID:               last.ID,
+			}
+		}
+		if !slices.Equal(walked, want) {
+			t.Fatalf("keyset walk = %v, want %v", walked, want)
+		}
+	})
+}
+
+func sessionIDsFromInfos(infos []store.SessionInfo) []string {
+	ids := make([]string, 0, len(infos))
+	for index := range infos {
+		ids = append(ids, infos[index].ID)
 	}
 	return ids
 }

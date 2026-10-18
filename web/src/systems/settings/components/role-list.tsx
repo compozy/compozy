@@ -34,27 +34,27 @@ function summarize(roles: readonly RoleViewModel[]): string {
   return off > 0 ? `${roleCount} · ${off} off` : roleCount;
 }
 
-/** The six background roles as one list of disclosure rows. */
+/** The background roles as one list of disclosure rows. */
 export function RoleList({ roles, disclosure, ...panelProps }: RoleListProps) {
   const allExpanded = roles.every(role => disclosure.isOpen(role.role));
 
   return (
     <section className="flex flex-col gap-2.5">
       <header className="flex items-center justify-between gap-3">
-        <span className="text-form-label text-muted" data-testid={`${TEST_PREFIX}-count`}>
+        <span className="text-small-body text-muted" data-testid={`${TEST_PREFIX}-count`}>
           {summarize(roles)}
         </span>
         <Button
           type="button"
           size="sm"
-          variant="ghost"
+          variant="link"
           data-testid={`${TEST_PREFIX}-expand-toggle`}
           onClick={allExpanded ? disclosure.collapseAll : disclosure.expandAll}
         >
           {allExpanded ? "Collapse all" : "Expand all"}
         </Button>
       </header>
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         {roles.map(vm => (
           <RolePanel
             key={vm.role}

@@ -49,7 +49,6 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	if readiness, ok := state.sessionWindowReconciler.(interface{ SetReady() }); ok {
 		readiness.SetReady()
 	}
-	attachParticipationResolverHooks(state.participationResolver, hooks)
 	return nil
 }
 

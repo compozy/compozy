@@ -8,26 +8,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery) (taskSnapshot, error) {
-	if ctx == nil {
-		return taskSnapshot{}, errors.New("observe: task summary context is required")
-	}
-	if err := query.Validate(); err != nil {
-		return taskSnapshot{}, err
-	}
-
 	tasks, runs, err := o.loadTaskSnapshotTasksAndRuns(ctx, query)
 	if err != nil {
 		return taskSnapshot{}, err
 	}
 	tasksByID, taskIDs := taskSummaryIndex(tasks)
 	runs = filterRunsByWorktree(runs, query.WorktreeID)
-	taskChannels := taskParticipationChannels(tasks, runs)
-	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.ParticipationChannel)
 	runsByID := indexTaskSnapshotRuns(runs, taskIDs)
 	runs = filterRuns(runs, taskIDs, query)
 	events, err := o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{})
@@ -35,19 +25,13 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		return taskSnapshot{}, fmt.Errorf("observe: list task events for summary: %w", err)
 	}
 	events = filterEventsForTasks(events, taskIDs, runsByID, query.WorktreeID)
-	audits, err := o.loadTaskSnapshotAudits(ctx, query)
-	if err != nil {
-		return taskSnapshot{}, err
-	}
 
 	return taskSnapshot{
-		tasks:        tasks,
-		runs:         runs,
-		events:       events,
-		audits:       audits,
-		tasksByID:    tasksByID,
-		runsByID:     runsByID,
-		taskChannels: taskChannels,
+		tasks:  tasks,
+		runs:   runs,
+		events: events,
+
+		tasksByID: tasksByID,
 	}, nil
 }
 
@@ -55,6 +39,12 @@ func (o *Observer) loadTaskSnapshotTasksAndRuns(
 	ctx context.Context,
 	query TaskSummaryQuery,
 ) ([]taskpkg.Summary, []taskpkg.Run, error) {
+	if ctx == nil {
+		return nil, nil, errors.New("observe: task summary context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return nil, nil, err
+	}
 	tasks, err := o.registry.ListTasks(ctx, taskpkg.Query{
 		ReadScope:   query.ReadScope,
 		Scope:       query.Scope,
@@ -103,27 +93,6 @@ func indexTaskSnapshotRuns(runs []taskpkg.Run, taskIDs map[string]struct{}) map[
 	return runsByID
 }
 
-func (o *Observer) loadTaskSnapshotAudits(
-	ctx context.Context,
-	query TaskSummaryQuery,
-) ([]store.NetworkAuditEntry, error) {
-	workspaceID := strings.TrimSpace(query.WorkspaceID)
-	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{
-		ReadScope:   query.ReadScope,
-		WorkspaceID: workspaceID,
-		Global:      workspaceID == "",
-		Channel:     strings.TrimSpace(query.ParticipationChannel),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("observe: list network audit for summary: %w", err)
-	}
-	if strings.TrimSpace(query.WorktreeID) != "" {
-		audits = nil
-	}
-
-	return audits, nil
-}
-
 func (o *Observer) loadTaskDependencyCounts(
 	ctx context.Context,
 	tasks []taskpkg.Summary,
@@ -146,27 +115,10 @@ func (o *Observer) loadTaskDependencyCounts(
 		return map[string]int{}, nil
 	}
 
-	path := strings.TrimSpace(o.registry.Path())
-	if path == "" {
-		return o.loadTaskDependencyCountsIndividually(ctx, taskIDs)
+	if source, ok := o.registry.(interface{ DB() *sql.DB }); ok {
+		return queryTaskDependencyCounts(ctx, source.DB(), taskIDs)
 	}
-
-	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("observe: open registry database for dependency counts: %w", err)
-	}
-	counts, queryErr := queryTaskDependencyCounts(ctx, db, taskIDs)
-	closeErr := db.Close()
-	if queryErr != nil {
-		if closeErr != nil {
-			return nil, errors.Join(queryErr, fmt.Errorf("observe: close registry database: %w", closeErr))
-		}
-		return nil, queryErr
-	}
-	if closeErr != nil {
-		return nil, fmt.Errorf("observe: close registry database: %w", closeErr)
-	}
-	return counts, nil
+	return o.loadTaskDependencyCountsIndividually(ctx, taskIDs)
 }
 
 func (o *Observer) loadTaskDependencyCountsIndividually(

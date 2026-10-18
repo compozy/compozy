@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -123,7 +124,7 @@ func TestLoopEffectRelayShouldDeliverNativePromptThroughDaemonWorkspaceScope(t *
 		t,
 		&daemonNativeToolsDeps{
 			Sessions:   sessions,
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		},
 		policyResolver,
 		nil,
@@ -281,6 +282,54 @@ func TestLoopEffectRelayShouldDrainPersistedWorkOnRunStart(t *testing.T) {
 	}
 }
 
+// Invariant: the relay stays idle between enqueues, drains immediately on a commit nudge, and
+// still drains un-nudged rows on its slow fallback sweep. The relay run loop is the owning layer.
+func TestLoopEffectRelayShouldWakeOnNudgeAndOnlySweepOnFallback(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		store := newLoopEffectStoreFake()
+		relay := &loopEffectRelay{store: store, tools: newLoopEffectToolsFake()}
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			relay.Run(ctx)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			<-done
+		})
+
+		synctest.Wait()
+		if got := store.listCallCount(); got != 1 {
+			t.Fatalf("list calls after startup = %d, want one startup drain", got)
+		}
+		time.Sleep(loopEffectRelayPollInterval - time.Millisecond)
+		synctest.Wait()
+		if got := store.listCallCount(); got != 1 {
+			t.Fatalf("list calls while idle = %d, want no polling before the fallback sweep", got)
+		}
+
+		store.enqueue(loopEffectEntryForTest("nudged", 0, `{"kind":"emit","emit":{"kind":"nudged"}}`))
+		relay.Nudge()
+		synctest.Wait()
+		if got := store.pendingCount(); got != 0 {
+			t.Fatalf("pending after nudge = %d, want immediate drain without waiting for the sweep", got)
+		}
+
+		store.enqueue(loopEffectEntryForTest("missed", 1, `{"kind":"emit","emit":{"kind":"missed"}}`))
+		time.Sleep(loopEffectRelayPollInterval)
+		synctest.Wait()
+		if got := store.pendingCount(); got != 0 {
+			t.Fatalf("pending after fallback sweep = %d, want un-nudged row drained", got)
+		}
+		if got := len(store.acknowledgements()); got != 2 {
+			t.Fatalf("acknowledgements = %d, want 2", got)
+		}
+	})
+}
+
 // Invariant: the relay reads committed SQLite rows, persists result events, and closes the
 // outbox row through the real store implementation. The global database is the owning layer.
 func TestLoopEffectRelayShouldDrainRealSQLiteOutboxEndToEnd(t *testing.T) {
@@ -404,6 +453,7 @@ type loopEffectStoreFake struct {
 	failAcks     int
 	rejectAcks   bool
 	acknowledged chan struct{}
+	listCalls    int
 }
 
 func newLoopEffectStoreFake(entries ...looppkg.EffectOutboxEntry) *loopEffectStoreFake {
@@ -420,6 +470,7 @@ func (s *loopEffectStoreFake) ListPendingLoopEffects(
 ) ([]looppkg.EffectOutboxEntry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.listCalls++
 	limit = min(max(limit, 1), len(s.pending))
 	return append([]looppkg.EffectOutboxEntry(nil), s.pending[:limit]...), nil
 }
@@ -450,6 +501,24 @@ func (s *loopEffectStoreFake) AcknowledgeLoopEffect(
 		return true, nil
 	}
 	return false, nil
+}
+
+func (s *loopEffectStoreFake) enqueue(entry looppkg.EffectOutboxEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pending = append(s.pending, entry)
+}
+
+func (s *loopEffectStoreFake) listCallCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listCalls
+}
+
+func (s *loopEffectStoreFake) pendingCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
 }
 
 func (s *loopEffectStoreFake) acknowledgements() []looppkg.EffectAcknowledgement {

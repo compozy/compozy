@@ -41,23 +41,20 @@ func (g *ObserveRepo) WriteEventSummaries(
 		return nil
 	}
 
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin event summary batch: %w", err)
-	}
-	defer func() {
-		joinCleanupError(&err, rollbackTx(tx, "event summary batch"))
-	}()
-	queries := sqlcgen.New(tx)
-	for index := range prepared {
-		if err := insertEventSummary(ctx, queries, prepared[index]); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit event summary batch: %w", err)
-	}
-	return nil
+	return store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"write event summaries",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			queries := sqlcgen.New(tx)
+			for index := range prepared {
+				if err := insertEventSummary(ctx, queries, prepared[index]); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	)
 }
 
 func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.EventSummary) error {

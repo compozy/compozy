@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -41,12 +42,12 @@ type ConfigSeedOptions struct {
 	SocketPath      string
 	DefaultAgent    string
 	DefaultProvider string
-	DefaultSandbox  string
-	PermissionMode  compozyconfig.PermissionMode
-	Providers       map[string]compozyconfig.ProviderConfig
-	Sandboxes       map[string]compozyconfig.SandboxProfile
-	AgentDefs       []AgentSeed
-	Mutate          func(*compozyconfig.Config)
+
+	PermissionMode compozyconfig.PermissionMode
+	Providers      map[string]compozyconfig.ProviderConfig
+
+	AgentDefs []AgentSeed
+	Mutate    func(*compozyconfig.Config)
 }
 
 // WorkspaceSeedOptions configures the seeded workspace root.
@@ -56,19 +57,18 @@ type WorkspaceSeedOptions struct {
 }
 
 type configSeedFile struct {
-	Daemon      *configSeedDaemonSection                `toml:"daemon,omitempty"`
-	HTTP        *configSeedHTTPSection                  `toml:"http,omitempty"`
-	Defaults    *configSeedDefaultsSection              `toml:"defaults,omitempty"`
-	Permissions *configSeedPermissionsSection           `toml:"permissions,omitempty"`
-	Session     *compozyconfig.SessionConfig            `toml:"session,omitempty"`
-	Roles       *compozyconfig.RolesConfig              `toml:"roles,omitempty"`
-	Memory      *compozyconfig.MemoryConfig             `toml:"memory,omitempty"`
-	Network     *compozyconfig.NetworkConfig            `toml:"network,omitempty"`
+	Daemon      *configSeedDaemonSection      `toml:"daemon,omitempty"`
+	HTTP        *configSeedHTTPSection        `toml:"http,omitempty"`
+	Defaults    *configSeedDefaultsSection    `toml:"defaults,omitempty"`
+	Permissions *configSeedPermissionsSection `toml:"permissions,omitempty"`
+	Session     *compozyconfig.SessionConfig  `toml:"session,omitempty"`
+	Roles       *compozyconfig.RolesConfig    `toml:"roles,omitempty"`
+
 	Tools       *compozyconfig.ToolsConfig              `toml:"tools,omitempty"`
 	Marketplace *compozyconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
 	Extensions  *compozyconfig.ExtensionsConfig         `toml:"extensions,omitempty"`
+	Log         *compozyconfig.LogConfig                `toml:"log,omitempty"`
 	Providers   map[string]compozyconfig.ProviderConfig `toml:"providers,omitempty"`
-	Sandboxes   map[string]compozyconfig.SandboxProfile `toml:"sandboxes,omitempty"`
 }
 
 type configSeedDaemonSection struct {
@@ -83,7 +83,6 @@ type configSeedHTTPSection struct {
 type configSeedDefaultsSection struct {
 	Agent    string `toml:"agent,omitempty"`
 	Provider string `toml:"provider,omitempty"`
-	Sandbox  string `toml:"sandbox,omitempty"`
 }
 
 type configSeedPermissionsSection struct {
@@ -109,9 +108,6 @@ func SeedConfig(t testing.TB, homePaths compozyconfig.HomePaths, opts ConfigSeed
 	t.Helper()
 
 	cfg := compozyconfig.DefaultWithHome(homePaths)
-	// Full-feature runtime fixtures opt in; factory-default scenarios override these switches.
-	cfg.Memory.Enabled = true
-	cfg.Roles.Dream.Enabled = true
 	cfg.HTTP.Host = defaultString(opts.Host, "127.0.0.1")
 	if opts.HTTPPort > 0 {
 		cfg.HTTP.Port = opts.HTTPPort
@@ -125,18 +121,14 @@ func SeedConfig(t testing.TB, homePaths compozyconfig.HomePaths, opts ConfigSeed
 	if trimmed := strings.TrimSpace(opts.DefaultProvider); trimmed != "" {
 		cfg.Defaults.Provider = trimmed
 	}
-	if trimmed := strings.TrimSpace(opts.DefaultSandbox); trimmed != "" {
-		cfg.Defaults.Sandbox = trimmed
-	}
+
 	if opts.PermissionMode != "" {
 		cfg.Permissions.Mode = opts.PermissionMode
 	}
 	if len(opts.Providers) > 0 {
 		cfg.Providers = cloneProviders(opts.Providers)
 	}
-	if len(opts.Sandboxes) > 0 {
-		cfg.Sandboxes = cloneSandboxProfiles(opts.Sandboxes)
-	}
+
 	if opts.Mutate != nil {
 		opts.Mutate(&cfg)
 	}
@@ -170,17 +162,15 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 		Defaults: &configSeedDefaultsSection{
 			Agent:    cfg.Defaults.Agent,
 			Provider: cfg.Defaults.Provider,
-			Sandbox:  cfg.Defaults.Sandbox,
 		},
-		Session:     cloneSessionConfig(cfg.Session),
-		Roles:       cloneRolesConfig(&cfg.Roles),
-		Memory:      cloneMemoryConfig(&cfg.Memory),
-		Network:     &cfg.Network,
+		Session: cloneSessionConfig(cfg.Session),
+		Roles:   cloneRolesConfig(&cfg.Roles),
+
 		Tools:       cloneToolsConfig(&cfg.Tools),
 		Marketplace: &cfg.Marketplace,
 		Extensions:  &cfg.Extensions,
+		Log:         &cfg.Log,
 		Providers:   cloneProviders(cfg.Providers),
-		Sandboxes:   cloneSandboxProfiles(cfg.Sandboxes),
 	}
 	if cfg.Permissions.Mode != "" {
 		overlay.Permissions = &configSeedPermissionsSection{Mode: cfg.Permissions.Mode}
@@ -208,18 +198,11 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 }
 
 func cloneSessionConfig(cfg compozyconfig.SessionConfig) *compozyconfig.SessionConfig {
-	cloned := cfg
-	return &cloned
+	return new(cfg)
 }
 
 func cloneRolesConfig(cfg *compozyconfig.RolesConfig) *compozyconfig.RolesConfig {
-	cloned := compozyconfig.CloneRolesConfig(cfg)
-	return &cloned
-}
-
-func cloneMemoryConfig(cfg *compozyconfig.MemoryConfig) *compozyconfig.MemoryConfig {
-	cloned := compozyconfig.CloneMemoryConfig(cfg)
-	return &cloned
+	return new(compozyconfig.CloneRolesConfig(cfg))
 }
 
 func cloneToolsConfig(cfg *compozyconfig.ToolsConfig) *compozyconfig.ToolsConfig {
@@ -283,23 +266,6 @@ func seedWorkspaceTargetPath(root string, relativePath string) (string, error) {
 	}
 
 	return targetPath, nil
-}
-
-func cloneSandboxProfiles(
-	profiles map[string]compozyconfig.SandboxProfile,
-) map[string]compozyconfig.SandboxProfile {
-	if len(profiles) == 0 {
-		return nil
-	}
-	cloned := make(map[string]compozyconfig.SandboxProfile, len(profiles))
-	for name, profile := range profiles {
-		next := profile
-		next.Env = maps.Clone(profile.Env)
-		next.Network.AllowList = append([]string(nil), profile.Network.AllowList...)
-		next.Network.DenyList = append([]string(nil), profile.Network.DenyList...)
-		cloned[name] = next
-	}
-	return cloned
 }
 
 // WriteAgentDef persists one AGENT.md fixture under the supplied home.
@@ -439,14 +405,5 @@ func defaultString(value string, fallback string) string {
 }
 
 func sortStrings(values []string) {
-	if len(values) < 2 {
-		return
-	}
-	for i := 0; i < len(values)-1; i++ {
-		for j := i + 1; j < len(values); j++ {
-			if values[j] < values[i] {
-				values[i], values[j] = values[j], values[i]
-			}
-		}
-	}
+	slices.Sort(values)
 }

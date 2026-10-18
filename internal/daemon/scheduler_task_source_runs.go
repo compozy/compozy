@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -15,7 +16,7 @@ func (s schedulerTaskSource) PendingRuns(ctx context.Context) ([]schedulerpkg.Ru
 	}
 	workerRuns := make([]taskpkg.Run, 0, len(runs))
 	for _, run := range runs {
-		if !run.IsTaskAnchored() {
+		if strings.TrimSpace(run.TaskID) == "" {
 			continue
 		}
 		if run.RunKind.Normalize() == taskpkg.RunKindCoordinator {
@@ -44,7 +45,7 @@ func (s schedulerTaskSource) ActiveRuns(ctx context.Context) ([]taskpkg.Run, err
 	}
 	active := make([]taskpkg.Run, 0, len(runs))
 	for _, run := range runs {
-		if run.IsTaskAnchored() || run.IsNetworkWake() {
+		if strings.TrimSpace(run.TaskID) != "" {
 			active = append(active, run)
 		}
 	}

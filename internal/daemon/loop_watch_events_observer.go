@@ -76,7 +76,6 @@ var _ taskRunTerminalObserver = (*loopWatchEventsObserver)(nil)
 var _ loopTerminalObserver = (*loopWatchEventsObserver)(nil)
 var _ loopNodeTerminalObserver = (*loopWatchEventsObserver)(nil)
 var _ automationRunWatchObserver = (*loopWatchEventsObserver)(nil)
-var _ networkWatchObserver = (*loopWatchEventsObserver)(nil)
 var _ coordinatorWatchObserver = (*loopWatchEventsObserver)(nil)
 var _ eventRecordWatchObserver = (*loopWatchEventsObserver)(nil)
 
@@ -177,48 +176,6 @@ func (o *loopWatchEventsObserver) OnAutomationRunFailed(
 	payload hookspkg.AutomationRunFailedPayload,
 ) error {
 	return o.matchAndWake(ctx, watchEventsAutomationRunFailedEvent(payload, o.now))
-}
-
-func (o *loopWatchEventsObserver) OnNetworkThreadOpened(
-	ctx context.Context,
-	payload hookspkg.NetworkThreadOpenedPayload,
-) error {
-	return o.matchAndWake(ctx, watchEventsNetworkEvent(hookspkg.HookNetworkThreadOpened, payload, o.now))
-}
-
-func (o *loopWatchEventsObserver) OnNetworkDirectRoomOpened(
-	ctx context.Context,
-	payload hookspkg.NetworkDirectRoomOpenedPayload,
-) error {
-	return o.matchAndWake(ctx, watchEventsNetworkEvent(hookspkg.HookNetworkDirectRoomOpened, payload, o.now))
-}
-
-func (o *loopWatchEventsObserver) OnNetworkMessagePersisted(
-	ctx context.Context,
-	payload hookspkg.NetworkMessagePersistedPayload,
-) error {
-	return o.matchAndWake(ctx, watchEventsNetworkEvent(hookspkg.HookNetworkMessagePersisted, payload, o.now))
-}
-
-func (o *loopWatchEventsObserver) OnNetworkWorkOpened(
-	ctx context.Context,
-	payload hookspkg.NetworkWorkOpenedPayload,
-) error {
-	return o.matchAndWake(ctx, watchEventsNetworkEvent(hookspkg.HookNetworkWorkOpened, payload, o.now))
-}
-
-func (o *loopWatchEventsObserver) OnNetworkWorkTransitioned(
-	ctx context.Context,
-	payload hookspkg.NetworkWorkTransitionedPayload,
-) error {
-	return o.matchAndWake(ctx, watchEventsNetworkEvent(hookspkg.HookNetworkWorkTransitioned, payload, o.now))
-}
-
-func (o *loopWatchEventsObserver) OnNetworkWorkClosed(
-	ctx context.Context,
-	payload hookspkg.NetworkWorkClosedPayload,
-) error {
-	return o.matchAndWake(ctx, watchEventsNetworkEvent(hookspkg.HookNetworkWorkClosed, payload, o.now))
 }
 
 func (o *loopWatchEventsObserver) OnCoordinatorSpawned(
@@ -403,23 +360,21 @@ func (o *loopWatchEventsObserver) writeObserverEvent(
 		return fmt.Errorf("daemon: marshal loop watch-events observer event: %w", err)
 	}
 	return o.store.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
-		ProfileID:   strings.TrimSpace(subscription.ProfileID),
-		SessionID:   loopWatchEventsObserverSessionID,
-		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
-		Type:        eventType,
-		AgentName:   loopWatchEventsDaemonAgentName,
-		Outcome:     loopWatchEventsOutcome(eventType),
-		EventCorrelation: store.EventCorrelation{
-			TaskID:               strings.TrimSpace(event.TaskID),
-			RunID:                firstNonEmptyWatchEventsValue(run.ID, event.RunID),
-			CoordinatorSessionID: strings.TrimSpace(event.SessionID),
-			SchedulerReason:      loopWatchEventsDoorbellReason,
-			HookEvent:            strings.TrimSpace(event.Kind),
-			ActorKind:            string(taskpkg.ActorKindDaemon),
-			ActorID:              loopWatchEventsObserverActorID,
-		},
-		Summary:   loopWatchEventsSummary(eventType, event, subscription),
-		Timestamp: o.now().UTC(),
+		ProfileID:            strings.TrimSpace(subscription.ProfileID),
+		SessionID:            loopWatchEventsObserverSessionID,
+		WorkspaceID:          strings.TrimSpace(subscription.WorkspaceID),
+		Type:                 eventType,
+		AgentName:            loopWatchEventsDaemonAgentName,
+		Outcome:              loopWatchEventsOutcome(eventType),
+		TaskID:               strings.TrimSpace(event.TaskID),
+		RunID:                firstNonEmptyWatchEventsValue(run.ID, event.RunID),
+		CoordinatorSessionID: strings.TrimSpace(event.SessionID),
+		SchedulerReason:      loopWatchEventsDoorbellReason,
+		HookEvent:            strings.TrimSpace(event.Kind),
+		ActorKind:            string(taskpkg.ActorKindDaemon),
+		ActorID:              loopWatchEventsObserverActorID,
+		Summary:              loopWatchEventsSummary(eventType, event, subscription),
+		Timestamp:            o.now().UTC(),
 	}, content))
 }
 

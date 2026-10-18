@@ -14,7 +14,6 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 
-	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
 
@@ -89,9 +88,7 @@ func (d *Daemon) bootRegistryState(
 	if err := startLoopReconciliation(ctx, state, registry, cleanup, d.readyCh); err != nil {
 		return err
 	}
-	if err := d.bootMemoryCatalog(ctx, state, cleanup); err != nil {
-		return err
-	}
+
 	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
 		profiles, err := d.bootProfiles(state, profileStore)
 		if err != nil {
@@ -117,9 +114,6 @@ func (d *Daemon) bootRegistryState(
 	if err := d.bootDeadEntityRegistry(state); err != nil {
 		return err
 	}
-	if err := reconcileBootNetworkAvailability(ctx, state); err != nil {
-		return err
-	}
 	if state.skillsRegistry != nil {
 		state.skillsRegistry.SetEventSummaryStore(registry)
 	}
@@ -133,11 +127,7 @@ func (d *Daemon) bootRegistryState(
 	if err := recoverProfiles(ctx, state); err != nil {
 		return err
 	}
-	memoryProviders, err := newDaemonMemoryProviderRegistry(ctx, state)
-	if err != nil {
-		return fmt.Errorf("daemon: create memory provider registry: %w", err)
-	}
-	state.memoryProviderRegistry = memoryProviders
+
 	return nil
 }
 
@@ -188,29 +178,9 @@ func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 		return err
 	}
 	state.resourceKernel = resourceKernel
-	state.resourceCodecs, err = d.buildResourceCodecs(state.bridges)
+	state.resourceCodecs, err = d.buildResourceCodecs()
 	if err != nil {
 		return err
-	}
-	bridgeResources, err := bridgeInstanceResourceStore(
-		resourceRawStore(resourceKernel),
-		state.resourceCodecs,
-	)
-	if err != nil {
-		return err
-	}
-	if state.bridges != nil && bridgeResources != nil {
-		state.bridges.setResourceDefinitions(
-			bridgeResources,
-			resourceReconcileActor(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				if state.resourceReconcile == nil {
-					return nil
-				}
-				_, err := state.resourceReconcile.Trigger(ctx, kind, reason)
-				return err
-			},
-		)
 	}
 	state.agentCatalog = newResourceCatalog(cloneAgentDef)
 	state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)

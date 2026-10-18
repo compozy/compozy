@@ -17,14 +17,14 @@ type nativeLoopNodesInput struct {
 	LoopName    string `json:"loop_name,omitempty"`
 	RunID       string `json:"run_id,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 type nativeLoopNodeMutationInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	NodeID      string `json:"node_id"`
-	ItemIndex   *int   `json:"item_index,omitempty"`
+	ItemIndex   *int   `json:"item_index,omitzero"`
 	Reason      string `json:"reason,omitempty"`
 }
 
@@ -32,7 +32,7 @@ type nativeLoopNodePauseInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	NodeID      string `json:"node_id"`
-	ItemIndex   *int   `json:"item_index,omitempty"`
+	ItemIndex   *int   `json:"item_index,omitzero"`
 	Mode        string `json:"mode"`
 	Reason      string `json:"reason,omitempty"`
 }
@@ -42,7 +42,7 @@ type nativeLoopNodeResumeInput struct {
 	RunID       string          `json:"run_id"`
 	NodeID      string          `json:"node_id"`
 	Mode        string          `json:"mode"`
-	ItemIndex   *int            `json:"item_index,omitempty"`
+	ItemIndex   *int            `json:"item_index,omitzero"`
 	Payload     json.RawMessage `json:"payload,omitempty"`
 }
 

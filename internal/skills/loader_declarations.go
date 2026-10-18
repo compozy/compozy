@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"fmt"
+	"maps"
 
 	"slices"
 	"strings"
@@ -115,6 +116,7 @@ func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 	}
 
 	hooks := make([]hookspkg.HookDecl, 0, len(items))
+	var dropped []string
 	for idx, item := range items {
 		entry, ok := item.(map[string]any)
 		if !ok {
@@ -129,6 +131,10 @@ func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 			continue
 		}
 
+		entry, ignored := ignoreRetiredSkillHookMatchers(entry)
+		for _, key := range ignored {
+			dropped = append(dropped, fmt.Sprintf("hooks[%d].matcher.%s", idx, key))
+		}
 		decoded, err := decodeSkillHookDecl(entry)
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -155,11 +161,38 @@ func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 		hooks = append(hooks, hook)
 	}
 
+	if len(dropped) > 0 {
+		warnCompozyMetadata(skill, "skills.retired_entries_ignored", "entries", dropped)
+	}
 	if len(hooks) == 0 {
 		return nil, nil
 	}
 
 	return slices.Clip(hooks), nil
+}
+
+// Remove this boundary shim in v0.6.0 after the retired matcher migration window.
+func ignoreRetiredSkillHookMatchers(entry map[string]any) (map[string]any, []string) {
+	matcher, ok := entry["matcher"].(map[string]any)
+	if !ok {
+		return entry, nil
+	}
+	var dropped []string
+	for _, key := range []string{"compaction_reason", "compaction_strategy"} {
+		if _, exists := matcher[key]; exists {
+			dropped = append(dropped, key)
+		}
+	}
+	if len(dropped) == 0 {
+		return entry, nil
+	}
+	entry = maps.Clone(entry)
+	matcher = maps.Clone(matcher)
+	for _, key := range dropped {
+		delete(matcher, key)
+	}
+	entry["matcher"] = matcher
+	return entry, dropped
 }
 
 func buildSkillHookDecl(

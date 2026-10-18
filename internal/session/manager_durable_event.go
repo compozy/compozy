@@ -58,7 +58,7 @@ func (m *Manager) appendStoredSessionEvent(
 	if err != nil {
 		return store.SessionEvent{}, err
 	}
-	owner, err := m.resolveStoredSessionOwner(ctx, sessionID, meta.WorkspaceID)
+	owner, err := m.resolveStoredSessionOwner(ctx, &meta)
 	if err != nil {
 		return store.SessionEvent{}, fmt.Errorf(
 			"session: resolve catalog owner for durable event %q: %w",

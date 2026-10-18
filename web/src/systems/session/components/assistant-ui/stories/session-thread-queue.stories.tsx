@@ -16,6 +16,7 @@ import {
   QUEUE_STORY_ENTRIES,
   QUEUE_STORY_FULL_ENTRIES,
   QUEUE_STORY_OTHER_ACTOR_ENTRIES,
+  QUEUE_STORY_SESSION_MESSAGE_ENTRIES,
   queueStoryClearedTranscript,
   queueStoryHandlers,
   type QueueStorySceneOptions,
@@ -120,7 +121,7 @@ const meta: Meta<typeof QueueStoryHost> = {
       >
         <SessionChatRuntimeProvider sessionId={queueStorySession.id} workspaceId={storyWorkspaceId}>
           <div
-            className="flex h-[560px] w-[860px] max-w-full flex-col overflow-hidden rounded-window border border-line-focus bg-canvas shadow-window"
+            className="flex h-[560px] w-[860px] max-w-full flex-col overflow-hidden rounded-lg border border-line bg-canvas shadow-elevated"
             data-testid="queue-story-window"
           >
             <Story />
@@ -153,6 +154,15 @@ export const EditingOwnRow: Story = {
 /** VC-02 — agent-owned entries carry actor names and omit mutation controls. */
 export const OtherActor: Story = {
   parameters: scene({ entries: QUEUE_STORY_OTHER_ACTOR_ENTRIES }),
+};
+
+/**
+ * Agent collaboration VC-05 — a mixed queue: the operator's row keeps every
+ * verb; a message another session sent shows its sender ("From {title}", or "a
+ * deleted session") and offers Steer and Remove, never Edit; another actor's row keeps none.
+ */
+export const SessionMessages: Story = {
+  parameters: scene({ entries: QUEUE_STORY_SESSION_MESSAGE_ENTRIES }),
 };
 
 /**
@@ -221,7 +231,10 @@ export const UnconfirmedRetryReplayed: Story = {
     await userEvent.click(await canvas.findByTestId("composer-queue-button"));
     await userEvent.click(await canvas.findByTestId("composer-queued-retry"));
     await waitFor(async () => {
-      await expect(canvas.getByTestId("composer-feedback-suffix")).toHaveTextContent("replayed");
+      await expect(canvas.getByTestId("composer-feedback-note")).toHaveAttribute(
+        "data-detail",
+        "replayed"
+      );
     });
   },
 };

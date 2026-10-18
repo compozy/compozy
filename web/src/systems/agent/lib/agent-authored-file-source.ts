@@ -42,7 +42,6 @@ export function serializeAgentSoulSource(payload: AgentSoulPayload): string {
   appendStringList(lines, "principles", frontmatter.principles ?? []);
   appendStringList(lines, "constraints", frontmatter.constraints ?? []);
   appendStringList(lines, "collaboration", frontmatter.collaboration ?? []);
-  appendStringList(lines, "memory_policy", frontmatter.memory_policy ?? []);
   appendStringList(lines, "tags", frontmatter.tags ?? []);
   return finishSource(lines, payload.body ?? "");
 }

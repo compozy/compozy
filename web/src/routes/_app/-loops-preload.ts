@@ -39,7 +39,12 @@ export function preloadLoopsRoute(
   filters: LoopCatalogStableFilter
 ): Promise<void> {
   return withActiveWorkspace(queryClient, workspaceId => [
-    queryClient.ensureInfiniteQueryData(loopsCatalogOptions(workspaceId, filters)),
+    queryClient.ensureInfiniteQueryData(
+      loopsCatalogOptions(workspaceId, {
+        ...filters,
+        ...readProfileScopeParams(queryClient, readProfileLens()),
+      })
+    ),
   ]);
 }
 
@@ -55,7 +60,7 @@ export async function preloadLoopDetailRoute(
     queryClient.ensureQueryData(loopDetailOptions(workspaceId, name)),
     queryClient.ensureQueryData(loopConfigOptions(workspaceId, name)),
     queryClient.ensureInfiniteQueryData(
-      loopsCatalogOptions(workspaceId, { limit: 50, q: name, sort: "name" })
+      loopsCatalogOptions(workspaceId, { limit: 50, q: name, sort: "name", ...profileScope })
     ),
     queryClient.ensureQueryData(
       loopRunsOptions(workspaceId, { loop: name, limit: 5, ...profileScope })

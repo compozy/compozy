@@ -12,8 +12,8 @@
         "@compozy/extension-sdk": "workspace:*"
     },
     "devDependencies": {
-        "@types/node": "^26.3.0",
-        "typescript": "^7.0.2"
+        "@types/node": "26.6.4",
+        "typescript": "7.0.2"
     },
     "engines": {
         "node": ">=18"

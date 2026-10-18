@@ -123,11 +123,9 @@ func TestHostAPIHandlerSessionsSoulRefreshRequiresWorkspaceOwnership(t *testing.
 			"ext-soul-refresh",
 			string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
 			mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
-				WorkspaceID: env.workspaceID,
-				SessionID:   sess.ID,
-				SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
-					ExpectedDigest: "soul-digest",
-				},
+				WorkspaceID:    env.workspaceID,
+				SessionID:      sess.ID,
+				ExpectedDigest: "soul-digest",
 			}),
 		)
 		if err != nil {
@@ -165,11 +163,9 @@ func TestHostAPIHandlerSessionsSoulRefreshRequiresWorkspaceOwnership(t *testing.
 			"ext-soul-refresh",
 			string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
 			mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
-				WorkspaceID: foreign.WorkspaceID,
-				SessionID:   sess.ID,
-				SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
-					ExpectedDigest: "soul-digest",
-				},
+				WorkspaceID:    foreign.WorkspaceID,
+				SessionID:      sess.ID,
+				ExpectedDigest: "soul-digest",
 			}),
 		)
 		assertRPCErrorCode(t, err, HostAPINotFoundCode)

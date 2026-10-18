@@ -242,6 +242,7 @@ type SessionHealthResponse struct {
 
 // SessionStatusResponse returns compact session status plus wake eligibility.
 type SessionStatusResponse struct {
+	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
 	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
 	LifecycleState      session.State                    `json:"lifecycle_state,omitempty"`
 	Verified            *bool                            `json:"verified,omitempty"`
@@ -259,7 +260,11 @@ type SessionStatusResponse struct {
 	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
 	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
 	PendingInteractions []PendingInteractionPayload      `json:"pending_interactions"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
+	// Lineage is present for every parented session (provenance, recovery, spawn,
+	// continue, fork); Derivation only for continued or forked sessions.
+	Lineage    *SessionLineagePayload    `json:"lineage,omitempty"`
+	Derivation *SessionDerivationPayload `json:"derivation,omitempty"`
+	UpdatedAt  time.Time                 `json:"updated_at"`
 }
 
 // SessionInspectResponse returns detailed health, wake audit, and policy diagnostics.
@@ -329,7 +334,7 @@ type HeartbeatWakeByPathRequest struct {
 	WorkspaceID    string              `json:"workspace_id,omitempty"`
 	SessionID      string              `json:"session_id"`
 	Source         HeartbeatWakeSource `json:"source"`
-	DryRun         bool                `json:"dry_run,omitempty"`
+	DryRun         bool                `json:"dry_run,omitzero"`
 	IdempotencyKey string              `json:"idempotency_key,omitempty"`
 }
 

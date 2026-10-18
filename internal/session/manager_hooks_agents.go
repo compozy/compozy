@@ -25,10 +25,8 @@ func (m *Manager) dispatchAgentPreStart(
 
 	command, args := splitCommand(opts.Command)
 	payload, err := m.hooks.agent().DispatchAgentPreStart(ctx, hookspkg.AgentPreStartPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookAgentPreStart,
-			Timestamp: m.now(),
-		},
+		Event:          hookspkg.HookAgentPreStart,
+		Timestamp:      m.now(),
 		SessionContext: hookSessionContext(session),
 		Command:        command,
 		Args:           args,
@@ -78,10 +76,8 @@ func (m *Manager) dispatchAgentObservation(
 
 	command, args := agentCommandAndArgs(proc)
 	payload := hookspkg.AgentLifecyclePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     event,
-			Timestamp: m.now(),
-		},
+		Event:          event,
+		Timestamp:      m.now(),
 		SessionContext: hookSessionContext(session),
 		Command:        command,
 		Args:           args,

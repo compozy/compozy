@@ -22,6 +22,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, err
 	}
 	entry := store.SessionInputQueueEntry{
+		Priority:          int(row.Priority),
 		ID:                row.ID,
 		SessionID:         row.SessionID,
 		PromptAdmissionID: strings.TrimSpace(row.PromptAdmissionID.String),
@@ -79,6 +80,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, err
 	}
 	entry.Attachments = attachments
+	scanSessionInputOrigin(row, &entry)
 	if err := decodeSyntheticQueuePrompt(row.SyntheticPromptJson, &entry); err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
@@ -90,6 +92,14 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input queue entry times: %w", err)
 	}
 	return entry, nil
+}
+
+func scanSessionInputOrigin(row *sqlcgen.SessionInputQueue, entry *store.SessionInputQueueEntry) {
+	if row.OriginJson.Valid {
+		entry.Origin = json.RawMessage(row.OriginJson.String)
+	}
+	entry.OriginClass = strings.TrimSpace(row.OriginClass)
+	entry.OriginSessionID = strings.TrimSpace(row.OriginSessionID)
 }
 
 func sqlNullStringFromTime(value sql.NullTime) sql.NullString {
@@ -164,8 +174,7 @@ func nullableInt64Pointer(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
 	}
-	result := value.Int64
-	return &result
+	return new(value.Int64)
 }
 
 func parseOptionalSessionInputTimestamp(value sql.NullString) (*time.Time, error) {

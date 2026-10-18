@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -323,16 +324,12 @@ func approvalTokenRecordMatches(record approvalTokenRecord, scope Scope, call Ca
 }
 
 func (s *ApprovalTokenStore) pruneExpiredLocked(now time.Time) {
-	for hash, record := range s.active {
-		if !now.Before(record.expiresAt) {
-			delete(s.active, hash)
-		}
-	}
-	for hash, expiresAt := range s.used {
-		if !now.Before(expiresAt) {
-			delete(s.used, hash)
-		}
-	}
+	maps.DeleteFunc(s.active, func(_ [sha256.Size]byte, record approvalTokenRecord) bool {
+		return !now.Before(record.expiresAt)
+	})
+	maps.DeleteFunc(s.used, func(_ [sha256.Size]byte, expiresAt time.Time) bool {
+		return !now.Before(expiresAt)
+	})
 }
 
 func approvalTokenError(id ToolID, message string, reason ReasonCode) *ToolError {

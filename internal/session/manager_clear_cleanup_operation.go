@@ -38,7 +38,7 @@ func (c *sessionDBClearCleanup) run(ctx context.Context, disposition sessionDBCl
 			c.manifest,
 			c.dbPath,
 			c.metaPath,
-			c.meta,
+			&c.meta,
 		)
 	default:
 		return errors.New("session: invalid clear cleanup disposition")

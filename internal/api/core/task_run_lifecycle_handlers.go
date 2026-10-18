@@ -64,9 +64,8 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 	if !ok {
 		return
 	}
-	networkStore, err := h.networkStoreRequired()
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+	if h.TaskDesignations == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: task designation store is not configured"))
 		return
 	}
 	taskID, err := requiredPathID(c.Param("id"), "task id")
@@ -112,7 +111,7 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 		return
 	}
 	now := h.nowUTC()
-	if err := networkStore.PutTaskDesignationRollup(
+	if err := h.TaskDesignations.PutTaskDesignationRollup(
 		c.Request.Context(),
 		store.TaskDesignationRollup{
 			DesignationGroupID: groupID,
@@ -121,7 +120,7 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 			CreatedAt:          now,
 		},
 	); err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
+		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusCreated, contract.FanOutTaskRunsResponse{
@@ -171,7 +170,12 @@ func (h *BaseHandlers) StartTaskRun(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
+	payloads := []contract.TaskRunPayload{TaskRunPayloadFromRun(run)}
+	if err := h.decorateTaskRunOwners(c.Request.Context(), payloads); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: payloads[0]})
 }
 
 // AttachTaskRunSession binds one existing session to a run.

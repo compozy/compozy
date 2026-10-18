@@ -14,4 +14,4 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-bun run --cwd desktop test:e2e
+bun run --cwd desktop "${1:-test:e2e}"

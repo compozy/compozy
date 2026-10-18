@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -92,6 +93,19 @@ func TestEqual(t *testing.T) {
 
 func TestFromInfo(t *testing.T) {
 	t.Parallel()
+	t.Run("Should ignore directory allocation size only on Windows", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		info, err := os.Lstat(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := FromInfo(root, sizedFileInfo{FileInfo: info, size: 0})
+		after := FromInfo(root, sizedFileInfo{FileInfo: info, size: 4096})
+		if got, want := before.Equal(after), runtime.GOOS == "windows"; got != want {
+			t.Fatalf("equal snapshots = %t, want %t", got, want)
+		}
+	})
 
 	t.Run("Should fingerprint file contents when change metadata is unavailable", func(t *testing.T) {
 		t.Parallel()
@@ -250,3 +264,10 @@ func equalTestSnapshots(modTime time.Time) map[string]Snapshot {
 		"b": {ModTime: modTime.Add(time.Second), Size: 2},
 	}
 }
+
+type sizedFileInfo struct {
+	fs.FileInfo
+	size int64
+}
+
+func (info sizedFileInfo) Size() int64 { return info.size }

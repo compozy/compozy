@@ -59,7 +59,6 @@ export {
   type KindIconTone,
 } from "./components/custom/kind-icon";
 export {
-  bridgeKindIconRegistry,
   providerKindIconRegistry,
   type KindIconRegistry,
   type KindIconRegistryEntry,
@@ -104,6 +103,12 @@ export {
   type OverlayContainer,
 } from "./components/hooks/use-overlay-container";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
+export {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+  type HoverCardContentProps,
+} from "./components/hover-card";
 export { Tabs, TabsContent, TabsList, TabsTrigger, type TabsTriggerProps } from "./components/tabs";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
 export {
@@ -151,6 +156,7 @@ export {
   CommandEmpty,
   CommandGroup,
   CommandInput,
+  type CommandInputVariant,
   CommandItem,
   CommandList,
   CommandSeparator,
@@ -227,8 +233,10 @@ export {
 export { Eyebrow, type EyebrowProps, type EyebrowVariant } from "./components/custom/eyebrow";
 export {
   Pill,
+  PillCount,
   PillDot,
   PillLink,
+  type PillCountProps,
   type PillProps,
   type PillDotProps,
   type PillLinkProps,

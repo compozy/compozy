@@ -8,20 +8,16 @@ import (
 )
 
 type preStartCacheKey struct {
-	ProviderName      string
-	WorkspaceID       string
-	ProfileID         string
-	HomeIdentity      string
-	SandboxID         string
-	SandboxBackend    string
-	SandboxProfile    string
-	SandboxInstanceID string
-	AuthMode          compozyconfig.ProviderAuthMode
-	EnvPolicy         compozyconfig.ProviderEnvPolicy
-	HomePolicy        compozyconfig.ProviderHomePolicy
-	Harness           compozyconfig.ProviderHarness
-	RuntimeProvider   string
-	Fingerprint       preStartCacheFingerprint
+	ProviderName    string
+	WorkspaceID     string
+	ProfileID       string
+	HomeIdentity    string
+	AuthMode        compozyconfig.ProviderAuthMode
+	EnvPolicy       compozyconfig.ProviderEnvPolicy
+	HomePolicy      compozyconfig.ProviderHomePolicy
+	Harness         compozyconfig.ProviderHarness
+	RuntimeProvider string
+	Fingerprint     preStartCacheFingerprint
 }
 
 func (s *PreStarter) newPreStartCacheKey(
@@ -41,42 +37,31 @@ func (s *PreStarter) newPreStartCacheKey(
 		return preStartCacheKey{}, false
 	}
 	return preStartCacheKey{
-		ProviderName:      providerName,
-		WorkspaceID:       scope.WorkspaceID,
-		ProfileID:         scope.ProfileID,
-		HomeIdentity:      scope.HomeIdentity,
-		SandboxID:         scope.SandboxID,
-		SandboxBackend:    scope.SandboxBackend,
-		SandboxProfile:    scope.SandboxProfile,
-		SandboxInstanceID: scope.SandboxInstanceID,
-		AuthMode:          provider.EffectiveAuthMode(),
-		EnvPolicy:         provider.EffectiveEnvPolicy(),
-		HomePolicy:        provider.EffectiveHomePolicy(),
-		Harness:           provider.EffectiveHarness(),
-		RuntimeProvider:   strings.TrimSpace(provider.RuntimeProviderName(providerName)),
-		Fingerprint:       fingerprint,
+		ProviderName:    providerName,
+		WorkspaceID:     scope.WorkspaceID,
+		ProfileID:       scope.ProfileID,
+		HomeIdentity:    scope.HomeIdentity,
+		AuthMode:        provider.EffectiveAuthMode(),
+		EnvPolicy:       provider.EffectiveEnvPolicy(),
+		HomePolicy:      provider.EffectiveHomePolicy(),
+		Harness:         provider.EffectiveHarness(),
+		RuntimeProvider: strings.TrimSpace(provider.RuntimeProviderName(providerName)),
+		Fingerprint:     fingerprint,
 	}, true
 }
 
 func normalizePreStartScope(scope PreStartScope) PreStartScope {
 	return PreStartScope{
-		WorkspaceID:       strings.TrimSpace(scope.WorkspaceID),
-		ProfileID:         strings.TrimSpace(scope.ProfileID),
-		HomeIdentity:      strings.TrimSpace(scope.HomeIdentity),
-		SandboxID:         strings.TrimSpace(scope.SandboxID),
-		SandboxBackend:    strings.TrimSpace(scope.SandboxBackend),
-		SandboxProfile:    strings.TrimSpace(scope.SandboxProfile),
-		SandboxInstanceID: strings.TrimSpace(scope.SandboxInstanceID),
+		WorkspaceID:  strings.TrimSpace(scope.WorkspaceID),
+		ProfileID:    strings.TrimSpace(scope.ProfileID),
+		HomeIdentity: strings.TrimSpace(scope.HomeIdentity),
 	}
 }
 
 func (s PreStartScope) cacheable() bool {
 	return s.WorkspaceID != "" &&
 		s.ProfileID != "" &&
-		s.HomeIdentity != "" &&
-		s.SandboxID != "" &&
-		s.SandboxBackend != "" &&
-		s.SandboxProfile != ""
+		s.HomeIdentity != ""
 }
 
 func preStartCacheKeyLess(left preStartCacheKey, right preStartCacheKey) bool {
@@ -85,10 +70,6 @@ func preStartCacheKeyLess(left preStartCacheKey, right preStartCacheKey) bool {
 		{left.WorkspaceID, right.WorkspaceID},
 		{left.ProfileID, right.ProfileID},
 		{left.HomeIdentity, right.HomeIdentity},
-		{left.SandboxID, right.SandboxID},
-		{left.SandboxBackend, right.SandboxBackend},
-		{left.SandboxProfile, right.SandboxProfile},
-		{left.SandboxInstanceID, right.SandboxInstanceID},
 		{string(left.AuthMode), string(right.AuthMode)},
 		{string(left.EnvPolicy), string(right.EnvPolicy)},
 		{string(left.HomePolicy), string(right.HomePolicy)},

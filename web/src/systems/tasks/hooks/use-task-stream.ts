@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { buildTaskStreamUrl } from "../adapters/tasks-api";
@@ -55,6 +56,9 @@ export function useTaskStream(
   }: UseTaskStreamOptions = {}
 ) {
   const queryClient = useQueryClient();
+  const { params } = useProfileReadScope();
+  const profile = "profile" in params ? params.profile : undefined;
+  const all_profiles = params.all_profiles;
   const trimmedId = taskId.trim();
   const refreshBindingKey = { enabled, queryClient, taskId: trimmedId };
   const { store: refreshStore } = useStoreBinding(
@@ -91,7 +95,11 @@ export function useTaskStream(
       return undefined;
     }
 
-    const url = buildTaskStreamUrl(trimmedId, { after_sequence: filteredAfterSequence });
+    const url = buildTaskStreamUrl(trimmedId, {
+      after_sequence: filteredAfterSequence,
+      profile,
+      all_profiles,
+    });
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
 
     const handleMessage = (event: MessageEvent) => {
@@ -112,7 +120,15 @@ export function useTaskStream(
     };
 
     return attachTaskStreamSource(source, handleMessage, handleError);
-  }, [customEventSourceFactory, enabled, filteredAfterSequence, refreshStore, trimmedId]);
+  }, [
+    all_profiles,
+    customEventSourceFactory,
+    enabled,
+    filteredAfterSequence,
+    profile,
+    refreshStore,
+    trimmedId,
+  ]);
 }
 
 export type { TaskStreamEventSource, TaskStreamEventSourceFactory, UseTaskStreamOptions };

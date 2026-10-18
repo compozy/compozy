@@ -6,9 +6,7 @@ import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -40,9 +38,8 @@ type SessionsListParams struct {
 
 // SessionsCreateParams starts a new session.
 type SessionsCreateParams struct {
-	Agent                string                 `json:"agent"`
-	Workspace            string                 `json:"workspace,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Agent     string `json:"agent"`
+	Workspace string `json:"workspace,omitempty"`
 }
 
 // SessionsPromptParams submits one prompt to an existing session.
@@ -142,49 +139,6 @@ type SessionHealthGetParams = SessionTargetParams
 
 // SessionStatusGetParams identifies one authored-context session status row.
 type SessionStatusGetParams = SessionTargetParams
-
-// SandboxListParams filters active sandboxes.
-type SandboxListParams struct {
-	Workspace string `json:"workspace,omitempty"`
-}
-
-// SandboxInfoParams identifies one session sandbox.
-type SandboxInfoParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-}
-
-// SandboxExecParams executes one command inside a session sandbox.
-type SandboxExecParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Command     string `json:"command"`
-	Timeout     int    `json:"timeout,omitempty"`
-}
-
-// MemoryStoreParams persists one memory document.
-type MemoryStoreParams struct {
-	Key       string            `json:"key"`
-	Content   string            `json:"content"`
-	Scope     memcontract.Scope `json:"scope,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-	Tags      []string          `json:"tags,omitempty"`
-}
-
-// MemoryRecallParams queries stored memory documents.
-type MemoryRecallParams struct {
-	Query     string            `json:"query"`
-	Limit     int               `json:"limit,omitempty"`
-	Scope     memcontract.Scope `json:"scope,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-}
-
-// MemoryForgetParams removes one stored memory document.
-type MemoryForgetParams struct {
-	Key       string            `json:"key"`
-	Scope     memcontract.Scope `json:"scope,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-}
 
 // ListLogsParams filters workspace runtime logs.
 type ListLogsParams struct {

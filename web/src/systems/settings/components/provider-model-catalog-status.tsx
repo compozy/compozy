@@ -15,6 +15,8 @@ import {
 
 import {
   modelRefreshStateTone,
+  modelSourceFailureMessage,
+  modelRefreshErrorMessage,
   type ProviderModelSourceStatus,
   useProviderModelStatus,
   useRefreshProviderModels,
@@ -41,15 +43,15 @@ export function ProviderModelCatalogStatus({
 
   if (!enabled) {
     return (
-      <p className="text-xs text-subtle" data-testid={`${testId}-disabled`}>
-        Catalog refresh resumes once the provider binary is available.
+      <p className="text-form-hint text-subtle" data-testid={`${testId}-disabled`}>
+        The model list updates once the app is installed.
       </p>
     );
   }
 
   if (statusQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-xs text-subtle">
+      <div className="flex items-center gap-2 text-form-hint text-subtle">
         <Spinner className="size-3" />
         <span data-testid={`${testId}-loading`}>Loading catalog status…</span>
       </div>
@@ -57,7 +59,7 @@ export function ProviderModelCatalogStatus({
   }
 
   const sources = statusQuery.data?.sources ?? [];
-  const refreshError = errorMessage(refreshMutation.error);
+  const refreshError = modelRefreshErrorMessage(refreshMutation.error, sources);
   const queryError = errorMessage(statusQuery.error);
 
   const handleRefresh = () => {
@@ -67,12 +69,12 @@ export function ProviderModelCatalogStatus({
   return (
     <div className="flex flex-col gap-3" data-testid={testId}>
       {queryError ? (
-        <p className="text-xs text-danger" data-testid={`${testId}-error`}>
+        <p className="text-form-hint text-danger" data-testid={`${testId}-error`}>
           {queryError}
         </p>
       ) : null}
       {sources.length === 0 && !queryError ? (
-        <p className="text-xs text-subtle" data-testid={`${testId}-empty`}>
+        <p className="text-form-hint text-subtle" data-testid={`${testId}-empty`}>
           No catalog sources reporting yet.
         </p>
       ) : (
@@ -88,16 +90,26 @@ export function ProviderModelCatalogStatus({
                 <ItemTitle className="text-small-body text-fg">
                   <span className="truncate font-mono">{source.source_id}</span>
                 </ItemTitle>
+                {modelSourceFailureMessage(source) ? (
+                  <p className="text-form-hint text-subtle">{modelSourceFailureMessage(source)}</p>
+                ) : null}
                 {timestampOf(source) ? (
-                  <span className="flex items-center gap-1 text-xs text-subtle">
+                  <span className="flex items-center gap-1 text-form-hint text-subtle">
                     <Eyebrow className="text-subtle">refreshed</Eyebrow>
                     <Time iso={timestampOf(source) as string} mode="relative" />
                   </span>
                 ) : null}
               </ItemContent>
               <ItemActions className="flex-wrap items-center gap-1.5">
-                <Pill mono tone={modelRefreshStateTone(source.refresh_state)}>
-                  {source.refresh_state}
+                <Pill
+                  mono
+                  tone={
+                    source.failure_reason === "auth_required"
+                      ? "warning"
+                      : modelRefreshStateTone(source.refresh_state)
+                  }
+                >
+                  {source.failure_reason === "auth_required" ? "Sign in" : source.refresh_state}
                 </Pill>
                 {source.stale ? (
                   <Pill mono tone="warning">
@@ -105,7 +117,7 @@ export function ProviderModelCatalogStatus({
                   </Pill>
                 ) : null}
                 <span
-                  className="text-xs text-muted tabular-nums"
+                  className="text-form-hint text-muted tabular-nums"
                   data-testid={`${testId}-source-${source.source_id}-rows`}
                 >
                   {formatRowCount(source)}
@@ -116,7 +128,7 @@ export function ProviderModelCatalogStatus({
         </ItemGroup>
       )}
       {refreshError ? (
-        <p className="text-xs text-danger" data-testid={`${testId}-refresh-error`}>
+        <p className="text-form-hint text-danger" data-testid={`${testId}-refresh-error`}>
           {refreshError}
         </p>
       ) : null}
@@ -129,10 +141,11 @@ export function ProviderModelCatalogStatus({
         disabled={refreshMutation.isPending || statusQuery.isFetching}
         data-testid={`${testId}-refresh`}
       >
-        <RefreshCw
-          aria-hidden="true"
-          className={refreshMutation.isPending ? "size-3 animate-spin" : "size-3"}
-        />
+        {refreshMutation.isPending ? (
+          <Spinner aria-hidden="true" className="size-3.5" />
+        ) : (
+          <RefreshCw aria-hidden="true" />
+        )}
         Refresh catalog
       </Button>
     </div>

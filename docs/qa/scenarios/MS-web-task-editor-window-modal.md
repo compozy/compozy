@@ -6,13 +6,13 @@ persona: Dora
 journey: J-complete-task-tree
 expected: "`/tasks/new` renders the tasks catalog with the task editor layered over it as a window-scoped dialog on the `--width-modal-md` host, and `/tasks/$id/edit` renders the task detail with the same dialog over it — the scrim dims only the owning window and other windows stay interactive. The location carries the surface underneath: opening the editor from Kanban, Dashboard, or Inbox keeps that view behind the dialog and returns to it on Cancel/Escape/close, and opening Edit from the Runs or Activity tab returns to that tab. Template selection stays addressable through `?template=`; a successful create navigates to the created task and a successful edit returns to the task detail. The edit host never renders a half-bound form: it shows a loading state while the task resolves and an explicit unavailable state when it cannot be read, with dismissal reachable in both."
 entry_points: web `/tasks/new`; web `/tasks/$id/edit`; tasks topbar "New task"; tasks empty-state template cards; Kanban create action; task detail Edit action
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task-editor-window-modal/;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-entity-modal-shell; TA-001; TA-004; ET-web-tasks-mode-url
 ---
 
@@ -20,7 +20,7 @@ story: As a person running agent work I create and edit tasks in a modal over th
 
 The OS-shell migration (`feat: os shell implementation (#330)`) had converted both editors into full-window locations under the "route-backed modals become in-window locations" decision. That decision's own rule of thumb reserves internal navigation for wizard-class (`lg`/`xl`) flows; the task editor is a `--width-modal-md` single-entity form, so `MODAL-STANDARD.md` § Hosts puts it back on the dialog host. Restored 2026-07-25.
 
-The dialog host is `TaskEditorModal`; the window scoping comes from `OverlayContainerContext` supplied by `os-window.tsx`, the same seam bridge, knowledge, and confirm dialogs already use.
+The dialog host is `TaskEditorModal`; the window scoping comes from `OverlayContainerContext` supplied by `os-window.tsx`, the same seam confirm dialogs already use.
 
 src: web/src/systems/os/apps/tasks/task-editor-dialogs.tsx; web/src/systems/os/apps/tasks/tasks-window.tsx; web/src/systems/os/apps/tasks/task-window-location.ts; web/src/systems/tasks/components/task-editor-modal.tsx
 
@@ -31,7 +31,13 @@ catalog's mode, query, status, priority, sort, lane, and group filters. Status r
 QA replay ran.
 
 QA impact 2026-08-20: helper copy on the task editor (description, parent, owner, execution
-switches, network section) moved into HelpTip / FormSection.help. Footer draft/enqueue sentence and
+switches) moved into HelpTip / FormSection.help. Footer draft/enqueue sentence and
 approval/retry consequences stay visible. Status remains untested.
 
 2026-08-20 qa-impact: create's Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Reset to untested.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

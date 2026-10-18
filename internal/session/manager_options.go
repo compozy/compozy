@@ -7,18 +7,8 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
-
-// WithSandboxRegistry injects the runtime sandbox provider registry.
-func WithSandboxRegistry(registry *sandbox.Registry) Option {
-	return func(manager *Manager) {
-		manager.sandbox = registry
-	}
-}
 
 // WithDriver injects the runtime driver used for session lifecycle operations.
 func WithDriver(driver AgentDriver) Option {
@@ -172,6 +162,14 @@ func WithSessionCatalog(catalog store.SessionCatalog) Option {
 	}
 }
 
+// WithEventLedger injects the daemon ledger that records session.fallback.used before
+// each fallback attempt (readable through GET /api/logs).
+func WithEventLedger(ledger store.EventSummaryStore) Option {
+	return func(manager *Manager) {
+		manager.eventLedger = ledger
+	}
+}
+
 // WithWindowReconciler injects the daemon-owned window cleanup invoked
 // after a session catalog deletion succeeds.
 func WithWindowReconciler(reconciler WindowReconciler) Option {
@@ -198,13 +196,6 @@ func WithGoalCommandHandler(handler GoalCommandHandler) Option {
 func WithSessionCreationStore(creationStore store.SessionCreationStore) Option {
 	return func(manager *Manager) {
 		manager.creationStore = creationStore
-	}
-}
-
-// WithLedgerMaterializer injects the forensic session-ledger materializer.
-func WithLedgerMaterializer(materializer LedgerMaterializer) Option {
-	return func(manager *Manager) {
-		manager.ledgerMaterializer = materializer
 	}
 }
 
@@ -245,7 +236,7 @@ func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 }
 
 // WithWorkspaceResolver injects workspace resolution for create/resume flows.
-func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
+func WithWorkspaceResolver(resolver WorkspaceResolver) Option {
 	return func(manager *Manager) {
 		manager.workspace = resolver
 	}
@@ -255,13 +246,6 @@ func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 func WithWorktreeResolver(resolver WorktreeResolver) Option {
 	return func(manager *Manager) {
 		manager.worktreeResolver = resolver
-	}
-}
-
-// WithParticipationResolver injects the shared resolver used before session creation writes.
-func WithParticipationResolver(resolver participation.Resolver) Option {
-	return func(manager *Manager) {
-		manager.participationResolver = resolver
 	}
 }
 
@@ -350,13 +334,6 @@ func WithPresenceLeaseIDGenerator(generator IDGenerator) Option {
 	}
 }
 
-// WithSandboxIDGenerator overrides sandbox id allocation.
-func WithSandboxIDGenerator(generator IDGenerator) Option {
-	return func(manager *Manager) {
-		manager.newSandboxID = generator
-	}
-}
-
 // WithTurnIDGenerator overrides prompt turn id allocation.
 func WithTurnIDGenerator(generator IDGenerator) Option {
 	return func(manager *Manager) {
@@ -399,16 +376,16 @@ func WithSessionBusyInputConfig(config compozyconfig.SessionBusyInputConfig) Opt
 	}
 }
 
-// WithSessionCompactionConfig overrides pressure-triggered context compaction guards.
-func WithSessionCompactionConfig(config compozyconfig.SessionCompactionConfig) Option {
+// WithSessionMessagingConfig sets the agent messaging rate budget and reply-watch TTL.
+func WithSessionMessagingConfig(config compozyconfig.SessionMessagingConfig) Option {
 	return func(manager *Manager) {
-		manager.compaction = config
+		manager.messaging = config.Normalize()
 	}
 }
 
-// WithCompactionHandler injects the durable summary boundary used before archiving.
-func WithCompactionHandler(handler CompactionHandler) Option {
+// WithSessionDeriveConfig sets the carried-context bounds for continue and fork.
+func WithSessionDeriveConfig(cfg compozyconfig.SessionDeriveConfig) Option {
 	return func(manager *Manager) {
-		manager.compactionHandler = handler
+		manager.deriveConfig = cfg
 	}
 }

@@ -73,7 +73,7 @@ func (s extensionLifecycleEventStoreSink) summary(
 		ProfileID: profileID,
 		Type:      event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)),
 		Summary: event.Type + " " + event.ExtensionName, Timestamp: now().UTC(),
-		EventCorrelation: store.EventCorrelation{ActorKind: s.actorKind, ActorID: s.actorID},
+		ActorKind: s.actorKind, ActorID: s.actorID,
 	}, content), nil
 }
 
@@ -177,14 +177,14 @@ func (s *daemonExtensionService) recordExtensionEnableEvents(
 	ctx context.Context,
 	actor taskpkg.ActorContext,
 	key extensionpkg.InstanceKey,
-	confirmation *extensionpkg.NetworkConfirmation,
+	confirmation *extensionpkg.GatewayConfirmation,
 	result *contract.ExtensionEnableResult,
 ) error {
 	key = key.Normalize()
 	events := make([]extensionpkg.LifecycleEvent, 0, 2)
 	if confirmation != nil {
 		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+			Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: key.Name,
 			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
 		})
 	}
@@ -331,7 +331,7 @@ func (s *daemonExtensionService) extensionEventSummary(
 		ProfileID: store.DefaultProfileID,
 		Type:      eventType, Outcome: string(outcome),
 		Summary: summary, Timestamp: s.now().UTC(),
-		EventCorrelation: store.EventCorrelation{ActorKind: actorKind, ActorID: actorID},
+		ActorKind: actorKind, ActorID: actorID,
 	}, content), nil
 }
 

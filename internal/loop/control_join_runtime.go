@@ -170,8 +170,7 @@ func applyStrategyLaneCancellations(
 		if generationOutputTerminal(cell.Status) {
 			continue
 		}
-		expectedEpoch := cell.Epoch
-		cell.ExpectedEpoch = &expectedEpoch
+		cell.ExpectedEpoch = new(cell.Epoch)
 		cell.Epoch++
 		cell.Status = generationOutputCanceled
 		cell.OutputRef = strategyCanceledReasonCode

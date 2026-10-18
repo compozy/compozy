@@ -1,7 +1,7 @@
 package session
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -10,10 +10,13 @@ import (
 )
 
 func sessionStartSpecFromMeta(
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	workspace *workspacepkg.ResolvedWorkspace,
 	cwd string,
 ) (sessionStartSpec, error) {
+	if meta == nil || workspace == nil {
+		return sessionStartSpec{}, errors.New("session: start metadata and workspace are required")
+	}
 	requestedSpeed, err := normalizeRequestedSpeed(meta.Speed)
 	if err != nil {
 		return sessionStartSpec{}, err
@@ -23,9 +26,6 @@ func sessionStartSpecFromMeta(
 	spec := sessionStartSpec{
 		sessionID:                meta.ID,
 		profileID:                strings.TrimSpace(meta.ProfileID),
-		sandboxID:                sessionSandboxID(meta.Sandbox),
-		sandbox:                  cloneSessionSandboxMeta(meta.Sandbox),
-		sandboxDisabled:          meta.Sandbox == nil,
 		sessionName:              meta.Name,
 		agentName:                meta.AgentName,
 		provider:                 strings.TrimSpace(meta.Provider),
@@ -38,8 +38,6 @@ func sessionStartSpecFromMeta(
 		permissions:              compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissionsValue())),
 		workspace:                *workspace,
 		worktreeID:               strings.TrimSpace(meta.WorktreeIDValue()),
-		networkParticipation:     meta.NetworkSpecSnapshot(),
-		networkOwnerKey:          meta.NetworkOwnerKeySnapshot(),
 		cwd:                      cwd,
 		sessionType:              normalizeSessionType(Type(meta.SessionType)),
 		lineage:                  store.NormalizeSessionLineage(meta.ID, meta.Lineage),
@@ -53,38 +51,14 @@ func sessionStartSpecFromMeta(
 		creationIdentityPinned:   meta.CreationProfile != nil,
 		creationIdentityEnabled:  meta.CreationProfile != nil,
 		advertisedCommands:       store.CloneSessionAdvertisedCommands(meta.AdvertisedCommandsValue()),
+		derivation:               store.CloneSessionDerivation(meta.Derivation),
+		importedContext:          store.CloneSessionImportedContext(meta.ImportedContext),
+		resumeReplayBlock:        meta.PendingResumeReplayValue(),
 	}
 	if spec.creationProfile != nil {
 		spec.runtimeMode = spec.creationProfile.RuntimeMode
 		spec.allowedToolsOverride = append([]string(nil), spec.creationProfile.AllowedTools...)
 		spec.deniedToolsOverride = append([]string(nil), spec.creationProfile.DeniedTools...)
-		if err := applyCreationProfileSandbox(&spec); err != nil {
-			return sessionStartSpec{}, err
-		}
 	}
 	return spec, nil
-}
-
-func applyCreationProfileSandbox(spec *sessionStartSpec) error {
-	profile := store.NormalizeSessionCreationProfile(*spec.creationProfile)
-	switch profile.SandboxMode {
-	case store.SessionCreationSandboxNone:
-		spec.sandboxDisabled = true
-		spec.workspace.SandboxRef = ""
-	case store.SessionCreationSandboxRef:
-		resolved, err := spec.workspace.Config.ResolveSandbox(profile.SandboxRef)
-		if err != nil {
-			return fmt.Errorf(
-				"session: resolve creation profile sandbox ref %q: %w",
-				profile.SandboxRef,
-				err,
-			)
-		}
-		spec.sandboxDisabled = false
-		spec.workspace.SandboxRef = profile.SandboxRef
-		spec.workspace.Sandbox = resolved
-	default:
-		return fmt.Errorf("session: invalid creation profile sandbox mode %q", profile.SandboxMode)
-	}
-	return nil
 }

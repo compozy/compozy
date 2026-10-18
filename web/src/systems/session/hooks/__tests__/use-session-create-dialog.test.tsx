@@ -328,7 +328,6 @@ describe("useSessionCreateDialog", () => {
       agent_name: "codex-agent",
       name: "Investigate checkout latency",
       workspace: "ws_alpha",
-      network_participation: { mode: "local" },
     });
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith({
@@ -419,7 +418,6 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: homeWorkspace.id,
-      network_participation: { mode: "local" },
     });
     await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
     expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();

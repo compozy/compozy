@@ -123,24 +123,7 @@ func appendRuntimeSections(
 			return nil, err
 		}
 	}
-	if payload.CoordinationChannel.Available {
-		sections, err = appendRenderedSection(sections, "coordination_channel", payload.CoordinationChannel)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if hasListSection(payload.InboxSummary.Section) {
-		sections, err = appendRenderedSection(sections, "inbox_summary", payload.InboxSummary)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if hasListSection(payload.PeerRoster.Section) {
-		sections, err = appendRenderedSection(sections, "peer_roster", payload.PeerRoster)
-		if err != nil {
-			return nil, err
-		}
-	}
+
 	return sections, nil
 }
 
@@ -228,4 +211,11 @@ func hasProvenance(payload contract.AgentContextProvenancePayload) bool {
 
 type promptProvenancePayload struct {
 	Source string `json:"source"`
+}
+
+func appendSubagentSummary(sections []renderedSection, depth, live int) ([]renderedSection, error) {
+	if depth == 0 && live == 0 {
+		return sections, nil
+	}
+	return appendRenderedSection(sections, "subagents", fmt.Sprintf("Subagents: depth %d · live %d", depth, live))
 }

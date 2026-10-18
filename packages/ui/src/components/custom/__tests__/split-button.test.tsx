@@ -2,7 +2,7 @@
 // Invariant: the primary action and its alternatives remain independently keyboard-operable.
 // Boundary IN: SplitButton plus the real dropdown primitive.
 // Boundary OUT: domain action routing, owned by each consuming system.
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -54,7 +54,9 @@ describe("SplitButton", () => {
     await user.click(trigger);
     expect(await screen.findByRole("menuitem", { name: "Push" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("menuitem", { name: "Push" })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: "Push" })).not.toBeInTheDocument()
+    );
 
     action.focus();
     await user.keyboard("{ArrowDown}");
@@ -82,6 +84,54 @@ describe("SplitButton", () => {
 
     expect(action).toBeDisabled();
     expect(trigger).toBeDisabled();
+  });
+
+  it("Should put actionProps on the action segment only and let it disable alone", async () => {
+    const user = userEvent.setup();
+    const { action, onAction, trigger } = renderSplitButton({
+      actionProps: {
+        "data-testid": "commit-action",
+        "data-mode": "amend",
+        title: "Commit staged changes",
+        "aria-keyshortcuts": "Enter",
+        disabled: true,
+      },
+    });
+
+    expect(screen.getByTestId("commit-action")).toBe(action);
+    expect(action).toHaveAttribute("data-mode", "amend");
+    expect(action).toHaveAttribute("title", "Commit staged changes");
+    expect(action).toHaveAttribute("aria-keyshortcuts", "Enter");
+    expect(action).toBeDisabled();
+    expect(trigger).not.toHaveAttribute("data-mode");
+    expect(trigger).toBeEnabled();
+
+    action.focus();
+    await user.keyboard("[Space]");
+    expect(onAction).not.toHaveBeenCalled();
+    await user.click(trigger);
+    expect(await screen.findByRole("menuitem", { name: "Push" })).toBeInTheDocument();
+  });
+
+  it("Should merge an actionProps description with the blocked reason", () => {
+    const reason = "Paused while a session runs.";
+    render(
+      <>
+        <span id="extra-help">Commits the staged files.</span>
+        <SplitButton
+          actionProps={{ "aria-describedby": "extra-help" }}
+          blocked
+          blockedReason={reason}
+          label="Commit"
+          menuLabel={MENU_LABEL}
+          onAction={vi.fn()}
+        />
+      </>
+    );
+
+    expect(screen.getByRole("button", { name: "Commit" })).toHaveAccessibleDescription(
+      `Commits the staged files. ${reason}`
+    );
   });
 
   it("Should render no menu trigger when no alternatives are supplied", () => {

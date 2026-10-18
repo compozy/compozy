@@ -285,11 +285,11 @@ func parseAttachmentWorkspaceTombstone(name string) (sessionDeleteTombstoneState
 	default:
 		return 0, "", fmt.Errorf("session: invalid workspace attachment tombstone name %q", name)
 	}
-	separator := strings.LastIndexByte(value, '.')
-	if separator <= 0 || separator == len(value)-1 {
+	encoded, suffix, found := strings.CutLast(value, ".")
+	if !found || encoded == "" || suffix == "" {
 		return 0, "", fmt.Errorf("session: invalid workspace attachment tombstone name %q", name)
 	}
-	decodedWorkspace, err := base64.RawURLEncoding.DecodeString(value[:separator])
+	decodedWorkspace, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
 		return 0, "", fmt.Errorf("session: decode workspace attachment tombstone %q: %w", name, err)
 	}

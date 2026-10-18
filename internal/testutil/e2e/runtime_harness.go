@@ -56,13 +56,13 @@ var (
 
 // RuntimeHarnessOptions configures one isolated daemon runtime.
 type RuntimeHarnessOptions struct {
-	BinaryPath       string
-	HomePaths        compozyconfig.HomePaths
-	ConfigSeed       ConfigSeedOptions
-	MockAgents       []MockAgentSpec
-	Workspace        WorkspaceSeedOptions
-	Env              map[string]string
-	EnableNetwork    bool
+	BinaryPath string
+	HomePaths  compozyconfig.HomePaths
+	ConfigSeed ConfigSeedOptions
+	MockAgents []MockAgentSpec
+	Workspace  WorkspaceSeedOptions
+	Env        map[string]string
+
 	StartTimeout     time.Duration
 	PollInterval     time.Duration
 	ResolveWorkspace bool
@@ -141,7 +141,7 @@ func StartRuntimeHarness(t testing.TB, opts *RuntimeHarnessOptions) *RuntimeHarn
 	harness := newRuntimeHarness(t, &layout, binaryPath)
 	startRuntimeProcess(t, harness, layout.Env, opts)
 
-	workspace, err := harness.ResolveWorkspace(context.Background(), layout.WorkspaceRoot)
+	workspace, err := harness.ResolveWorkspace(t.Context(), layout.WorkspaceRoot)
 	if err != nil {
 		if stopErr := harness.Stop(context.Background()); stopErr != nil {
 			t.Fatalf("stop runtime harness after workspace resolve failure error = %v", stopErr)
@@ -181,7 +181,7 @@ func startRuntimeProcess(
 	for attempt := 1; attempt <= maxStartAttempts; attempt++ {
 		startDaemonProcess(t, harness, env)
 
-		readyCtx, cancel := context.WithTimeout(context.Background(), startTimeout)
+		readyCtx, cancel := context.WithTimeout(t.Context(), startTimeout)
 		err := harness.waitForReady(readyCtx, pollInterval)
 		cancel()
 		if err == nil {
@@ -342,9 +342,6 @@ func prepareRuntimeLayout(t testing.TB, opts *RuntimeHarnessOptions) runtimeLayo
 		}
 		if len(opts.MockAgents) > 0 {
 			ensureMockAgentProviderConfig(t, cfg)
-		}
-		if opts.EnableNetwork {
-			cfg.Network.Enabled = true
 		}
 	}
 	config := SeedConfig(t, homePaths, configSeed)

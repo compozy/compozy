@@ -23,7 +23,7 @@ function statementParts(
     case "install":
       return {
         prefix: isGlobal ? "Installs at " : "Installs to ",
-        suffix: isGlobal ? " — available in every workspace." : ".",
+        suffix: isGlobal ? " — available in every project." : ".",
       };
     case "session":
       return {
@@ -35,12 +35,12 @@ function statementParts(
     case "subscribe":
       return {
         prefix: isGlobal ? "Subscribes at " : "Subscribes in ",
-        suffix: isGlobal ? " — available in every workspace." : ".",
+        suffix: isGlobal ? " — available in every project." : ".",
       };
     default:
       return {
         prefix: "Creates in ",
-        suffix: isGlobal ? " — visible to every workspace." : ".",
+        suffix: isGlobal ? " — visible to every project." : ".",
       };
   }
 }
@@ -64,7 +64,7 @@ export function WorkspaceScopeStatement({
   const text = (
     <>
       {prefix}
-      <span className="font-medium text-fg-strong">{destination}</span>
+      <span className="font-medium text-fg">{destination}</span>
       {chip && suffix === "." ? null : suffix}
     </>
   );
@@ -75,7 +75,7 @@ export function WorkspaceScopeStatement({
       ref={ref}
       className={cn(
         chip
-          ? "inline-block h-7 max-w-full truncate rounded-md border border-line bg-canvas-tint px-2.5 align-middle text-form-hint leading-7 text-muted"
+          ? "inline-block h-7 max-w-full truncate rounded-pill bg-surface-2 px-2.5 align-middle text-form-hint leading-7 text-muted"
           : "text-form-hint text-muted",
         className
       )}

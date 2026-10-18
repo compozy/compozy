@@ -18,6 +18,7 @@ interface UseAgentSessionsResult {
   loadMoreArchived: () => void;
   isLoading: boolean;
   isError: boolean;
+  retry: () => void;
 }
 
 /**
@@ -29,7 +30,7 @@ export function useAgentSessions(
   agentName: string | undefined,
   options?: UseAgentSessionsOptions
 ): UseAgentSessionsResult {
-  const enabled = (options?.enabled ?? true) && Boolean(workspaceId) && Boolean(agentName);
+  const enabled = (options?.enabled ?? true) && Boolean(agentName);
   // This window's scope. `undefined` when the scope is the workspace root or the
   // selection fell back, which drops the filter instead of sending an empty one.
   const scopeId = useWorktreeScopeId();
@@ -66,5 +67,9 @@ export function useAgentSessions(
     isLoading:
       (enabled && !worktree.resolved) || sessionsQuery.isLoading || archivedSessionsQuery.isLoading,
     isError: sessionsQuery.isError || archivedSessionsQuery.isError,
+    retry: () => {
+      if (sessionsQuery.isError) void sessionsQuery.refetch();
+      if (archivedSessionsQuery.isError) void archivedSessionsQuery.refetch();
+    },
   };
 }

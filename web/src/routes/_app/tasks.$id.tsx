@@ -7,12 +7,11 @@ import { validateTaskDetailSearch } from "@/systems/tasks";
 export const Route = createFileRoute("/_app/tasks/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: {
-      crumb:
-        params.id === "network"
-          ? { label: "Network wakes" }
-          : { label: `Task ${params.id}`, params: { id: params.id }, to: "/tasks/$id" },
+      crumb: { label: `Task ${params.id}`, params: { id: params.id }, to: "/tasks/$id" },
     },
   }),
   validateSearch: validateTaskDetailSearch,
+  loader: async ({ context, params }) =>
+    (await import("./-tasks-preload")).preloadTaskDetailRoute(context.queryClient, params.id),
   component: createOsRouteSync("tasks"),
 });

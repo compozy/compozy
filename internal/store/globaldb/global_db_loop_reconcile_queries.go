@@ -173,8 +173,8 @@ func (g *LoopRepo) reserveCoordinatorRun(
 		loopRunID:      loopRunID,
 		idempotencyKey: idempotencyKey,
 		origin:         origin,
-		networkSpec:    loopRun.NetworkSpecSnapshot(),
-		queuedAt:       now,
+
+		queuedAt: now,
 	}
 	_, run, existing, err := g.tasks.reserveQueuedRunWithExecutor(ctx, exec, reservation)
 	if err != nil {
@@ -234,7 +234,7 @@ func lastCoordinatorTaskIDForLoopRun(
 		}
 		return "", fmt.Errorf("store: find coordinator task for loop run %q: %w", loopRunID, err)
 	}
-	return taskNullStringValue(taskID), nil
+	return taskID, nil
 }
 
 func lastCoordinatorRunIDForLoopRun(

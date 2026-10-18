@@ -4,10 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+
+	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
+
+const windowLayoutReconcileActorID = "window-layout-reconcile"
 
 type windowLayoutProjector struct {
 	delegate *resourceCatalogProjector[windowmanager.LayoutResource]
@@ -58,4 +63,62 @@ func (p *windowLayoutProjector) Apply(ctx context.Context, plan resources.Projec
 		return errors.New("daemon: window layout projector is required")
 	}
 	return p.delegate.Apply(ctx, plan)
+}
+
+func reconcileWindowLayoutResource(resource windowmanager.LayoutResource) (windowmanager.LayoutResource, bool) {
+	resource = windowmanager.CloneLayoutResource(resource)
+	document := resource.Document
+	reconciled, changed := windowmanager.ReconcileRegisteredApps(windowmanager.Snapshot{
+		Version: document.Version, WorkspaceID: document.WorkspaceID,
+		Desktops: document.Desktops, Windows: document.Windows, Overrides: document.Overrides,
+	}, corecmds.RegisteredApp)
+	if !changed {
+		return resource, false
+	}
+	resource.Document.Desktops = reconciled.Desktops
+	resource.Document.Windows = reconciled.Windows
+	resource.ParticipantSlots = slices.DeleteFunc(resource.ParticipantSlots, func(id windowmanager.WindowID) bool {
+		_, existed := document.Windows[id]
+		_, remains := reconciled.Windows[id]
+		return existed && !remains
+	})
+	return resource, true
+}
+
+func reconcileStoredWindowLayouts(ctx context.Context, state *bootState) error {
+	if state.resourceKernel == nil {
+		return nil
+	}
+	_, store, err := state.resolveDaemonResourceStore[windowmanager.LayoutResource](
+		windowmanager.WindowLayoutResourceKind,
+		"window layout",
+	)
+	if err != nil {
+		return err
+	}
+	actor := resources.MutationActor{
+		Kind: resources.MutationActorKindDaemon, ID: windowLayoutReconcileActorID,
+		Owner:    resources.ResourceOwner{Kind: "daemon", ID: windowLayoutReconcileActorID},
+		Source:   resources.ResourceSource{Kind: "dynamic", ID: windowLayoutReconcileActorID},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+	}
+	records, err := store.List(ctx, actor, resources.ResourceFilter{Kind: windowmanager.WindowLayoutResourceKind})
+	if err != nil {
+		return err
+	}
+	for _, record := range records {
+		reconciled, changed := reconcileWindowLayoutResource(record.Spec)
+		if !changed {
+			continue
+		}
+		actor.Source = record.Source
+		if _, err := store.Put(ctx, actor, resources.Draft[windowmanager.LayoutResource]{
+			ID: record.ID, Scope: record.Scope, Owner: &record.Owner,
+			ExpectedVersion: record.Version, Spec: reconciled,
+		}); err != nil {
+			return fmt.Errorf("daemon: reconcile window layout %q: %w", record.ID, err)
+		}
+		state.logger.Info("window_manager.layout_reconciled", "resource_id", record.ID)
+	}
+	return nil
 }

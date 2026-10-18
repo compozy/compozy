@@ -4,50 +4,64 @@ area: ET
 title: Hold the profile guards under concurrent lifecycle pressure
 persona: Dora
 journey: J-operate-profiles
-expected: Archive committed against a concurrent claim, trigger, spawn, or bridge delivery never produces work for an archived owner and never half-applies; queued runs freeze with the profile and become claimable again on unarchive without duplicating; a notification delivery holding its permit refuses archive with the retryable profile_deliveries_in_flight and no delivery is repeated after unarchive; a pending lifecycle operation reserves its old and new names and derived paths so a competing create or rename fails profile_name_taken naming the holding operation; two concurrent same-name creates leave exactly one profile.
-entry_points: compozy profile archive|unarchive|create|rename; POST /api/profiles/{name}/archive|unarchive; POST /api/profiles; POST /api/profiles/{name}/rename; concurrent automation trigger, task claim, session spawn, bridge delivery, notification dispatch, extension install
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+expected: Archiving a profile against a concurrent claim, trigger, or spawn never produces work for an archived owner or half-applies. Queued runs freeze with the profile and become claimable again on unarchive without duplication. A pending lifecycle operation reserves old and new names and derived paths, so competing create or rename fails profile_name_taken without moving another profile. Extension mutation respects the same lifecycle gate.
+entry_points: compozy profile archive|unarchive|create|rename; HTTP/UDS profile lifecycle routes; concurrent automation trigger, task claim, session spawn, extension install
+qa_status: pass
+bug_ids: BUG-20261004-task-owner-response-omissions; BUG-20261004-archive-race-storage-error; BUG-20261002-task-action-profile-scope; BUG-20261003-approval-cli-profile-owner; BUG-20261004-extension-profile-creator-attribution
+fix_status: fixed
+retest_status: pass
+fix_commits: e9e4a46a6; 831436907; 0b9c79779; 7d30fa3e2
+evidence: docs/qa/evidence/2026-10-02-untested/profile-owner-admission-replay-ended.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle; ET-profile-operations-recovery; ET-profile-approval-owner-resume; ET-declared-profile-install
 ---
 
-Minted by Profiles task 12 (planning): the spec names these races explicitly
-(rename-versus-create/delete, archive-versus-claim/trigger/spawn, concurrent same-name create,
-install-versus-create, crash between apply and finalize) and ADR-001 places the state change, the
-running and leased checks, and the automation pause in one immediate transaction.
-`ET-profile-cli-lifecycle` owns the sequential lifecycle and `ET-profile-operations-recovery` owns
-crash recovery; this row owns concurrency. Task 13 owns the walk, the evidence, and the verdict.
+Archiving a profile against a concurrent claim, trigger, or spawn never produces work for an archived owner or half-applies. Queued runs freeze with the profile and become claimable again on unarchive without duplication. A pending lifecycle operation reserves old and new names and derived paths, so competing create or rename fails profile_name_taken without moving another profile. Extension mutation respects the same lifecycle gate.
 
-Walk:
+Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
-1. With a queued run waiting and a scheduled automation about to fire, archive the owning profile
-   and confirm the archive and the claim cannot both win: either the claim happened before the
-   archive committed, or it is refused — never a run created for an archived owner.
-2. Confirm the archive result reports the paused automations and the count of frozen queued runs,
-   and that the frozen runs are claimable again after unarchive with the same identities and no
-   duplicates.
-3. Race an archive against a session spawn and a bridge delivery in the same profile and confirm the
-   creation boundary refuses with the typed archived-owner reason rather than writing a row.
-4. Hold a notification delivery permit open and attempt the archive; confirm
-   `profile_deliveries_in_flight` is returned as retryable, that the archive is refused, and that
-   after the delivery settles the archive succeeds.
-5. Kill the daemon while a permit row survives, restart, and confirm the delivery replays by its
-   deterministic id exactly once and unarchive does not repeat it.
-6. Start a rename so its operation is pending, then attempt to create or rename another profile to
-   the reserved old name and to the reserved new name; confirm both fail `profile_name_taken` naming
-   the holding operation, and that the derived filesystem paths are reserved too.
-7. Issue two same-name creates concurrently and confirm exactly one profile exists afterwards with
-   the loser receiving a typed refusal.
-8. Run an extension install that declares a profile at the same moment the operator creates that
-   name manually, and confirm the result is one profile, bound rather than seeded, with the
-   create-once marker written exactly once.
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
 
-Expected evidence: interleaved transcripts with timestamps for each race, run and row counts before
-and after, the archive result payload, the permit refusal body, post-restart delivery counts by
-delivery id, both reservation refusals naming the operation, the profile catalog after the
-concurrent creates, and the marker row after the install race.
+QA 2026-10-03: a real pending palette approval blocks archive/delete and is excluded from work counts.
+Owner-selected approval show/cancel fail with not found; remaining lifecycle legs await that repair.
+
+QA 2026-10-03 repair replay: owner show/cancel now succeeds, foreign show/cancel stays refused,
+HTTP/UDS plan blockers clear after cancellation, and archive/unarchive/delete succeed with zero
+work items. BUG-20261003-approval-cli-profile-owner is verified; the complete scenario remains
+untested because its independent resume/concurrency legs have not all been walked.
+
+QA 2026-10-04: simultaneous same-name creates yield one owner and one profile_name_taken refusal.
+An overlapping extension install and operator create also preserve one operator-authored profile,
+but extension detail falsely claims created_by_extension=true. The attribution bug owns that
+repair; claim/trigger/spawn, delivery and remaining reservation legs are still pending. Evidence:
+profile-race-namespace-*.json and profile-race-extension-replay-*.json in this cycle's report.
+
+QA 2026-10-04 repair replay: extension-created, operator-bound, legacy-unknown and manually
+recreated profile identities now retain correct public attribution across a normal restart.
+The affected delivery gate passes. BUG-20261004-extension-profile-creator-attribution is verified;
+the remaining independent concurrency legs keep the full scenario untested.
+
+QA 2026-10-04 continuation: an interrupted real rename reserves both names. Create and a competing
+profile rename onto either name return profile_name_taken; the old-name refusal names the holding
+operation and the new-name refusal names the held profile. Public retry succeeds after removing the
+owned empty destination obstruction. The original name is restored, and the competing profile keeps
+its identity. Evidence: approval-unavailable-owner2-ended.json. Claim/trigger/spawn, delivery, and
+queued-run lifecycle legs remain pending.
+
+QA 2026-10-04 continuation: corrected CLI run enqueue succeeds. Archive freezes exactly one
+queued run; unarchive restores the same run without duplication. Authenticated acquisition and
+a real bounded Codex child spawn retain the active owner while concurrent archive refuses.
+In a separate job-trigger overlap, archive wins; session admission refuses, the job is disabled,
+and one failed attempt remains. Scheduler and profile availability are restored. The CLI control
+recurrence is verified. Missing backlog ownership fields and a raw storage diagnostic keep this
+scenario fail until their independent findings are repaired and re-walked.
+Evidence: profile-work-race-replay-ended.json.
+
+QA 2026-10-04 final repair replay: fresh queued work retains its profile in backlog and update
+responses, through archive/unarchive and independent HTTP/UDS reads. The losing automation trigger
+reaches the insertion guard and reports profile_archived with recovery guidance; one failed run
+remains, no session is admitted, and history contains no raw SQLite error. Active-owner session
+creation still succeeds and blocks archive. The scheduler, owner and sessions are restored to
+their baseline availability. Combined with the retained claim/spawn, pending-name and extension
+races, the current scenario passes. The charter's pre-retirement notification-permit leg is excluded
+by the September 27 scope change, as documented in the report, rather than counted as verified.

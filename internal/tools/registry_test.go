@@ -90,7 +90,7 @@ func (e staticPolicyEvaluator) Evaluate(_ context.Context, _ Scope, _ Descriptor
 func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should reject invalid descriptors introduced by a dynamic provider reindex", func(t *testing.T) {
 		t.Parallel()
@@ -406,29 +406,29 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Run("Should keep operator diagnostics broader than session projection", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		skillView := validDescriptor()
 		taskUpdate := validDescriptor()
 		taskUpdate.ID = "compozy__task_update"
 		taskUpdate.ReadOnly = false
 		taskUpdate.Risk = RiskMutating
-		networkSend := validDescriptor()
-		networkSend.ID = "compozy__network_send"
-		networkSend.ReadOnly = false
-		networkSend.OpenWorld = true
-		networkSend.Risk = RiskOpenWorld
+		terminalExec := validDescriptor()
+		terminalExec.ID = ToolIDTerminalExec
+		terminalExec.ReadOnly = false
+		terminalExec.OpenWorld = true
+		terminalExec.Risk = RiskOpenWorld
 		conflicted := mcpDescriptor("mcp__github__search", "github", "search")
 		conflictedDuplicate := mcpDescriptor("mcp__github__search", "github", "Search")
 		provider := providerWithDescriptors(
 			SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
 			skillView,
 			taskUpdate,
-			networkSend,
+			terminalExec,
 			conflicted,
 			conflictedDuplicate,
 		)
-		provider.handles[networkSend.ID] = &registryTestHandle{
-			descriptor: networkSend,
+		provider.handles[terminalExec.ID] = &registryTestHandle{
+			descriptor: terminalExec,
 			availability: Availability{
 				Registered:  true,
 				Enabled:     true,
@@ -459,7 +459,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			t.Fatalf("len(operatorViews) = %d, want %d", got, want)
 		}
 		requireViewReason(t, operatorViews, taskUpdate.ID, ReasonPolicyDenied)
-		requireViewReason(t, operatorViews, networkSend.ID, ReasonBackendUnhealthy)
+		requireViewReason(t, operatorViews, terminalExec.ID, ReasonBackendUnhealthy)
 		requireViewReason(t, operatorViews, conflicted.ID, ReasonConflictedSanitizedName)
 
 		sessionViews, err := registry.SessionProjection(ctx, Scope{})
@@ -477,7 +477,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Run("Should defer remote discovery from the bootstrap projection", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		local := descriptorWithID(ToolIDTaskRunClaimNext, "Claim Task Run", ToolsetIDAutonomy)
 		secondLocal := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
 		remote := mcpDescriptor("mcp__github__search", "github", "search")
@@ -541,7 +541,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Run("Should discover a deferred tool required by the agent policy during bootstrap", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
 		remote := mcpDescriptor("mcp__github__search", "github", "search")
 		remotePattern, err := ParseToolPattern(remote.ID.String())
@@ -670,7 +670,7 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 	t.Run("Should search and get through a custom evaluator", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		skillView := validDescriptor()
 		skillView.Tags = []string{"skills"}
 		taskRead := validDescriptor()
@@ -720,7 +720,7 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 }
 
 func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	toolList := descriptorWithID(ToolIDToolList, "Tool List", ToolsetIDBootstrap)
 	toolInfo := descriptorWithID(ToolIDToolInfo, "Tool Info", ToolsetIDBootstrap)
 	skillView := descriptorWithID(ToolIDSkillView, "Skill View", ToolsetIDCatalog)
@@ -831,7 +831,7 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 }
 
 func TestRuntimeRegistryResolverRevalidatesProjectionAndDispatch(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	descriptor := descriptorWithID(ToolIDSkillView, "Skill View", ToolsetIDCatalog)
 	handle := &registryTestHandle{
 		descriptor: descriptor,
@@ -1081,73 +1081,4 @@ func makeFilledBytes(length int, value byte) []byte {
 		data[i] = value
 	}
 	return data
-}
-
-func TestRuntimeRegistryCallDispatchesRegisteredTool(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should call provider handle after policy passes", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		descriptor := validDescriptor()
-		called := false
-		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)
-		provider.handles[descriptor.ID] = &registryTestHandle{
-			descriptor:   descriptor,
-			availability: provider.handles[descriptor.ID].Availability(ctx, Scope{}),
-			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
-				called = true
-				if req.ToolID != descriptor.ID {
-					t.Fatalf("CallRequest.ToolID = %q, want %q", req.ToolID, descriptor.ID)
-				}
-				return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
-			},
-		}
-		registry, err := NewRegistry(
-			WithProviders(provider),
-		)
-		if err != nil {
-			t.Fatalf("NewRegistry() error = %v", err)
-		}
-		result, err := registry.Call(ctx, Scope{}, CallRequest{ToolID: descriptor.ID})
-		if err != nil {
-			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
-		}
-		if !called {
-			t.Fatal("provider handle was not called")
-		}
-		if len(result.Content) != 1 || result.Content[0].Text != "ok" {
-			t.Fatalf("result = %#v, want ok text content", result)
-		}
-	})
-}
-
-func TestRuntimeRegistryCallReturnsPolicyDenialsBeforeDispatch(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return denied instead of not found for registered denied tools", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		descriptor := validDescriptor()
-		denyPattern, err := ParseToolPattern(descriptor.ID.String())
-		if err != nil {
-			t.Fatalf("ParseToolPattern() error = %v", err)
-		}
-		registry, err := NewRegistry(
-			WithProviders(providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)),
-			WithPolicyInputs(PolicyInputs{
-				SystemPermissionMode: PermissionModeApproveAll,
-				DenyTools:            []ToolPattern{denyPattern},
-			}, ToolsetCatalog{}),
-		)
-		if err != nil {
-			t.Fatalf("NewRegistry() error = %v", err)
-		}
-		_, err = registry.Call(ctx, Scope{}, CallRequest{ToolID: descriptor.ID})
-		if !errors.Is(err, ErrToolDenied) {
-			t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolDenied", err)
-		}
-	})
 }

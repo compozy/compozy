@@ -164,8 +164,6 @@ const (
 	RunKindWorker
 	// RunKindCoordinator identifies in-daemon generation coordinator runs.
 	RunKindCoordinator
-	// RunKindNetworkWake identifies durable Network admission work without a task anchor.
-	RunKindNetworkWake
 )
 
 // String returns the durable string representation of the task-run kind.
@@ -175,8 +173,6 @@ func (k RunKind) String() string {
 		return "worker"
 	case RunKindCoordinator:
 		return "coordinator"
-	case RunKindNetworkWake:
-		return "network_wake"
 	default:
 		return ""
 	}
@@ -224,8 +220,6 @@ const (
 	ActorKindAutomation ActorKind = "automation"
 	// ActorKindExtension identifies an authenticated extension runtime principal.
 	ActorKindExtension ActorKind = "extension"
-	// ActorKindNetworkPeer identifies an authenticated network peer principal.
-	ActorKindNetworkPeer ActorKind = "network_peer"
 	// ActorKindDaemon identifies daemon-owned system work.
 	ActorKindDaemon ActorKind = "daemon"
 )
@@ -242,8 +236,6 @@ const (
 	OwnerKindAutomation OwnerKind = "automation"
 	// OwnerKindExtension identifies an extension owner.
 	OwnerKindExtension OwnerKind = "extension"
-	// OwnerKindNetworkPeer identifies a network-peer owner.
-	OwnerKindNetworkPeer OwnerKind = "network_peer"
 	// OwnerKindPool identifies pooled ownership without a dedicated assignee.
 	OwnerKindPool OwnerKind = "pool"
 )
@@ -264,8 +256,6 @@ const (
 	OriginKindAutomation OriginKind = "automation"
 	// OriginKindExtension identifies extension ingress.
 	OriginKindExtension OriginKind = "extension"
-	// OriginKindNetwork identifies network ingress.
-	OriginKindNetwork OriginKind = "network"
 	// OriginKindAgentSession identifies session tool-call ingress.
 	OriginKindAgentSession OriginKind = "agent_session"
 	// OriginKindDaemon identifies daemon-owned internal ingress.

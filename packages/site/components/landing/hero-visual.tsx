@@ -81,10 +81,10 @@ export function HeroVisual({ className }: HeroVisualProps) {
           style={{ transform: PANEL_TRANSFORM, transition: TILT_TRANSITION }}
         >
           <Image
-            src="/images/hero/os-shell-capture-v1.png"
-            alt="CompozyOS workspace capture: the Loops window lists three workspace loops beside a Tasks board tracking launch work across Blocked, Queued, and Done."
-            width={3124}
-            height={2002}
+            src="/images/hero/os-shell-capture-v2.png"
+            alt="CompozyOS workspace capture: a Tasks window with one queued task beside a Loops window listing the built-in implement-tasks and review-and-fix Loops."
+            width={2580}
+            height={1654}
             priority
             quality={90}
             sizes="(min-width: 1024px) 52rem, 100vw"

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -281,10 +282,7 @@ func extensionPortableValidationHuman(report *extensionpkg.ValidationReport) str
 		)
 	}
 	for _, issue := range report.Issues {
-		scope := strings.TrimSpace(issue.Scope)
-		if scope == "" {
-			scope = strings.TrimSpace(issue.Path)
-		}
+		scope := cmp.Or(strings.TrimSpace(issue.Scope), strings.TrimSpace(issue.Path))
 		blocks = append(blocks, fmt.Sprintf(
 			"%s %s:  %s",
 			strings.ToUpper(string(issue.Severity)),

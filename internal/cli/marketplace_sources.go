@@ -141,7 +141,7 @@ func marketplaceSourcesBundle(value any, sources []contract.MarketplaceSourcePay
 	}
 	bundle := listBundle(value, sources, "Marketplace Sources (experimental)",
 		[]string{"Name", "Kind", authoredContextStateValue, "Plugins", "Source"}, "marketplace_sources",
-		[]string{"name", networkKindKey, "state", "plugins", "source"}, row, row)
+		[]string{"name", cliOutputKindKey, "state", "plugins", "source"}, row, row)
 	bundle.json = func(cmd *cobra.Command) error { return writeJSONWithoutWorkspaceResolution(cmd, value) }
 	return bundle
 }

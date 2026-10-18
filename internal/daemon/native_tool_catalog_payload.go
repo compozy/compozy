@@ -21,7 +21,7 @@ type nativeToolListDescriptor struct {
 	OpenWorld           bool                 `json:"open_world"`
 	RequiresInteraction bool                 `json:"requires_interaction"`
 	ConcurrencySafe     bool                 `json:"concurrency_safe"`
-	MaxResultBytes      int64                `json:"max_result_bytes,omitempty"`
+	MaxResultBytes      int64                `json:"max_result_bytes,omitzero"`
 	Toolsets            []toolspkg.ToolsetID `json:"toolsets,omitempty"`
 }
 
@@ -36,7 +36,7 @@ type nativeToolListPage struct {
 	Offset     int                  `json:"offset"`
 	Count      int                  `json:"count"`
 	Total      int                  `json:"total"`
-	NextOffset int                  `json:"next_offset,omitempty"`
+	NextOffset int                  `json:"next_offset,omitzero"`
 	HasMore    bool                 `json:"has_more"`
 }
 
@@ -94,7 +94,7 @@ func nativeToolListPayloads(views []toolspkg.ToolView) []nativeToolListView {
 				OpenWorld:           view.Descriptor.OpenWorld,
 				RequiresInteraction: view.Descriptor.RequiresInteraction,
 				ConcurrencySafe:     view.Descriptor.ConcurrencySafe,
-				MaxResultBytes:      view.Descriptor.MaxResultBytes,
+				MaxResultBytes:      view.Descriptor.ExecutionMetadata().MaxResultBytes,
 				Toolsets:            append([]toolspkg.ToolsetID(nil), view.Descriptor.Toolsets...),
 			},
 			Availability: view.Availability,

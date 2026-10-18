@@ -43,11 +43,11 @@ func parseSessionDeleteTombstoneParts(name string) (sessionDeleteTombstoneState,
 	default:
 		return 0, "", "", fmt.Errorf("%w name %q", errInvalidSessionDeleteTombstone, name)
 	}
-	separator := strings.LastIndexByte(value, '.')
-	if separator <= 0 || separator == len(value)-1 {
+	encoded, suffix, found := strings.CutLast(value, ".")
+	if !found || encoded == "" || suffix == "" {
 		return 0, "", "", fmt.Errorf("%w name %q", errInvalidSessionDeleteTombstone, name)
 	}
-	decodedTarget, err := base64.RawURLEncoding.DecodeString(value[:separator])
+	decodedTarget, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
 		return 0, "", "", fmt.Errorf(
 			"%w target %q: %w",
@@ -65,7 +65,7 @@ func parseSessionDeleteTombstoneParts(name string) (sessionDeleteTombstoneState,
 			err,
 		)
 	}
-	return state, target, value[separator+1:], nil
+	return state, target, suffix, nil
 }
 
 func (m *Manager) cleanupDeleteTombstones() {
@@ -145,7 +145,7 @@ func (m *Manager) cleanupSessionDeleteTombstoneWithContext(
 	if strings.TrimSpace(meta.ID) != target {
 		return fmt.Errorf("session: deletion tombstone metadata id %q does not match %q", meta.ID, target)
 	}
-	owner, err := (store.SessionDBOwner{SessionID: target, WorkspaceID: meta.WorkspaceID}).Normalize()
+	owner, err := meta.DatabaseOwner()
 	if err != nil {
 		return err
 	}
@@ -178,6 +178,9 @@ func (m *Manager) cleanupSessionDeleteTombstoneWithContext(
 	}
 	if restored {
 		return nil
+	}
+	if err := database.Close(); err != nil {
+		return err
 	}
 	return m.removeBoundSessionDelete(directory, path)
 }
@@ -263,8 +266,7 @@ func (m *Manager) restoreStagedSessionDelete(
 	directory *fileutil.Directory,
 	database *sessiondb.FamilyFile,
 ) error {
-	target := owner.SessionID
-	result, moveErr := directory.MoveTo(parent, target, false)
+	result, moveErr := database.MoveParentDirectory(ctx, owner, directory, parent, filepath.Dir(canonicalDBPath))
 	if !result.Committed() {
 		return errors.Join(moveErr, result.PostCommitErr)
 	}
@@ -305,7 +307,7 @@ func (m *Manager) sessionCatalogOwnerState(
 	if m == nil || m.sessionCatalog == nil {
 		return store.SessionDBOwner{}, false, false, nil
 	}
-	owner, err := store.LookupSessionDBOwner(ctx, m.sessionCatalog, target)
+	owner, err := store.LookupSessionOwner(ctx, m.sessionCatalog, m.creationStore, target)
 	if errors.Is(err, store.ErrSessionNotFound) {
 		return store.SessionDBOwner{}, false, true, nil
 	}
@@ -315,7 +317,7 @@ func (m *Manager) sessionCatalogOwnerState(
 			err,
 		)
 	}
-	return owner, true, true, nil
+	return owner.DatabaseOwner, true, true, nil
 }
 
 func readSessionMetaFromDirectory(directory *fileutil.Directory) (store.SessionMeta, error) {
@@ -347,6 +349,9 @@ func requireSessionDBInDirectory(database *sessiondb.FamilyFile, directory *file
 func (m *Manager) removeStagedSessionDelete(entry stagedSessionDelete, path string) error {
 	if entry.capabilities == nil || entry.capabilities.directory == nil {
 		return errors.New("session: staged deletion directory capability is required")
+	}
+	if err := entry.capabilities.database.Close(); err != nil {
+		return err
 	}
 	return m.removeBoundSessionDelete(entry.capabilities.directory, path)
 }

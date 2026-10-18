@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	ssepkg "github.com/compozy/compozy/internal/sse"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -82,8 +81,7 @@ func WriteSSEComment(writer FlushWriter, comment string) error {
 	if err := writeSSEString(writer, "write sse comment terminator", "\n\n"); err != nil {
 		return err
 	}
-	writer.Flush()
-	return nil
+	return flushSSE(writer)
 }
 
 func (h *BaseHandlers) writeSSEBestEffort(writer FlushWriter, msg SSEMessage) {
@@ -110,7 +108,6 @@ func writeSSERaw(writer FlushWriter, id string, raw []byte, names ...string) err
 	if len(raw) == 0 {
 		raw = []byte("null")
 	}
-	raw = ssepkg.ScrubMemoryContextBytes(raw)
 
 	if id != "" {
 		if err := writeSSEString(writer, "write sse id prefix", "id: "); err != nil {
@@ -142,6 +139,13 @@ func writeSSERaw(writer FlushWriter, id string, raw []byte, names ...string) err
 	}
 	if err := writeSSEString(writer, "write sse message terminator", "\n\n"); err != nil {
 		return err
+	}
+	return flushSSE(writer)
+}
+
+func flushSSE(writer FlushWriter) error {
+	if flusher, ok := writer.(interface{ FlushError() error }); ok {
+		return flusher.FlushError()
 	}
 	writer.Flush()
 	return nil

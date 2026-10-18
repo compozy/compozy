@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -28,6 +29,15 @@ func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 		(clean[0] == toolSurfaceMarketplaceKey || clean[0] == GatewayDirName || clean[0] == toolSurfaceShellKey) {
 		return fmt.Errorf(
 			"config: path %q is global-only and cannot be written at workspace scope",
+			strings.Join(clean, "."),
+		)
+	}
+	// tools.clarify.timeout is consumed once at daemon boot from the home
+	// config; a workspace-layered write would validate yet never take
+	// effect, so reject it with the same global-only gate.
+	if scope == WriteScopeWorkspace && slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) {
+		return fmt.Errorf(
+			"config: path %q is global-only and cannot be written at workspace scope; write this key with --scope user",
 			strings.Join(clean, "."),
 		)
 	}

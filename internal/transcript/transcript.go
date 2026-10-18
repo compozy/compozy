@@ -1,9 +1,9 @@
 package transcript
 
 import (
+	"cmp"
 	"encoding/json"
-
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,7 +52,7 @@ type Message struct {
 	ThinkingComplete bool                  `json:"thinking_complete"`
 	ToolName         string                `json:"tool_name,omitempty"`
 	ToolInput        json.RawMessage       `json:"tool_input,omitempty"`
-	ToolResult       *ToolResult           `json:"tool_result,omitempty"`
+	ToolResult       *ToolResult           `json:"tool_result,omitzero"`
 	ToolError        bool                  `json:"tool_error"`
 	Timestamp        time.Time             `json:"timestamp"`
 }
@@ -111,14 +111,8 @@ func Assemble(events []store.SessionEvent) ([]Message, error) {
 
 func sortedTranscriptEvents(events []store.SessionEvent) []store.SessionEvent {
 	sorted := append([]store.SessionEvent(nil), events...)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		if sorted[i].Sequence == sorted[j].Sequence {
-			if sorted[i].Timestamp.Equal(sorted[j].Timestamp) {
-				return sorted[i].ID < sorted[j].ID
-			}
-			return sorted[i].Timestamp.Before(sorted[j].Timestamp)
-		}
-		return sorted[i].Sequence < sorted[j].Sequence
+	slices.SortStableFunc(sorted, func(a, b store.SessionEvent) int {
+		return cmp.Or(cmp.Compare(a.Sequence, b.Sequence), a.Timestamp.Compare(b.Timestamp), cmp.Compare(a.ID, b.ID))
 	})
 	return sorted
 }

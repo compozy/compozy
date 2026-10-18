@@ -276,11 +276,11 @@ func TestRPCServerShouldValidateProviderIOAndToolResultMetadata(t *testing.T) {
 			!strings.Contains(err.Error(), "context is required") {
 			t.Fatalf("RunProvider(nil context) error = %v", err)
 		}
-		if err := RunProvider(context.Background(), strings.NewReader(""), nil); err == nil ||
+		if err := RunProvider(t.Context(), strings.NewReader(""), nil); err == nil ||
 			!strings.Contains(err.Error(), "stdout is required") {
 			t.Fatalf("RunProvider(nil stdout) error = %v", err)
 		}
-		if err := RunProvider(context.Background(), nil, &stdout); err == nil ||
+		if err := RunProvider(t.Context(), nil, &stdout); err == nil ||
 			!strings.Contains(err.Error(), "stdin is required") {
 			t.Fatalf("RunProvider(nil stdin) error = %v", err)
 		}
@@ -372,7 +372,7 @@ func runProviderRPC(t *testing.T, method string, params any) rpcRawResponse {
 func runProviderRPCLine(t *testing.T, line string) []byte {
 	t.Helper()
 	var stdout bytes.Buffer
-	if err := RunProvider(context.Background(), strings.NewReader(line+"\n"), &stdout); err != nil {
+	if err := RunProvider(t.Context(), strings.NewReader(line+"\n"), &stdout); err != nil {
 		t.Fatalf("RunProvider() error = %v", err)
 	}
 	return bytes.TrimSpace(stdout.Bytes())

@@ -18,7 +18,6 @@ import {
   useRollbackAgentSoul,
   useValidateAgentSoul,
 } from "./use-agent-soul";
-import { formatPromptWordCount } from "../lib/agent-absent-value";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
 import { buildAuthoredFileResourceKey } from "./use-agent-authored-file-editor";
@@ -82,21 +81,11 @@ export function useAgentInstructionsTab({
     { enabled: file === "heartbeat" }
   );
 
-  const soulMissing =
-    soulQuery.isSuccess &&
-    (soulQuery.data.validation_status === "missing" || soulQuery.data.present === false);
-  const heartbeatMissing =
-    heartbeatQuery.isSuccess &&
-    (heartbeatQuery.data.validation_status === "missing" || heartbeatQuery.data.present === false);
-
   const handleWake = (sessionId: string) => {
     wakeHeartbeat.mutate({ ...mutationScope, params: { session_id: sessionId, source: "manual" } });
   };
 
   return {
-    promptWordCount: formatPromptWordCount(agent.prompt),
-    soulMissing,
-    heartbeatMissing,
     soul: {
       resourceKey: buildAuthoredFileResourceKey(workspaceId, agent.name, "soul", destination),
       payload: soulQuery.data,

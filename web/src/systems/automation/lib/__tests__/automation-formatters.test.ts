@@ -1,54 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  automationLastRunLabel,
+  automationLastRunMeta,
   automationRunSkipReason,
-  automationScopeTone,
-  automationSkipReasonDetail,
   automationSkipReasonLabel,
-  automationSkipReasonTone,
   automationSourceLabel,
-  automationSourceTone,
-  automationStatusTone,
+  automationRunStateGlyph,
   catchUpPolicyLabel,
   describeFireLimit,
-  describeRetry,
-  describeSchedule,
-  describeTrigger,
-  describeTriggerFireLimit,
-  describeTriggerRetry,
-  formatAutomationListSummary,
-  formatDate,
-  formatDateTime,
+  describeRetryPlain,
   formatPromptPreview,
   formatRelativeTime,
   formatRunDuration,
-  formatRunTitle,
   humanizeFireWindow,
-  summarizeTriggerReliability,
 } from "../automation-formatters";
-
-const triggerFixture = {
-  profile_id: "00000000000000000000000000",
-  profile_name: "default",
-  id: "trg_push_review",
-  name: "push-review",
-  agent_name: "reviewer",
-  prompt: "Review push event {{ .Data.branch }}.",
-  event: "webhook",
-  filter: { "data.branch": "main" },
-  scope: "workspace" as const,
-  workspace_id: "ws_alpha",
-  source: "dynamic" as const,
-  target_kind: "agent",
-  enabled: true,
-  retry: { strategy: "backoff" as const, max_retries: 4, base_delay: "5s" },
-  fire_limit: { max: 12, window: "1h" },
-  endpoint_slug: "push-review",
-  webhook_id: "wbh_push_review",
-  webhook_secret_present: true,
-  created_at: "2026-04-11T08:00:00Z",
-  updated_at: "2026-04-11T08:10:00Z",
-};
 
 describe("automation formatter helpers", () => {
   beforeEach(() => {
@@ -69,57 +35,9 @@ describe("automation formatter helpers", () => {
     expect(formatRelativeTime("2026-04-14T10:00:00Z")).toBe("In 3d");
   });
 
-  it("formats calendar times and falls back when dates are missing or invalid", () => {
-    expect(formatDate()).toBe("Unavailable");
-    expect(formatDate("not-a-date")).toBe("not-a-date");
-    expect(formatDate("2026-04-11T08:10:00Z")).toContain("Apr 11, 2026");
-    expect(formatDateTime()).toBe("Unavailable");
-    expect(formatDateTime("not-a-date")).toBe("not-a-date");
-    expect(formatDateTime("2026-04-11T08:10:00Z")).toContain("Apr 11, 2026");
-  });
-
-  it("describes schedules for every supported mode", () => {
-    expect(describeSchedule()).toBe("Manual");
-    expect(describeSchedule({ mode: "cron", expr: "0 9 * * *" })).toBe("Cron 0 9 * * *");
-    expect(describeSchedule({ mode: "cron" })).toBe("Cron");
-    expect(describeSchedule({ mode: "every", interval: "30m" })).toBe("Every 30m");
-    expect(describeSchedule({ mode: "every" })).toBe("Every interval");
-    expect(describeSchedule({ mode: "at", time: "2026-04-11T12:00:00Z" })).toContain("At Apr 11");
-    expect(describeSchedule({ mode: "at" })).toBe("One-shot");
-  });
-
-  it("describes webhook and non-webhook triggers", () => {
-    expect(
-      describeTrigger({
-        ...triggerFixture,
-        event: "ext.github.push",
-      })
-    ).toBe("ext.github.push");
-    expect(describeTrigger(triggerFixture)).toBe("webhook:push-review");
-    expect(
-      describeTrigger({
-        ...triggerFixture,
-        endpoint_slug: undefined,
-      })
-    ).toBe("webhook:wbh_push_review");
-    expect(
-      describeTrigger({
-        ...triggerFixture,
-        endpoint_slug: undefined,
-        webhook_id: undefined,
-      })
-    ).toBe("webhook");
-  });
-
-  it("formats retry, fire-limit, run-title, status, and source labels", () => {
-    expect(describeRetry({ strategy: "none", max_retries: 3, base_delay: "2s" })).toBe(
-      "No retries"
-    );
-    expect(describeRetry({ strategy: "backoff", max_retries: 4, base_delay: "5s" })).toBe(
-      "4 retries from 5s"
-    );
-    expect(describeFireLimit({ max: 12, window: "1h" })).toBe("12 fires / 1h");
-    expect(formatRunTitle({ status: "running", attempt: 2 } as never)).toBe("RUNNING · attempt 2");
+  it("formats fire-limit, status, and source labels", () => {
+    expect(describeFireLimit({ max: 12, window: "1h" })).toBe("Up to 12 runs per hour");
+    expect(describeFireLimit({ max: 1, window: "1h" })).toBe("Up to 1 run per hour");
     expect(
       formatRunDuration({
         started_at: "2026-04-11T10:00:00Z",
@@ -129,92 +47,40 @@ describe("automation formatter helpers", () => {
     expect(
       formatPromptPreview("Review the session transcript and summarize follow-up actions.", 20)
     ).toBe("Review the session...");
-    expect(automationStatusTone("running")).toBe("info");
-    expect(automationStatusTone("completed")).toBe("success");
-    expect(automationStatusTone("enabled")).toBe("success");
-    expect(automationStatusTone("scheduled")).toBe("warning");
-    expect(automationStatusTone("failed")).toBe("danger");
-    expect(automationStatusTone("canceled")).toBe("neutral");
-    expect(automationStatusTone("disabled")).toBe("neutral");
-    expect(automationScopeTone("workspace")).toBe("info");
-    expect(automationScopeTone("global")).toBe("neutral");
-    expect(automationSourceTone("dynamic")).toBe("info");
-    expect(automationSourceTone("config")).toBe("neutral");
-    expect(automationSourceLabel("config")).toBe("CONFIG");
-    expect(automationSourceLabel("package")).toBe("PACKAGE");
-    expect(automationSourceLabel("dynamic")).toBe("DYNAMIC");
+    expect(automationRunStateGlyph("scheduled")).toBe("queued");
+    expect(automationRunStateGlyph("running")).toBe("running");
+    expect(automationRunStateGlyph("delegated")).toBe("delegated");
+    expect(automationRunStateGlyph("completed")).toBe("done");
+    expect(automationRunStateGlyph("failed")).toBe("failed");
+    expect(automationRunStateGlyph("canceled")).toBe("stopped");
+    expect(automationSourceLabel("config")).toBe("From config");
+    expect(automationSourceLabel("package")).toBe("From package");
+    expect(automationSourceLabel("dynamic")).toBe("Created here");
   });
 
-  it("Should format trigger reliability across singular, plural, and unknown windows", () => {
+  it("Should format reliability in plain words across singular, plural, and unknown windows", () => {
     expect(humanizeFireWindow("1h")).toBe("hour");
     expect(humanizeFireWindow("30m")).toBe("30 minutes");
     expect(humanizeFireWindow("calendar-day")).toBe("calendar-day");
-    expect(describeTriggerRetry({ strategy: "none", max_retries: 0, base_delay: "" })).toBe(
+    expect(describeRetryPlain({ strategy: "none", max_retries: 0, base_delay: "" })).toBe(
       "No retries"
     );
-    expect(describeTriggerRetry({ strategy: "backoff", max_retries: 1, base_delay: "5s" })).toBe(
-      "Backoff · 1 time"
+    expect(describeRetryPlain({ strategy: "backoff", max_retries: 2, base_delay: "5s" })).toBe(
+      "Up to 2, waiting longer each time"
     );
-    expect(describeTriggerFireLimit({ max: 1, window: "1h" })).toBe("1 time / hour");
-    expect(
-      summarizeTriggerReliability(
-        { strategy: "backoff", max_retries: 2, base_delay: "5s" },
-        { max: 4, window: "1h" }
-      )
-    ).toBe("Backoff · 4 / hour");
-  });
-
-  it("formats exact totals while disclosing partially loaded pages", () => {
-    expect(
-      formatAutomationListSummary({
-        activeWorkspaceName: "alpha",
-        kind: "jobs",
-        scopeFilter: "workspace",
-        searchQuery: "",
-        totalCount: 4,
-        visibleCount: 1,
-      })
-    ).toBe("Showing 1 of 4 jobs in alpha");
-    expect(
-      formatAutomationListSummary({
-        kind: "jobs",
-        scopeFilter: "global",
-        searchQuery: "",
-        totalCount: 4,
-        visibleCount: 2,
-      })
-    ).toBe("Showing 2 of 4 jobs in global scope");
-    expect(
-      formatAutomationListSummary({
-        kind: "jobs",
-        scopeFilter: "all",
-        searchQuery: "nightly",
-        totalCount: 4,
-        visibleCount: 2,
-      })
-    ).toBe("Showing 2 of 4 jobs matching current search");
-    expect(
-      formatAutomationListSummary({
-        kind: "triggers",
-        scopeFilter: "all",
-        searchQuery: "",
-        totalCount: 0,
-        visibleCount: 0,
-      })
-    ).toBe("0 triggers found");
   });
 
   it("labels catch-up policies and never surfaces the removed skip value", () => {
     expect(catchUpPolicyLabel()).toBe("Default");
     expect(catchUpPolicyLabel(undefined)).toBe("Default");
     expect(catchUpPolicyLabel("skip_missed")).toBe("Skip missed");
-    expect(catchUpPolicyLabel("coalesce")).toBe("Coalesce");
-    expect(catchUpPolicyLabel("replay")).toBe("Replay");
-    expect(catchUpPolicyLabel("run_once_on_catchup")).toBe("Run once");
+    expect(catchUpPolicyLabel("coalesce")).toBe("Catch up once");
+    expect(catchUpPolicyLabel("replay")).toBe("Run every missed time");
+    expect(catchUpPolicyLabel("run_once_on_catchup")).toBe("Run once, then continue");
     expect(catchUpPolicyLabel("skip_missed")).not.toBe("skip");
   });
 
-  it("recognizes durable skip reasons only on canceled runs and maps label, tone, and detail", () => {
+  it("recognizes durable skip reasons only on canceled runs and maps the label", () => {
     expect(
       automationRunSkipReason({ status: "canceled", metadata: { reason: "self_overlap" } } as never)
     ).toBe("self_overlap");
@@ -246,11 +112,50 @@ describe("automation formatter helpers", () => {
     expect(automationRunSkipReason({ status: "canceled", metadata: {} } as never)).toBeNull();
     expect(automationRunSkipReason({ status: "canceled" } as never)).toBeNull();
 
-    expect(automationSkipReasonLabel("self_overlap")).toBe("Overlap");
-    expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Grace window");
-    expect(automationSkipReasonTone("self_overlap")).toBe("info");
-    expect(automationSkipReasonTone("misfire_grace_exceeded")).toBe("warning");
-    expect(automationSkipReasonDetail("self_overlap")).toContain("previous run");
-    expect(automationSkipReasonDetail("misfire_grace_exceeded")).toContain("grace window");
+    expect(automationSkipReasonLabel("self_overlap")).toBe("Skipped");
+    expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Missed");
+  });
+
+  it("labels a last run's durable skip before its status", () => {
+    expect(automationLastRunLabel({ status: "canceled", skipReason: "self_overlap" })).toBe(
+      "Skipped"
+    );
+    expect(
+      automationLastRunLabel({ status: "canceled", skipReason: "misfire_grace_exceeded" })
+    ).toBe("Missed");
+    expect(automationLastRunLabel({ status: "canceled" })).toBe("Canceled");
+  });
+
+  it("words the row's last-run truth with danger only for failures", () => {
+    const at = "2026-10-07T02:00:01Z";
+    expect(automationLastRunMeta({ status: "failed", startedAt: at })).toEqual({
+      tone: "danger",
+      glyph: "fail",
+      text: "Last run failed",
+      at,
+    });
+    expect(automationLastRunMeta({ status: "canceled", skipReason: "self_overlap" })).toEqual({
+      tone: "neutral",
+      glyph: "skip",
+      text: "Last run skipped — the one before was still going",
+    });
+    expect(
+      automationLastRunMeta({ status: "canceled", skipReason: "misfire_grace_exceeded" })?.text
+    ).toBe("Last run missed — CompozyOS was off at the start time");
+    expect(automationLastRunMeta({ status: "canceled", startedAt: at })?.text).toBe(
+      "Last run canceled"
+    );
+    expect(automationLastRunMeta({ status: "running", startedAt: at })).toEqual({
+      tone: "neutral",
+      glyph: null,
+      text: "Running now",
+    });
+    expect(automationLastRunMeta({ status: "delegated", startedAt: at })?.text).toBe(
+      "Last run handed off"
+    );
+    expect(automationLastRunMeta({ status: "completed", startedAt: at })?.text).toBe(
+      "Last run completed"
+    );
+    expect(automationLastRunMeta(undefined)).toBeNull();
   });
 });

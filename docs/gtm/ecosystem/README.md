@@ -30,14 +30,14 @@ Collections remain editorial. They do not create a hidden composition or activat
 
 An extension owns one lifecycle. Installation verifies and records the package but leaves static
 resources inert. Enable publishes the instance-owned kit; disable removes those resources; update
-checks trust, secret bindings, and Network consent before replacing the active version.
+checks trust, secret bindings, and Gateway consent before replacing the active version.
 
 | Concern | Current Compozy shape |
 | --- | --- |
 | Lifecycle | Search, install, inspect, enable, disable, update, remove |
 | Provenance | Source, trust tier, checksums, Marketplace metadata |
 | Static kit | Skills, Loops, agents and sidecars, automation, layouts, MCP sidecars |
-| Runtime services | Tool, memory, model, and Loop watch-source provide surfaces |
+| Runtime services | Tool, model, and Loop watch-source provide surfaces |
 | Dynamic resources | Host API publication through declared permissions |
 | Secrets | Instance-scoped bindings from declared environment keys to Vault references |
 | Operability | Inventory, preview, structured status, logs, and deterministic errors |
@@ -53,7 +53,7 @@ to install or coordinate separately owned extensions.
 ### Atomic extension
 
 One versioned integration or runtime provider, such as Google Workspace, HubSpot, document
-extraction, browser automation, a memory backend, or a webhook source.
+extraction, browser automation, a model source, or a webhook source.
 
 ### Extension family
 
@@ -103,7 +103,7 @@ Before publishing an extension opportunity, answer:
 1. What single service, provider, or outcome does the extension own?
 2. Which resources ship in its static kit, and what becomes live on enable?
 3. Which environment keys are required, and how are Vault bindings checked without exposing refs?
-4. Which Network requirement digest needs confirmation on enable or update?
+4. Which Gateway requirement digest needs confirmation on enable or update?
 5. What does inventory show, and what does preview predict before mutation?
 6. Which CLI, HTTP/UDS, web, and native-tool surfaces let an agent inspect or manage it?
 7. What are the global/workspace/session/agent ownership boundaries?

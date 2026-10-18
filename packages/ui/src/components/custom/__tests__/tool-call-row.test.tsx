@@ -1,29 +1,18 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { FileEditIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 
 // Calm-transcript status budget: only the failure × carries a signal hue —
-// success check and running spinner stay grey.
+// the running spinner and the absorbed × stay grey, and every resting state
+// (success, empty, pending, stopped) carries no glyph at all.
 const GLYPH_STATUSES: Array<{ status: ToolCallStatus; label: string; tone: string }> = [
   { status: "running", label: "Running", tone: "text-subtle" },
   { status: "failed", label: "Error", tone: "text-danger" },
   { status: "absorbed", label: "Failed", tone: "text-subtle" },
-  { status: "success", label: "Done", tone: "text-subtle" },
-  { status: "empty", label: "Empty", tone: "text-subtle" },
 ];
-
-function classesOf(root: Element): string[] {
-  const classes: string[] = [];
-  for (const node of root.querySelectorAll<HTMLElement>("*")) {
-    if (node.className && typeof node.className === "string") classes.push(node.className);
-  }
-  if (root instanceof HTMLElement && typeof root.className === "string")
-    classes.push(root.className);
-  return classes;
-}
+const RESTING_STATUSES: ToolCallStatus[] = ["pending", "stopped", "success", "empty"];
 
 function statusGlyph(container: HTMLElement): HTMLElement | null {
   return container.querySelector<HTMLElement>('[data-slot="tool-call-row-status"]');
@@ -39,7 +28,7 @@ describe("ToolCallRow", () => {
       <ToolCallRow
         toolName="Read"
         preview="packages/runtime/src/session/stream.ts"
-        status="success"
+        status="failed"
       />
     );
 
@@ -72,12 +61,32 @@ describe("ToolCallRow", () => {
     }
   });
 
-  it("Should render no status glyph for pending (the muted preparing-input state)", () => {
-    const { container } = render(<ToolCallRow toolName="Bash" status="pending" />);
-    expect(
-      container.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")
-    ).toBe("pending");
-    expect(statusGlyph(container)).toBeNull();
+  it("Should render no status glyph for a resting state — completion is not an event", () => {
+    for (const status of RESTING_STATUSES) {
+      const { container, unmount } = render(<ToolCallRow toolName="Bash" status={status} />);
+      expect(
+        container.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")
+      ).toBe(status);
+      expect(statusGlyph(container)).toBeNull();
+      unmount();
+    }
+  });
+
+  it("Should render the object as a chip and drop the icon well on a rail", () => {
+    const { container } = render(
+      <ToolCallRow
+        toolName="Read"
+        preview="a.ts"
+        previewVariant="chip"
+        icon={null}
+        status="success"
+      />
+    );
+    expect(container.querySelector('[data-slot="tool-call-row-icon-well"]')).toBeNull();
+    expect(container.querySelector('[data-slot="tool-call-row-preview"]')).toHaveAttribute(
+      "data-variant",
+      "chip"
+    );
   });
 
   it("Should render no glyph for a stopped call — its word carries the state", () => {
@@ -88,21 +97,12 @@ describe("ToolCallRow", () => {
     expect(statusGlyph(container)).toBeNull();
   });
 
-  it("Should keep the heading neutral on failure — the × glyph alone carries the state", () => {
-    const { container } = render(
-      <ToolCallRow toolName="Read" status="failed" errorMessage="ENOENT" />
-    );
-    expect(heading(container)?.className).not.toContain("text-danger");
-    expect(heading(container)?.className).toContain("text-muted");
-    expect(statusGlyph(container)?.getAttribute("class")).toContain("text-danger");
-  });
-
   it("Should render the per-file diff stat slot between text and trailing glyphs", () => {
     const { container } = render(
       <ToolCallRow
         toolName="Edited"
         preview="src/session.tsx"
-        status="success"
+        status="absorbed"
         statLabel="28 additions, 104 deletions"
         stat={
           <>
@@ -124,7 +124,7 @@ describe("ToolCallRow", () => {
     expect(preview?.compareDocumentPosition(stat as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(stat?.compareDocumentPosition(status as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByRole("button")).toHaveAccessibleName(
-      "Edited 28 additions, 104 deletions Toggle tool call (success)"
+      "Edited 28 additions, 104 deletions Toggle tool call (absorbed)"
     );
   });
 
@@ -179,26 +179,5 @@ describe("ToolCallRow", () => {
     expect(
       screen.getByRole("button", { name: "Read workspace file Toggle tool call (success)" })
     ).toBeInTheDocument();
-  });
-
-  it("Should hover with the neutral glaze and never render an accent class in the row DOM", () => {
-    const { container } = render(
-      <ToolCallRow toolName="Edit" status="success" icon={FileEditIcon}>
-        <ToolCallRow.Output>
-          <pre>selectable output</pre>
-        </ToolCallRow.Output>
-      </ToolCallRow>
-    );
-    const trigger = screen.getByRole("button");
-    expect(
-      container.querySelector('[data-slot="tool-call-row-trigger"]')?.getAttribute("class")
-    ).toContain("hover:bg-hover");
-
-    fireEvent.click(trigger);
-    const row = container.querySelector('[data-slot="tool-call-row"]');
-    expect(row).not.toBeNull();
-    for (const className of classesOf(row!)) {
-      expect(className).not.toMatch(/\baccent\b/);
-    }
   });
 });

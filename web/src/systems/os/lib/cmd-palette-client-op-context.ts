@@ -1,4 +1,5 @@
 import type { OsDesktopRuntimeStore, WindowManagerController } from "./os-types";
+import type { WindowManagerClientCommandReply } from "./window-manager-client-command-frames";
 
 /**
  * Everything a `client_op` needs to run in the attached client.
@@ -19,7 +20,7 @@ export interface PaletteShellHandlers {
   toggleSidebar(): void;
   toggleGlobalScope(): void;
   /** Switches the active profile through the canonical selection route. */
-  useProfile(profile: string): void;
+  useProfile(profile: string, beforeSwitch?: () => void): void | Promise<unknown>;
   cycleWorkspace(direction: "previous" | "next"): void;
   cycleSession(direction: "previous" | "next"): void;
   focusAttention(): void;
@@ -38,8 +39,14 @@ export interface PaletteShellHandlers {
 export interface PaletteClientOpContext {
   readonly manager: WindowManagerController;
   readonly shell: PaletteShellHandlers;
+  /** Completes a delegated command before a successful scope change disconnects it. */
+  readonly reply?: WindowManagerClientCommandReply;
   /** Same port local dispatch uses for `navigate` actions. */
-  readonly navigate: (app: string, pathname: string | null) => void;
+  readonly navigate: (
+    app: string,
+    pathname: string | null,
+    search?: Record<string, string>
+  ) => void;
   /** Same port local dispatch uses for `url` actions. */
   readonly openUrl: (url: string) => void;
 }

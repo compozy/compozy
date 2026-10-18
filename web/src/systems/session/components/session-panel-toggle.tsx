@@ -1,4 +1,4 @@
-import { Button, cn } from "@compozy/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 import { List, PanelRight } from "lucide-react";
 
 const PANELS = {
@@ -16,22 +16,27 @@ export function SessionPanelToggle({
   onToggle: () => void;
 }) {
   const { label, testId, Glyph } = PANELS[panel];
+  const name = `${open ? "Close" : "Open"} ${label}`;
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={`${open ? "Close" : "Open"} ${label}`}
-      aria-pressed={open}
-      className={cn(
-        "size-11 focus-visible:shadow-focus-inset",
-        open ? "bg-elevated text-fg" : null
-      )}
-      data-state={open ? "open" : "closed"}
-      data-testid={testId}
-      onClick={onToggle}
-    >
-      <Glyph aria-hidden="true" className="size-3" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="quiet"
+            size="icon-sm"
+            aria-label={name}
+            // Pressed reads as the held hover plate (`surface-2` + `fg`), from the variant.
+            aria-pressed={open}
+            data-state={open ? "open" : "closed"}
+            data-testid={testId}
+            onClick={onToggle}
+          />
+        }
+      >
+        <Glyph aria-hidden="true" className="size-4" />
+      </TooltipTrigger>
+      <TooltipContent>{name}</TooltipContent>
+    </Tooltip>
   );
 }

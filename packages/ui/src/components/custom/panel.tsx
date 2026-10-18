@@ -1,6 +1,7 @@
 import type * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Surface } from "../surface";
 
 export interface PanelProps extends Omit<React.ComponentProps<"section">, "title"> {
   /** Optional head title; the head row renders only when title, meta, or right is present. */
@@ -20,11 +21,11 @@ function hasSlot(value: React.ReactNode): boolean {
 }
 
 /**
- * Flat panel container — the warm `--canvas-soft` card behind dashboard zones
- * and grouped rows. Head and foot are optional hairline-separated slots; the
+ * Panel container — a `Surface` card (`card` + `shadow-card`, the same card
+ * language as Metric tiles) behind dashboard zones and grouped rows. Head and foot are optional hairline-separated slots; the
  * foot pins to the bottom (`mt-auto`) so paired panels in a grid close flush.
- * Identity H1s never live here; panel titles render an h3 styled with the
- * `text-section-head` token so pages keep a single h1/h2 outline.
+ * Identity H1s never live here; panel titles render an h3 at the card-title
+ * tier (`text-item-title`, 14/500) so pages keep a single h1/h2 outline.
  */
 export function Panel({
   title,
@@ -38,10 +39,11 @@ export function Panel({
 }: PanelProps) {
   const withHead = hasSlot(title) || hasSlot(meta) || hasSlot(right);
   return (
-    <section
-      className={cn("flex min-w-0 flex-col rounded-lg bg-canvas-soft", className)}
-      data-slot="panel"
-      {...props}
+    <Surface
+      render={<section data-slot="panel" {...props} />}
+      size="flush"
+      variant="card"
+      className={cn("flex min-w-0 flex-col", className)}
     >
       {withHead ? (
         <header
@@ -51,7 +53,7 @@ export function Panel({
           <div className="flex min-w-0 items-baseline gap-2">
             {hasSlot(title) ? (
               <h3
-                className="truncate text-form-label font-medium text-fg-strong"
+                className="truncate text-item-title font-medium text-fg-strong"
                 data-slot="panel-title"
               >
                 {title}
@@ -84,6 +86,6 @@ export function Panel({
           {foot}
         </div>
       ) : null}
-    </section>
+    </Surface>
   );
 }

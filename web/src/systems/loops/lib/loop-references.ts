@@ -88,7 +88,7 @@ export function buildReferenceNamespace(
       detail: "the fanned index (fan-out branch)",
     });
   }
-  const TRIGGER_START_KINDS = new Set(["trigger", "webhook", "schedule", "network"]);
+  const TRIGGER_START_KINDS = new Set(["trigger", "webhook", "schedule"]);
   const hasTriggerStart = (definition.start ?? []).some(binding =>
     TRIGGER_START_KINDS.has(binding.kind)
   );

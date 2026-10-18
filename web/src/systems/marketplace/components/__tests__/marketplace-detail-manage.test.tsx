@@ -45,8 +45,8 @@ const mocks = vi.hoisted(() => ({
     severity: string;
     title: string;
   }>,
-  extensionNetworkConfirmationRequired: false,
-  extensionNetworkDigest: undefined as string | undefined,
+  extensionGatewayConfirmationRequired: false,
+  extensionGatewayDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
     message: string;
     sequence: number;
@@ -79,11 +79,11 @@ function extensionPayload(): ExtensionEntry {
   return {
     ...extensionFixtures[0]!,
     trust: undefined,
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
     workspace_id: mocks.extensionWorkspaceId ?? undefined,
     bound_env_keys: mocks.extensionBoundEnvKeys,
-    network_confirmation_required: mocks.extensionNetworkConfirmationRequired,
-    network_requirement_digest: mocks.extensionNetworkDigest,
+    gateway_confirmation_required: mocks.extensionGatewayConfirmationRequired,
+    gateway_requirement_digest: mocks.extensionGatewayDigest,
     diagnostics: [
       {
         id: "healthy",
@@ -111,7 +111,7 @@ function extensionPayload(): ExtensionEntry {
     health_message: "Runtime handshake is healthy.",
     origin_path: mocks.extensionOriginPath,
     overrides_published: mocks.extensionDev,
-    permissions: ["network/send"],
+    permissions: ["gateway/status"],
     placements: mocks.extensionPlacements,
     pid: 4242,
     provenance: {
@@ -165,7 +165,7 @@ const server = setupServer(
   })
 );
 const clients: QueryClient[] = [];
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterAll(() => server.close());
 afterEach(() => {
   cleanup();
@@ -205,9 +205,8 @@ async function renderDetail(data: MarketplaceCatalogEntryResponse) {
   if (mocks.extensionError) await screen.findByTestId("marketplace-extension-manage-error");
   else {
     await screen.findByTestId("extension-environment-state");
-    await waitFor(() =>
-      expect(screen.getByTestId("extension-logs-status")).toHaveTextContent("Following live")
-    );
+    // Activity (the log panel) starts closed; the Manage status word marks a settled detail.
+    await screen.findByTestId("marketplace-extension-status-word");
     if (mocks.extensionWorkspaceId === null)
       await waitFor(() => expect(client.isFetching()).toBe(0));
   }
@@ -253,8 +252,8 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionFormat = "compozy";
     mocks.extensionInventory = [];
     mocks.extensionInventoryDiagnostics = [];
-    mocks.extensionNetworkConfirmationRequired = false;
-    mocks.extensionNetworkDigest = undefined;
+    mocks.extensionGatewayConfirmationRequired = false;
+    mocks.extensionGatewayDigest = undefined;
     mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
@@ -262,18 +261,27 @@ describe("Marketplace installed-detail management", () => {
 
   it("Should preserve extension enablement, environment, diagnostics, and provenance", async () => {
     const user = userEvent.setup();
+    mocks.extensionInventory = [
+      { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
+    ];
     await renderDetail(extensionDetailData());
 
+    // Setup opens itself only because something is missing; problems surface without a click.
     expect(screen.getByText("PAGER_TOKEN")).toBeInTheDocument();
-    expect(screen.getByText("missing")).toBeInTheDocument();
+    expect(screen.getByText("Missing")).toBeInTheDocument();
     expect(screen.getByText("Runtime handshake passed.")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-extension-status-word")).toHaveTextContent("Running");
+    // Access and the operator facts stay reachable one step deeper.
+    await openRailCard(user, "What it can do");
     expect(screen.getByText("tool.provider")).toBeInTheDocument();
-    expect(screen.getByText("network/send")).toBeInTheDocument();
-    expect(screen.getByText("Runtime handshake is healthy.")).toBeInTheDocument();
-    expect(screen.getByText("4242")).toBeInTheDocument();
-    expect(screen.getByText("1h 1m")).toBeInTheDocument();
-    const provenance = await openRailCard(user, "Provenance");
-    expect(within(provenance).getByText("official")).toBeInTheDocument();
+    expect(screen.getByText("gateway/status")).toBeInTheDocument();
+    const advanced = await openRailCard(user, "Advanced");
+    expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-skipped-components")).not.toBeInTheDocument();
+    expect(within(advanced).getByText("Runtime handshake is healthy.")).toBeInTheDocument();
+    expect(within(advanced).getByText("4242")).toBeInTheDocument();
+    expect(within(advanced).getByText("1h 1m")).toBeInTheDocument();
+    expect(within(advanced).getByText("official")).toBeInTheDocument();
     expect(screen.getByTestId("extension-checksum-verified-badge")).toBeInTheDocument();
     await user.click(screen.getByTestId("extension-enabled-switch"));
     await waitFor(() => expect(mocks.extensionToggle).toHaveBeenCalledOnce());
@@ -328,8 +336,10 @@ describe("Marketplace installed-detail management", () => {
       },
     ];
 
+    const user = userEvent.setup();
     await renderDetail(extensionDetailData());
 
+    await openRailCard(user, "Advanced");
     const badges = screen.getByTestId("extension-trust-badges");
     expect(within(badges).getByTestId("extension-format-badge")).toHaveTextContent("agent plugin");
     const skipped = screen.getByTestId("extension-skipped-components");
@@ -337,34 +347,27 @@ describe("Marketplace installed-detail management", () => {
     expect(within(skipped).getByText('unsupported transport "sse"')).toBeInTheDocument();
   });
 
-  it("Should carry no format signal or Skipped section for a native extension", async () => {
-    mocks.extensionInventory = [
-      { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
-    ];
-
-    await renderDetail(extensionDetailData());
-
-    expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("extension-skipped-components")).not.toBeInTheDocument();
-  });
-
   it("Should mark a declared environment name as bound when the daemon reports a binding", async () => {
     mocks.extensionBoundEnvKeys = ["REGION", "LEGACY_TOKEN"];
     await renderDetail(extensionDetailData());
 
     const environment = screen.getByTestId("extension-environment-state");
-    expect(within(environment).getByText("bound")).toBeInTheDocument();
+    expect(within(environment).getByText("Set")).toBeInTheDocument();
     // A binding the manifest no longer declares is listed, never presented as in use.
     expect(within(environment).getByText("LEGACY_TOKEN")).toBeInTheDocument();
-    expect(within(environment).getByText("bound · not declared")).toBeInTheDocument();
+    expect(within(environment).getByText("Set · no longer used")).toBeInTheDocument();
   });
 
-  it("Should surface the network digest and its consent state when participation is declared", async () => {
-    mocks.extensionNetworkDigest = "sha256:6f1c0a94d3b27e58";
-    mocks.extensionNetworkConfirmationRequired = true;
+  it("Should surface the gateway digest and its consent state when participation is declared", async () => {
+    mocks.extensionGatewayDigest = "sha256:6f1c0a94d3b27e58";
+    mocks.extensionGatewayConfirmationRequired = true;
     await renderDetail(extensionDetailData());
 
-    expect(screen.getByTestId("extension-network-consent")).toHaveTextContent(
+    // A pending remote-access confirmation opens Advanced by itself.
+    expect(
+      within(screen.getByTestId("marketplace-extension-advanced")).getByText("Remote access")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("extension-gateway-consent")).toHaveTextContent(
       "confirmation required"
     );
     expect(screen.getByText("sha256:6f1c0a94d3b27e58")).toBeInTheDocument();
@@ -409,14 +412,21 @@ describe("Marketplace installed-detail management", () => {
     ];
     await renderDetail(extensionDetailData());
 
+    expect(screen.getByTestId("marketplace-extension-status-word")).toHaveTextContent(
+      "Having trouble · restarting"
+    );
+    await openRailCard(user, "Advanced");
     expect(screen.getByTestId("extension-consecutive-failures")).toHaveTextContent("3");
     expect(screen.getByTestId("extension-restart-backoff")).toHaveTextContent("4000 ms");
-    await openRailCard(user, "Provenance");
     expect(screen.getByTestId("extension-provenance-digest")).toHaveTextContent(
       "no digest recorded"
     );
     expect(screen.getByTestId("extension-checksum-verified-badge")).toBeInTheDocument();
     expect(screen.queryByTestId("extension-digest-matched-badge")).not.toBeInTheDocument();
+    await openRailCard(user, "Activity");
+    await waitFor(() =>
+      expect(screen.getByTestId("extension-logs-status")).toHaveTextContent("Following live")
+    );
     expect(screen.getByTestId("extension-logs-lines")).toHaveTextContent("listening on :7788");
     expect(screen.getByTestId("extension-logs-status")).toHaveTextContent("Following live");
   });
@@ -427,7 +437,8 @@ describe("Marketplace installed-detail management", () => {
 
     await renderDetail(extensionDetailData());
 
-    await openRailCard(user, "Provenance");
+    expect(screen.queryByTestId("extension-trust-word")).not.toBeInTheDocument();
+    await openRailCard(user, "Advanced");
     expect(screen.queryByTestId("extension-checksum-verified-badge")).not.toBeInTheDocument();
     expect(screen.getByTestId("extension-provenance-checksum")).toHaveTextContent("not pinned");
     expect(screen.getByTestId("extension-source-badge")).toHaveTextContent("Local path");
@@ -450,6 +461,8 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionWorkspaceId = "ws_northstar";
     await renderDetail(extensionDetailData());
 
+    expect(screen.getByTestId("extension-trust-word")).toHaveTextContent("Local development copy");
+    await openRailCard(user, "Advanced");
     expect(screen.getByTestId("extension-dev-badge")).toHaveTextContent("dev");
     expect(screen.getByTestId("extension-overrides-published-badge")).toHaveTextContent(
       "overrides published"
@@ -462,9 +475,7 @@ describe("Marketplace installed-detail management", () => {
 
     await user.click(screen.getByRole("button", { name: "Actions for ops-extension" }));
 
-    expect(
-      await screen.findByRole("menuitem", { name: "Unlink dev overlay…" })
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Unlink local copy…" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Provenance" })).not.toBeInTheDocument();
   });
 

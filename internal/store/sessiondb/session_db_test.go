@@ -10,9 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -72,6 +73,7 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		assertUniqueIndex(t, sessionDB.db, "events", "idx_events_sequence")
 		assertJournalModeWAL(t, sessionDB.db)
 		assertSynchronousNormal(t, sessionDB.db)
+		assertWALAutoCheckpoint(t, sessionDB.db, 0)
 		if got, err := currentMaxSequence(testutil.Context(t), sessionDB.db); err != nil || got != 0 {
 			t.Fatalf("currentMaxSequence() = (%d, %v), want (0, nil)", got, err)
 		}
@@ -196,18 +198,6 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	})
 }
 
-func TestOpenSessionDBDisablesAutomaticWALCheckpoints(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should disable sqlite autocheckpoint for writer-owned WAL policy", func(t *testing.T) {
-		t.Parallel()
-
-		sessionDB := openTestSessionDB(t, "sess-wal-checkpoint")
-
-		assertWALAutoCheckpoint(t, sessionDB.db, 0)
-	})
-}
-
 func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	t.Parallel()
 
@@ -274,6 +264,153 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 		if got, want := len(events), sessionPassiveCheckpointEvery+5; got != want {
 			t.Fatalf("len(events) = %d, want %d", got, want)
 		}
+	})
+
+	// Invariant: a live session's WAL stays bounded while readers keep polling it.
+	// Invariant: truncation stays off the write path during a burst, and an oversized WAL still
+	// shrinks once writes go idle while a reader keeps polling.
+	t.Run("Should truncate an oversized live WAL only after a write burst", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		sessionDB, err := OpenSessionDB(ctx, testSessionDBOwner("sess-wal-bound"), path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := sessionDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+		const limit = 256 << 10
+		sessionDB.walTruncateBytes.Store(limit)
+		readerCtx, stopReader := context.WithCancel(ctx)
+		readerDone := make(chan struct{})
+		go func() {
+			defer close(readerDone)
+			for readerCtx.Err() == nil {
+				_, _ = sessionDB.Query(readerCtx, EventQuery{Type: "usage"})
+			}
+		}()
+		t.Cleanup(func() {
+			stopReader()
+			<-readerDone
+		})
+		walSize := func() int64 {
+			info, err := os.Stat(path + "-wal")
+			if err != nil {
+				return 0
+			}
+			return info.Size()
+		}
+		payload := strings.Repeat("x", 2048)
+		var previous int64
+		// Only TRUNCATE shrinks the WAL file, so a shrink during the burst means the write path
+		// truncated.
+		for idx := range 2*sessionPassiveCheckpointEvery + 1 {
+			if err := sessionDB.Record(ctx, SessionEvent{
+				TurnID:    fmt.Sprintf("turn-%d", idx),
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   fmt.Sprintf(`{"text":%q}`, payload),
+			}); err != nil {
+				t.Fatalf("Record(%d) error = %v", idx, err)
+			}
+			size := walSize()
+			if size < previous {
+				t.Fatalf("WAL shrank from %d to %d bytes at write %d, want no truncation during the burst",
+					previous, size, idx)
+			}
+			previous = size
+		}
+		if previous < limit {
+			t.Fatalf("WAL after burst = %d bytes, want it above the %d-byte bound", previous, limit)
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for walSize() >= limit {
+			if time.Now().After(deadline) {
+				t.Fatalf("WAL = %d bytes 5s after the burst, want truncation below %d", walSize(), limit)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	})
+
+	// Invariant: an oversized WAL shrinks once writes stop, and a truncation deferred by a reader
+	// is retried after the reader leaves, without waiting for another checkpoint interval.
+	t.Run("Should truncate after writes stop and retry once a blocking reader leaves", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		sessionDB, err := OpenSessionDB(ctx, testSessionDBOwner("sess-wal-idle"), path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := sessionDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+		const limit = 256 << 10
+		sessionDB.walTruncateBytes.Store(limit)
+		sessionDB.walMaintenanceDelayOverride.Store(int64(20 * time.Millisecond))
+		walSize := func() int64 {
+			info, err := os.Stat(path + "-wal")
+			if err != nil {
+				return 0
+			}
+			return info.Size()
+		}
+		waitForWAL := func(label string, done func(int64) bool) {
+			t.Helper()
+			deadline := time.Now().Add(5 * time.Second)
+			for !done(walSize()) {
+				if time.Now().After(deadline) {
+					t.Fatalf("%s: WAL = %d bytes after 5s", label, walSize())
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+		payload := strings.Repeat("x", 2048)
+		record := func(count int) {
+			t.Helper()
+			for idx := range count {
+				if err := sessionDB.Record(ctx, SessionEvent{
+					TurnID:    fmt.Sprintf("turn-%d-%d", count, idx),
+					Type:      "agent_message",
+					AgentName: "coder",
+					Content:   fmt.Sprintf(`{"text":%q}`, payload),
+				}); err != nil {
+					t.Fatalf("Record(%d) error = %v", idx, err)
+				}
+			}
+		}
+
+		record(sessionPassiveCheckpointEvery / 2)
+		waitForWAL("idle after writes", func(size int64) bool { return size < limit })
+
+		reader, err := sessionDB.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("Conn(reader) error = %v", err)
+		}
+		t.Cleanup(func() { _ = reader.Close() })
+		if _, err := reader.ExecContext(ctx, "BEGIN"); err != nil {
+			t.Fatalf("BEGIN(reader) error = %v", err)
+		}
+		var events int
+		if err := reader.QueryRowContext(ctx, "SELECT count(*) FROM events").Scan(&events); err != nil {
+			t.Fatalf("SELECT(reader) error = %v", err)
+		}
+		record(sessionPassiveCheckpointEvery / 2)
+		time.Sleep(sessionWALTruncateWait + 100*time.Millisecond)
+		if size := walSize(); size < limit {
+			t.Fatalf("WAL = %d bytes while a reader holds its snapshot, want truncation deferred", size)
+		}
+		if _, err := reader.ExecContext(ctx, "COMMIT"); err != nil {
+			t.Fatalf("COMMIT(reader) error = %v", err)
+		}
+		waitForWAL("retry after reader left", func(size int64) bool { return size < limit })
 	})
 }
 
@@ -751,6 +888,107 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		}
 	})
 
+	t.Run("Should initialize existing projection state without waiting for a write lock", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestSessionDB(t, "sess-projection-state-noop")
+		holder, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := holder.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := holder.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		// The holder keeps the write lock for the whole call, so a lock-waiting read blocks until
+		// this bound. It stays below the 5s busy timeout while leaving room for the guarded
+		// connection open, which takes ~300ms under a parallel -race package run.
+		bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		initializeErr := initializeTranscriptProjectionState(bounded, db.db)
+		if _, err := holder.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if initializeErr != nil {
+			t.Fatalf("initialize existing state while writer is active: %v", initializeErr)
+		}
+	})
+
+	t.Run(
+		"Should preserve archived events and projected messages when upgrading the active sequence index",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			owner := testSessionDBOwner("sess-active-index-upgrade")
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			prefix, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerTestSQLDBCleanup(t, "active index migration prefix", prefix)
+			if err := store.Apply(ctx, prefix, sessionMigrationPrefixBefore(t, "00010_schema.sql")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prefix.ExecContext(ctx,
+				`INSERT INTO session_db_owner(singleton,session_id,workspace_id) VALUES(1,?,?)`,
+				owner.SessionID, owner.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+			if err := initializeTranscriptProjectionState(ctx, prefix); err != nil {
+				t.Fatal(err)
+			}
+			at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+			seed := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+			wantEvents, err := seed.writeEventBatch(ctx, []SessionEvent{
+				{ID: "archived", SessionID: owner.SessionID, TurnID: "old", Type: "user_message",
+					AgentName: "user", Content: `{"text":"retained archived bytes"}`, Archived: true, Timestamp: at},
+				{ID: "active", SessionID: owner.SessionID, TurnID: "active", Type: "user_message",
+					AgentName: "user", Content: `{"text":"visible active bytes"}`, Timestamp: at.Add(time.Second)},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantPage, err := queryTranscriptPage(ctx, prefix, transcript.PageQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := prefix.Close(); err != nil {
+				t.Fatal(err)
+			}
+			var previousStatus store.StreamStatus
+			for attempt := range 2 {
+				opened, err := OpenSessionDB(ctx, owner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				events, err := opened.Query(ctx, EventQuery{})
+				if err != nil || !slices.Equal(events, wantEvents) {
+					t.Fatalf("migrated events = %#v, %v, want %#v", events, err, wantEvents)
+				}
+				page, err := opened.TranscriptPage(ctx, transcript.PageQuery{})
+				if err != nil || len(page.Entries) != 1 || page.Generation != wantPage.Generation ||
+					page.MaxSequence != wantPage.MaxSequence || page.Entries[0].Message.ID != wantPage.Entries[0].Message.ID ||
+					page.Entries[0].StartSequence != wantPage.Entries[0].StartSequence ||
+					transcript.UIMessageText(page.Entries[0].Message) != "visible active bytes" {
+					t.Fatalf("migrated page = %#v, %v, want %#v", page, err, wantPage)
+				}
+				status, err := store.Status(ctx, opened.db, MigrationStream())
+				if err != nil || status.Version != 10 || status.AppliedCount != 10 ||
+					(attempt > 0 && status != previousStatus) {
+					t.Fatalf("upgraded status = %#v, %v, previous %#v", status, err, previousStatus)
+				}
+				previousStatus = status
+				if err := opened.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+	)
+
 	t.Run("Should round-trip an event and preserve stream status across reopen", func(t *testing.T) {
 		t.Parallel()
 
@@ -764,8 +1002,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 8 || firstStatus.AppliedCount != 8 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 8", firstStatus)
+		if firstStatus.Version != 10 || firstStatus.AppliedCount != 10 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 10", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -913,8 +1151,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 8 || status.AppliedCount != 8 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 8", status)
+		if status.Version != 10 || status.AppliedCount != 10 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 10", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -1683,6 +1921,127 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep entries appended one event at a time equal to a full replay", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		const sessionID = "sess-transcript-fold"
+		sessionDB := openTestSessionDB(t, sessionID)
+		at := time.Date(2026, 10, 9, 20, 40, 0, 0, time.UTC)
+		var stream []acp.AgentEvent
+		stream = append(stream, acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "turn-long", Text: "migrate"})
+		for i := range 12 {
+			call := fmt.Sprintf("call-%02d", i)
+			stream = append(stream,
+				acp.AgentEvent{Type: acp.EventTypeThought, TurnID: "turn-long", Text: fmt.Sprintf("plan %d", i)},
+				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: "step "},
+				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: fmt.Sprintf("%d", i)},
+				acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: "turn-long", ToolCallID: call, Title: "Bash",
+					Raw: json.RawMessage(fmt.Sprintf(`{"rawInput":{"command":"echo %d"}}`, i))},
+			)
+			if i%3 != 2 {
+				result := fmt.Sprintf(`{"status":"completed","rawOutput":{"stdout":"%d"}}`, i)
+				stream = append(stream, acp.AgentEvent{
+					Type: acp.EventTypeToolResult, TurnID: "turn-long", ToolCallID: call, Raw: json.RawMessage(result),
+				})
+			}
+		}
+		stream = append(stream,
+			acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "turn-long", PromptStopReason: acp.PromptStopReasonEndTurn},
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "turn-next", Text: "continue"},
+			acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: "turn-long", ToolCallID: "call-02",
+				Raw: json.RawMessage(`{"status":"completed","rawOutput":{"stdout":"late"}}`)},
+			acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-next", Text: "resumed"},
+		)
+		for i, event := range stream {
+			event.SessionID, event.Timestamp = sessionID, at.Add(time.Duration(i)*time.Millisecond)
+			if err := sessionDB.Record(ctx, canonicalStoreEvent(t, event, "coder")); err != nil {
+				t.Fatalf("Record(%d %s) error = %v", i, event.Type, err)
+			}
+		}
+
+		events, err := sessionDB.Query(ctx, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 100})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		replay, err := transcript.BuildProjection(events, page.Generation)
+		if err != nil {
+			t.Fatalf("BuildProjection() error = %v", err)
+		}
+		encode := func(message transcript.UIMessage) string {
+			t.Helper()
+			raw, err := json.Marshal(message)
+			if err != nil {
+				t.Fatalf("marshal message: %v", err)
+			}
+			return string(raw)
+		}
+		var want []transcript.Entry
+		for _, segment := range replay.Segments {
+			if segment.Entry != nil {
+				want = append(want, *segment.Entry)
+			}
+		}
+		if len(page.Entries) != len(want) {
+			t.Fatalf("len(page.Entries) = %d, want full replay %d", len(page.Entries), len(want))
+		}
+		for i := range want {
+			got, wantJSON := encode(page.Entries[i].Message), encode(want[i].Message)
+			if got != wantJSON || page.Entries[i].StartSequence != want[i].StartSequence ||
+				page.Entries[i].Sequence != want[i].Sequence {
+				t.Fatalf("entry %d diverged from full replay:\n got %d/%d %s\nwant %d/%d %s", i,
+					page.Entries[i].StartSequence, page.Entries[i].Sequence, got,
+					want[i].StartSequence, want[i].Sequence, wantJSON)
+			}
+		}
+		if !strings.Contains(encode(page.Entries[1].Message), "late") {
+			t.Fatalf("late tool result missing from its routed entry: %s", encode(page.Entries[1].Message))
+		}
+	})
+
+	t.Run("Should project the committed event when a failed append reused its sequence", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		const sessionID = "sess-transcript-fold-rollback"
+		sessionDB := openTestSessionDB(t, sessionID)
+		at := time.Date(2026, 10, 9, 21, 0, 0, 0, time.UTC)
+		call := func(id, title string, offset int) SessionEvent {
+			return canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeToolCall, SessionID: sessionID, TurnID: "turn-rollback",
+				ToolCallID: id, Title: title, Timestamp: at.Add(time.Duration(offset) * time.Millisecond),
+			}, "coder")
+		}
+		if err := sessionDB.Record(ctx, call("call-kept", "kept-before", 0)); err != nil {
+			t.Fatalf("Record(first) error = %v", err)
+		}
+		errFenced := errors.New("commit fenced")
+		fenced := store.ContextWithMutationCommitFence(ctx, func(context.Context) error { return errFenced })
+		err := sessionDB.Record(fenced, call("call-rolled-back", "rolled-back-title", 1))
+		if !errors.Is(err, errFenced) {
+			t.Fatalf("Record(fenced) error = %v, want %v", err, errFenced)
+		}
+		if err := sessionDB.Record(ctx, call("call-committed", "committed-title", 2)); err != nil {
+			t.Fatalf("Record(replacement) error = %v", err)
+		}
+
+		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		raw, err := json.Marshal(page.Entries)
+		if err != nil {
+			t.Fatalf("marshal entries: %v", err)
+		}
+		if !strings.Contains(string(raw), "committed-title") || strings.Contains(string(raw), "rolled-back-title") {
+			t.Fatalf("transcript after rolled-back append = %s, want only committed events", raw)
+		}
+	})
+
 	t.Run("Should publish a completed assistant upsert with its boundary entry", func(t *testing.T) {
 		t.Parallel()
 
@@ -1748,6 +2107,49 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 		if len(after.Entries) != 0 || after.NextAfter != changes.NextAfter {
 			t.Fatalf("TranscriptChanges(after boundary) = %#v, want no duplicate or gap", after)
+		}
+	})
+
+	t.Run("Should paginate complete change groups without gaps or duplicate updates", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestSessionDB(t, "sess-change-groups")
+		var input []SessionEvent
+		at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+		for index, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, TurnID: "first", Text: "first answer"},
+			{Type: acp.EventTypeUserMessage, TurnID: "second", Text: "second question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "second", Text: "second answer"},
+			{Type: acp.EventTypeUserMessage, TurnID: "third", Text: "third question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "third", Text: "third answer"},
+		} {
+			event.SessionID, event.Timestamp = db.SessionID(), at.Add(time.Duration(index)*time.Second)
+			input = append(input, canonicalStoreEvent(t, event, "coder"))
+		}
+		if _, err := db.RecordPersistedBatch(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		var after int64
+		for index, want := range [][]int64{{1, 2}, {3, 4}, {5}} {
+			page, err := db.TranscriptChanges(ctx, transcript.ChangeQuery{AfterSequence: after, Limit: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			starts := make([]int64, 0, len(page.Entries))
+			for _, entry := range page.Entries {
+				starts = append(starts, entry.StartSequence)
+				if entry.Sequence != want[len(want)-1] {
+					t.Fatalf("entry sequence = %d, want %d", entry.Sequence, want[len(want)-1])
+				}
+			}
+			if !slices.Equal(starts, want) || page.HasMore != (index < 2) || page.NextAfter != want[len(want)-1] {
+				t.Fatalf("page %d = %#v, starts = %v, want %v", index, page, starts, want)
+			}
+			after = page.NextAfter
+		}
+		page, err := db.TranscriptChanges(ctx, transcript.ChangeQuery{AfterSequence: after, Limit: 1})
+		if err != nil || len(page.Entries) != 0 || page.HasMore || page.NextAfter != after {
+			t.Fatalf("exhausted change page = %#v, %v", page, err)
 		}
 	})
 
@@ -2051,7 +2453,7 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 			if sessionDB == nil {
 				return closeSessionDBErr
 			}
-			closeSessionDBErr = sessionDB.Close(ctx)
+			closeSessionDBErr = sessionDB.Close(testutil.Context(t))
 			sessionDB = nil
 			return closeSessionDBErr
 		}
@@ -3154,7 +3556,13 @@ func TestSessionDBQueryFilters(t *testing.T) {
 	events := []SessionEvent{
 		{TurnID: "turn-1", Type: "agent_message", AgentName: "coder", Content: `{"text":"one"}`},
 		{TurnID: "turn-1", Type: "tool_call", AgentName: "coder", Content: `{"tool":"ls"}`},
-		{TurnID: "turn-2", Type: "agent_message", AgentName: "reviewer", Content: `{"text":"two"}`},
+		{
+			ID:        "input-identity",
+			TurnID:    "turn-2",
+			Type:      "agent_message",
+			AgentName: "reviewer",
+			Content:   `{"text":"two"}`,
+		},
 		{TurnID: "turn-3", Type: "error", AgentName: "coder", Content: `{"error":"boom"}`},
 	}
 	for _, event := range events {
@@ -3169,6 +3577,13 @@ func TestSessionDBQueryFilters(t *testing.T) {
 		wantSeqs  []int64
 		wantTypes []string
 	}{
+		// Reply evidence resolves one persisted identity without reading other turns.
+		{
+			name:      "Should filter by exact event identity",
+			query:     EventQuery{ID: "input-identity", Limit: 1},
+			wantSeqs:  []int64{3},
+			wantTypes: []string{"agent_message"},
+		},
 		{
 			name:      "type filter",
 			query:     EventQuery{Type: "agent_message"},
@@ -3625,11 +4040,7 @@ func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
 
 	for _, table := range want {
 		if _, ok := have[table]; !ok {
-			keys := make([]string, 0, len(have))
-			for key := range have {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
+			keys := slices.Sorted(maps.Keys(have))
 			t.Fatalf("missing table %q, have %v", table, keys)
 		}
 	}

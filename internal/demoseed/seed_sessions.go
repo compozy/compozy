@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -69,7 +68,6 @@ func writeSessionRecords(
 	permissions string,
 ) error {
 	stopReason := store.StopReason(story.stopReason())
-	networkSpec := participation.LocalSpec()
 	lineage := sessionLineage(story)
 	stopDetail := story.StopDetail
 	meta := store.SessionMeta{
@@ -80,23 +78,21 @@ func writeSessionRecords(
 		SessionType: story.SessionType, State: string(session.StateStopped),
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		StopReason:    &stopReason, StopDetail: stopDetail,
-		Failure:              sessionFailure(story),
-		Lineage:              lineage,
-		NetworkParticipation: &networkSpec,
-		CreatedAt:            story.StartedAt, UpdatedAt: story.EndedAt,
+		Failure:   sessionFailure(story),
+		Lineage:   lineage,
+		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
 	}
 	meta.SetCWD(record.RootDir)
 	meta.SetEffectivePermissions(permissions)
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), meta); err != nil {
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &meta); err != nil {
 		return fmt.Errorf("demo seed: write metadata for session %q: %w", story.ID, err)
 	}
 	if err := db.RegisterSession(ctx, store.SessionInfo{
 		ID: story.ID, ProfileID: store.DefaultProfileID,
 		Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
 		Model: story.Model, WorkspaceID: record.ID, SessionType: story.SessionType,
-		Lineage:             lineage,
-		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: networkSpec},
-		State:               string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
+		Lineage: lineage,
+		State:   string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
 		StopReason: stopReason, StopDetail: stopDetail, Failure: sessionFailure(story),
 		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
 	}); err != nil {
@@ -122,10 +118,12 @@ func sessionLineage(story sessionStory) *store.SessionLineage {
 	if strings.TrimSpace(story.ParentID) == "" {
 		return nil
 	}
-	return &store.SessionLineage{
+	lineage := &store.SessionLineage{
 		ParentSessionID: story.ParentID, RootSessionID: story.ParentID,
 		SpawnDepth: 1, SpawnRole: story.SpawnRole, AutoStopOnParent: true,
 	}
+	store.UpgradeSessionLineageKind(story.SessionType, lineage)
+	return lineage
 }
 
 func sessionFailure(story sessionStory) *store.SessionFailure {

@@ -18,8 +18,8 @@ type CoordinatorControlResult struct {
 // RunResult captures the durable JSON result returned by a completed run.
 type RunResult struct {
 	Value              json.RawMessage           `json:"value,omitempty"`
-	TokensUsed         int64                     `json:"tokens_used,omitempty"`
-	CoordinatorControl *CoordinatorControlResult `json:"coordinator_control,omitempty"`
+	TokensUsed         int64                     `json:"tokens_used,omitzero"`
+	CoordinatorControl *CoordinatorControlResult `json:"coordinator_control,omitzero"`
 }
 
 // StoredValue returns the task_runs.result_json representation while preserving

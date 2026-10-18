@@ -227,7 +227,7 @@ func newClarifyCoreRouter(broker *clarifyBrokerStub) *gin.Engine {
 		Workspaces: workspaceResolveServiceStub{
 			resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: ref, Name: ref, RootDir: "/tmp/" + ref},
+					ID: ref, Name: ref, RootDir: "/tmp/" + ref,
 					WorkspaceID: ref,
 				}, nil
 			},

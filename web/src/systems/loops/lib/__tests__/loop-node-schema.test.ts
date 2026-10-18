@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { EditorNode, RawLoopNode } from "../codec";
 import { setNodeFields } from "../loop-editor-draft";
-import { environmentHint, environmentModeEdits } from "../loop-node-environment-fields";
+import { environmentModeEdits } from "../loop-node-environment-fields";
 import { readReview, reviewEdits } from "../loop-node-review-fields";
 import { readRoutes, routeDefaultEdit, routesEdit } from "../loop-node-route-fields";
 import { buildNodeFields, type FieldSpec } from "../loop-node-schema";
@@ -167,23 +167,6 @@ describe("loop node schema", () => {
     expect(hasKey(perRunNode, "environment_directory")).toBe(false);
   });
 
-  it("Should name each environment mode's inspector hint without inventing a loop default", () => {
-    expect(environmentHint("root")).toBe(
-      "Runs at the workspace root. Part of the session binding key."
-    );
-    expect(environmentHint("worktree")).toBeUndefined();
-    expect(environmentHint("worktree", { mode: "root" })).toBe(
-      "Overrides the loop default (Workspace root) for this node."
-    );
-    expect(environmentHint("per_run")).toBe(
-      "Name and branch are generated at run start — run/<task-slug>."
-    );
-    expect(environmentHint("directory")).toBe(
-      "Resolved when the run starts. Type {{ to autocomplete references."
-    );
-    expect(environmentHint(null)).toBeUndefined();
-  });
-
   it("Should drop retired cwd when an environment mode is chosen", () => {
     const raw: RawLoopNode = {
       id: "x",
@@ -210,7 +193,7 @@ describe("loop node schema", () => {
     const raw: RawLoopNode = {
       id: "post",
       class: "action",
-      kind: "compozy__network_send",
+      kind: "compozy__task_list",
       params: {},
     };
     const fields = buildNodeFields(raw);
@@ -512,7 +495,7 @@ describe("graph completion node schema", () => {
   });
 
   it("Should give every action node the review composite", () => {
-    for (const kind of ["run-agent", "goal", "run-loop", "transform", "compozy__network_send"]) {
+    for (const kind of ["run-agent", "goal", "run-loop", "transform", "compozy__task_list"]) {
       const fields = buildNodeFields({ id: "x", class: "action", kind, params: {} });
       expect(fieldByType(fields, "review")).toMatchObject({
         key: "review",

@@ -9,6 +9,7 @@ export type CatalogCardTone = "accent" | "neutral" | "success" | "warning" | "da
 export type CatalogCardLogoSize = "default" | "lg";
 
 export interface CatalogCardLogoProps extends React.ComponentProps<"span"> {
+  /** Glyph ink. Neutral by default; `accent` is opt-in for needs-you only. */
   tone?: CatalogCardTone;
   size?: CatalogCardLogoSize;
 }
@@ -24,7 +25,7 @@ const LOGO_SIZE_CLASS: Record<CatalogCardLogoSize, string> = {
 };
 
 export function CatalogCardLogo({
-  tone = "accent",
+  tone = "neutral",
   size = "default",
   className,
   ...props
@@ -36,7 +37,7 @@ export function CatalogCardLogo({
       data-tone={tone}
       data-size={size}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded bg-surface-glaze",
+        "inline-flex shrink-0 items-center justify-center rounded-sm bg-surface-2",
         LOGO_SIZE_CLASS[size],
         toneText(tone),
         className
@@ -51,7 +52,7 @@ export function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps)
     <h3
       data-slot="catalog-card-title"
       className={cn(
-        "min-w-0 truncate text-small-body font-medium tracking-modal-title text-fg-strong",
+        "min-w-0 truncate text-item-title font-medium tracking-modal-title text-fg-strong",
         className
       )}
       {...props}

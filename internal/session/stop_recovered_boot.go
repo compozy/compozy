@@ -38,3 +38,20 @@ func (m *Manager) RecoverPendingStops(ctx context.Context) error {
 	}
 	return nil
 }
+
+// RecoverStaleInputDispatches settles busy-input leases a previous daemon
+// process left in dispatching so they stop holding queue capacity. Boot calls
+// it before any session can claim new input.
+func (m *Manager) RecoverStaleInputDispatches(ctx context.Context) (int, error) {
+	if m == nil || m.inputQueue == nil {
+		return 0, nil
+	}
+	failed, err := m.inputQueue.FailStaleDispatches(ctx)
+	if failed > 0 {
+		m.logger.Warn("session: failed stale dispatching inputs after restart", "count", failed)
+	}
+	if err != nil {
+		return failed, fmt.Errorf("session: recover stale input dispatches: %w", err)
+	}
+	return failed, nil
+}

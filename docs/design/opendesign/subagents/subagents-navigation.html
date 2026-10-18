@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Sidebar &amp; inspector · Subagents · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="subagents.css">
+<!--
+  subagents-navigation · S9 sidebar parent chip · S10 inspector Subagents section.
+  Contract: DESIGN-NOTES.md. Spec: _uiux.md S9/S10 · ADR-005.
+  Provenance:
+    production — SessionListRow geometry (12px badge column, title text-body, sub text-eyebrow,
+                 Time), SessionListThread connector + ThreadToggle, DetailInspector rail 320px,
+                 SessionInspectorSection / SectionHead (eyebrow + mono meta).
+    reference  — t3 Sidebar.logic.ts:566-582,943-975 (filter) · ThreadRelationshipsControl.tsx:67-111,
+                 196-340 (roster) · monocode Sidebar.tsx subagent popover · synara reveal (analysis/09).
+    delta      — chip sits in the row's trailing slot beside the existing thread toggle; it never adds
+                 rows. Failed rows pin above the live list (Pedro, 2026-10-09).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="nv-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Subagents</a><span class="w2-sep">/</span><h1 class="w2-title">03 · Sidebar &amp; inspector</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="subagents-composer.html">← Waiting &amp; status</a><a class="btn btn--sm" href="index.html">Overview →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="sa-contract" data-od-id="nv-contract" aria-label="What this board is">
+      <div class="sa-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="sa-contract__what"><b>Ten subagents, still one row.</b> Subagent sessions stay out of the sidebar list, so they never push other sessions off the page. Instead, the parent row gets a small chip: the most urgent state, and how many are live out of the total (<b>3/10</b>). Hovering it previews the top five. Clicking it opens the full list in the session's inspector.</p>
+        <p class="sa-contract__what">The inspector's new <b>Subagents</b> section lists live ones first, keeps finished ones in a folded group, pages long lists, and can stop a live one from its row.</p>
+        <p class="sa-contract__file">subagents-navigation.html · S9 · S10 · GET /sessions?subagents=exclude (no search) · roster by parent</p>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="sa-mods">
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SubagentChip</b><i>web/src/systems/session/components/subagents/</i>StateGlyph + live/total; HoverCard preview; click → inspector</span></li>
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SessionInspectorSubagentsSection</b><i>subagents/session-inspector-subagents-section.tsx</i>after Activity; live · Previous (N) · paging · Stop</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SessionListRow · SessionListThread</b><i>session-list/</i>chip in the trailing slot; reveal the viewed subagent under its parent</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>session-hierarchy.ts · session list query</b><i>web/src/systems/session/lib/ · hooks/</i>subagents=exclude unless searching; search nests matches; delegated parent glyph</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SessionInspector</b><i>session-inspector.tsx</i>mounts the section; chip deep-links to it</span></li>
+          <li><span class="sa-mod sa-mod--backend">backend</span><span><b>subagents=include|exclude|only</b><i>session list API · CLI · UDS</i>default include; existing callers unchanged</span></li>
+          <li><span class="sa-mod sa-mod--reuse">reuse</span><span><b>StateGlyph · HoverCard · Collapsible · Button · Time · SubagentAvatar · SubagentElapsed</b><i>@compozy/ui · board 01</i></span></li>
+        </ul>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="sa-states">
+          <li><a href="#nv-live">Sidebar + inspector — interactive</a><code>nav VC-01</code></li>
+          <li><a href="#nv-chip">Chip — 8 states</a><code>nav VC-02</code></li>
+          <li><a href="#nv-roster">Inspector section — 6 states</a><code>nav VC-03</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · LIVE ===== -->
+    <section class="lab-sec" id="nv-live" data-od-id="nv-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">One row per parent, full roster in the inspector</h2><span class="lab-sec__gist">nav VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Try it.</b> Hover the <code>3/10</code> chip on "Ship checkout v2" to preview the five most urgent subagents. In the inspector, hover a live row to reveal Stop, open "Previous subagents", and hover a row for its S3 hover card. "Audit payment webhooks…" stops cleanly. "Profile the cart endpoint…" fails to stop and shows the toast.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="nv-live-stage">
+            <section class="win win--inline is-focused sa-win sa-win--nav" style="--sa-win-w:1180px" data-od-id="nv-live-window">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Ship checkout v2</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="Close context sidebar"><svg data-lucide="panel-right"></svg></button></div>
+              </header>
+              <div class="win-body">
+                <!-- sidebar -->
+                <nav class="sa-sidebar" aria-label="Sessions" data-od-id="nv-sidebar">
+                  <div class="sa-sidebar__head"><b>Sessions</b></div>
+                  <div class="sa-sidebar__search"><svg data-lucide="search"></svg><span style="color:var(--faint)">Search sessions</span></div>
+                  <div class="sa-sidebar__group">checkout-api</div>
+                  <div class="session-list-row" aria-current="true">
+                    <button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Ship checkout v2</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">now</span></button>
+                    <div class="session-list-row__trail">
+                      <div class="hc-host hc-host--inline">
+                        <a class="subagent-chip" href="#nv-section" data-hc-trigger aria-label="3 of 10 subagents running"><span data-sg="attention" data-size="sm"></span>3/10</a><i class="sa-n sa-n--pin">1</i>
+                        <div class="hover-card" style="left:-120px;width:280px" role="dialog" aria-label="Subagents">
+                          <div class="subagent-chip-hc__head"><b>10 subagents</b><span>3 running</span></div>
+                          <div class="subagent-chip-list">
+                            <div class="subagent-chip-list__row"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--accent"></span></span><span class="subagent-chip-list__t">Review PR #812 for N+1 queries</span><span class="subagent-chip-list__w subagent-chip-list__w--attention">Waiting for you</span></div>
+                            <div class="subagent-chip-list__row"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-chip-list__t">Run the checkout e2e suite</span><span class="subagent-chip-list__w subagent-chip-list__w--failed">Failed</span></div>
+                            <div class="subagent-chip-list__row"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-chip-list__t">Audit payment webhooks for retry safety</span><span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span></div>
+                            <div class="subagent-chip-list__row"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-chip-list__t">Profile the cart endpoint under load</span><span class="subagent-elapsed" data-elapsed="61" data-live="true">1m 01s</span></div>
+                            <div class="subagent-chip-list__row"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-chip-list__t">Draft release notes for v2</span><span class="subagent-elapsed" data-elapsed="52">52s</span></div>
+                          </div>
+                          <div class="subagent-chip-hc__foot">+5 more</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="session-list-row">
+                    <button class="session-list-row__btn" type="button"><span data-sg="delegated" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Refactor cart totals</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">4m</span></button>
+                    <div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="2 of 4 subagents running"><span data-sg="delegated" data-size="sm"></span>2/4</button><i class="sa-n" style="margin:0 0 0 2px">2</i></div>
+                  </div>
+                  <div class="session-list-row">
+                    <button class="session-list-row__btn" type="button"><span data-sg="done" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Nightly delivery</span><span class="session-list-row__sub"><b>software-delivery</b></span></span><span class="session-list-row__time">2h</span></button>
+                    <div class="session-list-row__trail"><button class="thread-toggle" type="button" aria-expanded="true" aria-label="Toggle 2 child sessions"><svg data-lucide="chevron-right"></svg>2</button><i class="sa-n" style="margin:0 0 0 2px">3</i></div>
+                  </div>
+                  <div class="session-list-thread__children">
+                    <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="done" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Implement task_04</span><span class="session-list-row__sub"><b>implementer</b></span></span><span class="session-list-row__time">2h</span></button><div class="session-list-row__trail"></div></div>
+                    <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="done" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Review task_04</span><span class="session-list-row__sub"><b>reviewer</b></span></span><span class="session-list-row__time">2h</span></button><div class="session-list-row__trail"></div></div>
+                  </div>
+                  <div class="session-list-row">
+                    <button class="session-list-row__btn" type="button"><span data-sg="done" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Fix flaky refund test</span><span class="session-list-row__sub"><b>tester</b></span></span><span class="session-list-row__time">5h</span></button>
+                    <div class="session-list-row__trail"></div>
+                  </div>
+                  <div class="session-list-row">
+                    <button class="session-list-row__btn" type="button"><span data-sg="stopped" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Upgrade payment SDK</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">Yesterday</span></button>
+                    <div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="6 subagents, 2 failed"><span data-sg="failed" data-size="sm"></span>6</button></div>
+                  </div>
+                </nav>
+                <!-- thread -->
+                <div class="sa-thread">
+                  <div class="sa-thread__scroll"><div class="sa-thread__col" style="width:min(560px,100%)">
+                    <div class="sa-msg-user">Before we cut v2, check the webhook retries, look for N+1 queries in #812, and draft the release notes.</div>
+                    <p class="sa-msg">I've split this across ten subagents. Three are still running and one needs you.</p>
+                    <div class="subagent-group"><button class="subagent-group__trigger" type="button" aria-expanded="false"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="avatar-group__count">+7</span></span><span style="min-width:0"><span class="subagent-group__label">10 subagents</span><span class="subagent-group__summary" data-tone="failed">2 working · 1 needs you · 5 done · 2 failed</span></span><span class="subagent-elapsed" data-elapsed="512" data-live="true">8m 32s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button></div>
+                    <div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b data-elapsed="530" data-live="true">8m 50s</b><span class="sep">·</span>3 agents running</div>
+                  </div></div>
+                </div>
+                <!-- inspector -->
+                <aside class="session-inspector" aria-label="Context" data-od-id="nv-inspector">
+                  <div class="session-inspector__head">Context</div>
+                  <div class="session-inspector__body">
+                    <section class="session-inspector__sec session-inspector__sec--folded" aria-hidden="true"><div class="session-inspector__sec-head"><span class="eyebrow">Activity</span><span class="meta">12 events</span></div><div class="session-inspector__ghost" style="width:86%"></div><div class="session-inspector__ghost" style="width:64%"></div></section>
+                    <section class="session-inspector__sec" id="nv-section" data-od-id="nv-section">
+                      <div class="session-inspector__sec-head" style="position:relative"><span class="eyebrow">Subagents · 3 running</span><span class="meta">10</span><i class="sa-n sa-n--pin" style="right:-4px">4</i></div>
+                      <div class="subagent-roster" style="overflow:visible;max-height:none">
+                        <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="Run the checkout e2e suite"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-roster__t">Run the checkout e2e suite</span><span class="subagent-roster__end"><span class="subagent-roster__w subagent-roster__w--failed">Failed</span></span></div>
+                        <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="Check refund copy against COPY.md"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-roster__t">Check refund copy against COPY.md</span><span class="subagent-roster__end"><span class="subagent-roster__w subagent-roster__w--failed">Failed</span></span></div>
+                        <div class="hc-host">
+                          <div class="subagent-roster__row" role="button" tabindex="0" data-live="true" data-hc-trigger data-sa-open="Review PR #812 for N+1 queries"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--accent"></span></span><span class="subagent-roster__t">Review PR #812 for N+1 queries</span><span class="subagent-roster__end"><span class="subagent-roster__w subagent-roster__w--attention">Waiting for you</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row"><svg data-lucide="square"></svg></button></span></div>
+                          <div class="hover-card hover-card--left" role="dialog" aria-label="Subagent details"><div class="subagent-hover"><div class="subagent-hover__title">Review PR #812 for N+1 queries</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><img src="assets/openai.svg" alt=""><b>gpt-5.6-sol</b><span class="sep">·</span>medium<svg data-lucide="zap" aria-label="Fast"></svg></div><div class="subagent-hover__row"><span data-sg="attention" data-size="sm"></span>Waiting for you<span class="subagent-elapsed" data-elapsed="98" data-live="true">1m 38s</span></div></div><div class="subagent-hover__preview">Asked to run make db-explain against the staging snapshot.</div></div></div>
+                        </div>
+                        <div class="hc-host">
+                          <div class="subagent-roster__row" role="button" tabindex="0" data-live="true" data-hc-trigger data-sa-open="Audit payment webhooks for retry safety" style="position:relative"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__t">Audit payment webhooks for retry safety</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row"><svg data-lucide="square"></svg></button></span><i class="sa-n sa-n--pin" style="top:6px;right:-12px">5</i></div>
+                          <div class="hover-card hover-card--left" role="dialog" aria-label="Subagent details"><div class="subagent-hover"><div class="subagent-hover__title">Audit payment webhooks for retry safety</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Opus 5.5</b><span class="sep">·</span>high</div><div class="subagent-hover__row"><span data-sg="running" data-size="sm"></span>Running<span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span></div></div><div class="subagent-hover__preview">Reading internal/payments/webhook.go</div></div></div>
+                        </div>
+                        <div class="subagent-roster__row" role="button" tabindex="0" data-live="true" data-sa-open="Profile the cart endpoint under load"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__t">Profile the cart endpoint under load</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="61" data-live="true">1m 01s</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row-fail"><svg data-lucide="square"></svg></button></span></div>
+                        <button class="subagent-roster__prev" type="button" data-sa-disclosure aria-expanded="false" aria-controls="nv-prev" style="position:relative"><svg data-lucide="chevron-right"></svg>Previous subagents (5)<i class="sa-n sa-n--pin" style="top:6px;right:-12px">6</i></button>
+                        <div id="nv-prev" hidden>
+                          <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="Draft release notes for v2"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Draft release notes for v2</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="52">52s</span></span></div>
+                          <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="Explore how refunds are persisted"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Explore how refunds are persisted</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="48">48s</span></span></div>
+                          <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="List callers of OrderSummary"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">List callers of OrderSummary</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="33">33s</span></span></div>
+                          <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="Summarize open support tickets about refunds"><span class="subagent-avatar subagent-avatar--sm"><svg data-lucide="bot"></svg><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Summarize open support tickets about refunds</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="96">1m 36s</span></span></div>
+                          <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="Backfill refund_reason for 2025 orders"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--faint"></span></span><span class="subagent-roster__t">Backfill refund_reason for 2025 orders</span><span class="subagent-roster__end"><span class="subagent-roster__w">Canceled</span></span></div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </aside>
+              </div>
+            </section>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>SubagentChip</b> <em>trailing slot, 20px pill, mono micro tabular. The glyph shows the most urgent state (attention &gt; failed &gt; running, or delegated when the parent's turn has ended). The text is live/total while any subagent runs; when none runs but a failure remains, it is the total alone (<code>6</code>) beside the failed glyph (a subagent waiting for you counts as live). Hover opens a HoverCard with 5 subagents (most urgent, then most recent) and "+N more". Click opens §4.</em></span></li>
+            <li><i class="sa-n">2</i><span><b>Delegated parent</b> <em>no running turn, but live delegated subagents. The row and the chip both show <code>delegated</code> (info), never done. This is the same glyph as the composer banner on board 02.</em></span></li>
+            <li><i class="sa-n">3</i><span><b>Plain spawn nesting is unchanged</b> <em><code>session_spawn</code> children keep today's connector and ThreadToggle. Subagent sessions never appear here: the list asks for <code>subagents=exclude</code>, so they take no page slots and are never promoted to roots.</em></span></li>
+            <li><i class="sa-n">4</i><span><b>Section head</b> <em>"Subagents" or "Subagents · N running", using the SessionInspectorSectionHead eyebrow with a mono total. It is placed after Activity. The section is absent when the session has no subagents.</em></span></li>
+            <li><i class="sa-n">5</i><span><b>Roster row</b> <em>20px avatar + dot · title · compact elapsed or the status word. Live delegated rows swap elapsed for a 22px Stop on hover or focus ("Stop subagent"). Click follows the S1 drill-in rule. Only direct children are listed.</em></span></li>
+            <li><i class="sa-n">6</i><span><b>Previous subagents (N)</b> <em>collapsed by default (Collapsible). Failed rows are not in this group: they pin above the live list. Inside each group, rows are ordered by <code>created_at</code> descending.</em></span></li>
+          </ul>
+          <div class="sa-tags"><span class="sa-tag"><b>state</b>parent running · 10 subagents · 3 live · 1 waiting · 2 failed</span><span class="sa-tag"><b>component</b>SubagentChip · SessionInspectorSubagentsSection</span><span class="sa-tag"><b>VC</b>nav/VC-01</span><span class="sa-tag"><b>accent</b>1 — attention glyph on the chip</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · CHIP STATES ===== -->
+    <section class="lab-sec" id="nv-chip" data-od-id="nv-chip">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Sidebar chip — eight states</h2><span class="lab-sec__gist">nav VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Each specimen is a real 280px sidebar row.</b> The chip goes away once every subagent has settled with no failure and nothing waiting. A finished, clean fan-out leaves the row as it was. While you view a subagent, only that one subagent appears, nested under its parent. A search brings matching subagents back, nested the same way.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="nv-chip-states">
+            <div class="lab-cell"><span class="lab-cell__t">live <code>aria "2 of 10 subagents running"</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Ship checkout v2</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="2 of 10 subagents running"><span data-sg="running" data-size="sm"></span>2/10</button></div></div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">attention <code>a subagent is waiting for you</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Ship checkout v2</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="3 of 10 subagents running, 1 needs you"><span data-sg="attention" data-size="sm"></span>3/10</button></div></div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">failed, none live <code>total only · aria "6 subagents, 2 failed"</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="stopped" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Upgrade payment SDK</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">Yesterday</span></button><div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="6 subagents, 2 failed"><span data-sg="failed" data-size="sm"></span>6</button></div></div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">delegated <code>parent idle · row + chip delegated</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="delegated" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Refactor cart totals</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">4m</span></button><div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="2 of 4 subagents running"><span data-sg="delegated" data-size="sm"></span>2/4</button></div></div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">hidden <code>all settled · no failure · nothing waiting</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="done" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Draft Q4 roadmap</span><span class="session-list-row__sub"><b>planner</b></span></span><span class="session-list-row__time">1h</span></button><div class="session-list-row__trail"></div></div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">viewing a subagent <code>only that one is revealed</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Ship checkout v2</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="3 of 10 subagents running, 1 needs you"><span data-sg="attention" data-size="sm"></span>3/10</button></div></div>
+                <div class="session-list-thread__children"><div class="session-list-row" aria-current="true"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Audit payment webhooks for retry safety</span><span class="session-list-row__sub"><b>Claude Code</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"></div></div></div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">search match <code>q="webhook" · subagents included, nested</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="sa-sidebar__search"><svg data-lucide="search"></svg>webhook</div>
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Ship checkout v2</span><span class="session-list-row__sub"><b>dev-loop</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="3 of 10 subagents running, 1 needs you"><span data-sg="attention" data-size="sm"></span>3/10</button></div></div>
+                <div class="session-list-thread__children"><div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Audit payment <mark>webhook</mark>s for retry safety</span><span class="session-list-row__sub"><b>Claude Code</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"></div></div></div>
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="done" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Rotate <mark>webhook</mark> secrets</span><span class="session-list-row__sub"><b>ops</b></span></span><span class="session-list-row__time">3d</span></button><div class="session-list-row__trail"></div></div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">plain children + chip <code>toggle and chip side by side</code></span>
+              <div class="sa-sidebar" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)">
+                <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Nightly delivery</span><span class="session-list-row__sub"><b>software-delivery</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"><button class="subagent-chip" type="button" aria-label="1 of 3 subagents running"><span data-sg="running" data-size="sm"></span>1/3</button><button class="thread-toggle" type="button" aria-expanded="true" aria-label="Toggle 2 child sessions"><svg data-lucide="chevron-right"></svg>2</button></div></div>
+                <div class="session-list-thread__children">
+                  <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="running" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Implement task_05</span><span class="session-list-row__sub"><b>implementer</b></span></span><span class="session-list-row__time">now</span></button><div class="session-list-row__trail"></div></div>
+                  <div class="session-list-row"><button class="session-list-row__btn" type="button"><span data-sg="done" data-size="sm"></span><span style="min-width:0"><span class="session-list-row__title">Implement task_04</span><span class="session-list-row__sub"><b>implementer</b></span></span><span class="session-list-row__time">40m</span></button><div class="session-list-row__trail"></div></div>
+                </div>
+              </div></div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SubagentChip · SessionListRow trailing · session-hierarchy.ts</span><span class="sa-tag"><b>order</b>chip before ThreadToggle</span><span class="sa-tag"><b>VC</b>nav/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ROSTER STATES ===== -->
+    <section class="lab-sec" id="nv-roster" data-od-id="nv-roster">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Inspector Subagents section — six states</h2><span class="lab-sec__gist">nav VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>320px rail, closed by default.</b> The list shows 6 rows, then "Show 12 more" for each further page, inside a bounded scroll region (316px). Stop pending replaces the square with the running ring. A failed stop restores the button and shows the toast "Could not stop subagent". When the session has no subagents, the section is absent; there is no empty state.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--3" data-od-id="nv-roster-states">
+            <div class="lab-cell"><span class="lab-cell__t">empty <code>section absent</code></span>
+              <aside class="session-inspector" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec session-inspector__sec--folded"><div class="session-inspector__sec-head"><span class="eyebrow">Activity</span><span class="meta">4 events</span></div><div class="session-inspector__ghost" style="width:80%"></div></section>
+                <p style="font-size:11px;color:var(--faint);font-family:var(--font-mono)">— no Subagents section —</p>
+              </div></aside></div>
+            <div class="lab-cell"><span class="lab-cell__t">live only <code>"Subagents · 2 running"</code></span>
+              <aside class="session-inspector" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)"><div class="session-inspector__head">Context</div><div class="session-inspector__body"><section class="session-inspector__sec">
+                <div class="session-inspector__sec-head"><span class="eyebrow">Subagents · 2 running</span><span class="meta">2</span></div>
+                <div class="subagent-roster">
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-live="true"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__t">Audit payment webhooks for retry safety</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row"><svg data-lucide="square"></svg></button></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-live="true"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--ring"></span></span><span class="subagent-roster__t">Migrate orders.refund_reason to an enum</span><span class="subagent-roster__end"><span class="subagent-roster__w">Queued</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row"><svg data-lucide="square"></svg></button></span></div>
+                </div></section></div></aside></div>
+            <div class="lab-cell"><span class="lab-cell__t">live + previous <code>open · failed lead</code></span>
+              <aside class="session-inspector" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)"><div class="session-inspector__head">Context</div><div class="session-inspector__body"><section class="session-inspector__sec">
+                <div class="session-inspector__sec-head"><span class="eyebrow">Subagents · 1 running</span><span class="meta">4</span></div>
+                <div class="subagent-roster">
+                  <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-roster__t">Run the checkout e2e suite</span><span class="subagent-roster__end"><span class="subagent-roster__w subagent-roster__w--failed">Failed</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-live="true"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__t">Audit payment webhooks for retry safety</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row"><svg data-lucide="square"></svg></button></span></div>
+                  <button class="subagent-roster__prev" type="button" data-sa-disclosure aria-expanded="true" aria-controls="nv-r-prev"><svg data-lucide="chevron-right"></svg>Previous subagents (2)</button>
+                  <div id="nv-r-prev">
+                    <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Draft release notes for v2</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="52">52s</span></span></div>
+                    <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--faint"></span></span><span class="subagent-roster__t">Profile the cart endpoint under load</span><span class="subagent-roster__end"><span class="subagent-roster__w">Canceled</span></span></div>
+                  </div>
+                </div></section></div></aside></div>
+            <div class="lab-cell"><span class="lab-cell__t">paging <code>6 rows · "Show 12 more"</code></span>
+              <aside class="session-inspector" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)"><div class="session-inspector__head">Context</div><div class="session-inspector__body"><section class="session-inspector__sec">
+                <div class="session-inspector__sec-head"><span class="eyebrow">Subagents</span><span class="meta">20</span></div>
+                <div class="subagent-roster" id="nv-page">
+                  <button class="subagent-roster__prev" type="button" aria-expanded="true"><svg data-lucide="chevron-right"></svg>Previous subagents (20)</button>
+                  <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0101_refund_reason.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="41">41s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0100_orders_index.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="38">38s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0099_carts.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="52">52s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0098_payments.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="47">47s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0097_webhooks.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="29">29s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0096_refunds.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="44">44s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0095_customers.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="36">36s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0094_addresses.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="31">31s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0093_tax_rates.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="40">40s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0092_coupons.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="35">35s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0091_inventory.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="50">50s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0090_shipments.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="43">43s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0089_invoices.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="39">39s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0088_sessions.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="27">27s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0087_users.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="45">45s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0086_api_keys.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="33">33s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0085_audit_log.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="48">48s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0084_webhook_events.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="37">37s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0083_prices.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="30">30s</span></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-page-hidden hidden><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review migrations/0082_products.sql</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="42">42s</span></span></div>
+                </div>
+                <button class="btn btn--ghost btn--xs subagent-roster__more" type="button" data-sa-more="nv-page">Show 12 more</button>
+              </section></div></aside></div>
+            <div class="lab-cell"><span class="lab-cell__t">stop pending <code>ring replaces the square</code></span>
+              <aside class="session-inspector" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)"><div class="session-inspector__head">Context</div><div class="session-inspector__body"><section class="session-inspector__sec">
+                <div class="session-inspector__sec-head"><span class="eyebrow">Subagents · 2 running</span><span class="meta">2</span></div>
+                <div class="subagent-roster">
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-live="true" data-stopping="true"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__t">Audit payment webhooks for retry safety</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span><button class="subagent-roster__stop" type="button" aria-label="Stopping subagent" disabled><span data-sg="running" data-size="sm"></span></button></span></div>
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-live="true"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__t">Profile the cart endpoint under load</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="61" data-live="true">1m 01s</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row"><svg data-lucide="square"></svg></button></span></div>
+                </div></section></div></aside></div>
+            <div class="lab-cell"><span class="lab-cell__t">stop failed <code>hover · press Stop · toast</code></span>
+              <aside class="session-inspector" style="width:100%;border:1px solid var(--line);border-radius:var(--radius-lg)"><div class="session-inspector__head">Context</div><div class="session-inspector__body"><section class="session-inspector__sec">
+                <div class="session-inspector__sec-head"><span class="eyebrow">Subagents · 1 running</span><span class="meta">1</span></div>
+                <div class="subagent-roster">
+                  <div class="subagent-roster__row" role="button" tabindex="0" data-live="true"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__t">Profile the cart endpoint under load</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="61" data-live="true">1m 01s</span><button class="subagent-roster__stop" type="button" aria-label="Stop subagent" data-sa-stop="row-fail"><svg data-lucide="square"></svg></button></span></div>
+                </div>
+                <div class="sa-toast is-on" style="position:static;transform:none;margin-top:10px;width:fit-content"><svg data-lucide="circle-alert"></svg><span>Could not stop subagent</span></div>
+              </section></div></aside></div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionInspectorSubagentsSection</span><span class="sa-tag"><b>copy</b>Subagents · Subagents · N running · Previous subagents (N) · Show 12 more · Stop subagent · Could not stop subagent</span><span class="sa-tag"><b>VC</b>nav/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: _uiux.md S9 · S10 · ADR-005. Production read: session-list/session-list-row.tsx · session-list-thread.tsx (connector + ThreadToggle) · session-badge-mark.tsx · session-inspector-section.tsx · packages/ui detail-inspector.tsx. References: t3 Sidebar.logic.ts · ThreadRelationshipsControl.tsx · monocode Sidebar.tsx · synara (analysis/09). Titles, counts and times are fixtures.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="subagents.js"></script>
+</body>
+</html>

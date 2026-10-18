@@ -73,9 +73,6 @@ func TestRemoteGatewayE2EConnectSSHUsesLoopbackAndPreservesOwnership(t *testing.
 		if strings.TrimSpace(currentUser.Username) == "" {
 			t.Fatal("user.Current() returned an empty username")
 		}
-		verifySSHGatewayE2EAuthentication(t, systemSSHExecutor{}, sshTarget{
-			host: "127.0.0.1", user: currentUser.Username, port: server.port,
-		}, server.stderr)
 		verifySSHGatewayE2ERemoteBinary(t, systemSSHExecutor{}, sshTarget{
 			host: "127.0.0.1", user: currentUser.Username, port: server.port,
 		}, remoteBinaryDir, remoteHome)
@@ -101,17 +98,6 @@ func TestRemoteGatewayE2EConnectSSHUsesLoopbackAndPreservesOwnership(t *testing.
 		assertSSHGatewayE2EForwardClosed(t, owned.record.LocalURL)
 		assertRemoteDaemonStoppedForSSHGatewayE2E(t, executor, target, ownedStatus, remotePaths.DaemonSocket)
 
-		startRemoteDaemonForSSHGatewayE2E(t, executor, target, remoteHome)
-		reused := startSSHGatewayE2EConnect(t, deps, currentUser.Username, server.port, remoteHome, true)
-		if reused.record.Daemon != "reused" {
-			t.Fatalf("reused connection daemon = %q, want %q", reused.record.Daemon, "reused")
-		}
-		assertSSHGatewayE2EForward(t, reused.record.LocalURL)
-		reused.stop(t)
-		assertSSHGatewayE2EForwardClosed(t, reused.record.LocalURL)
-		assertRemoteDaemonRunningForSSHGatewayE2E(t, executor, target, remoteHome)
-
-		stopRemoteDaemonForSSHGatewayE2E(t, executor, target, remoteHome)
 		crashed := startSSHGatewayE2EConnectProcess(
 			t, compozyBinary, clientHome, currentUser.Username, server.port, remoteHome,
 		)
@@ -119,14 +105,21 @@ func TestRemoteGatewayE2EConnectSSHUsesLoopbackAndPreservesOwnership(t *testing.
 		crashed.kill(t)
 		waitForSSHGatewayE2EOwnershipRelease(t, executor, target, remoteHome)
 		assertSSHGatewayE2EForwardClosed(t, crashed.record.LocalURL)
-		assertRemoteDaemonRunningForSSHGatewayE2E(t, executor, target, remoteHome)
+		survivingStatus := assertRemoteDaemonRunningForSSHGatewayE2E(t, executor, target, remoteHome)
 
+		// The released crash lease leaves an unowned running daemon. Reuse that
+		// daemon to prove normal disconnect preserves a daemon it did not start.
 		afterCrash := startSSHGatewayE2EConnect(t, deps, currentUser.Username, server.port, remoteHome, true)
 		if afterCrash.record.Daemon != "reused" {
 			t.Fatalf("post-crash connection daemon = %q, want %q", afterCrash.record.Daemon, "reused")
 		}
+		assertSSHGatewayE2EForward(t, afterCrash.record.LocalURL)
 		afterCrash.stop(t)
-		assertRemoteDaemonRunningForSSHGatewayE2E(t, executor, target, remoteHome)
+		assertSSHGatewayE2EForwardClosed(t, afterCrash.record.LocalURL)
+		afterReuse := assertRemoteDaemonRunningForSSHGatewayE2E(t, executor, target, remoteHome)
+		if afterReuse.PID != survivingStatus.PID || !afterReuse.StartedAt.Equal(survivingStatus.StartedAt) {
+			t.Fatalf("reused daemon identity = %#v, want surviving daemon %#v", afterReuse, survivingStatus)
+		}
 	})
 }
 
@@ -253,8 +246,11 @@ func startSSHGatewayE2EServer(t *testing.T, remoteBinaryDir string) *sshGatewayE
 }
 
 func isExpectedSSHGatewayE2EServerShutdown(err error) bool {
-	var exitErr *exec.ExitError
-	return errors.Is(err, context.Canceled) || errors.As(err, &exitErr)
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+	_, exitErrOK := errors.AsType[*exec.ExitError](err)
+	return exitErrOK
 }
 
 func generateSSHGatewayE2EKey(t *testing.T, path string) {
@@ -311,27 +307,6 @@ func configureSSHGatewayE2EClient(t *testing.T, home, clientKey string, port int
 		t.Fatalf("os.WriteFile(SSH client shim) error = %v", err)
 	}
 	t.Setenv("PATH", shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-}
-
-func verifySSHGatewayE2EAuthentication(
-	t *testing.T,
-	executor sshExecutor,
-	target sshTarget,
-	serverStderr *lockedSSHGatewayE2EBuffer,
-) {
-	t.Helper()
-	if _, err := executor.Run(t.Context(), target, []string{"true"}); err != nil {
-		var commandErr *sshCommandError
-		if errors.As(err, &commandErr) {
-			t.Fatalf(
-				"authenticate SSH gateway fixture error = %v; output: %s; sshd: %s",
-				err,
-				commandErr.output,
-				serverStderr.String(),
-			)
-		}
-		t.Fatalf("authenticate SSH gateway fixture error = %v", err)
-	}
 }
 
 func verifySSHGatewayE2ERemoteBinary(
@@ -472,8 +447,8 @@ func startSSHGatewayE2EConnectProcess(
 				t.Errorf("kill crash-test connect process cleanup error = %v", err)
 			}
 			if err := process.command.Wait(); err != nil {
-				var exitErr *exec.ExitError
-				if !errors.As(err, &exitErr) {
+				_, exitErrOK := errors.AsType[*exec.ExitError](err)
+				if !exitErrOK {
 					t.Errorf("wait crash-test connect process cleanup error = %v", err)
 				}
 			}
@@ -539,8 +514,8 @@ func (p *sshGatewayE2EConnectProcess) kill(t *testing.T) {
 	if err := p.command.Wait(); err == nil {
 		t.Fatal("crash-test connect process exited cleanly after SIGKILL")
 	} else {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
+		_, exitErrOK := errors.AsType[*exec.ExitError](err)
+		if !exitErrOK {
 			t.Fatalf("wait crash-test connect process error = %v", err)
 		}
 	}
@@ -770,21 +745,6 @@ func assertSSHGatewayE2EProfile(
 	}
 }
 
-func startRemoteDaemonForSSHGatewayE2E(t *testing.T, executor sshExecutor, target sshTarget, remoteHome string) {
-	t.Helper()
-	output, err := executor.Run(t.Context(), target, remoteCompozyCommand(remoteHome, "daemon", "start", "-o", "json"))
-	if err != nil {
-		t.Fatalf("start remote daemon error = %v", err)
-	}
-	var status DaemonStatus
-	if err := json.Unmarshal(output, &status); err != nil {
-		t.Fatalf("decode remote daemon start output error = %v; output: %s", err, output)
-	}
-	if status.Status != "running" || status.HTTPHost != "127.0.0.1" || status.HTTPPort <= 0 {
-		t.Fatalf("remote daemon start status = %#v, want running loopback daemon", status)
-	}
-}
-
 func assertRemoteDaemonStoppedForSSHGatewayE2E(
 	t *testing.T,
 	executor sshExecutor,
@@ -880,8 +840,8 @@ func stopRemoteDaemonForSSHGatewayE2E(t *testing.T, executor sshExecutor, target
 		remoteCompozyCommand(remoteHome, "daemon", "stop", "-o", "json"),
 	)
 	if err != nil {
-		var commandErr *sshCommandError
-		if errors.As(err, &commandErr) && commandErr.exitCode() == 1 {
+		commandErr, commandErrOK := errors.AsType[*sshCommandError](err)
+		if commandErrOK && commandErr.exitCode() == 1 {
 			return
 		}
 		t.Errorf("stop remote daemon cleanup error = %v", err)

@@ -102,6 +102,8 @@ describe("AttentionBell sections", () => {
 
     expect(screen.getByTestId("os-bell-needs-you")).toBeInTheDocument();
     expect(screen.queryByTestId("os-bell-finished")).not.toBeInTheDocument();
+    expect(screen.getByText("compozy")).toBeInTheDocument();
+    expect(screen.getByText("claude — Should I drop the legacy column?")).toBeInTheDocument();
   });
 
   it("Should keep finished-unseen work in its own section", () => {
@@ -136,7 +138,7 @@ describe("AttentionBell sections", () => {
     await user.click(screen.getByRole("button", { name: "Clear all" }));
     expect(onAcknowledge).toHaveBeenLastCalledWith();
     expect(onSelect).not.toHaveBeenCalled();
-    expect(screen.getByText(/Showing 1 of 230/)).toBeInTheDocument();
+    expect(screen.getByText("1 of 230 shown")).toBeInTheDocument();
   });
 
   it("Should retain failed rows and expose the acknowledgement error", () => {
@@ -169,13 +171,6 @@ describe("AttentionBell sections", () => {
     expect(screen.getByRole("button", { name: "Clear all" })).toBeEnabled();
   });
 
-  it("Should name the workspace and the reason on a row", () => {
-    renderBell({ needsYou: [sessionRow()] });
-
-    expect(screen.getByText("compozy")).toBeInTheDocument();
-    expect(screen.getByText("claude — Should I drop the legacy column?")).toBeInTheDocument();
-  });
-
   it("Should keep a muted workspace's row listed and mark the silence (US-015.AC-1)", () => {
     renderBell({ needsYou: [sessionRow({ muted: true })] });
 
@@ -204,7 +199,7 @@ describe("AttentionBell sections", () => {
     expect(screen.queryByTestId("os-attention-loop-node-waiting")).not.toBeInTheDocument();
   });
 
-  it("Should state that a disconnected source is frozen and uncounted", () => {
+  it("Should say plainly that a disconnected source can't update", () => {
     render(
       <Popover open>
         <AttentionBell
@@ -218,7 +213,7 @@ describe("AttentionBell sections", () => {
     );
 
     expect(screen.getByTestId("os-bell-disconnected")).toHaveTextContent(
-      "Session attention is unavailable. Frozen rows do not count."
+      "Some notifications can't update right now."
     );
   });
 

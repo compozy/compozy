@@ -19,7 +19,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 const SEARCH_DEBOUNCE_MS = 200;
 
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const workspaceId = runtimeWorkspaceId ?? "";
   const navigate = useNavigate({ from: "/agents" });
@@ -38,7 +38,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) })),
   });
 
-  const agentsEnabled = liveDataEnabled && workspaceId !== "";
+  const agentsEnabled = liveDataEnabled && !pending;
   const catalogQuery = useAgentCatalog(
     workspaceId,
     {
@@ -80,18 +80,8 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     sessionsAvailable: catalogQuery.sessionsAvailable,
   });
 
-  const filtersActive = hasActiveAgentFleetFilters(search);
-  const isLoading = catalogQuery.isLoading;
-  const overallTotal = catalogQuery.facets?.total ?? 0;
-  const isFirstRunEmpty =
-    !isLoading && !catalogQuery.isError && overallTotal === 0 && !filtersActive;
-  const isFilteredEmpty =
-    !isLoading && !catalogQuery.isError && catalogQuery.total === 0 && filtersActive;
-  const showFacets =
-    !isLoading && !isFirstRunEmpty && !(catalogQuery.isError && agents.length === 0);
-  // View toggle is independent of facets: available while loading/ready, hidden only when
-  // there is no list surface (first-run empty or fatal empty error).
-  const showViewToggle = !isFirstRunEmpty && !(catalogQuery.isError && agents.length === 0);
+  const { isLoading, isFirstRunEmpty, isFilteredEmpty, showFacets, showViewToggle } =
+    projectFleetVisibility(catalogQuery, pending, search);
 
   return {
     workspaceId,
@@ -127,6 +117,28 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       void catalogQuery.refetch();
     },
   };
+}
+
+function projectFleetVisibility(
+  catalogQuery: ReturnType<typeof useAgentCatalog>,
+  pending: boolean,
+  search: AgentsFleetSearch
+) {
+  const filtersActive = hasActiveAgentFleetFilters(search);
+  const isLoading = pending || catalogQuery.isLoading;
+  const overallTotal = catalogQuery.facets?.total ?? 0;
+  const isFirstRunEmpty =
+    !isLoading && !catalogQuery.isError && overallTotal === 0 && !filtersActive;
+  const isFilteredEmpty =
+    !isLoading && !catalogQuery.isError && catalogQuery.total === 0 && filtersActive;
+  const showFacets =
+    !isLoading && !isFirstRunEmpty && !(catalogQuery.isError && catalogQuery.agents.length === 0);
+  // View toggle is independent of facets: available while loading/ready, hidden only when
+  // there is no list surface (first-run empty or fatal empty error).
+  const showViewToggle =
+    !isFirstRunEmpty && !(catalogQuery.isError && catalogQuery.agents.length === 0);
+
+  return { isLoading, isFirstRunEmpty, isFilteredEmpty, showFacets, showViewToggle };
 }
 
 export { useAgentsFleetPage };

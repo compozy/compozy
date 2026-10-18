@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -20,15 +19,13 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 					"review": "Bundled review skill",
 				}),
 			})
-			if err := registry.LoadAll(context.Background()); err != nil {
+			if err := registry.LoadAll(t.Context()); err != nil {
 				t.Fatalf("LoadAll() error = %v", err)
 			}
 
 			resolved := &workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-coordinator",
-					RootDir: t.TempDir(),
-				},
+				ID:      "ws-coordinator",
+				RootDir: t.TempDir(),
 				Agents: []compozyconfig.AgentDef{{
 					Name:     "coder",
 					Provider: "claude",
@@ -36,7 +33,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 				}},
 			}
 
-			skills, err := registry.ForAgent(context.Background(), resolved, compozyconfig.BuiltinCoordinatorAgentName)
+			skills, err := registry.ForAgent(t.Context(), resolved, compozyconfig.BuiltinCoordinatorAgentName)
 			if err != nil {
 				t.Fatalf("ForAgent(coordinator) error = %v", err)
 			}
@@ -62,20 +59,18 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 					"review": "Bundled review skill",
 				}),
 			})
-			if err := registry.LoadAll(context.Background()); err != nil {
+			if err := registry.LoadAll(t.Context()); err != nil {
 				t.Fatalf("LoadAll() error = %v", err)
 			}
 
 			provider := NewCatalogProvider(registry)
 			resolved := &workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-coordinator",
-					RootDir: t.TempDir(),
-				},
+				ID:      "ws-coordinator",
+				RootDir: t.TempDir(),
 			}
 
 			section, err := provider.PromptAgentSection(
-				context.Background(),
+				t.Context(),
 				mustBuiltinAgentDef(t, compozyconfig.BuiltinCoordinatorAgentName),
 				resolved,
 			)

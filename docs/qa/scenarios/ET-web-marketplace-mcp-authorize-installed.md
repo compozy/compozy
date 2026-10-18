@@ -4,7 +4,7 @@ area: ET
 title: Authorize an extension MCP server from Installed, detail, and Settings
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: An extension MCP server exposes its own status, runtime name and owner-qualified authorization in Installed, detail and Settings. A same-name manual definition remains independent. Confirmation requires authenticated status and token presence for the selected owner and scope.
+expected: An extension MCP server exposes its own status and owner-qualified authorization in Installed, detail and Settings; its runtime name shows in Settings and under the detail Server card's "Technical details". A same-name manual definition remains independent. Confirmation requires authenticated status and token presence for the selected owner and scope.
 entry_points: /marketplace/installed; /marketplace/<entry-id>; /settings/mcp
 qa_status: pass
 bug_ids:
@@ -35,8 +35,8 @@ The historical routes and evidence below do not verify the current extension-onl
 4. Open Edit configuration from each surface. Confirm only the applicable env/headers/endpoint
    override is editable. Save, reopen, reset and verify the package declaration and manual definition
    remain unchanged. Settings must not offer manual removal for an extension-provided definition.
-5. Inspect an uninstalled MCP-backed entry: show declared Launch, Auth, Inputs, Scope and Owner,
-   without runtime/status observations or authorization/edit controls. An entry with no MCP server
+5. Inspect an uninstalled MCP-backed entry: show declared Sign-in and Inputs, with Launch, Scope
+   and Owner under "Technical details", without runtime/status observations or authorization/edit controls. An entry with no MCP server
    has no Server section. Missing required inputs take priority over an authorization prompt.
 
 ## Historical evidence — superseded by the current walk

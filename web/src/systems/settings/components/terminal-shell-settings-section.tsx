@@ -45,6 +45,7 @@ export function TerminalShellSettingsSection({
           />
         }
         data-testid="settings-terminal-shell-integration-row"
+        description="Lets CompozyOS tell where each command starts and ends, for better history and agent use."
         error={validationErrors.shell_integration}
         label="Mark command boundaries"
       />

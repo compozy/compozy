@@ -203,9 +203,10 @@ export class RoutingCoordinator {
     // A newer navigation arrived while the daemon held this open; it owns the
     // URL now and the window already follows it.
     if (intentToken !== this.nextUserIntentToken) return id;
+    // A window can consume its route intent before the opening command completes.
     const route =
-      target.route ??
       this.manager.getState().windows[id]?.route ??
+      target.route ??
       defaultOsWindowRoute(target.app);
     this.pushRoute(route);
     return id;
@@ -370,7 +371,8 @@ export class RoutingCoordinator {
   /**
    * Route-originated reconciliation (rule 2): store updates only, no history.
    * The desktop URL (`/`) opens nothing — it focuses an existing dashboard
-   * window or leaves the desktop as-is (first run stays empty, US-001.EC-1).
+   * window on the active desktop or leaves the desktop as-is (first run stays
+   * empty, US-001.EC-1).
    */
   private queueRouteReconciliation(route: OsWindowRoute): void {
     const current = this.routeReconciliation;
@@ -419,7 +421,11 @@ export class RoutingCoordinator {
       instanceKey,
     });
     if (route.pathname === "/") {
-      if (!existing && !desktopDefaultView) {
+      // A bare `/` is where an empty desktop lands. Reusing a dashboard on
+      // another desktop would focus it and switch the client straight back, so
+      // only the explicit default-view intent may reach across desktops.
+      const onActiveDesktop = existing?.desktopId === (state.client?.activeDesktopId ?? null);
+      if (!desktopDefaultView && !onActiveDesktop) {
         this.routeReconciliation = null;
         return;
       }
@@ -444,10 +450,11 @@ export class RoutingCoordinator {
       this.routeReconciliation = null;
       return;
     }
-    // Breadcrumb back: the durable nav stack owns the destination — the
-    // reported route is the app's own rendering of the same pop.
-    if (mode === "pop" && existing && !existing.minimized && existing.navStack.length > 0) {
-      const outcome = this.manager.popWindowRoute(existing.id);
+    // A deep link can leave a different parent in history. Consume the stack
+    // only when it matches the breadcrumb's selected destination.
+    const canPop = sameOsWindowRoute(existing?.navStack.at(-1) ?? null, route);
+    if (mode === "pop" && existing && !existing.minimized && canPop) {
+      const outcome = this.manager.popWindowRoute(existing.id, route);
       this.startRouteReconciliation(pending, { windowId: existing.id, ...outcome });
       return;
     }

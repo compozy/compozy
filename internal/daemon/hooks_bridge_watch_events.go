@@ -30,15 +30,6 @@ type automationRunWatchObserver interface {
 	OnAutomationRunFailed(context.Context, hookspkg.AutomationRunFailedPayload) error
 }
 
-type networkWatchObserver interface {
-	OnNetworkThreadOpened(context.Context, hookspkg.NetworkThreadOpenedPayload) error
-	OnNetworkDirectRoomOpened(context.Context, hookspkg.NetworkDirectRoomOpenedPayload) error
-	OnNetworkMessagePersisted(context.Context, hookspkg.NetworkMessagePersistedPayload) error
-	OnNetworkWorkOpened(context.Context, hookspkg.NetworkWorkOpenedPayload) error
-	OnNetworkWorkTransitioned(context.Context, hookspkg.NetworkWorkTransitionedPayload) error
-	OnNetworkWorkClosed(context.Context, hookspkg.NetworkWorkClosedPayload) error
-}
-
 func (n *hooksNotifier) AddTaskStatusChangedObserver(observer taskStatusChangedObserver) {
 	if n == nil || observer == nil {
 		return
@@ -104,15 +95,6 @@ func (n *hooksNotifier) AddAutomationRunWatchObserver(observer automationRunWatc
 	n.automationRunWatchHooks = append(n.automationRunWatchHooks, observer)
 }
 
-func (n *hooksNotifier) AddNetworkWatchObserver(observer networkWatchObserver) {
-	if n == nil || observer == nil {
-		return
-	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.networkWatchHooks = append(n.networkWatchHooks, observer)
-}
-
 func (n *hooksNotifier) taskStatusChangedObservers() []taskStatusChangedObserver {
 	if n == nil {
 		return nil
@@ -149,23 +131,12 @@ func (n *hooksNotifier) automationRunWatchObservers() []automationRunWatchObserv
 	return append([]automationRunWatchObserver(nil), n.automationRunWatchHooks...)
 }
 
-func (n *hooksNotifier) networkWatchObservers() []networkWatchObserver {
-	if n == nil {
-		return nil
-	}
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return append([]networkWatchObserver(nil), n.networkWatchHooks...)
-}
-
 func dispatchTaskStatusChangedWithWatchObservers(
 	ctx context.Context,
 	notifier *hooksNotifier,
 	payload hookspkg.TaskStatusChangedPayload,
 ) (hookspkg.TaskStatusChangedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskStatusChanged,
 		payload,
 		hookRuntime.DispatchTaskStatusChanged,
@@ -198,7 +169,7 @@ func dispatchTaskBlockedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskBlockedPayload,
 ) (hookspkg.TaskBlockedPayload, error) {
-	result, err := dispatchRuntime(ctx, notifier, hookspkg.HookTaskBlocked, payload, hookRuntime.DispatchTaskBlocked)
+	result, err := notifier.dispatchRuntime(ctx, hookspkg.HookTaskBlocked, payload, hookRuntime.DispatchTaskBlocked)
 	notifier.notifyTaskBlockedObservers(ctx, result)
 	return result, err
 }
@@ -208,9 +179,7 @@ func dispatchTaskUnblockedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskUnblockedPayload,
 ) (hookspkg.TaskUnblockedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskUnblocked,
 		payload,
 		hookRuntime.DispatchTaskUnblocked,
@@ -224,9 +193,7 @@ func dispatchTaskNeedsAttentionWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskNeedsAttentionPayload,
 ) (hookspkg.TaskNeedsAttentionPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskNeedsAttention,
 		payload,
 		hookRuntime.DispatchTaskNeedsAttention,
@@ -240,9 +207,7 @@ func dispatchTaskRecoveredWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskRecoveredPayload,
 ) (hookspkg.TaskRecoveredPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskRecovered,
 		payload,
 		hookRuntime.DispatchTaskRecovered,
@@ -339,9 +304,7 @@ func dispatchLoopNodeTerminalWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.LoopNodeTerminalPayload,
 ) (hookspkg.LoopNodeTerminalPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookLoopNodeTerminal,
 		payload,
 		hookRuntime.DispatchLoopNodeTerminal,

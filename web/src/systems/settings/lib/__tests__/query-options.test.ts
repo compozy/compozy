@@ -20,9 +20,6 @@ import {
   SETTINGS_QUERY_INTERVALS,
   shouldRetrySettingsQuery,
   settingsAttentionOptions,
-  settingsAutomationOptions,
-  settingsSandboxDetailOptions,
-  settingsGeneralOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
   settingsMCPServerDetailOptions,
@@ -43,15 +40,6 @@ beforeEach(() => {
 });
 
 describe("settings section options", () => {
-  it("uses the configured stale and refetch intervals for sections", () => {
-    const general = settingsGeneralOptions();
-    const automation = settingsAutomationOptions();
-
-    expect(general.staleTime).toBe(SETTINGS_QUERY_INTERVALS.sectionStaleTime);
-    expect(general.refetchInterval).toBe(SETTINGS_QUERY_INTERVALS.sectionRefetchInterval);
-    expect(automation.queryKey).toEqual(["settings", "section", "automation"]);
-  });
-
   it("does not retry policy-blocked settings requests", () => {
     expect(
       shouldRetrySettingsQuery(
@@ -105,12 +93,10 @@ describe("settings collection options", () => {
 
   it("disables detail queries when name is empty", () => {
     expect(settingsProviderDetailOptions("").enabled).toBe(false);
-    expect(settingsSandboxDetailOptions("").enabled).toBe(false);
   });
 
   it("enables detail queries when name is provided", () => {
     expect(settingsProviderDetailOptions("openai").enabled).toBe(true);
-    expect(settingsSandboxDetailOptions("cloud").enabled).toBe(true);
   });
 
   it("includes scope and workspace filters in MCP list query keys", () => {

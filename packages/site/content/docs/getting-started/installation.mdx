@@ -18,13 +18,13 @@ installing either surface, make sure you have:
   The verified binary installer requires `curl`, `tar`, and either `sha256sum` or `shasum`. It uses
   a local `cosign` when available; otherwise it downloads a pinned temporary cosign verifier before
   checking CompozyOS release provenance.
-- **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
+- **At least one supported agent CLI** such as Claude Code, Codex, Cursor, or another
   ACP-compatible agent runtime you already use.
 - **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
-  Code, Codex, Gemini CLI, OpenCode, Hermes, and OpenClaw use their own CLI login/session state by
+  Code, Codex, Gemini CLI, OpenCode, and Cursor use their own CLI login/session state by
   default. The direct `pi` provider uses Pi's `/login` and auth file by default. Wrapped API-key
-  providers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and
-  Groq use `auth_mode = "bound_secret"` by default and need an `env:` or
+  providers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, and xAI
+  use `auth_mode = "bound_secret"` by default and need an `env:` or
   `vault:providers/<provider>/<slot>` credential configured for the daemon.
 
 Example for a built-in wrapped provider:
@@ -112,7 +112,7 @@ against `checksums.txt`, then install it with your distribution package manager.
 ### Option 5: build from a repository checkout
 
 Use this when you are already working from the CompozyOS source tree or want a local build artifact you
-control explicitly. This path requires Go 1.26.4 or later.
+control explicitly. This path requires Go 1.27.1 or later.
 
 ```bash
 git clone https://github.com/compozy/compozy

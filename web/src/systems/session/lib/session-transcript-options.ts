@@ -49,6 +49,6 @@ export function sessionTranscriptOptions(workspace: string, id: string) {
     getNextPageParam: nextTranscriptPageParam,
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
-    enabled: !!workspace && !!id,
+    enabled: !!id,
   });
 }

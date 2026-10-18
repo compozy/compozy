@@ -138,7 +138,7 @@ export function WorktreeMissingResolutionDialog({
         </div>
 
         <DialogFooter variant="ruled">
-          <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {outcome ? "Close" : "Cancel"}
           </Button>
         </DialogFooter>

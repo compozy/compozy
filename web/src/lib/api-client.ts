@@ -1,6 +1,7 @@
 import createClient from "openapi-fetch";
 
 import type { paths as compozyPaths } from "@/generated/compozy-openapi";
+import { createClientId } from "./client-id";
 import { reportGatewayResponse } from "./gateway-access-signal";
 
 export const apiBaseUrl =
@@ -15,6 +16,8 @@ export const apiClient = createClient<compozyPaths>({
   fetch: runtimeFetch,
 });
 
+const clientID = `web-${createClientId()}`;
+
 /**
  * Single chokepoint for "this device's access ended". Only an explicit daemon
  * code on a 401 counts (see `gateway-access-signal`), so ordinary failures and
@@ -28,6 +31,10 @@ export const apiClient = createClient<compozyPaths>({
  * calling adapter still receives an unconsumed response.
  */
 apiClient.use({
+  onRequest({ request }) {
+    request.headers.set("X-Compozy-Client-ID", clientID);
+    return request;
+  },
   async onResponse({ response }) {
     await reportGatewayResponse(response);
     return undefined;
@@ -116,4 +123,21 @@ export function apiErrorQueueCap(error: unknown): number | undefined {
   }
   const cap = Reflect.get(evidence, "queue_cap");
   return typeof cap === "number" && Number.isInteger(cap) && cap > 0 ? cap : undefined;
+}
+
+/**
+ * The human message of the structured diagnostic an error body carries
+ * (`diagnostic.title` and `diagnostic.message`), rendered as the daemon renders it.
+ */
+export function apiErrorDiagnosticMessage(error: unknown): string | undefined {
+  if (error == null || typeof error !== "object") {
+    return undefined;
+  }
+  const diagnostic = Reflect.get(error, "diagnostic");
+  const title = apiErrorStringField(diagnostic, "title");
+  const message = apiErrorStringField(diagnostic, "message");
+  if (title && message && message !== title) {
+    return `${title}: ${message}`;
+  }
+  return title ?? message;
 }

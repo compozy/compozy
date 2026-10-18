@@ -59,8 +59,7 @@ func evaluateWaitNode(
 		if resolveErr != nil {
 			return GenerationOutput{}, nil, resolveErr
 		}
-		deadline := now.Add(lifecycle.AdmissionHorizon)
-		intent.NextEscalationAt = &deadline
+		intent.NextEscalationAt = new(now.Add(lifecycle.AdmissionHorizon))
 	}
 	output.Status = generationOutputWaiting
 	output.TaskRunID = ""
@@ -330,8 +329,7 @@ func buildNodeWaitIntent(
 		if err != nil {
 			return NodeWaitIntent{}, fmt.Errorf("%w: wait node %q expiry: %v", ErrValidation, node.ID, err)
 		}
-		next := now.UTC().Add(duration)
-		intent.NextEscalationAt = &next
+		intent.NextEscalationAt = new(now.UTC().Add(duration))
 	}
 	return intent, nil
 }

@@ -10,7 +10,7 @@ import (
 // PutResourceRequest is the shared desired-state upsert payload.
 type PutResourceRequest struct {
 	Scope           resources.ResourceScope `json:"scope"`
-	ExpectedVersion int64                   `json:"expected_version,omitempty"`
+	ExpectedVersion int64                   `json:"expected_version,omitzero"`
 	Spec            json.RawMessage         `json:"spec"`
 }
 

@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-resource-only-extension-watch
-  mission: "As Bruno, build a passive extension with an agent, a skill, and a Network requirement, keep dev watch running while editing the skill, and confirm the new generation and workspace resources through public surfaces."
+  mission: "As Bruno, build a passive extension with an agent and a skill, keep dev watch running while editing the skill, and confirm the new generation and workspace resources through public surfaces."
   mode: scenario-based
   persona:
     name: Bruno
@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 30
   guidance:
     must_try:
-      - "Build without package.json or go.mod, then read the generated manifest and confirm its Network requirement matches the source."
+      - "Build without package.json or go.mod, then read the generated manifest and confirm its resource inventory matches the source."
       - "Start extension dev with --watch, edit SKILL.md while the process remains active, and capture the reload output with a different generation hash."
       - "Read both the agent and skill from the selected workspace and confirm neither appears in the global catalogs."
       - "Run the existing code-backed authoring lifecycle as the adjacent compatibility canary."

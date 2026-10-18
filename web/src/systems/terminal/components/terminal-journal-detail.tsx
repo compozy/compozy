@@ -67,9 +67,9 @@ export function TerminalJournalDetail({
               onClick={onClose}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           </>
         ) : (
@@ -125,12 +125,12 @@ export function TerminalJournalDetail({
             }}
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             Copy command
           </Button>
           {onOpenTerminal ? (
-            <Button onClick={onOpenTerminal} size="sm" type="button" variant="outline">
+            <Button onClick={onOpenTerminal} size="sm" type="button" variant="secondary">
               Open terminal
             </Button>
           ) : null}

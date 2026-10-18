@@ -22,7 +22,8 @@ import (
 // Owner: daemon extension distribution integration.
 // Canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
 func testDaemonE2EExtensionDeclaredProfileSetup(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 
 	repoRoot := extensionAuthoringE2ERepoRoot(t)

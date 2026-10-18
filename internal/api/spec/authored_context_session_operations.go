@@ -3,7 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func authoredContextSessionOperations() []OperationSpec {
-	return []OperationSpec{{
+	operations := []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/health",
 		OperationID: "getSessionHealth",
@@ -78,4 +78,5 @@ func authoredContextSessionOperations() []OperationSpec {
 				},
 			},
 		}}
+	return append(operations, globalSessionHistoryOperation(operations[1]))
 }

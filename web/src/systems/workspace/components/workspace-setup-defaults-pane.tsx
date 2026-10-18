@@ -1,23 +1,16 @@
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import {
   Button,
-  CommandEmpty,
-  CommandItem,
-  CommandList,
-  CommandSelect,
-  CommandSelectGroup,
-  CommandSelectShell,
-  CommandSelectTrigger,
+  CommandSelectChip,
+  CommandSelectChipStrip,
   Field,
   FieldHeader,
   FieldLabel,
-  FieldTitle,
   FormSection,
   HelpTip,
   Input,
-  Pill,
 } from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
@@ -80,12 +73,9 @@ function CollectionStateMessage<T>({
  */
 export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDefaultsPaneProps) {
   const [pendingDir, setPendingDir] = useState("");
-  const [sandboxOpen, setSandboxOpen] = useState(false);
   const disabled = setup.submissionMode !== null;
   const agents = defaults.agents.state === "ready" ? defaults.agents.entries : [];
-  const sandboxes = defaults.sandboxes.state === "ready" ? defaults.sandboxes.entries : [];
   const agentsUnavailable = defaults.agents.state !== "ready";
-  const sandboxesUnavailable = defaults.sandboxes.state !== "ready";
 
   const commitDir = () => {
     setup.addDir(pendingDir);
@@ -93,7 +83,7 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
   };
 
   return (
-    <FormSection title="Session defaults">
+    <FormSection title="Defaults for new sessions">
       <div className="flex flex-col gap-4">
         <Field>
           <FieldLabel htmlFor="workspace-setup-default-agent">Default agent</FieldLabel>
@@ -123,76 +113,10 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
 
         <Field>
           <FieldHeader>
-            <FieldTitle id="workspace-setup-sandbox-label">Sandbox profile</FieldTitle>
-            <HelpTip label="About sandbox profile">
-              Isolation applied to sessions in this workspace.
+            <FieldLabel htmlFor="workspace-setup-add-dir">Other folders agents can read</FieldLabel>
+            <HelpTip label="About other folders">
+              Sessions in this project can also read these folders.
             </HelpTip>
-          </FieldHeader>
-          <CommandSelect onOpenChange={setSandboxOpen} open={sandboxOpen}>
-            <CommandSelectTrigger
-              aria-labelledby="workspace-setup-sandbox-label"
-              data-testid="workspace-setup-sandbox-select"
-              disabled={disabled || sandboxesUnavailable}
-              placeholder={collectionPlaceholder(
-                defaults.sandboxes,
-                "Loading sandbox profiles…",
-                "No sandbox profiles",
-                "Sandbox profiles unavailable",
-                "No sandbox"
-              )}
-              selected={setup.draft.sandboxRef !== ""}
-            >
-              {setup.draft.sandboxRef || null}
-            </CommandSelectTrigger>
-            <CommandSelectShell inputPlaceholder="Search sandbox profiles…">
-              <CommandList>
-                <CommandEmpty>No sandbox profiles match.</CommandEmpty>
-                <CommandSelectGroup>
-                  <CommandItem
-                    data-checked={setup.draft.sandboxRef === "" ? "true" : "false"}
-                    data-testid="workspace-setup-sandbox-none"
-                    onSelect={() => {
-                      setup.setSandboxRef("");
-                      setSandboxOpen(false);
-                    }}
-                    value="No sandbox"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-muted">No sandbox</span>
-                  </CommandItem>
-                  {sandboxes.map(sandbox => (
-                    <CommandItem
-                      data-testid={`workspace-setup-sandbox-${sandbox.name}`}
-                      key={sandbox.name}
-                      onSelect={() => {
-                        setup.setSandboxRef(sandbox.name);
-                        setSandboxOpen(false);
-                      }}
-                      value={sandbox.name}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{sandbox.name}</span>
-                      {sandbox.backend ? (
-                        <Pill mono size="xs">
-                          {sandbox.backend}
-                        </Pill>
-                      ) : null}
-                    </CommandItem>
-                  ))}
-                </CommandSelectGroup>
-              </CommandList>
-            </CommandSelectShell>
-          </CommandSelect>
-          <CollectionStateMessage
-            collection={defaults.sandboxes}
-            error="Could not load sandbox profiles"
-            loading="Loading sandbox profiles…"
-            testId="workspace-setup-sandbox"
-          />
-        </Field>
-
-        <Field>
-          <FieldHeader>
-            <FieldLabel htmlFor="workspace-setup-add-dir">Additional directories</FieldLabel>
-            <HelpTip label="About additional directories">Extra roots sessions may read.</HelpTip>
           </FieldHeader>
           <div className="flex items-center gap-2">
             <Input
@@ -217,33 +141,25 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
               onClick={commitDir}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               <Plus className="size-3.5" />
               Add
             </Button>
           </div>
           {setup.draft.addDirs.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="workspace-setup-add-dir-list">
+            <CommandSelectChipStrip className="mt-2" data-testid="workspace-setup-add-dir-list">
               {setup.draft.addDirs.map(dir => (
-                <span
-                  className="inline-flex items-center gap-1 rounded-sm bg-canvas px-2 py-1 font-mono text-mono-id tracking-normal text-muted"
+                <CommandSelectChip
+                  aria-label={`Remove ${dir}`}
+                  disabled={disabled}
                   key={dir}
+                  onRemove={() => setup.removeDir(dir)}
                 >
-                  <span className="min-w-0 truncate">{dir}</span>
-                  <Button
-                    aria-label={`Remove ${dir}`}
-                    disabled={disabled}
-                    onClick={() => setup.removeDir(dir)}
-                    size="icon-xs"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </span>
+                  {dir}
+                </CommandSelectChip>
               ))}
-            </div>
+            </CommandSelectChipStrip>
           ) : null}
         </Field>
       </div>

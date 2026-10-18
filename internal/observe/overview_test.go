@@ -3,6 +3,7 @@ package observe
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type overviewFixture struct {
@@ -178,11 +180,14 @@ func TestQueryObserveOverviewValidation(t *testing.T) {
 
 	t.Run("Should reject an unsupported usage window", func(t *testing.T) {
 		t.Parallel()
-		fixture := newOverviewFixture(t)
-
-		query := fixture.query()
-		query.UsageWindowDays = 13
-		_, err := fixture.observer.QueryObserveOverview(observeTestContext(t), query)
+		observer := &Observer{}
+		query := OverviewQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
+			TaskScope:       taskpkg.CatalogScopeGlobal,
+			Actor:           taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+			UsageWindowDays: 13,
+		}
+		_, err := observer.QueryObserveOverview(observeTestContext(t), query)
 		if err == nil || !strings.Contains(err.Error(), "unsupported usage window 13") {
 			t.Fatalf("QueryObserveOverview(window 13) error = %v, want unsupported usage window 13", err)
 		}
@@ -828,6 +833,84 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		}
 		if got, want := next.Items[0].RunID, "run-new"; !reflect.DeepEqual(got, want) {
 			t.Fatalf("got %#v, want %#v", got, want)
+		}
+	})
+}
+
+// Invariant: the all-population attention read is the union of its global and workspace reads,
+// with the same notification identities and task-owned workspace bindings.
+// Owner: observe projection. Canonical suite: overview composition with its real SQLite fixture.
+func TestTaskAttentionItemsAllScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should match the union of global and per-workspace reads", func(t *testing.T) {
+		t.Parallel()
+		f := newOverviewFixture(t)
+		ctx := observeTestContext(t)
+		escalation := func(at time.Time) *taskpkg.NeedsAttention {
+			return &taskpkg.NeedsAttention{Reason: "question", At: at, By: f.actor}
+		}
+		mine := &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: f.actor.Ref}
+		for _, seed := range []struct{ id, workspace string }{{"global", ""}, {"ws-a", "ws-a"}, {"ws-b", "ws-b"}} {
+			scope := taskpkg.ScopeGlobal
+			if seed.workspace != "" {
+				scope = taskpkg.ScopeWorkspace
+				if err := f.registry.InsertWorkspace(ctx, compozyworkspace.Workspace{
+					ID: seed.workspace, RootDir: t.TempDir(), Name: seed.workspace, CreatedAt: f.now, UpdatedAt: f.now,
+				}); err != nil {
+					t.Fatalf("InsertWorkspace(%q) error = %v", seed.workspace, err)
+				}
+			}
+			f.seedTask(t, taskpkg.Task{
+				ID: "approval-" + seed.id, Title: "Approve " + seed.id, Scope: scope, WorkspaceID: seed.workspace,
+				Status: taskpkg.TaskStatusBlocked, ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+				ApprovalState: taskpkg.ApprovalStatePending,
+			})
+			f.seedTask(t, taskpkg.Task{
+				ID: "failed-" + seed.id, Title: "Failed " + seed.id, Scope: scope, WorkspaceID: seed.workspace,
+				Status: taskpkg.TaskStatusFailed,
+			})
+			f.seedRun(t, taskpkg.Run{
+				ID: "run-" + seed.id, TaskID: "failed-" + seed.id, WorkspaceID: seed.workspace,
+				Status: taskpkg.TaskRunStatusFailed, Error: "boom", EndedAt: f.now.Add(-time.Hour),
+			})
+			f.seedTask(t, taskpkg.Task{
+				ID:             "input-" + seed.id,
+				Title:          "Input " + seed.id,
+				Scope:          scope,
+				WorkspaceID:    seed.workspace,
+				Status:         taskpkg.TaskStatusNeedsAttention,
+				Owner:          mine,
+				NeedsAttention: escalation(f.now.Add(-time.Hour)),
+			})
+		}
+		read := func(scope taskpkg.CatalogScope, workspace string) map[string]string {
+			t.Helper()
+			query := f.query()
+			query.TaskScope, query.WorkspaceID = scope, workspace
+			items, err := f.observer.TaskAttentionItems(ctx, query)
+			if err != nil {
+				t.Fatalf("TaskAttentionItems(%s, %q) error = %v", scope, workspace, err)
+			}
+			byID := make(map[string]string, len(items))
+			for _, item := range items {
+				byID[item.NotificationID] = item.TaskID + "@" + item.WorkspaceID
+			}
+			return byID
+		}
+		want := read(taskpkg.CatalogScopeGlobal, "")
+		for _, workspace := range []string{"ws-a", "ws-b"} {
+			maps.Copy(want, read(taskpkg.CatalogScopeWorkspace, workspace))
+		}
+		if len(want) != 9 {
+			t.Fatalf("per-scope reads = %d items (%v), want 9", len(want), want)
+		}
+		if got := read(taskpkg.CatalogScopeAll, ""); !reflect.DeepEqual(got, want) {
+			t.Fatalf("all-scope read = %v, want %v", got, want)
+		}
+		selected := read(taskpkg.CatalogScopeGlobal, "")
+		maps.Copy(selected, read(taskpkg.CatalogScopeWorkspace, "ws-a"))
+		if got := read(taskpkg.CatalogScopeAll, "ws-a"); !reflect.DeepEqual(got, selected) {
+			t.Fatalf("all-scope ws-a read = %v, want %v", got, selected)
 		}
 	})
 }

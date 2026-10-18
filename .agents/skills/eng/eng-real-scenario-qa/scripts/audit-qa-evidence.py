@@ -104,7 +104,7 @@ def list_item_id(item: Any) -> str:
     if isinstance(item, str):
         return item.strip()
     if isinstance(item, dict):
-        for key in ("id", "name", "channel", "task_id", "run_id"):
+        for key in ("id", "name", "task_id", "run_id"):
             value = item.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
@@ -175,22 +175,6 @@ def role_ids(charter: dict[str, Any]) -> set[str]:
     return roles
 
 
-def channel_ids(charter: dict[str, Any], log_entries: list[dict[str, Any]]) -> set[str]:
-    ids: set[str] = set()
-    for item in charter.get("channels", []) if isinstance(charter.get("channels"), list) else []:
-        item_id = list_item_id(item)
-        if item_id:
-            ids.add(item_id)
-    for entry in log_entries:
-        for key in ("channel", "channel_id"):
-            value = str(entry.get(key, "")).strip()
-            if value:
-                ids.add(value)
-        target = str(entry.get("target", ""))
-        match = re.search(r"(?:channel[:=/]|channels/)([A-Za-z0-9_.-]+)", target)
-        if match:
-            ids.add(match.group(1))
-    return ids
 
 
 def task_counts(charter: dict[str, Any], log_entries: list[dict[str, Any]]) -> dict[str, int]:
@@ -618,13 +602,6 @@ def check_collaboration_loops(
     required = playbook.get("required_collaboration", {}) or {}
     if not isinstance(required, dict):
         return findings, summary
-    peer_messages = sum(
-        1
-        for entry in log_entries
-        if str(entry.get("action", "")).lower() in {"peer_message", "say", "direct_message", "channel_message"}
-        or str(entry.get("channel", "")).strip()
-        and str(entry.get("surface", "")).lower() in {"runtime", "api"}
-    )
     review_cycles = 0
     review_state: dict[str, set[str]] = {}
     for entry in log_entries:
@@ -643,17 +620,10 @@ def check_collaboration_loops(
         }:
             review_cycles += 1
     disagreements = sum(1 for entry in log_entries if entry.get("disagreement_resolved"))
-    active_channels = {
-        str(entry.get("channel", "")).strip()
-        for entry in log_entries
-        if str(entry.get("channel", "")).strip()
-    }
     summary.update(
         {
-            "peer_messages": peer_messages,
             "review_cycles_complete": review_cycles,
             "disagreements_resolved": disagreements,
-            "channels_active": sorted(active_channels),
         }
     )
 
@@ -664,17 +634,8 @@ def check_collaboration_loops(
                 Finding("C17", f"{label} {actual} < required {minimum}", "journey_log"),
             )
 
-    under("peer_messages_min", peer_messages)
     under("review_cycles_min", review_cycles)
     under("disagreements_resolved_min", disagreements)
-    if isinstance(required.get("channels_active_min"), int) and len(active_channels) < required["channels_active_min"]:
-        findings.append(
-            Finding(
-                "C17",
-                f"channels_active {len(active_channels)} < required {required['channels_active_min']}",
-                "journey_log",
-            )
-        )
     return findings, summary
 
 
@@ -745,7 +706,6 @@ def audit(args: argparse.Namespace) -> tuple[list[Finding], list[Finding], dict[
         "operator_intent",
         "expected_business_outcome",
         "agents",
-        "channels",
         "task_tree",
         "provider_plan",
         "cross_surface_targets",
@@ -778,11 +738,6 @@ def audit(args: argparse.Namespace) -> tuple[list[Finding], list[Finding], dict[
     min_roles = min_int(contract, "differentiated_roles")
     if len(roles) < min_roles:
         blockers.append(Finding("C4", f"differentiated roles {len(roles)} < required {min_roles}", args.charter))
-
-    channels = channel_ids(charter, log_entries)
-    min_channels = min_int(contract, "channels")
-    if len(channels) < min_channels:
-        blockers.append(Finding("C5", f"channels {len(channels)} < required {min_channels}", args.journey_log))
 
     actual_tasks = task_counts(charter, log_entries)
     required_tasks = task_minimums(contract)

@@ -33,6 +33,13 @@ interface SessionDraftStorageEnvelope {
   version: 1;
 }
 
+/**
+ * Draft slots no surface reads any more. The empty-desktop prompt once shared
+ * one slot across projects; it is now kept per project, so the shared slot is
+ * dropped on load rather than guessed onto whichever project happens to open.
+ */
+const RETIRED_DRAFT_SLOTS: ReadonlySet<string> = new Set(["desktop:new-session"]);
+
 function normalizedDrafts(value: unknown): Record<string, string> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {};
@@ -41,7 +48,10 @@ function normalizedDrafts(value: unknown): Record<string, string> {
   return Object.fromEntries(
     Object.entries(value).filter(
       (entry): entry is [string, string] =>
-        entry[0].length > 0 && typeof entry[1] === "string" && entry[1].length > 0
+        entry[0].length > 0 &&
+        !RETIRED_DRAFT_SLOTS.has(entry[0]) &&
+        typeof entry[1] === "string" &&
+        entry[1].length > 0
     )
   );
 }

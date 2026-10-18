@@ -91,6 +91,9 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 
 	t.Run("Should return byte-identical removal refusal tiers", func(t *testing.T) {
 		t.Parallel()
+		service := newParityWorktreeService()
+		httpRouter := newWorktreeParityHTTPRouter(t, service)
+		udsRouter := newWorktreeParityUDSRouter(t, service)
 		for _, test := range []struct {
 			name    string
 			refusal worktree.RemovalRefusal
@@ -105,14 +108,13 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 			}},
 		} {
 			t.Run("Should match "+test.name+" refusal", func(t *testing.T) {
-				service := newParityWorktreeService()
 				service.removal = &test.refusal
 				httpResponse := performWorktreeParityRequest(
-					t, newWorktreeParityHTTPRouter(t, service), http.MethodDelete,
+					t, httpRouter, http.MethodDelete,
 					"/api/workspaces/ws-public/worktrees/wt-parity", "",
 				)
 				udsResponse := performWorktreeParityRequest(
-					t, newWorktreeParityUDSRouter(t, service), http.MethodDelete,
+					t, udsRouter, http.MethodDelete,
 					"/api/workspaces/ws-public/worktrees/wt-parity", "",
 				)
 				assertWorktreeParityResponse(t, httpResponse, udsResponse, http.StatusConflict)
@@ -122,20 +124,22 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 
 	t.Run("Should return byte-identical payloads for every worktree error code", func(t *testing.T) {
 		t.Parallel()
+		service := newParityWorktreeService()
+		httpRouter := newWorktreeParityHTTPRouter(t, service)
+		udsRouter := newWorktreeParityUDSRouter(t, service)
 		errorsByCode := worktreeParityErrors()
 		if len(errorsByCode) != 31 {
 			t.Fatalf("worktree parity error contract count = %d, want 31", len(errorsByCode))
 		}
 		for _, test := range errorsByCode {
 			t.Run("Should match "+test.code, func(t *testing.T) {
-				service := newParityWorktreeService()
 				service.inspectErr = fmt.Errorf("parity: %w", test.err)
 				httpResponse := performWorktreeParityRequest(
-					t, newWorktreeParityHTTPRouter(t, service), http.MethodGet,
+					t, httpRouter, http.MethodGet,
 					"/api/workspaces/ws-public/worktrees/wt-parity", "",
 				)
 				udsResponse := performWorktreeParityRequest(
-					t, newWorktreeParityUDSRouter(t, service), http.MethodGet,
+					t, udsRouter, http.MethodGet,
 					"/api/workspaces/ws-public/worktrees/wt-parity", "",
 				)
 				assertWorktreeParityResponse(t, httpResponse, udsResponse, core.StatusForWorktreeError(test.err))
@@ -152,7 +156,7 @@ func newWorktreeParityHTTPRouter(t *testing.T, service core.WorktreeService) htt
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", 2123
 	if _, err := httpapi.New(
 		httpapi.WithEngine(engine), httpapi.WithHomePaths(homePaths), httpapi.WithConfig(&cfg),
@@ -173,7 +177,7 @@ func newWorktreeParityUDSRouter(t *testing.T, service core.WorktreeService) http
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	if _, err := udsapi.New(
 		udsapi.WithEngine(engine), udsapi.WithHomePaths(homePaths), udsapi.WithConfig(&cfg),
 		udsapi.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
@@ -193,7 +197,7 @@ func parityWorkspaceService() testutil.StubWorkspaceService {
 		string,
 	) (workspace.ResolvedWorkspace, error) {
 		return workspace.ResolvedWorkspace{
-			Workspace:   workspace.Workspace{ID: "ws-registry", Name: "Parity", RootDir: "/repo"},
+			ID: "ws-registry", Name: "Parity", RootDir: "/repo",
 			WorkspaceID: "ws-public",
 		}, nil
 	}}
@@ -207,7 +211,7 @@ func performWorktreeParityRequest(
 	body string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequestWithContext(context.Background(), method, path, bytes.NewBufferString(body))
+	request := httptest.NewRequestWithContext(t.Context(), method, path, bytes.NewBufferString(body))
 	if body != "" {
 		request.Header.Set("Content-Type", "application/json")
 	}

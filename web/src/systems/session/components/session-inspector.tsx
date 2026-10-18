@@ -1,12 +1,17 @@
 import { DetailInspector, cn } from "@compozy/ui";
 import { deriveSessionContext, type SessionContextView } from "../lib/session-context";
-import type { SessionUsageTurnsResponse } from "../types";
+import { sessionSubagentCounts } from "../lib/session-subagent-summary";
+import type { SessionPayload, SessionUsageTurnsResponse } from "../types";
 import { SessionContextMeterSection } from "./session-context-meter-section";
 import { SessionContextInjectedSection } from "./session-context-injected-section";
 import { SessionContextTurnsSection } from "./session-context-turns-section";
 import { SessionActivitySection, type SessionActivityView } from "./session-activity-section";
+import { SessionInspectorOriginSection } from "./session-inspector-origin-section";
+import { SessionInspectorSubagents } from "./session-inspector-subagents";
 import { SessionInspectorUsageSection } from "./session-inspector-sections";
 import type { InspectorUsage } from "./session-inspector-types";
+import type { SubagentOpenOptions } from "./subagents/subagent-card";
+import type { SubagentView } from "./subagents/types";
 
 export type { InspectorUsage } from "./session-inspector-types";
 
@@ -16,6 +21,13 @@ export interface SessionInspectorProps {
   turns?: SessionUsageTurnsResponse;
   turnsUnavailable?: boolean;
   activity?: SessionActivityView;
+  /**
+   * The inspected session; a continued or forked one gains its Origin rows, and
+   * an agent advertising `compact`/`compress` gains Compact now.
+   */
+  session?: SessionPayload;
+  /** Opens one of the session's subagents from the Subagents roster (S10). */
+  onOpenSubagent?: (subagent: SubagentView, options: SubagentOpenOptions) => void;
   injectedDefaultOpen?: boolean;
   turnsDefaultOpen?: boolean;
   drawerOpen?: boolean;
@@ -29,6 +41,8 @@ export function SessionInspector({
   turns,
   turnsUnavailable,
   activity,
+  session,
+  onOpenSubagent,
   injectedDefaultOpen,
   turnsDefaultOpen,
   drawerOpen,
@@ -44,7 +58,7 @@ export function SessionInspector({
       open={drawerOpen}
     >
       <div className="flex flex-col gap-4.5 p-4" data-testid="session-inspector">
-        <SessionContextMeterSection context={context} />
+        <SessionContextMeterSection context={context} session={session} />
         <SessionContextInjectedSection
           injected={context.injected}
           showBars={context.used != null}
@@ -57,6 +71,10 @@ export function SessionInspector({
           defaultOpen={turnsDefaultOpen}
         />
         <SessionActivitySection activity={activity} />
+        {session && sessionSubagentCounts(session) !== null ? (
+          <SessionInspectorSubagents session={session} onOpen={onOpenSubagent} />
+        ) : null}
+        {session ? <SessionInspectorOriginSection session={session} /> : null}
       </div>
     </DetailInspector>
   );

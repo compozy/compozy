@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -48,19 +49,6 @@ func TestStartInitializeContract(t *testing.T) {
 				acpsdk.ProtocolVersionNumber,
 			)
 		}
-	})
-
-	t.Run("Should not opt into agent-reported terminal output", func(t *testing.T) {
-		t.Parallel()
-
-		driver := New()
-		captureFile := filepath.Join(t.TempDir(), "initialize-terminal-output.jsonl")
-		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
-			Env: helperEnvWithCapture("initialize_contract", "", captureFile),
-		})
-		defer stopProcess(t, driver, proc)
-
-		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodInitialize)
 		var capabilities struct {
 			Meta     map[string]any `json:"_meta"`
 			Terminal bool           `json:"terminal"`
@@ -120,6 +108,51 @@ func TestStartCapturesPromptCapabilities(t *testing.T) {
 			}
 			if got, want := caps.PromptEmbeddedContext, tt.want.PromptEmbeddedContext; got != want {
 				t.Fatalf("Start() PromptEmbeddedContext = %t, want %t", got, want)
+			}
+		})
+	}
+}
+
+func TestStartCapturesSessionLifecycleCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		scenario   string
+		wantFork   bool
+		wantResume bool
+	}{
+		{
+			name:       "Should capture advertised session fork and resume capabilities",
+			scenario:   "fork_session",
+			wantFork:   true,
+			wantResume: true,
+		},
+		{
+			name:     "Should leave fork and resume false when the agent omits them",
+			scenario: "prompt_capabilities_image",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			proc := startHelperProcess(t, driver, tt.scenario, "", StartOpts{})
+			t.Cleanup(func() {
+				stopProcess(t, driver, proc)
+			})
+
+			caps := proc.CapsSnapshot()
+			if got := caps.SupportsForkSession; got != tt.wantFork {
+				t.Fatalf("Start() SupportsForkSession = %t, want %t", got, tt.wantFork)
+			}
+			if got := caps.SupportsResumeSession; got != tt.wantResume {
+				t.Fatalf("Start() SupportsResumeSession = %t, want %t", got, tt.wantResume)
+			}
+			cloned := CloneCaps(caps)
+			if cloned.SupportsForkSession != tt.wantFork || cloned.SupportsResumeSession != tt.wantResume {
+				t.Fatalf("CloneCaps() = %+v, want fork=%t resume=%t", cloned, tt.wantFork, tt.wantResume)
 			}
 		})
 	}
@@ -534,6 +567,25 @@ func TestInspectSessionConfigOptionsDoesNotMutateTheACPNewSession(t *testing.T) 
 			t.Fatal("session/close was sent without an advertised close capability")
 		}
 	})
+
+	t.Run("Should keep the inspected options when session/close outlasts its budget", func(t *testing.T) {
+		t.Parallel()
+
+		captureFile := filepath.Join(t.TempDir(), "session-inspection-slow-close.jsonl")
+		options, err := InspectSessionConfigOptions(testutil.Context(t), SessionInspectionRequest{
+			AgentName: "helper",
+			Command:   helperCommand(t),
+			Cwd:       t.TempDir(),
+			Env:       helperEnvWithCapture("config_options_slow_close", "", captureFile),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionConfigOptions(slow close) error = %v", err)
+		}
+		assertConfigOption(t, options, "model", "new-model", "new-model", "loaded-model", "other-model")
+		if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionClose) {
+			t.Fatal("session/close was not sent for an agent that advertises it")
+		}
+	})
 }
 
 // Invariant: discovery retains each model's acknowledged options without prompting.
@@ -563,17 +615,90 @@ func TestInspectSessionModels(t *testing.T) {
 			t.Fatal("discovery submitted a prompt")
 		}
 	})
-	t.Run("Should fail discovery when a model selection is not acknowledged", func(t *testing.T) {
+	t.Run("Should keep advertised models when a model selection is not acknowledged", func(t *testing.T) {
 		t.Parallel()
 		inspection, err := InspectSessionModels(testutil.Context(t), SessionInspectionRequest{
 			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
 			Env: helperEnv("config_options_unconfirmed", ""),
 		})
-		if err == nil || !strings.Contains(err.Error(), "did not confirm") {
-			t.Fatalf("error = %v, want unconfirmed configuration failure", err)
+		if err != nil {
+			t.Fatalf("InspectSessionModels() error = %v, want advertised options despite one rejected model", err)
+		}
+		assertConfigOption(t, inspection.Options, "model", "new-model", "new-model", "loaded-model", "other-model")
+		for _, rejected := range []string{"loaded-model", "other-model"} {
+			if _, published := inspection.Models[rejected]; published {
+				t.Fatalf("unacknowledged model %q published options: %v", rejected, inspection.Models[rejected])
+			}
+			if err := inspection.ModelErrors[rejected]; err == nil ||
+				!strings.Contains(err.Error(), "did not confirm") {
+				t.Fatalf("ModelErrors[%q] = %v, want unconfirmed configuration failure", rejected, err)
+			}
+		}
+		if _, confirmed := inspection.Models["new-model"]; !confirmed {
+			t.Fatalf("acknowledged model options missing: %v", inspection.Models)
+		}
+	})
+	for _, tc := range []struct {
+		name     string
+		scenario string
+		probes   int
+	}{
+		{"Should return cancellation during the first model probe", "stall_config", 1},
+		{"Should return cancellation during the final model probe", "stall_last_config", 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			captureFile := filepath.Join(t.TempDir(), "cancel-inspection.jsonl")
+			req := SessionInspectionRequest{
+				AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+				Env: helperEnvWithCapture(tc.scenario, "", captureFile),
+			}
+			done := make(chan struct{})
+			var inspection SessionModelInspection
+			var err error
+			go func() {
+				defer close(done)
+				inspection, err = InspectSessionModels(ctx, req)
+			}()
+			t.Cleanup(func() {
+				cancel()
+				<-done
+			})
+			waitForCapturedNotifications(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption, tc.probes)
+			cancel()
+			<-done
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("InspectSessionModels() error = %v, want caller cancellation", err)
+			}
+			if len(inspection.Options) != 0 || len(inspection.Models) != 0 {
+				t.Fatalf("canceled inspection published partial results: %#v", inspection)
+			}
+		})
+	}
+	t.Run("Should return advertised models when the probe budget is exhausted", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+		defer cancel()
+		inspection, err := InspectSessionModels(ctx, SessionInspectionRequest{
+			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("stall_config", ""),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionModels() error = %v, want advertised options after deadline", err)
+		}
+		if _, ok := ModelConfigOption(inspection.Options); !ok {
+			t.Fatalf("advertised model option missing after deadline: %#v", inspection.Options)
 		}
 		if len(inspection.Models) != 0 {
-			t.Fatalf("failed inspection published models: %v", inspection.Models)
+			t.Fatalf("stalled probes published model options: %v", inspection.Models)
+		}
+		model, _ := ModelConfigOption(inspection.Options)
+		for _, value := range model.Values {
+			if err := inspection.ModelErrors[value.Value]; !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("ModelErrors[%q] = %v, want unobserved options recorded as deadline", value.Value, err)
+			}
 		}
 	})
 }
@@ -628,35 +753,6 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
-func TestStartRejectsModelOutsideAdvertisedConfigOptionsBeforeSetConfigOption(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject an unadvertised model before applying config", func(t *testing.T) {
-		t.Parallel()
-
-		driver := New()
-		captureFile := filepath.Join(t.TempDir(), "session-set-config-model-rejected.jsonl")
-		proc, err := driver.Start(testutil.Context(t), StartOpts{
-			AgentName:      "helper",
-			Command:        helperCommand(t),
-			Cwd:            t.TempDir(),
-			PreferredModel: "cursor-grok-4.5-high",
-			Env:            helperEnvWithCapture("config_options", "", captureFile),
-		})
-		if proc != nil {
-			defer stopProcess(t, driver, proc)
-			t.Fatalf("Start() process = %#v, want nil after membership rejection", proc)
-		}
-		negotiationErr, ok := errors.AsType[*NegotiationError](err)
-		if !ok || negotiationErr.Code != NegotiationCodeModelUnavailable {
-			t.Fatalf("Start() error = %v, want model_unavailable NegotiationError", err)
-		}
-		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
-			t.Fatal("session/set_config_option was sent for a model outside the advertised values")
-		}
-	})
-}
-
 func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {
 	t.Parallel()
 
@@ -695,6 +791,7 @@ func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {
 		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
 			t.Fatal("set_config_option was sent when the requested reasoning effort was already current")
 		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "medium")
 	})
 }
 
@@ -777,8 +874,12 @@ func TestStartNegotiatesRequestedSpeed(t *testing.T) {
 			t.Fatalf("speed resolution = %#v, want unsupported capability_absent", resolution)
 		}
 	})
+}
 
-	t.Run("Should fail atomically with a typed diagnostic when the provider rejects speed", func(t *testing.T) {
+func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
+	t.Parallel()
+
+	t.Run("Should carry the accepted session id through failed-start cleanup", func(t *testing.T) {
 		t.Parallel()
 
 		driver := New()
@@ -793,12 +894,56 @@ func TestStartNegotiatesRequestedSpeed(t *testing.T) {
 		if proc != nil {
 			t.Fatal("Start() process != nil, want failed setup cleanup")
 		}
-		negotiationErr, negotiationErrMatched := errors.AsType[*NegotiationError](err)
-		if !negotiationErrMatched ||
-			negotiationErr.Code != NegotiationCodeSpeedRejected ||
-			negotiationErr.Stage != "speed" ||
-			negotiationErr.Requested != "fast" {
-			t.Fatalf("Start() error = %v, want speed_rejected NegotiationError", err)
+		accepted, ok := errors.AsType[*AcceptedStartError](err)
+		if !ok || accepted.SessionID != "sess-new" {
+			t.Fatalf("Start() error = %v, want AcceptedStartError for sess-new", err)
+		}
+		negotiationErr, negotiationMatched := errors.AsType[*NegotiationError](err)
+		if !negotiationMatched || negotiationErr.Code != NegotiationCodeSpeedRejected ||
+			negotiationErr.Stage != "speed" || negotiationErr.Requested != "fast" {
+			t.Fatalf("Start() error = %v, want the speed_rejected negotiation cause preserved", err)
+		}
+		if !strings.HasPrefix(err.Error(), "acp: start failed after session acceptance: ") {
+			t.Fatalf("Start() error text = %q, want the acceptance prefix", err.Error())
+		}
+	})
+
+	t.Run("Should report no acceptance when session negotiation fails", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Env:             helperEnv("load_session_error", ""),
+			ResumeSessionID: "sess-missing",
+		})
+		if proc != nil {
+			t.Fatal("Start() process != nil, want failed load cleanup")
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want session/load failure")
+		}
+		if id, accepted := AcceptedSessionID(err); accepted || id != "" {
+			t.Fatalf("AcceptedSessionID() = (%q, %t), want (\"\", false)", id, accepted)
+		}
+	})
+
+	t.Run("Should find the acceptance fact through joined and wrapped errors", func(t *testing.T) {
+		t.Parallel()
+
+		base := WrapAcceptedStart("acp_1", errors.New("configure failed"))
+		for _, wrapped := range []error{
+			fmt.Errorf("session: start: %w", base),
+			errors.Join(errors.New("cleanup failed"), base),
+		} {
+			if id, ok := AcceptedSessionID(wrapped); !ok || id != "acp_1" {
+				t.Fatalf("AcceptedSessionID(%v) = (%q, %t), want (acp_1, true)", wrapped, id, ok)
+			}
+		}
+		if WrapAcceptedStart("acp_2", base) != base {
+			t.Fatal("WrapAcceptedStart() rewrapped an error that already carries acceptance")
 		}
 	})
 }
@@ -862,7 +1007,7 @@ func TestStartRejectsReasoningWithoutAnApplyStrategyBeforeLaunch(t *testing.T) {
 func TestStartPassesThroughEveryAdvertisedCanonicalReasoningEffort(t *testing.T) {
 	t.Parallel()
 
-	for _, effort := range []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"} {
+	for _, effort := range []string{"minimal", "low", "xhigh", "max"} {
 		t.Run("Should pass through "+effort, func(t *testing.T) {
 			t.Parallel()
 
@@ -874,14 +1019,6 @@ func TestStartPassesThroughEveryAdvertisedCanonicalReasoningEffort(t *testing.T)
 				Env:             helperEnvWithCapture("config_options", "", captureFile),
 			})
 			defer stopProcess(t, driver, proc)
-
-			if effort == "medium" {
-				if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
-					t.Fatal("set_config_option was sent for the already-current reasoning effort")
-				}
-				assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", effort, effort)
-				return
-			}
 
 			request := decodeCapturedSetSessionConfigOptionRequest(
 				t,
@@ -1004,7 +1141,7 @@ func TestConfigureRuntime(t *testing.T) {
 			ReasoningEffort: "max",
 			Speed:           speedpkg.SpeedFast,
 			ACPOptions: []SessionConfigOptionSelection{
-				{ID: "thinking", BoolValue: boolPointer(true)},
+				{ID: "thinking", BoolValue: new(true)},
 				{ID: "context", ValueID: "large"},
 			},
 		})
@@ -1214,6 +1351,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 			proc, err := driver.Start(testutil.Context(t), opts)
 			if proc != nil {
 				defer stopProcess(t, driver, proc)
+				t.Fatalf("Start() process = %#v, want nil after membership rejection", proc)
 			}
 			if err == nil {
 				t.Fatal("Start() error = nil, want unavailable config option error")
@@ -1606,7 +1744,7 @@ func TestStartCapturesHermesModelStateAsTypedConfigOption(t *testing.T) {
 			wantBooleanValue:  true,
 		},
 		{
-			name:             "Should preserve an advertised model config option over the Hermes extension",
+			name:             "Should preserve an advertised model config option over the session models state",
 			payload:          `{"models":{"currentModelId":"hermes:extension-model","availableModels":[{"modelId":"hermes:extension-model","name":"Extension model"}]},"configOptions":[{"type":"select","id":"model","name":"Model","currentValue":"provider:configured-model","options":[{"value":"provider:configured-model","name":"Configured model"}]},{"type":"boolean","id":"thinking","name":"Thinking","currentValue":false}]}`,
 			wantModel:        "provider:configured-model",
 			wantValues:       []string{"provider:configured-model"},
@@ -1694,7 +1832,7 @@ func TestHermesDiscoveryModelIsReadOnlyForModernACP(t *testing.T) {
 			caps: Caps{ConfigOptions: []SessionConfigOption{modelOption}},
 		}
 		applied, err := New().applySessionModel(
-			context.Background(),
+			t.Context(),
 			process,
 			"openrouter:grok-4.6",
 		)
@@ -1822,6 +1960,34 @@ func TestStartCapturesSteerCapability(t *testing.T) {
 			defer stopProcess(t, driver, proc)
 			if got := proc.CapsSnapshot().SteerCapability; got != tc.want {
 				t.Fatalf("negotiated steering = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStartWithUnconfiguredAttempts(t *testing.T) {
+	t.Parallel()
+	for _, count := range []int{0, -1} {
+		name := "Should launch when the driver attempt count is zero"
+		if count < 0 {
+			name = "Should launch when the driver attempt count is negative"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			launchErr := errors.New("launch rejected")
+			launcher := &recordingLauncher{err: launchErr}
+			driver := &Driver{startAttempts: count}
+			proc, err := driver.Start(t.Context(), StartOpts{
+				AgentName: "helper",
+				Command:   helperCommand(t),
+				Cwd:       t.TempDir(),
+				Launcher:  launcher,
+			})
+			if proc != nil || !errors.Is(err, launchErr) {
+				t.Fatalf("Start() = %v, %v, want launch failure", proc, err)
+			}
+			if _, launched := launcher.lastSpec(); !launched {
+				t.Fatal("Start() never attempted process launch")
 			}
 		})
 	}

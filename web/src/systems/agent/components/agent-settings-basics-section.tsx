@@ -40,13 +40,13 @@ export function AgentSettingsBasicsSection({
           aria-readonly="true"
           className="font-mono"
         />
-        <FieldDescription>Renaming is not supported.</FieldDescription>
+        <FieldDescription>Names can't be changed after creation.</FieldDescription>
       </Field>
       <Field data-invalid={Boolean(errors.categoryPath)}>
         <FieldHeader>
-          <FieldLabel htmlFor="agent-settings-category">Category path</FieldLabel>
-          <HelpTip label="About category path">
-            Slash-separated segments. Leave blank for uncategorized.
+          <FieldLabel htmlFor="agent-settings-category">Group</FieldLabel>
+          <HelpTip label="About group">
+            Use / to nest, e.g. ops/release. Leave blank for none.
           </HelpTip>
         </FieldHeader>
         <Input

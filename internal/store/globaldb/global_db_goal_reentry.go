@@ -160,13 +160,13 @@ func (g *GoalRepo) reserveGoalReentrySuccessor(
 		nextEpoch,
 	)
 	_, successor, existing, err := g.tasks.reserveQueuedRunWithExecutor(ctx, exec, queuedRunReservationInput{
-		taskID:             oldRun.TaskID,
-		runID:              successorRunID,
-		runKind:            taskpkg.RunKindWorker,
-		loopRunID:          string(current.state.LoopRunID),
-		idempotencyKey:     idempotencyKey,
-		origin:             oldRun.Origin,
-		networkSpec:        oldRun.NetworkSpecSnapshot(),
+		taskID:         oldRun.TaskID,
+		runID:          successorRunID,
+		runKind:        taskpkg.RunKindWorker,
+		loopRunID:      string(current.state.LoopRunID),
+		idempotencyKey: idempotencyKey,
+		origin:         oldRun.Origin,
+
 		designationGroupID: oldRun.DesignationGroupID,
 		metadata:           successorMetadata,
 		queuedAt:           g.now(),

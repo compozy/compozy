@@ -49,11 +49,9 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	workspaceResolver := &daemonExtensionWorkspaceResolverStub{
 		resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      workspaceID,
-				Name:    "secret-hygiene",
-				RootDir: workspaceRoot,
-			},
+			ID:          workspaceID,
+			Name:        "secret-hygiene",
+			RootDir:     workspaceRoot,
 			WorkspaceID: workspaceID,
 		},
 	}

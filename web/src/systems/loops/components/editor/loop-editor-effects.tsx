@@ -84,7 +84,7 @@ export function LoopEditorEffects({
         return (
           <div
             key={rowKeys.keys[index]}
-            className="rounded-md border border-line-soft bg-canvas-soft p-2"
+            className="rounded-md bg-sunken p-2"
             data-testid={`${testId}-row`}
             data-shape={shape}
           >
@@ -120,7 +120,7 @@ export function LoopEditorEffects({
                     suggestions={suggestions}
                     disabled={disabled}
                     mono
-                    placeholder={shape === "emit" ? "task_retrying" : "compozy__network_send"}
+                    placeholder={shape === "emit" ? "task_retrying" : "compozy__task_list"}
                     ariaLabel={`${rowName} ${shape === "emit" ? "event kind" : "tool id"}`}
                     testId={`${testId}-${shape === "emit" ? "kind" : "tool"}-${index}`}
                   />
@@ -134,23 +134,23 @@ export function LoopEditorEffects({
                 onClick={() => remove(index)}
                 aria-label={`Remove ${rowName}`}
               >
-                <X aria-hidden="true" className="size-3" />
+                <X aria-hidden="true" />
               </Button>
             </div>
             <details
               className="mt-2"
               open={(shape === "emit" ? row.emit?.payload : row.with) !== undefined || undefined}
             >
-              <summary className="cursor-pointer font-mono text-mono-id text-subtle">
-                {shape === "emit" ? "payload" : "with"} · optional
+              <summary className="cursor-pointer text-form-hint text-subtle">
+                {shape === "emit" ? "Event data" : "Tool arguments"} · optional
               </summary>
               <div className="mt-1">
                 <LoopEditorJsonField
                   key={shape}
                   value={shape === "emit" ? row.emit?.payload : row.with}
                   disabled={disabled}
-                  placeholder={shape === "emit" ? "event payload" : "tool arguments"}
-                  ariaLabel={`${rowName} ${shape === "emit" ? "payload" : "arguments"}`}
+                  placeholder={shape === "emit" ? "event details" : "tool arguments"}
+                  ariaLabel={`${rowName} ${shape === "emit" ? "data" : "arguments"}`}
                   testId={`${testId}-${shape === "emit" ? "payload" : "with"}-${index}`}
                   className="min-h-14 resize-y text-form-input leading-relaxed"
                   onCommit={parsed =>
@@ -177,14 +177,13 @@ export function LoopEditorEffects({
       })}
       <Button
         type="button"
-        variant="outline"
+        variant="quiet"
         size="sm"
         disabled={disabled}
         onClick={add}
-        className="border-dashed"
         data-testid={`${testId}-add`}
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add effect
       </Button>
     </div>

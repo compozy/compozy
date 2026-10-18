@@ -120,16 +120,12 @@ func cloneJSONMap(source map[string]any) map[string]any {
 	if len(source) == 0 {
 		return nil
 	}
-	cloned := make(map[string]any, len(source))
-	maps.Copy(cloned, source)
-	return cloned
+	return maps.Clone(source)
 }
 
 func cloneHostAPIStringMap(source map[string]string) map[string]string {
 	if len(source) == 0 {
 		return nil
 	}
-	cloned := make(map[string]string, len(source))
-	maps.Copy(cloned, source)
-	return cloned
+	return maps.Clone(source)
 }

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -179,7 +179,7 @@ func (p *extensionCmdPaletteProvider) OpenSource(
 	if selected.Program || selected.SourceTool == "" {
 		return cmdpalette.ViewPayload{}, errors.New("daemon: extension palette view is not declarative")
 	}
-	callID := "cmd-palette-view:" + uuid.NewString()
+	callID := "cmd-palette-view:" + uuid.NewV4().String()
 	result, err := p.tools.Call(ctx, toolspkg.Scope{
 		ProfileID: string(profileLens.ID), WorkspaceID: string(workspaceID),
 		SessionID: callID, ActorKind: "cmd_palette", Operator: true,

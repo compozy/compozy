@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "automations/automations-editor.html",
+  "entry": "automations/automations-editor.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-08T04:49:57.713Z",
+  "updatedAt": "2026-10-08T04:49:57.713Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +23,7 @@ func PerformRequestWithHeaders(
 	t.Helper()
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		method,
 		path,
 		bytes.NewReader(body),

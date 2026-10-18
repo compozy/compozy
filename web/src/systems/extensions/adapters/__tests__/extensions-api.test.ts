@@ -157,7 +157,7 @@ describe("extensions management mutations", () => {
       inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "dep-kit-ops",
-      network_requirement_digest: "sha256:6f1c0a94d3b27e58",
+      gateway_requirement_digest: "sha256:6f1c0a94d3b27e58",
       placements: [],
     };
     mockJsonResponse(preview);
@@ -253,11 +253,11 @@ describe("extensions management mutations", () => {
     mockEmptyResponse();
     await updateExtension("dep-kit-ops", {
       allow_unverified: true,
-      confirm_network_digest: digest,
+      confirm_gateway_digest: digest,
       version: "1.1.0",
     });
     await expectFetchRequest({
-      body: { allow_unverified: true, confirm_network_digest: digest, version: "1.1.0" },
+      body: { allow_unverified: true, confirm_gateway_digest: digest, version: "1.1.0" },
       method: "PUT",
       path: "/api/extensions/dep-kit-ops",
     });
@@ -281,12 +281,12 @@ describe("extensions management failures", () => {
    * The digest is the whole remediation: without it the operator cannot ratify what the daemon
    * refused, so the typed error has to carry it rather than flatten to a message.
    */
-  it("Should expose the daemon code and current digest from a network-confirmation refusal", async () => {
+  it("Should expose the daemon code and current digest from a gateway-confirmation refusal", async () => {
     mockJsonResponse(
       {
-        code: "extension_network_confirmation_required",
+        code: "extension_gateway_confirmation_required",
         current_digest: "sha256:6f1c0a94d3b27e58",
-        error: "dep-kit-ops declares Live network participation that has not been confirmed",
+        error: "dep-kit-ops declares gateway control permissions that has not been confirmed",
       },
       { status: 409 }
     );
@@ -294,7 +294,7 @@ describe("extensions management failures", () => {
     const error = await updateExtension("dep-kit-ops", {}).catch((reason: unknown) => reason);
     expect(error).toBeInstanceOf(ExtensionsApiError);
     expect(error).toMatchObject({
-      code: "extension_network_confirmation_required",
+      code: "extension_gateway_confirmation_required",
       currentDigest: "sha256:6f1c0a94d3b27e58",
       kind: "daemon",
       status: 409,

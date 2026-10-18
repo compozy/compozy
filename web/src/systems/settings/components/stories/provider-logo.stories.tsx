@@ -23,7 +23,7 @@ const meta: Meta<typeof ProviderLogo> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const PROVIDERS = ["claude", "codex", "gemini", "qwen-code", "openclaw", "hermes", "unknown"];
+const PROVIDERS = ["claude", "codex", "gemini", "qwen-code", "cursor", "opencode", "unknown"];
 
 /**
  * Default — single Claude logo at 20px (the size used inside the provider-card icon-well).
@@ -32,7 +32,7 @@ export const Default: Story = {
   args: { provider: "claude", className: "size-5" },
   render: args => (
     <CenteredSurface>
-      <span className="inline-flex size-10 items-center justify-center rounded-icon-well bg-elevated ring-1 ring-line">
+      <span className="inline-flex size-10 items-center justify-center rounded-icon-well bg-surface-2 ring-1 ring-line">
         <ProviderLogo {...args} />
       </span>
     </CenteredSurface>
@@ -51,9 +51,9 @@ export const Registry: Story = {
         {PROVIDERS.map(provider => (
           <div
             key={provider}
-            className="flex flex-col items-center gap-2 rounded-md border border-line bg-canvas-soft p-3"
+            className="flex flex-col items-center gap-2 rounded-md bg-card shadow-card p-3"
           >
-            <span className="inline-flex size-10 items-center justify-center rounded-icon-well bg-elevated ring-1 ring-line">
+            <span className="inline-flex size-10 items-center justify-center rounded-icon-well bg-surface-2 ring-1 ring-line">
               <ProviderLogo provider={provider} className="size-5" />
             </span>
             <Eyebrow className="text-muted">{provider}</Eyebrow>

@@ -181,7 +181,7 @@ func TestShouldExposeMCPProviderDescriptorsAndPreserveOutputSchema(t *testing.T)
 			RawServerName: "github",
 		}})
 
-		descriptors, err := provider.List(context.Background(), Scope{Operator: true})
+		descriptors, err := provider.List(t.Context(), Scope{Operator: true})
 		if err != nil {
 			t.Fatalf("provider.List() error = %v", err)
 		}
@@ -235,7 +235,7 @@ func TestShouldFailClosedOnMCPSanitizedNameCollisions(t *testing.T) {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
 
-		views, err := registry.OperatorProjection(context.Background(), Scope{Operator: true})
+		views, err := registry.OperatorProjection(t.Context(), Scope{Operator: true})
 		if err != nil {
 			t.Fatalf("registry.OperatorProjection() error = %v", err)
 		}
@@ -265,7 +265,7 @@ func TestShouldBlockMCPCallsWhenAuthIsRequired(t *testing.T) {
 		}})
 		registry := newMCPRegistry(t, provider)
 
-		_, err := registry.Call(context.Background(), Scope{}, CallRequest{
+		_, err := registry.Call(t.Context(), Scope{}, CallRequest{
 			ToolID: "mcp__github__lookup",
 			Input:  json.RawMessage(`{}`),
 		})
@@ -297,7 +297,7 @@ func TestShouldSkipMCPSourceWhenAuthBlocksDiscovery(t *testing.T) {
 			RawServerName: "github",
 		}})
 
-		descriptors, err := provider.List(context.Background(), Scope{Operator: true})
+		descriptors, err := provider.List(t.Context(), Scope{Operator: true})
 		if err != nil {
 			t.Fatalf("provider.List() error = %v", err)
 		}
@@ -322,7 +322,7 @@ func TestShouldSkipMCPSourceWhenDiscoveryFails(t *testing.T) {
 			RawServerName: "broken",
 		}})
 
-		descriptors, err := provider.List(context.Background(), Scope{Operator: true})
+		descriptors, err := provider.List(t.Context(), Scope{Operator: true})
 		if err != nil {
 			t.Fatalf("provider.List() error = %v", err)
 		}
@@ -356,7 +356,7 @@ func TestShouldSkipMCPSourceWhenDiscoveryFails(t *testing.T) {
 			},
 		})
 
-		descriptors, err := provider.List(context.Background(), Scope{Operator: true})
+		descriptors, err := provider.List(t.Context(), Scope{Operator: true})
 		if err != nil {
 			t.Fatalf("provider.List() error = %v; source timeout should degrade only that source", err)
 		}
@@ -382,7 +382,7 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 		}})
 		registry := newMCPRegistry(t, provider)
 
-		result, err := registry.Call(context.Background(), Scope{}, CallRequest{
+		result, err := registry.Call(t.Context(), Scope{}, CallRequest{
 			ToolID: "mcp__github__lookup",
 			Input:  json.RawMessage(`{"query":"octo"}`),
 		})
@@ -402,7 +402,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 	t.Run("Should Retain Dead MCP Descriptors Until Opportunistic Recovery", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		clock := &mcpReliabilityTestClock{now: time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)}
 		deadStore := newMCPReliabilityStore()
 		deadService := deadentity.New(deadStore, deadentity.WithClock(clock.Now))
@@ -517,7 +517,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 			t.Fatalf("NewMCPProvider() error = %v", err)
 		}
 		for attempt := 1; attempt <= deadentity.DefaultPermanentFailureThreshold+1; attempt++ {
-			if _, err := provider.List(context.Background(), Scope{Operator: true}); err != nil {
+			if _, err := provider.List(t.Context(), Scope{Operator: true}); err != nil {
 				t.Fatalf("provider.List(global failure %d) error = %v", attempt, err)
 			}
 		}
@@ -529,7 +529,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 	t.Run("Should Drop Cached Descriptors After A Workspace Source Is Removed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		deadService := deadentity.New(newMCPReliabilityStore())
 		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
 			RawName:     "lookup",
@@ -604,7 +604,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
-				ctx := context.Background()
+				ctx := t.Context()
 				deadService := deadentity.New(newMCPReliabilityStore())
 				executor := newFakeMCPExecutor([]MCPToolDescriptor{{
 					RawName:     "lookup",
@@ -655,7 +655,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 	t.Run("Should isolate cached descriptors across workspace projections", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		deadService := deadentity.New(newMCPReliabilityStore())
 		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
 			RawName:     "lookup",
@@ -741,7 +741,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 		}
 		for _, scope := range scopes {
 			if descriptors, listErr := provider.List(
-				context.Background(),
+				t.Context(),
 				scope,
 			); listErr != nil ||
 				len(descriptors) != 1 {
@@ -762,7 +762,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 		))
 		for attempt := range deadentity.DefaultPermanentFailureThreshold {
 			for _, scope := range scopes {
-				descriptors, listErr := provider.List(context.Background(), scope)
+				descriptors, listErr := provider.List(t.Context(), scope)
 				if listErr != nil || len(descriptors) != 1 {
 					t.Fatalf(
 						"provider.List(%s, failure %d) = %#v, %v, want its cached descriptor",
@@ -783,7 +783,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 	t.Run("Should Retire Deleted Server State Across Profiles", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
 			RawName:     "lookup",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
@@ -874,7 +874,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 		})
 		registry := newMCPRegistry(t, provider)
 
-		views, err := registry.OperatorProjection(context.Background(), Scope{
+		views, err := registry.OperatorProjection(t.Context(), Scope{
 			Operator:    true,
 			WorkspaceID: "workspace-a",
 		})
@@ -924,7 +924,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 		})
 		registry := newMCPRegistry(t, provider)
 
-		views, err := registry.OperatorProjection(context.Background(), Scope{
+		views, err := registry.OperatorProjection(t.Context(), Scope{
 			Operator: true, ProfileID: "profile-active", WorkspaceID: "workspace-a",
 		})
 		if err != nil {
@@ -963,7 +963,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 		})
 		registry := newMCPRegistry(t, provider)
 
-		views, err := registry.OperatorProjection(context.Background(), Scope{
+		views, err := registry.OperatorProjection(t.Context(), Scope{
 			Operator:    true,
 			WorkspaceID: "workspace-a",
 		})
@@ -1021,7 +1021,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 		})
 		registry := newMCPRegistry(t, provider)
 
-		_, err := registry.Call(context.Background(), Scope{WorkspaceID: "workspace-a"}, CallRequest{
+		_, err := registry.Call(t.Context(), Scope{WorkspaceID: "workspace-a"}, CallRequest{
 			ToolID: "mcp__linear__lookup",
 			Input:  json.RawMessage(`{}`),
 		})

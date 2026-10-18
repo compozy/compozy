@@ -17,7 +17,7 @@ type SessionPresenceResponse struct {
 type SessionWaitRequest struct {
 	Until     []string `json:"until,omitempty"`
 	TimeoutMS int64    `json:"timeout_ms"`
-	Epoch     int64    `json:"epoch,omitempty"`
+	Epoch     int64    `json:"epoch,omitzero"`
 	ResumeID  string   `json:"resume_id,omitempty"`
 }
 

@@ -1,4 +1,4 @@
-import { ChevronDown, ListFilter } from "lucide-react";
+import { ArrowUpDown, ChevronDown } from "lucide-react";
 
 import {
   Button,
@@ -29,16 +29,18 @@ export function TasksListSort({ sortBy, onSortChange }: TasksListSortProps) {
           <Button
             aria-label="Sort tasks"
             data-testid="tasks-list-sort-trigger"
-            size="sm"
+            size="segment"
             type="button"
-            variant="ghost"
+            variant="quiet"
           />
         }
       >
-        <ListFilter aria-hidden="true" className="size-3 text-subtle" />
-        <span className="text-muted">Sorted by</span>
-        <span className="text-fg-strong">{SORT_LABELS[sortBy]}</span>
-        <ChevronDown aria-hidden="true" className="size-3 text-subtle" />
+        <ArrowUpDown aria-hidden="true" className="text-subtle" />
+        <span className="hidden @4xl/tasks-strip:inline">{SORT_LABELS[sortBy]}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className="hidden size-3 text-subtle @4xl/tasks-strip:inline"
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {TASK_LIST_SORT_OPTIONS.map(option => (

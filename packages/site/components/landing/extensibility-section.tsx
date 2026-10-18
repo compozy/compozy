@@ -1,5 +1,5 @@
 import { Eyebrow } from "@compozy/ui";
-import { ArrowUpRight, BookOpen, Box, FileCode2, Plug, Sparkles, Timer } from "lucide-react";
+import { ArrowUpRight, BookOpen, FileCode2, Plug, Sparkles, Timer } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { FeatureCard } from "./primitives/feature-card";
@@ -30,23 +30,15 @@ const FEATURES = [
     eyebrow: "Automation",
     title: "Cron + webhook + event triggers",
     description:
-      "Durable jobs and triggers the daemon owns. Schedule work. Delegate to peers. Track runs.",
+      "Durable jobs and triggers the daemon owns. Schedule work. Start sessions. Track runs.",
     cite: { href: "/docs/automation", label: "automation" },
-  },
-  {
-    icon: <Box className="size-4" />,
-    eyebrow: "Sandbox",
-    title: "Run agents away from the host filesystem",
-    description:
-      "Stay local when isolation isn't needed, or bind a workspace to a Daytona sandbox with explicit sync, lifecycle, and provider metadata.",
-    cite: { href: "/docs/sandbox/profiles", label: "sandbox profiles" },
   },
   {
     icon: <Plug className="size-4" />,
     eyebrow: "Extensions",
     title: "Install from local or marketplace",
     description:
-      "Extensions bundle skills, hooks, bridge adapters, and MCP servers. Ship them as zip files or via a GitHub registry.",
+      "Extensions bundle skills, hooks, tools, and MCP servers. Ship them as zip files or via a GitHub registry.",
     cite: { href: EXTENSIONS_DOCS_HREF, label: "extensions" },
   },
 ];
@@ -57,7 +49,7 @@ export function ExtensibilitySection() {
       <SectionHeader
         align="start"
         eyebrow="Extensibility"
-        title="Hooks, skills, automation, sandbox, extensions."
+        title="Hooks, skills, automation, extensions."
         description="The daemon is extensible at every seam you actually need. No plugins to write; contracts are plain files."
       />
 
@@ -81,7 +73,7 @@ export function ExtensibilitySection() {
             Every extensibility surface, in one reference.
           </h3>
           <p className="text-sm leading-relaxed text-muted">
-            Hooks, skills, automation, sandbox, extensions: schemas, CLI verbs, examples.
+            Hooks, skills, automation, extensions: schemas, CLI verbs, examples.
           </p>
           <Link
             href={EXTENSIONS_DOCS_HREF}

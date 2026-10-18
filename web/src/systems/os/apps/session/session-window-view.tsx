@@ -1,9 +1,10 @@
 import { lazy } from "react";
 import { AlertCircle } from "lucide-react";
 
-import { Spinner } from "@compozy/ui";
+import { Empty, Spinner } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
+import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
 import {
   canPromptSession,
   SessionChatRuntimeProvider,
@@ -36,7 +37,7 @@ export function SessionWindowView({
   error: Error | null;
   onDeleteSuccess: () => void;
 }) {
-  const sessionWorkspaceId = session?.workspace_id?.trim();
+  const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
   if (isLoading) {
     return (
@@ -49,10 +50,19 @@ export function SessionWindowView({
     );
   }
   if (!session || sessionWorkspaceId !== workspaceId) {
-    return <SessionWindowNotice message={error?.message ?? "Session not found"} />;
+    return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
   }
 
   const resolvedAgentName = session.agent_name || name;
+  if (sessionWorkspaceId === "") {
+    return (
+      <SessionReadOnlyTranscript
+        session={session}
+        agentName={resolvedAgentName}
+        liveTailEnabled={false}
+      />
+    );
+  }
   return (
     <SessionPromptRuntimeProvider key={id} canPrompt={canPromptSession(session)} session={session}>
       <SessionChatRuntimeProvider
@@ -74,13 +84,19 @@ export function SessionWindowView({
   );
 }
 
-export function SessionWindowNotice({ message }: { message: string }) {
+/**
+ * A session the window cannot show. The headline is always plain copy; a raw
+ * error message, when there is one, stays behind Empty's "Details" fold.
+ */
+export function SessionWindowNotice({ title, detail }: { title: string; detail?: string | null }) {
   return (
-    <div className="flex min-h-full items-center justify-center">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <AlertCircle className="size-6 text-danger" />
-        <p className="text-small-body text-subtle">{message}</p>
-      </div>
-    </div>
+    <Empty
+      className="min-h-full"
+      icon={AlertCircle}
+      role="alert"
+      size="compact"
+      title={title}
+      cause={detail || undefined}
+    />
   );
 }

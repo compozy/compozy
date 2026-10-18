@@ -4,7 +4,11 @@ import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/
 import type { SessionBusyInputAction } from "./lib/session-busy-input";
 import type { SessionSendOutcome } from "./lib/session-send-outcome";
 
-export type SessionsResponse = OperationResponse<"listSessions", 200>;
+export type SessionCatalogPageResponse = OperationResponse<"listSessions", 200>;
+/** Counted consumers require a total; count-free cursor reads use the wire envelope. */
+export type SessionsResponse = Omit<SessionCatalogPageResponse, "page"> & {
+  page: SessionCatalogPageResponse["page"] & { total: number };
+};
 type SessionCatalogStreamPayload = OperationResponse<"streamSessionCatalog", 200>;
 export type SessionCatalogEventPayload = Extract<SessionCatalogStreamPayload, { kind: string }>;
 export type SessionAttentionEventPayload = Extract<SessionCatalogStreamPayload, { from: string }>;
@@ -67,6 +71,9 @@ export type TranscriptDeltaPayload = NonNullable<SessionStreamResponse["transcri
 export type SessionConsumerDegradedPayload = NonNullable<
   SessionStreamResponse["consumer_degraded"]
 >;
+/** Parent-stream roster frames (`_dx.md` Live updates): the snapshot after subscribe, then row changes. */
+export type SubagentsSnapshotPayload = NonNullable<SessionStreamResponse["subagents_snapshot"]>;
+export type SubagentUpdatedPayload = NonNullable<SessionStreamResponse["subagent_updated"]>;
 export type SessionBadge = SessionPayload["badge"];
 /** Sanitized pending question / permission projection embedded on session payloads. */
 export type SessionPendingInteraction = SessionPayload["pending_interactions"][number];
@@ -133,6 +140,12 @@ export type SessionStopResult =
  * finished when the stop arrived — US-009.EC-2).
  */
 export type SessionPromptCancelResult = OperationResponse<"cancelSessionPrompt", 200>;
+/**
+ * The 202 receipt for a compaction request (experimental). It only says the
+ * agent's compaction command was accepted; the outcome arrives as the session's
+ * Compaction item and usage markers.
+ */
+export type SessionCompactionReceipt = OperationResponse<"compactSession", 202>;
 type SessionPromptEnvelope = Extract<SessionPromptResponse, { prompt: unknown }>;
 export type SessionPromptPayload = SessionPromptEnvelope["prompt"];
 export type SessionGoalCommandResult = NonNullable<SessionPromptPayload["goal"]>;
@@ -150,6 +163,8 @@ export interface SessionPromptDirectTurn {
 export type SessionPromptSendResult = SessionPromptResult | SessionPromptDirectTurn;
 export type SessionInputsResponse = OperationResponse<"listSessionInputs", 200>;
 export type SessionInputPayload = SessionInputsResponse["inputs"][number];
+/** The daemon-stamped sender of a session message (`PromptOriginMeta`); absent for operator input. */
+export type PromptOriginPayload = NonNullable<SessionInputPayload["origin"]>;
 /** Daemon-owned queue summary riding the queue list: how many are parked and the cap. */
 export type SessionQueueSummary = NonNullable<SessionInputsResponse["queue"]>;
 export type SessionInputClearResponse = OperationResponse<"clearSessionInputs", 200>;
@@ -161,10 +176,6 @@ export type SessionGoalSnapshot = NonNullable<SessionGoalResponse["goal"]>;
 export type SessionGoalContext = SessionGoalSnapshot["context"];
 export type SessionGoalStatus = SessionGoalSnapshot["status"];
 export type GoalPromptMeta = NonNullable<SessionEventPayload["goal"]>;
-
-export type SessionLedgerResponse = OperationResponse<"getMemorySessionLedger", 200>;
-export type SessionLedgerMeta = SessionLedgerResponse["meta"];
-export type SessionLedgerEvent = SessionLedgerResponse["events"][number];
 
 export type CreateSessionParams = OperationRequestBody<"createSession">;
 export type ForkSessionToWorktreeParams = OperationRequestBody<"forkSessionToWorktree">;
@@ -207,7 +218,7 @@ export interface ClarifyEventRequest {
   question: string;
   choices?: string[];
   asked_at?: string;
-  deadline?: string;
+  deadline?: string | null;
 }
 
 /**
@@ -274,6 +285,7 @@ export interface PromptDeliveryPayload {
   turn_id: string;
   sent_at: string;
   estimate: string;
+  /** `null` when the delivery sent no sections (a literal maintenance prompt). */
   spans: Array<{
     key: string;
     kind: string;
@@ -284,7 +296,7 @@ export interface PromptDeliveryPayload {
     unchanged?: boolean;
     startup_dedup?: boolean;
     hook_modified?: boolean;
-  }>;
+  }> | null;
 }
 
 export interface AgentEventPayload {
@@ -317,9 +329,26 @@ export interface CompozyPermissionData extends AgentEventPayload {
   raw?: Record<string, unknown>;
 }
 
+/**
+ * One observed agent compaction, carried by a `data-compozy-compaction` transcript
+ * part (`internal/transcript/projection_compaction.go`). `status` is
+ * `in_progress | completed | failed | cancelled` or a vendor value passed through
+ * verbatim; the item updates in place under the same `compaction_id`.
+ */
+export interface SessionCompactionItemData {
+  kind: "compaction";
+  compaction_id: string;
+  status: string;
+  summary?: string;
+  error?: string;
+  started_at: string;
+  ended_at?: string;
+}
+
 export interface SessionDataParts extends Record<string, unknown> {
   "compozy-event": AgentEventPayload;
   "compozy-permission": CompozyPermissionData;
+  "compozy-compaction": SessionCompactionItemData;
 }
 
 export type SessionMessage = AIUIMessage<unknown, SessionDataParts>;
@@ -391,3 +420,8 @@ export type SessionTranscriptOutlineResponse = OperationResponse<
   200
 >;
 export type SessionTranscriptOutlineEntry = SessionTranscriptOutlineResponse["entries"][number];
+
+/* Session folders and manual order (issue #781): daemon-owned sidebar layout. */
+export type SessionFoldersResponse = OperationResponse<"listSessionFolders", 200>;
+export type SessionFolderPayload = SessionFoldersResponse["folders"][number];
+export type ReorderSessionsRequest = OperationRequestBody<"reorderSessions">;

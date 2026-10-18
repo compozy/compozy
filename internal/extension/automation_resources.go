@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -81,6 +82,11 @@ func LoadAutomationResources(
 			jobOrigins[normalized.Name] = file
 		}
 		for _, trigger := range document.Triggers {
+			if strings.TrimSpace(trigger.Event) == "memory.consolidated" {
+				slog.Warn("extension.retired_entries_ignored", "extension", extensionName,
+					"entries", []string{"memory.consolidated"}, "resource", file)
+				continue
+			}
 			normalized, err := normalizeExtensionTrigger(trigger)
 			if err != nil {
 				return nil, nil, wrapResourceValidationError(

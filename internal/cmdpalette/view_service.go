@@ -19,8 +19,8 @@ type ViewDescriptor struct {
 	ID        string          `json:"id"`
 	Title     string          `json:"title"`
 	Kind      ViewKind        `json:"kind"`
-	Source    *ViewToolSource `json:"source,omitempty"`
-	Program   bool            `json:"program,omitempty"`
+	Source    *ViewToolSource `json:"source,omitzero"`
+	Program   bool            `json:"program,omitzero"`
 	Extension string          `json:"extension,omitempty"`
 }
 

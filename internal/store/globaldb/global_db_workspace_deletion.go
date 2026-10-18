@@ -135,8 +135,8 @@ func workspaceDeletionIntentFromGenerated(
 	}
 	workspace, err := workspaceFromGenerated(sqlcgen.Workspace{
 		ID: row.WorkspaceID, RootDir: row.RootDir, AddDirs: row.AddDirs, Name: row.Name,
-		DefaultAgent: row.DefaultAgent, SandboxRef: row.SandboxRef,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		DefaultAgent: row.DefaultAgent,
+		CreatedAt:    row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}, nil)
 	if err != nil {
 		return compozyworkspace.DeletionIntent{}, err

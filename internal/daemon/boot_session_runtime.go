@@ -1,0 +1,153 @@
+package daemon
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+)
+
+const autoTitleDeadline = 60 * time.Second
+
+func (d *Daemon) bootSessionRuntime(
+	ctx context.Context,
+	state *bootState,
+	cleanup *bootCleanup,
+) error {
+	sessionWakeBridge, err := newSessionWakeBridge(ctx, func() sessionWakeSessionManager {
+		if state == nil || state.sessions == nil {
+			return nil
+		}
+		return state.sessions
+	}, state.logger)
+	if err != nil {
+		return fmt.Errorf("daemon: create session wake bridge: %w", err)
+	}
+	state.sessionWakeBridge = sessionWakeBridge
+	cleanup.add(sessionWakeBridge.shutdown)
+
+	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
+	if err != nil {
+		return fmt.Errorf("daemon: create session manager: %w", err)
+	}
+	cleanup.add(func(cleanupCtx context.Context) error {
+		return d.shutdownSessionManager(cleanupCtx, sessions)
+	})
+	state.sessions = sessions
+	if err := registerTerminalPromptRunEnd(sessions, state.terminals); err != nil {
+		return err
+	}
+	if state.notifier != nil {
+		state.notifier.setSessionProfileResolver(
+			daemonSessionProfileResolver(sessions, "daemon: hook session profile is unavailable"),
+		)
+		if state.terminals != nil {
+			state.notifier.AddTaskRunTerminalObserver(&terminalRunLifecycleObserver{
+				terminals: state.terminals, sessions: sessions,
+			})
+		}
+	}
+	if state.harnessRecorder != nil {
+		state.harnessRecorder.SetProfileResolver(
+			daemonSessionProfileResolver(sessions, "daemon: harness session profile is unavailable"),
+		)
+	}
+	if err := d.bootWorkspaceAccess(state, sessions); err != nil {
+		return err
+	}
+	if err := d.bootClarifyBridge(state, cleanup); err != nil {
+		return err
+	}
+	if err := configureWorkspaceDeletionLifecycle(ctx, state, sessions, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootAutoTitleRuntime(ctx, state, sessions, cleanup); err != nil {
+		return err
+	}
+	state.deps = d.runtimeDeps(ctx, state, sessions)
+	resourceService, err := d.buildResourceService(state)
+	if err != nil {
+		return err
+	}
+	state.deps.Resources = resourceService
+	return nil
+}
+
+func daemonSessionProfileResolver(
+	sessions SessionManager,
+	unavailableMessage string,
+) func(context.Context, string) (string, error) {
+	return func(ctx context.Context, sessionID string) (string, error) {
+		info, err := sessions.Status(ctx, sessionID)
+		if err != nil {
+			return "", err
+		}
+		if info == nil {
+			return "", errors.New(unavailableMessage)
+		}
+		return info.ProfileID, nil
+	}
+}
+
+func (d *Daemon) bootClarifyBridge(state *bootState, cleanup *bootCleanup) error {
+	if state == nil || state.sessions == nil {
+		return errors.New("daemon: session manager is required before clarification broker")
+	}
+	publisher, ok := state.sessions.(clarifyEventPublisher)
+	if !ok {
+		return errors.New("daemon: session manager does not implement clarification event publication")
+	}
+	bridge, err := newClarifyBridge(
+		state.cfg.Tools.Clarify.Timeout,
+		publisher,
+		extensionEventSummaryStore(state.registry),
+		state.logger,
+		withClarifyClock(d.now),
+		withClarifySessionProfileResolver(clarifySessionProfileResolver(state.sessions)),
+		withClarifyKeepalive(clarifyKeepaliveForSessions(state.sessions)),
+	)
+	if err != nil {
+		return fmt.Errorf("daemon: create clarification broker: %w", err)
+	}
+	cleanup.add(bridge.Close)
+	state.clarify = bridge
+	return nil
+}
+
+func (d *Daemon) bootAutoTitleRuntime(
+	ctx context.Context,
+	state *bootState,
+	sessions SessionManager,
+	cleanup *bootCleanup,
+) error {
+	if state == nil {
+		return nil
+	}
+	titleSessions, ok := sessions.(autoTitleSessionManager)
+	if !ok {
+		return errors.New("daemon: session manager does not implement automatic title lifecycle")
+	}
+	deadline := autoTitleDeadline
+	generator := newForkedAutoTitleGenerator(titleSessions, roleResolverForState(state), deadline, state.logger)
+	runtime := newAutoTitleRuntime(titleSessions, generator, deadline, state.logger)
+	if err := runtime.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start automatic title runtime: %w", err)
+	}
+	cleanup.add(runtime.Shutdown)
+	state.runtimeWorkers.autoTitle = runtime
+	return nil
+}
+
+type workspaceRemovalPreparer interface {
+	PrepareWorkspaceRemoval(context.Context, string) (workspacepkg.UnregisterPreparation, error)
+}
+
+type autoTitleSessionManager interface {
+	autoTitleSessions
+	autoTitleSpawnSessions
+}
+
+var _ autoTitleSessionManager = (*session.Manager)(nil)

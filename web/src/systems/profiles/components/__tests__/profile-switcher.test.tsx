@@ -1,17 +1,16 @@
-// Suite: menubar profile switcher
+// Suite: rail-foot profile switcher
 // Invariant: the switcher is quiet until a second profile exists, answers the boundary
 // question in one sentence, marks the active context, and refuses to offer a profile the
 // runtime would reject.
 // Boundary IN: the switcher composition and its menu.
 // Boundary OUT: selection persistence (hook suites) and row projection (profile-rows suite).
 
-import { render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
-import { PROFILE_BOUNDARY_ANSWER } from "../../lib/profile-copy";
 import { toProfileRows } from "../../lib/profile-rows";
 import {
   defaultProfileFixture,
@@ -67,6 +66,11 @@ function renderSwitcher({
   );
 }
 
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
 describe("ProfileSwitcher", () => {
   it("Should render a neutral icon button without a redundant aggregate while only default exists", async () => {
     const user = userEvent.setup();
@@ -79,23 +83,29 @@ describe("ProfileSwitcher", () => {
     expect(screen.queryByTestId("profile-switcher-all")).not.toBeInTheDocument();
   });
 
-  it("Should become an identity element once a second profile exists", () => {
-    renderSwitcher();
-    const trigger = screen.getByTestId("os-menubar-profile");
-    expect(trigger).toHaveTextContent("marketing");
-    expect(trigger).toHaveAccessibleName("Profile: marketing");
+  it("Should become an identity element once a second profile exists", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    try {
+      renderSwitcher();
+      const trigger = screen.getByTestId("os-menubar-profile");
+      expect(trigger).toHaveAccessibleName("Profile: marketing");
+      expect(trigger.querySelector('[data-slot="profile-glyph"]')).toBeInTheDocument();
+
+      await user.hover(trigger);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(screen.getByText("marketing")).toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
   });
 
   it("Should name the aggregate rather than a profile when it is on", () => {
     renderSwitcher({ aggregate: true });
-    expect(screen.getByTestId("os-menubar-profile")).toHaveTextContent("All profiles");
-  });
-
-  it("Should answer the boundary question in one sentence", async () => {
-    const user = userEvent.setup();
-    renderSwitcher();
-    await user.click(screen.getByTestId("os-menubar-profile"));
-    expect(await screen.findByText(PROFILE_BOUNDARY_ANSWER)).toBeInTheDocument();
+    expect(screen.getByTestId("os-menubar-profile")).toHaveAccessibleName("Profile: All profiles");
   });
 
   it("Should switch to the chosen profile", async () => {
@@ -176,6 +186,23 @@ describe("ProfileSwitcher", () => {
     await user.click(await screen.findByTestId("profile-switcher-edit-default"));
     expect(onEditProfile).toHaveBeenCalledWith("default");
     expect(onSelectProfile).not.toHaveBeenCalled();
+  });
+
+  // Invariant: a pointer open rings no row control, and the menu still takes
+  // arrow keys. Owning layer: the switcher composition (this suite).
+  it("Should open by pointer onto the menu, not a ringed row action, and keep arrow keys", async () => {
+    const user = userEvent.setup();
+    renderSwitcher({ onEditProfile: () => {} });
+    await user.click(screen.getByTestId("os-menubar-profile"));
+    const menu = await screen.findByTestId("os-menubar-profile-menu");
+    const root = menu.querySelector<HTMLElement>("[cmdk-root]");
+    await waitFor(() => expect(root).toHaveFocus());
+    expect(screen.getByTestId("profile-switcher-edit-default")).not.toHaveFocus();
+
+    const selected = () => menu.querySelector('[cmdk-item][data-selected="true"]');
+    const first = selected();
+    await user.keyboard("{ArrowDown}");
+    expect(selected()).not.toBe(first);
   });
 
   it("Should demote archive management to Settings rather than listing it here", async () => {

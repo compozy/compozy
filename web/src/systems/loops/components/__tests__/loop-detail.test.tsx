@@ -53,8 +53,7 @@ function renderDetail(
     onOpenEditor: noop,
     onDelete: noop,
     onDeleteReset: noop,
-    onAddTrigger: noop,
-    onAddSchedule: noop,
+    onAutomate: noop,
     ...handlers,
   };
   renderWithTopbar(
@@ -88,15 +87,15 @@ describe("LoopDetailView", () => {
     expect(screen.getByTestId("loop-dag")).toBeInTheDocument();
     expect(screen.getByTestId("loop-recent-runs")).toBeInTheDocument();
     expect(screen.getAllByTestId("loop-recent-run-duration")).toHaveLength(recentRuns.length);
-    expect(screen.getAllByTestId("loop-recent-run-best")).toHaveLength(recentRuns.length);
-    expect(
-      screen.getAllByTestId("loop-recent-run-best").every(cell => cell.textContent === "—")
-    ).toBe(true);
+    // Run ids, rounds, and best scores live on the run page, not in this compact list.
+    expect(screen.queryByTestId("loop-recent-run-best")).not.toBeInTheDocument();
+    expect(screen.queryByText(recentRuns[0].id)).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-declared-inputs")).toBeInTheDocument();
     expect(screen.getByTestId("loop-start-bindings")).toBeInTheDocument();
     expect(screen.getByTestId("loop-limits")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-versions")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-stats")).toBeInTheDocument();
+    // Version rides the lede tag and the 30-day stats ride the lede meta, not rail cards.
+    expect(screen.queryByTestId("loop-versions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-stats")).not.toBeInTheDocument();
   });
 
   it("Should render both implementation modes in order", () => {
@@ -119,17 +118,18 @@ describe("LoopDetailView", () => {
     ]);
   });
 
-  it("Should list the six possible endings as text and fold the 30d stats behind their gist", () => {
+  it("Should fold the possible endings in plain words and state the 30d stats in the lede", () => {
     renderDetail();
+    expect(screen.queryByTestId("loop-terminal-endings")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
     expect(screen.getByTestId("loop-terminal-endings")).toHaveTextContent(
-      "done · no-op · blocked · failed · exhausted · stalled"
+      "Done · Nothing to do · Blocked · Failed · Exhausted · Stalled"
     );
     expect(screen.queryByTestId("loop-terminal-chip")).not.toBeInTheDocument();
-    const stats = screen.getByTestId("loop-stats");
-    expect(stats).toHaveTextContent("90% success · 42 runs");
-    openRail(/Last 30 days/);
-    expect(stats).toHaveTextContent("Success rate");
-    expect(stats).toHaveTextContent("Total runs");
+    const header = screen.getByTestId("loop-detail-header");
+    expect(header).toHaveTextContent("90% success · 42 runs this month");
+    expect(header).not.toHaveTextContent("compozy.loop/v1");
+    expect(header).toHaveTextContent("13 steps");
   });
 
   it("Should invoke the header actions", () => {
@@ -139,13 +139,47 @@ describe("LoopDetailView", () => {
     renderDetail({ onRun, onConfigure, onOpenEditor });
     fireEvent.click(screen.getByTestId("loop-run-action"));
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));
-    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Fork & edit");
+    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Copy and edit");
     fireEvent.click(screen.getByTestId("loop-edit-action"));
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));
     fireEvent.click(screen.getByTestId("loop-configure-action"));
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onConfigure).toHaveBeenCalledTimes(1);
     expect(onOpenEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should offer one Automate menu with the starts the Loop allows [UT-114]", async () => {
+    const onAutomate = vi.fn();
+    const automatable = {
+      ...loop,
+      definition: {
+        ...loop.definition,
+        start: [{ kind: "manual" }, { kind: "schedule" }, { kind: "webhook" }],
+      },
+    };
+    renderDetail({ onAutomate }, savedConfig, automatable);
+
+    const actions = screen.getByTestId("loop-detail-actions");
+    expect(actions).not.toHaveTextContent("Add trigger");
+    expect(actions).not.toHaveTextContent("Add schedule");
+    fireEvent.click(within(actions).getByTestId("loop-automate-action"));
+    const menu = await screen.findByTestId("loop-automate-menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent)
+    ).toEqual(["On a schedule", "When something happens"]);
+    fireEvent.click(within(menu).getByText("When something happens"));
+    expect(onAutomate).toHaveBeenCalledExactlyOnceWith("event");
+  });
+
+  it("Should not offer Automate when the Loop only starts by hand", () => {
+    const manualOnly = {
+      ...loop,
+      definition: { ...loop.definition, start: [{ kind: "manual" }, { kind: "cli" }] },
+    };
+    renderDetail({}, savedConfig, manualOnly);
+    expect(screen.queryByTestId("loop-automate-action")).not.toBeInTheDocument();
   });
 
   it("Should require the exact Loop name before deleting a workspace definition", () => {
@@ -173,7 +207,8 @@ describe("LoopDetailView", () => {
 
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));
     expect(screen.queryByTestId("loop-delete-action")).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Fork & edit");
+    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Copy and edit");
+    expect(screen.getByTestId("loop-open-builder")).toHaveTextContent("Copy and edit");
   });
 
   it("Should render the version without an unowned publish-state suffix", () => {
@@ -187,9 +222,11 @@ describe("LoopDetailView", () => {
     openRail(/Limits/);
     const limits = within(screen.getByTestId("loop-limits"));
 
-    expect(limits.getByText("Iteration cap").parentElement).toHaveTextContent("3 / 100");
-    expect(limits.getByText("No-progress window").parentElement).toHaveTextContent("2 / 10");
+    expect(limits.getByText("Max rounds").parentElement).toHaveTextContent("3");
+    expect(limits.getByText("3").closest("[title]")).toHaveAttribute("title", "Up to 100");
+    expect(limits.getByText("Rounds without progress").parentElement).toHaveTextContent("2");
     expect(limits.queryByText("50")).not.toBeInTheDocument();
-    expect(limits.getByText("escalate")).toBeInTheDocument();
+    expect(limits.getByText("Pause and ask me")).toBeInTheDocument();
+    expect(limits.queryByText("escalate")).not.toBeInTheDocument();
   });
 });

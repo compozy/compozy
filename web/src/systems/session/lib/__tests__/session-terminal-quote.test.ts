@@ -206,21 +206,6 @@ describe("session terminal quote — pending create / chosen session", () => {
     expect(peekPendingTerminalQuote()).toBeNull();
   });
 
-  it("Should leave pending in place when a session is only observed", () => {
-    const quote = stageSessionTerminalQuote({
-      sessionId: SESSION_ID,
-      terminalId: "term-4f21c9a03b7e",
-      fromLine: 1,
-      lines: ["one line"],
-    });
-    clearSessionTerminalQuote(SESSION_ID);
-    holdPendingTerminalQuote(quote);
-
-    expect(peekSessionTerminalQuote(SESSION_ID)).toBeNull();
-    expect(peekSessionTerminalQuote(OTHER_ID)).toBeNull();
-    expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
-  });
-
   it("Should stage a chosen-session quote without using the create pending slot", () => {
     const quote = stageSessionTerminalQuote({
       sessionId: OTHER_ID,

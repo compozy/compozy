@@ -77,15 +77,15 @@ func BenchmarkSessionPayloadsFromInfos(b *testing.B) {
 	baseTime := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
 	for i := range 256 {
 		infos = append(infos, &session.Info{
-			ID:                   fmt.Sprintf("sess-%03d", i),
-			Name:                 fmt.Sprintf("Session %d", i),
-			AgentName:            "codex",
-			WorkspaceID:          "ws-alpha",
-			Workspace:            "/tmp/workspace",
-			NetworkParticipation: coreTestLiveParticipation("ws-alpha", "general"),
-			State:                session.StateActive,
-			CreatedAt:            baseTime,
-			UpdatedAt:            baseTime.Add(time.Duration(i) * time.Second),
+			ID:          fmt.Sprintf("sess-%03d", i),
+			Name:        fmt.Sprintf("Session %d", i),
+			AgentName:   "codex",
+			WorkspaceID: "ws-alpha",
+			Workspace:   "/tmp/workspace",
+
+			State:     session.StateActive,
+			CreatedAt: baseTime,
+			UpdatedAt: baseTime.Add(time.Duration(i) * time.Second),
 		})
 	}
 

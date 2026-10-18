@@ -27,7 +27,6 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
     budget_wall_sec: 0,
     budget_on_exceeded: "halt",
     reattempt_strategy: "failed_only",
-    resolved_network_participation: null,
     created_at: "2026-07-05T12:00:00Z",
     started_at: "2026-07-05T12:00:00Z",
     last_progress_at: "2026-07-05T12:00:00Z",
@@ -78,7 +77,7 @@ describe("buildRunsRoster", () => {
     expect(model.groups[0].rows[0]).toMatchObject({
       needsYou: false,
       progressLabel: "3 rounds",
-      statusPulse: false,
+      statusStill: true,
       summaryLine: null,
     });
   });
@@ -109,8 +108,8 @@ describe("buildRunsRoster", () => {
     const row = model.groups[0].rows[0];
     expect(row.needsYou).toBe(true);
     expect(row.statusLabel).toBe("Needs you");
-    // Warning on the page; danger stays with failure and the attention bell.
-    expect(row.statusTone).toBe("warning");
+    // The needs-you signal on the page; failure keeps its own mark.
+    expect(row.statusGlyph).toBe("attention");
     expect(row.summaryLine).toBe("an approval is waiting on “aplicar-correcoes”");
     expect(row.progressLabel).toBe("step 4 of 6");
   });
@@ -182,7 +181,7 @@ describe("loop-runs-view", () => {
     expect(formatRunInputs(undefined)).toBe("");
   });
 
-  it("Should keep origin kind and reference from the same recorded pair", () => {
+  it("Should keep origin kind and reference from the same recorded pair in plain words", () => {
     expect(
       loopRunOriginLine({
         started_origin_kind: "schedule",
@@ -190,7 +189,7 @@ describe("loop-runs-view", () => {
         started_by_kind: "user",
         started_by_ref: "pedro",
       })
-    ).toBe("schedule · nightly");
+    ).toBe("Scheduled · nightly");
     expect(
       loopRunOriginLine({
         started_origin_kind: "schedule",
@@ -198,7 +197,16 @@ describe("loop-runs-view", () => {
         started_by_kind: "user",
         started_by_ref: "pedro",
       })
-    ).toBe("user · pedro");
+    ).toBe("Started by you · pedro");
+    // A session origin names where it came from, never the session id.
+    expect(
+      loopRunOriginLine({
+        started_origin_kind: "session",
+        started_origin_ref: "sess_01J9ABCDEF",
+        started_by_kind: "",
+        started_by_ref: "",
+      })
+    ).toBe("From a session");
   });
 
   it("Should model the budget mini-bar: uncapped shows no percent, capped warns and dangers near the ceiling", () => {

@@ -440,6 +440,8 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 	})
 
 	t.Run("Should use one desired automation plan for preview and enable", func(t *testing.T) {
+		t.Parallel()
+
 		// This ordered lifecycle assertion owns one mutable registry instance.
 		db := openDaemonTestGlobalDB(t)
 		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, false)
@@ -536,6 +538,8 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 	})
 
 	t.Run("Should refuse the exact authored and reserved agent conflicts shown by preview", func(t *testing.T) {
+		t.Parallel()
+
 		// This ordered lifecycle assertion owns one mutable registry instance.
 		db := openDaemonTestGlobalDB(t)
 		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, false)
@@ -753,6 +757,8 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 	})
 
 	t.Run("Should report only enabled automation deltas for an enabled extension", func(t *testing.T) {
+		t.Parallel()
+
 		// This preview reads one stable installed-extension snapshot.
 		db := openDaemonTestGlobalDB(t)
 		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, true)
@@ -800,6 +806,8 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 	})
 
 	t.Run("Should reject preview without the required automation dependency", func(t *testing.T) {
+		t.Parallel()
+
 		db := openDaemonTestGlobalDB(t)
 		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, false)
 		service := &daemonExtensionService{
@@ -875,6 +883,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 
 		db := openDaemonTestGlobalDB(t)
 		installDaemonTestExtension(t, db, "other", daemonTestExtensionOptions{}, true)
+		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, true)
 		profiles, err := profilepkg.NewManager(
 			profilepkg.WithStore(db),
 			profilepkg.WithHomePaths(testHomePaths(t)),
@@ -892,6 +901,11 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("CreateDeclared() error = %v", err)
+		}
+		if _, err := profiles.CreateDeclared(t.Context(), profilepkg.DeclaredInput{
+			Extension: "kit", Name: created.Name,
+		}); err != nil {
+			t.Fatalf("CreateDeclared(binding) error = %v", err)
 		}
 		payload := contract.ExtensionPayload{}
 		manifest := &extensionpkg.Manifest{
@@ -984,7 +998,7 @@ func inventoryTestTrigger(name string, enabled bool) automationpkg.Trigger {
 func inventoryTestResourceCodecs(t *testing.T) *resources.CodecRegistry {
 	t.Helper()
 	codecs := resources.NewCodecRegistry()
-	if err := registerDaemonResourceCodecs(codecs, nil); err != nil {
+	if err := registerDaemonResourceCodecs(codecs); err != nil {
 		t.Fatalf("registerDaemonResourceCodecs() error = %v", err)
 	}
 	return codecs

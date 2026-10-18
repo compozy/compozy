@@ -13,7 +13,7 @@ const meta: Meta<typeof PillGroup> = {
     docs: {
       description: {
         component:
-          "Canonical segmented control. Rewritten — borderless `--canvas-soft` track at `--radius-md`, Geist sentence-case 12/510/-0.005em segments (no mono-uppercase), active state lifts to `--elevated` plus the `--highlight` inset shadow. Count badges render at 3px corners on the neutral `--badge-fill`.",
+          "Canonical segmented control, drawn as a row of pill segments with no track. Inactive segments are `muted` and step to `surface-2` on hover; the active segment sits on `surface-2` with `shadow-card`. Counts render as quiet `subtle` numerals beside the label.",
       },
     },
   },
@@ -57,7 +57,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          "Default `md` size with the first segment active. Renders the new sentence-case Geist label and the lifted `--elevated` + `--highlight` active surface.",
+          "Default `md` size with the first segment active on its `surface-2` + `shadow-card` pill.",
       },
     },
   },
@@ -69,7 +69,7 @@ export const ActiveSecond: Story = {
     docs: {
       description: {
         story:
-          "Active state on the middle segment — confirms the `--highlight` inset shadow lifts the chip evenly regardless of position.",
+          "Active state on the middle segment — the pill lifts the same way regardless of position.",
       },
     },
   },
@@ -81,11 +81,43 @@ export const WithCounts: Story = {
     docs: {
       description: {
         story:
-          "Segments with count badges. Badges render as 3px-radius neutral chips on `--badge-fill` with `--muted` text and tabular-nums (replaces the prior solid-accent treatment).",
+          "Segments with counts. The count is a `subtle` tabular numeral beside the label (All 6 · Running 1 · Needs you 2), never a filled chip.",
       },
     },
   },
   render: () => <PillGroupHarness initial="inbox" />,
+};
+
+type TaskFilter = "all" | "running" | "needs-you";
+
+function TaskFiltersHarness() {
+  const [value, setValue] = useState<TaskFilter>("all");
+  return (
+    <PillGroup
+      value={value}
+      onChange={setValue}
+      aria-label="Task filters"
+      items={[
+        {
+          value: "all",
+          label: (
+            <>
+              <LayoutList aria-hidden="true" />
+              All
+            </>
+          ),
+          badge: 6,
+        },
+        { value: "running", label: "Running", badge: 1 },
+        { value: "needs-you", label: "Needs you", badge: 2 },
+      ]}
+    />
+  );
+}
+
+/** The shell-rail task-list filter row: pill segments with quiet counts, no track. */
+export const TaskFilters: Story = {
+  render: () => <TaskFiltersHarness />,
 };
 
 export const Selection: Story = {
@@ -109,7 +141,7 @@ export const SizeSm: Story = {
     docs: {
       description: {
         story:
-          "`size='sm'` shrinks the segment height to `--height-pill-group-segment-sm` (20px) while keeping the same Geist type ramp.",
+          "`size='sm'` shrinks the segment height to `--height-pill-group-segment-sm` while keeping the same type ramp.",
       },
     },
   },

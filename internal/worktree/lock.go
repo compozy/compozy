@@ -44,13 +44,10 @@ func (l *RepositoryLocks) Acquire(ctx context.Context, commonDir string) (func()
 			l.entered(entry)
 		}
 	}
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			entry.token <- struct{}{}
-			l.release(key, entry)
-		})
-	}, nil
+	return sync.OnceFunc(func() {
+		entry.token <- struct{}{}
+		l.release(key, entry)
+	}), nil
 }
 
 func (l *RepositoryLocks) reserve(key string) (*repositoryLock, bool, error) {

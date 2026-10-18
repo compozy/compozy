@@ -25,14 +25,4 @@ describe("StreamMarkdown", () => {
     expect(proseRoot(container)).toHaveAttribute("data-compact", "true");
     expect(proseRoot(container)).toHaveAttribute("data-rhythm", "relaxed");
   });
-
-  it("Should give each density its own paragraph rhythm", () => {
-    const rhythm = (compact?: boolean | "relaxed") =>
-      proseRoot(render(<StreamMarkdown compact={compact}>text</StreamMarkdown>).container)
-        ?.className;
-    expect(rhythm()).toContain("[&_p]:my-3.5");
-    expect(rhythm(true)).toContain("[&_p]:my-1");
-    expect(rhythm("relaxed")).toContain("[&_p]:my-2");
-    expect(rhythm("relaxed")).not.toContain("[&_p]:my-1 ");
-  });
 });

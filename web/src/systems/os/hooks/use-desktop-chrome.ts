@@ -84,7 +84,12 @@ export function useDesktopChrome(
   // reload (US-022.AC-3).
   const configWorkspaceId =
     activeWorkspaceId === GLOBAL_DESKTOP_WORKSPACE_ID ? null : activeWorkspaceId;
-  const configQuery = useQuery(windowManagerConfigOptions(configWorkspaceId, client.clientId));
+  // The read names this client, so it waits until the client is attached to
+  // the workspace it is about to present (a switch re-registers it).
+  const configQuery = useQuery({
+    ...windowManagerConfigOptions(configWorkspaceId, client.clientId),
+    enabled: client.status === "registered",
+  });
   const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   const [terminalClose] = useState(() => new TerminalWindowClose());
@@ -183,8 +188,8 @@ export function useDesktopChrome(
         });
       }
     },
-    onClientCommand: command => {
-      return clientCommandChannel.execute(command.op, command.payload);
+    onClientCommand: (command, reply) => {
+      return clientCommandChannel.execute(command.op, command.payload, reply);
     },
     onClientInvalidated: client.reregister,
     onError: error => manager.setLoadError(streamError(error)),

@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	classifyConsolidateKey = "consolidate"
-	classifyRestartKey     = "restart"
-	restartScopeDaemon     = "daemon"
+	classifyRestartKey = "restart"
+	restartScopeDaemon = "daemon"
 )
 
 // ClassifyMutation maps one section or collection mutation onto the v1 runtime-apply matrix.
@@ -40,15 +39,6 @@ func classifyAction(section SectionName, action string) (MutationClassification,
 	switch section {
 	case SectionGeneral:
 		if action == classifyRestartKey {
-			return MutationClassification{
-				Behavior:  MutationBehaviorActionTrigger,
-				Applied:   true,
-				Lifecycle: lifecycle.Live,
-				DiffClass: lifecycle.DiffClassForRoot(string(section)),
-			}, nil
-		}
-	case SectionMemory:
-		if action == classifyConsolidateKey {
 			return MutationClassification{
 				Behavior:  MutationBehaviorActionTrigger,
 				Applied:   true,

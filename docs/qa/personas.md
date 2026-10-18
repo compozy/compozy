@@ -291,14 +291,14 @@ persona:
 ```
 
 - **Who:** the reviewer/auditor who reads the longest finished sessions in the corpus for review or compliance. Cares about the transcript *UI language* rewrite (tasks 25–33, 36–37): grouping, inline inspection, copy affordances, truthful usage. Related to Marina's reviewer archetype but desktop and transcript-deep, not mobile approval.
-- **What they reveal:** ungrouped 44px tool-call cards, output hidden behind default-closed chips, missing `+N previous tool calls`/turn folds, lossy or missing inline Input/Output, no copy affordance, a permanently-empty Usage tab presented as real data, false success/danger glyphs, gaps/duplicates when paging older history, and knowledge catalogs that hide old entries or retain ghost headers after interrupted derived synchronization.
-- **Owns journeys:** J-14 read-a-finished-transcript (primary) and J-25 browse-and-recover-knowledge.
+- **What they reveal:** ungrouped 44px tool-call cards, output hidden behind default-closed chips, missing `+N previous tool calls`/turn folds, lossy or missing inline Input/Output, no copy affordance, a permanently-empty Usage tab presented as real data, false success/danger glyphs, and gaps/duplicates when paging older history.
+- **Owns journeys:** J-14 read-a-finished-transcript (primary).
 
 ---
 
 # Runtime Administration persona
 
-Added for the hermes-comparison program (2026-07-19), which introduced a real installation-administrator audience: daemon lifecycle (drain/undrain), doctor and memory observability, the default-on redaction posture, and spend provenance. Vera owns acquisition *policy*; Dora owns the *runtime installation*. The hermes user-story persona "Administrator" maps to Dora; "Operator" maps to Théo (session surface) or Bruno (delivery/automation surface); "Autonomy operator" maps to Bruno; "Managed agent" and "External integrator" map to Ada (structured, non-human lane — the external MCP client is Ada driving through a third-party client instead of native tools).
+Added for the hermes-comparison program (2026-07-19), which introduced a real installation-administrator audience: daemon lifecycle (drain/undrain), doctor and process-memory observability, the default-on redaction posture, and spend provenance. Vera owns acquisition *policy*; Dora owns the *runtime installation*. The hermes user-story persona "Administrator" maps to Dora; "Operator" maps to Théo (session surface) or Bruno (delivery/automation surface); "Autonomy operator" maps to Bruno; "Managed agent" and "External integrator" map to Ada (structured, non-human lane — the external MCP client is Ada driving through a third-party client instead of native tools).
 
 ## Dora — Runtime Administrator
 
@@ -306,7 +306,7 @@ Added for the hermes-comparison program (2026-07-19), which introduced a real in
 persona:
   name: Dora
   base: Power User
-  goal: "Keep one Compozy installation trustworthy: drain before deploys without killing in-flight work, read truthful doctor/status/memory evidence, keep secrets out of every log and stream, and see real spend — never a fake dollar amount."
+  goal: "Keep one Compozy installation trustworthy: drain before deploys without killing in-flight work, read truthful doctor/status/process-memory evidence, keep secrets out of every log and stream, and see real spend — never a fake dollar amount."
   device: desktop
   network: wifi-fast
   modality: mouse-keyboard
@@ -315,5 +315,5 @@ persona:
 ```
 
 - **Who:** the person who owns the daemon: restarts and deploys it, reads `compozy status`/`compozy doctor`, sets config keys, and answers for the security posture and the bill. Operates mostly through CLI/HTTP/UDS with the Web settings pages as secondary surface.
-- **What they reveal:** drains that kill in-flight work or lie about state, doctor items that disagree across HTTP/UDS/CLI, memory reports presented as something they are not, secrets surviving in logs/SSE/event stores, redaction toggles that silently no-op, estimated cost rendered as actual spend, and dead sidecars hammered forever or requiring a restart to recover.
+- **What they reveal:** drains that kill in-flight work or lie about state, doctor items that disagree across HTTP/UDS/CLI, process-memory reports presented as something they are not, secrets surviving in logs/SSE/event stores, redaction toggles that silently no-op, estimated cost rendered as actual spend, and dead sidecars hammered forever or requiring a restart to recover.
 - **Owns journeys:** J-drain-daemon-safely, J-keep-secrets-contained, J-expose-and-pair-gateway, and J-audit-and-teardown-gateway; co-owns J-offer-runnable-capabilities (dead-entity half, with Ada).

@@ -31,7 +31,9 @@ func (s *Session) beginExclusivePromptSetupForRequest(
 	s.currentTurnID = turnID
 	s.currentTurnSource = turnSource
 	s.currentPromptMessage = strings.TrimSpace(req.authoredMessage)
+	s.currentPromptDelivery = req.delivery
 	s.currentPromptMeta = req.meta.Normalize()
+	s.currentTurnHopFloor = promptMetaHop(s.currentPromptMeta)
 	s.currentSkillInvocations = cloneSkillInvocations(req.skillInvocations)
 	s.currentPromptCancel = cancel
 	s.currentPromptCancelTurn = ""
@@ -95,7 +97,17 @@ func (s *Session) IsPrompting() bool {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.isPromptingLocked()
+}
+
+func (s *Session) isPromptingLocked() bool {
 	return s.turnStopPending || s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != ""
+}
+
+// turnAwaitsAgentLocked reports a turn in flight that waits on the agent, not on the
+// operator's answer to a pending permission or clarify request. The caller holds s.mu.
+func (s *Session) turnAwaitsAgentLocked() bool {
+	return s.isPromptingLocked() && len(s.PendingInteractions) == 0
 }
 
 func (s *Session) isCurrentPromptAgentWaiting() bool {
@@ -155,6 +167,7 @@ func (s *Session) setCurrentPromptMeta(meta acp.PromptMeta) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentPromptMeta = meta.Normalize()
+	s.currentTurnHopFloor = max(s.currentTurnHopFloor, promptMetaHop(s.currentPromptMeta))
 }
 
 func (s *Session) setCurrentPromptMessage(message string) {
@@ -215,4 +228,20 @@ func (s *Session) clearCurrentTurnSource() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentTurnSource = ""
+}
+
+// CurrentPromptDelivery reports the active prompt's context-delivery policy.
+func (s *Session) CurrentPromptDelivery() PromptDelivery {
+	if s == nil {
+		return PromptDeliveryNormal
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentPromptDelivery
+}
+
+func (s *Session) setCurrentPromptDelivery(delivery PromptDelivery) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentPromptDelivery = delivery
 }

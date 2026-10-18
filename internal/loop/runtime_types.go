@@ -67,7 +67,7 @@ type ResolvedRuntime struct {
 	Runtime RuntimeSpec       `json:"runtime"`
 	Source  RuntimeProvenance `json:"source"`
 	// SpeedResolution is the confirmed ACP outcome for Runtime.Speed.
-	SpeedResolution *speedpkg.Resolution `json:"speed_resolution,omitempty"`
+	SpeedResolution *speedpkg.Resolution `json:"speed_resolution,omitzero"`
 }
 
 // RuntimeLayers are the ordered runtime-selection layers owned by the engine.

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -106,7 +105,7 @@ func (m *Manager) watchSourceExtensionName(ctx context.Context, kind string) (st
 			toolspkg.ErrToolUnavailable,
 		)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names[0], nil
 }
 

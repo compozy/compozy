@@ -3,6 +3,7 @@ package sessiondb
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -93,7 +94,7 @@ func limitTurnHistory(turns []store.TurnHistory, limit int) []store.TurnHistory 
 	if limit <= 0 || len(turns) <= limit {
 		return turns
 	}
-	return append([]store.TurnHistory(nil), turns[len(turns)-limit:]...)
+	return slices.Clone(turns[len(turns)-limit:])
 }
 
 func filterTurnHistoryAfterSequence(turns []store.TurnHistory, afterSequence int64) []store.TurnHistory {
@@ -121,12 +122,8 @@ func turnSequenceBounds(events []store.SessionEvent) (int64, int64) {
 	minSequence := events[0].Sequence
 	maxSequence := events[0].Sequence
 	for _, event := range events[1:] {
-		if event.Sequence < minSequence {
-			minSequence = event.Sequence
-		}
-		if event.Sequence > maxSequence {
-			maxSequence = event.Sequence
-		}
+		minSequence = min(minSequence, event.Sequence)
+		maxSequence = max(maxSequence, event.Sequence)
 	}
 	return minSequence, maxSequence
 }

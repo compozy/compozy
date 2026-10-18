@@ -46,6 +46,9 @@ func hostedToolErrorMessage(err error) string {
 		return ""
 	}
 	if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
+		if toolErr.Code == tools.ErrorCodeInvalidRequest {
+			return string(toolErr.Code) + ": " + toolErr.Error()
+		}
 		if len(toolErr.ReasonCodes) > 0 {
 			return string(toolErr.ReasonCodes[0]) + ": " + toolErr.Error()
 		}
@@ -56,6 +59,9 @@ func hostedToolErrorMessage(err error) string {
 	if provider, ok := errors.AsType[hostedToolResponseProvider](err); ok && provider != nil {
 		payload := provider.Response().Error
 		message := strings.TrimSpace(payload.Message)
+		if payload.Code == tools.ErrorCodeInvalidRequest {
+			return string(payload.Code) + ": " + message
+		}
 		if len(payload.ReasonCodes) > 0 {
 			return string(payload.ReasonCodes[0]) + ": " + message
 		}

@@ -40,7 +40,6 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 	configSeed := e2etest.ConfigSeedOptions{
 		PermissionMode: config.PermissionModeApproveReads,
 		Mutate: func(cfg *config.Config) {
-			cfg.Memory.Enabled = false
 		},
 	}
 	first := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -53,7 +52,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 	homePaths := first.HomePaths
 	binaryPath := first.BinaryPath
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	firstSession := createBoundFixtureBackedSession(
@@ -88,7 +87,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		Scope:    toolspkg.ApprovalGrantScopeTool,
 	})
 	udsSet := setApprovalGrantUDS(t, ctx, first, workspaceID, compozycontract.ToolApprovalGrantSetRequest{
-		ToolID:   toolspkg.ToolIDMemoryList,
+		ToolID:   toolspkg.ToolIDTaskList,
 		Decision: toolspkg.ApprovalGrantAllow,
 		Scope:    toolspkg.ApprovalGrantScopeTool,
 	})
@@ -123,7 +122,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		t.Fatalf("grants before restart total = %d, want %d; grants=%#v", got, want, beforeRestart.Grants)
 	}
 
-	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 	if err := first.Stop(stopCtx); err != nil {
 		stopCancel()
 		t.Fatalf("Stop(first runtime harness) error = %v", err)

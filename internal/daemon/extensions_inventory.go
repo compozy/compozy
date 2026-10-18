@@ -81,7 +81,7 @@ func (s *daemonExtensionService) previewExtension(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	networkDigest, networkConfirmationRequired, err := candidateNetworkConfirmationRequirement(&ext.Info, ext.Manifest)
+	gatewayDigest, gatewayConfirmationRequired, err := candidateGatewayConfirmationRequirement(&ext.Info, ext.Manifest)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
@@ -104,8 +104,8 @@ func (s *daemonExtensionService) previewExtension(
 		MissingEnv:                  slices.Clone(status.MissingEnv),
 		MissingInputs:               slices.Clone(status.MissingInputs),
 		AutomationStarting:          automationStarting,
-		NetworkRequirementDigest:    networkDigest,
-		NetworkConfirmationRequired: networkConfirmationRequired,
+		GatewayRequirementDigest:    gatewayDigest,
+		GatewayConfirmationRequired: gatewayConfirmationRequired,
 	}, nil
 }
 

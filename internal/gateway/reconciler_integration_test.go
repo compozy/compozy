@@ -44,7 +44,7 @@ func TestGatewayFaultCompensationWithSQLite(t *testing.T) {
 				t.Fatalf("OpenGlobalDB() error = %v", err)
 			}
 			t.Cleanup(func() {
-				if err := db.Close(ctx); err != nil {
+				if err := db.Close(testutil.Context(t)); err != nil {
 					t.Errorf("Close() error = %v", err)
 				}
 			})

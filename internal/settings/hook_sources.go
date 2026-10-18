@@ -2,8 +2,9 @@ package settings
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -27,11 +28,7 @@ func (s *service) buildHookItems(
 	if err != nil {
 		return nil, err
 	}
-	names := make([]string, 0, len(sources))
-	for name := range sources {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(sources))
 
 	items := make([]HookItem, 0, len(names))
 	for _, name := range names {

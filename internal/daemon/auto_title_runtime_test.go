@@ -99,7 +99,7 @@ func TestAutoTitleRuntime(t *testing.T) {
 			}
 			shutdownErr := make(chan error, 1)
 			go func() {
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 				defer cancel()
 				shutdownErr <- runtime.Shutdown(shutdownCtx)
 			}()
@@ -205,7 +205,7 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		sessions := &autoTitleSpawnSessionsStub{}
 		generator := newForkedAutoTitleGenerator(
 			sessions,
-			resolvedRoleResolver(ResolvedRole{Enabled: false}),
+			resolvedRoleResolver(&ResolvedRole{Enabled: false}),
 			time.Second,
 			slog.Default(),
 		)
@@ -228,7 +228,7 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		sessions := &autoTitleSpawnSessionsStub{}
 		generator := newForkedAutoTitleGenerator(
 			sessions,
-			resolvedRoleResolver(ResolvedRole{Enabled: true, Inherit: true, Model: "title-model"}),
+			resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true, Model: "title-model"}),
 			time.Second,
 			slog.Default(),
 		)
@@ -266,11 +266,11 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		sessions := newCancelAwareAutoTitleSpawnSessionsStub()
 		generator := newForkedAutoTitleGenerator(
 			sessions,
-			resolvedRoleResolver(ResolvedRole{Enabled: true, Inherit: true}),
+			resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}),
 			5*time.Second,
 			slog.Default(),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		result := make(chan error, 1)
 		go func() {
 			_, err := generator.Generate(ctx, autoTitleRequest{
@@ -320,13 +320,11 @@ func autoTitleUserEvent(t *testing.T, sessionID string, turnID string, text stri
 
 func autoTitleHookPayload(sessionID string, turnID string, text string) hookspkg.SessionMessagePersistedPayload {
 	return hookspkg.SessionMessagePersistedPayload{
-		SessionContext: hookspkg.SessionContext{
-			ProfileID: store.DefaultProfileID, SessionID: sessionID,
-			SessionType: string(session.SessionTypeUser), AgentName: "coder",
-		},
-		TurnContext: hookspkg.TurnContext{TurnID: turnID},
-		Role:        "assistant",
-		Text:        text,
+		ProfileID: store.DefaultProfileID, SessionID: sessionID,
+		SessionType: string(session.SessionTypeUser), AgentName: "coder",
+		TurnID: turnID,
+		Role:   "assistant",
+		Text:   text,
 	}
 }
 

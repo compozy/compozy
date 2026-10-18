@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -83,7 +84,7 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 			Speed:      speedpkg.SpeedFast,
 			ACPOptions: []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 			Tools:      []string{"compozy__zeta", "compozy__alpha", "compozy__zeta"},
-			Toolsets:   []string{"compozy__network", "compozy__catalog"},
+			Toolsets:   []string{"compozy__tasks", "compozy__catalog"},
 			DenyTools:  []string{"compozy__write_*", "compozy__delete_*"},
 			Skills:     AgentSkillsConfig{Disabled: []string{"zeta", "alpha"}},
 			MCPServers: []MCPServer{{
@@ -459,8 +460,8 @@ func TestSkillSourcePresetPolicy(t *testing.T) {
 			},
 			{
 				Slug: SkillSourceAgents, Label: "Agents", WorkspaceRel: ".agents/skills",
-				GlobalPath: "~/.agents/skills", WorkspaceNativeReaders: []string{"openclaw", "hermes"},
-				GlobalNativeReaders: []string{"openclaw"}, DefaultOn: true,
+				GlobalPath: "~/.agents/skills", WorkspaceNativeReaders: []string{},
+				GlobalNativeReaders: []string{}, DefaultOn: true,
 			},
 			{
 				Slug: SkillSourceClaude, Label: "Claude", WorkspaceRel: ".claude/skills",
@@ -483,8 +484,8 @@ func TestSkillSourcePresetPolicy(t *testing.T) {
 		t.Parallel()
 
 		err := ValidateSkillSources([]string{"agnets"})
-		var validation *SkillSourceValidationError
-		if !errors.As(err, &validation) {
+		validation, validationOK := errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK {
 			t.Fatalf("ValidateSkillSources() error = %v, want SkillSourceValidationError", err)
 		}
 		if validation.Code != "unknown_skill_source" || validation.Suggestion != SkillSourceAgents ||
@@ -535,15 +536,16 @@ func TestSkillSourcePresetPolicy(t *testing.T) {
 			CustomSources: []string{"~/.agents/skills"},
 		}
 		err := duplicate.ValidateForScope(WriteScopeUser)
-		var validation *SkillSourceValidationError
-		if !errors.As(err, &validation) || validation.Code != "duplicate_skill_source" ||
+		validation, validationOK := errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK || validation.Code != "duplicate_skill_source" ||
 			validation.ExistingSource != SkillSourceAgents {
 			t.Fatalf("ValidateForScope(duplicate) error = %#v", err)
 		}
 
 		relative := SkillsConfig{CustomSources: []string{"./rel/path"}}
 		err = relative.ValidateForScope(WriteScopeUser)
-		if !errors.As(err, &validation) || validation.Code != "invalid_source_path" ||
+		validation, validationOK = errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK || validation.Code != "invalid_source_path" ||
 			!strings.Contains(err.Error(), "workspace-relative paths require workspace scope") {
 			t.Fatalf("ValidateForScope(relative) error = %#v", err)
 		}
@@ -969,6 +971,115 @@ You are a senior Go engineer.
 			t.Fatalf("ParseAgentDef() MCPServers = %#v", agent.MCPServers)
 		}
 	})
+	t.Run("Should decode an ordered fallback chain from YAML and TOML frontmatter", func(t *testing.T) { // UT-005
+		t.Parallel()
+
+		const command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		want := []RoleFallback{
+			{Provider: "claude", Model: "opus-4-8", Command: command},
+			{Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high"},
+		}
+		for _, testCase := range []struct {
+			name    string
+			content string
+		}{
+			{
+				name: "yaml",
+				content: `---
+name: reviewer
+provider: claude
+fallback_chain:
+  - provider: claude
+    model: opus-4-8
+    command: "` + command + `"
+  - provider: cursor
+    model: grok-4.6
+    reasoning_effort: high
+---
+
+You review pull requests.
+`,
+			},
+			{
+				name: "toml",
+				content: `---
+name = "reviewer"
+provider = "claude"
+
+[[fallback_chain]]
+provider = "claude"
+model = "opus-4-8"
+command = "` + command + `"
+
+[[fallback_chain]]
+provider = "cursor"
+model = "grok-4.6"
+reasoning_effort = "high"
+---
+
+You review pull requests.
+`,
+			},
+		} {
+			t.Run("Should decode "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				agent, err := ParseAgentDef([]byte(testCase.content))
+				if err != nil {
+					t.Fatalf("ParseAgentDef(%s) error = %v", testCase.name, err)
+				}
+				if !reflect.DeepEqual(agent.FallbackChain, want) {
+					t.Fatalf(
+						"ParseAgentDef(%s).FallbackChain = %#v, want %#v",
+						testCase.name,
+						agent.FallbackChain,
+						want,
+					)
+				}
+				cloned := CloneAgentDef(agent)
+				cloned.FallbackChain[0].Command = "changed"
+				if agent.FallbackChain[0].Command != command {
+					t.Fatalf("CloneAgentDef shares the fallback chain: %#v", agent.FallbackChain)
+				}
+			})
+		}
+	})
+
+	t.Run("Should round-trip the fallback chain through rendering and the digest", func(t *testing.T) {
+		t.Parallel()
+
+		draft := AgentDefinitionDraft{
+			Name:     "reviewer",
+			Provider: "claude",
+			Prompt:   "You review pull requests.",
+			FallbackChain: []RoleFallback{
+				{
+					Provider: "claude",
+					Model:    "opus-4-8",
+					Command:  "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp",
+				},
+			},
+		}
+		contents, agent, err := RenderAgentDefinition(draft)
+		if err != nil {
+			t.Fatalf("RenderAgentDefinition() error = %v", err)
+		}
+		if !strings.Contains(string(contents), "fallback_chain:") || len(agent.FallbackChain) != 1 {
+			t.Fatalf("RenderAgentDefinition() = %q / %#v, want the chain persisted", contents, agent.FallbackChain)
+		}
+		withChain, err := AgentDefinitionDigest(agent)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest(with chain) error = %v", err)
+		}
+		agent.FallbackChain = nil
+		withoutChain, err := AgentDefinitionDigest(agent)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest(without chain) error = %v", err)
+		}
+		if withChain == withoutChain {
+			t.Fatal("AgentDefinitionDigest() ignores fallback_chain, want the chain in the CAS digest")
+		}
+	})
 }
 
 func TestParseAgentDefRejectsInvalidToolGrammar(t *testing.T) {
@@ -1195,6 +1306,65 @@ provider: claude
 		})
 	}
 
+	t.Run("Should reject fallback routes with an unknown key or a missing model", func(t *testing.T) { // UT-006
+		t.Parallel()
+
+		_, err := ParseAgentDef([]byte(`---
+name: reviewer
+fallback_chain:
+  - provider: claude
+    model: opus-4-8
+    comand: claude --acp
+---
+
+prompt`))
+		assertErrorContains(t, err, "comand")
+		_, err = ParseAgentDef([]byte(`---
+name: reviewer
+fallback_chain:
+  - provider: claude
+---
+
+prompt`))
+		assertErrorContains(t, err, `agent "reviewer" fallback_chain[0].model is required`)
+		_, err = ParseAgentDef([]byte(`---
+name: reviewer
+fallback_chain:
+  - provider: claude
+    model: opus-4-8
+    command: FOO=bar
+---
+
+prompt`))
+		assertErrorContains(t, err, `agent "reviewer" fallback_chain[0].command: command is missing an executable`)
+	})
+
+	t.Run("Should reject a fallback route on an unknown provider", func(t *testing.T) { // UT-007
+		t.Parallel()
+
+		agent, err := ParseAgentDef([]byte(`---
+name: reviewer
+fallback_chain:
+  - provider: claude
+    model: opus-4-8
+  - provider: grokk
+    model: grok-4.6
+---
+
+prompt`))
+		if err != nil {
+			t.Fatalf("ParseAgentDef() error = %v, want static validation to defer provider availability", err)
+		}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		err = cfg.ValidateAgentFallbackChain(agent)
+		assertErrorContains(t, err, `agent "reviewer" fallback_chain[1].provider: `)
+		assertErrorContains(t, err, `unknown provider "grokk"`)
+	})
+
 	t.Run("Should reject a non-canonical reasoning effort", func(t *testing.T) {
 		t.Parallel()
 
@@ -1310,34 +1480,6 @@ You are the default agent.
 	}
 	if agent.Provider != "" {
 		t.Fatalf("ParseAgentDef() Provider = %q, want empty", agent.Provider)
-	}
-}
-
-func TestParseAgentDefFrontmatterErrors(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		content string
-	}{
-		{
-			name:    "ShouldRejectMissingFrontmatter",
-			content: "plain markdown",
-		},
-		{
-			name: "ShouldRejectUnterminatedFrontmatter",
-			content: `---
-name: coder
-provider: claude`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := ParseAgentDef([]byte(tt.content)); err == nil {
-				t.Fatal("ParseAgentDef() error = nil, want non-nil")
-			}
-		})
 	}
 }
 

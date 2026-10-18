@@ -67,7 +67,6 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 	accepted.session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	accepted.session.updateSoulSnapshot(accepted.spec.soulSnapshot, accepted.spec.parentSoulDigest, m.now())
 	accepted.session.setEffectivePermissions(string(m.startPermissions(
-		accepted.spec.sessionType,
 		startSpecPermissions(accepted.spec, runtime.agent.Permissions),
 	)))
 	if err := prepareStartCreationIdentityIfEnabled(accepted.spec, runtime.agent); err != nil {
@@ -79,15 +78,13 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 	if err := m.persistSessionLifecycleState(ctx, accepted.session, true); err != nil {
 		return m.discardLogicalSessionStart(accepted, err)
 	}
+	// A derived child is committed (catalog row + identity + receipt) by the write above.
+	m.recordSessionDerivedEvent(ctx, accepted.spec, accepted.session)
 	if err := accepted.session.activateWithProcess(nil, m.now(), false, false); err != nil {
 		return m.discardLogicalSessionStart(accepted, err)
 	}
 	if err := m.persistSessionLifecycleState(ctx, accepted.session, true); err != nil {
 		return m.discardLogicalSessionStart(accepted, err)
-	}
-	if err := m.joinNetworkPeer(ctx, accepted.session, runtime.networkCapabilities); err != nil {
-		leaveErr := m.leaveNetworkPeer(m.fallbackLifecycleContext(), accepted.session)
-		return m.discardLogicalSessionStart(accepted, errors.Join(err, leaveErr))
 	}
 
 	switch accepted.spec.postEvent {
@@ -106,7 +103,6 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 			err,
 		)
 	}
-	m.observeCommittedParticipation(ctx, accepted.spec.participationObservation)
 	return nil
 }
 

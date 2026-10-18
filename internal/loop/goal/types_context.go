@@ -30,5 +30,5 @@ type RecordContextUsageRequest struct {
 // ContextHealth reads context pressure and advertised session commands.
 type ContextHealth interface {
 	Usage(context.Context, loop.ActionSessionBinding) (ContextUsage, error)
-	HasAdvertisedCommand(context.Context, loop.ActionSessionBinding, string) (bool, error)
+	CompactionCommand(context.Context, loop.ActionSessionBinding) (string, bool, error)
 }

@@ -1,0 +1,28 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "fork-web-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You answer three settled turns for the web fork E2E.",
+            "turns": [
+                {
+                    "name": "first-turn",
+                    "match": { "turn_source": "user", "user_text": "First step" },
+                    "steps": [{ "kind": "assistant", "text": "First step done." }]
+                },
+                {
+                    "name": "second-turn",
+                    "match": { "turn_source": "user", "user_text": "Second step" },
+                    "steps": [{ "kind": "assistant", "text": "Second step done." }]
+                },
+                {
+                    "name": "third-turn",
+                    "match": { "turn_source": "user", "user_text": "Third step" },
+                    "steps": [{ "kind": "assistant", "text": "Third step done." }]
+                }
+            ]
+        }
+    ]
+}

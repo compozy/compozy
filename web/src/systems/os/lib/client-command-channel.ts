@@ -1,5 +1,11 @@
+import type { WindowManagerClientCommandReply } from "./window-manager-client-command-frames";
+
 /** One client operation resolved through the command-palette dispatch seam. */
-export type ClientCommandRunner = (op: string, payload: unknown) => Promise<unknown>;
+export type ClientCommandRunner = (
+  op: string,
+  payload: unknown,
+  reply: WindowManagerClientCommandReply
+) => Promise<unknown>;
 
 /**
  * Bridges daemon-pushed operations to the current shell without making React
@@ -16,10 +22,10 @@ export class ClientCommandChannel {
     };
   }
 
-  execute(op: string, payload: unknown): Promise<unknown> {
+  execute(op: string, payload: unknown, reply: WindowManagerClientCommandReply): Promise<unknown> {
     if (this.runner === null) {
       return Promise.reject(new Error(`Unsupported client operation: ${op}`));
     }
-    return this.runner(op, payload);
+    return this.runner(op, payload, reply);
   }
 }

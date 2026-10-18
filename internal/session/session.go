@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -42,7 +42,6 @@ type Type string
 
 const (
 	SessionTypeUser        Type = "user"
-	SessionTypeDream       Type = "dream"
 	SessionTypeSystem      Type = "system"
 	SessionTypeCoordinator Type = "coordinator"
 	SessionTypeSpawned     Type = "spawned"
@@ -55,6 +54,7 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	VerdictOnly              bool `json:"-"`
 	Supervision              *SupervisionState
 	BusyInput                *BusyInputState
 	ID                       string
@@ -79,41 +79,40 @@ type Info struct {
 	WorkspaceID              string
 	Workspace                string
 	WorktreeID               string
-	NetworkParticipation     participation.Spec
-	NetworkOwnerKey          string
 	Type                     Type
 	Lineage                  *store.SessionLineage
-	State                    State
-	PendingPermission        bool
-	StopReason               store.StopReason
-	StopCause                StopCause
-	StopEscalated            bool
-	StopVerificationFailed   bool
-	StopDetail               string
-	Failure                  *store.SessionFailure
-	ACPSessionID             string
-	ACPCaps                  acp.Caps
-	ACPCapsKnown             bool
-	AdvertisedCommands       []store.SessionAdvertisedCommand
-	Liveness                 *store.SessionLivenessMeta
-	Sandbox                  *store.SessionSandboxMeta
-	SoulSnapshotID           string
-	SoulDigest               string
-	ParentSoulDigest         string
-	AttachedTo               string
-	AttachExpiresAt          *time.Time
-	TranscriptEpoch          int64
-	PendingPermissionCount   int
-	PendingClarifyCount      int
-	AttentionRevision        int64
-	LastSettledRevision      int64
-	LastSeenRevision         int64
-	LastSeenAt               *time.Time
-	AttentionChangedAt       *time.Time
-	PendingInteractions      []store.PendingInteraction
-	ArchivedAt               *time.Time
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
+	// Derivation is present only on continued or forked children.
+	Derivation             *store.SessionDerivation
+	State                  State
+	PendingPermission      bool
+	StopReason             store.StopReason
+	StopCause              StopCause
+	StopEscalated          bool
+	StopVerificationFailed bool
+	StopDetail             string
+	Failure                *store.SessionFailure
+	ACPSessionID           string
+	ACPCaps                acp.Caps
+	ACPCapsKnown           bool
+	AdvertisedCommands     []store.SessionAdvertisedCommand
+	Liveness               *store.SessionLivenessMeta
+	SoulSnapshotID         string
+	SoulDigest             string
+	ParentSoulDigest       string
+	AttachedTo             string
+	AttachExpiresAt        *time.Time
+	TranscriptEpoch        int64
+	PendingPermissionCount int
+	PendingClarifyCount    int
+	AttentionRevision      int64
+	LastSettledRevision    int64
+	LastSeenRevision       int64
+	LastSeenAt             *time.Time
+	AttentionChangedAt     *time.Time
+	PendingInteractions    []store.PendingInteraction
+	ArchivedAt             *time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 // Session is the in-memory runtime representation of one active or stopping session.
@@ -127,6 +126,10 @@ type Session struct {
 	supervisionProgressAt        time.Time
 	supervisionWarningRecordedAt time.Time
 	supervisionReportedSources   []SignalSourceState
+	// supervisionIdleSince starts when a session with no turn in flight goes quiet.
+	supervisionIdleSince time.Time
+	// runtimeRelease marks a runtime the supervisor released while the session was idle.
+	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
 	stopFinalizationErr        error
 	stopVerifiedOutcome        StopOutcome // Protected by mu.
@@ -140,7 +143,6 @@ type Session struct {
 	steerDelivery              store.SteerDeliveryMode
 	mu                         sync.RWMutex
 	persistMu                  sync.Mutex
-	networkPeerMu              sync.Mutex
 	conversationRewindReserved bool
 
 	ID                        string
@@ -167,8 +169,6 @@ type Session struct {
 	Workspace                 string
 	WorktreeID                string
 	CWD                       string
-	NetworkParticipation      participation.Spec
-	NetworkOwnerKey           string
 	Type                      Type
 	Lineage                   *store.SessionLineage
 	State                     State
@@ -183,7 +183,6 @@ type Session struct {
 	ACPCapsKnown              bool
 	AdvertisedCommands        []store.SessionAdvertisedCommand
 	Liveness                  *store.SessionLivenessMeta
-	Sandbox                   *store.SessionSandboxMeta
 	SoulSnapshotID            string
 	SoulDigest                string
 	ParentSoulDigest          string
@@ -204,23 +203,36 @@ type Session struct {
 	creationOptions           *store.SessionCreationOptions
 	creationIdentity          *store.SessionCreationIdentity
 	providerRoute             compozyconfig.ResolvedAgent
-	agentDef                  compozyconfig.AgentDef
-	startupManifest           acp.StartupManifest
+	acceptedRoute             *store.SessionAcceptedRoute
+	// derivation and importedContext exist only on continued or forked children.
+	derivation          *store.SessionDerivation
+	importedContext     *store.SessionImportedContext
+	pendingResumeReplay string
+	// pendingDeriveReceipt is taken by the first catalog registration of a derived child.
+	pendingDeriveReceipt *store.SessionDerivationReceipt
+	// deriveCommitted marks the irreversible commit of a derived child's registration
+	// transaction; from then on a failed start retains the child instead of sweeping it.
+	deriveCommitted bool
+	// acceptedCommand is the explicit route command of the accepted attempt ("" when the
+	// route inherited its command); in-memory only, so automatic recovery keeps the seat.
+	acceptedCommand string
+	agentDef        compozyconfig.AgentDef
+	startupManifest acp.StartupManifest
 
-	sessionDir string
-	metaPath   string
-	dbPath     string
-	recorder   EventRecorder
-	process    *AgentProcess
-
-	sandboxDestroyOnStop    bool
+	sessionDir              string
+	metaPath                string
+	dbPath                  string
+	recorder                EventRecorder
+	process                 *AgentProcess
 	worktreeForkReserved    bool
 	promptSetupCount        int
 	promptSetupDone         chan struct{}
 	currentTurnID           string
 	currentTurnSource       TurnSource
 	currentPromptMessage    string
+	currentPromptDelivery   PromptDelivery
 	currentPromptMeta       acp.PromptMeta
+	currentTurnHopFloor     int
 	currentSkillInvocations []commandpkg.Invocation
 	currentPromptCancel     context.CancelFunc
 	currentPromptCancelTurn string
@@ -229,6 +241,14 @@ type Session struct {
 	turnStopPending         bool
 	currentPromptDone       chan struct{}
 	providerRedactions      []func()
+	// inputPromotionActive keeps at most one long-turn queue promotion pass running per session.
+	inputPromotionActive atomic.Bool
+	// promotedSteers holds long-turn promotions whose injection is still pending, so an asynchronous
+	// fallback returns the message to after-turn delivery instead of leaving it as a queued steer.
+	promotedSteers sync.Map
+	// promotionDeclined maps a queued entry whose promotion input.pre_submit refused to the turn it was
+	// refused in, so later passes of that turn leave it for ordinary after-turn dispatch.
+	promotionDeclined sync.Map
 }
 
 func (s *Session) processHandle() *AgentProcess {
@@ -344,6 +364,8 @@ func (s *Session) rollbackActivation(now time.Time) {
 
 	s.process = nil
 	s.ACPSessionID = ""
+	s.acceptedRoute = nil
+	s.acceptedCommand = ""
 	s.ACPCaps = acp.Caps{}
 	s.ACPCapsKnown = false
 	s.Liveness = nil

@@ -218,12 +218,6 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     "web/e2e/__tests__/session-hardening.spec.ts"
   ),
   webScenario(
-    "TC-NETWORK-001",
-    "network",
-    "operator verifies thread and direct network surfaces with final conversation artifacts",
-    "web/e2e/__tests__/network.spec.ts"
-  ),
-  webScenario(
     "TC-TASKS-001",
     "tasks",
     "operator cancels a running task run and sees transport parity",
@@ -231,21 +225,15 @@ export const e2eScenarioContracts: ScenarioContract[] = [
   ),
   webScenario(
     "TC-JOBS-001",
-    "jobs",
+    "automations",
     "operator creates edits runs disables re-enables and deletes a workspace job with parity evidence",
     "web/e2e/__tests__/jobs-hardening.spec.ts"
   ),
   webScenario(
     "TC-TRIGGERS-001",
-    "triggers",
+    "automations",
     "operator creates edits fires and deletes a webhook trigger with parity evidence",
     "web/e2e/__tests__/triggers-hardening.spec.ts"
-  ),
-  webScenario(
-    "TC-KNOWLEDGE-001",
-    "knowledge",
-    "operator creates edits reverts searches recalls and deletes workspace knowledge with parity evidence",
-    "web/e2e/__tests__/knowledge.spec.ts"
   ),
   webScenario(
     "TC-SKILLS-001",
@@ -254,22 +242,9 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     "web/e2e/__tests__/skills.spec.ts"
   ),
   webScenario(
-    "TC-BRIDGES-001",
-    "bridges",
-    "operator manages a Telegram bridge lifecycle with route and secret parity evidence",
-    "web/e2e/__tests__/bridges.spec.ts",
-    "bound_secret"
-  ),
-  webScenario(
-    "TC-SANDBOX-001",
-    "sandbox",
-    "operator manages sandbox profiles and proves a local sandbox session boundary",
-    "web/e2e/__tests__/sandbox.spec.ts"
-  ),
-  webScenario(
     "TC-SETTINGS-001",
     "settings",
-    "operator applies Memory, Network, Automation, and Observability settings with config parity",
+    "operator applies Automation, Observability, and Providers settings with config parity",
     "web/e2e/__tests__/settings-hardening.spec.ts"
   ),
   {
@@ -317,13 +292,11 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     surfaces: ["web", "http", "uds", "cli", "agent-runtime", "persistence", "artifacts"],
     auditIDs: ["A1", "A3", "A6", "A8", "A9", "A10", "A12", "A13", "A15"],
     executionAuditIDs: ["C1", "C2", "C3", "C5", "C6", "C12", "C13", "C16", "C17", "C18"],
-    providerBoundary: "blocked",
+    providerBoundary: "bounded_fake",
     artifacts: standardBrowserArtifacts,
     lanes: ["make test-e2e-nightly"],
-    specPath: "web/e2e/__tests__/marketplace.spec.ts",
+    specPath: "web/e2e/__tests__/extensions.spec.ts",
     nightly: true,
-    blockedReason:
-      "The local release gate covers SDK contracts with sdk/typescript, sdk/go, create-extension unit/integration tests and installs a hand-authored local extension fixture through the daemon. The full scaffold-build-install-launch-update-disable-remove chain is intentionally mapped to nightly because it spans generated TS and Go extension workspaces plus daemon lifecycle mutation and would exceed the daemon-served browser gate budget.",
   },
   {
     id: "TC-EXT-002",
@@ -341,18 +314,6 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     nightly: true,
     blockedReason:
       "Requires hosted MCP OAuth credentials and an external server; local daemon-served coverage proves MCP config and tool registry parity, while the credentialed OAuth path remains mapped to nightly.",
-  },
-  {
-    ...webScenario(
-      "TC-COMBINED-001",
-      "combined-flows",
-      "operator can follow a bridge-created route into the shipped session view",
-      "web/e2e/__tests__/combined-flows.spec.ts",
-      "bound_secret"
-    ),
-    grep: "operator can follow a bridge-created route into the shipped session view",
-    lanes: ["make test-e2e-nightly"],
-    nightly: true,
   },
   {
     id: "TC-HARNESS-001",
@@ -373,14 +334,8 @@ export const e2eScenarioContracts: ScenarioContract[] = [
 export const defaultModuleCoverageRequirements: ModuleCoverageRequirement[] = [
   "dashboard",
   "sessions",
-  "network",
   "tasks",
-  "jobs",
-  "triggers",
-  "knowledge",
   "skills",
-  "bridges",
-  "sandbox",
   "settings",
   "extensibility-tools-resources",
   "runtime-harness-transport",

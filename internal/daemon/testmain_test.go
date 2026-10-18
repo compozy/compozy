@@ -23,7 +23,17 @@ func runDaemonTests(m *testing.M) (code int) {
 	if isDaemonTestHelperProcess() {
 		return m.Run()
 	}
-	seed, err := storeseed.NewCombined(context.Background())
+	testHome, err := os.MkdirTemp("", "compozy-daemon-test-home-")
+	if err != nil {
+		reportDaemonTestMainError("create isolated home: %v", err)
+		return 1
+	}
+	defer os.RemoveAll(testHome)
+	if err := os.Setenv("COMPOZY_HOME", testHome); err != nil {
+		reportDaemonTestMainError("set isolated home: %v", err)
+		return 1
+	}
+	seed, err := storeseed.NewGlobal(context.Background())
 	if err != nil {
 		reportDaemonTestMainError("create store seed: %v", err)
 		return 1

@@ -68,25 +68,23 @@ It is recreated only when missing; operator edits are preserved.
 
 ## Reserved Background-Role Identities
 
-`coordinator` and `dreaming-curator` are virtual CompozyOS-owned identities, not managed or authored
-agent definitions. They resolve for the coordinator, dream, and checkpoint-summary roles without an
-`AGENT.md`, use embedded fixed prompts, and stay absent from public fleet/catalog reads.
+`coordinator` is a virtual CompozyOS-owned identity, not a managed or authored agent definition. It
+resolves for the coordinator role without an `AGENT.md`, uses an embedded fixed prompt, and stays
+absent from public fleet/catalog reads.
 
-Do not create, update, rename, duplicate, or bundle-materialize either name. Every authoring surface
+Do not create, update, rename, duplicate, or bundle-materialize that name. Every authoring surface
 returns `agent_name_reserved` and leaves the filesystem and catalog unchanged. `general` is not
 reserved; it remains the editable managed public agent described above.
 
-Background routing lives under `[roles.coordinator]`, `[roles.dream]`,
-`[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.auto_title]`, and
-`[roles.memory_controller]`. A non-empty session-role `agent` selects an authored definition; it
+Background routing lives under `[roles.coordinator]` and `[roles.auto_title]`. A non-empty session-role `agent` selects an authored definition; it
 does not customize an embedded builtin prompt. Read the effective projection with `compozy roles list`
 or `compozy roles show <role>` before diagnosing provider or model behavior.
 
 ## Providers And MCP
 
-Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.
+Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kimi-cli, qwen-code, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers. Any other ACP CLI runs as a custom `[providers.<id>]` entry with its own `command`. The retired built-ins hermes, openclaw, blackbox, cline, goose, junie, kiro, openhands, qoder, mistral, groq, and minimax still resolve until v0.5.0 with a `provider.retired_builtin` daemon-log warning whose `replacement` field holds the exact `[providers.<id>]` entry; declaring that entry silences it.
 
-For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. OpenClaw is provider-managed and rejects model, Reasoning, Fast, and ACP-option overrides. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
+For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 
@@ -94,7 +92,12 @@ Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp
 
 Use `GET /api/agents/catalog?workspace=<ref>&profile=<name>` over HTTP or UDS when a workspace fleet needs an exact `name` filter, server-owned search, category/status filters, cursor pagination, or exact per-agent session metrics. Keep the same `name`, `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
 
-When `sessions_available` is true, each result's `sessions` object covers every visible retained session for that workspace and agent. It reports `total`, currently `active`, terminal `failed`, summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for active sessions and creation to the last persisted update for stopped sessions. Failed includes stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason. `last_activity_at` follows the session catalog's canonical activity timestamp.
+Omit `workspace` for Global. Definitions use the acting profile's shared resource resolution;
+session metrics aggregate visible sessions by agent name across all projects and no-workspace
+work. Project-local definitions are not merged into the Global list. A workspace selector still
+narrows both effective definitions and metrics. Keep the same profile while following a cursor.
+
+When `sessions_available` is true, each result's `sessions` object covers every visible retained session for that scope and agent name. It reports `total`, currently `active`, terminal `failed`, summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for active sessions and creation to the last persisted update for stopped sessions. Failed includes stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason. `last_activity_at` follows the session catalog's canonical activity timestamp.
 
 `facets.total` and `facets.categories` describe the complete workspace-visible fleet before filters. `facets.active` and `facets.idle` are exact only when `sessions_available` is true. Otherwise, treat every omitted `sessions` value and metric as unavailable; do not infer zero, idle state, runtime, failure count, or last activity, and do not apply a client-side status filter.
 
@@ -111,6 +114,22 @@ Create, update, and duplicate accept repeatable `--disable-skill <name>` flags. 
 providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clear the list.
 They also accept `--speed`, repeatable `--acp-option id=value`, and repeatable
 `--acp-toggle id=true|false` for authored runtime defaults.
+
+Create and update accept a repeatable, ordered `--fallback-route` that replaces the agent's
+`fallback_chain`, and `--clear-fallback-chain` to empty it; omitting both keeps the current chain.
+Keys are `provider`, `model`, `reasoning_effort`, `speed`, and `command`; `command` must be the last
+key and takes the rest of the value verbatim (quote the whole flag value in the shell):
+
+    compozy agent update reviewer --expected-digest <digest> \
+      --fallback-route 'provider=claude,model=opus-4-8,command=CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp' \
+      --fallback-route provider=cursor,model=grok-4.6,reasoning_effort=high -o json
+
+The `fallback_chain` frontmatter key holds the same route tables as `[[roles.<role>.fallback_chain]]`
+(`provider` and `model` required; optional `reasoning_effort`, `speed`, `acp_options`, `command`).
+`compozy agent show` and `GET /api/agents/{name}` project it with `command_fingerprint` for routes that
+set `command`. Invalid routes fail with a path such as
+`agent "reviewer" fallback_chain[0].command: command is missing an executable`. Sessions a background
+role launches with this agent run the role's chain, never the agent's.
 
 `update` replaces the complete effective authored definition and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
 
@@ -136,6 +155,10 @@ History and rollback belong to the winning authored source path, so same-named a
 Profiles cannot read or restore each other's revisions. Session targets retain their persisted
 Profile; an explicit status/wake session must belong to the selected Profile and agent. Managed
 extension SOUL.md and HEARTBEAT.md sources remain protected from writes.
+
+A `SOUL.md` that still carries the retired memory-policy frontmatter key from an earlier release stays
+valid: any value is accepted and ignored. `compozy agent soul validate` reports no diagnostic, the key is
+never rendered into a session, and CompozyOS does not rewrite the file.
 
 ## Setup Workflow
 

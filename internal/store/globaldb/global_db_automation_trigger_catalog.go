@@ -106,6 +106,10 @@ func automationTriggerCatalogWhere(query automation.TriggerListQuery) (string, [
 		clauses = append(clauses, "c.event = ?")
 		args = append(args, query.Event)
 	}
+	if query.Target != "" {
+		clauses = append(clauses, "c.target = ?")
+		args = append(args, query.Target)
+	}
 	if query.Source != "" {
 		clauses = append(clauses, "c.source = ?")
 		args = append(args, query.Source)

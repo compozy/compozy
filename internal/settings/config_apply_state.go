@@ -20,9 +20,10 @@ func (s *service) ensureActiveConfigState(ctx context.Context) (activeSnapshot, 
 	defer s.activeConfig.mu.Unlock()
 	if s.activeConfig.initialized {
 		return activeSnapshot{
-			hash:       s.activeConfig.hash,
-			generation: s.activeConfig.generation,
-			config:     cloneActiveConfig(&s.activeConfig.config),
+			hash:                  s.activeConfig.hash,
+			generation:            s.activeConfig.generation,
+			config:                cloneActiveConfig(&s.activeConfig.config),
+			scopedRestartRequired: s.activeConfig.scopedRestartRequired,
 		}, nil
 	}
 
@@ -52,9 +53,10 @@ func (s *service) ensureActiveConfigState(ctx context.Context) (activeSnapshot, 
 }
 
 type activeSnapshot struct {
-	hash       string
-	generation int64
-	config     compozyconfig.Config
+	hash                  string
+	generation            int64
+	config                compozyconfig.Config
+	scopedRestartRequired bool
 }
 
 func (s *service) advanceActiveConfig(cfg *compozyconfig.Config, hash string, generation int64) {

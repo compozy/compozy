@@ -222,7 +222,7 @@ const listTaskRunIDsForTask = `-- name: ListTaskRunIDsForTask :many
 SELECT id FROM task_runs WHERE task_id = ?1
 `
 
-func (q *Queries) ListTaskRunIDsForTask(ctx context.Context, taskID sql.NullString) ([]string, error) {
+func (q *Queries) ListTaskRunIDsForTask(ctx context.Context, taskID string) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listTaskRunIDsForTask, taskID)
 	if err != nil {
 		return nil, err

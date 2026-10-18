@@ -1,18 +1,23 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/network/participation"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -20,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -320,10 +326,65 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		assertGoalCommandOutcome(t, missing, session.GoalOutcomeError, session.GoalReasonNotActive)
 	})
 
+	// Invariant: Goal commands that create or clear a Goal advance the tool projection epoch, so
+	// epoch-cached goal_get availability flips at the transition and is reused between them.
+	// Owner: daemon Goal command dispatcher; canonical session Goal command suite.
+	t.Run("Should flip cached goal_get availability as set and clear advance the epoch", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		ctx := testutil.Context(t)
+		caller := session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"}
+		epoch := mcppkg.NewProjectionEpoch()
+		fixture.service.goalToolsChanged = func() { epoch.Advance() }
+		native := &daemonNativeTools{
+			deps:             &daemonNativeToolsDeps{Loops: func() core.LoopService { return fixture.service }},
+			goalAvailability: newNativeGoalAvailabilityCache(epoch.Current, nil),
+		}
+		scope := toolspkg.Scope{WorkspaceID: fixture.workspaceID, SessionID: fixture.sessionID}
+		requireGoalGet := func(label string, wantAvailable bool) {
+			t.Helper()
+			availability := native.goalGetAvailability(ctx, scope)
+			if availability.Available != wantAvailable {
+				t.Fatalf("goal_get availability %s = %#v, want available=%v", label, availability, wantAvailable)
+			}
+			if !wantAvailable && !slices.Contains(availability.ReasonCodes, toolspkg.ReasonGoalNotActive) {
+				t.Fatalf("goal_get availability %s reasons = %v, want goal_not_active", label, availability.ReasonCodes)
+			}
+		}
+		handle := func(verb string, objective string) session.GoalDispatchDecision {
+			t.Helper()
+			command := session.GoalCommand{Verb: verb, Objective: objective}
+			decision, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID, caller, command)
+			if err != nil {
+				t.Fatalf("Handle(%s) error = %v", verb, err)
+			}
+			return decision
+		}
+
+		requireGoalGet("before set", false)
+		beforeSet := epoch.Current()
+		assertGoalCommandOutcome(t, handle("set", "Ship the release"), session.GoalOutcomeStarted, "")
+		if epoch.Current() == beforeSet {
+			t.Fatal("Handle(set) did not advance the tool projection epoch")
+		}
+		requireGoalGet("after set", true)
+
+		beforeStatus := epoch.Current()
+		assertGoalCommandOutcome(t, handle("status", ""), session.GoalOutcomeStatus, "")
+		if epoch.Current() != beforeStatus {
+			t.Fatal("Handle(status) advanced the tool projection epoch for a read-only command")
+		}
+		requireGoalGet("after status", true)
+
+		assertGoalCommandOutcome(t, handle("clear", ""), session.GoalOutcomeCleared, "")
+		requireGoalGet("after clear", false)
+	})
+
 	t.Run("Should pin the reconciled active model for a provider-native default session", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newGoalCommandHandlerFixtureWithModels(t, "", goalCommandCursorModel)
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "cursor", "", goalCommandCursorModel)
 		decision, err := fixture.service.Handle(
 			testutil.Context(t),
 			fixture.workspaceID,
@@ -408,16 +469,10 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
-	t.Run("Should preserve the origin Network snapshot and apply a per-run worker runtime", func(t *testing.T) {
+	t.Run("Should apply a per-run worker runtime", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newGoalCommandHandlerFixture(t)
-		status, ok := fixture.service.sessionStatus.(*goalCommandSessionStatus)
-		if !ok {
-			t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
-		}
-		network := daemonTestLiveParticipation(fixture.workspaceID, "goal-origin-command")
-		status.info.NetworkParticipation = network
 		decision, err := fixture.service.Handle(
 			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
 			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
@@ -434,9 +489,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 		assertGoalCommandOutcome(t, decision, session.GoalOutcomeStarted, "")
 		run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
-		if got := run.NetworkSpecSnapshot(); got != network {
-			t.Fatalf("run network snapshot = %#v, want exact origin snapshot %#v", got, network)
-		}
+
 		snapshot, err := fixture.db.GetLoopDefinitionSnapshot(
 			testutil.Context(t),
 			run.WorkspaceID,
@@ -491,10 +544,13 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
-	t.Run("Should return a stable runtime-invalid result for an unknown provider", func(t *testing.T) {
+	t.Run("Should reject an unknown Goal provider after cross-provider binding", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newGoalCommandHandlerFixture(t)
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "codex", "gpt-6.1-sol", "gpt-6.1-sol")
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.info.Provider = "claude"
+		status.info.Model = "claude-opus-5-5"
 		decision, err := fixture.service.Handle(
 			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
 			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
@@ -507,6 +563,62 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("Handle(unknown provider) error = %v", err)
 		}
 		assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonRuntimeInvalid)
+		_, err = fixture.db.GetLoopRun(t.Context(), looppkg.WorkspaceID(fixture.workspaceID), "run-goal-command-1")
+		if !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("rejected runtime created a Run: %v", err)
+		}
+	})
+
+	t.Run("Should start and replace an agent-created Goal after a cross-provider runtime bind", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "codex", "gpt-6.1-sol", "gpt-6.1-sol")
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.callers["agent-operator"].Provider = "codex"
+		status.info.Provider = "claude"
+		status.info.Model = "claude-opus-5-5"
+		status.info.ReasoningEffort = "xhigh"
+		ctx := t.Context()
+		before, err := fixture.db.GetSessionCreationIdentity(ctx, fixture.sessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		caller := session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"}
+		command := session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "Ship with a rebound runtime",
+			Runtime: &session.RuntimeSelection{Provider: "claude", Model: "claude-opus-5-5", ReasoningEffort: "xhigh"}}
+		for _, verb := range []string{session.GoalCommandVerbSet, session.GoalCommandVerbReplace} {
+			command.Verb = verb
+			decision, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID, caller, command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := session.GoalOutcomeStarted
+			if verb == session.GoalCommandVerbReplace {
+				want = session.GoalOutcomeReplaced
+			}
+			assertGoalCommandOutcome(t, decision, want, "")
+			run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
+			snapshot, err := fixture.db.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			worker := resolved.EffectiveConfig.RuntimeDefaults.Worker
+			if worker.Provider != "claude" || worker.Model != "claude-opus-5-5" || worker.Reasoning != "xhigh" {
+				t.Fatalf("Goal worker runtime = %#v, want Claude Opus 5.5 xhigh", worker)
+			}
+			if run.Origin.CreationProfileRef != before.CreationProfileRef ||
+				run.Origin.PolicySpecDigest != before.PolicySpecDigest || run.Origin.CreationDigest != before.CreationDigest {
+				t.Fatalf("Goal changed immutable creation identity: %#v", run.Origin)
+			}
+			command.ExpectedRunID = decision.Result.Snapshot.RunID
+		}
+		after, err := fixture.db.GetSessionCreationIdentity(ctx, fixture.sessionID)
+		if err != nil || after != before {
+			t.Fatalf("creation identity changed: before=%#v after=%#v err=%v", before, after, err)
+		}
 	})
 
 	t.Run("Should reject invalid origin sessions before creating a Run", func(t *testing.T) {
@@ -516,6 +628,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			name       string
 			mutate     func(*goalCommandSessionStatus)
 			wantReason session.GoalReasonCode
+			wantCheck  string
 		}{
 			{
 				name: "Should reject a stopped origin",
@@ -532,23 +645,18 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginWorkspaceMismatch),
 			},
 			{
-				name: "Should reject an origin without a persisted creation profile",
+				name:      "Should reject an origin without a persisted creation profile",
+				wantCheck: "creation_identity_missing",
 				mutate: func(status *goalCommandSessionStatus) {
 					status.info.ID = "session-missing-creation-profile"
 				},
 				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
 			},
 			{
-				name: "Should reject an origin whose active agent differs from its immutable profile",
+				name:      "Should reject an origin whose active agent differs from its immutable profile",
+				wantCheck: "creation_agent_mismatch",
 				mutate: func(status *goalCommandSessionStatus) {
 					status.info.AgentName = "different-agent"
-				},
-				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
-			},
-			{
-				name: "Should reject an origin whose active provider differs from its immutable profile",
-				mutate: func(status *goalCommandSessionStatus) {
-					status.info.Provider = "different-provider"
 				},
 				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
 			},
@@ -562,6 +670,8 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				if !ok {
 					t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
 				}
+				var logs bytes.Buffer
+				fixture.service.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 				tt.mutate(status)
 				decision, err := fixture.service.Handle(
 					testutil.Context(t),
@@ -576,6 +686,9 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 					t.Fatalf("Handle(set invalid origin) error = %v", err)
 				}
 				assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, tt.wantReason)
+				if tt.wantCheck != "" && !strings.Contains(logs.String(), `"check":"`+tt.wantCheck+`"`) {
+					t.Fatalf("origin diagnostic = %s, want check %q", logs.String(), tt.wantCheck)
+				}
 				if _, err := fixture.db.GetLoopRun(
 					testutil.Context(t),
 					looppkg.WorkspaceID(fixture.workspaceID),
@@ -664,6 +777,24 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
 		})
 
+		t.Run("Should reject a session continued from the caller", func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+			status.info.Lineage = &store.SessionLineage{
+				ParentSessionID: "agent-operator", Kind: store.LineageKindContinue, OriginAgentName: "coder",
+			}
+			decision, err := fixture.service.Handle(
+				testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+				session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"},
+				session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "reject a continued session"},
+			)
+			if err != nil {
+				t.Fatalf("Handle(continued session) error = %v", err)
+			}
+			assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+		})
+
 		t.Run("Should reject a cyclic lineage", func(t *testing.T) {
 			t.Parallel()
 			fixture := newGoalCommandHandlerFixture(t)
@@ -685,7 +816,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		})
 	})
 
-	t.Run("Should isolate eight concurrent child Goals by origin runtime and network", func(t *testing.T) {
+	t.Run("Should isolate eight concurrent child Goals by origin runtime", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newGoalCommandHandlerFixture(t)
@@ -707,15 +838,15 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		status.sessions[parentID] = &parent
 		for index := range 8 {
 			childID := "session-goal-child-" + string(rune('a'+index))
-			childNetwork := daemonTestLiveParticipation(fixture.workspaceID, "goal-child-"+string(rune('a'+index)))
+
 			child := &session.Info{
-				ID:                   childID,
-				ProfileID:            parent.ProfileID,
-				AgentName:            parent.AgentName,
-				Provider:             parent.Provider,
-				Model:                parent.Model,
-				WorkspaceID:          parent.WorkspaceID,
-				NetworkParticipation: childNetwork,
+				ID:          childID,
+				ProfileID:   parent.ProfileID,
+				AgentName:   parent.AgentName,
+				Provider:    parent.Provider,
+				Model:       parent.Model,
+				WorkspaceID: parent.WorkspaceID,
+
 				Lineage: &store.SessionLineage{
 					ParentSessionID: parentID,
 				},
@@ -724,8 +855,8 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			}
 			status.sessions[childID] = child
 			creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
-				SessionID: childID, NetworkOwnerKey: "session:" + childID,
-				NetworkParticipation: childNetwork, SessionType: string(session.SessionTypeUser),
+				SessionID:   childID,
+				SessionType: string(session.SessionTypeUser),
 			})
 			if err != nil {
 				t.Fatalf("CreationDigest(%q) error = %v", childID, err)
@@ -736,12 +867,12 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				CreationDigest:     creationDigest,
 			}
 			if _, err := fixture.db.RegisterSessionWithCreationIdentity(testutil.Context(t), store.SessionInfo{
-				ProfileID:           child.ProfileID,
-				ID:                  childID,
-				AgentName:           child.AgentName,
-				Provider:            child.Provider,
-				WorkspaceID:         child.WorkspaceID,
-				SessionNetworkState: &store.SessionNetworkState{NetworkSpec: childNetwork},
+				ProfileID:   child.ProfileID,
+				ID:          childID,
+				AgentName:   child.AgentName,
+				Provider:    child.Provider,
+				WorkspaceID: child.WorkspaceID,
+
 				SessionType: string(
 					child.Type,
 				),
@@ -804,10 +935,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 					parentID,
 				)
 			}
-			child := status.sessions[result.childID]
-			if got := run.NetworkSpecSnapshot(); got != child.NetworkParticipation {
-				t.Fatalf("child Goal run %q network = %#v, want %#v", snapshot.RunID, got, child.NetworkParticipation)
-			}
+
 			definition, err := fixture.db.GetLoopDefinitionSnapshot(
 				testutil.Context(t),
 				run.WorkspaceID,
@@ -857,15 +985,17 @@ type goalCommandHandlerFixture struct {
 
 func newGoalCommandHandlerFixture(t *testing.T) goalCommandHandlerFixture {
 	t.Helper()
-	return newGoalCommandHandlerFixtureWithModels(
+	return newGoalCommandHandlerFixtureWithRuntime(
 		t,
+		"cursor",
 		goalCommandCursorModel,
 		goalCommandActiveCursorModel,
 	)
 }
 
-func newGoalCommandHandlerFixtureWithModels(
+func newGoalCommandHandlerFixtureWithRuntime(
 	t *testing.T,
+	profileProvider string,
 	profileModel string,
 	activeModel string,
 ) goalCommandHandlerFixture {
@@ -901,8 +1031,8 @@ context_nudge_ratio = 0.0
 	profile := store.SessionCreationProfile{
 		Version: store.SessionCreationProfileVersion, AgentName: "operator-agent",
 		ProfileID: profileOwner.ID,
-		Provider:  "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
-		SandboxMode: store.SessionCreationSandboxNone, Permissions: "default",
+		Provider:  profileProvider, Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
+		Permissions: "default",
 	}
 	profileRef, err := db.PutSessionCreationProfile(ctx, profile)
 	if err != nil {
@@ -914,10 +1044,9 @@ context_nudge_ratio = 0.0
 	}
 	sessionID := "session-goal-command"
 	creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
-		SessionID:            sessionID,
-		NetworkOwnerKey:      "session:" + sessionID,
-		NetworkParticipation: participation.LocalSpec(),
-		SessionType:          string(session.SessionTypeUser),
+		SessionID: sessionID,
+
+		SessionType: string(session.SessionTypeUser),
 	})
 	if err != nil {
 		t.Fatalf("CreationDigest() error = %v", err)
@@ -929,9 +1058,9 @@ context_nudge_ratio = 0.0
 	}
 	if _, err := db.RegisterSessionWithCreationIdentity(ctx, store.SessionInfo{
 		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
-		WorkspaceID:         workspaceID,
-		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
-		SessionType:         string(session.SessionTypeUser), State: string(session.StateActive),
+		WorkspaceID: workspaceID,
+
+		SessionType: string(session.SessionTypeUser), State: string(session.StateActive),
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		CreatedAt:     now, UpdatedAt: now,
 	}, identity); err != nil {
@@ -988,9 +1117,9 @@ context_nudge_ratio = 0.0
 	}, info: &session.Info{
 		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
 		Model:       activeModel,
-		WorkspaceID: workspaceID, NetworkParticipation: participation.LocalSpec(),
-		Lineage: &store.SessionLineage{ParentSessionID: "agent-operator"},
-		Type:    session.SessionTypeUser, State: session.StateActive,
+		WorkspaceID: workspaceID,
+		Lineage:     &store.SessionLineage{ParentSessionID: "agent-operator"},
+		Type:        session.SessionTypeUser, State: session.StateActive,
 	}}
 	return goalCommandHandlerFixture{
 		service: &daemonLoopAPIService{

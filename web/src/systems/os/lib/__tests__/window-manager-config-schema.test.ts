@@ -231,6 +231,13 @@ describe("parseSettingsWindowManagerSection.config", () => {
     expect(() => parseSettingsWindowManagerSection(response)).toThrow();
   });
 
+  it("Should accept the tab new-window policy the daemon ships as its default", () => {
+    const response = settingsResponse();
+    response.config.new_window_policy = "tab";
+
+    expect(parseSettingsWindowManagerSection(response).config.newWindowPolicy).toBe("tab");
+  });
+
   it("Should accept a binding for an id this client has not hydrated yet", () => {
     // The bindable id space is open — core plus `ext.*` — so membership is the
     // registry's judgement, not the schema's. Grammar is still enforced above.

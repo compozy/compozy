@@ -2,6 +2,7 @@ package store
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -9,7 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"sort"
+	"slices"
 	"sync"
 
 	"github.com/pressly/goose/v3"
@@ -110,8 +111,8 @@ func compileMigrationPlan(directory migrationDirectory) (*migrationPlan, error) 
 		})
 	}
 
-	sort.Slice(preparedMigrations, func(i, j int) bool {
-		return preparedMigrations[i].version < preparedMigrations[j].version
+	slices.SortFunc(preparedMigrations, func(left, right preparedMigration) int {
+		return cmp.Compare(left.version, right.version)
 	})
 	return &migrationPlan{gooseFS: rawDirectory, prepared: preparedMigrations}, nil
 }
@@ -151,12 +152,9 @@ func (p *migrationPlan) gooseMigrations() []*goose.Migration {
 }
 
 func (p *migrationPlan) requiresIndependentConnection() bool {
-	for _, migration := range p.prepared {
-		if !migration.useTx {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(p.prepared, func(migration preparedMigration) bool {
+		return !migration.useTx
+	})
 }
 
 type migrationStatementExecutor interface {

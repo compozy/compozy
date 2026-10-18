@@ -42,6 +42,7 @@ func listAutomationJobsOperationSpec() OperationSpec {
 			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by job source", automationSourceValues()),
+			automationJobTargetParam(),
 			boolQueryParam("enabled", "Filter by enabled state"),
 			queryParam(
 				"q",
@@ -287,6 +288,7 @@ func listAutomationTriggersOperationSpec() OperationSpec {
 			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by trigger source", automationSourceValues()),
+			automationTriggerTargetParam(),
 			boolQueryParam("enabled", "Filter by enabled state"),
 			queryParam("event", "Filter by trigger event", false),
 			queryParam("q", "Search triggers by definition or filter fields", false),

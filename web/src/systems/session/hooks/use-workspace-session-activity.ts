@@ -88,7 +88,9 @@ export function useWorkspaceSessionActivity(
           signal
         ),
       enabled: enabled && workspace !== "",
-      staleTime: 2_000,
+      staleTime: 5_000,
+      refetchOnWindowFocus: false,
+      retry: false,
     })),
   });
 

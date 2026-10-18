@@ -28,7 +28,7 @@ const PLACEMENTS: readonly (SnapSide | SnapCorner)[] = [
   "bottom-left",
   "bottom-right",
 ];
-const ARRANGE_PRESETS: readonly OsArrangePreset[] = ["two-up", "grid"];
+const ARRANGE_PRESETS: readonly OsArrangePreset[] = ["two-up", "grid", "main-stack", "columns"];
 
 function focusedWindowId(context: PaletteClientOpContext): string | null {
   return currentState(context).focusedId;
@@ -90,6 +90,30 @@ function tilePlacement(placement: SnapSide | SnapCorner): PaletteClientOpHandler
     const state = currentState(context);
     if (state.focusedId === null || state.windowManagerConfig === null) return;
     context.manager.tileWindow(state.focusedId, placement);
+  };
+}
+
+/** Sends the focused window to the desktop at `slot` (1-based, in desktop order). */
+/**
+ * Moves the focused window to a desktop by id — the one move boundary behind
+ * both the numbered slot commands and named destinations past the ninth slot.
+ */
+export function moveFocusedWindowToDesktopId(
+  manager: PaletteClientOpContext["manager"],
+  desktopId: string
+): void {
+  const state = manager.getState();
+  const focusedId = state.focusedId;
+  const window = focusedId === null ? undefined : state.windows[focusedId];
+  if (!window || desktopId === window.desktopId) return;
+  if (!state.desktops.some(desktop => desktop.id === desktopId)) return;
+  manager.moveWindowToDesktop(window.id, desktopId);
+}
+
+function moveFocusedWindowToDesktop(slot: number): PaletteClientOpHandler {
+  return context => {
+    const target = orderedDesktops(currentState(context).desktops)[slot - 1];
+    if (target) moveFocusedWindowToDesktopId(context.manager, target.id);
   };
 }
 
@@ -171,6 +195,9 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
           if (target) context.manager.switchDesktop(target.id);
         },
       ] as const
+  ),
+  ...DESKTOP_SWITCH_SLOTS.map(
+    slot => [`window.move_to_desktop.${slot}`, moveFocusedWindowToDesktop(slot)] as const
   ),
   ...PLACEMENTS.map(placement => [`window.tile.${placement}`, tilePlacement(placement)] as const),
   ...ARRANGE_PRESETS.map(preset => [`layout.arrange.${preset}`, arrangePreset(preset)] as const),

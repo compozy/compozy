@@ -1,14 +1,18 @@
+import { useQuery } from "@tanstack/react-query";
 import { type ComponentPropsWithoutRef, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { SessionNavigationTargetContext } from "./hooks/session-navigation-target-context";
+import { NAVIGATION_LANDING_OFFSET_PX } from "./hooks/use-session-navigation-host";
 import { useThreadViewport } from "./hooks/use-thread-viewport";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
 import { ThreadMessages } from "./session-thread-messages";
 import { SessionFindBar } from "@/systems/session/components/session-find-bar";
 import { SessionMessageTrail } from "@/systems/session/components/session-message-trail";
+import { TRAIL_MIN_ENTRIES } from "@/systems/session/lib/session-navigation";
+import { sessionTranscriptOutlineOptions } from "@/systems/session/lib/query-options";
 import type { SessionFailurePayload, SessionState } from "@/systems/session";
 
 type ThreadViewportProps = ComponentPropsWithoutRef<"div">;
@@ -50,6 +54,13 @@ export function ThreadViewport({
     transcript,
     workspaceId,
   } = useThreadViewport({ contentRef, isSessionRunning, sessionId, viewportRef });
+  const trailEnabled = Boolean(workspaceId) && navigation.trail.enabled;
+  // Reads the trail's own cached outline: the gutter opens only when the trail
+  // actually renders, so short sessions keep a centred transcript.
+  const outline = useQuery(
+    sessionTranscriptOutlineOptions(workspaceId ?? "", sessionId, trailEnabled)
+  );
+  const trailVisible = trailEnabled && (outline.data?.entries.length ?? 0) >= TRAIL_MIN_ENTRIES;
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -73,7 +84,7 @@ export function ThreadViewport({
           <ThreadContentRail
             ref={contentRef}
             inset={contentInset}
-            className={cn("min-h-full", workspaceId && navigation.trail.enabled && "pl-9")}
+            className={cn("min-h-full", trailVisible && "pl-9")}
           >
             <SessionNavigationTargetContext.Provider value={navigation.target}>
               <ThreadMessages
@@ -95,6 +106,9 @@ export function ThreadViewport({
                 sessionState={sessionState}
                 failure={failure}
                 startupFailed={startupFailed}
+                onJumpToMessage={threadMessageId => {
+                  void scroll.scrollToMessage(threadMessageId, NAVIGATION_LANDING_OFFSET_PX);
+                }}
               />
             </SessionNavigationTargetContext.Provider>
           </ThreadContentRail>

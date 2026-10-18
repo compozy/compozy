@@ -1,7 +1,8 @@
 package redact
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -71,11 +72,8 @@ func (r *dynamicSecretRegistry) storeSnapshotLocked() {
 	for secret := range r.values {
 		secrets = append(secrets, secret)
 	}
-	sort.Slice(secrets, func(i int, j int) bool {
-		if len(secrets[i]) == len(secrets[j]) {
-			return secrets[i] < secrets[j]
-		}
-		return len(secrets[i]) > len(secrets[j])
+	slices.SortFunc(secrets, func(a, b string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
 	})
 	r.snapshot.Store(secrets)
 }

@@ -22,6 +22,8 @@ export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "chi
    * the chosen section. Modified clicks keep native link behavior.
    */
   onNavigate: (route: OsWindowRoute) => void;
+  /** Warms a section's code on link hover/focus so switching has no loading frame. */
+  onPreload?: (slug: string) => void;
   searchInputRef?: Ref<HTMLInputElement>;
 }
 
@@ -30,6 +32,7 @@ export function SettingsWindowNav({
   activeSlug,
   connection,
   onNavigate,
+  onPreload,
   searchInputRef,
   className,
   ...navProps
@@ -41,7 +44,7 @@ export function SettingsWindowNav({
     <nav
       aria-label="Settings navigation"
       className={cn(
-        "flex w-full shrink-0 flex-row items-center gap-1 overflow-x-auto border-b border-line-soft bg-canvas-soft px-2 py-1.5",
+        "flex w-full shrink-0 flex-row items-center gap-1 overflow-x-auto border-b border-line-soft bg-sunken px-2 py-1.5",
         "@min-settings-takeover:w-settings-nav @min-settings-takeover:flex-col @min-settings-takeover:items-stretch @min-settings-takeover:gap-0 @min-settings-takeover:overflow-y-auto @min-settings-takeover:border-r @min-settings-takeover:border-b-0 @min-settings-takeover:px-2.5 @min-settings-takeover:py-0",
         className
       )}
@@ -79,6 +82,7 @@ export function SettingsWindowNav({
                   isActive={section.slug === activeSlug}
                   key={section.slug}
                   onNavigate={onNavigate}
+                  onPreload={onPreload}
                   section={section}
                 />
               ))}
@@ -109,6 +113,7 @@ interface SettingsSectionLinkProps extends Omit<ComponentProps<typeof Link>, "ch
   section: SettingsSectionDescriptor;
   isActive: boolean;
   onNavigate: (route: OsWindowRoute) => void;
+  onPreload?: (slug: string) => void;
 }
 
 function isPlainLeftClick(event: MouseEvent<HTMLAnchorElement>): boolean {
@@ -119,8 +124,11 @@ function SettingsSectionLink({
   section,
   isActive,
   onNavigate,
+  onPreload,
   className,
   onClick,
+  onFocus,
+  onPointerEnter,
   ...linkProps
 }: SettingsSectionLinkProps) {
   const Icon = section.icon;
@@ -135,13 +143,19 @@ function SettingsSectionLink({
     <Link
       {...linkProps}
       onClick={handleClick}
+      onFocus={event => {
+        onFocus?.(event);
+        onPreload?.(section.slug);
+      }}
+      onPointerEnter={event => {
+        onPointerEnter?.(event);
+        onPreload?.(section.slug);
+      }}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-ws-name font-medium @min-settings-takeover:h-8",
+        "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-body font-medium @min-settings-takeover:h-8",
         "transition-colors duration-base focus-visible:outline-none focus-visible:shadow-focus-ring",
-        isActive
-          ? "bg-accent-tint text-accent-strong"
-          : "text-muted hover:bg-row-hover hover:text-fg",
+        isActive ? "bg-selected text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
         className
       )}
       data-active={isActive ? "true" : "false"}
@@ -150,7 +164,7 @@ function SettingsSectionLink({
     >
       <Icon
         aria-hidden="true"
-        className={cn("size-4 shrink-0", isActive ? "text-accent-strong" : "text-subtle")}
+        className={cn("size-4 shrink-0", isActive ? "text-fg" : "text-subtle")}
       />
       <span className="whitespace-nowrap @min-settings-takeover:truncate" title={section.label}>
         {section.label}

@@ -2,7 +2,7 @@
 
 The `loops-refac` WS1 identity case (TechSpec §WS1, ADR-003/ADR-004). A loop declares an `events:` envelope of watch-events subscriptions (`{kind, filter}` CEL per entry) and, when it reaches that node, **parks** into the live, zero-cost `watching` state. A durable daemon event whose kind matches a subscription rings a typed **doorbell**: the observer evaluates the subscription's CEL against `event`+`inputs`, and a match **coalesces an idempotent wake** into the loop coordinator, which runs one round over the batch replayed from the **ledger cursor** and drives the downstream node to a truthful terminal (or re-parks if still watching).
 
-This is **distinct from J-08**: J-08 is the extension-provided `loop.watch_source` (ADR-016 — poll/push, has a silence window that ends `stalled`). Watch-events is **daemon-internal** (ADR-003, a closed source class, **not** extension-pluggable) — the wake is event-edged off durable ledger anchors, there is **no polling and no silence-stall concept**, and durability across downtime is guaranteed by **boot reconcile + a scheduler backstop gap-check** rather than a live lease. The supported kinds phase in per ADR-004: phase A `task.*`/`loop.*`, phase B `automation.*`/`network.*`, phase C `coordinator.*`/`event.post_record` — the web kind select and the docs matrix derive from the family registry (never a hand-authored list), and pre-state/no-anchor kinds (`*.pre_*`, `network.peer.*`) lint unsupported.
+This is **distinct from J-08**: J-08 is the extension-provided `loop.watch_source` (ADR-016 — poll/push, has a silence window that ends `stalled`). Watch-events is **daemon-internal** (ADR-003, a closed source class, **not** extension-pluggable) — the wake is event-edged off durable ledger anchors, there is **no polling and no silence-stall concept**, and durability across downtime is guaranteed by **boot reconcile + a scheduler backstop gap-check** rather than a live lease. The supported kinds phase in per ADR-004: phase A `task.*`/`loop.*`, phase B `automation.*`, phase C `coordinator.*`/`event.post_record` — the web kind select and the docs matrix derive from the family registry (never a hand-authored list), and pre-state/no-anchor kinds (`*.pre_*`) lint unsupported.
 
 ```mermaid
 flowchart TD
@@ -46,7 +46,7 @@ journey:
       verb: "Run the loop; it reaches the watch-events node"
       expected_observable: "The run enters the live watching state at zero cost; run-detail (web + compozy loop status --run-id <run-id> -o json) exposes the parked read-model — subscriptions {kind, filter}, cursors, last_wake_at — and renders nothing when absent"
     - step: 3
-      verb: "A matching durable event commits (a task completes, an automation finishes, a network/coordinator/session event lands)"
+      verb: "A matching durable event commits (a task completes, an automation finishes, a coordinator/session event lands)"
       expected_observable: "The doorbell evaluates CEL(event, inputs); a match coalesces one wake and runs a coordinator round over the ledger batch; a non-matching or cross-workspace event never wakes the loop"
     - step: 4
       verb: "Repeat until the work is done or restart the daemon while parked"
@@ -64,7 +64,7 @@ journey:
     - at_step: 2
       how: "The daemon is restarted while the run is parked and events commit during downtime."
       resume: "Boot reconcile scans watching runs for ledger-cursor gaps and the scheduler backstop gap-check catches any missed index entry; the run wakes exactly once, never claims."
-  crosses: [loop-coordinator, task/automation/network/coordinator/session event families, observe-ledger, boot-reconcile, scheduler-backstop, session-policy-gate(for downstream run-agent nodes), workspace-isolation]
+  crosses: [loop-coordinator, task/automation/coordinator/session event families, observe-ledger, boot-reconcile, scheduler-backstop, session-policy-gate(for downstream run-agent nodes), workspace-isolation]
 
 design_reference:
   screens:
@@ -82,11 +82,11 @@ e2e_backbone:
   runtime:
     - "task 11 E2E-runtime: parked loop with pinned task.status_changed + task.run.completed subscriptions; unrelated task completes under the watched parent → wake → downstream acpmock run → terminal done."
     - "task 11 E2E-runtime crash fail-injection: events written 'during downtime' → boot reconcile finds the co-durable row and reserves the coordinator run on boot."
-    - "task 13 integration: automation.run.completed wake + network work-persisted wake (boot-reconcile variants)."
+    - "task 13 integration: automation.run.completed wake (boot-reconcile variants)."
     - "task 14 integration: coordinator.stopped wake; session-scoped event.post_record wake with redaction + cross-session non-match; doorbell hot-path benchmark."
   web:
     - "task 12 E2E-web / component: codec round-trips a watch-events node (kind + CEL); run-detail renders subscriptions/cursors/last_wake_at from a fixture, absent block renders nothing; eng-ui-screenshot capture cited."
   followups:
     - "AB-009 — a real-daemon watch-events browser seed (park a run, commit a matching event, drive editor→park→wake in Playwright). Task-11 ships the runtime lane and task-12 ships codec/component + screenshots; the live-daemon Playwright walk for LP-043/LP-044 rides AB-009 (same gap class as AB-001 for J-01)."
-    - "Phase gating — LP-047/048 (phase B) and LP-049/050 (phase C) only exist once tasks 13/14 land; qa-execution walks the phase-A rows (LP-040..044) first and treats later-phase rows as blocked-until-implemented if a phase is unshipped at run time (record the skip, do not invent a pass)."
+    - "Phase gating — LP-047 (phase B) and LP-049/050 (phase C) only exist once tasks 13/14 land; qa-execution walks the phase-A rows (LP-040..044) first and treats later-phase rows as blocked-until-implemented if a phase is unshipped at run time (record the skip, do not invent a pass)."
 ```

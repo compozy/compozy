@@ -48,7 +48,7 @@ type effectLinksContext struct {
 
 type effectTemplateContext struct {
 	Identity   effectIdentityContext `json:"identity"`
-	Failure    *ClassifiedFailure    `json:"failure,omitempty"`
+	Failure    *ClassifiedFailure    `json:"failure,omitzero"`
 	Quarantine json.RawMessage       `json:"quarantine,omitempty"`
 	Attempt    effectAttemptContext  `json:"attempt"`
 	Links      effectLinksContext    `json:"links"`
@@ -132,8 +132,7 @@ func cloneClassifiedFailure(value *ClassifiedFailure) *ClassifiedFailure {
 	}
 	cloned := *value
 	if value.RetryAfter != nil {
-		retryAfter := *value.RetryAfter
-		cloned.RetryAfter = &retryAfter
+		cloned.RetryAfter = new(*value.RetryAfter)
 	}
 	return &cloned
 }

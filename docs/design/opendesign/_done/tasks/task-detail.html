@@ -293,12 +293,6 @@
   .code-block .k{color:var(--accent-strong)}
   .code-block .s{color:var(--success)}
 
-  /* bridge row */
-  .bridgerow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 14px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill)}
-  .bridgerow b{font-family:var(--font-mono);font-size:11.5px;font-weight:500;color:var(--fg-strong)}
-  .bridgerow p{margin-top:4px;font-size:11.5px;color:var(--muted)}
-  .bridgerow .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
-
   /* ============ setup sheet form ============ */
   .fgroup{margin-bottom:20px}
   .fgroup__t{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:10px}
@@ -558,10 +552,9 @@
               </div>
               <div class="prow"><span class="prow__k">Agent</span><span class="prow__v"><span>product-manager-agent</span></span></div>
               <div class="prow"><span class="prow__k">Model</span><span class="prow__v mono"><span>anthropic · claude-opus-4-7</span></span></div>
-              <div class="prow"><span class="prow__k">Sandbox</span><span class="prow__v"><span>fintech-launch</span></span></div>
+
               <div class="prow"><span class="prow__k">Attempts</span><span class="prow__v"><span>2 of 3</span></span></div>
               <div class="prow"><span class="prow__k">Auto-enqueue</span><span class="prow__v"><span class="muted-val" style="color:var(--muted)">Off</span></span></div>
-              <div class="prow"><span class="prow__k">Channel</span><span class="prow__v mono"><span>coord-launch-001</span></span></div>
             </div>
 
             <div class="rail-sec">
@@ -649,7 +642,7 @@
   <nav class="lane-tabs" role="tablist" aria-label="Inspect views">
     <button class="lane-tab" role="tab" aria-selected="true" data-itab="diagnostics">Diagnostics</button>
     <button class="lane-tab" role="tab" aria-selected="false" data-itab="stream">Stream</button>
-    <button class="lane-tab" role="tab" aria-selected="false" data-itab="bridges">Bridges</button>
+
     <button class="lane-tab" role="tab" aria-selected="false" data-itab="raw">Raw</button>
   </nav>
   <div class="sheet__body">
@@ -683,19 +676,7 @@
       <div style="margin-top:12px"><button class="btn btn--sm" type="button">Reconnect</button></div>
     </div>
 
-    <div class="ipanel hide" data-ipanel="bridges">
-      <div class="bridgerow">
-        <div>
-          <b>sub_9f2c1e</b>
-          <p>Delivers run transitions to bridge <span class="mono">launch-hq/coordination</span> · scope run events · mode batched</p>
-          <p class="mono" style="margin-top:6px">cursor seq 103 · delivered 2 min ago</p>
-        </div>
-        <button class="btn btn--sm btn--ghost" type="button" aria-label="Remove subscription">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-        </button>
-      </div>
-      <div style="margin-top:12px"><button class="btn btn--sm" type="button">Add subscription…</button></div>
-    </div>
+
 
     <div class="ipanel hide" data-ipanel="raw">
       <div class="code-block">{
@@ -710,7 +691,6 @@
   <span class="s">"latest_event_seq"</span>: 103,
   <span class="s">"max_attempts"</span>: 3,
   <span class="s">"auto_enqueue_on_ready"</span>: false,
-  <span class="s">"network_channel"</span>: <span class="s">"coord-launch-001"</span>,
   <span class="s">"approval_policy"</span>: <span class="s">"none"</span>,
   <span class="s">"created_by"</span>: { <span class="s">"kind"</span>: <span class="s">"human"</span>, <span class="s">"ref"</span>: <span class="s">"sofia.mendes"</span> },
   <span class="s">"created_at"</span>: <span class="s">"2026-07-15T16:04:11Z"</span>,
@@ -783,8 +763,7 @@
     </div>
 
     <div class="fgroup">
-      <div class="fgroup__t">Sandbox &amp; participants</div>
-      <div class="frow"><span class="frow__k">Sandbox</span><span class="frow__v"><span class="chip">fintech-launch</span></span></div>
+      <div class="fgroup__t">Participants</div>
       <div class="frow"><span class="frow__k">Reviewers</span><span class="frow__v"><span class="chip">compliance-review-agent</span></span></div>
     </div>
 
@@ -797,7 +776,6 @@
   <span class="s">"worker"</span>: { <span class="s">"mode"</span>: <span class="s">"select"</span>, <span class="s">"provider"</span>: <span class="s">"anthropic"</span>, <span class="s">"model"</span>: <span class="s">"claude-opus-4-7"</span>,
     <span class="s">"allowed_agent_names"</span>: [<span class="s">"product-manager-agent"</span>, <span class="s">"platform-engineer-agent"</span>] },
   <span class="s">"coordinator"</span>: { <span class="s">"mode"</span>: <span class="s">"guided"</span>, <span class="s">"agent_name"</span>: <span class="s">"launch-coordinator-agent"</span> },
-  <span class="s">"sandbox"</span>: { <span class="s">"mode"</span>: <span class="s">"ref"</span>, <span class="s">"sandbox_ref"</span>: <span class="s">"fintech-launch"</span> },
   <span class="s">"runtime"</span>: { <span class="s">"mode"</span>: <span class="s">"default"</span> }
 }</div>
     </div>

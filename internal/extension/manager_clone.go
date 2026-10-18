@@ -14,10 +14,7 @@ import (
 )
 
 func sortedKeys[T any](items map[string]T) []string {
-	keys := make([]string, 0, len(items))
-	for key := range items {
-		keys = append(keys, key)
-	}
+	keys := slices.AppendSeq(make([]string, 0, len(items)), maps.Keys(items))
 	slices.Sort(keys)
 	return keys
 }
@@ -35,21 +32,14 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 
 func cloneHookMatcher(src hookspkg.HookMatcher) hookspkg.HookMatcher {
 	cloned := src
-	if src.NetworkMatcher != nil {
-		value := *src.NetworkMatcher
-		cloned.NetworkMatcher = &value
-	}
 	if src.CompactionMatcher != nil {
-		value := *src.CompactionMatcher
-		cloned.CompactionMatcher = &value
+		cloned.CompactionMatcher = new(*src.CompactionMatcher)
 	}
 	if src.Autonomy != nil {
-		value := *src.Autonomy
-		cloned.Autonomy = &value
+		cloned.Autonomy = new(*src.Autonomy)
 	}
 	if src.ToolReadOnly != nil {
-		value := *src.ToolReadOnly
-		cloned.ToolReadOnly = &value
+		cloned.ToolReadOnly = new(*src.ToolReadOnly)
 	}
 	return cloned
 }
@@ -58,9 +48,7 @@ func cloneStringMap(src map[string]string) map[string]string {
 	if len(src) == 0 {
 		return nil
 	}
-	dst := make(map[string]string, len(src))
-	maps.Copy(dst, src)
-	return dst
+	return maps.Clone(src)
 }
 
 func cloneExtensionInfo(info *ExtensionInfo) ExtensionInfo {
@@ -78,12 +66,12 @@ func cloneManifest(src *Manifest) *Manifest {
 
 	cloned := *src
 	cloned.Inputs = cloneManifestInputs(src.Inputs)
+	cloned.Gateway = src.Gateway.Normalize()
 	cloned.IngestDiagnostics = cloneDiagnosticItems(src.IngestDiagnostics)
 	cloned.Resources = normalizeResourcesConfig(src.Resources)
 	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)
 	cloned.Permissions = normalizePermissionsConfig(src.Permissions)
 	cloned.Subprocess = normalizeSubprocessConfig(src.Subprocess)
-	cloned.Bridge = normalizeBridgeConfig(src.Bridge)
 	cloned.Profiles = normalizeManifestProfiles(src.Profiles)
 	return &cloned
 }
@@ -173,8 +161,7 @@ func cloneSkillProvenance(src *skillspkg.Provenance) *skillspkg.Provenance {
 	if src == nil {
 		return nil
 	}
-	cloned := *src
-	return &cloned
+	return new(*src)
 }
 
 func cloneInitializeResponse(src *subprocess.InitializeResponse) *subprocess.InitializeResponse {

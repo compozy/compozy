@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
@@ -29,56 +27,6 @@ func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
 	}
 	if first.Artifacts.RootDir() == second.Artifacts.RootDir() {
 		t.Fatalf("first.Artifacts.RootDir() = %q, want different isolated artifact path", first.Artifacts.RootDir())
-	}
-}
-
-func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		opts RuntimeHarnessOptions
-		want bool
-	}{
-		{
-			name: "ShouldEnableNetworkByDefault",
-			opts: RuntimeHarnessOptions{},
-			want: true,
-		},
-		{
-			name: "ShouldAllowExplicitDisableFromConfigSeed",
-			opts: RuntimeHarnessOptions{
-				ConfigSeed: ConfigSeedOptions{
-					Mutate: func(cfg *compozyconfig.Config) {
-						cfg.Network.Enabled = false
-					},
-				},
-			},
-			want: false,
-		},
-		{
-			name: "ShouldOverrideDisabledSeedWhenEnableNetworkIsRequested",
-			opts: RuntimeHarnessOptions{
-				EnableNetwork: true,
-				ConfigSeed: ConfigSeedOptions{
-					Mutate: func(cfg *compozyconfig.Config) {
-						cfg.Network.Enabled = false
-					},
-				},
-			},
-			want: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			layout := prepareRuntimeLayout(t, &tt.opts)
-			if got := layout.Config.Network.Enabled; got != tt.want {
-				t.Fatalf("layout.Config.Network.Enabled = %t, want %t", got, tt.want)
-			}
-		})
 	}
 }
 

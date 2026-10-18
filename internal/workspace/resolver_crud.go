@@ -116,9 +116,6 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 		}
 		ws.DefaultAgent = strings.TrimSpace(*opts.DefaultAgent)
 	}
-	if opts.SandboxRef != nil {
-		ws.SandboxRef = strings.TrimSpace(*opts.SandboxRef)
-	}
 
 	ws.UpdatedAt = r.now()
 	if err := r.store.UpdateWorkspace(ctx, ws); err != nil {

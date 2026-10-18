@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
@@ -59,14 +58,14 @@ func (g *AutomationRepo) SetScheduledDeferral(
 
 func resumeDeferredScheduledRun(
 	ctx context.Context,
-	tx *sql.Tx,
+	tx sqlcgen.DBTX,
 	state automation.SchedulerState,
 	claim automation.SchedulerClaim,
 ) (automation.SchedulerClaimResult, error) {
 	row := tx.QueryRowContext(ctx, `SELECT
   id, `+automationRunProfileIDSQL+`, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
   status, attempt, scheduled_at, started_at, ended_at, error,
-  delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
+  delivery_error, delivery_error_at, loop_run_id, metadata_json
   FROM automation_runs WHERE id = ?`, claim.RunID)
 	run, err := scanAutomationRun(row)
 	if err != nil {
@@ -77,9 +76,6 @@ func resumeDeferredScheduledRun(
 		if err := upsertSchedulerStateTx(ctx, tx, state); err != nil {
 			return automation.SchedulerClaimResult{}, err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return automation.SchedulerClaimResult{}, err
 	}
 	return automation.SchedulerClaimResult{State: state, Run: run, Skipped: run.Status != automation.RunScheduled}, nil
 }

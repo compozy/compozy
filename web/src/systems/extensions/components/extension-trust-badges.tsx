@@ -71,7 +71,7 @@ export function ExtensionTrustBadges({
   return (
     <>
       {facts.dev ? (
-        <Pill data-testid="extension-dev-badge" mono size="xs" tone="accent">
+        <Pill data-testid="extension-dev-badge" mono size="xs" tone="neutral">
           {EXTENSION_DEV_LABEL}
         </Pill>
       ) : null}

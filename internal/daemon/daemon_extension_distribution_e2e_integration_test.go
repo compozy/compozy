@@ -42,6 +42,19 @@ import (
 )
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
+	// Share only the immutable catalog executable; publication and package outputs stay isolated.
+	catalogPath := filepath.Join(t.TempDir(), "compozy-catalog")
+	repoRoot := extensionAuthoringE2ERepoRoot(t)
+	catalogBinary := sync.OnceValues(func() (string, error) {
+		ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+		defer cancel()
+		command := execabs.CommandContext(ctx, "go", "build", "-o", catalogPath, "./cmd/compozy-catalog")
+		command.Dir = repoRoot
+		if output, err := command.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("build catalog executable: %w\n%s", err, output)
+		}
+		return catalogPath, nil
+	})
 	t.Run(
 		"Should install and update pinned plugins through public transports [IT-015 IT-018 IT-019]",
 		testDaemonPluginCatalogLifecycle,
@@ -55,9 +68,11 @@ func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		"Should manage marketplace sources through public transports [IT-012 IT-013 IT-014]",
 		testDaemonMarketplaceSources,
 	)
-	t.Run("Should consume real v3 publication and reject root-only sources [IT-017]", testDaemonCatalogPublication)
+	t.Run("Should consume real v3 publication and reject root-only sources [IT-017]", func(t *testing.T) {
+		testDaemonCatalogPublication(t, catalogBinary)
+	})
 	t.Run("Should join curated installs update releases and reject changed artifacts [IT-003 IT-004]",
-		testDaemonCuratedCatalogLifecycle)
+		func(t *testing.T) { testDaemonCuratedCatalogLifecycle(t, catalogBinary) })
 	t.Run("Should install checked-in required and optional secret inputs through public transports [IT-005]",
 		testDaemonCatalogSecretInputs)
 	t.Run("Should restore typed inputs through public transports after daemon restart [IT-020]",
@@ -296,13 +311,17 @@ func testDaemonPluginCatalogLifecycle(t *testing.T) {
 
 // Invariant: the daemon reads the publisher's complete v3 family and reports root-only source failure without fallback.
 // Owner: daemon distribution integration; canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
-func testDaemonCatalogPublication(t *testing.T) {
+func testDaemonCatalogPublication(t *testing.T, catalogBinary func() (string, error)) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 	root := extensionAuthoringE2ERepoRoot(t)
 	published := filepath.Join(t.TempDir(), "published")
-	command := execabs.CommandContext(ctx, "go", "run", "./cmd/compozy-catalog", "publish",
+	binaryPath, err := catalogBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := execabs.CommandContext(ctx, binaryPath, "publish",
 		filepath.Join(root, "catalog"), published)
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
@@ -443,7 +462,8 @@ func testDaemonCatalogPublication(t *testing.T) {
 }
 
 func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 
 	const publishCredential = "distribution-e2e-publish-token"
@@ -478,7 +498,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	configureExtensionKitE2ESource(t, sourceDir)
 	var firstBuild extensionpkg.BuildResult
 	runExtensionAuthoringCLI(t, ctx, publisher, &firstBuild, "extension", "build", sourceDir, "-o", "json")
-	firstNetworkDigest := addExtensionKitE2ENetworkRequirement(t, firstBuild.GenerationDir, "builders")
+	firstGatewayDigest := addExtensionKitE2EGatewayRequirement(t, firstBuild.GenerationDir, "gateway.private")
 	var firstPublish extensionpkg.PublishResult
 	runExtensionAuthoringCLI(
 		t,
@@ -508,7 +528,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		consumer,
 		&installed,
 		"extension", "install", "github:acme/hello", "--allow-unverified", "--yes",
-		"--confirm-network-requirement", firstNetworkDigest, "-o", "json",
+		"--confirm-gateway-requirement", firstGatewayDigest, "-o", "json",
 	)
 	if installed.Name != "hello" || installed.Provenance == nil || !installed.Provenance.DigestMatched ||
 		installed.Provenance.ChecksumVerified || installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub {
@@ -526,7 +546,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	rewriteExtensionAuthoringGeneration(t, sourceDir, "published-v1:", "published-v2:", "published-v2")
 	var secondBuild extensionpkg.BuildResult
 	runExtensionAuthoringCLI(t, ctx, publisher, &secondBuild, "extension", "build", sourceDir, "-o", "json")
-	secondNetworkDigest := addExtensionKitE2ENetworkRequirement(t, secondBuild.GenerationDir, "reviewers")
+	secondGatewayDigest := addExtensionKitE2EGatewayRequirement(t, secondBuild.GenerationDir, "gateway.public")
 	var secondPublish extensionpkg.PublishResult
 	runExtensionAuthoringCLI(
 		t,
@@ -545,13 +565,13 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		consumer.WorkspaceRoot,
 		"extension", "update", "hello", "--allow-unverified", "--yes", "-o", "json",
 	)
-	if updateErr == nil || !strings.Contains(stderr, secondNetworkDigest) {
+	if updateErr == nil || !strings.Contains(stderr, secondGatewayDigest) {
 		t.Fatalf(
 			"unconfirmed extension update error = %v; stdout=%s stderr=%s, want refusal with candidate digest %q",
 			updateErr,
 			stdout,
 			stderr,
-			secondNetworkDigest,
+			secondGatewayDigest,
 		)
 	}
 	unchanged, err := consumer.GetExtension(ctx, "hello")
@@ -566,7 +586,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		consumer,
 		&updates,
 		"extension", "update", "hello", "--allow-unverified", "--yes",
-		"--confirm-network-requirement", secondNetworkDigest, "-o", "json",
+		"--confirm-gateway-requirement", secondGatewayDigest, "-o", "json",
 	)
 	if len(updates) != 1 || updates[0].Status != extensionpkg.MarketplaceUpdateStatusUpdated ||
 		updates[0].LatestVersion != "v0.2.0" {
@@ -583,7 +603,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", false, "hourly", false)
 	assertDistributionAutomationRemoved(t, ctx, consumer, "hello")
 
-	assertDistributionNativeKitJourney(t, ctx, binaryPath, configSeed, secondNetworkDigest)
+	assertDistributionNativeKitJourney(t, ctx, binaryPath, configSeed, secondGatewayDigest)
 
 	var removed compozycontract.ManagedExtensionRemovePayload
 	runExtensionAuthoringCLI(
@@ -777,7 +797,7 @@ func assertDistributionNativeKitJourney(
 	ctx context.Context,
 	binaryPath string,
 	configSeed e2etest.ConfigSeedOptions,
-	networkDigest string,
+	gatewayDigest string,
 ) {
 	t.Helper()
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -792,7 +812,7 @@ func assertDistributionNativeKitJourney(
 		toolspkg.ToolIDExtensionsInstall,
 		map[string]any{
 			"source": "github", "ref": "acme/hello", "allow_unverified": true,
-			"confirm_network_digest": networkDigest,
+			"confirm_gateway_digest": gatewayDigest,
 		},
 	))
 	setExtensionKitE2ESecret(t, ctx, harness, "hello", harness.WorkspaceID)
@@ -1394,6 +1414,7 @@ func assertDistributionUnconfiguredProfile(t *testing.T, ctx context.Context, ru
 // Invariant: checked-in input declarations drive transport refusals, secret storage and optional installation.
 // Owner: daemon distribution integration; canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
 func testDaemonCatalogSecretInputs(t *testing.T) {
+	t.Parallel()
 	t.Run("Should store a supplied secret and omit an optional input", func(t *testing.T) {
 		testDaemonCatalogSecretInputMode(t, false)
 	})
@@ -1694,17 +1715,21 @@ WHERE extension = 'durable-input-kit' AND profile = ? AND workspace_id = '' AND 
 
 // Invariant: curated installs join exact origin/version, updates preserve that origin, and changed bytes cannot install.
 // Owner: daemon catalog and extension integration; canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
-func testDaemonCuratedCatalogLifecycle(t *testing.T) {
+func testDaemonCuratedCatalogLifecycle(t *testing.T, catalogBinary func() (string, error)) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 	root := extensionAuthoringE2ERepoRoot(t)
+	binaryPath, err := catalogBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
 	catalog := newDistributionGitHubServer(t, "catalog-fixture")
 	t.Cleanup(catalog.Close)
 	contextEntry := distributionCatalogEntry(t, root, "context7")
 	bridgeEntry := distributionCatalogEntry(t, root, "herdr-bridge")
-	contextArchive := packageDistributionCatalog(t, ctx, root, "context7", contextEntry["version"].(string))
-	bridgeArchive := packageDistributionCatalog(t, ctx, root, "herdr-bridge", "0.3.3")
+	contextArchive := packageDistributionCatalog(t, ctx, binaryPath, root, "context7", contextEntry["version"].(string))
+	bridgeArchive := packageDistributionCatalog(t, ctx, binaryPath, root, "herdr-bridge", "0.3.3")
 	catalog.setCatalogArtifact(contextEntry, contextArchive)
 	bridgeAsset := catalog.setCatalogArtifact(bridgeEntry, bridgeArchive)
 	binDir := t.TempDir()
@@ -1815,7 +1840,10 @@ func testDaemonCuratedCatalogLifecycle(t *testing.T) {
 	)
 	assertDistributionCatalogListing(t, ctx, runtime, "herdr-bridge", "0.3.3", "0.3.3", false)
 	bridgeEntry["version"] = "0.3.4"
-	catalog.setCatalogArtifact(bridgeEntry, packageDistributionCatalog(t, ctx, root, "herdr-bridge", "0.3.4"))
+	catalog.setCatalogArtifact(
+		bridgeEntry,
+		packageDistributionCatalog(t, ctx, binaryPath, root, "herdr-bridge", "0.3.4"),
+	)
 	refreshDistributionCatalog(t, ctx, runtime)
 	assertDistributionCatalogListing(t, ctx, runtime, "herdr-bridge", "0.3.4", "0.3.3", true)
 	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPost, runtime.HTTPURL("/api/extensions/update"),
@@ -1844,7 +1872,7 @@ func distributionCatalogEntry(t *testing.T, root, id string) map[string]any {
 	return nil
 }
 
-func packageDistributionCatalog(t *testing.T, ctx context.Context, root, name, version string) []byte {
+func packageDistributionCatalog(t *testing.T, ctx context.Context, binaryPath, root, name, version string) []byte {
 	t.Helper()
 	copyRoot := filepath.Join(t.TempDir(), name)
 	if err := os.CopyFS(copyRoot, os.DirFS(filepath.Join(root, "catalog", "packages", name))); err != nil {
@@ -1869,7 +1897,7 @@ func packageDistributionCatalog(t *testing.T, ctx context.Context, root, name, v
 		t.Fatal(err)
 	}
 	archivePath := filepath.Join(t.TempDir(), name+".tar.gz")
-	command := execabs.CommandContext(ctx, "go", "run", "./cmd/compozy-catalog", "package", copyRoot, archivePath)
+	command := execabs.CommandContext(ctx, binaryPath, "package", copyRoot, archivePath)
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("package catalog fixture: %v\n%s", err, output)

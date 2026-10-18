@@ -96,10 +96,10 @@ func (m *Manager) renameActiveSession(
 	active.UpdatedAt = m.now()
 	meta := active.metaLocked()
 	info := active.infoLocked()
-	if err := m.persistSessionIdentitySnapshot(ctx, active.metaPath, meta, info); err != nil {
+	if err := m.persistSessionIdentitySnapshot(ctx, active.metaPath, &meta, info); err != nil {
 		active.Name = previousMeta.Name
 		active.UpdatedAt = previousMeta.UpdatedAt
-		if rollbackErr := store.WriteSessionMeta(active.metaPath, previousMeta); rollbackErr != nil {
+		if rollbackErr := store.WriteSessionMeta(active.metaPath, &previousMeta); rollbackErr != nil {
 			active.mu.Unlock()
 			return nil, errors.Join(err, fmt.Errorf("session: roll back rename: %w", rollbackErr))
 		}
@@ -133,7 +133,7 @@ func (m *Manager) renameInactiveSession(
 	if err := validateManualSessionRename(workspaceID, Type(meta.SessionType), meta.WorkspaceID); err != nil {
 		return nil, err
 	}
-	info := m.sessionInfoFromMeta(ctx, meta)
+	info := m.sessionInfoFromMeta(ctx, &meta)
 	if err := m.populateArchiveMetadata(ctx, info); err != nil {
 		return nil, err
 	}
@@ -147,11 +147,11 @@ func (m *Manager) renameInactiveSession(
 	info.Name = name
 	info.UpdatedAt = meta.UpdatedAt
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+	if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 		return nil, fmt.Errorf("session: persist rename for %q: %w", target, err)
 	}
-	if err := m.persistSessionCatalogSnapshot(ctx, meta, info); err != nil {
-		if rollbackErr := store.WriteSessionMeta(metaPath, previousMeta); rollbackErr != nil {
+	if err := m.persistSessionCatalogSnapshot(ctx, &meta, info); err != nil {
+		if rollbackErr := store.WriteSessionMeta(metaPath, &previousMeta); rollbackErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("session: roll back rename: %w", rollbackErr))
 		}
 		return nil, err

@@ -52,8 +52,8 @@ describe("cmd-palette feedback copy and retry gating (UT-159, UT-160)", () => {
   });
 
   it("Should name the command and repeat the runtime reason verbatim on failure", () => {
-    expect(invokeFailedFeedback(oneShot, "runtime unavailable")).toEqual({
-      message: "Purge archived notes — runtime unavailable",
+    expect(invokeFailedFeedback(oneShot, "CompozyOS isn't reachable right now")).toEqual({
+      message: "Purge archived notes — CompozyOS isn't reachable right now",
       tone: "error",
       retryable: false,
     });

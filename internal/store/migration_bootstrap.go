@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
-	"sort"
+	"slices"
 
 	atlasmigrate "ariga.io/atlas/sql/migrate"
 	goosedatabase "github.com/pressly/goose/v3/database"
@@ -113,7 +113,7 @@ func readMigrationBootstrapFiles(
 	if len(paths) == 0 {
 		return nil, nil, fmt.Errorf("schema source %q contains no SQL files", bootstrap.SchemaSource)
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	schemaFiles := make([]migrationFile, 0, len(paths))
 	for _, filePath := range paths {
 		file, err := readMigrationBootstrapFile(bootstrap.FS, filePath)

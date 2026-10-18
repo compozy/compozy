@@ -1,6 +1,24 @@
-import { bridgeKindIconRegistry, type KindIconRegistry } from "@compozy/ui";
-import { ClaudeLogo, CursorLogo, GeminiLogo, OpenAILogo, VercelLogo } from "@compozy/ui/logos";
+import { type KindIconRegistry } from "@compozy/ui";
+import {
+  ClaudeLogo,
+  CursorLogo,
+  GeminiLogo,
+  GithubLogo,
+  LinearLogo,
+  OpenAILogo,
+  SlackLogo,
+  VercelLogo,
+} from "@compozy/ui/logos";
 import { createElement, type SVGProps } from "react";
+
+// Monochrome marks take no fixed brand ink: they follow the text color, so they read in either theme.
+function renderLinearLogo(props: SVGProps<SVGSVGElement>) {
+  return createElement(LinearLogo, { ...props, mode: undefined });
+}
+
+function renderOpenAILogo(props: SVGProps<SVGSVGElement>) {
+  return createElement(OpenAILogo, { ...props, mode: undefined });
+}
 
 /**
  * Rung 2 of the entry logo ladder: a brand mark from the shared inventory keyed by `entry_id`, then
@@ -8,14 +26,13 @@ import { createElement, type SVGProps } from "react";
  * a generic glyph, which the card never shows.
  */
 const marketplaceBrandRegistry = {
-  ...bridgeKindIconRegistry,
+  github: { brand: GithubLogo },
+  linear: { render: renderLinearLogo },
+  slack: { brand: SlackLogo },
   claude: { brand: ClaudeLogo },
   cursor: { brand: CursorLogo },
   gemini: { brand: GeminiLogo },
-  openai: {
-    render: (props: SVGProps<SVGSVGElement>) =>
-      createElement(OpenAILogo, { ...props, mode: "dark" }),
-  },
+  openai: { render: renderOpenAILogo },
   vercel: { brand: VercelLogo },
 } satisfies KindIconRegistry;
 

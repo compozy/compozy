@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -270,9 +271,6 @@ func extensionPermissions(manifest *Manifest) []string {
 		items.addMapKeys("hook.executor.env:"+hookName, hook.Executor.Env)
 		items.addMapKeys("hook.executor.secret_env:"+hookName, hook.Executor.SecretEnv)
 	}
-	for _, slot := range manifest.Bridge.SecretSlots {
-		items.add("bridge.secret_slot", slot.Name)
-	}
 	return items.sorted()
 }
 
@@ -309,11 +307,7 @@ func (s permissionSet) sorted() []string {
 	if len(s) == 0 {
 		return nil
 	}
-	items := make([]string, 0, len(s))
-	for item := range s {
-		items = append(items, item)
-	}
-	slices.Sort(items)
+	items := slices.Sorted(maps.Keys(s))
 	return items
 }
 

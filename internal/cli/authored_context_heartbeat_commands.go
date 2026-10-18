@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 
 	"strings"
@@ -349,10 +350,10 @@ func newAgentHeartbeatWakeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wakeSource := contract.HeartbeatWakeSource(strings.TrimSpace(source))
-			if wakeSource == "" {
-				wakeSource = contract.HeartbeatWakeSourceManual
-			}
+			wakeSource := cmp.Or(
+				contract.HeartbeatWakeSource(strings.TrimSpace(source)),
+				contract.HeartbeatWakeSourceManual,
+			)
 			record, err := client.WakeAgentHeartbeat(cmd.Context(), args[0], AgentHeartbeatWakeRequest{
 				WorkspaceID:    workspace,
 				AgentName:      args[0],

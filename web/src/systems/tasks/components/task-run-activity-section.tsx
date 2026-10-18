@@ -1,4 +1,6 @@
-import { LiveBadge, Section, Skeleton, Timeline } from "@compozy/ui";
+import { Activity } from "lucide-react";
+
+import { Empty, LiveBadge, Section, Skeleton, Timeline } from "@compozy/ui";
 
 import { taskRunTimelineItems } from "../lib/task-run-presentation";
 import type { TaskTimelineItem } from "../types";
@@ -34,11 +36,14 @@ export function TaskRunActivitySection({
           {errorMessage}
         </p>
       ) : (
-        <div className="rounded-lg border border-line bg-canvas-soft px-4 pt-3">
+        <div className="rounded-lg bg-card px-4 pt-3 shadow-card">
           {items.length === 0 ? (
-            <p className="px-4 py-4 text-small-body text-muted">
-              No events recorded for this attempt yet.
-            </p>
+            <Empty
+              className="pt-2 pb-5"
+              icon={Activity}
+              size="compact"
+              title="No events recorded for this attempt yet."
+            />
           ) : (
             <Timeline ariaLabel="Run activity events">
               {items.map(item => (

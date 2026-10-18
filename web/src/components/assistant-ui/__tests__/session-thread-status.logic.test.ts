@@ -38,6 +38,47 @@ describe("thread status derivation", () => {
     });
   });
 
+  it("Should attribute owner release without claiming operator cancellation or successful work", () => {
+    const pendingCall = {
+      type: "tool-call",
+      toolCallId: "t1",
+      toolName: "Write",
+      args: {},
+      timestamp: START,
+    };
+    const stopped = event({ type: "session_stopped", stop_reason: "owner_released" });
+    const facts = {
+      state: "stopped" as const,
+      stop_cause: "owner_released",
+      stop_reason: "owner_released",
+    };
+    for (const [messages, resource] of [
+      [[assistant([text, pendingCall, stopped])], {}],
+      [[assistant([text, pendingCall])], facts],
+      [[assistant([text, stopped])], { ...facts, escalated: true, verified: true }],
+    ] as const) {
+      expect(lastSettledTurn(messages, resource)).toMatchObject({
+        cause: "stopped",
+        failureCause: null,
+        stop: { kind: "other" },
+      });
+    }
+    // A prior release cannot settle work in a resumed, active session.
+    expect(
+      lastSettledTurn([assistant([text, pendingCall, stopped])], { state: "active" })
+    ).toBeNull();
+    // Actual provider failure remains authoritative even if the owner later releases the worker.
+    expect(
+      lastSettledTurn([
+        assistant([
+          text,
+          event({ type: "error", failure: { kind: "provider_exit", summary: "exit 137" } }),
+          stopped,
+        ]),
+      ])
+    ).toMatchObject({ cause: "failed", failureCause: "provider exit" });
+  });
+
   it("Should read an inactivity stop with the episode's actual quiet span, never as by you", () => {
     const quietSince = "2026-07-07T11:20:00Z";
     const turn = lastSettledTurn(
@@ -242,6 +283,57 @@ describe("thread status derivation", () => {
       ],
     };
     expect(lastSettledTurn([segment, other])?.startedAtMs).toBe(Date.parse(END));
+  });
+
+  // Invariant (S18): the compaction item is a message of its own that belongs to no
+  // turn — neither a compaction between a turn's segments nor one after its end
+  // splits the turn, hides how it ended, or counts as the turn's reply.
+  it("Should read the last turn straight through a compaction message", () => {
+    const SENT = "2026-07-07T11:59:50Z";
+    const user = { id: "u1", role: "user", content: [], metadata: { custom: { timestamp: SENT } } };
+    const compaction = {
+      id: "compaction:c1",
+      role: "assistant",
+      content: [
+        {
+          type: "data-compozy-compaction",
+          id: "c1",
+          data: {
+            kind: "compaction",
+            compaction_id: "c1",
+            status: "completed",
+            started_at: START,
+          },
+        },
+      ],
+    };
+    const beforeCompaction = assistant([{ ...text, turnId: "turn-x" }]);
+    const afterCompaction = {
+      id: "a2",
+      role: "assistant",
+      content: [
+        {
+          ...event({ type: "prompt_interrupted", stop_reason: "cancelled" }),
+          turnId: "turn-x",
+        },
+      ],
+    };
+    const expected = {
+      startedAtMs: Date.parse(SENT),
+      endedAtMs: Date.parse(END),
+      cause: "stopped",
+      stop: { kind: "user" },
+    };
+
+    expect(lastSettledTurn([user, beforeCompaction, compaction, afterCompaction])).toMatchObject(
+      expected
+    );
+    expect(
+      lastSettledTurn([user, assistant([text, afterCompaction.content[0]]), compaction])
+    ).toMatchObject(expected);
+    // The reply is the agent's own message, not the compaction projected after it.
+    expect(activeReplyHasContent([user, assistant([text]), compaction])).toBe(true);
+    expect(activeReplyHasContent([user, compaction])).toBe(false);
   });
 
   // Invariant (US-014.EC-2 / US-027.EC-2, session scope): the daemon persists a

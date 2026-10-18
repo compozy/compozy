@@ -4,11 +4,9 @@ import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
 
 import {
-  deleteSettingsSandbox,
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
-  putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
@@ -16,8 +14,6 @@ import {
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
-  updateSettingsMemory,
-  updateSettingsNetwork,
   updateSettingsObservability,
   updateSettingsPersona,
   updateSettingsRoles,
@@ -31,7 +27,6 @@ import {
 } from "../adapters/settings-mcp-auth-api";
 import { settingsKeys } from "../lib/query-keys";
 import type {
-  SettingsSandboxRequest,
   SettingsHookRequest,
   SettingsHookDeleteFilter,
   SettingsHookPutFilter,
@@ -46,8 +41,6 @@ import type {
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
-  SettingsUpdateMemoryRequest,
-  SettingsUpdateNetworkRequest,
   SettingsUpdateShellRequest,
   SettingsUpdateObservabilityRequest,
   SettingsUpdatePersonaRequest,
@@ -94,19 +87,6 @@ function invalidateProviders(queryClient: ReturnType<typeof useQueryClient>, nam
   return Promise.all(tasks);
 }
 
-function invalidateSandboxes(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
-  const tasks = [
-    queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxesRoot() }),
-    invalidateSettingsApplyRecords(queryClient),
-  ];
-
-  if (name) {
-    tasks.push(queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxDetail(name) }));
-  }
-
-  return Promise.all(tasks);
-}
-
 function invalidateHooks(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: settingsKeys.hooksRoot() }),
@@ -147,6 +127,7 @@ export function useUpdateSettingsGeneral() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateGeneralRequest) => updateSettingsGeneral(body),
     onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "general"),
@@ -157,6 +138,7 @@ export function useUpdateSettingsPersona() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: ({
       body,
       filter,
@@ -175,20 +157,11 @@ export function useUpdateSettingsPersona() {
   });
 }
 
-export function useUpdateSettingsMemory() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (body: SettingsUpdateMemoryRequest) => updateSettingsMemory(body),
-    onSuccess: recordSettingsMutation,
-    onSettled: () => invalidateSection(queryClient, "memory"),
-  });
-}
-
 export function useUpdateSettingsRoles() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateRolesRequest) => updateSettingsRoles(body),
     onSuccess: (result, variables) => {
       recordSettingsMutation(result);
@@ -206,6 +179,7 @@ export function useUpdateSettingsSkills() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: ({
       body,
       filter,
@@ -222,19 +196,10 @@ export function useUpdateSettingsAutomation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateAutomationRequest) => updateSettingsAutomation(body),
     onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "automation"),
-  });
-}
-
-export function useUpdateSettingsNetwork() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (body: SettingsUpdateNetworkRequest) => updateSettingsNetwork(body),
-    onSuccess: recordSettingsMutation,
-    onSettled: () => invalidateSection(queryClient, "network"),
   });
 }
 
@@ -257,6 +222,7 @@ export function useUpdateSettingsObservability() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateObservabilityRequest) => updateSettingsObservability(body),
     onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "observability"),
@@ -267,6 +233,7 @@ export function useUpdateSettingsHooksExtensions() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateHooksExtensionsRequest) => updateSettingsHooksExtensions(body),
     onSuccess: recordSettingsMutation,
     onSettled: () =>
@@ -300,27 +267,6 @@ export function useDeleteSettingsProvider() {
     mutationFn: (name: string) => deleteSettingsProvider(name),
     onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, name) => invalidateProviders(queryClient, name),
-  });
-}
-
-export function usePutSettingsSandbox() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ name, body }: NameBodyParams<SettingsSandboxRequest>) =>
-      putSettingsSandbox(name, body),
-    onSuccess: recordSettingsMutation,
-    onSettled: (_result, _error, variables) => invalidateSandboxes(queryClient, variables?.name),
-  });
-}
-
-export function useDeleteSettingsSandbox() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (name: string) => deleteSettingsSandbox(name),
-    onSuccess: recordSettingsMutation,
-    onSettled: (_result, _error, name) => invalidateSandboxes(queryClient, name),
   });
 }
 
@@ -428,10 +374,4 @@ export function useLogoutMCPAuth() {
       invalidateMCPState(queryClient, variables.filter.owner),
   });
 }
-
-export {
-  useCreateSettingsNotificationPreset,
-  useDeleteSettingsNotificationPreset,
-  useUpdateSettingsNotificationPreset,
-} from "./use-settings-notification-mutations";
 export { useUpdateSettingsAttention } from "./use-settings-attention-mutation";

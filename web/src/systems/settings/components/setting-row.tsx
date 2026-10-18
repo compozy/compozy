@@ -25,6 +25,8 @@ export interface SettingRowProps {
    * only for what the runtime will do with the value.
    */
   help?: ReactNode;
+  /** Accessible help-button name when the visible label contains markup. */
+  helpLabel?: string;
   error?: ReactNode;
   /** Single control, right-aligned. Labelled via aria association automatically. */
   control?: ReactNode;
@@ -49,6 +51,7 @@ export function SettingRow({
   label,
   description,
   help,
+  helpLabel,
   error,
   control,
   className,
@@ -79,18 +82,14 @@ export function SettingRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <LabelTag
-            className="text-ws-name font-medium text-fg-strong"
-            htmlFor={labelHtmlFor}
-            id={labelId}
-          >
+          <LabelTag className="text-body font-medium text-fg" htmlFor={labelHtmlFor} id={labelId}>
             {label}
           </LabelTag>
-          {help ? <HelpTip label={helpTriggerLabel(label)}>{help}</HelpTip> : null}
+          {help ? <HelpTip label={helpLabel ?? helpTriggerLabel(label)}>{help}</HelpTip> : null}
         </div>
         {description ? (
           <div
-            className="mt-0.5 max-w-setting-description text-form-label leading-normal text-muted"
+            className="mt-0.5 max-w-setting-description text-small-body text-muted"
             id={descriptionId}
           >
             {description}
@@ -120,6 +119,7 @@ export function ModalSettingRow({
   label,
   description,
   help,
+  helpLabel,
   error,
   control,
   className,
@@ -148,7 +148,7 @@ export function ModalSettingRow({
           >
             {label}
           </FieldLabel>
-          {help ? <HelpTip label={helpTriggerLabel(label)}>{help}</HelpTip> : null}
+          {help ? <HelpTip label={helpLabel ?? helpTriggerLabel(label)}>{help}</HelpTip> : null}
         </FieldHeader>
         {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
       </FieldContent>
@@ -194,18 +194,18 @@ export function SettingLinkRow({
       {
         className: cn(
           "flex min-h-setting-row w-full items-center justify-between gap-5 border-t border-line-soft px-4 py-3 text-left first:border-t-0",
-          "cursor-pointer transition-colors duration-base hover:bg-row-hover",
+          "cursor-pointer transition-colors duration-base hover:bg-surface-2",
           "focus-visible:outline-none focus-visible:shadow-focus-ring",
           className
         ),
         children: (
           <>
             <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-1.5 text-ws-name font-medium text-fg-strong">
+              <span className="flex items-center gap-1.5 text-body font-medium text-fg">
                 {label}
               </span>
               {description ? (
-                <span className="mt-0.5 block max-w-setting-description text-form-label leading-normal text-muted">
+                <span className="mt-0.5 block max-w-setting-description text-small-body text-muted">
                   {description}
                 </span>
               ) : null}
@@ -241,7 +241,7 @@ export function SettingActionRow({
     <button
       className={cn(
         "flex min-h-setting-row w-full items-center justify-between gap-5 border-t border-line-soft px-4 py-3 text-left first:border-t-0",
-        "cursor-pointer transition-colors duration-base hover:bg-row-hover",
+        "cursor-pointer transition-colors duration-base hover:bg-surface-2",
         "focus-visible:outline-none focus-visible:shadow-focus-ring",
         className
       )}
@@ -250,11 +250,9 @@ export function SettingActionRow({
       {...props}
     >
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-ws-name font-medium text-fg-strong">
-          {label}
-        </span>
+        <span className="flex items-center gap-1.5 text-body font-medium text-fg">{label}</span>
         {description ? (
-          <span className="mt-0.5 block max-w-setting-description text-form-label leading-normal text-muted">
+          <span className="mt-0.5 block max-w-setting-description text-small-body text-muted">
             {description}
           </span>
         ) : null}

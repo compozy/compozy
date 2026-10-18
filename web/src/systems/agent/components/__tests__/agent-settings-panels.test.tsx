@@ -220,16 +220,14 @@ describe("AgentSettingsPanels", () => {
 
     view.rerender(
       <AgentSettingsPanels
-        {...props("danger", {
+        {...props("basics", {
           agent: currentAgent,
           draft: buildSettingsDraftFromAgent(currentAgent),
           onDelete,
         })}
       />
     );
-    expect(screen.getByTestId("agent-settings-danger")).toHaveTextContent(
-      "from the global agent home"
-    );
+    expect(screen.getByTestId("agent-settings-danger")).toHaveTextContent("from all projects");
     await user.click(screen.getByTestId("agent-settings-delete"));
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
@@ -265,7 +263,7 @@ describe("AgentSettingsPanels", () => {
 
   it("Should disable delete while the editor is denied", () => {
     const onDelete = vi.fn();
-    render(<AgentSettingsPanels {...props("danger", { onDelete, phase: "denied" })} />);
+    render(<AgentSettingsPanels {...props("basics", { onDelete, phase: "denied" })} />);
     expect(screen.getByTestId("agent-settings-delete")).toBeDisabled();
     expect(onDelete).not.toHaveBeenCalled();
   });

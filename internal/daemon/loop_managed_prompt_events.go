@@ -53,10 +53,7 @@ func readManagedGoalPromptOutput(
 		if firstSequence == 0 {
 			firstSequence = event.Sequence
 		}
-		if agentEvent.Type == acp.EventTypeAgentMessage && strings.TrimSpace(agentEvent.Text) != "" {
-			if text.Len() > 0 {
-				text.WriteByte('\n')
-			}
+		if agentEvent.Type == acp.EventTypeAgentMessage {
 			text.WriteString(agentEvent.Text)
 		}
 		if isManagedGoalTerminalEvent(agentEvent.Type) {
@@ -82,5 +79,37 @@ func isManagedGoalTerminalEvent(eventType string) bool {
 }
 
 func isManagedGoalProofAuxiliaryEvent(eventType string) bool {
-	return eventType == eventspkg.TranscriptMarkerCreated || eventType == eventspkg.TranscriptMarkerRedacted
+	return eventType == eventspkg.TranscriptMarkerCreated || eventType == eventspkg.TranscriptMarkerRedacted ||
+		eventType == eventspkg.SessionCompactionFired ||
+		eventType == "session.compaction.requested"
+}
+
+func readManagedGoalCompaction(
+	ctx context.Context,
+	reader loopSessionEventReader,
+	entry *store.SessionInputQueueEntry,
+	result looppkg.ActionPromptResult,
+) (*looppkg.ActionCompactionOutcome, error) {
+	rows, err := reader.Events(ctx, entry.SessionID, store.EventQuery{TurnID: entry.PromptID})
+	if err != nil {
+		return nil, err
+	}
+	var outcome *looppkg.ActionCompactionOutcome
+	for _, row := range rows {
+		if row.Sequence < result.EventStartSeq || row.Sequence > result.EventEndSeq ||
+			row.Type != acp.EventTypeCompaction {
+			continue
+		}
+		event, err := transcript.UnmarshalAgentEvent(row.Content)
+		if err != nil {
+			return nil, err
+		}
+		if event.Compaction != nil {
+			outcome = &looppkg.ActionCompactionOutcome{
+				CompactionID: event.Compaction.CompactionID,
+				Status:       event.Compaction.Status,
+			}
+		}
+	}
+	return outcome, nil
 }

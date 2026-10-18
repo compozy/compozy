@@ -1,12 +1,12 @@
 import {
   deriveThinkingState,
-  SessionQuietStatusRow,
   SessionThinkingRow,
-  type SessionQuietWarning,
   type SessionWorkingStatusInput,
   useSessionTranscriptThreadState,
   useSessionTransportState,
 } from "@/systems/session";
+
+import { useSessionSubagentRoster } from "@/systems/session/hooks/use-subagent-roster-context";
 
 import { useSessionPromptDispatch } from "./hooks/use-session-prompt-dispatch";
 import { useThinkingGuardElapsed } from "./hooks/use-thinking-guard-elapsed";
@@ -34,22 +34,20 @@ export interface SessionThreadStatusRowProps {
   /** The turn is in flight as the thread sees it (daemon or local stream). */
   running: boolean;
   stopping?: boolean;
-  /** The daemon's quiet episode outranks every other status (task_05). */
-  quietWarning: SessionQuietWarning | null;
   liveDataEnabled: boolean;
   reducedMotion: boolean;
 }
 
 /**
  * The one status line between the transcript and the composer (S3): the
- * quiet warning row while the daemon reports one, otherwise the thinking /
- * working / stopped / failed row derived from the session resource and the
- * transcript's own record of the last turn.
+ * thinking / working / stopped / failed row derived from the session resource
+ * and the transcript's own record of the last turn. A turn that went quiet
+ * stays on the working row, which adds "quiet for {d}" from the daemon's
+ * supervision episode.
  */
 export function SessionThreadStatusRow({
   session,
   running,
-  quietWarning,
   liveDataEnabled,
   reducedMotion,
   stopCompletionNote = false,
@@ -58,11 +56,8 @@ export function SessionThreadStatusRow({
   const { messages } = useSessionTranscriptThreadState();
   const transport = useSessionTransportState();
   const dispatch = useSessionPromptDispatch();
+  const roster = useSessionSubagentRoster();
   const guardElapsed = useThinkingGuardElapsed(running ? dispatch.pendingSinceMs : null);
-
-  if (quietWarning && !stopping) {
-    return <SessionQuietStatusRow liveDataEnabled={liveDataEnabled} warning={quietWarning} />;
-  }
 
   const hasContent = activeReplyHasContent(messages);
   // Inside the guard the clock reads the send instant itself (nothing elapsed);
@@ -88,6 +83,7 @@ export function SessionThreadStatusRow({
       pausedAtMs={liveDataEnabled ? null : transport.lastLiveAt}
       reducedMotion={reducedMotion}
       stopCompletionNote={stopCompletionNote}
+      subagents={roster.rows}
     />
   );
 }

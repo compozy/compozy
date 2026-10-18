@@ -23,7 +23,7 @@ Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: no HTTP/UDS install pari
 
 Historical QA note: required-nullable values presence and config-apply response coverage remains pending.
 
-Task 10 planning note: the MS-011 overlap was a mis-link (memory health); the settings-CRUD neighbor is MS-029.
+Task 10 planning note: an earlier overlap on the retired memory-health scenario was a mis-link; the settings-CRUD neighbor is MS-029.
 
 Added by marketplace Task 03. QA should compare HTTP, UDS, and CLI payloads against one persisted server, verify the non-loopback privileged HTTP guard, exercise missing and shared Vault refs, run concurrent installs against one scope without losing definitions or secrets, and confirm `apply` truth remains separate from MCP probe/readiness when the target server is unreachable.
 

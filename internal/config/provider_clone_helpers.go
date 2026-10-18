@@ -1,6 +1,9 @@
 package config
 
-import "maps"
+import (
+	"maps"
+	"slices"
+)
 
 func cloneProviders(src map[string]ProviderConfig) map[string]ProviderConfig {
 	if len(src) == 0 {
@@ -47,9 +50,7 @@ func cloneProviderCredentialSlots(src []ProviderCredentialSlot) []ProviderCreden
 	if len(src) == 0 {
 		return nil
 	}
-	cloned := make([]ProviderCredentialSlot, len(src))
-	copy(cloned, src)
-	return cloned
+	return slices.Clone(src)
 }
 
 func cloneMCPServers(src []MCPServer) []MCPServer {

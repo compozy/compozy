@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { allModelsListOptions } from "../lib/query-options";
+import { ModelCatalogApiError } from "../adapters/model-catalog-api";
+import { modelSourceFailureMessage, modelRefreshErrorMessage } from "../lib/model-source-failure";
+import { allModelsListOptions, modelSourceStatusOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
 import type { ProviderModelPayload } from "../types";
 import { useInitialModelCatalogRefresh } from "./use-initial-model-catalog-refresh";
@@ -32,6 +34,7 @@ export interface RuntimeModelCatalog {
   refresh: () => void;
   refreshing: boolean;
   refreshError: string | null;
+  providerIssues: Record<string, string>;
 }
 
 function describeCatalogError(error: unknown): string {
@@ -57,6 +60,7 @@ export function useRuntimeModelCatalog(
   const { enabled = true, includeStale = true } = options;
   const query = useQuery(allModelsListOptions({ view: "all", includeStale, enabled }));
   const refreshMutation = useRefreshAllModels();
+  const sourceStatus = useQuery(modelSourceStatusOptions(enabled));
 
   // Ordered allow-list: preserves the surface's provider order and carries each
   // provider's auth state so rows for a signed-out provider render disabled.
@@ -94,7 +98,35 @@ export function useRuntimeModelCatalog(
     missingAllowedProvider,
   });
 
-  const refresh = () => refreshMutation.mutate();
+  // A user-initiated refresh must re-run discovery: an unforced refresh is a no-op
+  // while the daemon's cached source status (even a failed one) is within its TTL.
+  const refresh = () => refreshMutation.mutate({ force: true });
+
+  const refreshFailure = refreshMutation.isIdle
+    ? missingAllowedProvider
+      ? initialRefresh.error
+      : null
+    : refreshMutation.error;
+  const failureSources =
+    refreshFailure instanceof ModelCatalogApiError ? refreshFailure.sources : [];
+  const failureIsCurrent =
+    refreshFailure instanceof ModelCatalogApiError &&
+    refreshFailure.observedAt >= sourceStatus.dataUpdatedAt;
+  const sources =
+    sourceStatus.isError && failureIsCurrent && failureSources.length > 0
+      ? failureSources
+      : (sourceStatus.data?.sources ?? refreshMutation.data?.sources ?? failureSources);
+  const providerIssues: Record<string, string> = {};
+  const displayedSources = sources.filter(source => allowed.has(source.provider_id));
+  for (const source of displayedSources) {
+    const message = modelSourceFailureMessage(source);
+    if (
+      message &&
+      (!providerIssues[source.provider_id] || source.failure_reason === "auth_required")
+    ) {
+      providerIssues[source.provider_id] = message;
+    }
+  }
 
   return {
     models,
@@ -105,10 +137,7 @@ export function useRuntimeModelCatalog(
     stale,
     refresh,
     refreshing: refreshMutation.isPending || initialRefresh.isFetching,
-    refreshError: refreshMutation.error
-      ? describeCatalogError(refreshMutation.error)
-      : missingAllowedProvider && initialRefresh.error
-        ? describeCatalogError(initialRefresh.error)
-        : null,
+    providerIssues,
+    refreshError: modelRefreshErrorMessage(refreshFailure, displayedSources),
   };
 }

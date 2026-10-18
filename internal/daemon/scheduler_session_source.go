@@ -51,7 +51,6 @@ func (s schedulerSessionSource) Sessions(ctx context.Context) ([]schedulerpkg.Se
 			ID:              strings.TrimSpace(info.ID),
 			AgentName:       strings.TrimSpace(info.AgentName),
 			WorkspaceID:     strings.TrimSpace(info.WorkspaceID),
-			Channel:         strings.TrimSpace(info.NetworkParticipation.ChannelID),
 			Type:            strings.TrimSpace(string(info.Type)),
 			State:           strings.TrimSpace(string(info.State)),
 			Prompting:       isSchedulerSessionPrompting(s.sessions, info.ID),

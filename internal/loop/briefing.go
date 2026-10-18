@@ -1,8 +1,9 @@
 package loop
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -27,10 +28,10 @@ type Blocker struct {
 	Kind         string     `json:"kind"`
 	NodeID       NodeID     `json:"node_id,omitempty"`
 	GateID       NodeID     `json:"gate_id,omitempty"`
-	ItemIndex    int        `json:"item_index,omitempty"`
+	ItemIndex    int        `json:"item_index,omitzero"`
 	WaitingSince time.Time  `json:"waiting_since"`
 	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	Expired      bool       `json:"expired,omitempty"`
+	Expired      bool       `json:"expired,omitzero"`
 	Unblocker    string     `json:"unblocker"`
 }
 
@@ -70,8 +71,8 @@ type StepProgress struct {
 // RunUsage summarizes token, cost, budget, and elapsed-time usage.
 type RunUsage struct {
 	Tokens        int64   `json:"tokens"`
-	CostUSD       float64 `json:"cost_usd,omitempty"`
-	BudgetUsedPct float64 `json:"budget_used_pct,omitempty"`
+	CostUSD       float64 `json:"cost_usd,omitzero"`
+	BudgetUsedPct float64 `json:"budget_used_pct,omitzero"`
 	Duration      string  `json:"duration,omitempty"`
 }
 
@@ -83,7 +84,7 @@ type Briefing struct {
 	Headline  string        `json:"headline"`
 	Detail    string        `json:"detail,omitempty"`
 	Blockers  []Blocker     `json:"blockers"`
-	Outcome   *RunOutcome   `json:"outcome,omitempty"`
+	Outcome   *RunOutcome   `json:"outcome,omitzero"`
 	Artifacts []RunArtifact `json:"artifacts"`
 	Progress  StepProgress  `json:"progress"`
 	Usage     RunUsage      `json:"usage"`
@@ -228,8 +229,8 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 		gateResultApprovalKey: 0, string(NodeControlMutationQuarantine): 1, NodeWaitKindRequest: 2,
 		namespaceFailureKey: 3, "backoff": 4, "quota": 4,
 	}
-	sort.SliceStable(items, func(i, j int) bool {
-		return order[items[i].Kind] < order[items[j].Kind]
+	slices.SortStableFunc(items, func(a, b Blocker) int {
+		return cmp.Compare(order[a.Kind], order[b.Kind])
 	})
 	return items
 }
@@ -322,8 +323,7 @@ func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
 	run := source.Run
 	result.Artifacts = labelTerminalArtifacts(result.Artifacts)
 	if source.Outcome != nil {
-		outcome := *source.Outcome
-		result.Outcome = &outcome
+		result.Outcome = new(*source.Outcome)
 	} else {
 		result.Outcome = &RunOutcome{Status: run.Status, Cause: unknownValue}
 	}

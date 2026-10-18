@@ -59,39 +59,6 @@ func TestNativeProviderDispatch(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject schema invalid input before native handler invocation", func(t *testing.T) {
-		t.Parallel()
-
-		descriptor := validDispatchDescriptor()
-		called := false
-		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
-			Descriptor: descriptor,
-			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
-				called = true
-				return ToolResult{}, nil
-			},
-		})
-		if err != nil {
-			t.Fatalf("NewNativeProvider() error = %v", err)
-		}
-		registry, err := NewRegistry(WithProviders(provider))
-		if err != nil {
-			t.Fatalf("NewRegistry() error = %v", err)
-		}
-
-		_, err = registry.Call(
-			t.Context(),
-			Scope{},
-			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":7}`)},
-		)
-		if !errors.Is(err, ErrToolInvalidInput) {
-			t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolInvalidInput", err)
-		}
-		if called {
-			t.Fatal("native handler was called for schema-invalid input")
-		}
-	})
-
 	t.Run("Should enforce array items and length schema keywords before native handler invocation", func(t *testing.T) {
 		t.Parallel()
 

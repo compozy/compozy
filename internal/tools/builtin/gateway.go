@@ -40,7 +40,7 @@ const gatewayInputSchema = `{
 		"digest_confirmed":{"type":"string"},
 		"device_id":{"type":"string"},
 		"name":{"type":"string"},
-		"subject_kind":{"type":"string","enum":["webhook_trigger","bridge_instance"]},
+		"subject_kind":{"type":"string","enum":["webhook_trigger"]},
 		"subject_id":{"type":"string"},
 		"confirmed":{"type":"boolean"}
 	},

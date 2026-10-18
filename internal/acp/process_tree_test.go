@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
+	shellquote "github.com/kballard/go-shellquote"
+
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/kballard/go-shellquote"
 )
 
 func TestStopTerminatesWrappedProcessTree(t *testing.T) {
@@ -36,7 +37,7 @@ func TestStopTerminatesWrappedProcessTree(t *testing.T) {
 
 		childPID := waitForWrapperChildPID(t, pidFile)
 
-		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		stopCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		startedAt := time.Now()
@@ -60,7 +61,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 		pidFile := filepath.Join(t.TempDir(), "terminal-child.pid")
 
 		createResult, reqErr := proc.handleInbound(
-			context.Background(),
+			t.Context(),
 			acpsdk.ClientMethodTerminalCreate,
 			mustMarshalJSON(acpsdk.CreateTerminalRequest{
 				SessionId: "sess-direct",
@@ -83,7 +84,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 		childPID := waitForWrapperChildPID(t, pidFile)
 
 		if _, reqErr := proc.handleInbound(
-			context.Background(),
+			t.Context(),
 			acpsdk.ClientMethodTerminalKill,
 			mustMarshalJSON(acpsdk.KillTerminalRequest{
 				SessionId:  "sess-direct",
@@ -93,7 +94,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 			t.Fatalf("handleInbound(kill wrapped terminal) error = %v", reqErr)
 		}
 
-		waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		waitCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		if _, err := proc.terminals.wait(waitCtx, createResponse.TerminalId); err != nil {
 			t.Fatalf("terminals.wait() error = %v", err)
@@ -185,4 +186,69 @@ func processAlive(pid int) bool {
 
 	err := syscall.Kill(pid, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
+}
+
+func TestForcedStopProcessIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should leave a reused process group running", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		unrelated := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{})
+		t.Cleanup(func() { stopProcess(t, driver, unrelated) })
+		stale := &AgentProcess{
+			PID:       unrelated.PID,
+			StartedAt: unrelated.StartedAt.Add(-time.Hour),
+			done:      make(chan struct{}),
+		}
+		if err := driver.forceStoppedProcess(stale); err != nil {
+			t.Fatal(err)
+		}
+		events, err := driver.Prompt(
+			t.Context(),
+			unrelated,
+			PromptRequest{TurnID: "unrelated-turn", Message: "still alive"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		received := collectEvents(t, events)
+		if len(received) == 0 || received[0].Type != EventTypeAgentMessage || received[0].Text != "still alive" {
+			t.Fatalf("unrelated process response = %#v, want echoed agent message", received)
+		}
+	})
+	t.Run("Should skip an exited leader while post-exit cleanup is pending", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		original := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{})
+		stopProcess(t, driver, original)
+		pending := &AgentProcess{
+			PID:       original.PID,
+			StartedAt: original.StartedAt,
+			done:      make(chan struct{}),
+		}
+		if err := driver.forceStoppedProcess(pending); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should force the owned live wrapper and its children on cancellation", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		pidFile := filepath.Join(t.TempDir(), "owned-child.pid")
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			Command: helperWrapperCommand(t),
+			Env: append(helperEnv("echo_prompt", ""),
+				testWrapperEnvKey+"=1",
+				testWrapperPIDFileEnvKey+"="+pidFile,
+			),
+		})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		childPID := waitForWrapperChildPID(t, pidFile)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := driver.Stop(ctx, proc); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Stop() = %v, want caller cancellation", err)
+		}
+		waitForProcessExit(t, childPID, time.Second)
+		waitForProcessExit(t, proc.PID, time.Second)
+	})
 }

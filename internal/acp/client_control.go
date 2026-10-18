@@ -141,7 +141,19 @@ func (d *Driver) ApprovePermission(ctx context.Context, proc *AgentProcess, req 
 
 // Stop terminates the subprocess and waits for it to exit.
 func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
-	stopErr := d.stop(ctx, proc, false)
+	if ctx == nil {
+		return errors.New("acp: context is required")
+	}
+	stopCtx, cancel := context.WithTimeout(ctx, d.stopTimeout+defaultStopDrainTimeout)
+	defer cancel()
+	stopErr := d.stop(stopCtx, proc, false)
+	if stopCtx.Err() != nil && proc != nil && proc.done != nil {
+		select {
+		case <-proc.Done():
+		default:
+			stopErr = errors.Join(stopErr, d.forceStoppedProcess(proc))
+		}
+	}
 	if stopErr != nil {
 		return stopErr
 	}
@@ -208,7 +220,10 @@ func (d *Driver) closeInspectedSession(ctx context.Context, proc *AgentProcess) 
 		acpsdk.AgentMethodSessionClose,
 		acpsdk.CloseSessionRequest{SessionId: acpsdk.SessionId(proc.SessionID)},
 	)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	// An agent that answers session/close slower than the bounded budget (claude-agent-acp)
+	// is not a failed inspection: the options were already read and the process stop below
+	// is the cleanup that owns the rest.
+	if err != nil && !errors.Is(err, context.Canceled) && closeCtx.Err() == nil {
 		return []error{fmt.Errorf("acp: close inspected session: %w", err)}
 	}
 	return nil

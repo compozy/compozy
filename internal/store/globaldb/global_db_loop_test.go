@@ -117,6 +117,99 @@ func functionCallsAnyIdentifier(function *ast.FuncDecl, names map[string]struct{
 func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should scan settled history without acquiring the SQLite writer", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		now := time.Date(2026, time.October, 3, 12, 0, 0, 0, time.UTC)
+		run, err := db.CreateLoopRunForStart(ctx,
+			testLoopRun("looprun-settled-history", now, looppkg.StatusRunning), dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'failed' WHERE id = ?`, run.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SweepLoopRunOrphans(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `WITH RECURSIVE history(n) AS (
+			SELECT 1 UNION ALL SELECT n + 1 FROM history WHERE n < 12000
+		) INSERT INTO task_runs (id, task_id, workspace_id, status, attempt, origin_kind, origin_ref,
+			queued_at, run_kind, loop_run_id)
+		SELECT 'history-' || n, task_id, workspace_id, 'failed', 1, origin_kind, origin_ref,
+			queued_at, 'worker', loop_run_id FROM task_runs, history WHERE run_kind = 'coordinator'`); err != nil {
+			t.Fatal(err)
+		}
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+				t.Error(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		scanCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		started := time.Now()
+		report, err := db.SweepLoopRunOrphans(scanCtx)
+		if err != nil || report != (looppkg.SweepReport{}) {
+			t.Fatalf("settled history sweep = %#v, %v", report, err)
+		}
+		t.Logf("12000 settled task runs scanned in %s", time.Since(started))
+		if count, err := db.BackfillLoopProvenance(scanCtx); err != nil || count != 0 {
+			t.Fatalf("settled provenance backfill = %d, %v", count, err)
+		}
+	})
+
+	// Invariant: each task has one deterministic provenance source; backfill owns this repair.
+	t.Run("Should select the latest coordinator provenance once per task", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		now := time.Now().UTC()
+		older := testLoopRun("provenance-old", now, looppkg.StatusRunning)
+		newer := testLoopRun("provenance-new", now.Add(time.Minute), looppkg.StatusRunning)
+		newer.LoopName = "newer-loop"
+		for _, run := range []looppkg.Run{older, newer} {
+			if _, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+				t.Fatal(err)
+			}
+		}
+		taskID := loopCoordinatorTaskID(older.ID)
+		if _, err := db.db.ExecContext(ctx, `UPDATE task_runs SET task_id = ?, queued_at = ? WHERE loop_run_id = ?`,
+			taskID, now.Add(time.Minute).Format(time.RFC3339Nano), newer.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE tasks SET metadata_json = '{}' WHERE id = ?`, taskID); err != nil {
+			t.Fatal(err)
+		}
+		if repaired, err := db.BackfillLoopProvenance(ctx); err != nil || repaired != 1 {
+			t.Fatalf("backfill = %d, %v, want one consistent update", repaired, err)
+		}
+		record, err := db.GetTask(ctx, taskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var metadata map[string]any
+		if err := json.Unmarshal(record.Metadata, &metadata); err != nil {
+			t.Fatal(err)
+		}
+		if metadata["loop_run_id"] != string(newer.ID) || metadata["loop_name"] != newer.LoopName {
+			t.Fatalf("provenance = %#v, want aligned latest Loop id and name", metadata)
+		}
+		if repaired, err := db.BackfillLoopProvenance(ctx); err != nil || repaired != 0 {
+			t.Fatalf("second backfill = %d, %v, want idempotent repair", repaired, err)
+		}
+	})
+
 	const terminalOrphanCase = "Should repair a terminal orphan once and project backfilled coordinator provenance UT-030 UT-031 UT-033 IT-005 IT-006 IT-025"
 	t.Run(terminalOrphanCase, func(t *testing.T) {
 		t.Parallel()
@@ -1159,9 +1252,9 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
 			Payload: json.RawMessage(`{}`), Actor: actor,
 		})
-		var validationReason *looppkg.ReasonError
+		validationReason, validationReasonOK := errors.AsType[*looppkg.ReasonError](err)
 		if !errors.Is(err, looppkg.ErrRequestValidationFailed) ||
-			!errors.As(err, &validationReason) || validationReason.Code != looppkg.ReasonCodeRequestValidationFailed {
+			!validationReasonOK || validationReason.Code != looppkg.ReasonCodeRequestValidationFailed {
 			t.Fatalf("RespondRequest(invalid) error = %#v", err)
 		}
 		pending, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
@@ -1208,9 +1301,9 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
 			Payload: answer, Actor: operatorActorContextForTest("operator:two"),
 		})
-		var conflictReason *looppkg.ReasonError
+		conflictReason, conflictReasonOK := errors.AsType[*looppkg.ReasonError](err)
 		if !errors.Is(err, looppkg.ErrRequestAlreadyAnswered) ||
-			!errors.As(err, &conflictReason) ||
+			!conflictReasonOK ||
 			conflictReason.Meta[looppkg.ReasonMetaRecordedDecision] != looppkg.RequestDecisionRespond {
 			t.Fatalf("RespondRequest(loser) error = %#v", err)
 		}
@@ -1384,9 +1477,7 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 		respondErrors := make(chan error, 2)
 		var responders sync.WaitGroup
 		for index := range 2 {
-			responders.Add(1)
-			go func(index int) {
-				defer responders.Done()
+			responders.Go(func() {
 				<-start
 				_, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
 					WorkspaceID: respondRun.WorkspaceID, RunID: respondRun.ID, NodeID: "select",
@@ -1394,7 +1485,7 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 					Actor:   operatorActorContextForTest(fmt.Sprintf("operator:%d", index)),
 				})
 				respondErrors <- err
-			}(index)
+			})
 		}
 		close(start)
 		responders.Wait()
@@ -1535,8 +1626,8 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select",
 			Payload: json.RawMessage(`{}`), Actor: operatorActorContextForTest("operator:late"),
 		})
-		var canceledReason *looppkg.ReasonError
-		if !errors.Is(err, looppkg.ErrRequestCanceled) || !errors.As(err, &canceledReason) ||
+		canceledReason, canceledReasonOK := errors.AsType[*looppkg.ReasonError](err)
+		if !errors.Is(err, looppkg.ErrRequestCanceled) || !canceledReasonOK ||
 			canceledReason.Code != looppkg.ReasonCodeRequestCanceled {
 			t.Fatalf("RespondRequest(canceled) error = %#v", err)
 		}
@@ -1608,6 +1699,52 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 // Invariant: amendments are append-only overlays; recorded generation rows never change and every overlay blob remains rooted.
 // The canonical GlobalDB Loop suite owns amendment sequencing, guards, overlay reads, provenance, and blob durability.
 func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
+	t.Run("Should retain nullable goal references and reclaim unreferenced blobs", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		now := time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC)
+		run, err := db.CreateLoopRunForStart(
+			ctx, testLoopRun("loop-retained-goal-refs", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refs := make([]string, 3)
+		for index, payload := range []json.RawMessage{[]byte(`"evidence"`), []byte(`"prompt"`), []byte(`"orphan"`)} {
+			refs[index] = looppkg.OutputRefForPayload(payload)
+			if err := storepkg.UpsertLoopOutputBlob(ctx, db.db, refs[index], payload, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_goal_turns (
+			loop_run_id, seq, generation, node_id, turn, session_id, binding_handle, binding_epoch,
+			prompt_id, actor_kind, actor_id, started_at, evidence_ref, prompt_ref
+		) VALUES (?, 1, 1, 'goal', 1, 'session', 'binding', 1, 'prompt-1', 'human', 'operator', ?, ?, NULL),
+			(?, 2, 1, 'goal', 2, 'session', 'binding', 1, 'prompt-2', 'human', 'operator', ?, NULL, ?)`,
+			run.ID, now, refs[0], run.ID, now, refs[1]); err != nil {
+			t.Fatal(err)
+		}
+		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, db.db); err != nil {
+			t.Fatal(err)
+		}
+		for _, ref := range refs[:2] {
+			if _, err := getLoopOutputByRefWithExecutor(ctx, db.db, ref); err != nil {
+				t.Fatalf("retained reference %q: %v", ref, err)
+			}
+		}
+		if _, err := getLoopOutputByRefWithExecutor(
+			ctx,
+			db.db,
+			refs[2],
+		); !errors.Is(
+			err,
+			looppkg.ErrOutputRefNotFound,
+		) {
+			t.Fatalf("orphan lookup = %v, want ErrOutputRefNotFound", err)
+		}
+	})
+
 	t.Parallel()
 
 	globalDB := openLoopTestGlobalDB(t)
@@ -1745,7 +1882,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 				defer group.Done()
 				<-start
 				results[index], errorsByIndex[index] = globalDB.AmendNodeOutput(
-					context.Background(),
+					t.Context(),
 					looppkg.AmendInput{
 						WorkspaceID: run.WorkspaceID,
 						RunID:       run.ID,
@@ -2324,6 +2461,9 @@ func TestGlobalDBLoopNodeCancellationShouldCommitTerminalCellAtomically(t *testi
 		for _, cleanup := range cleanups {
 			if cleanup.SessionID == "session-other" {
 				t.Fatal("unrelated node session was scheduled for cleanup")
+			}
+			if cleanup.Cause != looppkg.SessionCleanupCauseStop {
+				t.Fatalf("node cancellation cleanup cause = %q, want explicit stop", cleanup.Cause)
 			}
 		}
 	})
@@ -3036,7 +3176,7 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 			go func(index int) {
 				defer waitGroup.Done()
 				<-start
-				results[index], errs[index] = globalDB.RequeueNode(context.Background(), looppkg.NodeRequeueMutation{
+				results[index], errs[index] = globalDB.RequeueNode(t.Context(), looppkg.NodeRequeueMutation{
 					WorkspaceID:      run.WorkspaceID,
 					RunID:            run.ID,
 					NodeID:           "finish",
@@ -3069,8 +3209,8 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if len(winnerEntry.Requeues) != 1 {
 			t.Fatalf("winner requeue provenance = %#v", winnerEntry.Requeues)
 		}
-		var reason *looppkg.ReasonError
-		if !errors.As(errs[loser], &reason) || reason.Code != looppkg.ReasonCodeAlreadyDecided {
+		reason, reasonOK := errors.AsType[*looppkg.ReasonError](errs[loser])
+		if !reasonOK || reason.Code != looppkg.ReasonCodeAlreadyDecided {
 			t.Fatalf("loser error = %v, want already_decided ReasonError", errs[loser])
 		}
 		if reason.Meta[looppkg.ReasonMetaActualState] != nodeLifecycleStateActive ||
@@ -3098,8 +3238,8 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if !errors.Is(err, looppkg.ErrInvalidTransition) {
 			t.Fatalf("RequeueNode(terminal) error = %v, want ErrInvalidTransition", err)
 		}
-		var reason *looppkg.ReasonError
-		if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeRunTerminal ||
+		reason, reasonOK := errors.AsType[*looppkg.ReasonError](err)
+		if !reasonOK || reason.Code != looppkg.ReasonCodeRunTerminal ||
 			reason.Meta[looppkg.ReasonMetaActualState] != string(looppkg.StatusFailed) ||
 			reason.Meta[looppkg.ReasonMetaAllowedTransitions] != "" {
 			t.Fatalf("RequeueNode(terminal) ReasonError = %#v", reason)
@@ -3429,8 +3569,21 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		sourceRun := taskRunForTest("taskrun-quarantine-failed-source", sourceTaskID)
 		sourceRun.LoopRunID = string(created.ID)
 		sourceRun.RunKind = taskpkg.RunKindWorker
+		sourceRun.Metadata = json.RawMessage(
+			`{"generation":2,"node_id":"review","item_index":0,"attempt":1,"epoch":1}`,
+		)
 		if err := globalDB.CreateTaskRun(ctx, sourceRun); err != nil {
 			t.Fatalf("CreateTaskRun(source) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs
+				(loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch)
+			 VALUES (?, 2, 'review', 0, 'enqueued', ?, 1, 1)`,
+			created.ID,
+			sourceRun.ID,
+		); err != nil {
+			t.Fatalf("insert source generation output error = %v", err)
 		}
 		sourceRun, err = globalDB.GetTaskRun(ctx, sourceRun.ID)
 		if err != nil {
@@ -4439,6 +4592,64 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should settle a pending gate verdict without overwriting a settled verdict", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.October, 5, 12, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-human-verdict", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		verdict := gate.VerdictIntent{
+			GateID: "approval", Outcome: gate.VerdictOutcomeAwaitingApproval,
+			BlockingIssues: json.RawMessage(`[{"id":"human_decision_pending","note":"waiting"}]`),
+			Criteria:       json.RawMessage(`[{"id":"reviewer","type":"human","outcome":"awaiting_approval"}]`),
+		}
+		if err := insertLoopGateVerdictWithExecutor(ctx, globalDB.db, run.ID, 1, verdict, now); err != nil {
+			t.Fatalf("insert pending gate verdict error = %v", err)
+		}
+		verdict.Outcome = gate.VerdictOutcomeRejected
+		verdict.BlockingIssues = json.RawMessage(`[{"id":"human_requested_changes","note":"repair"}]`)
+		verdict.Criteria = json.RawMessage(`[{"id":"reviewer","type":"human","outcome":"rejected"}]`)
+		if err := insertLoopGateVerdictWithExecutor(
+			ctx,
+			globalDB.db,
+			run.ID,
+			1,
+			verdict,
+			now.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("settle pending gate verdict error = %v", err)
+		}
+		verdict.Outcome = gate.VerdictOutcomeApproved
+		if err := insertLoopGateVerdictWithExecutor(
+			ctx,
+			globalDB.db,
+			run.ID,
+			1,
+			verdict,
+			now.Add(2*time.Minute),
+		); !errors.Is(
+			err,
+			looppkg.ErrTransitionConflict,
+		) {
+			t.Fatalf("overwrite settled gate verdict error = %v, want ErrTransitionConflict", err)
+		}
+		stored, err := globalDB.ListGateVerdicts(ctx, string(run.WorkspaceID), string(run.ID), 1)
+		if err != nil {
+			t.Fatalf("ListGateVerdicts() error = %v", err)
+		}
+		if len(stored) != 1 || stored[0].Outcome != gate.VerdictOutcomeRejected ||
+			!strings.Contains(string(stored[0].BlockingIssues), "human_requested_changes") ||
+			!stored[0].DecidedAt.Equal(now.Add(time.Minute)) {
+			t.Fatalf("stored gate verdict = %#v, want preserved settled rejection", stored)
+		}
+	})
+
 	t.Run("Should import immutable history and refuse to delete runtime state", func(t *testing.T) {
 		t.Parallel()
 
@@ -5142,6 +5353,7 @@ func TestGlobalDBLoopRunShouldPreserveGoalPolicyAcrossReopen(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, path)
 		globalDB, err := OpenGlobalDB(ctx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -5224,7 +5436,7 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 				defer wg.Done()
 				<-start
 				attempts[idx] = globalDB.CompareAndSwapLoopRunStatus(
-					context.Background(),
+					t.Context(),
 					run.ID,
 					looppkg.StatusRunning,
 					looppkg.StatusPaused,
@@ -5362,7 +5574,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 					looppkg.StatusRunning,
 				)
 				_, attempts[idx] = globalDB.CreateLoopRunForStart(
-					context.Background(),
+					t.Context(),
 					run,
 					dsl.ConcurrencyForbid,
 				)
@@ -5416,7 +5628,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 					looppkg.StatusRunning,
 				)
 				_, attempts[idx] = globalDB.CreateLoopRunForStart(
-					context.Background(),
+					t.Context(),
 					run,
 					dsl.ConcurrencyQueue,
 				)
@@ -5520,8 +5732,8 @@ func TestGlobalDBLoopNodePauseShouldFenceAndRestoreRetryState(t *testing.T) {
 	if !errors.Is(err, looppkg.ErrInvalidTransition) {
 		t.Fatalf("ResumeNode(unpaused) error = %v, want ErrInvalidTransition", err)
 	}
-	var reason *looppkg.ReasonError
-	if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeNodeNotPaused ||
+	reason, reasonOK := errors.AsType[*looppkg.ReasonError](err)
+	if !reasonOK || reason.Code != looppkg.ReasonCodeNodeNotPaused ||
 		reason.Meta[looppkg.ReasonMetaActualState] != nodeLifecycleStateActive ||
 		reason.Meta[looppkg.ReasonMetaAllowedTransitions] != "pause,cancel" {
 		t.Fatalf("ResumeNode(unpaused) ReasonError = %#v", reason)
@@ -5867,17 +6079,15 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for index := range results {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
-			results[index], errs[index] = globalDB.ResumeWait(context.Background(), looppkg.WaitResumeMutation{
+			results[index], errs[index] = globalDB.ResumeWait(t.Context(), looppkg.WaitResumeMutation{
 				WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1,
 				NodeID: "approval", ItemIndex: 0, Payload: []byte(`{"approved":true}`),
 				ClaimedByKind: "operator", ClaimedByID: fmt.Sprintf("operator:%d", index),
 				AdmissionAttempts: 3, RequestedAt: now.Add(time.Minute),
 			})
-		}(index)
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -6016,6 +6226,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, path)
 		globalDB, err := OpenGlobalDB(ctx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -6312,18 +6523,16 @@ func TestGlobalDBLoopAdmissionClaimShouldSuppressConcurrentRedelivery(t *testing
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for index := range contenders {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			run := testLoopRun(fmt.Sprintf("looprun-admission-%d", index), now, looppkg.StatusRunning)
 			run.SetAdmission(looppkg.AdmissionIdentity{
 				SourceKey: "  review-source  ", EventKey: "  review:42  ", Horizon: 7 * 24 * time.Hour,
 			})
 			results[index], errs[index] = globalDB.CreateLoopRunForStart(
-				context.Background(), run, dsl.ConcurrencyAllow,
+				t.Context(), run, dsl.ConcurrencyAllow,
 			)
-		}(index)
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -6551,72 +6760,122 @@ func TestGlobalDBLoopWaitEscalationShouldUseRelayAndHonorDecision(t *testing.T) 
 		}
 	})
 
-	t.Run("Should let an approval decision atomically stop its escalation ladder", func(t *testing.T) {
-		t.Parallel()
+	approvalCases := []struct {
+		name       string
+		decision   looppkg.GateDecision
+		staleEpoch bool
+	}{
+		{
+			name:     "Should rearm the gate after approval and stop its escalation ladder",
+			decision: looppkg.GateDecisionApprove,
+		},
+		{
+			name:     "Should rearm the gate after requesting changes and stop its escalation ladder",
+			decision: looppkg.GateDecisionRequestChanges,
+		},
+		{
+			name:       "Should reject a decision for a stale gate epoch",
+			decision:   looppkg.GateDecisionRequestChanges,
+			staleEpoch: true,
+		},
+	}
+	for _, tt := range approvalCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		globalDB := openLoopTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		now := time.Date(2026, time.August, 4, 14, 30, 0, 0, time.UTC)
-		globalDB.now = func() time.Time { return now }
-		created, err := globalDB.CreateLoopRunForStart(
-			ctx,
-			approvalEscalationTestLoopRun("looprun-approval-ladder-decision", now),
-			dsl.ConcurrencyAllow,
-		)
-		if err != nil {
-			t.Fatalf("CreateLoopRunForStart() error = %v", err)
-		}
-		seedApprovalEscalationFixture(t, globalDB, created, now)
-		created.Status = looppkg.StatusNeedsApproval
-		created.ActiveGateID = "approval"
-		if _, err := globalDB.EscalateDueLoopWaitsPage(
-			ctx, now.Add(time.Minute), looppkg.WaitEscalationCursor{}, 100,
-		); err != nil {
-			t.Fatalf("EscalateDueLoopWaitsPage(first approval step) error = %v", err)
-		}
-		decidedAt := now.Add(90 * time.Second)
-		actor := operatorActorContextForTest("approver-1")
-		result, err := globalDB.ReactivateLoopCoordinator(ctx, &looppkg.CoordinatorReactivationRequest{
-			Run: created, Cause: looppkg.TransitionCauseApproval, Actor: actor,
-			Decisions: []looppkg.GateDecisionRecord{{
-				WorkspaceID: created.WorkspaceID, RunID: created.ID, Generation: 1,
-				GateID: "approval", CriterionID: "operator", Decision: looppkg.GateDecisionApprove,
-				Actor: actor, DecidedAt: decidedAt,
-			}},
-			ReactivatedAt: decidedAt,
+			globalDB := openLoopTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			now := time.Date(2026, time.August, 4, 14, 30, 0, 0, time.UTC)
+			globalDB.now = func() time.Time { return now }
+			created, err := globalDB.CreateLoopRunForStart(
+				ctx,
+				approvalEscalationTestLoopRun("looprun-approval-ladder-"+string(tt.decision), now),
+				dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart() error = %v", err)
+			}
+			seedApprovalEscalationFixture(t, globalDB, created, now)
+			created.Status = looppkg.StatusNeedsApproval
+			created.ActiveGateID = "approval"
+			if tt.staleEpoch {
+				if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_generation_outputs
+					SET epoch = epoch + 1 WHERE loop_run_id = ? AND node_id = 'approval'`, created.ID); err != nil {
+					t.Fatalf("advance approval output epoch error = %v", err)
+				}
+			}
+			if _, err := globalDB.EscalateDueLoopWaitsPage(
+				ctx, now.Add(time.Minute), looppkg.WaitEscalationCursor{}, 100,
+			); err != nil {
+				t.Fatalf("EscalateDueLoopWaitsPage(first approval step) error = %v", err)
+			}
+			decidedAt := now.Add(90 * time.Second)
+			actor := operatorActorContextForTest("approver-1")
+			result, err := globalDB.ReactivateLoopCoordinator(ctx, &looppkg.CoordinatorReactivationRequest{
+				Run: created, Cause: looppkg.TransitionCauseApproval, Actor: actor,
+				Decisions: []looppkg.GateDecisionRecord{{
+					WorkspaceID: created.WorkspaceID, RunID: created.ID, Generation: 1,
+					GateID: "approval", CriterionID: "operator", Decision: tt.decision,
+					Actor: actor, DecidedAt: decidedAt,
+				}},
+				ReactivatedAt: decidedAt,
+			})
+			if tt.staleEpoch {
+				if !errors.Is(err, looppkg.ErrTransitionConflict) {
+					t.Fatalf("ReactivateLoopCoordinator(stale epoch) error = %v, want ErrTransitionConflict", err)
+				}
+				var decisions, waiting int
+				if err := globalDB.db.QueryRowContext(ctx, `SELECT
+					(SELECT COUNT(*) FROM loop_gate_decisions WHERE loop_run_id = ?),
+					(SELECT COUNT(*) FROM loop_node_waits WHERE loop_run_id = ? AND claim_state = 'waiting')`,
+					created.ID, created.ID).Scan(&decisions, &waiting); err != nil {
+					t.Fatalf("read stale approval rollback error = %v", err)
+				}
+				if decisions != 0 || waiting != 1 {
+					t.Fatalf("stale approval truth = %d decisions/%d waits, want 0/1", decisions, waiting)
+				}
+				return
+			}
+			if err != nil || result.Run.ID == "" {
+				t.Fatalf("ReactivateLoopCoordinator() = %#v, %v, want committed approval wake", result, err)
+			}
+			if _, err := globalDB.EscalateDueLoopWaitsPage(
+				ctx, now.Add(3*time.Minute), looppkg.WaitEscalationCursor{}, 100,
+			); err != nil {
+				t.Fatalf("EscalateDueLoopWaitsPage(after approval) error = %v", err)
+			}
+			entries, err := globalDB.ListEffectOutbox(ctx, created.WorkspaceID, created.ID)
+			if err != nil {
+				t.Fatalf("ListEffectOutbox() error = %v", err)
+			}
+			if len(entries) != 1 {
+				t.Fatalf("approval ladder outbox = %#v, want no step after decision", entries)
+			}
+			stored, err := globalDB.GetLoopRun(ctx, created.WorkspaceID, created.ID)
+			if err != nil {
+				t.Fatalf("GetLoopRun() error = %v", err)
+			}
+			var state, claimedBy, outputStatus string
+			var epoch int
+			if err := globalDB.db.QueryRowContext(ctx, `SELECT wait.claim_state, wait.claimed_by_id,
+				output.status, output.epoch FROM loop_node_waits AS wait
+				JOIN loop_generation_outputs AS output ON output.loop_run_id = wait.loop_run_id
+				AND output.generation = wait.generation AND output.node_id = wait.node_id
+				AND output.item_index = wait.item_index WHERE wait.loop_run_id = ? AND wait.node_id = 'approval'`, created.ID).
+				Scan(&state, &claimedBy, &outputStatus, &epoch); err != nil {
+				t.Fatalf("read approval wait decision error = %v", err)
+			}
+			if stored.Status != looppkg.StatusRunning || stored.ActiveGateID != "" ||
+				state != string(looppkg.WaitClaimResumed) || claimedBy != "approver-1" ||
+				!stored.StartedAt.Equal(now.Add(90*time.Second)) {
+				t.Fatalf("approved wait = status:%s gate:%s state:%s actor:%s started:%s",
+					stored.Status, stored.ActiveGateID, state, claimedBy, stored.StartedAt)
+			}
+			if outputStatus != "pending" || epoch != 4 {
+				t.Fatalf("decided gate output = %s at epoch %d, want pending at epoch 4", outputStatus, epoch)
+			}
 		})
-		if err != nil || result.Run.ID == "" {
-			t.Fatalf("ReactivateLoopCoordinator() = %#v, %v, want committed approval wake", result, err)
-		}
-		if _, err := globalDB.EscalateDueLoopWaitsPage(
-			ctx, now.Add(3*time.Minute), looppkg.WaitEscalationCursor{}, 100,
-		); err != nil {
-			t.Fatalf("EscalateDueLoopWaitsPage(after approval) error = %v", err)
-		}
-		entries, err := globalDB.ListEffectOutbox(ctx, created.WorkspaceID, created.ID)
-		if err != nil {
-			t.Fatalf("ListEffectOutbox() error = %v", err)
-		}
-		if len(entries) != 1 {
-			t.Fatalf("approval ladder outbox = %#v, want no step after decision", entries)
-		}
-		stored, err := globalDB.GetLoopRun(ctx, created.WorkspaceID, created.ID)
-		if err != nil {
-			t.Fatalf("GetLoopRun() error = %v", err)
-		}
-		var state, claimedBy string
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_state, claimed_by_id
-			FROM loop_node_waits WHERE loop_run_id = ? AND node_id = 'approval'`, created.ID).
-			Scan(&state, &claimedBy); err != nil {
-			t.Fatalf("read approval wait decision error = %v", err)
-		}
-		if stored.Status != looppkg.StatusRunning || stored.ActiveGateID != "" ||
-			state != string(looppkg.WaitClaimResumed) || claimedBy != "approver-1" ||
-			!stored.StartedAt.Equal(now.Add(90*time.Second)) {
-			t.Fatalf("approved wait = status:%s gate:%s state:%s actor:%s started:%s",
-				stored.Status, stored.ActiveGateID, state, claimedBy, stored.StartedAt)
-		}
-	})
+	}
 
 	t.Run("Should reject an approval decision without exact fanout item identity", func(t *testing.T) {
 		t.Parallel()
@@ -7514,3 +7773,187 @@ func TestGlobalDBShouldBackfillEventWaitAdmissionDeadline(t *testing.T) {
 		})
 	}
 }
+
+func TestGlobalDBLoopRecoveredChild(t *testing.T) {
+	t.Parallel()
+	// Invariant: durable exact-child recovery releases the parent without another review generation.
+	// Owning layer and canonical suite: GlobalDB Loop coordinator persistence and reconciliation.
+	t.Run("Should adopt the durable recovered child without reserving another child", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.September, 29, 12, 0, 0, 0, time.UTC)
+		proof := `{"worktree_id":"wt-reviewed","include_paths":["reviewed.go"],"fingerprint":"` + strings.Repeat(
+			"a",
+			64,
+		) + `"}`
+		definition := dsl.Definition{
+			Meta: dsl.Meta{Name: "parent", Version: 1},
+			Contract: dsl.Contract{
+				Goal:             "Review candidate",
+				DefinitionOfDone: "Review passes",
+				IterationCap:     7,
+				NoProgress:       dsl.NoProgress{Window: 3},
+				Budget:           dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			},
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{
+						ID:    "review",
+						Class: dsl.NodeClassAction,
+						Kind:  string(dsl.ActionRunLoop),
+						Params: dsl.NodeParams{
+							"loop":   "delivery",
+							"inputs": map[string]any{"tasks": "{{ .inputs.tasks }}", dsl.ReviewedWorktreeInput: proof},
+						},
+					},
+				},
+			},
+			Inputs: map[string]dsl.Input{"tasks": {Type: dsl.InputTypeString, Required: true}},
+		}
+		definition.Normalize()
+		resolved, err := looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("compile parent: %v", err)
+		}
+		effective, err := looppkg.ResolveEffectiveConfig(
+			resolved,
+			looppkg.DefaultLoopDefaults(),
+			nil,
+			looppkg.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("resolve parent: %v", err)
+		}
+		snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+		if err != nil {
+			t.Fatalf("snapshot parent: %v", err)
+		}
+		parent := testLoopRun("looprun-recovered-parent", now, looppkg.StatusRunning)
+		parent.LoopName = "parent"
+		parent.DefinitionSnapshot = snapshot
+		parent.DefinitionDigest = digest
+		parent, err = globalDB.CreateLoopRunForStart(ctx, parent, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("create parent: %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation=1 WHERE id=?`,
+			parent.ID,
+		); err != nil {
+			t.Fatalf("seed parent generation: %v", err)
+		}
+		child := testLoopRun("looprun-recovered-child", now, looppkg.StatusDone)
+		child.ParentLoopRunID = parent.ID
+		child.Inputs[dsl.ReviewedWorktreeInput] = proof
+		child, err = globalDB.CreateLoopRunForStart(ctx, child, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("create recovered child: %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			child.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			now,
+		); err != nil {
+			t.Fatalf("settle recovered child: %v", err)
+		}
+		taskID := "loop." + string(parent.ID) + ".g1.node.review.0"
+		taskRecord := workspaceTaskRecordForTest(taskID, string(parent.WorkspaceID))
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("create review task: %v", err)
+		}
+		worker := taskRunForTest("recovered-review-worker", taskID)
+		worker.WorkspaceID = string(parent.WorkspaceID)
+		worker.LoopRunID = string(parent.ID)
+		worker.RunKind = taskpkg.RunKindWorker
+		worker.Status = taskpkg.TaskRunStatusCompleted
+		worker.EndedAt = now
+		worker.SetResult(json.RawMessage(`{"loop_run_id":"looprun-recovered-child","status":"awaiting_child"}`))
+		if err := globalDB.CreateTaskRun(ctx, worker); err != nil {
+			t.Fatalf("create completed review: %v", err)
+		}
+		failure := looppkg.NewActionFailure("child_loop_status:failed", "child failed", "rerun child")
+		failure.Target = string(child.ID)
+		ref, ok := looppkg.ActionFailureOutputRef(failure)
+		if !ok {
+			t.Fatal("encode child failure")
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (loop_run_id,generation,node_id,item_index,status,output_ref,child_loop_run_id,task_run_id,attempt) VALUES (?,1,'review',0,'failed',?,?,?,1)`,
+			parent.ID,
+			ref,
+			child.ID,
+			worker.ID,
+		); err != nil {
+			t.Fatalf("seed failed parent output: %v", err)
+		}
+		claim := claimExactLoopTaskRunForTest(
+			ctx,
+			t,
+			globalDB,
+			parent,
+			loopCoordinatorRunID(parent.ID, 1),
+			taskpkg.RunKindCoordinator,
+			now,
+		)
+		runner, err := looppkg.NewCoordinatorRunner(
+			globalDB,
+			globalDB,
+			globalDB,
+			slog.Default(),
+			looppkg.WithCoordinatorWorktreeCandidateVerifier(persistedReviewCandidateVerifier{}),
+		)
+		if err != nil {
+			t.Fatalf("create coordinator: %v", err)
+		}
+		plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
+		if err != nil {
+			t.Fatalf("reconcile recovered child: %v", err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != "done" || plan.NextCoordinator != nil ||
+			len(plan.NodeRuns) != 0 {
+			t.Fatalf("recovery plan = %#v", plan)
+		}
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID:      claim.Run.ID,
+				ClaimToken: claim.ClaimToken,
+				Actor:      coordinatorActorContextForTest(),
+				Now:        now.Add(time.Second),
+				Plan:       plan,
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("persist recovery plan: %v", err)
+		}
+		outputs, err := globalDB.ListGenerationOutputs(ctx, parent.WorkspaceID, parent.ID, 1)
+		if err != nil || len(outputs) != 1 || outputs[0].Status != "succeeded" ||
+			outputs[0].ChildLoopRunID != string(child.ID) {
+			t.Fatalf("durable outputs = %#v, %v", outputs, err)
+		}
+		final, err := globalDB.GetLoopRunByID(ctx, parent.ID)
+		if err != nil || final.Status != looppkg.StatusDone || final.Generation != 1 {
+			t.Fatalf("parent = %#v, %v", final, err)
+		}
+	})
+}
+
+type persistedReviewCandidateVerifier struct{}
+
+func (persistedReviewCandidateVerifier) VerifyReviewCandidate(
+	_ context.Context,
+	workspaceID, worktreeID string,
+	paths []string,
+	fingerprint string,
+) (bool, error) {
+	return workspaceID != "" && worktreeID == "wt-reviewed" && slices.Equal(paths, []string{"reviewed.go"}) &&
+		fingerprint == strings.Repeat("a", 64), nil
+}
+
+var _ looppkg.WorktreeCandidateVerifier = persistedReviewCandidateVerifier{}

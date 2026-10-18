@@ -54,10 +54,8 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 							t.Fatalf("payload.ToolID = %q, want compozy__write", payload.ToolID)
 						}
 						return hookspkg.ToolCallPatch{
-							ControlPatch: hookspkg.ControlPatch{
-								Deny:       true,
-								DenyReason: "blocked by hook",
-							},
+							Deny:       true,
+							DenyReason: "blocked by hook",
 						}, nil
 					},
 				),

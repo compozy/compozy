@@ -126,14 +126,10 @@ describe("TaskSetupSheet", () => {
   it("Should render every configured review and participant routing selector", () => {
     const profile = buildTaskExecutionProfileFixture({
       participants: {
-        allowed_channel_ids: ["channel-ops"],
         preferred_agent_names: ["release-writer"],
         preferred_capabilities: ["release.write"],
-        preferred_peer_ids: ["peer-release"],
       },
       review: {
-        allowed_channel_ids: ["channel-review"],
-        allowed_peer_ids: ["peer-compliance"],
         model: "gpt-5.4",
         preferred_capabilities: ["review.trace"],
         provider: "openai",
@@ -158,12 +154,8 @@ describe("TaskSetupSheet", () => {
     expect(review).not.toBeNull();
     expect(within(review!).queryByText("Off")).toBeNull();
     expect(within(review!).getByText("openai · gpt-5.4")).toBeInTheDocument();
-    expect(within(review!).getByText("channel-review")).toBeInTheDocument();
-    expect(within(review!).getByText("peer-compliance")).toBeInTheDocument();
     expect(within(review!).getByText("review.trace")).toBeInTheDocument();
-    expect(screen.getByText("channel-ops")).toBeInTheDocument();
     expect(screen.getByText("release-writer")).toBeInTheDocument();
-    expect(screen.getByText("peer-release")).toBeInTheDocument();
     expect(screen.getByText("release.write")).toBeInTheDocument();
   });
 });

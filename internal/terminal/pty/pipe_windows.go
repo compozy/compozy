@@ -36,6 +36,5 @@ func reportedExitForSignal(requested Signal, exit Exit) Exit {
 	if requested == "" {
 		return exit
 	}
-	signal := string(requested)
-	return Exit{Cause: "signaled", Signal: &signal}
+	return Exit{Cause: "signaled", Signal: new(string(requested))}
 }

@@ -55,6 +55,7 @@ func (p daemonExtensionForgeProvider) Status(
 	}
 	response, err := runtime.ForgeStatus(ctx, extensioncontract.ForgeStatusRequest{
 		RemoteURLs: append([]string(nil), request.RemoteURLs...), Branch: request.Branch,
+		Base: request.Base, HeadSHA: request.HeadSHA,
 	})
 	if err != nil {
 		return nil, mapForgeRuntimeError(err)
@@ -62,6 +63,7 @@ func (p daemonExtensionForgeProvider) Status(
 	return &worktree.ForgeStatus{
 		WorktreeID: request.WorktreeID, Provider: response.Provider, PRNumber: response.PRNumber,
 		PRState: response.PRState, PRURL: response.PRURL, Merged: response.Merged,
+		Head: response.Head, Base: response.Base, HeadSHA: response.HeadSHA, Draft: response.Draft,
 		FetchedAt: &response.FetchedAt,
 	}, nil
 }
@@ -75,8 +77,15 @@ func (p daemonExtensionForgeProvider) CreatePR(
 		return nil, err
 	}
 	response, err := runtime.ForgeCreatePR(ctx, extensioncontract.ForgePRCreateRequest{
-		RemoteURLs: append([]string(nil), request.RemoteURLs...), Head: request.Head, Base: request.Base,
-		Title: request.Title, Body: request.Body, Draft: request.Draft,
+		RemoteURLs: append(
+			[]string(nil),
+			request.RemoteURLs...),
+		Head:    request.Head,
+		Base:    request.Base,
+		HeadSHA: request.HeadSHA,
+		Title:   request.Title,
+		Body:    request.Body,
+		Draft:   request.Draft,
 	})
 	if err != nil {
 		return nil, mapForgeRuntimeError(err)

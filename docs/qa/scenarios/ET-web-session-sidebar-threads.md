@@ -4,16 +4,16 @@ area: ET
 title: In-window sessions sidebar with provenance threads and in-place switch
 persona: Bruno
 journey: J-14
-expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts closed (transcript full-bleed) and opens as a 264px left rail hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row shares the selected-row tint and carries no accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1).
-entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1
-qa_status: pass
-bug_ids: compozy/compozy#416
+expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts open as a 264px left rail on the recessed `sunken` surface (a persisted close wins over the default) hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root (except `lineage.kind` `continue`/`fork`, which are top-level rows), each hanging off the root's rail by a tree elbow that ends at the last child; the parent row carries a count toggle on its meta line that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row shares the selected-row tint and carries no accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1). Subagent sessions (spawn_role subagent) never appear as rows or roots: the sidebar requests subagents=exclude unless a search is active; a parent with subagents carries one trailing chip (most-urgent glyph attention > failed > running, or delegated when the parent is idle with live subagents; live/total text such as 3/10 while any is live, the total alone beside the failed glyph when none is live but a failure remains; aria "3 of 10 subagents running" / "6 subagents, 2 failed") whose hover lists up to 5 subagents then +N more and whose click opens the inspector Subagents section; the chip hides once every subagent settled cleanly; viewing a subagent reveals only it under its parent row; search includes matching subagents nested under their parent; plain spawn, provenance, and recovery children keep their nesting. Every row has two lines: line 1 is the title plus one end slot (compact time such as `now`, `5m`, `2h`, `1mo`, swapped for the row actions on hover or keyboard focus); line 2 leads with the brand-ink provider mark of its effective runtime (`runtime.effective.provider`), then the agent and attention words, with the subagent chip and thread toggle right-aligned. A child running its root's agent on its root's provider omits the repeated who line (one line) unless it has an attention word or note, and still names its runtime and agent to assistive tech. When line 2 is full, notes give way first, then the agent name, and attention words last; the row's accessible name and the mark's tooltip read `Provider · Model` in the runtime catalog's display names (e.g. `Codex · GPT-6.1 Sol`, wire ids only where the catalog has no name, neutral fallback glyph for an unknown provider); the glyph is decorative and adds no tab stop, and the tooltip opens on the glyph's hover or the row's keyboard focus (Escape dismisses it); a session that never bound a runtime shows no mark, and the mark follows a runtime change (continue, fork, process replacement) on the next catalog re-read without a per-row request.
+entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1; SubagentChip and session inspector Subagents section; GET /api/workspaces/{workspace_id}/sessions?subagents=exclude; docs/design/opendesign/subagents/subagents-navigation.html (VC-01…03)
+qa_status: untested
+bug_ids: compozy/compozy#416; BUG-20261009-subagent-routes-unavailable
 fix_status: fixed
 retest_status: pass
-fix_commits: ea021855; 49601716
-evidence: docs/qa/evidence/2026-08-17-pr-420-review/structured-walk.md; docs/qa/evidence/2026-08-17-pr-420-review/teardown.json
-last_report: docs/qa/reports/2026-08-17-pr-420-review.md
-overlaps: ET-web-sessions-catalog-modal; ET-web-session-thread-full-bleed; ET-web-session-inspector-toggle
+fix_commits: ea021855; 49601716; c5105724d
+evidence: .compozy/tasks/subagents/orchestration/screens/pr/
+last_report: docs/qa/reports/2026-10-09-subagents-r2.md
+overlaps: ET-web-sessions-catalog-modal; ET-web-session-thread-full-bleed; ET-web-session-inspector-toggle; ET-web-subagent-card; ET-web-native-subagent
 ---
 
 Added by the session sidebar + parent provenance feature (2026-08-06), implementing
@@ -43,3 +43,63 @@ All-workspaces groups remain navigation-only. The new
 sequential actions, confirmation, and retry; prior thread evidence above is retained.
 
 2026-09-15 quiet-context pass: the current session row dropped its accent left bar; `bg-row-selected` alone marks it, the same tint as multi-selection. Expected updated; the owning unit suite re-verified, no live re-walk.
+
+2026-09-28 session-continue-fork task_04 impact: continue children (lineage kind `continue`) nest under their source like any loaded child; their row subtitle is unchanged, and the session window status line of a continued child adds the neutral origin pill "Continued from {agent}" (fork pill lands with task_06). Reset to `untested` for a re-walk that proves a continued child nests under its source in the rail and the modal, and that selecting it in place shows the pill. Owner of the walk: session-continue-fork task_08.
+
+QA walk 2026-09-28 (task_08 part B2): continued and forked children nest under their source in the window rail (count toggle "7" on the alpha source, "1" on the fork source) and in the catalog modal. Selecting the unopened continued child `sess-3540e32ceffb49f3` switched this window in place (URL followed, window count unchanged) and showed "Continued from alpha". Selecting a child that already has its own window focused it instead. Verdict: pass. Report: `docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md`.
+
+2026-09-30 shell-rail polish impact (P5): the sessions rail now opens by default in every session window; an operator's persisted toggle (`compozy:session:sidebar:v1`) still wins across reloads. The rail sits on the `sunken` surface with 13.5px row titles and 12px meta, and the pressed topbar toggle reads as the `surface-2` plate (no ring). Pinned by `use-session-sidebar-state.test.ts`. Reset for a live re-walk: open a fresh session window (rail open), close it, reload (rail stays closed).
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.
+
+qa-impact: 2026-10-06 (BUG-20261006-derived-child-nested-under-source) — continued and forked sessions no longer nest: they render as
+top-level rows while spawned, provenance, and recovery children keep nesting. Flag only.
+
+qa-impact: 2026-10-08 (subagents, ADR-005) — subagent sessions leave the sidebar list; the parent row
+gains a subagent chip and the session inspector gains a Subagents roster. Reset from `skipped` to
+`untested` for a walk that proves (E2E-009, nav VC-01…03): a parent that delegated 10 subagents shows
+one row with chip `10/10` and no subagent rows, and the page of 100 sessions is not consumed by
+subagents; hovering the chip lists 5 subagents and `+5 more`; clicking it opens the inspector
+Subagents section with 6 rows and `Show N more`, failed rows pinned on top and settled ones under
+`Previous subagents (N)`, and `Stop subagent` on a live row (toast `Could not stop subagent` on
+failure); after all settle without failure the chip hides; opening one subagent reveals only it under
+the parent; a search that matches a subagent shows it nested under its parent; a plain spawned child of
+another session still nests with its count toggle; archiving the parent archives its subagents, and a
+subagent session offers no archive action. Automated owners: UT-053, UT-W17…UT-W19, IT-029, IT-030,
+IT-032.
+
+QA walk 2026-10-09 (subagent parts): on a QA-local patched build subagent sessions stay out of the rail, the chip shows live/total and the failed glyph, hover lists subagents, and click opens the inspector roster; on the stock build no chip renders because `subagent_summary` is missing. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents.md`.
+
+Re-walk 2026-10-09 (stock 980d51fbe, subagent parts): subagent sessions stay out of the rail; chip `3/3`, `1/1`, failed glyph with aria `2 subagents, 1 failed`; hover lists subagents; click opens the inspector roster with `Stop subagent` on a hovered live row. Verdict: pass. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
+
+qa-impact: 2026-10-16 (#754) — session rows show the provider mark of their effective runtime before
+the agent name, in neutral ink, with `Provider · Model` display names as accessible name and tooltip; unbound
+sessions show none, and the sub line now spans under the time column. Verified by the owning
+`SessionList provider marks` suite and rendered Storybook evidence (`SessionSidebar/MixedRuntimes`,
+`MixedRuntimesSelection`, light and dark) in PR for #754; the live walk was not run in that delivery
+(heavy QA labs delegated by maintainer instruction). Reset to `untested` for a walk that proves:
+a Claude session and a Codex session in one rail show the spark and knot marks; hovering a mark
+or Tab-focusing its row shows `Provider · Model` in display names, and Tab moves past the glyph; a freshly created session shows no mark until its first bind; switching a
+session's runtime to another provider repaints its row within one catalog re-read; selection mode
+covers only the state mark; nested children carry their own provider's mark.
+
+Issue #767 regression (2026-10-16): switch repeatedly between already-open session tabs,
+including different worktrees. Initial connection and reconnects shorter than the existing
+2-second session transport grace must not show the session-list warning. Hold a real session
+stream failure past that grace: the warning appears, then clears immediately when the stream
+recovers. Query cancellation on a scope switch must not become a catalog failure. The owning
+sidebar hook suite covers the grace boundary; the catalog hook suite covers superseded reads.
+Heavy packaged-desktop/E2E execution remains CI-owned for this round.
+
+qa-impact: 2026-10-17 (session row anatomy v2, board `docs/design/opendesign/session-list-density/`) —
+line 1 belongs to the title (compact time and on-hover actions share one end slot); owner glyph,
+provider mark, agent, attention words, subagent chip, and thread toggle move to line 2, 3px below;
+provider marks keep their brand ink; children hang off a tree elbow and collapse to one line when
+they repeat their root's agent and provider. Verified by the owning `SessionList provider marks`
+suite and rendered Storybook evidence (`SessionSidebar/AllProfiles`, `LongAgentNames`,
+`MixedRuntimes`, light and dark) in the PR. Reset to `untested` for a live walk that proves: titles
+keep line 1 with All profiles on; hover and Tab reveal the row actions in the time slot; a child on
+the root's provider renders one line while a Codex child under a Claude root keeps its mark; a
+long agent name truncates before "Needs attention" and the chip/toggle stay whole.

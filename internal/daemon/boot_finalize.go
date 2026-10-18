@@ -5,15 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"strings"
-
 	"time"
-
-	core "github.com/compozy/compozy/internal/api/core"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/compozy/internal/network"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -22,43 +17,12 @@ import (
 	skillbundled "github.com/compozy/compozy/skills"
 )
 
-func daemonNetworkInfo(
-	ctx context.Context,
-	cfg compozyconfig.NetworkConfig,
-	service core.NetworkService,
-) (*NetworkInfo, error) {
-	if !cfg.Enabled {
-		return &NetworkInfo{
-			Enabled: false,
-			Status:  network.StatusDisabled,
-		}, nil
-	}
-	if service == nil {
-		return nil, errors.New("daemon: network service is required when network is enabled")
-	}
-
-	status, err := service.Status(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: read network status: %w", err)
-	}
-	if status == nil {
-		return nil, errors.New("daemon: network status is required")
-	}
-
-	return &NetworkInfo{
-		Enabled: status.Enabled,
-		Status:  strings.TrimSpace(status.Status),
-	}, nil
-}
-
 func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
 	if state.resourceReconcile != nil {
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
 			return fmt.Errorf("daemon: boot resource reconcile: %w", err)
 		}
 	}
-
-	d.reconcileDaemonSandboxes(ctx, state)
 
 	reconcileResult, err := state.observer.Reconcile(ctx)
 	if err != nil {

@@ -15,7 +15,7 @@ func workspaceRecordBundle(item WorkspaceRecord) outputBundle {
 				{Label: workspaceRootValue, Value: stringOrDash(item.RootDir)},
 				{Label: "Additional Dirs", Value: stringOrDash(strings.Join(item.AddDirs, ", "))},
 				{Label: "Default Agent", Value: stringOrDash(item.DefaultAgent)},
-				{Label: workspaceSandboxValue, Value: stringOrDash(item.SandboxRef)},
+
 				{Label: workspaceCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
 				{Label: workspaceUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 			}), nil
@@ -27,7 +27,6 @@ func workspaceRecordBundle(item WorkspaceRecord) outputBundle {
 				"root_dir",
 				"add_dirs",
 				"default_agent",
-				"sandbox_ref",
 				workspaceCreatedAtKey,
 				automationUpdatedAtKey,
 			}, []string{
@@ -36,7 +35,6 @@ func workspaceRecordBundle(item WorkspaceRecord) outputBundle {
 				item.RootDir,
 				strings.Join(item.AddDirs, "|"),
 				item.DefaultAgent,
-				item.SandboxRef,
 				formatTime(item.CreatedAt),
 				formatTime(item.UpdatedAt),
 			}), nil
@@ -55,7 +53,6 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 			workspaceRootValue,
 			"Add Dirs",
 			"Default Agent",
-			workspaceSandboxValue,
 			workspaceUpdatedValue,
 		},
 		"workspaces",
@@ -65,7 +62,6 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 			"root_dir",
 			"add_dir_count",
 			"default_agent",
-			"sandbox_ref",
 			automationUpdatedAtKey,
 		},
 		func(item WorkspaceRecord) []string {
@@ -75,7 +71,6 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 				stringOrDash(item.RootDir),
 				strconv.Itoa(len(item.AddDirs)),
 				stringOrDash(item.DefaultAgent),
-				stringOrDash(item.SandboxRef),
 				stringOrDash(formatTime(item.UpdatedAt)),
 			}
 		},
@@ -86,7 +81,6 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 				item.RootDir,
 				strconv.Itoa(len(item.AddDirs)),
 				item.DefaultAgent,
-				item.SandboxRef,
 				formatTime(item.UpdatedAt),
 			}
 		},

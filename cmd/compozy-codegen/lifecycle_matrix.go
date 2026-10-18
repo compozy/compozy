@@ -57,7 +57,6 @@ func generateLifecycleMatrixMDX() []byte {
 		[][]string{
 			{"`daemon.reload_timeouts.providers`", "`5s`", "At least `1s` and at most `60s`."},
 			{"`daemon.reload_timeouts.mcp`", "`10s`", "At least `1s` and at most `60s`."},
-			{"`daemon.reload_timeouts.bridges`", "`30s`", "At least `1s` and at most `300s`."},
 		},
 	)
 	return []byte(out.String())

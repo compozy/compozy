@@ -55,6 +55,11 @@ export interface LoopDagNode {
    * node yet, which is the one case where there is nothing to target.
    */
   itemIndex: number | null;
+  /**
+   * The loop run this step started, on a plain step that started one. A fan-out
+   * card leaves it null: its branches each own a child and its band draws them.
+   */
+  childRunId: string | null;
 }
 
 /** One column of the layered lane, plus the gutter drawn to its right. */
@@ -241,6 +246,7 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
         attemptLabel: null,
         fanOut: band,
         itemIndex: representativeItem(rows),
+        childRunId: null,
       });
       continue;
     }
@@ -258,6 +264,7 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
       attemptLabel: row ? loopAttemptLabel(row.attempt) : null,
       fanOut: null,
       itemIndex: row?.item_index ?? null,
+      childRunId: row?.child_loop_run_id?.trim() || null,
     });
   }
 

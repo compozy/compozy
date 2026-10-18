@@ -13,7 +13,6 @@ func streams(root string) []stream {
 	return []stream{
 		newStreamWithSource(root, "global", "internal/store/globaldb", "definitions"),
 		newStream(root, "session", "internal/store/sessiondb"),
-		newStream(root, "memory", "internal/memory"),
 		newStreamWithSource(root, "workspace", "internal/store/workspacedb", "definitions"),
 	}
 }

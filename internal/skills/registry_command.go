@@ -344,6 +344,7 @@ func collisionSafeQualifiedSourceIDs(skills []*Skill, generation int64) map[stri
 		candidateKey string
 		sourceID     string
 		rootID       string
+		filePath     string
 	}
 	groups := make(map[string][]sourceIdentity)
 	for _, skill := range skills {
@@ -360,6 +361,7 @@ func collisionSafeQualifiedSourceIDs(skills []*Skill, generation int64) map[stri
 			candidateKey: candidateKey,
 			sourceID:     commandpkg.Slug(source.ID),
 			rootID:       strings.TrimSpace(skill.RootID),
+			filePath:     skillPathForShadow(skill),
 		})
 	}
 
@@ -368,14 +370,31 @@ func collisionSafeQualifiedSourceIDs(skills []*Skill, generation int64) map[stri
 		if len(group) < 2 {
 			continue
 		}
+		definitionsByRoot := make(map[string]int, len(group))
+		for _, identity := range group {
+			definitionsByRoot[identity.rootID]++
+		}
 		for _, identity := range group {
 			if identity.rootID == "" || identity.sourceID == "" {
+				continue
+			}
+			if definitionsByRoot[identity.rootID] > 1 {
+				result[identity.candidateKey] = definitionQualifiedSourceID(
+					identity.sourceID, identity.rootID, identity.filePath,
+				)
 				continue
 			}
 			result[identity.candidateKey] = rootQualifiedSourceID(identity.sourceID, identity.rootID)
 		}
 	}
 	return result
+}
+
+// definitionQualifiedSourceID disambiguates same-name definitions nested inside
+// one physical root, where the root digest alone would publish one command
+// identity for several definitions.
+func definitionQualifiedSourceID(sourceID string, rootID string, filePath string) string {
+	return rootQualifiedSourceID(sourceID, strings.TrimSpace(rootID)+"\x00"+strings.TrimSpace(filePath))
 }
 
 func rootQualifiedSourceID(sourceID string, rootID string) string {

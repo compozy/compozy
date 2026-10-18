@@ -5,7 +5,7 @@ import { LogoLockup } from "../logo";
 import { COLORS, FONTS, SIZE, truncate } from "../tokens";
 import { Chip } from "./chip";
 
-export type DocsOGVariant = "docs" | "protocol";
+export type DocsOGVariant = "docs";
 
 export interface RenderDocsOGInput {
   variant: DocsOGVariant;
@@ -16,7 +16,6 @@ export interface RenderDocsOGInput {
 
 const VARIANT_LABELS: Record<DocsOGVariant, { eyebrow: string; chip: string }> = {
   docs: { eyebrow: "COMPOZYOS DOCS", chip: "COMPOZYOS" },
-  protocol: { eyebrow: "COMPOZY NETWORK PROTOCOL", chip: "PROTOCOL" },
 };
 
 const canvasStyle: CSSProperties = {

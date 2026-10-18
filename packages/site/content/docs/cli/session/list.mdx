@@ -7,6 +7,10 @@ description: "List sessions"
 
 List sessions
 
+### Synopsis
+
+List sessions. Verdict-only system judges are hidden by default; use --type system to include them for audit. Other system sessions remain visible.
+
 ```
 compozy session list [flags]
 ```
@@ -37,11 +41,12 @@ compozy session list [flags]
       --include-health     Include metadata-only health for returned sessions
       --limit int          Sessions per page (1-100)
       --parent string      Filter by exact parent session id
-      --query string       Search session id, name, agent, provider, or channel
+      --query string       Search session id, name, agent, or provider
       --resumable          Show only sessions eligible for resume attach
       --root string        Filter by exact root session id (includes the root itself)
-      --sort string        Sort by recent, last_activity, or attention
+      --sort string        Sort by recent, created, name, last_activity, attention, navigator, or manual
       --state string       Filter by state (starting|active|stopping|stopped)
+      --subagents string   Subagent session visibility (include|exclude|only) (default "include")
       --summary            Show exact attention counts across workspaces
       --type string        Filter by session type (user|system|coordinator|spawned)
       --workspace string   Override workspace filter (ID, name, or path)

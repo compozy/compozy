@@ -110,7 +110,9 @@ export function LoopEditor({
       <CenteredState testId="loop-editor-not-found">
         <div className="flex flex-col items-center gap-2 text-center">
           <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-muted">{editor.errorMessage || `Loop ${name} not found.`}</p>
+          <p className="text-small-body text-muted">
+            {editor.errorMessage || `Loop ${name} not found.`}
+          </p>
         </div>
       </CenteredState>
     );

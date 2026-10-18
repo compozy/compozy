@@ -121,10 +121,10 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 	err = mcpServer.Run(
 		proxyCtx,
 		hostedProviderProtocolTransport{
-			Transport: &sdkmcp.IOTransport{
+			Transport: hostedIdentityTransport{Transport: &sdkmcp.IOTransport{
 				Reader: io.NopCloser(stdin),
 				Writer: nopWriteCloser{Writer: stdout},
-			},
+			}},
 		},
 	)
 	cancel()
@@ -224,6 +224,7 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 		Annotations: &sdkmcp.ToolAnnotations{
 			Title:           descriptor.Presentation().DisplayTitle,
 			ReadOnlyHint:    readOnly,
+			IdempotentHint:  descriptor.ExecutionMetadata().Idempotent,
 			DestructiveHint: &destructive,
 			OpenWorldHint:   &openWorld,
 		},
@@ -262,11 +263,14 @@ func callHostedTool(
 			IsError: true,
 		}, nil
 	}
+	progress := startHostedToolProgress(ctx, req)
+	defer progress()
 	response, err := client.CallHostedMCP(ctx, HostedCallRequest{
-		BindID:     bindID,
-		ToolName:   req.Params.Name,
-		ToolCallID: hostedToolCallID(req),
-		Input:      rawInput,
+		BindID:        bindID,
+		ToolName:      req.Params.Name,
+		ToolCallID:    hostedToolCallID(req),
+		CorrelationID: hostedRequestIdentity(req),
+		Input:         rawInput,
 	})
 	if err != nil {
 		if partial, ok, partialErr := hostedToolPartialErrorResult(err); ok {
@@ -421,4 +425,15 @@ func hostedToolFingerprints(server *sdkmcp.Server) map[string]string {
 
 func setHostedToolFingerprints(server *sdkmcp.Server, fingerprints map[string]string) {
 	hostedServerToolFingerprints.Store(server, maps.Clone(fingerprints))
+}
+
+func hostedRequestIdentity(req *sdkmcp.CallToolRequest) string {
+	if req == nil || req.Params == nil {
+		return ""
+	}
+	id, ok := req.Params.Meta[hostedRequestIDMeta].(string)
+	if !ok {
+		return ""
+	}
+	return id
 }

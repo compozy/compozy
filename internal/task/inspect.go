@@ -1,9 +1,10 @@
 package task
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -190,8 +191,7 @@ func (m *Service) inspectSession(
 	if len(sessions) == 0 {
 		return &InspectSessionSummary{SessionID: trimmedID, State: inspectSessionMissingState}, nil
 	}
-	summary := inspectSessionSummaryFromStore(sessions[0])
-	return &summary, nil
+	return new(inspectSessionSummaryFromStore(sessions[0])), nil
 }
 
 func (m *Service) inspectSchedulerState(ctx context.Context) (InspectSchedulerState, error) {
@@ -243,12 +243,13 @@ func inspectRunByID(runs []Run, id string) *Run {
 	if trimmedID == "" {
 		return nil
 	}
-	for idx := range runs {
-		if strings.TrimSpace(runs[idx].ID) == trimmedID {
-			return &runs[idx]
-		}
+	index := slices.IndexFunc(runs, func(run Run) bool {
+		return strings.TrimSpace(run.ID) == trimmedID
+	})
+	if index < 0 {
+		return nil
 	}
-	return nil
+	return &runs[index]
 }
 
 func inspectRunPreferred(candidate Run, current Run) bool {
@@ -262,8 +263,8 @@ func inspectRunPreferred(candidate Run, current Run) bool {
 
 func inspectRecentRuns(runs []Run, asOf time.Time) []InspectRunSummary {
 	sorted := append([]Run(nil), runs...)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		return runComesAfter(sorted[i], sorted[j])
+	slices.SortStableFunc(sorted, func(a, b Run) int {
+		return cmp.Or(cmp.Compare(b.Attempt, a.Attempt), b.QueuedAt.Compare(a.QueuedAt), cmp.Compare(b.ID, a.ID))
 	})
 	if len(sorted) > inspectRecentRunLimit {
 		sorted = sorted[:inspectRecentRunLimit]
@@ -279,8 +280,7 @@ func inspectRunSummaryPtr(run *Run, asOf time.Time) *InspectRunSummary {
 	if run == nil {
 		return nil
 	}
-	summary := inspectRunSummaryFromRun(*run, asOf)
-	return &summary
+	return new(inspectRunSummaryFromRun(*run, asOf))
 }
 
 func inspectRunSummaryFromRun(run Run, asOf time.Time) InspectRunSummary {
@@ -314,8 +314,7 @@ func inspectHeartbeatAgeSeconds(run Run, asOf time.Time) *int64 {
 	if heartbeatAt.IsZero() || asOf.Before(heartbeatAt) {
 		return nil
 	}
-	age := int64(asOf.Sub(heartbeatAt).Seconds())
-	return &age
+	return new(int64(asOf.Sub(heartbeatAt).Seconds()))
 }
 
 func inspectRetryCount(run Run) int {

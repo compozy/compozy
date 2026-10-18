@@ -14,14 +14,14 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 INSERT INTO session_prompt_admissions (
   id, workspace_id, session_id, message_id, idempotency_key, operation,
   fingerprint_version, request_fingerprint, state, mode, authored_text,
-	 skill_invocations_json, attachments_json,
+	 skill_invocations_json, attachments_json, origin_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   turn_id, event_id, created_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(session_id), sqlc.arg(message_id),
   sqlc.arg(idempotency_key), sqlc.arg(operation), sqlc.arg(fingerprint_version),
   sqlc.arg(request_fingerprint), sqlc.arg(state), sqlc.arg(mode), sqlc.arg(authored_text),
-	 sqlc.arg(skill_invocations_json), sqlc.arg(attachments_json),
+	 sqlc.arg(skill_invocations_json), sqlc.arg(attachments_json), sqlc.narg(origin_json),
   sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort),
   sqlc.arg(runtime_speed), sqlc.arg(runtime_acp_options_json), sqlc.arg(turn_id), sqlc.arg(event_id),
   sqlc.arg(created_at), sqlc.arg(updated_at)
@@ -92,5 +92,6 @@ WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id);
 UPDATE session_prompt_admissions
 SET state = 'completed', completed_at = sqlc.arg(now), updated_at = sqlc.arg(now),
     result_json = json_set(result_json, '$.steer_delivery', sqlc.arg(steer_delivery),
-                           '$.previous_turn_id', sqlc.arg(target_turn_id))
+                           '$.previous_turn_id', sqlc.arg(target_turn_id),
+                           '$.delivery', CAST(sqlc.arg(delivery) AS TEXT))
 WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id) AND state = 'dispatch_committed';

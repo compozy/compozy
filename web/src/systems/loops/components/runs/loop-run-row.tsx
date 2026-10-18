@@ -1,27 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { TriangleAlert } from "lucide-react";
 
-import { cn, MonoId, Pill, PillDot, TableCell, TableRow, Time } from "@compozy/ui";
+import { cn, StateGlyph, TableCell, TableRow, Time } from "@compozy/ui";
 
-import { formatClockDuration } from "../../lib/loop-run-usage";
+import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRunRow as LoopRunRowModel } from "../../lib/loop-runs-view";
-import type { LoopRun } from "../../types";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 interface LoopRunRowProps {
   row: LoopRunRowModel;
   /** The run's profile, supplied only in aggregate mode. */
   owner?: ProfileOwner;
-}
-
-/** Terminal runs stop at `completed_at`; live runs use their latest progress. */
-function durationLabel(
-  run: Pick<LoopRun, "completed_at" | "created_at" | "last_progress_at">
-): string {
-  const created = Date.parse(run.created_at);
-  const last = Date.parse(run.completed_at ?? run.last_progress_at);
-  if (Number.isNaN(created) || Number.isNaN(last) || last <= created) return "—";
-  return formatClockDuration(Math.round((last - created) / 1000));
+  /** Display clock, so a live run's duration ticks the same as on the Loop page. */
+  nowMs: number;
 }
 
 const META_CELL = "font-mono text-mono-id tabular-nums text-muted";
@@ -34,23 +24,24 @@ const META_CELL = "font-mono text-mono-id tabular-nums text-muted";
  * Spend (generations, best score, budget) is deliberately absent: it is demoted
  * to the run page, where there is room to say what it means.
  */
-export function LoopRunRow({ row, owner }: LoopRunRowProps) {
+export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
   const { run } = row;
   return (
     <TableRow
-      className={cn(row.needsYou && "bg-row-selected hover:bg-surface-glaze")}
+      className={cn(row.needsYou && "bg-selected hover:bg-selected")}
       data-needs-you={row.needsYou ? "true" : undefined}
       data-run-id={run.id}
       data-status={run.status}
       data-testid="loop-run-row"
     >
-      <TableCell className="w-full max-w-0 py-2.5">
+      <TableCell className="w-full min-w-64 max-w-0 py-2.5">
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
             <Link
               className="min-w-0 truncate text-ws-name font-medium text-fg-strong underline-offset-3 hover:underline"
               data-testid="loop-run-name"
               params={{ runId: run.id }}
+              title={run.id}
               to="/loop-runs/$runId"
             >
               {run.loop_name}
@@ -62,21 +53,17 @@ export function LoopRunRow({ row, owner }: LoopRunRowProps) {
               {row.summaryLine}
             </span>
           ) : null}
-          <MonoId data-testid="loop-run-id" value={run.id} />
         </span>
       </TableCell>
       <TableCell>
-        <Pill data-testid="loop-run-status" tone={row.statusTone}>
-          {/* The needs-you chip carries a glyph as well as tone, so colour never
-              travels alone on the one row a person has to act on. Every other
-              status keeps production's dot-and-label chip vocabulary. */}
-          {row.needsYou ? (
-            <TriangleAlert aria-hidden="true" />
-          ) : (
-            <PillDot pulse={row.statusPulse} />
-          )}
+        <span
+          className="inline-flex items-center gap-1.75 text-small-body text-fg-2"
+          data-state={row.statusGlyph}
+          data-testid="loop-run-status"
+        >
+          <StateGlyph state={row.statusGlyph} still={row.statusStill} />
           {row.statusLabel}
-        </Pill>
+        </span>
       </TableCell>
       <TableCell className={META_CELL} data-testid="loop-run-progress">
         {row.progressLabel}
@@ -85,7 +72,7 @@ export function LoopRunRow({ row, owner }: LoopRunRowProps) {
         <Time iso={run.created_at} />
       </TableCell>
       <TableCell className={META_CELL} data-testid="loop-run-duration">
-        {durationLabel(run)}
+        {formatClockDuration(runElapsedSeconds(run, nowMs))}
       </TableCell>
     </TableRow>
   );

@@ -23,6 +23,91 @@ import (
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
 
+func TestPromptRuntimeKeepsRestrictedSessionAfterRuntimeChange(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep the launch-time full-access preference filtered during a runtime change", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		h.cfg.Permissions.ProviderFullAccess = true
+		workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		workspace.Config = h.cfg
+		h.resolver.upsert(&workspace)
+		active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID,
+			Permissions: compozyconfig.PermissionModeApproveReads,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		if _, err := h.manager.ensurePromptRuntime(
+			testutil.Context(t), active, &selection, snapshot.process,
+		); err != nil {
+			t.Fatalf("ensurePromptRuntime() error = %v", err)
+		}
+		configs := driver.configSnapshots()
+		if len(configs) != 1 || len(configs[0].ACPOptions) != 1 ||
+			configs[0].ACPOptions[0].ID != "thinking" || configs[0].ACPOptions[0].BoolValue == nil ||
+			!*configs[0].ACPOptions[0].BoolValue {
+			t.Fatalf("ConfigureRuntime() configs = %#v, want thinking=true without unrestricted mode", configs)
+		}
+	})
+}
+
+func TestPromptRuntimeRejectsUnrestrictedModeForPersistedRestrictedSession(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	workspace.Config = h.cfg
+	h.resolver.upsert(&workspace)
+	active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID,
+		Permissions: compozyconfig.PermissionModeApproveReads,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+	if got := active.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveReads) {
+		t.Fatalf("effective permissions = %q, want approve-reads", got)
+	}
+
+	h.cfg.Permissions.ProviderFullAccess = true
+	workspace.Config = h.cfg
+	h.resolver.upsert(&workspace)
+	driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+	h.manager.driver = driver
+	snapshot := active.runtimeBindingSnapshot()
+	selection := snapshot.selection
+	selection.Model = "claude-fable-5"
+	if _, err := h.manager.ensurePromptRuntime(
+		testutil.Context(t), active, &selection, snapshot.process,
+	); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
+		t.Fatalf("ensurePromptRuntime() error = %v, want restricted-session refusal", err)
+	}
+	if got := len(driver.configSnapshots()); got != 0 {
+		t.Fatalf("ConfigureRuntime() calls = %d, want none", got)
+	}
+	if got := active.runtimeBindingSnapshot().process; got != snapshot.process {
+		t.Fatal("restricted-session refusal changed the bound process")
+	}
+}
+
 func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T) {
 	t.Parallel()
 
@@ -45,8 +130,72 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 	}
 }
 
+// TestManagerLifecycleCatalogTransitions keeps memory, persisted metadata, and catalog transitions consistent.
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retain the creation witness across initial binding and provider replacement", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ctx := t.Context()
+		workspace, err := h.resolver.Resolve(ctx, h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range workspace.Agents {
+			workspace.Agents[index].Provider = "codex"
+			workspace.Agents[index].Model = "gpt-6.1-sol"
+		}
+		h.resolver.upsert(&workspace)
+		created, err := h.manager.CreateAccepted(ctx, CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+		active, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatal("logical session is unavailable")
+		}
+		meta := active.Meta()
+		before := creationIdentityFromMeta(&meta)
+		if before == nil || meta.CreationProfile == nil || meta.CreationProfile.Provider != "codex" ||
+			active.Info().RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("logical creation = %#v, want unbound Codex creation witness", meta)
+		}
+		for _, test := range []struct {
+			runtime  RuntimeSelection
+			strategy RuntimeTransitionStrategy
+		}{
+			{RuntimeSelection{Provider: "claude", Model: "claude-opus-5-5", ReasoningEffort: "xhigh"}, RuntimeTransitionInitialBind},
+			{RuntimeSelection{Provider: "codex", Model: "gpt-6.1-sol", ReasoningEffort: "medium"}, RuntimeTransitionProcessReplacement},
+		} {
+			previous := active.runtimeBindingSnapshot()
+			process, err := h.manager.ensurePromptRuntime(ctx, active, &test.runtime, previous.process)
+			if err != nil {
+				t.Fatal(err)
+			}
+			current := active.runtimeBindingSnapshot()
+			persisted := readMeta(t, active.MetaPath())
+			after := creationIdentityFromMeta(&persisted)
+			if current.transition != test.strategy || process == previous.process ||
+				persisted.Provider != test.runtime.Provider || after == nil || *after != *before {
+				t.Fatalf("runtime transition = %#v, creation identity = %#v; want %s and %#v",
+					current, after, test.strategy, before)
+			}
+		}
+		previous := active.runtimeBindingSnapshot()
+		invalid := RuntimeSelection{Provider: "missing-provider", Model: "missing-model"}
+		_, err = h.manager.ensurePromptRuntime(ctx, active, &invalid, previous.process)
+		if !errors.Is(err, compozyconfig.ErrProviderUnavailable) {
+			t.Fatalf("invalid provider error = %v, want ErrProviderUnavailable", err)
+		}
+		if current := active.runtimeBindingSnapshot(); current.process != previous.process ||
+			current.selection.Provider != previous.selection.Provider {
+			t.Fatal("rejected provider replaced the accepted runtime")
+		}
+	})
 
 	t.Run("Should pass prompt ACP options through live runtime configuration", func(t *testing.T) {
 		t.Parallel()
@@ -227,6 +376,52 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should persist canceled permissions and clear their attention without restart", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+		event := acp.AgentEvent{
+			Type: acp.EventTypePermission, TurnID: "turn-canceled", Title: "Stop the review queue", Timestamp: at,
+		}.WithRequestID("request-canceled")
+		if err := h.manager.recordEvent(ctx, target, event); err != nil {
+			t.Fatal(err)
+		}
+		if got := BadgeForInfo(target.Info()); got != BadgeWaitingForAuth {
+			t.Fatalf("pending badge = %q, want waiting-for-auth", got)
+		}
+		event.Decision = "canceled"
+		event.Timestamp = at.Add(time.Second)
+		event = event.WithResolvedBy("system")
+		if err := h.manager.recordEvent(ctx, target, event); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := catalog.ListPendingInteractions(ctx, target.ID, []string{store.PendingInteractionStatusCanceled})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("canceled permissions = %#v, %v, want one durable record", rows, err)
+		}
+		if rows[0].ProviderRequestID != "request-canceled" || rows[0].Resolution != "canceled" ||
+			rows[0].ResolvedBy != "system" || rows[0].ResolvedAt == nil {
+			t.Fatalf("cancellation attribution = %#v", rows[0])
+		}
+		attention, err := catalog.GetSessionAttention(ctx, target.ID)
+		if err != nil || attention.PendingPermissionCount != 0 {
+			t.Fatalf("durable attention = %#v, %v, want no pending permission", attention, err)
+		}
+		if got := BadgeForInfo(target.Info()); got == BadgeWaitingForAuth {
+			t.Fatal("canceled permission retained the live approval badge")
+		}
+	})
+
 	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {
 		t.Parallel()
 
@@ -499,15 +694,27 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		catalog := newRecordingSessionCatalog()
 		h := newHarness(t, WithSessionCatalog(catalog))
 		session := createSession(t, h)
-
-		if err := h.manager.RequestStopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
-			t.Fatalf("RequestStopWithCause() error = %v", err)
-		}
+		// Observe the stopping snapshot before asynchronous cancellation advances runtime metadata.
+		release := make(chan struct{})
+		cancelStarted := make(chan struct{})
+		signalStarted := sync.OnceFunc(func() { close(cancelStarted) })
+		unblock := sync.OnceFunc(func() { close(release) })
+		h.driver.cancelHook = func(*fakeProcess) error { signalStarted(); <-release; return nil }
 		t.Cleanup(func() {
+			unblock()
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop() cleanup error = %v", err)
 			}
 		})
+		ctx := testutil.Context(t)
+		if err := h.manager.RequestStopWithCause(ctx, session.ID, CauseUserRequested, ""); err != nil {
+			t.Fatalf("RequestStopWithCause() error = %v", err)
+		}
+		select {
+		case <-cancelStarted:
+		case <-ctx.Done():
+			t.Fatal("cancellation hook did not start:", ctx.Err())
+		}
 
 		if got, want := session.Info().State, StateStopping; got != want {
 			t.Fatalf("memory state after request stop = %q, want %q", got, want)
@@ -659,7 +866,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 
 		failedMeta := readMeta(t, store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, "sess-1")))
-		assertStartupFailureMeta(t, failedMeta)
+		assertStartupFailureMeta(t, &failedMeta)
 		failedCatalog, ok := catalog.get("sess-1")
 		if !ok {
 			t.Fatal("catalog missing failed create session sess-1")
@@ -695,7 +902,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if !ok {
 			t.Fatalf("catalog missing session %q after failed resume", session.ID)
 		}
-		assertRestoredResumeMeta(t, afterMeta, beforeMeta)
+		assertRestoredResumeMeta(t, &afterMeta, &beforeMeta)
 		assertRestoredResumeCatalog(t, afterCatalog, beforeCatalog)
 	})
 
@@ -1360,7 +1567,6 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 		current.Attention = &attention
 	}
 	current.Liveness = store.CloneSessionLivenessMeta(update.Liveness)
-	current.Sandbox = cloneSessionSandboxMeta(update.Sandbox)
 	current.UpdatedAt = update.UpdatedAt
 	c.sessions[update.ID] = current
 	return nil
@@ -1518,7 +1724,7 @@ func (c *recordingSessionCatalog) requireExistingUpdates() {
 	c.strictUpdates = true
 }
 
-func assertStartupFailureMeta(t *testing.T, meta store.SessionMeta) {
+func assertStartupFailureMeta(t *testing.T, meta *store.SessionMeta) {
 	t.Helper()
 
 	if meta.State != string(StateStopped) {
@@ -1546,7 +1752,7 @@ func assertStartupFailureCatalog(t *testing.T, info store.SessionInfo) {
 	}
 }
 
-func assertRestoredResumeMeta(t *testing.T, after store.SessionMeta, before store.SessionMeta) {
+func assertRestoredResumeMeta(t *testing.T, after, before *store.SessionMeta) {
 	t.Helper()
 
 	if after.State != before.State {
@@ -1559,11 +1765,11 @@ func assertRestoredResumeMeta(t *testing.T, after store.SessionMeta, before stor
 			derefString(before.ACPSessionID),
 		)
 	}
-	if sessionMetaStopReason(&after) != sessionMetaStopReason(&before) {
+	if sessionMetaStopReason(after) != sessionMetaStopReason(before) {
 		t.Fatalf(
 			"restored meta stop reason = %q, want %q",
-			sessionMetaStopReason(&after),
-			sessionMetaStopReason(&before),
+			sessionMetaStopReason(after),
+			sessionMetaStopReason(before),
 		)
 	}
 	assertSameSessionFailure(t, after.Failure, before.Failure, "restored meta")

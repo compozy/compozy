@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // CreateTask derives one canonical task record from trusted actor context and
@@ -42,10 +40,6 @@ func (m *Service) CreateTask(
 	if err := record.Validate(); err != nil {
 		return nil, err
 	}
-	profile, err := m.newDefinitionProfile(record.ID, normalizedSpec.NetworkParticipation)
-	if err != nil {
-		return nil, err
-	}
 	event, err := m.newTaskEvent(record.ID, "", taskEventCreated, actor, createdTaskPayload{
 		Scope:        record.Scope,
 		WorkspaceID:  record.WorkspaceID,
@@ -57,7 +51,7 @@ func (m *Service) CreateTask(
 		return nil, err
 	}
 	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
-		Task: record, Profile: profile, Events: []Event{event},
+		Task: record, Events: []Event{event},
 	}); err != nil {
 		return nil, err
 	}
@@ -153,10 +147,6 @@ func (m *Service) CreateChildTask(
 	if err := child.Validate(); err != nil {
 		return nil, err
 	}
-	profile, err := m.newDefinitionProfile(child.ID, normalizedSpec.NetworkParticipation)
-	if err != nil {
-		return nil, err
-	}
 	createdEvent, err := m.newTaskEvent(child.ID, "", taskEventCreated, actor, createdTaskPayload{
 		Scope: child.Scope, WorkspaceID: child.WorkspaceID, ParentTaskID: child.ParentTaskID,
 		Status: child.Status, Owner: cloneOwnership(child.Owner),
@@ -172,7 +162,7 @@ func (m *Service) CreateChildTask(
 	}
 	events := []Event{createdEvent, parentEvent}
 	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
-		Task: child, Profile: profile, Events: events,
+		Task: child, Events: events,
 	}); err != nil {
 		return nil, err
 	}
@@ -267,9 +257,6 @@ func (m *Service) UpdateTask(
 
 	updated, changedFields := applyTaskPatch(current, normalizedPatch)
 	updateTaskRow := len(changedFields) > 0
-	if normalizedPatch.NetworkParticipation != nil {
-		changedFields = append(changedFields, "network_participation")
-	}
 	if len(changedFields) == 0 {
 		return &current, nil
 	}
@@ -293,19 +280,16 @@ func (m *Service) UpdateTask(
 	events, err := m.taskUpdateEvents(
 		updated,
 		changedFields,
-		normalizedPatch.NetworkParticipation != nil,
 		actor,
 	)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := m.store.UpdateTaskDefinition(ctx, &UpdateTaskDefinitionMutation{
-		Task:                      updated,
-		UpdateTaskRow:             updateTaskRow,
-		PatchNetworkParticipation: normalizedPatch.NetworkParticipation != nil,
-		NetworkParticipation:      participation.CloneRequest(normalizedPatch.NetworkParticipation),
-		Actor:                     actor,
-		Events:                    events,
+		Task:          updated,
+		UpdateTaskRow: updateTaskRow,
+		Actor:         actor,
+		Events:        events,
 	}); err != nil {
 		return nil, err
 	}
@@ -320,7 +304,6 @@ func (m *Service) UpdateTask(
 func (m *Service) taskUpdateEvents(
 	updated Task,
 	changedFields []string,
-	includeProfileEvent bool,
 	actor ActorContext,
 ) ([]Event, error) {
 	updatedEvent, err := m.newTaskEvent(updated.ID, "", taskEventUpdated, actor, updatedTaskPayload{
@@ -330,37 +313,7 @@ func (m *Service) taskUpdateEvents(
 	if err != nil {
 		return nil, err
 	}
-	events := []Event{updatedEvent}
-	if !includeProfileEvent {
-		return events, nil
-	}
-	profileEvent, err := m.newTaskEvent(
-		updated.ID,
-		"",
-		taskEventProfileUpdated,
-		actor,
-		profileMutationEventPayload{TaskID: updated.ID},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return append(events, profileEvent), nil
-}
-
-func (m *Service) newDefinitionProfile(
-	taskID string,
-	request *participation.Request,
-) (*ExecutionProfile, error) {
-	if request == nil {
-		return nil, nil
-	}
-	profile := defaultExecutionProfile(taskID)
-	profile.NetworkParticipation = participation.CloneRequest(request)
-	normalized, err := profile.Normalize(m.profileValidation)
-	if err != nil {
-		return nil, err
-	}
-	return &normalized, nil
+	return []Event{updatedEvent}, nil
 }
 
 // CancelTask propagates manager-owned cancellation through the target task,

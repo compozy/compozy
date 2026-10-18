@@ -7,33 +7,23 @@ import (
 	"github.com/compozy/compozy/internal/events"
 )
 
-func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause StopCause) error {
+func (m *Manager) finishRecoveredStop(ctx context.Context, id string) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	meta, err := m.readMetaWithContext(cleanupCtx, id)
 	if err != nil {
 		return err
 	}
-	snapshot := NotificationSessionFromInfo(m.sessionInfoFromMeta(cleanupCtx, meta))
-	sandboxErr := m.finalizeRecoveredSandbox(cleanupCtx, snapshot, &meta)
-	m.cancelSessionCompaction(id)
+	snapshot := NotificationSessionFromInfo(m.sessionInfoFromMeta(cleanupCtx, &meta))
 	m.clearResumeReplay(id)
 	if m.hostedMCP != nil {
 		m.hostedMCP.ReleaseSession(id)
 	}
-	var ledgerErr error
-	if cause != CauseClearConversation && cause != CauseConversationRewind {
-		ledgerErr = m.rematerializeStoppedSessionLedger(cleanupCtx, id)
-		if ledgerErr != nil {
-			ledgerErr = errors.Join(ledgerErr, m.recordStoppedCleanupFailure(ctx, snapshot, "ledger", ledgerErr))
-		}
-	}
-	networkErr := m.leaveSessionNetwork(cleanupCtx, snapshot)
 	m.dispatchSessionPostStop(cleanupCtx, snapshot)
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(cleanupCtx, snapshot)
 	}
-	return errors.Join(sandboxErr, ledgerErr, networkErr)
+	return nil
 }
 
 // settleRecoveredStop replays persistence, Goal cancellation and task recovery
@@ -68,7 +58,7 @@ func (m *Manager) settleRecoveredStop(
 	if err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
 	}
-	info := m.sessionInfoFromMeta(settleCtx, meta)
+	info := m.sessionInfoFromMeta(settleCtx, &meta)
 	info.StopCause = outcome.Cause
 	if err := m.stopSessionGoals(settleCtx, info); err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
@@ -82,5 +72,5 @@ func (m *Manager) settleRecoveredStop(
 	m.mu.Lock()
 	run.recoveredSettlement = nil
 	m.mu.Unlock()
-	return m.finishRecoveredStop(ctx, run.recoveredID, outcome.Cause)
+	return m.finishRecoveredStop(ctx, run.recoveredID)
 }

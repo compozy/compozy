@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   BookOpenIcon,
-  NetworkIcon,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
   SparklesIcon,
-  WaypointsIcon,
   WrenchIcon,
   ZapIcon,
 } from "lucide-react";
@@ -65,7 +63,7 @@ function RailContent({ active = "A" }: { active?: string }) {
           type="button"
           title={ws.name}
           data-active={ws.id === active}
-          className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-canvas-soft font-mono text-eyebrow text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-accent data-[active=true]:bg-elevated data-[active=true]:text-foreground"
+          className="inline-flex size-7 items-center justify-center rounded-full border border-line bg-canvas font-mono text-eyebrow text-muted transition-colors hover:bg-surface-2 hover:text-fg data-[active=true]:border-transparent data-[active=true]:bg-selected data-[active=true]:text-fg data-[active=true]:shadow-card"
         >
           {ws.id}
         </button>
@@ -99,9 +97,7 @@ function HeaderContent() {
 const NAV_ITEMS = [
   { label: "Tasks", icon: SparklesIcon, active: true },
   { label: "Automation", icon: ZapIcon },
-  { label: "Bridges", icon: WaypointsIcon },
-  { label: "Network", icon: NetworkIcon },
-  { label: "Knowledge", icon: BookOpenIcon },
+  { label: "Docs", icon: BookOpenIcon },
   { label: "Skills", icon: WrenchIcon },
 ];
 
@@ -114,7 +110,7 @@ function NavContent() {
           key={item.label}
           type="button"
           data-active={item.active}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground data-[active=true]:bg-elevated data-[active=true]:text-foreground"
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-muted-foreground transition-colors hover:bg-hover hover:text-foreground data-[active=true]:bg-elevated data-[active=true]:text-foreground"
         >
           <item.icon className="size-3" aria-hidden="true" />
           <span className="flex-1 truncate">{item.label}</span>
@@ -126,7 +122,7 @@ function NavContent() {
 
 function FooterContent() {
   return (
-    <div className="flex flex-col gap-2 text-[12px] text-muted-foreground">
+    <div className="flex flex-col gap-2 text-eyebrow text-muted-foreground">
       <div className="flex items-center gap-2">
         <span aria-hidden className="size-1.5 rounded-full bg-success" />
         <span className="font-mono text-badge uppercase tracking-badge">connected</span>
@@ -134,7 +130,7 @@ function FooterContent() {
       </div>
       <button
         type="button"
-        className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] text-muted-foreground hover:bg-hover hover:text-foreground"
+        className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-small-body text-muted-foreground hover:bg-hover hover:text-foreground"
       >
         <SettingsIcon className="size-3" />
         <span>Settings</span>

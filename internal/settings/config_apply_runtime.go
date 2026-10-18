@@ -22,6 +22,14 @@ func (s *service) persistRuntimeApply(
 	writePath string,
 ) (ApplyRecord, runtimeApplyPlan, error) {
 	plan := newRuntimeApplyPlan(state, nextActiveHash, configLifecycle, noChanges)
+	if !noChanges && plan.status == lifecycle.StatusBlocked &&
+		writeTarget != "" && writeTarget != WriteTargetGlobalConfig {
+		// The scoped file was already written. Retain its restart requirement even if
+		// recording the apply attempt fails or an unrelated global change applies live.
+		s.activeConfig.mu.Lock()
+		s.activeConfig.scopedRestartRequired = true
+		s.activeConfig.mu.Unlock()
+	}
 	pending, err := s.createPendingApplyRecord(ctx, applyRecordInput{
 		desiredHash: desiredHash,
 		activeHash:  state.hash,

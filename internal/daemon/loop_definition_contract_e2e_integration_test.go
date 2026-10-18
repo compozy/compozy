@@ -23,7 +23,7 @@ func TestDaemonE2ELoopDefinitionContractPreservesGraphAuthoring(t *testing.T) {
 	t.Parallel()
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	definition := graphAuthoringContractDefinition()
 	loopPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +

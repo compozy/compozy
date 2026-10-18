@@ -6,13 +6,13 @@ persona: Vera
 journey: J-extension-policy-admin
 expected: Valid marketplace.catalog base_url, ttl, and timeout values load and apply live from user config; profile and workspace overlays and scoped writes are rejected before persistence; invalid URLs or non-positive durations are rejected; a live user apply changes the source used by the next catalog refresh without restarting the daemon.
 entry_points: user config.toml; compozy config set marketplace.catalog.* --scope user; compozy__config_set scope=user; rejected profile and workspace config.toml/write attempts; marketplace.catalog.refresh event summaries; compozy.com/docs/configuration (config docs)
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-marketplace-native-config-policy; BUG-20260715-config-set-late-metadata
 fix_status: fixed
 retest_status: untested
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-config-reachability.json;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-033; ET-marketplace-kill-switch
 ---
 
@@ -38,3 +38,7 @@ native workspace rejection checks; historical global live-apply evidence remains
 global TTL/timeout set and unset must expose the settings apply record, advance the active generation
 on success, and return `applied=false`, `next_action=retry`, and reconciliation diagnostics when the
 runtime apply fails.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

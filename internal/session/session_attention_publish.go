@@ -37,6 +37,7 @@ func (m *Manager) publishAttentionCommit(
 	if from == to {
 		return
 	}
+	m.publishSubagentLifecycleEdge(ctx, &before, &after)
 	at := m.now().UTC()
 	if commit.After.AttentionChangedAt != nil {
 		at = commit.After.AttentionChangedAt.UTC()
@@ -51,7 +52,9 @@ func (m *Manager) publishAttentionCommit(
 		At:          at,
 	}
 	m.publishWaitBadgeEdge(&after, to)
-	m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
+	if !isInternalVerificationSession(&after) {
+		m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
+	}
 	m.dispatchSessionAttentionChanged(ctx, &after, event)
 	m.dispatchSpawnWake(ctx, &after, to)
 }
@@ -119,4 +122,8 @@ func applyAttentionToInfo(info *Info, projection store.SessionAttention) {
 
 func errorsForAttentionSnapshot(sessionID string) error {
 	return fmt.Errorf("session: attention event snapshot not found for %q", strings.TrimSpace(sessionID))
+}
+
+func isInternalVerificationSession(info *Info) bool {
+	return info != nil && normalizeSessionType(info.Type) == SessionTypeSystem && info.VerdictOnly
 }

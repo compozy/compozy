@@ -104,6 +104,16 @@ WHERE message_id = sqlc.arg(message_id)
       AND events.archived = 0
   );
 
+-- name: GetTranscriptUserAnchor :one
+SELECT kind, message_id, turn_id, start_sequence, complete
+FROM transcript_entries
+WHERE message_id = sqlc.arg(message_id)
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.sequence = transcript_entries.start_sequence
+      AND events.archived = 0
+  );
+
 -- name: CountArchivedTranscriptEventsBeforeSequence :one
 SELECT COUNT(*)
 FROM events
@@ -121,10 +131,11 @@ ON CONFLICT(singleton) DO UPDATE SET
     target_message_id = excluded.target_message_id,
     covered_through_sequence = excluded.covered_through_sequence,
     messages_json = excluded.messages_json,
+    baseline_stale = 0,
     updated_at = excluded.updated_at;
 
 -- name: GetConversationRewindState :one
-SELECT target_message_id, covered_through_sequence, messages_json, updated_at
+SELECT target_message_id, covered_through_sequence, messages_json, updated_at, baseline_stale
 FROM conversation_rewind_state
 WHERE singleton = 1;
 
@@ -158,8 +169,10 @@ DELETE FROM conversation_rewind_receipts;
 WITH bounds AS (SELECT CAST(sqlc.arg(from_sequence) AS INTEGER) AS cut_from,
                       CAST(sqlc.arg(to_sequence) AS INTEGER) AS cut_to)
 SELECT COUNT(*) FROM transcript_entries AS e, bounds
-WHERE EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
-              AND sequence BETWEEN bounds.cut_from AND bounds.cut_to)
+WHERE e.entry_key IN (
+    SELECT DISTINCT transcript_entry_key FROM events
+    WHERE archived = 0 AND sequence BETWEEN bounds.cut_from AND bounds.cut_to
+  )
   AND EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
               AND (sequence < bounds.cut_from OR sequence > bounds.cut_to));
 
@@ -175,3 +188,8 @@ WHERE start_sequence BETWEEN sqlc.arg(from_sequence) AND sqlc.arg(to_sequence);
 
 -- name: MinActiveEventSequence :one
 SELECT CAST(COALESCE(MIN(sequence), 0) AS INTEGER) FROM events WHERE archived = 0;
+
+-- name: RefreshConversationRewindBaseline :execrows
+UPDATE conversation_rewind_state
+SET messages_json = sqlc.arg(messages_json), baseline_stale = 0, updated_at = sqlc.arg(updated_at)
+WHERE singleton = 1 AND covered_through_sequence = sqlc.arg(covered_through_sequence);

@@ -54,7 +54,7 @@ type StartResourceSpec struct {
 // catalog, fork, and immutability flows.
 type ResourceSpec struct {
 	Name                   string              `json:"name"`
-	Version                int                 `json:"version,omitempty"`
+	Version                int                 `json:"version,omitzero"`
 	Description            string              `json:"description,omitempty"`
 	Catalog                CatalogResourceSpec `json:"catalog,omitzero"`
 	ContractGoal           string              `json:"contract_goal,omitempty"`

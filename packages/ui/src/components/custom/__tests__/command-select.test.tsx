@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { CommandEmpty, CommandItem, CommandList } from "../../command";
@@ -10,6 +11,7 @@ import {
   CommandSelectShell,
   CommandSelectTrigger,
 } from "../command-select";
+import { UIProvider } from "../ui-provider";
 
 describe("CommandSelect", () => {
   it("Should render the canonical trigger shell", () => {
@@ -45,6 +47,26 @@ describe("CommandSelect", () => {
     );
     expect(screen.getByPlaceholderText("Filter models")).toBeInTheDocument();
     expect(screen.getByText("Opus")).toBeInTheDocument();
+  });
+
+  // Invariant: opening the picker by pointer puts the caret in its search field,
+  // so typing filters and arrow keys move through the list.
+  it("Should focus the search field when a pointer opens it", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="never">
+        <CommandSelect>
+          <CommandSelectTrigger label="Select model" />
+          <CommandSelectShell inputPlaceholder="Filter models">
+            <CommandList>
+              <CommandItem value="opus">Opus</CommandItem>
+            </CommandList>
+          </CommandSelectShell>
+        </CommandSelect>
+      </UIProvider>
+    );
+    await user.click(screen.getByRole("button", { name: /Select model/ }));
+    await waitFor(() => expect(screen.getByPlaceholderText("Filter models")).toHaveFocus());
   });
 
   it("Should render removable chips for multi-select consumers", () => {

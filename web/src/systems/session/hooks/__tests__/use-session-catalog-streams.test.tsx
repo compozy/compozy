@@ -151,7 +151,73 @@ function wrapper(queryClient: QueryClient) {
 
 describe("useSessionCatalogStreams", () => {
   beforeEach(() => vi.clearAllMocks());
-  afterEach(() => resetProfileViews());
+  afterEach(() => {
+    vi.useRealTimers();
+    resetProfileViews();
+  });
+
+  it("Should tolerate brief reconnects and report sustained loss until recovery", () => {
+    vi.useFakeTimers();
+    const client = createQueryClient();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result, rerender, unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(client) }
+    );
+    expect(result.current).toBe("connecting");
+    act(() => sources[0]!.emit("open"));
+    act(() => sources[0]!.emit("error"));
+    rerender();
+    expect(sources).toHaveLength(1);
+    expect(result.current).toBe("live");
+    act(() => vi.advanceTimersByTime(9_999));
+    act(() => sources[0]!.emit("open"));
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(result.current).toBe("live");
+
+    act(() => sources[0]!.emit("error"));
+    act(() => vi.advanceTimersByTime(5_000));
+    act(() => sources[0]!.emit("error"));
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(result.current).toBe("stale");
+    act(() => sources[0]!.emit("open"));
+    expect(result.current).toBe("live");
+    act(() => sources[0]!.emit("error"));
+    unmount();
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(sources[0]!.closed).toBe(true);
+    client.clear();
+  });
+
+  it("Should bound initial connection grace and reset it for a new scope", () => {
+    vi.useFakeTimers();
+    const client = createQueryClient();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result, unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(client) }
+    );
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(result.current).toBe("stale");
+    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "other" }));
+    expect(result.current).toBe("connecting");
+    act(() => sources[0]!.emit("error"));
+    act(() => sources[1]!.emit("open"));
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(result.current).toBe("live");
+    unmount();
+    client.clear();
+  });
 
   it("Should keep late source status events behind the current connection generation", () => {
     const store = sessionCatalogStreamsLogic.createStore();
@@ -172,6 +238,7 @@ describe("useSessionCatalogStreams", () => {
   });
 
   it("Should own one server-scoped aggregate source and reconcile global sessions", () => {
+    vi.useFakeTimers();
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const sources: FakeCatalogEventSource[] = [];
@@ -198,10 +265,22 @@ describe("useSessionCatalogStreams", () => {
         session_id: "sess_beta",
       });
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("ws_beta") });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.attentionRoot() });
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("ws_beta") }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.attentionSummary() }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: notificationKeys.attentionRoot() }),
+      { cancelRefetch: false }
+    );
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail("ws_beta", "sess_beta"),
       exact: true,
@@ -214,20 +293,308 @@ describe("useSessionCatalogStreams", () => {
         session_id: "sess_global",
       });
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      { cancelRefetch: false }
+    );
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail("", "sess_global"),
       exact: true,
     });
+    // A subagent transition upserts its parent: a cold subagent list re-reads (trailing window).
+    expect(invalidate).toHaveBeenCalledWith(
+      { queryKey: sessionKeys.subagents("", "sess_global") },
+      { cancelRefetch: false }
+    );
 
     act(() => sources[0]?.emit("open"));
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.attentionRoot() });
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.attentionSummary() }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: notificationKeys.attentionRoot() }),
+      { cancelRefetch: false }
+    );
 
     unmount();
     expect(sources[0]?.closed).toBe(true);
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
+  });
+
+  it("Should reconcile the workspace lists on a layout change without touching a session", () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    renderHook(() => useSessionCatalogStreams({ eventSourceFactory: factory }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    act(() => {
+      source.emit("session_catalog_changed", {
+        kind: "layout",
+        profile_id: "default",
+        profile_name: "default",
+        workspace_id: "ws_alpha",
+        session_id: "",
+      });
+    });
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: sessionKeys.byIdRoot("") });
+  });
+
+  it("Should bound catalog reads under continuous lifecycle activity and stop pending wakes on unmount", () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    for (let second = 0; second < 60; second++) {
+      act(() => {
+        for (let frame = 0; frame < 20; frame++)
+          source.emit("session_catalog_changed", {
+            kind: "upserted",
+            workspace_id: "ws_busy",
+            session_id: "sess_busy",
+          });
+        vi.advanceTimersByTime(1_000);
+      });
+    }
+    const reads = invalidate.mock.calls.filter(
+      ([filters]) =>
+        JSON.stringify(filters?.queryKey) === JSON.stringify(sessionKeys.workspaceLists(""))
+    );
+    expect(reads.length).toBeLessThanOrEqual(13);
+    expect(reads.length).toBeGreaterThan(1);
+    // M9: 1,200 parent upserts (progress bursts) collapse to one subagent-list read per window.
+    const subagentReads = invalidate.mock.calls.filter(
+      ([filters]) =>
+        JSON.stringify(filters?.queryKey) ===
+        JSON.stringify(sessionKeys.subagents("ws_busy", "sess_busy"))
+    );
+    expect(subagentReads.length).toBeLessThanOrEqual(60);
+    expect(subagentReads.length).toBeGreaterThan(1);
+    unmount();
+    const before = invalidate.mock.calls.length;
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(invalidate.mock.calls).toHaveLength(before);
+  });
+
+  it("Should defer catalog reads while unfocused and reconcile once focus returns", () => {
+    vi.useFakeTimers();
+    const registrations = vi.spyOn(window, "addEventListener");
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(queryClient) }
+    );
+    // Exercise the owned DOM subscription at its I/O boundary. Dispatching to
+    // every library listener also invokes SWR's import-time native timer with
+    // the FocusEvent as its delay (swr@2.5.1), unrelated to this query owner.
+    const focus = registrations.mock.calls.find(([type]) => type === "focus")?.[1] as EventListener;
+    const blur = registrations.mock.calls.find(([type]) => type === "blur")?.[1] as EventListener;
+    act(() => blur(new Event("blur")));
+    act(() => {
+      for (let frame = 0; frame < 100; frame++)
+        source.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: "ws_busy",
+          session_id: "sess_busy",
+        });
+      vi.advanceTimersByTime(60_000);
+    });
+    const catalogReads = () =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(sessionKeys.workspaceLists(""))
+      ).length;
+    expect(catalogReads()).toBe(0);
+    act(() => focus(new Event("focus")));
+    registrations.mockRestore();
+    expect(catalogReads()).toBe(1);
+    unmount();
+  });
+
+  it("Should preserve a final catalog wake after an in-flight snapshot finishes", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    let resolveRead: (value: string[]) => void = () => {};
+    const read = vi.fn(
+      () =>
+        new Promise<string[]>(resolve => {
+          resolveRead = resolve;
+        })
+    );
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        useQuery({
+          queryKey: sessionKeys.workspaceLists(""),
+          queryFn: read,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        });
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => source.emit("open"));
+    expect(read).toHaveBeenCalledTimes(1);
+    act(() => {
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_busy",
+        session_id: "sess_busy",
+      });
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveRead(["old-snapshot"]);
+      await Promise.resolve();
+    });
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      resolveRead(["reconciled"]);
+      await Promise.resolve();
+    });
+    unmount();
+  });
+
+  it("Should keep catalog errors visible without activity bypassing thirty-second backoff", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const read = vi.fn(async () => {
+      throw new Error("catalog unavailable");
+    });
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { result, unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        return useQuery({
+          queryKey: sessionKeys.workspaceLists(""),
+          queryFn: read,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        });
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    await act(async () => {
+      source.emit("open");
+      await Promise.resolve();
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    for (let second = 0; second < 29; second++) {
+      await act(async () => {
+        source.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: "ws_busy",
+          session_id: "sess_busy",
+        });
+        vi.advanceTimersByTime(1_000);
+        await Promise.resolve();
+      });
+    }
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(result.current.error?.message).toBe("catalog unavailable");
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await Promise.resolve();
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+    unmount();
+  });
+
+  it("Should retry only blocked catalogs until a new wake includes healthy siblings", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const failing = vi.fn(async () => {
+      throw new Error("catalog unavailable");
+    });
+    const healthy = vi.fn(async () => []);
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        useQuery({
+          queryKey: [...sessionKeys.workspaceLists(""), "failing"],
+          queryFn: failing,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        });
+        useQuery({
+          queryKey: [...sessionKeys.workspaceLists(""), "healthy"],
+          queryFn: healthy,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        });
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    await act(async () => {
+      source.emit("open");
+      await Promise.resolve();
+    });
+    expect(failing).toHaveBeenCalledTimes(1);
+    expect(healthy).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_busy",
+        session_id: "sess_busy",
+      });
+      vi.advanceTimersByTime(5_000);
+      await Promise.resolve();
+    });
+    expect(healthy).toHaveBeenCalledTimes(2);
+    for (let window = 0; window < 5; window++) {
+      await act(async () => {
+        vi.advanceTimersByTime(5_000);
+        await Promise.resolve();
+      });
+      expect(healthy).toHaveBeenCalledTimes(2);
+    }
+    expect(failing).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      source.emit("open");
+      vi.advanceTimersByTime(5_000);
+      await Promise.resolve();
+    });
+    expect(healthy).toHaveBeenCalledTimes(3);
+    expect(failing).toHaveBeenCalledTimes(2);
+    unmount();
   });
 
   it("Should reopen under the new profile and stop the old socket on a switch", () => {
@@ -310,10 +677,22 @@ describe("useSessionCatalogStreams", () => {
 
     expect(onAttentionEdge).toHaveBeenCalledExactlyOnceWith(edge);
     expect(onOperatorNotification).toHaveBeenCalledExactlyOnceWith(notification);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(alpha.id) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.attentionRoot() });
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists(alpha.id) }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.attentionSummary() }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: notificationKeys.attentionRoot() }),
+      { cancelRefetch: false }
+    );
 
     // The server owns authorization; the client routes every valid frame it receives.
     act(() => {

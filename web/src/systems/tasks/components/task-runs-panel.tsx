@@ -14,10 +14,11 @@ import {
   OwnerAvatar,
   Pill,
   Spinner,
+  StateGlyph,
   Time,
 } from "@compozy/ui";
 
-import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
+import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunReview } from "../types";
 import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
@@ -36,7 +37,7 @@ export interface TaskRunsPanelProps {
   emptyDescription?: string;
 }
 
-const RUN_COLUMNS = ["Attempt", "Status", "Claimed by", "Started", "Duration", "Result"] as const;
+const RUN_COLUMNS = ["Attempt", "Status", "Agent", "Started", "Duration", "Result"] as const;
 
 function RunRow({
   taskId,
@@ -51,7 +52,6 @@ function RunRow({
   reviews: readonly TaskRunReview[];
   duration?: string;
 }) {
-  const isActive = run.status === "running" || run.status === "starting";
   const claimant = run.claimed_by?.ref;
   const resultText =
     run.status === "failed"
@@ -65,9 +65,8 @@ function RunRow({
   return (
     <>
       <LinkedRecordTableRow data-testid={`tasks-runs-row-${run.id}`}>
-        <LinkedRecordTableCell className="w-8 pl-4">
-          <Pill.Dot pulse={isActive} tone={taskRunStatusTone(run.status)} />
-        </LinkedRecordTableCell>
+        {/* Status reads once, in the Status pill; this keeps the table's leading column. */}
+        <LinkedRecordTableCell className="w-8 pl-4" />
         <LinkedRecordTableCell>
           <LinkedRecordTableTitle>
             <Link
@@ -79,17 +78,17 @@ function RunRow({
             </Link>
             {lineageAttempt !== null ? (
               <span className="flex items-center gap-1 text-eyebrow text-subtle">
-                <CornerUpLeft aria-hidden="true" className="size-[11px] text-faint" />
+                <CornerUpLeft aria-hidden="true" className="size-3 text-faint" />
                 retried from attempt {lineageAttempt}
               </span>
             ) : null}
           </LinkedRecordTableTitle>
         </LinkedRecordTableCell>
         <LinkedRecordTableCell>
-          <Pill tone={taskRunStatusTone(run.status)}>
-            <Pill.Dot pulse={isActive} tone={taskRunStatusTone(run.status)} />
+          <span className="inline-flex items-center gap-1.75 text-small-body text-fg-2">
+            <StateGlyph state={taskRunStateGlyph(run.status)} />
             {taskRunStatusLabel(run.status)}
-          </Pill>
+          </span>
         </LinkedRecordTableCell>
         <LinkedRecordTableCell>
           <span className="inline-flex min-w-0 items-center gap-1.5 text-small-body text-muted">
@@ -108,15 +107,15 @@ function RunRow({
             )}
           </span>
         </LinkedRecordTableCell>
-        <LinkedRecordTableCell className="hidden text-form-label tabular-nums text-muted md:table-cell">
+        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted">
           {run.started_at ? <Time iso={run.started_at} mode="relative" /> : "—"}
         </LinkedRecordTableCell>
-        <LinkedRecordTableCell className="hidden font-mono text-eyebrow tabular-nums text-muted md:table-cell">
+        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted">
           {duration ?? "—"}
         </LinkedRecordTableCell>
         <LinkedRecordTableCell
           className={cn(
-            "hidden max-w-48 truncate text-form-label md:table-cell",
+            "max-w-48 truncate text-form-label",
             run.status === "failed" ? "text-danger" : "text-muted"
           )}
         >
@@ -125,7 +124,7 @@ function RunRow({
         <LinkedRecordTableOpenCell>
           <Link
             aria-label={`Open attempt ${run.attempt}`}
-            className="inline-flex size-6 items-center justify-center rounded-sm text-faint hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+            className="inline-flex size-6 items-center justify-center rounded-sm text-faint hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
             params={{ id: taskId, runId: run.id }}
             to="/tasks/$id/runs/$runId"
           >
@@ -155,6 +154,53 @@ function RunRow({
         </LinkedRecordTableRow>
       ) : null}
     </>
+  );
+}
+
+function runsEmptyDescription(
+  emptyDescription: string | undefined,
+  workerName: string | null | undefined
+): string {
+  if (emptyDescription !== undefined) return emptyDescription;
+  return workerName
+    ? `Start a run to have ${workerName} work on this task.`
+    : "Start a run to have a worker pick this task up.";
+}
+
+function TaskRunsEmpty({
+  description,
+  onStartRun,
+  isStartPending,
+}: {
+  description: string;
+  onStartRun?: () => void;
+  isStartPending: boolean;
+}) {
+  return (
+    <Empty
+      icon={Play}
+      title="Not started yet"
+      description={description}
+      action={
+        onStartRun ? (
+          <Button
+            aria-busy={isStartPending || undefined}
+            data-testid="tasks-runs-start"
+            disabled={isStartPending}
+            onClick={onStartRun}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            {isStartPending ? (
+              <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+            ) : null}
+            {isStartPending ? "Starting…" : "Start run"}
+          </Button>
+        ) : undefined
+      }
+      data-testid="tasks-runs-empty"
+    />
   );
 }
 
@@ -194,32 +240,10 @@ export function TaskRunsPanel({
 
   if (runs.length === 0) {
     return (
-      <Empty
-        icon={Play}
-        title="Not started yet"
-        description={
-          emptyDescription ??
-          (workerName
-            ? `Start a run to have ${workerName} work on this task.`
-            : "Start a run to have a worker pick this task up.")
-        }
-        action={
-          onStartRun ? (
-            <Button
-              aria-busy={isStartPending || undefined}
-              data-testid="tasks-runs-start"
-              disabled={isStartPending}
-              onClick={onStartRun}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {isStartPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {isStartPending ? "Starting…" : "Start run"}
-            </Button>
-          ) : undefined
-        }
-        data-testid="tasks-runs-empty"
+      <TaskRunsEmpty
+        description={runsEmptyDescription(emptyDescription, workerName)}
+        isStartPending={isStartPending}
+        onStartRun={onStartRun}
       />
     );
   }
@@ -240,7 +264,7 @@ export function TaskRunsPanel({
       ) : null}
       <LinkedRecordTableRoot
         aria-busy={isLoading || undefined}
-        className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+        className="overflow-hidden rounded-lg bg-card shadow-card"
         columns={RUN_COLUMNS}
         data-testid="tasks-runs-panel"
       >

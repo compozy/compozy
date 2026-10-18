@@ -75,17 +75,6 @@ func (h *HostAPIHandler) MethodHandlers() map[string]subprocess.HandlerFunc {
 	return out
 }
 
-func withHostAPIBridgeRuntime(ctx context.Context, bridgeRuntime *subprocess.InitializeBridgeRuntime) context.Context {
-	if ctx == nil || bridgeRuntime == nil {
-		return ctx
-	}
-	return context.WithValue(
-		ctx,
-		hostAPIBridgeRuntimeContextKey,
-		subprocess.CloneInitializeBridgeRuntime(bridgeRuntime),
-	)
-}
-
 type hostAPIResourceSession struct {
 	Actor resources.MutationActor
 }

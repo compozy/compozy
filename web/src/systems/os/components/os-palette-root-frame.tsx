@@ -31,6 +31,36 @@ export interface OsPaletteRootFrameProps {
   onSelectionChange: (value: string) => void;
 }
 
+/** Copy, hints, and the empty state the root frame derives from the live model. */
+function rootFrameView(model: OsPaletteRootModel, selected: string, values: readonly string[]) {
+  const domainBusy = model.domainSections.some(
+    section => section.loading || section.error !== null
+  );
+  const empty = values.length === 0 && !domainBusy;
+  // The actions hint is only true while there is a row to act on, and its chord
+  // comes from the keymap the daemon serves.
+  const paletteToggleChords = model.registry.byId.get("palette.open")?.chords ?? [];
+  const actionsChord =
+    empty ||
+    model.destination ||
+    selected === model.fallback?.value ||
+    paletteToggleChords.length === 0
+      ? undefined
+      : paletteToggleChords.join(" / ");
+  return {
+    empty,
+    actionsChord,
+    emptyCopy: rootEmptyCopy(model),
+    placeholder: model.destination ? "Open in this tab…" : "Search apps, sessions, and actions…",
+    enterHint: model.destination ? "open here" : "open",
+  };
+}
+
+function rootEmptyCopy(model: OsPaletteRootModel): string {
+  if (model.destinationEmpty) return ZERO_ELIGIBLE_COPY;
+  return model.destination ? DESTINATION_EMPTY_COPY : EMPTY_COPY;
+}
+
 /**
  * The palette at rest: query, results, footer.
  *
@@ -47,20 +77,7 @@ export function OsPaletteRootFrame({
   pending,
   onSelectionChange,
 }: OsPaletteRootFrameProps) {
-  const domainBusy = model.domainSections.some(
-    section => section.loading || section.error !== null
-  );
-  const empty = values.length === 0 && !domainBusy;
-  // The actions hint is only true while there is a row to act on, and its chord
-  // comes from the keymap the daemon serves.
-  const paletteToggleChords = model.registry.byId.get("palette.open")?.chords ?? [];
-  const actionsChord =
-    empty ||
-    model.destination ||
-    selected === model.fallback?.value ||
-    paletteToggleChords.length === 0
-      ? undefined
-      : paletteToggleChords.join(" / ");
+  const view = rootFrameView(model, selected, values);
   return (
     <Command
       className={paletteInputRailClass}
@@ -74,10 +91,9 @@ export function OsPaletteRootFrame({
     >
       <div className={cn("relative", paletteHeadClass)}>
         <CommandInput
+          variant="quiet"
           autoFocus
-          placeholder={
-            model.destination ? "Open in this tab…" : "Search apps, sessions, and actions…"
-          }
+          placeholder={view.placeholder}
           value={model.query}
           onKeyDown={event => {
             if (event.key !== "ArrowRight") return;
@@ -96,7 +112,7 @@ export function OsPaletteRootFrame({
         {model.ghostTail === null ? null : (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute top-1 left-11 flex h-control-compact items-center text-small-body"
+            className="pointer-events-none absolute top-0 left-10.5 flex h-10 items-center text-body"
             data-testid="os-palette-ghost"
           >
             <span className="invisible whitespace-pre">{model.query}</span>
@@ -105,14 +121,8 @@ export function OsPaletteRootFrame({
         )}
       </div>
       <CommandList className={paletteListClass}>
-        {empty ? (
-          <CommandEmpty data-testid="os-palette-empty">
-            {model.destinationEmpty
-              ? ZERO_ELIGIBLE_COPY
-              : model.destination
-                ? DESTINATION_EMPTY_COPY
-                : EMPTY_COPY}
-          </CommandEmpty>
+        {view.empty ? (
+          <CommandEmpty data-testid="os-palette-empty">{view.emptyCopy}</CommandEmpty>
         ) : null}
         <OsPaletteResults
           fallback={model.fallback}
@@ -132,8 +142,8 @@ export function OsPaletteRootFrame({
         <OsPaletteDomainSections onOpen={model.openDomainRow} sections={model.domainSections} />
       </CommandList>
       <OsPaletteFooter
-        {...(actionsChord === undefined ? {} : { actionsChord })}
-        enterHint={model.destination ? "open here" : "open"}
+        {...(view.actionsChord === undefined ? {} : { actionsChord: view.actionsChord })}
+        enterHint={view.enterHint}
       />
     </Command>
   );

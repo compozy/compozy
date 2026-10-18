@@ -17,7 +17,18 @@ vi.mock("@tanstack/react-router", async importOriginal => {
   };
 });
 
-const { TaskCard } = await import("../task-card");
+const { TaskCard: TaskCardRow } = await import("../task-card");
+
+// Rows render inside the Tasks table body.
+function TaskCard(props: React.ComponentProps<typeof TaskCardRow>) {
+  return (
+    <table>
+      <tbody>
+        <TaskCardRow {...props} />
+      </tbody>
+    </table>
+  );
+}
 type TaskListItem = import("../../types").TaskListItem;
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
@@ -52,13 +63,20 @@ describe("TaskCard", () => {
     const { container } = render(<TaskCard task={buildTask()} />);
 
     expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
-    expect(screen.getByText("task-1")).toBeInTheDocument();
+    expect(screen.getByText("TASK-1")).toBeInTheDocument();
     expect(screen.getByText("Summarize feedback")).toBeInTheDocument();
-    expect(screen.getByTestId("task-card-owner-task_001")).toHaveTextContent("Coder");
+    expect(screen.getByRole("img", { name: "Agent Coder" })).toBeInTheDocument();
+    expect(screen.getByTestId("task-card-owner-task_001")).toContainElement(
+      screen.getByRole("img", { name: "Agent Coder" })
+    );
     expect(screen.getByTestId("task-card-attempt-task_001")).toHaveTextContent("attempt 2 of 3");
     expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 subtasks");
-    expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("1 dep");
-    expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
+    expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("Waits on 1 task");
+    expect(container.querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "running"
+    );
+    expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(screen.getByText("High")).toBeInTheDocument();
   });
 
@@ -101,18 +119,27 @@ describe("TaskCard", () => {
     expect(screen.queryByTestId("task-card-publish-task_001")).not.toBeInTheDocument();
   });
 
-  it("Should render a Blocked pill in the trailing slot for blocked tasks", () => {
-    render(<TaskCard task={buildTask({ status: "blocked", active_run: null })} />);
-    expect(screen.getByTestId("task-card-blocked-task_001")).toBeInTheDocument();
-    expect(screen.queryByTestId("task-card-needs-attention-task_001")).not.toBeInTheDocument();
+  it("Should name a blocked task in its status column with the attention glyph", () => {
+    const { container } = render(
+      <TaskCard task={buildTask({ status: "blocked", active_run: null })} />
+    );
+    expect(screen.getByTestId("task-card-task_001")).toHaveAttribute("data-status", "blocked");
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "attention"
+    );
   });
 
-  it("Should surface needs_attention as its own truthful pill, distinct from blocked", () => {
+  it("Should carry needs_attention as its own truthful status, distinct from blocked", () => {
     render(<TaskCard task={buildTask({ status: "needs_attention", active_run: null })} />);
 
-    const pill = screen.getByTestId("task-card-needs-attention-task_001");
-    expect(pill).toHaveTextContent("Needs attention");
-    expect(screen.queryByTestId("task-card-blocked-task_001")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-card-task_001")).toHaveAttribute(
+      "data-status",
+      "needs_attention"
+    );
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
   });
 
   // Loop execution records leave the default listing entirely and render through

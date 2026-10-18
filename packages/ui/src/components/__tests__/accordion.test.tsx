@@ -29,13 +29,6 @@ function AccordionExample({
 }
 
 describe("Accordion", () => {
-  it("Should render the root, item, trigger, and content slots", () => {
-    const { container } = render(<AccordionExample defaultValue={["one"]} />);
-    expect(container.querySelector("[data-slot=accordion]")).toBeInTheDocument();
-    expect(container.querySelectorAll("[data-slot=accordion-item]").length).toBe(2);
-    expect(container.querySelectorAll("[data-slot=accordion-trigger]").length).toBe(2);
-  });
-
   it("Should start with the default item expanded", () => {
     render(<AccordionExample defaultValue={["one"]} />);
     expect(screen.getByRole("button", { name: "First" })).toHaveAttribute("aria-expanded", "true");

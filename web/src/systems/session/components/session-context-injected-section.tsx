@@ -97,10 +97,7 @@ export function SessionContextInjectedSection({
         <SessionInspectorDisclosureHead
           meta={
             total != null ? (
-              <>
-                ≈ {formatContextTokens(total)}
-                <small className="ml-1 text-faint">bytes/4</small>
-              </>
+              <>≈ {formatContextTokens(total)}</>
             ) : (
               `${rows.length} ${rows.length === 1 ? "row" : "rows"}`
             )
@@ -121,8 +118,8 @@ export function SessionContextInjectedSection({
           </ul>
           <p className={cn("pt-1.75 text-micro leading-4 text-faint", INDENT)}>
             {showBars
-              ? "Estimate: bytes ÷ 4 over the text CompozyOS delivered. The agent's own prompt and tools are not counted here."
-              : "No window reported, so there is nothing to draw the rows against."}
+              ? "Estimated from the text CompozyOS added. The agent's own instructions and tools aren't counted here."
+              : "The agent hasn't said how much it can hold, so there is nothing to compare these against."}
           </p>
         </CollapsibleContent>
       </Collapsible>

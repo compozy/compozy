@@ -67,7 +67,7 @@ func (q *Queries) DeleteAutomationTriggerOverlay(ctx context.Context, triggerID 
 const getAutomationJob = `-- name: GetAutomationJob :one
 SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	   loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_jobs WHERE id = ?1
 `
 
@@ -93,7 +93,6 @@ func (q *Queries) GetAutomationJob(ctx context.Context, id string) (AutomationJo
 		&i.LoopName,
 		&i.LoopInputs,
 		&i.LoopInputMapping,
-		&i.LoopNetworkParticipation,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -115,30 +114,29 @@ func (q *Queries) GetAutomationJobOverlay(ctx context.Context, jobID string) (Au
 const getAutomationRun = `-- name: GetAutomationRun :one
 SELECT id, profile_id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
        status, attempt, scheduled_at, started_at, ended_at, error,
-	   delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
+	   delivery_error, delivery_error_at, loop_run_id, metadata_json
 FROM automation_runs WHERE id = ?1
 `
 
 type GetAutomationRunRow struct {
-	ID                   string         `json:"id"`
-	ProfileID            sql.NullString `json:"profile_id"`
-	JobID                sql.NullString `json:"job_id"`
-	TriggerID            sql.NullString `json:"trigger_id"`
-	SessionID            sql.NullString `json:"session_id"`
-	TaskID               sql.NullString `json:"task_id"`
-	TaskRunID            sql.NullString `json:"task_run_id"`
-	FireID               sql.NullString `json:"fire_id"`
-	Status               string         `json:"status"`
-	Attempt              int64          `json:"attempt"`
-	ScheduledAt          sql.NullString `json:"scheduled_at"`
-	StartedAt            sql.NullString `json:"started_at"`
-	EndedAt              sql.NullString `json:"ended_at"`
-	Error                sql.NullString `json:"error"`
-	DeliveryError        sql.NullString `json:"delivery_error"`
-	DeliveryErrorAt      sql.NullString `json:"delivery_error_at"`
-	LoopRunID            sql.NullString `json:"loop_run_id"`
-	NetworkParticipation sql.NullString `json:"network_participation"`
-	MetadataJson         string         `json:"metadata_json"`
+	ID              string         `json:"id"`
+	ProfileID       sql.NullString `json:"profile_id"`
+	JobID           sql.NullString `json:"job_id"`
+	TriggerID       sql.NullString `json:"trigger_id"`
+	SessionID       sql.NullString `json:"session_id"`
+	TaskID          sql.NullString `json:"task_id"`
+	TaskRunID       sql.NullString `json:"task_run_id"`
+	FireID          sql.NullString `json:"fire_id"`
+	Status          string         `json:"status"`
+	Attempt         int64          `json:"attempt"`
+	ScheduledAt     sql.NullString `json:"scheduled_at"`
+	StartedAt       sql.NullString `json:"started_at"`
+	EndedAt         sql.NullString `json:"ended_at"`
+	Error           sql.NullString `json:"error"`
+	DeliveryError   sql.NullString `json:"delivery_error"`
+	DeliveryErrorAt sql.NullString `json:"delivery_error_at"`
+	LoopRunID       sql.NullString `json:"loop_run_id"`
+	MetadataJson    string         `json:"metadata_json"`
 }
 
 func (q *Queries) GetAutomationRun(ctx context.Context, id string) (GetAutomationRunRow, error) {
@@ -162,7 +160,6 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id string) (GetAutomatio
 		&i.DeliveryError,
 		&i.DeliveryErrorAt,
 		&i.LoopRunID,
-		&i.NetworkParticipation,
 		&i.MetadataJson,
 	)
 	return i, err
@@ -172,7 +169,7 @@ const getAutomationTrigger = `-- name: GetAutomationTrigger :one
 SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
-	   loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	   loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_triggers WHERE id = ?1
 `
 
@@ -201,7 +198,6 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 		&i.LoopName,
 		&i.LoopInputs,
 		&i.LoopInputMapping,
-		&i.LoopNetworkParticipation,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -212,7 +208,7 @@ const getAutomationTriggerByWebhookID = `-- name: GetAutomationTriggerByWebhookI
 SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
-	   loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	   loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_triggers WHERE webhook_id = ?1
 `
 
@@ -241,7 +237,6 @@ func (q *Queries) GetAutomationTriggerByWebhookID(ctx context.Context, webhookID
 		&i.LoopName,
 		&i.LoopInputs,
 		&i.LoopInputMapping,
-		&i.LoopNetworkParticipation,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -265,40 +260,38 @@ INSERT INTO automation_jobs (
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, schedule, task,
   enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 ) VALUES (
   ?1,
   ?2, ?3, ?4, ?5,
   ?6, ?7, ?8, ?9,
   ?10, ?11, ?12, ?13,
   ?14, ?15, ?16,
-	?17, ?18, ?19,
-	?20, ?21
+	?17, ?18, ?19, ?20
 )
 `
 
 type InsertAutomationJobParams struct {
-	ProfileID                string         `json:"profile_id"`
-	ID                       string         `json:"id"`
-	Scope                    string         `json:"scope"`
-	Name                     string         `json:"name"`
-	AgentName                string         `json:"agent_name"`
-	WorkspaceID              sql.NullString `json:"workspace_id"`
-	Prompt                   string         `json:"prompt"`
-	Schedule                 sql.NullString `json:"schedule"`
-	Task                     sql.NullString `json:"task"`
-	Enabled                  bool           `json:"enabled"`
-	Retry                    string         `json:"retry"`
-	FireLimit                string         `json:"fire_limit"`
-	Source                   string         `json:"source"`
-	TargetKind               string         `json:"target_kind"`
-	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
-	LoopName                 sql.NullString `json:"loop_name"`
-	LoopInputs               sql.NullString `json:"loop_inputs"`
-	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
-	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
-	CreatedAt                string         `json:"created_at"`
-	UpdatedAt                string         `json:"updated_at"`
+	ProfileID        string         `json:"profile_id"`
+	ID               string         `json:"id"`
+	Scope            string         `json:"scope"`
+	Name             string         `json:"name"`
+	AgentName        string         `json:"agent_name"`
+	WorkspaceID      sql.NullString `json:"workspace_id"`
+	Prompt           string         `json:"prompt"`
+	Schedule         sql.NullString `json:"schedule"`
+	Task             sql.NullString `json:"task"`
+	Enabled          bool           `json:"enabled"`
+	Retry            string         `json:"retry"`
+	FireLimit        string         `json:"fire_limit"`
+	Source           string         `json:"source"`
+	TargetKind       string         `json:"target_kind"`
+	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
+	LoopName         sql.NullString `json:"loop_name"`
+	LoopInputs       sql.NullString `json:"loop_inputs"`
+	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	CreatedAt        string         `json:"created_at"`
+	UpdatedAt        string         `json:"updated_at"`
 }
 
 func (q *Queries) InsertAutomationJob(ctx context.Context, arg InsertAutomationJobParams) error {
@@ -321,7 +314,6 @@ func (q *Queries) InsertAutomationJob(ctx context.Context, arg InsertAutomationJ
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
-		arg.LoopNetworkParticipation,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -332,36 +324,35 @@ const insertAutomationRun = `-- name: InsertAutomationRun :exec
 INSERT INTO automation_runs (
   id, profile_id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
   status, attempt, scheduled_at, started_at, ended_at, error,
-	delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
+	delivery_error, delivery_error_at, loop_run_id, metadata_json
 ) VALUES (
   ?1, ?2, ?3, ?4, ?5,
   ?6, ?7, ?8, ?9,
   ?10, ?11, ?12, ?13,
   ?14, ?15, ?16,
-	?17, ?18, ?19
+	?17, ?18
 )
 `
 
 type InsertAutomationRunParams struct {
-	ID                   string         `json:"id"`
-	ProfileID            sql.NullString `json:"profile_id"`
-	JobID                sql.NullString `json:"job_id"`
-	TriggerID            sql.NullString `json:"trigger_id"`
-	SessionID            sql.NullString `json:"session_id"`
-	TaskID               sql.NullString `json:"task_id"`
-	TaskRunID            sql.NullString `json:"task_run_id"`
-	FireID               sql.NullString `json:"fire_id"`
-	Status               string         `json:"status"`
-	Attempt              int64          `json:"attempt"`
-	ScheduledAt          sql.NullString `json:"scheduled_at"`
-	StartedAt            sql.NullString `json:"started_at"`
-	EndedAt              sql.NullString `json:"ended_at"`
-	Error                sql.NullString `json:"error"`
-	DeliveryError        sql.NullString `json:"delivery_error"`
-	DeliveryErrorAt      sql.NullString `json:"delivery_error_at"`
-	LoopRunID            sql.NullString `json:"loop_run_id"`
-	NetworkParticipation sql.NullString `json:"network_participation"`
-	MetadataJson         string         `json:"metadata_json"`
+	ID              string         `json:"id"`
+	ProfileID       sql.NullString `json:"profile_id"`
+	JobID           sql.NullString `json:"job_id"`
+	TriggerID       sql.NullString `json:"trigger_id"`
+	SessionID       sql.NullString `json:"session_id"`
+	TaskID          sql.NullString `json:"task_id"`
+	TaskRunID       sql.NullString `json:"task_run_id"`
+	FireID          sql.NullString `json:"fire_id"`
+	Status          string         `json:"status"`
+	Attempt         int64          `json:"attempt"`
+	ScheduledAt     sql.NullString `json:"scheduled_at"`
+	StartedAt       sql.NullString `json:"started_at"`
+	EndedAt         sql.NullString `json:"ended_at"`
+	Error           sql.NullString `json:"error"`
+	DeliveryError   sql.NullString `json:"delivery_error"`
+	DeliveryErrorAt sql.NullString `json:"delivery_error_at"`
+	LoopRunID       sql.NullString `json:"loop_run_id"`
+	MetadataJson    string         `json:"metadata_json"`
 }
 
 func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationRunParams) error {
@@ -383,7 +374,6 @@ func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationR
 		arg.DeliveryError,
 		arg.DeliveryErrorAt,
 		arg.LoopRunID,
-		arg.NetworkParticipation,
 		arg.MetadataJson,
 	)
 	return err
@@ -395,7 +385,7 @@ INSERT INTO automation_triggers (
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
   target_kind, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
-	loop_network_participation, created_at, updated_at
+	created_at, updated_at
 ) VALUES (
   ?1,
   ?2, ?3, ?4, ?5,
@@ -403,36 +393,34 @@ INSERT INTO automation_triggers (
   ?10, ?11, ?12, ?13,
   ?14, ?15, ?16,
   ?17, ?18, ?19,
-	?20, ?21, ?22,
-	?23, ?24
+	?20, ?21, ?22, ?23
 )
 `
 
 type InsertAutomationTriggerParams struct {
-	ProfileID                string         `json:"profile_id"`
-	ID                       string         `json:"id"`
-	Scope                    string         `json:"scope"`
-	Name                     string         `json:"name"`
-	AgentName                string         `json:"agent_name"`
-	WorkspaceID              sql.NullString `json:"workspace_id"`
-	Prompt                   string         `json:"prompt"`
-	Event                    string         `json:"event"`
-	Filter                   sql.NullString `json:"filter"`
-	Enabled                  bool           `json:"enabled"`
-	Retry                    string         `json:"retry"`
-	FireLimit                string         `json:"fire_limit"`
-	Source                   string         `json:"source"`
-	WebhookID                sql.NullString `json:"webhook_id"`
-	EndpointSlug             sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef         sql.NullString `json:"webhook_secret_ref"`
-	TargetKind               string         `json:"target_kind"`
-	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
-	LoopName                 sql.NullString `json:"loop_name"`
-	LoopInputs               sql.NullString `json:"loop_inputs"`
-	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
-	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
-	CreatedAt                string         `json:"created_at"`
-	UpdatedAt                string         `json:"updated_at"`
+	ProfileID        string         `json:"profile_id"`
+	ID               string         `json:"id"`
+	Scope            string         `json:"scope"`
+	Name             string         `json:"name"`
+	AgentName        string         `json:"agent_name"`
+	WorkspaceID      sql.NullString `json:"workspace_id"`
+	Prompt           string         `json:"prompt"`
+	Event            string         `json:"event"`
+	Filter           sql.NullString `json:"filter"`
+	Enabled          bool           `json:"enabled"`
+	Retry            string         `json:"retry"`
+	FireLimit        string         `json:"fire_limit"`
+	Source           string         `json:"source"`
+	WebhookID        sql.NullString `json:"webhook_id"`
+	EndpointSlug     sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
+	TargetKind       string         `json:"target_kind"`
+	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
+	LoopName         sql.NullString `json:"loop_name"`
+	LoopInputs       sql.NullString `json:"loop_inputs"`
+	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	CreatedAt        string         `json:"created_at"`
+	UpdatedAt        string         `json:"updated_at"`
 }
 
 func (q *Queries) InsertAutomationTrigger(ctx context.Context, arg InsertAutomationTriggerParams) error {
@@ -458,7 +446,6 @@ func (q *Queries) InsertAutomationTrigger(ctx context.Context, arg InsertAutomat
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
-		arg.LoopNetworkParticipation,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -529,31 +516,29 @@ UPDATE automation_jobs SET
   retry = ?9, fire_limit = ?10, source = ?11,
   target_kind = ?12, loop_workspace_id = ?13,
   loop_name = ?14, loop_inputs = ?15,
-	loop_input_mapping = ?16,
-	loop_network_participation = ?17, updated_at = ?18
-WHERE id = ?19
+	loop_input_mapping = ?16, updated_at = ?17
+WHERE id = ?18
 `
 
 type UpdateAutomationJobParams struct {
-	Scope                    string         `json:"scope"`
-	Name                     string         `json:"name"`
-	AgentName                string         `json:"agent_name"`
-	WorkspaceID              sql.NullString `json:"workspace_id"`
-	Prompt                   string         `json:"prompt"`
-	Schedule                 sql.NullString `json:"schedule"`
-	Task                     sql.NullString `json:"task"`
-	Enabled                  bool           `json:"enabled"`
-	Retry                    string         `json:"retry"`
-	FireLimit                string         `json:"fire_limit"`
-	Source                   string         `json:"source"`
-	TargetKind               string         `json:"target_kind"`
-	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
-	LoopName                 sql.NullString `json:"loop_name"`
-	LoopInputs               sql.NullString `json:"loop_inputs"`
-	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
-	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
-	UpdatedAt                string         `json:"updated_at"`
-	ID                       string         `json:"id"`
+	Scope            string         `json:"scope"`
+	Name             string         `json:"name"`
+	AgentName        string         `json:"agent_name"`
+	WorkspaceID      sql.NullString `json:"workspace_id"`
+	Prompt           string         `json:"prompt"`
+	Schedule         sql.NullString `json:"schedule"`
+	Task             sql.NullString `json:"task"`
+	Enabled          bool           `json:"enabled"`
+	Retry            string         `json:"retry"`
+	FireLimit        string         `json:"fire_limit"`
+	Source           string         `json:"source"`
+	TargetKind       string         `json:"target_kind"`
+	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
+	LoopName         sql.NullString `json:"loop_name"`
+	LoopInputs       sql.NullString `json:"loop_inputs"`
+	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	UpdatedAt        string         `json:"updated_at"`
+	ID               string         `json:"id"`
 }
 
 func (q *Queries) UpdateAutomationJob(ctx context.Context, arg UpdateAutomationJobParams) (int64, error) {
@@ -574,7 +559,6 @@ func (q *Queries) UpdateAutomationJob(ctx context.Context, arg UpdateAutomationJ
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
-		arg.LoopNetworkParticipation,
 		arg.UpdatedAt,
 		arg.ID,
 	)
@@ -593,30 +577,28 @@ UPDATE automation_runs SET
   scheduled_at = ?9, started_at = ?10,
   ended_at = ?11, error = ?12,
   delivery_error = ?13, delivery_error_at = ?14,
-	loop_run_id = ?15, network_participation = ?16,
-	metadata_json = ?17
-WHERE id = ?18
+	loop_run_id = ?15, metadata_json = ?16
+WHERE id = ?17
 `
 
 type UpdateAutomationRunParams struct {
-	JobID                sql.NullString `json:"job_id"`
-	TriggerID            sql.NullString `json:"trigger_id"`
-	SessionID            sql.NullString `json:"session_id"`
-	TaskID               sql.NullString `json:"task_id"`
-	TaskRunID            sql.NullString `json:"task_run_id"`
-	FireID               sql.NullString `json:"fire_id"`
-	Status               string         `json:"status"`
-	Attempt              int64          `json:"attempt"`
-	ScheduledAt          sql.NullString `json:"scheduled_at"`
-	StartedAt            sql.NullString `json:"started_at"`
-	EndedAt              sql.NullString `json:"ended_at"`
-	Error                sql.NullString `json:"error"`
-	DeliveryError        sql.NullString `json:"delivery_error"`
-	DeliveryErrorAt      sql.NullString `json:"delivery_error_at"`
-	LoopRunID            sql.NullString `json:"loop_run_id"`
-	NetworkParticipation sql.NullString `json:"network_participation"`
-	MetadataJson         string         `json:"metadata_json"`
-	ID                   string         `json:"id"`
+	JobID           sql.NullString `json:"job_id"`
+	TriggerID       sql.NullString `json:"trigger_id"`
+	SessionID       sql.NullString `json:"session_id"`
+	TaskID          sql.NullString `json:"task_id"`
+	TaskRunID       sql.NullString `json:"task_run_id"`
+	FireID          sql.NullString `json:"fire_id"`
+	Status          string         `json:"status"`
+	Attempt         int64          `json:"attempt"`
+	ScheduledAt     sql.NullString `json:"scheduled_at"`
+	StartedAt       sql.NullString `json:"started_at"`
+	EndedAt         sql.NullString `json:"ended_at"`
+	Error           sql.NullString `json:"error"`
+	DeliveryError   sql.NullString `json:"delivery_error"`
+	DeliveryErrorAt sql.NullString `json:"delivery_error_at"`
+	LoopRunID       sql.NullString `json:"loop_run_id"`
+	MetadataJson    string         `json:"metadata_json"`
+	ID              string         `json:"id"`
 }
 
 func (q *Queries) UpdateAutomationRun(ctx context.Context, arg UpdateAutomationRunParams) (int64, error) {
@@ -636,7 +618,6 @@ func (q *Queries) UpdateAutomationRun(ctx context.Context, arg UpdateAutomationR
 		arg.DeliveryError,
 		arg.DeliveryErrorAt,
 		arg.LoopRunID,
-		arg.NetworkParticipation,
 		arg.MetadataJson,
 		arg.ID,
 	)
@@ -656,34 +637,32 @@ UPDATE automation_triggers SET
   webhook_secret_ref = ?14, target_kind = ?15,
   loop_workspace_id = ?16, loop_name = ?17,
 	loop_inputs = ?18, loop_input_mapping = ?19,
-	loop_network_participation = ?20,
-  updated_at = ?21
-WHERE id = ?22
+  updated_at = ?20
+WHERE id = ?21
 `
 
 type UpdateAutomationTriggerParams struct {
-	Scope                    string         `json:"scope"`
-	Name                     string         `json:"name"`
-	AgentName                string         `json:"agent_name"`
-	WorkspaceID              sql.NullString `json:"workspace_id"`
-	Prompt                   string         `json:"prompt"`
-	Event                    string         `json:"event"`
-	Filter                   sql.NullString `json:"filter"`
-	Enabled                  bool           `json:"enabled"`
-	Retry                    string         `json:"retry"`
-	FireLimit                string         `json:"fire_limit"`
-	Source                   string         `json:"source"`
-	WebhookID                sql.NullString `json:"webhook_id"`
-	EndpointSlug             sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef         sql.NullString `json:"webhook_secret_ref"`
-	TargetKind               string         `json:"target_kind"`
-	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
-	LoopName                 sql.NullString `json:"loop_name"`
-	LoopInputs               sql.NullString `json:"loop_inputs"`
-	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
-	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
-	UpdatedAt                string         `json:"updated_at"`
-	ID                       string         `json:"id"`
+	Scope            string         `json:"scope"`
+	Name             string         `json:"name"`
+	AgentName        string         `json:"agent_name"`
+	WorkspaceID      sql.NullString `json:"workspace_id"`
+	Prompt           string         `json:"prompt"`
+	Event            string         `json:"event"`
+	Filter           sql.NullString `json:"filter"`
+	Enabled          bool           `json:"enabled"`
+	Retry            string         `json:"retry"`
+	FireLimit        string         `json:"fire_limit"`
+	Source           string         `json:"source"`
+	WebhookID        sql.NullString `json:"webhook_id"`
+	EndpointSlug     sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
+	TargetKind       string         `json:"target_kind"`
+	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
+	LoopName         sql.NullString `json:"loop_name"`
+	LoopInputs       sql.NullString `json:"loop_inputs"`
+	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	UpdatedAt        string         `json:"updated_at"`
+	ID               string         `json:"id"`
 }
 
 func (q *Queries) UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomationTriggerParams) (int64, error) {
@@ -707,7 +686,6 @@ func (q *Queries) UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomat
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
-		arg.LoopNetworkParticipation,
 		arg.UpdatedAt,
 		arg.ID,
 	)

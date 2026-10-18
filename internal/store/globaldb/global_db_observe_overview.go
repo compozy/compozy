@@ -165,18 +165,6 @@ func (g *ObserveRepo) LatestEventSummaryAt(
 	return g.queryLatestEventSummaryAt(ctx, query)
 }
 
-// CountNetworkMessagesSince counts durable network audit envelopes inside the window.
-func (g *ObserveRepo) CountNetworkMessagesSince(ctx context.Context, query store.OverviewSinceQuery) (int, error) {
-	if err := g.checkReady(ctx, "count network messages"); err != nil {
-		return 0, err
-	}
-	if err := query.Validate(); err != nil {
-		return 0, err
-	}
-
-	return g.queryNetworkMessageCount(ctx, query)
-}
-
 // CountHookDispatchesSince counts hook dispatch completions and failures inside the window.
 func (g *ObserveRepo) CountHookDispatchesSince(
 	ctx context.Context,

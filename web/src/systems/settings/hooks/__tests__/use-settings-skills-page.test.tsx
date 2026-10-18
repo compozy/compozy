@@ -3,12 +3,19 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { statusFixture } from "@/systems/status/mocks";
+
+vi.mock("@/systems/status/adapters/daemon-api", () => ({
+  fetchStatus: vi.fn(async () => statusFixture),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
 }));
 
 vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsRestartStatus: vi.fn(),
+  listSettingsApplyRecords: vi.fn().mockResolvedValue({ entries: [] }),
   getSettingsSkills: vi.fn(),
   updateSettingsSkills: vi.fn(),
   triggerSettingsRestart: vi.fn(),
@@ -131,7 +138,7 @@ describe("useSettingsSkillsPage", () => {
     });
   });
 
-  it("loads the envelope and seeds the draft with the current config", async () => {
+  it("marks disabled dirty independently from policy dirty when toggling a disabled skill", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
 
@@ -139,13 +146,6 @@ describe("useSettingsSkillsPage", () => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(skillsEnvelope.config);
     });
-  });
-
-  it("marks disabled dirty independently from policy dirty when toggling a disabled skill", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.toggleDisabled("beta");

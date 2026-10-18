@@ -31,7 +31,6 @@ const NODE_STATE_KINDS: Record<string, string> = {
 
 /** Kinds whose sentence takes no payload at all. */
 const FIXED_TITLES: Record<string, string> = {
-  channel_msg: "An agent message was recorded",
   token_tick: "Token usage increased",
   runtime_applied: "Runtime settings were applied",
   predicate_diagnostic: "A route condition was evaluated",

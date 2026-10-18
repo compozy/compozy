@@ -3,12 +3,9 @@ package extensionpkg
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/network"
-	"github.com/compozy/compozy/internal/network/participation"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -26,28 +23,24 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
-	}
+	profileID := hostAPIProfileID(ctx)
 
 	spec := taskpkg.CreateTask{
-		ID:                   strings.TrimSpace(req.ID),
-		Identifier:           strings.TrimSpace(req.Identifier),
-		Scope:                scope,
-		ProfileID:            profileID,
-		WorkspaceID:          workspaceID,
-		Title:                strings.TrimSpace(req.Title),
-		Description:          strings.TrimSpace(req.Description),
-		Priority:             req.Priority.Normalize(),
-		MaxAttempts:          req.MaxAttempts,
-		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
-		Draft:                req.Draft,
-		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
-		Owner:                cloneOwnership(req.Owner),
-		WakeCreator:          cloneBoolPointer(req.WakeCreator),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             cloneRawMessage(req.Metadata),
+		ID:                 strings.TrimSpace(req.ID),
+		Identifier:         strings.TrimSpace(req.Identifier),
+		Scope:              scope,
+		ProfileID:          profileID,
+		WorkspaceID:        workspaceID,
+		Title:              strings.TrimSpace(req.Title),
+		Description:        strings.TrimSpace(req.Description),
+		Priority:           req.Priority.Normalize(),
+		MaxAttempts:        req.MaxAttempts,
+		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
+		Draft:              req.Draft,
+		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
+		Owner:              cloneOwnership(req.Owner),
+		WakeCreator:        cloneBoolPointer(req.WakeCreator),
+		Metadata:           cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_task"); err != nil {
 		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
@@ -55,20 +48,17 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	return spec, nil
 }
 
-// hostAPIProfileID resolves the bridge-owned profile for every profile-scoped
-// Host API read and write.
 func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, error) {
 	patch := taskpkg.Patch{
-		Title:                trimStringPtr(req.Title),
-		Description:          trimStringPtr(req.Description),
-		Priority:             normalizePriorityPtr(req.Priority),
-		MaxAttempts:          req.MaxAttempts,
-		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
-		ApprovalPolicy:       normalizeApprovalPolicyPtr(req.ApprovalPolicy),
-		Metadata:             cloneRawMessagePtr(req.Metadata),
-		Owner:                cloneOwnership(req.Owner),
-		ClearOwner:           req.ClearOwner,
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Title:              trimStringPtr(req.Title),
+		Description:        trimStringPtr(req.Description),
+		Priority:           normalizePriorityPtr(req.Priority),
+		MaxAttempts:        req.MaxAttempts,
+		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
+		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
+		Metadata:           cloneRawMessagePtr(req.Metadata),
+		Owner:              cloneOwnership(req.Owner),
+		ClearOwner:         req.ClearOwner,
 	}
 	if err := patch.Validate("task_patch"); err != nil {
 		return taskpkg.Patch{}, invalidParamsRPCError(err)
@@ -89,10 +79,9 @@ func cancelTaskFromRequest(req apicontract.CancelTaskRequest) (taskpkg.CancelTas
 
 func enqueueTaskRunFromRequest(taskID string, req apicontract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
 	spec := taskpkg.EnqueueRun{
-		TaskID:               strings.TrimSpace(taskID),
-		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             cloneRawMessage(req.Metadata),
+		TaskID:         strings.TrimSpace(taskID),
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		Metadata:       cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
 		return taskpkg.EnqueueRun{}, invalidParamsRPCError(err)
@@ -179,17 +168,6 @@ func (h *HostAPIHandler) resolveTaskWorkspaceID(ctx context.Context, workspaceRe
 		return "", err
 	}
 	return hostAPIResolvedWorkspaceRegistrationID(&resolved)
-}
-
-func validateTaskChannel(path string, channel string) error {
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return nil
-	}
-	if err := network.ValidateChannel(trimmed); err != nil {
-		return invalidParamsRPCError(fmt.Errorf("%s: %w", path, err))
-	}
-	return nil
 }
 
 func mapTaskRPCError(id string, err error) error {

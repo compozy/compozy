@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -59,9 +58,9 @@ func (g *TaskRepo) UpdateTaskDefinition(
 	if err := g.checkReady(ctx, "update task definition"); err != nil {
 		return taskpkg.ExecutionProfile{}, err
 	}
-	if !mutation.UpdateTaskRow && !mutation.PatchNetworkParticipation {
+	if !mutation.UpdateTaskRow {
 		return taskpkg.ExecutionProfile{}, fmt.Errorf(
-			"%w: update task definition requires a row or profile mutation",
+			"%w: update task definition requires a row mutation",
 			taskpkg.ErrValidation,
 		)
 	}
@@ -79,23 +78,6 @@ func (g *TaskRepo) UpdateTaskDefinition(
 			}
 		} else if err := g.ensureTaskExistsWithExecutor(ctx, exec, mutation.Task.ID); err != nil {
 			return err
-		}
-		if mutation.PatchNetworkParticipation {
-			if err := ensureTaskProfileMutationAllowedWithExecutor(ctx, g, exec, mutation.Task.ID); err != nil {
-				return err
-			}
-			profile, found, profileErr := loadExecutionProfile(ctx, exec, mutation.Task.ID)
-			if profileErr != nil {
-				return profileErr
-			}
-			if !found {
-				profile = taskpkg.DefaultExecutionProfile(mutation.Task.ID)
-			}
-			profile.NetworkParticipation = participation.CloneRequest(mutation.NetworkParticipation)
-			stored, profileErr = g.upsertExecutionProfileWithExecutor(ctx, exec, &profile)
-			if profileErr != nil {
-				return profileErr
-			}
 		}
 		return appendTaskEventsWithExecutor(ctx, exec, mutation.Events)
 	})

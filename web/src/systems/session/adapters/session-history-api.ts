@@ -1,15 +1,14 @@
-import { apiClient, apiErrorCode, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   FetchSessionEventsParams,
   SessionEventPayload,
-  SessionLedgerResponse,
   SessionRecapPayload,
   SessionUsagePayload,
   SessionUsageTurnsResponse,
   TurnHistoryPayload,
 } from "../types";
-import { SessionApiError, throwSessionRequestError } from "./session-api-errors";
+import { throwSessionRequestError } from "./session-api-errors";
 
 export async function fetchSessionRecap(
   workspaceId: string,
@@ -89,49 +88,6 @@ export async function fetchSessionHistory(
     throwSessionRequestError(response, error, `Failed to fetch session history "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to fetch session history "${id}"`).history;
-}
-
-export class SessionLedgerUnavailableError extends SessionApiError {
-  /** Preserves the distinction between absent ledger data and unsupported memory. */
-  constructor(
-    id: string,
-    public readonly reason: "not-materialized" | "unsupported" = "not-materialized"
-  ) {
-    super(
-      reason === "unsupported"
-        ? `Session memory unavailable: ${id}`
-        : `Session ledger not materialized: ${id}`,
-      reason === "unsupported" ? 501 : 404,
-      id,
-      reason === "unsupported" ? { code: "memory.unsupported" } : {}
-    );
-    this.name = "SessionLedgerUnavailableError";
-  }
-}
-
-/** Reads a session ledger while distinguishing unsupported memory from an absent ledger. */
-export async function fetchSessionLedger(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionLedgerResponse> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    if (response.status === 404) {
-      throw new SessionLedgerUnavailableError(id);
-    }
-    if (response.status === 501 && apiErrorCode(error) === "memory.unsupported") {
-      throw new SessionLedgerUnavailableError(id, "unsupported");
-    }
-    throwSessionRequestError(response, error, `Failed to fetch session ledger "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to fetch session ledger "${id}"`);
 }
 
 export async function fetchSessionUsageTurns(

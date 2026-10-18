@@ -18,12 +18,14 @@ type Transition<K extends keyof SessionLiveTailEvents> = (
 ) => SessionLiveTailContext | undefined;
 
 type RecoveryTransitions = {
-  [K in
-    | "transcriptObserved"
-    | "queryRecoveryElapsed"
-    | "queryRecoverySucceeded"
-    | "queryRecoveryFailed"
-    | "manualRecoveryRequested"]: Transition<K>;
+  [
+    K in
+      | "transcriptObserved"
+      | "queryRecoveryElapsed"
+      | "queryRecoverySucceeded"
+      | "queryRecoveryFailed"
+      | "manualRecoveryRequested"
+  ]: Transition<K>;
 };
 
 /**

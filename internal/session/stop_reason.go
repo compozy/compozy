@@ -22,17 +22,7 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 	case CauseHookDenied:
 		return store.StopHookStopped, trimmedDetail
 	case CauseUserRequested:
-		lowerDetail := strings.ToLower(trimmedDetail)
-		switch {
-		case strings.Contains(lowerDetail, "max_iterations"):
-			return store.StopMaxIterations, trimmedDetail
-		case strings.Contains(lowerDetail, "loop_detected"):
-			return store.StopLoopDetected, trimmedDetail
-		case strings.Contains(lowerDetail, "budget_exceeded"):
-			return store.StopBudgetExceeded, trimmedDetail
-		default:
-			return store.StopUserCanceled, trimmedDetail
-		}
+		return classifyUserRequestedStopReason(trimmedDetail), trimmedDetail
 	case CauseProcessExited:
 		if waitErr != nil {
 			return store.StopAgentCrashed, waitErr.Error()
@@ -57,6 +47,8 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 		return store.StopCompleted, trimmedDetail
 	case CauseCompleted:
 		return store.StopCompleted, trimmedDetail
+	case CauseOwnerReleased:
+		return store.StopOwnerReleased, trimmedDetail
 	case CauseFailed:
 		return store.StopError, trimmedDetail
 	default:
@@ -67,9 +59,28 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 	}
 }
 
+func classifyUserRequestedStopReason(detail string) store.StopReason {
+	lowerDetail := strings.ToLower(detail)
+	switch {
+	case strings.Contains(lowerDetail, "max_iterations"):
+		return store.StopMaxIterations
+	case strings.Contains(lowerDetail, "loop_detected"):
+		return store.StopLoopDetected
+	case strings.Contains(lowerDetail, "budget_exceeded"):
+		return store.StopBudgetExceeded
+	default:
+		return store.StopUserCanceled
+	}
+}
+
 // RequestStopWithCause persists stopping and starts the shared escalation operation.
 func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
 	_, err := m.requestSessionStop(ctx, id, cause, detail)
+	if err == nil && cause != CauseShutdown && cause != CauseProcessExited {
+		if service := m.subagentService(); service != nil {
+			err = service.OnParentStopped(ctx, id)
+		}
+	}
 	return err
 }
 
@@ -80,9 +91,19 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	if err != nil || run == nil {
 		return err
 	}
+	if service := m.subagentService(); service != nil && cause != CauseShutdown && cause != CauseProcessExited {
+		if cascadeErr := service.OnParentStopped(ctx, id); cascadeErr != nil {
+			m.logger.ErrorContext(ctx, "subagent.stop_cascade", "session_id", id, "error", cascadeErr)
+		}
+	}
 	outcome, err := waitSessionStopRun(ctx, run)
 	if previousRun == run && outcome.Verified && outcome.FinalState == StateStopped {
-		return nil
+		err = nil
+	}
+	if err == nil {
+		if service := m.subagentService(); service != nil {
+			err = service.OnChildSettled(ctx, id)
+		}
 	}
 	return err
 }

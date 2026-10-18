@@ -277,12 +277,10 @@ func newWorkspaceAccessIntegrationSession(
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig("test-workspace-access-driver")
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      workspaceAccessIntegrationHome,
-			RootDir: root,
-			Name:    "workspace",
-		},
-		Config: cfg,
+		ID:      workspaceAccessIntegrationHome,
+		RootDir: root,
+		Name:    "workspace",
+		Config:  cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
@@ -315,10 +313,9 @@ func newWorkspaceAccessIntegrationSession(
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
 	managed, err := manager.Create(ctx, session.CreateOpts{
-		AgentName:      "coder",
-		Workspace:      workspaceAccessIntegrationHome,
-		Permissions:    permissions,
-		DisableSandbox: true,
+		AgentName:   "coder",
+		Workspace:   workspaceAccessIntegrationHome,
+		Permissions: permissions,
 	})
 	if err != nil {
 		t.Fatalf("Manager.Create() error = %v", err)
@@ -588,4 +585,12 @@ func (d *workspaceAccessIntegrationDriver) Stop(_ context.Context, proc *session
 	}
 	procState.once.Do(func() { close(procState.done) })
 	return nil
+}
+
+func (r workspaceAccessIntegrationResolver) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	resolved, err := r.Resolve(ctx, ref)
+	if err != nil {
+		return workspacepkg.Workspace{}, err
+	}
+	return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
 }

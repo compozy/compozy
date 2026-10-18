@@ -42,31 +42,6 @@ describe("TasksDashboardView", () => {
     expect(screen.getByTestId("tasks-dashboard-totals")).toHaveTextContent(/runs/i);
   });
 
-  it("surfaces the queue warning when backlog_warning is true", () => {
-    const dashboard = buildDashboardFixture({
-      queue: {
-        backlog_status: "warning",
-        backlog_threshold_ms: 60_000,
-        backlog_warning: true,
-        oldest_queue_age_ms: 180_000,
-        oldest_queued_at: "2026-04-17T09:57:00Z",
-        total: 5,
-      },
-      health: {
-        active_orphan_runs: 0,
-        queue_backlog: true,
-        status: "warning",
-        stuck_runs: 0,
-      },
-    });
-
-    render(<TasksDashboardView dashboard={dashboard} />);
-    expect(screen.getByTestId("tasks-dashboard-warning")).toBeInTheDocument();
-    // 6-cell Metric sub-grid was deleted; queue total is exposed
-    // through the KPI strip (`tasks-dashboard-card-queue-depth`) instead.
-    expect(screen.getByTestId("tasks-dashboard-card-queue-depth")).toHaveTextContent("5");
-  });
-
   it("renders active runs with identifier, link, and stuck badge", () => {
     const dashboard = buildDashboardFixture({
       active_runs: {

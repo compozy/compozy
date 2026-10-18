@@ -26,21 +26,6 @@ patches in declaration order and records the outcome on the session event stream
   />
 </RouteList>
 
-## Memory v2 Hooks
-
-Two hook events feed the Memory v2 pipeline:
-
-- `session.message_persisted` fires after a transcript message is durably stored. The Memory v2
-  extractor consumes this event asynchronously, runs bounded per-session work, stages candidates
-  under `_inbox/`, and routes accepted proposals through the controller.
-- `session.post_stop` queues a workspace-scoped dreaming check; the gated dreaming runtime decides
-  whether to start a `dreaming-curator` session for that workspace.
-
-Memory hooks never bypass the controller. Extractor outputs route through `Store.ProposeWrite` /
-`compozy__memory_propose`, and dreaming promotions are real `memory_decisions` rows with
-`origin = dreaming`. See [Memory System](/docs/memory/system) for the controller path and
-[Dream](/docs/memory/dream) for the gate cascade.
-
 ## Management surfaces
 
 Hooks are agent-manageable for mutable sources. The `compozy__hooks` toolset and the parallel

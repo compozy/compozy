@@ -26,9 +26,9 @@ function CatalogCard({
       data-selected={selected ? "true" : undefined}
       data-actionable={actionable ? "true" : undefined}
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-lg bg-canvas-soft p-4 text-fg transition-colors duration-base ease-out",
-        actionable && "hover:bg-elevated",
-        selected && "bg-surface-glaze shadow-inset-strong",
+        "flex min-w-0 flex-col gap-3 rounded-lg bg-card p-4 text-fg shadow-card transition-[background-color,box-shadow] duration-base ease-out",
+        actionable && "hover:bg-surface-2",
+        selected && "bg-selected shadow-inset-strong",
         className
       )}
       {...props}

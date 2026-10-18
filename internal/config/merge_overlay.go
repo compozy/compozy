@@ -1,6 +1,7 @@
 package config
 
 type configOverlay struct {
+	Subagents     subagentsOverlay           `toml:"subagents"`
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
 	App           appOverlay                 `toml:"app"`
@@ -19,11 +20,9 @@ type configOverlay struct {
 	Providers     map[string]providerOverlay `toml:"providers"`
 	ModelCatalog  modelCatalogOverlay        `toml:"model_catalog"`
 	Marketplace   *marketplaceRuntimeOverlay `toml:"marketplace"`
-	Sandboxes     map[string]sandboxOverlay  `toml:"sandboxes"`
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
 	Redact        redactOverlay              `toml:"redact"`
-	Memory        memoryOverlay              `toml:"memory"`
 	Roles         rolesOverlay               `toml:"roles"`
 	Skills        skillsOverlay              `toml:"skills"`
 	Extensions    extensionsOverlay          `toml:"extensions"`
@@ -33,13 +32,13 @@ type configOverlay struct {
 	Goals         goalsOverlay               `toml:"goals"`
 	Task          taskOverlay                `toml:"task"`
 	Hooks         hooksOverlay               `toml:"hooks"`
-	Network       networkOverlay             `toml:"network"`
 	Gateway       *gatewayOverlay            `toml:"gateway"`
 	Autonomy      autonomyOverlay            `toml:"autonomy"`
 	Worktrees     worktreesOverlay           `toml:"worktrees"`
 }
 
 func (o *configOverlay) Apply(dst *Config) error {
+	o.Subagents.Apply(&dst.Subagents)
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.App.Apply(&dst.App)
@@ -64,11 +63,9 @@ func (o *configOverlay) Apply(dst *Config) error {
 	if o.Marketplace != nil {
 		o.Marketplace.Apply(&dst.Marketplace)
 	}
-	applySandboxOverlays(dst, o.Sandboxes)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Redact.Apply(&dst.Redact)
-	o.Memory.Apply(&dst.Memory)
 	o.Roles.Apply(&dst.Roles)
 	o.Skills.Apply(&dst.Skills)
 	o.Extensions.Apply(&dst.Extensions)
@@ -79,7 +76,6 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Loops.Apply(&dst.Loops)
 	o.Goals.Apply(&dst.Goals)
 	o.Task.Apply(&dst.Task)
-	o.Network.Apply(&dst.Network)
 	if o.Gateway != nil {
 		o.Gateway.Apply(&dst.Gateway)
 	}

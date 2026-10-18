@@ -71,42 +71,6 @@ func (q *Queries) DeleteMismatchedGatewayIngressBinding(ctx context.Context, arg
 	return result.RowsAffected()
 }
 
-const getGatewayBridgeIngressSubject = `-- name: GetGatewayBridgeIngressSubject :one
-SELECT scope_kind, workspace_id, COALESCE(provider_config, '') AS provider_config
-FROM (
-  SELECT
-    resource.scope_kind,
-    resource.scope_id AS workspace_id,
-    CAST(json_extract(resource.spec_json, '$.provider_config') AS TEXT) AS provider_config,
-    0 AS source_order
-  FROM resource_records AS resource
-  WHERE resource.kind = 'bridge.instance' AND resource.id = ?1
-  UNION ALL
-  SELECT
-    legacy.scope AS scope_kind,
-    legacy.workspace_id,
-    legacy.provider_config,
-    1 AS source_order
-  FROM bridge_instances AS legacy
-  WHERE legacy.id = ?1
-)
-ORDER BY source_order
-LIMIT 1
-`
-
-type GetGatewayBridgeIngressSubjectRow struct {
-	ScopeKind      string         `json:"scope_kind"`
-	WorkspaceID    sql.NullString `json:"workspace_id"`
-	ProviderConfig string         `json:"provider_config"`
-}
-
-func (q *Queries) GetGatewayBridgeIngressSubject(ctx context.Context, subjectID string) (GetGatewayBridgeIngressSubjectRow, error) {
-	row := q.db.QueryRowContext(ctx, getGatewayBridgeIngressSubject, subjectID)
-	var i GetGatewayBridgeIngressSubjectRow
-	err := row.Scan(&i.ScopeKind, &i.WorkspaceID, &i.ProviderConfig)
-	return i, err
-}
-
 const getGatewayEndpointState = `-- name: GetGatewayEndpointState :one
 SELECT tier, endpoint_url, endpoint_generation, reachable, updated_at
 FROM gateway_endpoint_state
@@ -138,15 +102,9 @@ WHERE binding.subject_kind = ?1
     (binding.subject_kind = 'webhook_trigger' AND EXISTS (
       SELECT 1 FROM resource_records AS trigger
       WHERE trigger.kind = 'automation.trigger' AND trigger.id = binding.subject_id
-    )) OR
-    (binding.subject_kind = 'bridge_instance' AND EXISTS (
-      SELECT 1 FROM bridge_instances AS bridge WHERE bridge.id = binding.subject_id
-    )) OR
-    (binding.subject_kind = 'bridge_instance' AND EXISTS (
-      SELECT 1 FROM resource_records AS bridge
-      WHERE bridge.kind = 'bridge.instance' AND bridge.id = binding.subject_id
     ))
-  )
+)
+ORDER BY subject_kind, subject_id
 `
 
 type GetGatewayIngressBindingParams struct {
@@ -261,13 +219,6 @@ WHERE (
   (binding.subject_kind = 'webhook_trigger' AND EXISTS (
     SELECT 1 FROM resource_records AS trigger
     WHERE trigger.kind = 'automation.trigger' AND trigger.id = binding.subject_id
-  )) OR
-  (binding.subject_kind = 'bridge_instance' AND EXISTS (
-    SELECT 1 FROM bridge_instances AS bridge WHERE bridge.id = binding.subject_id
-  )) OR
-  (binding.subject_kind = 'bridge_instance' AND EXISTS (
-    SELECT 1 FROM resource_records AS bridge
-    WHERE bridge.kind = 'bridge.instance' AND bridge.id = binding.subject_id
   ))
 )
 ORDER BY subject_kind, subject_id
@@ -330,13 +281,6 @@ WHERE (
   ) AND NOT EXISTS (
     SELECT 1 FROM resource_records AS trigger
     WHERE trigger.kind = 'automation.trigger' AND trigger.id = binding.subject_id
-  )
-) OR (
-  binding.subject_kind = 'bridge_instance' AND NOT EXISTS (
-    SELECT 1 FROM bridge_instances AS bridge WHERE bridge.id = binding.subject_id
-  ) AND NOT EXISTS (
-    SELECT 1 FROM resource_records AS bridge
-    WHERE bridge.kind = 'bridge.instance' AND bridge.id = binding.subject_id
   )
 )
 `

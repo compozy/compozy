@@ -41,8 +41,7 @@ type OpenLoopForkDialogProps = Omit<LoopForkDialogProps, "open">;
 
 const DIALOG_WIDTH = { className: "sm:max-w-(--width-modal-sm)" };
 
-const FORK_DESCRIPTION =
-  "Starts a new run seeded from this generation. The source run is untouched.";
+const FORK_DESCRIPTION = "Starts a new run from this round. The original run is untouched.";
 
 function forkInputs(
   schema: LoopInputSchema | undefined,
@@ -120,9 +119,7 @@ function LoopForkDialogForm({
         <>
           <GitFork aria-hidden="true" />
           <span>
-            {generation === null
-              ? `source ${loopName}`
-              : `source ${loopName} · generation ${generation}`}
+            {generation === null ? `From ${loopName}` : `From ${loopName} · round ${generation}`}
           </span>
         </>
       }
@@ -132,7 +129,7 @@ function LoopForkDialogForm({
       note={
         blockedReason ? (
           <>
-            <span>This generation cannot be forked. Nothing was started.</span>
+            <span>This round cannot be forked. Nothing was started.</span>
             <span className="mt-1 block font-mono text-mono-id break-words text-subtle">
               {blockedReason}
             </span>
@@ -150,7 +147,7 @@ function LoopForkDialogForm({
         blocked ? null : (
           <>
             <fieldset className="flex flex-col gap-1.5" data-testid="loop-fork-generation">
-              <legend className="eyebrow mb-1.5 text-subtle">Generation</legend>
+              <legend className="eyebrow mb-1.5 text-subtle">Round</legend>
               {generations.map(value => (
                 <RadioCard
                   badge={
@@ -163,13 +160,13 @@ function LoopForkDialogForm({
                   key={value}
                   onSelect={() => setGeneration(value)}
                   selected={value === generation}
-                  title={`Generation ${value}`}
+                  title={`Round ${value}`}
                 />
               ))}
             </fieldset>
             {isReplay ? (
               <p className="rounded-md bg-info-tint px-3 py-2 text-form-hint leading-relaxed text-fg">
-                Nothing is overridden — this replays the generation as a new run, and lineage still
+                Nothing is overridden — this replays the round as a new run, and lineage still
                 records the fork.
               </p>
             ) : null}

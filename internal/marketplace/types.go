@@ -127,7 +127,7 @@ type RefreshOutcome struct {
 
 // InstallOutcome is the redacted canonical observation for one marketplace install attempt.
 type InstallOutcome struct {
-	Origin      *Origin `json:"origin,omitempty"`
+	Origin      *Origin `json:"origin,omitzero"`
 	ResolvedRef string  `json:"resolved_ref,omitempty"`
 	EntryID     string  `json:"entry_id"`
 	Outcome     string  `json:"outcome"`

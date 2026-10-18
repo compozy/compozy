@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	yaml "github.com/goccy/go-yaml"
@@ -228,7 +229,7 @@ func heartbeatFrontmatterForRollback(front Frontmatter) map[string]any {
 		payload["preferences"] = preferences
 	}
 	if len(front.Context.Include) > 0 {
-		payload["context"] = map[string]any{"include": append([]string(nil), front.Context.Include...)}
+		payload["context"] = map[string]any{"include": slices.Clone(front.Context.Include)}
 	}
 	return payload
 }

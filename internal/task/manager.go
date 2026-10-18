@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	configdefaults "github.com/compozy/compozy/internal/config/defaults"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/network/participation"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -90,7 +89,6 @@ type managerOptions struct {
 	generationFinalizer   GenerationStateFinalizer
 	coordinatorTimerArmer CoordinatorTimerArmer
 	wakeNotifier          WakeNotifier
-	participationResolver participation.Resolver
 	coordinatorStatusOK   func(string) bool
 	coordinatorHookOK     func(string) bool
 	profileValidation     ExecutionProfileValidationOptions
@@ -124,7 +122,6 @@ type Service struct {
 	generationFinalizer     GenerationStateFinalizer
 	coordinatorTimerArmer   CoordinatorTimerArmer
 	wakeNotifier            WakeNotifier
-	participationResolver   participation.Resolver
 	taskAuthorizer          ResourceAuthorizer
 	runReadAuthorizer       RunReadAuthorizer
 	coordinatorStatusOK     func(string) bool
@@ -235,14 +232,6 @@ func WithCoordinatorTimerArmer(armer CoordinatorTimerArmer) Option {
 func WithWakeNotifier(notifier WakeNotifier) Option {
 	return func(opts *managerOptions) {
 		opts.wakeNotifier = notifier
-	}
-}
-
-// WithParticipationResolver injects the single network participation resolver
-// used before task-run reservation.
-func WithParticipationResolver(resolver participation.Resolver) Option {
-	return func(opts *managerOptions) {
-		opts.participationResolver = resolver
 	}
 }
 

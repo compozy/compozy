@@ -6,13 +6,13 @@ persona: Théo
 journey: J-respond-to-agent-attention
 expected: While the tab is visible or backgrounded, its title shows the exact cross-workspace unread needs-you notification count, excludes Finished work, survives route changes, clears at zero, and never displays a stale source as current.
 entry_points: browser tab title; web route navigation
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+evidence: /Users/pedronauck/Dev/qa-labs/compozy-reported-issues-20260929-20260930-025651-581547-lab/qa-artifacts/qa/final-title-hidden-cleared.json; docs/qa/reports/2026-09-29-reported-issues.md
+last_report: docs/qa/reports/2026-09-29-reported-issues.md
 overlaps: RT-session-attention-catalog; RT-web-attention-bell-jump
 ---
 
@@ -29,3 +29,21 @@ QA 2026-08-16 Herdr parity: The isolated browser journey, focused attention Play
 must clear both after server confirmation while runtime session badges continue to report source
 attention. The attention Playwright suite now uses the real Clear all action for the zero-count
 transition. Local browser execution is deferred by explicit user instruction to CI.
+
+QA re-walk 2026-09-30: PASS for the repaired background-title contract on actual isolated Electron final index71ea3236e585a54471d994843a07ea687a1797a34badc28b6af7086f13d18b57. Public snapshot acknowledgement204 established base title CompozyOS. Genuine CUA Cmd-H made the renderer hidden and unfocused; a provider-free public Loop ask then produced exact needs_you1/finished0 and the hidden title became (1) CompozyOS. Acknowledging that exact public snapshot204 restored CompozyOS while the renderer remained hidden. The pending ask was resolved through its inspected public identity. No synthetic visibility or database writes were used. Evidence: final-title-hidden-growth.json, final-title-hidden-attention.json, final-title-hidden-ack.json and final-title-hidden-cleared.json in the canonical report lab. Broader uncapped-count/route/stream-loss behavior retains its owning historical and remote suite evidence; this walk does not claim every historical dimension was repeated.
+
+
+QA impact 2026-10-11 (verification in progress): Read attention across registered workspaces and profiles with approval and failed-run items. Confirm identical visible items, acknowledgment behavior, and complete pagination; internal item reads must skip unused totals/facets while the public inbox still returns exact metadata. Evidence and exact verification scope: [startup/cache/notification report](../reports/2026-10-11-startup-cache-notifications.md).
+
+QA impact 2026-10-17 issue 764: the bell (which feeds the title) now polls every 30 s while the
+document is hidden instead of every 5 s; the visible cadence stays 5 s. The daemon reads task
+attention for every registered workspace in one all-population read instead of a global plus
+per-workspace fan-out, with identical notification identities. Walked in an isolated lab daemon
+(7 workspaces, 5 active mock sessions): the attention payload matched the pre-change build byte for
+byte apart from the snapshot token, and a hidden headless tab issued 2 bell reads/min. The hidden
+transition used synthetic `visibilitychange`, not a real Electron hide.
+
+
+QA impact 2026-10-17 (web performance): Removed the shell pending-approval page and Loop-node probes whose outputs were unused. The title/notification source and exact task/Loop aggregate owners remain unchanged. Re-walk nonzero/zero and route transitions in CI; initial empty-shell browser observation is not a populated-count revalidation.
+
+Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.

@@ -10,7 +10,6 @@
     "operator_intent",
     "expected_business_outcome",
     "agents",
-    "channels",
     "task_tree",
     "provider_plan",
     "cross_surface_targets",
@@ -49,23 +48,6 @@
             "minLength": 1
           },
           "responsibility": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
-    "channels": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "purpose"],
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "purpose": {
             "type": "string",
             "minLength": 1
           }
@@ -117,10 +99,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "peer_messages_min": { "type": "integer", "minimum": 1 },
         "review_cycles_min": { "type": "integer", "minimum": 1 },
-        "disagreements_resolved_min": { "type": "integer", "minimum": 0 },
-        "channels_active_min": { "type": "integer", "minimum": 1 }
+        "disagreements_resolved_min": { "type": "integer", "minimum": 0 }
       }
     },
     "kickoff_brief": {

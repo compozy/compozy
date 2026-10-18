@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -24,24 +23,6 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	}
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return nil, err
-	}
-	return m.createSession(ctx, opts)
-}
-
-// CreateLifecycleContinuation starts a Dream session for daemon-owned work that
-// was accepted before public work admission began draining.
-func (m *Manager) CreateLifecycleContinuation(
-	ctx context.Context,
-	opts CreateOpts,
-) (_ *Session, err error) {
-	if ctx == nil {
-		return nil, errors.New("session: lifecycle continuation context is required")
-	}
-	if normalizeSessionType(opts.Type) != SessionTypeDream {
-		return nil, fmt.Errorf(
-			"session: lifecycle continuation requires type %q",
-			SessionTypeDream,
-		)
 	}
 	return m.createSession(ctx, opts)
 }
@@ -233,17 +214,6 @@ func (m *Manager) persistStopClassification(ctx context.Context, session *Sessio
 	return errors.Join(persistErr, bundleErr)
 }
 
-func sandboxSyncReasonForStop(session *Session) sandbox.SyncReason {
-	if session == nil {
-		return sandbox.SyncReasonStop
-	}
-	info := session.Info()
-	if info != nil && info.StopReason == store.StopAgentCrashed {
-		return sandbox.SyncReasonCrash
-	}
-	return sandbox.SyncReasonStop
-}
-
 func (m *Manager) recordProcessExitEvent(
 	ctx context.Context,
 	session *Session,
@@ -403,7 +373,9 @@ func (m *Manager) recordFailedStartEvents(
 		return nil
 	}
 	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(stopEvent); ok {
-		return m.recordTranscriptMarker(ctx, session, stopTurnID, kind, summary, evidence)
+		return m.recordTranscriptMarker(ctx, session, stopTurnID, transcriptMarkerInput{
+			Kind: kind, Summary: summary, Evidence: evidence,
+		})
 	}
 	return nil
 }

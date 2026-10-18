@@ -1,10 +1,11 @@
 package loop
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -33,17 +34,13 @@ func repeatedFailedNodeIDs(history [][]GenerationOutput) []string {
 	failing := failedNodeIDs(history[0])
 	for _, outputs := range history[1:LoopFailureBreakerLimit] {
 		previous := failedNodeIDs(outputs)
-		for nodeID := range failing {
-			if _, ok := previous[nodeID]; !ok {
-				delete(failing, nodeID)
-			}
-		}
+		maps.DeleteFunc(failing, func(nodeID string, _ struct{}) bool {
+			_, ok := previous[nodeID]
+			return !ok
+		})
 	}
-	ids := make([]string, 0, len(failing))
-	for nodeID := range failing {
-		ids = append(ids, nodeID)
-	}
-	sort.Strings(ids)
+	ids := slices.AppendSeq(make([]string, 0, len(failing)), maps.Keys(failing))
+	slices.Sort(ids)
 	return ids
 }
 
@@ -189,14 +186,12 @@ func quarantineAttemptChain(attempts []NodeAttempt, nodeID NodeID, generation in
 		}
 		chain = append(chain, attempt)
 	}
-	sort.Slice(chain, func(i, j int) bool {
-		if chain[i].Generation != chain[j].Generation {
-			return chain[i].Generation < chain[j].Generation
-		}
-		if chain[i].ItemIndex != chain[j].ItemIndex {
-			return chain[i].ItemIndex < chain[j].ItemIndex
-		}
-		return chain[i].Attempt < chain[j].Attempt
+	slices.SortFunc(chain, func(a, b NodeAttempt) int {
+		return cmp.Or(
+			cmp.Compare(a.Generation, b.Generation),
+			cmp.Compare(a.ItemIndex, b.ItemIndex),
+			cmp.Compare(a.Attempt, b.Attempt),
+		)
 	})
 	return chain
 }

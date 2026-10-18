@@ -134,7 +134,6 @@ export const deletePlanFixture: DeleteProfilePlan = {
     mcp_servers: 1,
     config_keys: 1,
     credential_overrides: 0,
-    memory_entries: 12,
     desktop_partitions: 1,
     event_summaries: 0,
     palette_usage: 2,

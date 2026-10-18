@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -16,12 +16,16 @@ func (o *Observer) overviewNeedsInput(ctx context.Context, query OverviewQuery) 
 		return nil, nil
 	}
 	// Home also exposes stored escalations; acknowledgement must not reconcile their lifecycle.
-	summaries, err := o.registry.ListTasks(ctx, taskpkg.Query{
-		ReadScope: query.ReadScope, Scope: taskpkg.Scope(query.TaskScope), WorkspaceID: query.WorkspaceID,
-		Status: taskpkg.TaskStatusNeedsAttention, OwnerKind: ownerKind, OwnerRef: ownerRef,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("observe: read escalations: %w", err)
+	summaries := make([]taskpkg.Summary, 0)
+	for _, scope := range needsInputTaskScopes(query) {
+		rows, err := o.registry.ListTasks(ctx, taskpkg.Query{
+			ReadScope: query.ReadScope, Scope: scope.scope, WorkspaceID: scope.workspaceID,
+			Status: taskpkg.TaskStatusNeedsAttention, OwnerKind: ownerKind, OwnerRef: ownerRef,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("observe: read escalations: %w", err)
+		}
+		summaries = append(summaries, rows...)
 	}
 	states, err := o.registry.ListTaskTriageStates(ctx, query.Actor)
 	if err != nil {
@@ -56,10 +60,30 @@ func (o *Observer) overviewNeedsInput(ctx context.Context, query OverviewQuery) 
 		if summary.ActiveRun != nil {
 			item.RunID, item.SessionID = summary.ActiveRun.ID, summary.ActiveRun.SessionID
 		}
-		item.NotificationID = notifications.AttentionIdentity(
+		item.NotificationID = attention.Identity(
 			"task", summary.WorkspaceID, summary.ID, item.Kind, occurrenceAt.UTC().Format(time.RFC3339Nano), item.RunID,
 		)
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+type needsInputTaskScope struct {
+	scope       taskpkg.Scope
+	workspaceID string
+}
+
+// needsInputTaskScopes maps a catalog population onto stored task scopes: the all
+// population is every task, or global plus the selected workspace, as the inbox reads it.
+func needsInputTaskScopes(query OverviewQuery) []needsInputTaskScope {
+	if query.TaskScope.Normalize() != taskpkg.CatalogScopeAll {
+		return []needsInputTaskScope{{scope: taskpkg.Scope(query.TaskScope), workspaceID: query.WorkspaceID}}
+	}
+	if query.WorkspaceID == "" {
+		return []needsInputTaskScope{{}}
+	}
+	return []needsInputTaskScope{
+		{scope: taskpkg.ScopeGlobal},
+		{scope: taskpkg.ScopeWorkspace, workspaceID: query.WorkspaceID},
+	}
 }

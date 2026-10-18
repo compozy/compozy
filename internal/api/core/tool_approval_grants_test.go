@@ -197,7 +197,7 @@ func newToolApprovalGrantHandlerFixture(service ToolApprovalGrantService) *gin.E
 	resolver := workspaceResolveServiceStub{
 		resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "registry-ws", Name: "alpha"},
+				ID: "registry-ws", Name: "alpha",
 				WorkspaceID: "public-ws",
 			}, nil
 		},
@@ -217,16 +217,14 @@ func newToolApprovalGrantHandlerFixture(service ToolApprovalGrantService) *gin.E
 func toolApprovalGrantHandlerFixture() toolspkg.ApprovalGrant {
 	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC)
 	return toolspkg.ApprovalGrant{
-		ID: "grant-1",
-		ApprovalGrantKey: toolspkg.ApprovalGrantKey{
-			WorkspaceID: "registry-ws",
-			AgentName:   "codex",
-			ToolID:      "compozy__approval_probe",
-			InputDigest: "sha256:abc",
-		},
-		Decision:   toolspkg.ApprovalGrantAllow,
-		CreatedAt:  now,
-		LastUsedAt: now,
+		ID:          "grant-1",
+		WorkspaceID: "registry-ws",
+		AgentName:   "codex",
+		ToolID:      "compozy__approval_probe",
+		InputDigest: "sha256:abc",
+		Decision:    toolspkg.ApprovalGrantAllow,
+		CreatedAt:   now,
+		LastUsedAt:  now,
 	}
 }
 

@@ -19,17 +19,6 @@ describe("InputGroup", () => {
     expect(input).not.toBeNull();
   });
 
-  it("Should place inline-end addon after the input", () => {
-    const { container } = render(
-      <InputGroup>
-        <InputGroupInput defaultValue="2123" />
-        <InputGroupAddon align="inline-end">TCP</InputGroupAddon>
-      </InputGroup>
-    );
-    const addon = container.querySelector('[data-slot="input-group-addon"]');
-    expect(addon?.getAttribute("data-align")).toBe("inline-end");
-  });
-
   it("Should focus the input when the addon container receives mouse down", () => {
     render(
       <InputGroup>
@@ -51,5 +40,16 @@ describe("InputGroup", () => {
     );
     const control = container.querySelector("textarea[data-slot='input-group-control']");
     expect(control).not.toBeNull();
+  });
+
+  it("Should focus the textarea control when a block-end addon row is pressed", () => {
+    render(
+      <InputGroup variant="composer">
+        <InputGroupTextarea aria-label="Message" />
+        <InputGroupAddon align="block-end" data-testid="tools" />
+      </InputGroup>
+    );
+    fireEvent.mouseDown(screen.getByTestId("tools"));
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Message" }));
   });
 });

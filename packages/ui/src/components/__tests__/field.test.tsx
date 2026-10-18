@@ -27,16 +27,6 @@ describe("Field", () => {
     expect(screen.getByText("Display name for the agent.")).toBeInTheDocument();
   });
 
-  it("Should expose orientation via data attribute", () => {
-    const { container } = render(
-      <Field orientation="horizontal">
-        <FieldLabel>Name</FieldLabel>
-      </Field>
-    );
-    const field = container.querySelector('[data-slot="field"]');
-    expect(field?.getAttribute("data-orientation")).toBe("horizontal");
-  });
-
   it("Should render FieldError with role=alert and single message", () => {
     render(
       <Field data-invalid>

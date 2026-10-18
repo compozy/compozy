@@ -12,6 +12,12 @@ import (
 
 func TestVaultCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should treat missing stdin as optional input", func(t *testing.T) {
+		t.Parallel()
+		if content, err := readOptionalCommandInput(nil); err != nil || content != "" {
+			t.Fatalf("optional stdin = %q, %v, want empty input", content, err)
+		}
+	})
 
 	t.Run("Should list vault metadata with filters and jsonl output", func(t *testing.T) {
 		t.Parallel()
@@ -102,7 +108,7 @@ func TestVaultCommands(t *testing.T) {
 			"json",
 		})
 
-		if err := cmd.ExecuteContext(context.Background()); err != nil {
+		if err := cmd.ExecuteContext(t.Context()); err != nil {
 			t.Fatalf("vault put error = %v", err)
 		}
 		if captured.Ref != "vault:sessions/sess-1/github-token" ||

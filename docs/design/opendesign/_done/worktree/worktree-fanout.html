@@ -15,7 +15,6 @@
   Spec: .compozy/tasks/worktree-support/_uiux.md §S11 · story US-016.
   Provenance:
     production            — dialog anatomy from task-fan-out-dialog.tsx:33-99 (title "Fan out task runs",
-                            description, mono Assignments textarea one-line-per-run, network participation
                             block, footer Cancel/Create runs); danger Alert pattern :56-60
     spec worktree-support — FanOutTaskRunsRequest.isolate_worktrees checkbox; confirmation states the
                             worktree count plainly (US-016 EC-1); per-run attribution on partial failure
@@ -42,7 +41,6 @@
   .ckrow__txt b{display:block;font-size:12.5px;font-weight:500;color:var(--fg)}
   .ckrow__count{margin-top:3px;font-size:11.5px;line-height:1.45;color:var(--muted)}
   .ckrow__count b{display:inline;font-weight:600;color:var(--fg)}
-  /* quiet stand-in for the untouched network participation block */
   .elided{padding:10px 12px;border:1px dashed var(--line-strong);border-radius:var(--radius-md);
     font-size:11px;color:var(--faint)}
   /* result list — per-run attribution (US-016 EC-2) */
@@ -86,7 +84,7 @@
         <div class="spec__note"><b>US-016 AC-2</b>Off is the default: spawned runs follow the task's existing worktree policy unchanged. The checkbox is the only addition to the production dialog (<code>task-fan-out-dialog.tsx:33-99</code>); everything else is transcribed.</div>
         <div class="spec__demo">
           <div class="scrim--demo">
-            <!-- production: POST fan-out route · FanOutTaskRunsRequest{designations, network_participation} -->
+            <!-- production: POST fan-out route · FanOutTaskRunsRequest{designations} -->
             <div class="dialog dialog--compact" role="dialog" aria-labelledby="fo1t" data-od-id="fanout-dialog-off">
               <div class="dialog__head">
                 <div class="head-icon" aria-hidden="true"><svg data-lucide="git-fork"></svg></div>
@@ -111,7 +109,7 @@
                   </div>
                 </div>
                 <div class="fgroup">
-                  <div class="elided">Network participation — unchanged (NetworkParticipationFields, task-fan-out-dialog.tsx:78-83). Elided here.</div>
+
                 </div>
               </div>
               <div class="dialog__foot">
@@ -164,7 +162,7 @@ Verify the SQLite vacuum window</textarea>
                   </div>
                 </div>
                 <div class="fgroup">
-                  <div class="elided">Network participation — unchanged. Elided here.</div>
+
                 </div>
               </div>
               <div class="dialog__foot">

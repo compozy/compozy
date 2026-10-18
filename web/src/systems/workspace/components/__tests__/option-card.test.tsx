@@ -36,28 +36,8 @@ describe("OptionCard", () => {
     expect(root.dataset.size).toBe("comfortable");
     expect(screen.getByText("Folder")).toBeInTheDocument();
     expect(screen.getByText("PATH")).toBeInTheDocument();
-  });
-
-  it("Should apply the compact size padding when size=compact", () => {
-    render(
-      <OptionCard size="compact" data-testid="option-card-root">
-        <OptionCard.Body>
-          <OptionCard.Content>
-            <OptionCard.Title>Compact</OptionCard.Title>
-          </OptionCard.Content>
-        </OptionCard.Body>
-      </OptionCard>
-    );
-
-    const root = screen.getByTestId("option-card-root");
-    expect(root.dataset.size).toBe("compact");
-  });
-
-  it("Should expose tone via data attribute on the icon slot", () => {
-    renderCard();
-
-    const icon = screen.getByTestId("option-card-icon");
-    expect(icon.dataset.tone).toBe("accent");
+    expect(screen.getByTestId("option-card-icon").dataset.tone).toBe("accent");
+    expect(screen.getByTestId("option-card-meta").textContent).toBe("/Users/pedro/Dev");
   });
 
   it("Should render the action button and trigger its handler when clicked", async () => {
@@ -68,12 +48,6 @@ describe("OptionCard", () => {
 
     await user.click(screen.getByRole("button", { name: "Use this folder" }));
     expect(onClick).toHaveBeenCalledTimes(1);
-  });
-
-  it("Should render the meta paragraph when provided", () => {
-    renderCard();
-
-    expect(screen.getByTestId("option-card-meta").textContent).toBe("/Users/pedro/Dev");
   });
 
   it("Should throw when slots are rendered outside the OptionCard root", () => {

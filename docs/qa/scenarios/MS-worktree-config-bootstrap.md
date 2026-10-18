@@ -6,13 +6,13 @@ persona: Dora
 journey: J-worktree-management
 expected: Worktree defaults, parent-workspace overlays, personal-profile and workspace-profile destination layers, copy and setup bootstrap, timeouts, discovery caching, and the default task mode apply live only to future operations; invalid values name the exact config key, adoption skips bootstrap, setup failure leaves a truthful ready-but-flagged worktree, and existing paths never move after a live config edit.
 entry_points: config.toml [worktrees].root|run_branch_namespace|copy_list|setup_command|setup_timeout|discovery_cache_ttl; [task.orchestration.profile].default_worktree_mode; active `--profile <name>` config context; compozy config show|list|get; compozy config set|unset --scope user|profile|workspace -o json; workspace named-profile config layer
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260813-default-home-global-config-reclassified; BUG-20260813-worktree-config-paths-not-mutable
 fix_status: fixed
 retest_status: pass
 fix_commits: 2e741d9d; a216668f
 evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-081758-371939-lab/qa-artifacts/qa/bootstrap-manifest.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/daemon-status-fixed.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/config-operator-home-list-fixed.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/config-worktree-slow-setup-fixed.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-cancel-complete.json
-last_report: docs/qa/reports/2026-08-13-worktree-support.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-worktree-cli-lifecycle; TA-task-per-run-worktree-isolation
 ---
 
@@ -36,3 +36,7 @@ global config. Public config mutation then applied and removed `worktrees.setup_
 browser creation reached pending setup and cancellation removed both its checkout and branch. The
 remaining invalid-value, copy, failure, timeout, cache, and default-policy matrix continues in the
 Task 10 charter.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

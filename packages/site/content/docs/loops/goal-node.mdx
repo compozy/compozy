@@ -95,9 +95,15 @@ the synthetic agent-judge rubric and never converts it into a command. See
 ## Session and retry semantics
 
 Continuous mode preserves the same durable binding across work turns. When the provider reports
-context usage, the checkpoint records `known`; absent telemetry is `unknown`; a compaction attempt
-that still needs a newer report is `pending`. These states are runtime evidence, not authored
-values.
+context usage, the checkpoint records `known`; absent telemetry, or an observed completed compaction
+that no newer report has confirmed, is `unknown`; a compaction turn that ended without the agent
+reporting a compaction lifecycle is `pending` until a newer report arrives. These states are runtime
+evidence, not authored values. The context-compaction turn sends the agent's advertised `/compact` (or
+`/compress`) command in maintenance mode, and agents that advertise neither go to the reseed path. The
+turn succeeds or fails by the newest compaction status it reported, so a correction before the turn ends
+(`completed` to `failed`, or the reverse) changes the outcome. See
+[Context and recovery](/docs/loops/goals#context-and-recovery) and
+[Session compaction](/docs/sessions/compaction#goal).
 
 `retry.on_failure: fresh_session` is a bounded pre-submission policy. It applies only when CompozyOS proves
 that the external prompt effect did not start, such as a failed session preparation or prompt-slot

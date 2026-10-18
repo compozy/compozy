@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -199,23 +200,19 @@ func cloneInt64Ptr(value *int64) *int64 {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneFloat64Ptr(value *float64) *float64 {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneStringSlicePreserveNil(value []string) []string {
 	if value == nil {
 		return nil
 	}
-	cloned := make([]string, len(value))
-	copy(cloned, value)
-	return cloned
+	return slices.Clone(value)
 }

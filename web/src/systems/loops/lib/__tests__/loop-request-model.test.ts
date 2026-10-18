@@ -8,6 +8,7 @@ import {
   pendingAskRequest,
   pendingReviewRequest,
 } from "../../mocks/fixture-graph-eng-requests";
+import { loopRequestContextBlock } from "../loop-request-context";
 import {
   loopRequestDecisionCarriesPayload,
   loopRequestDecisionSchema,
@@ -203,5 +204,33 @@ describe("pendingLoopRequestCount", () => {
       ])
     ).toBe(2);
     expect(pendingLoopRequestCount([])).toBe(0);
+  });
+});
+
+describe("loopRequestContextBlock", () => {
+  it("Should project an object context onto printable key/value rows", () => {
+    expect(loopRequestContextBlock({ file: "a.go", lines: [1, 2], ok: true })).toEqual({
+      entries: [
+        { key: "file", value: "a.go" },
+        { key: "lines", value: "[1,2]" },
+        { key: "ok", value: "true" },
+      ],
+      text: null,
+    });
+  });
+
+  it("Should render scalars and arrays as one printable line", () => {
+    expect(loopRequestContextBlock("check the diff")).toEqual({
+      entries: [],
+      text: "check the diff",
+    });
+    expect(loopRequestContextBlock([1, "two"])).toEqual({ entries: [], text: '[1,"two"]' });
+  });
+
+  it("Should yield nothing when the context has nothing to show", () => {
+    expect(loopRequestContextBlock(undefined)).toBeNull();
+    expect(loopRequestContextBlock(null)).toBeNull();
+    expect(loopRequestContextBlock({})).toBeNull();
+    expect(loopRequestContextBlock("")).toBeNull();
   });
 });

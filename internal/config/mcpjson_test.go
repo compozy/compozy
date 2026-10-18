@@ -218,6 +218,7 @@ func TestPutMCPSidecarServerPreservesUnknownTopLevelKeysAndUntouchedEntries(t *t
 	if got, want := servers["beta"].SecretEnv["TOKEN"], "env:BETA_TOKEN"; got != want {
 		t.Fatalf("servers[beta].SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
+	assertPrivatePathMode(t, target.path, 0o600)
 }
 
 func TestPutMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) {

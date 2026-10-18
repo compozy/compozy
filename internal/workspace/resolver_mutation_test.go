@@ -22,7 +22,7 @@ func TestResolveOrRegisterDiscoversBeforeRegistration(t *testing.T) {
 	t.Run("Should bind a subdirectory to its enclosing workspace without registering it", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		nested := filepath.Join(root, "src", "feature")
@@ -108,7 +108,7 @@ func TestResolveOrRegisterDiscoversBeforeRegistration(t *testing.T) {
 func TestResolveOrRegisterExistingWorkspace(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	ws := Workspace{ID: "ws_existing", RootDir: mustCanonicalRoot(t, root), Name: "repo"}
@@ -135,7 +135,7 @@ func TestResolveOrRegisterExistingWorkspace(t *testing.T) {
 func TestResolveOrRegisterAutoRegisterDedupesNameAndPrefixesID(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := filepath.Join(t.TempDir(), "repo")
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -177,7 +177,7 @@ func TestResolveOrRegisterAutoRegisterDedupesNameAndPrefixesID(t *testing.T) {
 func TestResolverCRUDFlow(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	additionalOne := t.TempDir()
@@ -329,8 +329,8 @@ func assertInvalidWorkspaceDefaultAgent(t *testing.T, err error, value string) {
 	if !errors.Is(err, ErrWorkspaceValidation) {
 		t.Fatalf("error = %v, want ErrWorkspaceValidation", err)
 	}
-	var validationErr compozyconfig.ValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, matched := errors.AsType[compozyconfig.ValidationError](err)
+	if !matched {
 		t.Fatalf("error = %v, want config.ValidationError", err)
 	}
 	wantMessage := `agent name "` + value +
@@ -354,7 +354,7 @@ func assertInvalidWorkspaceDefaultAgent(t *testing.T, err error, value string) {
 func TestRegisterRollsBackWhenResolveFails(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	store := newMockWorkspaceStore()
@@ -552,7 +552,7 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 	t.Run("Should run after register update and unregister", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		store := newMockWorkspaceStore()
@@ -595,7 +595,7 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 	t.Run("Should roll back register when change hook fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		store := newMockWorkspaceStore()
@@ -622,7 +622,7 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 	t.Run("Should roll back update when change hook fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		createdAt := time.Unix(1700, 0).UTC()
@@ -662,7 +662,7 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 	t.Run("Should keep a committed unregister authoritative when derived sync fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		existing := Workspace{
@@ -717,7 +717,7 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 func TestResolveOrRegisterReturnsConcurrentWinnerWhenPathTaken(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	existing := Workspace{ID: "ws_existing", RootDir: mustCanonicalRoot(t, root), Name: "repo"}
@@ -778,7 +778,7 @@ func TestCancellationRollbackUsesBoundedDetachedDeleteContext(t *testing.T) {
 func TestListReturnsClonedWorkspaces(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store := newMockWorkspaceStore(Workspace{
 		ID:             "ws_list",
@@ -810,7 +810,7 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 	t.Run("Should durably prune missing roots and preserve healthy workspaces", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		healthyRoot := mustCanonicalRoot(t, t.TempDir())
 		missingRoot := removedWorkspaceRoot(t)
 		store := newMockWorkspaceStore(
@@ -855,7 +855,7 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 	t.Run("Should preserve registrations when root inspection fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		workspace := Workspace{ID: "ws_unreadable", RootDir: "\x00", Name: "unreadable"}
 		store := newMockWorkspaceStore(workspace)
 		resolver := newTestResolver(t, store)
@@ -926,7 +926,7 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 	t.Run("Should converge concurrent list reconciliation", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := newMockWorkspaceStore(
 			Workspace{ID: "ws_concurrent_healthy", RootDir: mustCanonicalRoot(t, t.TempDir()), Name: "healthy"},
 			Workspace{ID: "ws_concurrent_missing", RootDir: removedWorkspaceRoot(t), Name: "missing"},
@@ -969,7 +969,7 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 	t.Run("Should converge when a concurrent unregister wins durable deletion", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := &concurrentUnregisterStore{mockWorkspaceStore: newMockWorkspaceStore(Workspace{
 			ID:      "ws_concurrent_unregister",
 			RootDir: removedWorkspaceRoot(t),
@@ -1038,8 +1038,7 @@ func TestUnregisterFinalizationRecovery(t *testing.T) {
 
 		workspace := Workspace{
 			ID: "ws_restart_finalization", RootDir: t.TempDir(), Name: "restart",
-			AdditionalDirs: []string{t.TempDir()}, DefaultAgent: "coder", SandboxRef: "sandbox-a",
-		}
+			AdditionalDirs: []string{t.TempDir()}, DefaultAgent: "coder"}
 		store := newMockWorkspaceStore(workspace)
 		commitErr := errors.New("daemon stopped during finalization")
 		firstPreparation := &recordingUnregisterPreparation{commitErr: commitErr}
@@ -1070,7 +1069,7 @@ func TestUnregisterFinalizationRecovery(t *testing.T) {
 		}
 		if recovered.ID != workspace.ID || recovered.RootDir != workspace.RootDir ||
 			!slices.Equal(recovered.AdditionalDirs, workspace.AdditionalDirs) ||
-			recovered.DefaultAgent != workspace.DefaultAgent || recovered.SandboxRef != workspace.SandboxRef {
+			recovered.DefaultAgent != workspace.DefaultAgent {
 			t.Fatalf("recovered workspace = %#v, want durable snapshot %#v", recovered, workspace)
 		}
 		if secondPreparation.beforeDeletes != 1 || secondPreparation.commits != 1 {

@@ -242,7 +242,7 @@ func TestGlobalDBTaskRunIdempotencyLookupUsesOriginScope(t *testing.T) {
 	runA.IdempotencyKey = "idem-shared"
 	runB := taskRunForTest("run-idempotency-b", taskRecord.ID)
 	runB.QueuedAt = runB.QueuedAt.Add(time.Minute)
-	runB.Origin = taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "peer:finance"}
+	runB.Origin = taskpkg.Origin{Kind: taskpkg.OriginKindExtension, Ref: "extension:finance"}
 	runB.IdempotencyKey = "idem-shared"
 	for _, run := range []taskpkg.Run{runA, runB} {
 		if err := globalDB.CreateTaskRun(testutil.Context(t), run); err != nil {
@@ -302,7 +302,7 @@ func TestGlobalDBTaskRunIdempotencyRejectsOriginMismatch(t *testing.T) {
 	record := taskRunIdempotencyForTest(
 		"idem-mismatch",
 		run.ID,
-		taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "peer:other"},
+		taskpkg.Origin{Kind: taskpkg.OriginKindExtension, Ref: "extension:other"},
 	)
 	err := globalDB.SaveTaskRunIdempotency(testutil.Context(t), record)
 	if !errors.Is(err, taskpkg.ErrValidation) {

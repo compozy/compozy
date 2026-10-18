@@ -14,7 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const (
@@ -162,7 +162,7 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Operation, err
 		return Operation{}, ErrServiceShuttingDown
 	}
 	cleanupFailures := s.store.cleanup(s.retention)
-	operationID := uuid.NewString()
+	operationID := uuid.NewV4().String()
 	op := s.store.create(operationID)
 	runCtx, cancel := s.operationContext(ctx)
 	s.work.Go(func() {

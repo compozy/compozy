@@ -13,14 +13,14 @@ import (
 type SessionACPOptionSelection struct {
 	ID        string `json:"id"`
 	ValueID   string `json:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero"`
 }
 
 // SessionRuntimeDetails keeps optional ACP selections and recovery metadata
 // compact while preserving their flat session metadata JSON fields.
 type SessionRuntimeDetails struct {
 	ACPOptions      []SessionACPOptionSelection `json:"acp_options,omitempty"`
-	RuntimeRecovery *SessionRuntimeRecovery     `json:"runtime_recovery,omitempty"`
+	RuntimeRecovery *SessionRuntimeRecovery     `json:"runtime_recovery,omitzero"`
 }
 
 // Normalize trims values, copies boolean pointers, and orders selections by ID.
@@ -55,8 +55,8 @@ func CloneSessionACPOptionSelections(
 }
 
 // ACPOptionsValue returns the persisted session option selections.
-func (m SessionMeta) ACPOptionsValue() []SessionACPOptionSelection {
-	if m.SessionRuntimeDetails == nil {
+func (m *SessionMeta) ACPOptionsValue() []SessionACPOptionSelection {
+	if m == nil || m.SessionRuntimeDetails == nil {
 		return nil
 	}
 	return m.ACPOptions
@@ -81,8 +81,8 @@ func (s *SessionInfo) SetACPOptions(selections []SessionACPOptionSelection) {
 }
 
 // RuntimeRecoveryValue returns independent persisted recovery metadata.
-func (m SessionMeta) RuntimeRecoveryValue() *SessionRuntimeRecovery {
-	if m.SessionRuntimeDetails == nil {
+func (m *SessionMeta) RuntimeRecoveryValue() *SessionRuntimeRecovery {
+	if m == nil || m.SessionRuntimeDetails == nil {
 		return nil
 	}
 	return CloneSessionRuntimeRecovery(m.RuntimeRecovery)

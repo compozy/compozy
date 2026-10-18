@@ -14,7 +14,10 @@
 - Goals
 - Profile selection environment
 - Automation schedules
-- Session compaction
+- Session rebuild bounds
+- Host load management
+- Session messaging
+- Retired memory and compaction settings
 - Session attachments
 - Auto-title role
 - Window manager
@@ -27,13 +30,17 @@
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `skills`, `automation`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.
 - `SettingsApplyNextAction`: `none`, `restart-daemon`, `new-session`, or `retry`.
 
 Use `compozy config reload -o json` to reconcile edited desired state with the active generation. Use `compozy config apply-history -o json` or `GET /api/settings/apply` to inspect persisted apply records. A settings write is incomplete until you can see whether it applied live, requires a daemon restart, affects only new sessions, or failed with retryable diagnostics.
+
+`compozy status --json` reports the current `config.restart_required` flag. The Web Settings banner
+uses that runtime truth, including changes saved from CLI or API after a previous restart.
+Choosing **Not now** dismisses the observed change; a later apply record can show the notice again.
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
@@ -46,7 +53,7 @@ repository layer `<workspace>/.compozy/profiles/<name>/config.toml` is read-only
 layer write may return `ok_overridden`; inspect `winning_layer` before claiming the value is active.
 
 Profile overlays reject `http`, `daemon`, `log`, `database`, `gateway`, `shell`, `marketplace`,
-`observability`, `network`, `sandboxes`, and `window_manager.global_shortcuts` with
+`observability`, and `window_manager.global_shortcuts` with
 `profile_config_key_denied`; write machine-only keys with `--scope user`.
 
 Write provider credentials with `compozy --profile <name> secret set
@@ -218,11 +225,11 @@ Scalar values and partial runtime objects are writable through
 Entity existence is checked when the effective value is used, not when config is written. Resolution
 order and the rest of the lifecycle live in `references/loops.md`.
 
-Loop observability is durable runtime state, not a transient UI stream. `loop_run_events` persists replayable workspace-scoped events for status changes, node running/terminal outcomes, gate verdicts, generation starts, channel messages, token ticks, and needs-approval pauses. Payloads are redacted and bounded before persistence; token ticks preserve only usage counters and terminal markers.
+Loop observability is durable runtime state, not a transient UI stream. `loop_run_events` persists replayable workspace-scoped events for status changes, node running/terminal outcomes, gate verdicts, generation starts, token ticks, and needs-approval pauses. Payloads are redacted and bounded before persistence; token ticks preserve only usage counters and terminal markers.
 
 ## Goals
 
-`[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "100ms"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.
+`[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "2s"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. The poll interval is only a fallback sweep: committed enqueues wake the relay immediately. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.
 
 ## Profile Selection Environment
 
@@ -238,15 +245,86 @@ Automation schedule catch-up policy is part of the public schedule contract. Rec
 
 CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields without replacing the target; use native tools or HTTP/UDS for target replacement.
 
-Trigger events are `session.created`, `session.stopped`, `memory.consolidated`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`. Unknown names and surrounding whitespace are rejected; `ext.*` suffixes stay free-form.
+Trigger events are `session.created`, `session.stopped`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`. Unknown names and surrounding whitespace are rejected; `ext.*` suffixes stay free-form.
 
-## Session Compaction
+## Session Rebuild Bounds
 
-`[session.compaction]` controls pressure-triggered checkpoint coverage and replay archiving. Defaults
-are `enabled = true`, `pressure_threshold = 0.85`, `max_attempts_per_turn = 1`, and
-`failure_cooldown = "10m"`; threshold zero disables admission. All paths are available through
-`compozy config set` and the native config tools, are restart-required under the canonical `session.*`
-lifecycle rule, and do not mutate the policy bound to the running daemon.
+`[session.derive]` sets `max_replay_bytes` (default `131072`, at least `4096`) and `max_message_bytes`
+(default `16384`, between `1024` and `max_replay_bytes`). They bound every transcript replay into a new
+agent session: resume without native load, runtime or model replacement, account fallback, prompt
+recovery, and `session continue|fork`. The replay never exceeds `max_replay_bytes`; one message over
+`max_message_bytes` is truncated. Validation rejects `max_message_bytes` outside 1024 through
+`max_replay_bytes`, so lowering `max_replay_bytes` below the default `max_message_bytes` (16384) requires
+lowering `max_message_bytes` too. Edit these keys in `config.toml`; `compozy config set` does not accept
+them. CompozyOS has no compaction settings: the agent owns its context window,
+and compaction is observed or requested through the experimental surfaces in
+`references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
+the policy bound to the running daemon.
+
+## Host Load Management
+
+`[daemon.load]` keeps many agents from saturating the host. `daemon.load.agent_niceness` (default `10`,
+`0`-`19`, `0` disables) lowers the CPU priority of each agent's process group on macOS/Linux, so the
+tests, linters, and builds an agent runs inherit it; it cannot be raised back without root and is a
+no-op on Windows. `daemon.load.admission_threshold` (default `1.5`, `0` disables sampling) is the
+1-minute load average divided by logical CPUs above which new sessions and prompts from scheduled or
+triggered automations, Loops, and scheduler wakes wait; `daemon.load.admission_max_wait` (default `2m`,
+`1s`-`30m`) bounds that wait, after which the work proceeds. User-initiated prompts and sessions and
+manual automation runs are never delayed. Read the live state from the `runtime.load` item of
+`compozy doctor -o json` (`pressured`, `normalized_load`, `waiting`, `deferred_total`). All three keys
+are restart-required.
+
+## Idle Session Settings
+
+`session.supervision.idle_release_after` (default `30m`, `0` disables) frees the agent process of an
+idle, resumable session; the session is never ended (see `references/runtime-operations.md`). Web
+Settings → General → "Pause idle agents after" edits it, and the general settings HTTP/UDS DTO
+carries it as `config.idle_release_after` (omit it on update to keep the current value). It is
+restart-required. `session.limits.timeout` and the DTO field `config.session_timeout` are deprecated
+and enforce nothing: no session ends when they elapse. They stay readable and writable through v0.4
+(a non-zero value logs a load warning, and a PATCH that sends a non-zero `session_timeout` gets a
+`Warning` header) and are removed in v0.5.0. Never set them to bound session lifetime.
+
+## Session Messaging
+
+`[session.messaging]` bounds agent-to-agent messages sent with `compozy__session_prompt` (or
+`compozy session prompt --from-session`). Values apply when the daemon starts.
+
+- `rate_limit_messages` (default `30`, 1–10000, `-1` disables) and `rate_limit_window` (default `10m`,
+  1s–24h): the per sender→target budget, counted from durable admissions. A send past it returns
+  `message_rate_limited` (HTTP 429) with `limit`, `window`, and `retry_after_seconds`; only that send
+  is refused.
+- `reply_watch_ttl` (default `24h`, 1m–720h; `0s` never expires): an unanswered `notify_on_complete`
+  watch wakes its sender once with the `expired` outcome and stops keeping the sender awake.
+- `queue_promote_after` (default `2m`, 10s–24h; `0s` disables): a queued agent message waiting on a
+  target in one turn this long is injected as steer when the provider supports injection and no
+  operator input waits. A failed injection returns to after-turn queue delivery; it never interrupts.
+
+## Retired Memory And Compaction Settings
+
+A `config.toml` (global, profile, or workspace) that still carries settings of the removed memory and
+CompozyOS-side compaction features loads without failing. On load, CompozyOS archives these settings
+in place: the `memory` table and its sub-tables, `roles.dream`, `roles.checkpoint_summary`,
+`roles.memory_extractor`, `roles.memory_controller`, `session.compaction`, every
+`[[automation.triggers]]` entry whose `event` is `memory.consolidated`, and the hook matcher keys
+`compaction_reason` and `compaction_strategy`. The values move, commented and inactive, under
+`# Archived retired memory and compaction settings; these values are inactive.` at the end of the same
+file, every other setting is kept, the daemon logs `config.retired_keys_archived` once, and the next load
+finds nothing to archive. The archive is a v0.6.0 removal shim. It is non-fatal: if the rewrite is refused
+because the file changed concurrently, or fails because the file or its directory is not writable, the
+loader logs the warning `config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired
+values inactive, leaves the file untouched, and retries on the next load. Treat that warning as work to
+do: fix the permission or finish the edit. (A file whose only retired settings are the older
+`skills.marketplace` values still fails the load when its rewrite cannot publish.) `compozy config set` on
+a retired key is still refused.
+
+The same retirement is ignored, not rejected, in other places: `compaction_reason` and
+`compaction_strategy` in an `AGENT.md` or `SKILL.md` hook matcher are dropped with one
+`agent.retired_entries_ignored` (`agent`, `entries`) or `skills.retired_entries_ignored` warning per
+owner and the file is not rewritten (other invalid fields still fail); an extension manifest entry for
+the removed memory surface, or an extension automation resource whose trigger `event` is
+`memory.consolidated`, is dropped or skipped with `extension.retired_entries_ignored` while the rest of
+the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.0.
 
 ## Auto-Title Role
 
@@ -254,17 +332,31 @@ lifecycle rule, and do not mutate the policy bound to the running daemon.
 sessions after their first persisted assistant response. The remaining `roles.auto_title.*` fields
 select its agent, provider, model, reasoning effort, and ordered fallback routes. Role changes are
 Live desired state for later invocations at global or workspace scope. Explicit names win; disabled
-or failed generation leaves the session unnamed.
+or failed generation leaves the session unnamed. Generation has a fixed 60-second deadline with no
+configuration key.
 
 Other `[roles]` routing keys and the fallback-chain rules live in `references/runtime-operations.md` (Background roles).
 
+A fallback route may name an account with `command`, using the same grammar as
+`providers.<name>.command` and `agent.command`: shell-style quoting, no shell, and leading `NAME=value`
+tokens become private environment forwarded literally (no `~` or `$HOME` expansion — use absolute
+paths). Empty `command` inherits the agent's command on its own provider, otherwise the route
+provider's command. Parsing is the only validation (no route-count or length limit):
+
+    [[roles.auto_title.fallback_chain]]
+    provider = "claude"
+    model = "haiku-4-5"
+    command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+
+`compozy roles show auto_title` prints the `command` column; `role.fallback.used` records only
+`provider_command_fingerprint` (`sha256:`), never the raw command.
+
 ## Persona Defaults
 
-Persona defaults select the agent, provider, and sandbox used for new work. Read them through
+Persona defaults select the agent and provider used for new work. Read them through
 `GET /api/settings/persona` and update them through `PATCH /api/settings/persona`. Omit `scope` for
 the user layer; use `scope=profile&profile=<name>` for a personal profile layer. The response names
-the effective scope, profile owner, available scopes, write target, and the `agent`, `provider`, and
-`sandbox` defaults. Profile updates affect only later work started under that profile.
+the effective scope, profile owner, available scopes, write target, and the `agent` and `provider` defaults. Profile updates affect only later work started under that profile.
 
 ## Command Palette
 
@@ -314,8 +406,16 @@ profile's mute set with `GET/PATCH /api/settings/attention?scope=user`; use
 event, but its attention rows and counts remain unchanged. Workspace removal deletes every profile's
 mute row through the workspace foreign key.
 
-Use `compozy config get|set attention.toasts|sound|system` for global delivery controls, or the typed
-Settings route above for the complete view. The title count is always on and is not a config key.
+Omit `config.muted_workspaces` when changing only delivery channels; this preserves the selected
+profile's current mute set. An explicit array replaces that set, and an empty array clears it.
+A replacement referencing a removed or unknown workspace is refused with 404 and preserves the
+previous complete policy. The open Web policy rereads after the workspace catalog observes deletion.
+
+Use `compozy config get attention.toasts|sound|system --profile default` to read global delivery
+controls and `compozy config set attention.toasts|sound|system <value> --scope user` to change them.
+An omitted write scope selects the active owner, which can be a profile overlay rather than the
+global policy. The typed Settings route above provides the complete view. The title count is always
+on and is not a config key.
 
 ## Terminal
 

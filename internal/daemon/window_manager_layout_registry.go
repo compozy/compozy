@@ -1,10 +1,11 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -84,8 +85,11 @@ func (r *windowManagerLayoutRegistry) List(
 	for _, record := range selected {
 		resource := windowmanager.CloneLayoutResource(record.Spec)
 		resource.Document.WorkspaceID = workspaceID
+		resource, _ = reconcileWindowLayoutResource(resource)
 		visible = append(visible, resource)
 	}
-	sort.Slice(visible, func(left, right int) bool { return visible[left].ID < visible[right].ID })
+	slices.SortFunc(visible, func(a, b windowmanager.LayoutResource) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 	return visible, nil
 }

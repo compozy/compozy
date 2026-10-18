@@ -513,7 +513,7 @@ func TestRosterContract(t *testing.T) {
 		store := &pagedRouteEvidenceStore{events: events}
 		service := &computedRunReadService{store: store}
 
-		got, err := service.loadRouteEvidence(context.Background(), "ws", "run-a")
+		got, err := service.loadRouteEvidence(t.Context(), "ws", "run-a")
 		if err != nil {
 			t.Fatalf("loadRouteEvidence() error = %v", err)
 		}

@@ -6,12 +6,9 @@ import { filterAgentSessionsByStatus, validateAgentDetailSearch } from "../agent
 import { validateAgentSettingsSearch } from "../agent-settings-search";
 import { resolveAgentRuntimeValue } from "../agent-effective-runtime";
 import {
-  countPromptWords,
   formatAbsentList,
   formatAbsentListLabels,
   formatAbsentOverride,
-  formatPromptWordCount,
-  formatSkillsPolicyLine,
 } from "../agent-absent-value";
 import {
   buildSettingsDraftFromAgent,
@@ -97,7 +94,9 @@ describe("validateAgentSettingsSearch", () => {
   it("Should default invalid section to basics", () => {
     expect(validateAgentSettingsSearch({})).toEqual({ section: "basics" });
     expect(validateAgentSettingsSearch({ section: "nope" })).toEqual({ section: "basics" });
-    expect(validateAgentSettingsSearch({ section: "danger" })).toEqual({ section: "danger" });
+    expect(validateAgentSettingsSearch({ section: "mcp" })).toEqual({ section: "mcp" });
+    // Delete lives at the bottom of Basics; the retired `danger` deep link lands there.
+    expect(validateAgentSettingsSearch({ section: "danger" })).toEqual({ section: "basics" });
   });
 });
 
@@ -109,16 +108,6 @@ describe("agent-absent-value", () => {
     expect(formatAbsentList(0)).toBe("None");
     expect(formatAbsentListLabels([])).toBe("None");
     expect(formatAbsentListLabels(["github", "linear"])).toBe("github · linear");
-  });
-
-  it("Should derive prompt word count and skills policy lines", () => {
-    expect(countPromptWords("one two three")).toBe(3);
-    expect(formatPromptWordCount("one two")).toBe("~2 words");
-    expect(formatSkillsPolicyLine(undefined)).toBe("All skills enabled");
-    expect(formatSkillsPolicyLine({ disabled: ["copywriting"] })).toBe(
-      "1 skill disabled (copywriting)"
-    );
-    expect(formatSkillsPolicyLine({ disabled: ["a", "b"] })).toBe("2 skills disabled");
   });
 });
 
@@ -212,6 +201,42 @@ describe("agent-settings-draft", () => {
       "ws_alpha"
     );
     expect(params?.agent.acp_options).toEqual([{ id: "thinking", bool_value: false }]);
+  });
+
+  // Invariant: a Web edit replaces the whole definition, so the authored
+  // fallback chain read from the agent must reach the replacement payload
+  // unchanged (minus read-only projection fields) even without route controls.
+  it("Should carry the authored fallback chain through an unrelated settings edit", () => {
+    const agent = makeAgent({
+      fallback_chain: [
+        {
+          provider: "codex",
+          model: "gpt-5.4",
+          reasoning_effort: "high",
+          speed: "fast",
+          acp_options: [{ id: "thinking", bool_value: true }],
+          command: "SEAT=2 codex --acp",
+          command_fingerprint: "sha256:abc",
+        },
+        { provider: "claude", model: "sonnet" },
+      ],
+    });
+
+    const draft = buildSettingsDraftFromAgent(agent);
+    expect(isAgentSettingsDraftDirty(draft, agent)).toBe(false);
+
+    const params = buildUpdateAgentParams({ ...draft, prompt: "Updated." }, "ws_alpha");
+    expect(params?.agent.fallback_chain).toEqual([
+      {
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoning_effort: "high",
+        speed: "fast",
+        acp_options: [{ id: "thinking", bool_value: true }],
+        command: "SEAT=2 codex --acp",
+      },
+      { provider: "claude", model: "sonnet" },
+    ]);
   });
 
   it("Should preserve the authored Fast default in the settings update body", () => {

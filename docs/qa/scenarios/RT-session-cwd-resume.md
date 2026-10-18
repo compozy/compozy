@@ -1,27 +1,27 @@
 ---
 id: RT-session-cwd-resume
 area: RT
-title: Preserve a session working directory across sandbox launch and resume
+title: Preserve a session working directory across launch and resume
 persona: Théo
 journey: J-11
-expected: A session created with a valid working directory below its workspace launches in the corresponding sandbox runtime directory, persists that choice, and resumes in the same directory without escaping the workspace boundary.
+expected: A session created with a valid working directory below its workspace launches in that directory, persists the choice, and resumes in the same directory without escaping the workspace boundary.
 entry_points: session create CWD; daemon session reactivation; provider process launch
-qa_status: blocked-verify
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-session-context-rebuild
 ---
 
-Create a nested workspace directory with a file whose relative path is unique. Start a sandboxed
-session with that directory as its CWD and confirm the provider observes the mapped runtime path.
-Stop and reactivate the session, then confirm the provider starts in the same nested directory and
-can still address the file relative to its CWD. An outside-workspace CWD must remain rejected.
+A session created with a valid working directory below its workspace launches in that directory, persists the choice, and resumes in the same directory without escaping the workspace boundary.
 
-QA impact 2026-07-15: the integration lane exposed that sandbox launch replaced an explicit nested
-CWD with the workspace root and resume did not persist it when no creation store was configured.
-Production now maps and persists the validated session CWD. Planning flag only; no QA replay ran in
-this implementation slice.
+Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

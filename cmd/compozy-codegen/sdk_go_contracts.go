@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
@@ -68,7 +68,7 @@ func checkSDKGoContractsWith(path string, generate func() (sdkgo.Result, error))
 		}
 		actual = append(actual, entry.Name())
 	}
-	sort.Strings(actual)
+	slices.Sort(actual)
 	if expected := result.FileNames(); !equalStrings(actual, expected) {
 		return fmt.Errorf("%s: %w; file set is %v, want %v", path, ErrStaleGeneratedFile, actual, expected)
 	}

@@ -20,6 +20,7 @@ import tempfile
 import threading
 import types
 from pathlib import Path
+from unittest.mock import patch
 
 
 def load_bootstrap_module():
@@ -123,7 +124,42 @@ def check_allocated_process_teardown(repo_root: Path) -> None:
                 reaper.join(timeout=5)
 
 
+def check_teardown_signal_races() -> None:
+    """Final process liveness owns the verdict, including after signal denial."""
+    module = load_script_module(Path(__file__).with_name("teardown-qa-env.py"), "teardown_qa_env")
+    pid = 987654
+    for denied_signal in (module.signal.SIGTERM, module.signal.SIGKILL):
+        for survives in (False, True):
+            alive = True
+
+            def kill(target, sig):
+                nonlocal alive
+                if target != pid:
+                    raise AssertionError(f"unexpected signal target: {target}")
+                if not alive:
+                    raise ProcessLookupError()
+                if sig == denied_signal:
+                    alive = survives
+                    raise PermissionError()
+
+            process_table = subprocess.CompletedProcess([], 0, f"{pid} 0 fixture\n", "")
+            result = module.TeardownResult(label="signal-race")
+            with patch.object(module.subprocess, "run", return_value=process_table), \
+                    patch.object(module.os, "kill", side_effect=kill):
+                module.signal_pids({pid: "registered fixture"}, 0, result, False)
+            if result.clean != (not survives):
+                raise AssertionError(f"incorrect final liveness verdict: {result}")
+            if survives:
+                if len(result.survivors) != 1 or result.survivors[0]["pid"] != pid or result.killed:
+                    raise AssertionError(f"live process must remain a single blocking survivor: {result}")
+                if "EPERM" not in result.survivors[0]["error"]:
+                    raise AssertionError(f"signal denial diagnostic was lost: {result}")
+            elif result.survivors or [entry["pid"] for entry in result.killed] != [pid]:
+                raise AssertionError(f"terminated process retained as a survivor: {result}")
+
+
 def main() -> None:
+    check_teardown_signal_races()
     module = load_bootstrap_module()
     repo_root = Path(__file__).resolve().parents[5]
     check_allocated_process_teardown(repo_root)
@@ -175,7 +211,6 @@ def main() -> None:
     for key in (
         "agents",
         "differentiated_roles",
-        "channels",
         "provider_backed_sessions",
         "cross_surface_objects",
         "disruption_probes",
@@ -196,25 +231,6 @@ def main() -> None:
             )
         if (runtime_workspace_path / "qa-artifacts").exists():
             raise AssertionError("runtime workspace exposes QA artifacts to agents under test")
-        global_knowledge = Path("knowledge/global/launch-week-brief.md")
-        for workspace_name in (
-            "launch-hq",
-            "product-studio",
-            "growth-studio",
-            "platform-control",
-            "finance-command",
-            "merchant-success",
-            "risk-ops",
-        ):
-            projected = runtime_workspace_path / "workspaces" / workspace_name / global_knowledge
-            if not projected.is_file():
-                raise AssertionError(f"global knowledge was not projected into {workspace_name}")
-        risk_memo = Path("knowledge/workspace/executive-risk-memo.md")
-        if not (runtime_workspace_path / "workspaces" / "launch-hq" / risk_memo).is_file():
-            raise AssertionError("launch-hq is missing its declared scoped knowledge")
-        if (runtime_workspace_path / "workspaces" / "product-studio" / risk_memo).exists():
-            raise AssertionError("scoped launch-hq knowledge leaked into product-studio")
-
         open_tasks = json.loads((workspace_path / ".compozy" / "tasks" / "open-tasks.json").read_text())
         runtime_ids = [task.get("runtime_id") for task in open_tasks]
         expected_ids = [f"task-northstar-pay-{index:03d}" for index in range(1, 13)]

@@ -1,12 +1,12 @@
 package task
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
-	"sort"
+	"slices"
 	"strings"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -43,14 +43,12 @@ func (m *Service) timelineItemsFromRecords(
 		})
 	}
 
-	sort.SliceStable(items, func(i, j int) bool {
-		if !items[i].Timestamp.Equal(items[j].Timestamp) {
-			return items[i].Timestamp.Before(items[j].Timestamp)
-		}
-		if items[i].Sequence != items[j].Sequence {
-			return items[i].Sequence < items[j].Sequence
-		}
-		return items[i].EventID < items[j].EventID
+	slices.SortStableFunc(items, func(a, b TimelineItem) int {
+		return cmp.Or(
+			a.Timestamp.Compare(b.Timestamp),
+			cmp.Compare(a.Sequence, b.Sequence),
+			cmp.Compare(a.EventID, b.EventID),
+		)
 	})
 	return items, nil
 }
@@ -67,29 +65,28 @@ func timelineReason(payload json.RawMessage) string {
 
 func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 	summary := &RunSummary{
-		ID:                           run.ID,
-		TaskID:                       run.TaskID,
-		Status:                       run.Status,
-		Attempt:                      int(run.Attempt),
-		RecoveryCount:                int(run.RecoveryCount),
-		PreviousRunID:                run.PreviousRunID,
-		FailureKind:                  run.FailureKind,
-		MaxAttempts:                  maxAttempts,
-		SessionID:                    run.SessionID,
-		WorktreeID:                   run.WorktreeIDValue(),
-		ResolvedWorktreeMode:         run.ResolvedWorktreeModeValue(),
-		ResolvedWorktreeRef:          run.ResolvedWorktreeRefValue(),
-		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:               run.ClaimTokenHash,
-		LeaseUntil:                   run.LeaseUntil,
-		HeartbeatAt:                  run.HeartbeatAt,
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
-		DesignationGroupID:           run.DesignationGroupID,
-		QueuedAt:                     run.QueuedAt,
-		ClaimedAt:                    run.ClaimedAt,
-		StartedAt:                    run.StartedAt,
-		EndedAt:                      run.EndedAt,
-		Error:                        run.Error,
+		ID:                   run.ID,
+		TaskID:               run.TaskID,
+		Status:               run.Status,
+		Attempt:              int(run.Attempt),
+		RecoveryCount:        int(run.RecoveryCount),
+		PreviousRunID:        run.PreviousRunID,
+		FailureKind:          run.FailureKind,
+		MaxAttempts:          maxAttempts,
+		SessionID:            run.SessionID,
+		WorktreeID:           run.WorktreeIDValue(),
+		ResolvedWorktreeMode: run.ResolvedWorktreeModeValue(),
+		ResolvedWorktreeRef:  run.ResolvedWorktreeRefValue(),
+		ClaimedBy:            cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:       run.ClaimTokenHash,
+		LeaseUntil:           run.LeaseUntil,
+		HeartbeatAt:          run.HeartbeatAt,
+		DesignationGroupID:   run.DesignationGroupID,
+		QueuedAt:             run.QueuedAt,
+		ClaimedAt:            run.ClaimedAt,
+		StartedAt:            run.StartedAt,
+		EndedAt:              run.EndedAt,
+		Error:                run.Error,
 	}
 	ApplyRunDesignationSummary(summary, run)
 	return summary
@@ -126,14 +123,8 @@ func (m *Service) bestEffortRunOperationalSummary(ctx context.Context, sessionID
 
 func summarizeSessionEvents(events []store.SessionEvent) RunOperationalSummary {
 	sorted := append([]store.SessionEvent(nil), events...)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		if sorted[i].Sequence != sorted[j].Sequence {
-			return sorted[i].Sequence < sorted[j].Sequence
-		}
-		if !sorted[i].Timestamp.Equal(sorted[j].Timestamp) {
-			return sorted[i].Timestamp.Before(sorted[j].Timestamp)
-		}
-		return sorted[i].ID < sorted[j].ID
+	slices.SortStableFunc(sorted, func(a, b store.SessionEvent) int {
+		return cmp.Or(cmp.Compare(a.Sequence, b.Sequence), a.Timestamp.Compare(b.Timestamp), cmp.Compare(a.ID, b.ID))
 	})
 
 	summary := RunOperationalSummary{}
@@ -171,8 +162,7 @@ func summarizeSessionEvents(events []store.SessionEvent) RunOperationalSummary {
 	}
 
 	if len(toolCalls) > 0 {
-		count := int64(len(toolCalls))
-		summary.ToolCallCount = &count
+		summary.ToolCallCount = new(int64(len(toolCalls)))
 	}
 	return summary
 }

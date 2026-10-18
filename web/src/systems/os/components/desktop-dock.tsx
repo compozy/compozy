@@ -1,84 +1,98 @@
 import { useDesktopDock } from "../hooks/use-desktop-dock";
 import { useTerminalDockRunning } from "../hooks/use-terminal-dock-running";
-import type { ReactNode } from "react";
-
 import { cn } from "@compozy/ui";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
 import type { OsAppId } from "../lib/os-types";
-import { OsDockZone } from "./os-dock";
+import { OsDock } from "./os-dock";
 import { OsDockAppMenu } from "./os-dock-app-menu";
+import { OsRailFoot } from "./os-dock-rail-foot";
 import { OsDockTabBar } from "./os-dock-tab-bar";
 
 export interface DesktopDockProps {
   onNewSession: () => void;
+  /** Global scope with no sessions: the Sessions launcher opens the workspace switcher. */
+  onPickProject?: () => void;
   badges: OsAttentionBadges;
   /** Catalog truth: a live terminal, independent of an open window. */
   terminalLive?: boolean;
   /** Modal overlays own keyboard and pointer interaction until they close. */
   contextMenusEnabled: boolean;
-  pager: ReactNode;
   /** First run: the dock is present but asleep until setup commits. */
   dormant?: boolean;
+  /** Profile switcher, supplied by the shell; the rail foot (or compact tab bar) hosts it. */
+  profileSwitcher?: React.ReactNode;
+  onOpenSettings: () => void;
 }
 
-/** Zone-level wake — the dock lifts back as one surface when setup finishes. */
-const DORMANT = "translate-y-1.5 opacity-50 saturate-50";
+/** Wake as one surface — the dock brightens back when setup finishes. */
+const DORMANT = "opacity-50 saturate-50";
 const WAKE =
-  "transition-[opacity,filter,transform] duration-shell-slow ease-spring motion-reduce:transition-none";
+  "transition-[opacity,filter] duration-shell-slow ease-spring motion-reduce:transition-none";
 
 /**
- * The wired dock: floating renders the centered glass strip with proximity
- * magnification; compact renders the full-width bottom tab bar (os-v2.css
- * mobile block). Entries, activation semantics, and the magnification gates
- * live in `useDesktopDock`.
+ * The wired dock: floating renders the left rail beside the desktop; compact
+ * renders the full-width bottom tab bar. Each claims its own row/column of the
+ * shell grid (`DesktopShellScopedBody`) and carries the rail-foot controls.
+ * Entries and activation semantics live in `useDesktopDock`.
  */
 export function DesktopDock({
   onNewSession,
+  onPickProject,
   badges,
   terminalLive,
   contextMenusEnabled,
-  pager,
   dormant = false,
+  profileSwitcher,
+  onOpenSettings,
 }: DesktopDockProps) {
-  const { entries, presentation, magnify, commandsAvailable, handleSelect } = useDesktopDock(
+  const { entries, presentation, commandsAvailable, handleSelect, handleLaunch } = useDesktopDock(
     badges,
-    { onNewSession, terminalLive }
+    {
+      onNewSession,
+      onPickProject,
+      terminalLive,
+    }
   );
   const dormancy = cn(WAKE, dormant && DORMANT);
 
   if (presentation === "compact") {
     return (
       <OsDockTabBar
-        className={dormancy}
+        className={cn("col-span-full row-start-3", dormancy)}
         items={entries}
-        leading={pager}
         onSelect={handleSelect}
         disabled={!commandsAvailable}
-        onNewSession={onNewSession}
+        trailing={
+          <OsRailFoot
+            profileSwitcher={profileSwitcher}
+            onOpenSettings={onOpenSettings}
+            tipSide="top"
+          />
+        }
       />
     );
   }
 
   return (
-    <OsDockZone
-      className={dormancy}
+    <OsDock
+      className={cn("col-start-1 row-start-2", dormancy)}
       items={entries}
-      leading={pager}
       onSelect={handleSelect}
       disabled={!commandsAvailable}
       renderItemMenu={
         !commandsAvailable || !contextMenusEnabled
           ? undefined
-          : (item, children) =>
-              item.id === "session" ? (
-                children
-              ) : (
-                <OsDockAppMenu appId={item.id as OsAppId}>{children}</OsDockAppMenu>
-              )
+          : (item, children) => (
+              <OsDockAppMenu
+                appId={item.id as OsAppId}
+                onLaunch={placement => handleLaunch(item.id, placement)}
+              >
+                {children}
+              </OsDockAppMenu>
+            )
       }
-      onNewSession={onNewSession}
-      magnify={magnify}
+      foot={<OsRailFoot profileSwitcher={profileSwitcher} onOpenSettings={onOpenSettings} />}
     />
   );
 }

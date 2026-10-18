@@ -33,7 +33,7 @@ function ExtensionSkippedComponents({
     >
       <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
         <Eyebrow className="text-muted">Skipped</Eyebrow>
-        <span className="font-mono text-xs text-faint tabular-nums">
+        <span className="font-mono text-eyebrow text-faint tabular-nums">
           {skippedDiagnostics.length}
         </span>
       </div>
@@ -42,7 +42,7 @@ function ExtensionSkippedComponents({
           className="px-4 pb-2 text-small-body text-muted"
           data-testid="extension-skipped-zero-resources"
         >
-          0 resources ingested
+          Nothing from this package could be loaded.
         </p>
       ) : null}
       <div className="divide-y divide-line-soft">
@@ -52,7 +52,7 @@ function ExtensionSkippedComponents({
               <Pill mono size="xs" tone="warning">
                 {diagnostic.severity}
               </Pill>
-              <span className="font-mono text-xs text-fg-strong">
+              <span className="font-mono text-eyebrow text-fg">
                 {extensionDiagnosticScope(diagnostic)}
               </span>
             </div>

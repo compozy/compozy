@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -108,7 +107,7 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Encode() error = %v", err)
 			}
-			_, err = codec.DecodeAndValidate(context.Background(), scope, raw)
+			_, err = codec.DecodeAndValidate(t.Context(), scope, raw)
 			if err == nil {
 				t.Fatal("DecodeAndValidate() error = nil, want validation error")
 			}
@@ -179,6 +178,10 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 				}},
 			},
 			MCPServers: []MCPServer{stdioServer, remoteServer},
+			FallbackChain: []RoleFallback{
+				{Provider: " acpmock ", Model: " route-model ", Command: " driver --agent a "},
+				{Provider: "acpmock", Model: "route-model", Command: "driver --agent b"},
+			},
 		}
 		spec.SetSpeed(" fast ")
 		spec.SetACPOptions([]ACPOptionSelection{
@@ -191,7 +194,7 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}
 
 		got, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
 			raw,
 		)
@@ -236,6 +239,11 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 			if !reflect.DeepEqual(got.MCPServers[idx], want) {
 				t.Fatalf("MCPServers[%d] = %#v, want standalone canonical spec %#v", idx, got.MCPServers[idx], want)
 			}
+		}
+		if len(got.FallbackChain) != 2 || got.FallbackChain[0].Provider != "acpmock" ||
+			got.FallbackChain[0].Command != "driver --agent a" ||
+			got.FallbackChain[1].Command != "driver --agent b" {
+			t.Fatalf("FallbackChain = %#v, want both declared routes kept in order", got.FallbackChain)
 		}
 		if got.Capabilities == nil || len(got.Capabilities.Capabilities) != 1 {
 			t.Fatalf("Capabilities = %#v, want one normalized capability", got.Capabilities)
@@ -293,7 +301,7 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}`)
 
 		got, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
 			raw,
 		)
@@ -339,7 +347,7 @@ func canonicalMCPServerResourceSpecForAgentTest(t *testing.T, spec MCPServer) MC
 		t.Fatalf("MCP codec Encode() error = %v", err)
 	}
 	got, err := codec.DecodeAndValidate(
-		context.Background(),
+		t.Context(),
 		resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
 		raw,
 	)

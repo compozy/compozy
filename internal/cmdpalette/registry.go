@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 type Service struct {
@@ -119,10 +119,10 @@ func NewRegistry(
 		clients:          clients,
 		bindings:         bindings,
 		executor:         executor,
-		newID:            func() string { return "inv_" + uuid.NewString() },
+		newID:            func() string { return "inv_" + uuid.NewV4().String() },
 		now:              time.Now,
 		logger:           slog.Default(),
-		viewStreamEpoch:  "vse_" + uuid.NewString(),
+		viewStreamEpoch:  "vse_" + uuid.NewV4().String(),
 		viewAckBudget:    defaultViewHardAckBudget,
 		viewSessions:     make(map[string]*viewSession),
 		flights:          make(map[string]struct{}),

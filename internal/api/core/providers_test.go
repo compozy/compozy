@@ -111,7 +111,6 @@ func TestProviderAuthHandlers(t *testing.T) {
 			ProviderName: "native",
 			PreStartScope: authproviders.PreStartScope{
 				WorkspaceID: "workspace", ProfileID: "profile", HomeIdentity: t.TempDir(),
-				SandboxID: "sandbox", SandboxBackend: "local", SandboxProfile: "default",
 			},
 			LookPath:       func(string) (string, error) { return "/test/bin/provider-cli", nil },
 			ResolveCommand: resolver,
@@ -224,32 +223,6 @@ func TestProviderAuthHandlers(t *testing.T) {
 			t.Fatalf("AuthStatus.Message = %q, want %q", got, want)
 		}
 		if got, want := payload.RuntimeStrategy, contract.ProviderRuntimeStrategySessionConfig; got != want {
-			t.Fatalf("RuntimeStrategy = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should expose provider-managed runtime strategy", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := providerAuthTestConfig(t)
-		router := providerAuthTestRouter(t, &cfg, nil)
-		response := httptest.NewRecorder()
-		req := httptest.NewRequestWithContext(
-			testutil.Context(t),
-			http.MethodGet,
-			"/providers/openclaw",
-			http.NoBody,
-		)
-		router.ServeHTTP(response, req)
-
-		if response.Code != http.StatusOK {
-			t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
-		}
-		var payload contract.ProviderSummaryPayload
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(provider summary) error = %v", err)
-		}
-		if got, want := payload.RuntimeStrategy, contract.ProviderRuntimeStrategyProviderManaged; got != want {
 			t.Fatalf("RuntimeStrategy = %q, want %q", got, want)
 		}
 	})
@@ -571,9 +544,9 @@ func TestDiagnosticStatus(t *testing.T) {
 		t.Parallel()
 
 		got := diagnosticStatus([]contract.DiagnosticItem{{
-			ID:       "doctor.network.status",
-			Code:     contract.CodeNetworkDisabled,
-			Category: contract.CategoryNetwork,
+			ID:       "doctor.provider.status",
+			Code:     "provider.info",
+			Category: contract.CategoryProvider,
 			Severity: contract.SeverityInfo,
 		}})
 		if got != statusStateOK {

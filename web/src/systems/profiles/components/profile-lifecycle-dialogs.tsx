@@ -1,4 +1,8 @@
-import { isStalePlan, lifecycleErrorMessage } from "../hooks/use-profile-lifecycle";
+import {
+  createProfileErrors,
+  isStalePlan,
+  lifecycleErrorMessage,
+} from "../hooks/use-profile-lifecycle";
 import { useProfileLifecycleDialogs } from "../hooks/use-profile-lifecycle-dialogs";
 import { useProfileIconCatalog } from "../hooks/use-profile-icon-catalog";
 import { symbolPatch } from "../lib/profile-identity";
@@ -46,6 +50,7 @@ export function ProfileLifecycleDialogs({
   };
 
   if (intent.flow === "create") {
+    const errors = createProfileErrors(model.create.error, model.create.variables?.name);
     return (
       <ProfileCreateDialog
         catalog={catalog}
@@ -55,7 +60,8 @@ export function ProfileLifecycleDialogs({
         existingCount={profiles.length}
         lens={lens}
         isPending={model.create.isPending}
-        nameError={lifecycleErrorMessage(model.create.error)}
+        nameError={errors.nameError}
+        error={errors.error}
         initialName={intent.profile}
         onCreate={input =>
           model.create.mutate(
@@ -100,7 +106,7 @@ export function ProfileLifecycleDialogs({
         onNewNameChange={lifecycle.setRenameName}
         plan={model.renamePlan.data}
         planLoading={model.renamePlan.isFetching}
-        acceptedRepos={lifecycle.acceptedRepos}
+        acceptedRepos={model.acceptedRepos}
         onToggleRepo={lifecycle.toggleRepo}
         isPending={model.rename.isPending}
         error={
@@ -112,7 +118,7 @@ export function ProfileLifecycleDialogs({
               name: target,
               newName: lifecycle.renameName.trim(),
               planRevision,
-              repos: lifecycle.acceptedRepos,
+              repos: model.acceptedRepos,
             },
             {
               onSuccess: lifecycle.close,

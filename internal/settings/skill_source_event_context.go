@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -66,10 +67,7 @@ func (s *service) skillSourceEventRootCounts(
 	}
 	counts := make(map[string]int)
 	for _, status := range statuses {
-		slug := strings.TrimSpace(status.Spec.SourceSlug)
-		if slug == "" {
-			slug = compozyconfig.SkillSourceCompozy
-		}
+		slug := cmp.Or(strings.TrimSpace(status.Spec.SourceSlug), compozyconfig.SkillSourceCompozy)
 		counts[slug]++
 	}
 	return counts, nil
@@ -78,10 +76,7 @@ func (s *service) skillSourceEventRootCounts(
 func countSkillSourceRoots(roots []compozyconfig.SkillRootSpec) map[string]int {
 	counts := make(map[string]int)
 	for _, root := range roots {
-		slug := strings.TrimSpace(root.SourceSlug)
-		if slug == "" {
-			slug = compozyconfig.SkillSourceCompozy
-		}
+		slug := cmp.Or(strings.TrimSpace(root.SourceSlug), compozyconfig.SkillSourceCompozy)
 		counts[slug]++
 	}
 	return counts

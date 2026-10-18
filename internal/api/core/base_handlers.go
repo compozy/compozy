@@ -12,12 +12,11 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
-	"github.com/compozy/compozy/internal/memory"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
@@ -30,14 +29,11 @@ type BaseHandlerConfig struct {
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
+	Subagents                    session.SubagentService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
-	Network                      NetworkService
-	NetworkStore                 NetworkStore
-	NetworkUsage                 store.NetworkUsageStore
-	Coordination                 workspacepkg.CoordinationCommands
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -53,9 +49,8 @@ type BaseHandlerConfig struct {
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
+	TaskDesignations             TaskDesignationStore
 	Tasks                        TaskService
-	Bridges                      BridgeService
-	Notifications                NotificationPresetService
 	Profiles                     ProfileService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
@@ -95,12 +90,8 @@ type BaseHandlerConfig struct {
 	SkillExposures              store.SkillExposureRepository
 	SkillExposureEvents         store.EventSummaryStore
 	TaskActorContextResolver    TaskActorContextResolver
-	MemoryStore                 *memory.Store
-	DreamTrigger                DreamTrigger
-	MemoryExtractor             MemoryExtractorService
-	MemoryProviders             MemoryProviderService
-	MemorySessionLedger         MemorySessionLedgerService
 	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
+	HostLoad                    doctor.HostLoadSnapshotSource
 	DeadEntities                doctor.DeadEntitySource
 	Gateway                     GatewayService
 	GatewayPairingSource        string
@@ -121,14 +112,11 @@ type BaseHandlers struct {
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
+	Subagents                    session.SubagentService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
-	Network                      NetworkService
-	NetworkStore                 NetworkStore
-	NetworkUsage                 store.NetworkUsageStore
-	Coordination                 workspacepkg.CoordinationCommands
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -144,9 +132,8 @@ type BaseHandlers struct {
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
+	TaskDesignations             TaskDesignationStore
 	Tasks                        TaskService
-	Bridges                      BridgeService
-	Notifications                NotificationPresetService
 	Profiles                     ProfileService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
@@ -184,12 +171,8 @@ type BaseHandlers struct {
 	SkillExposures               store.SkillExposureRepository
 	SkillExposureEvents          store.EventSummaryStore
 	TaskActorContextResolver     TaskActorContextResolver
-	MemoryStore                  *memory.Store
-	DreamTrigger                 DreamTrigger
-	MemoryExtractor              MemoryExtractorService
-	MemoryProviders              MemoryProviderService
-	MemorySessionLedger          MemorySessionLedgerService
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
+	HostLoad                     doctor.HostLoadSnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
 	Gateway                      GatewayService
 	GatewayPairingSource         string
@@ -207,6 +190,7 @@ type BaseHandlers struct {
 	httpPort                  atomic.Int64
 	activeSessionStreams      atomic.Int64
 	windowManagerStreams      *windowManagerStreamLifecycle
+	eventStreams              *streamLifecycle
 	windowManagerPingInterval time.Duration
 	terminalStreams           *terminalStreamLifecycle
 	terminalCatalog           *terminalCatalog
@@ -222,6 +206,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
+	handlers.eventStreams = newStreamLifecycle("event")
 	handlers.windowManagerPingInterval = cfg.WindowManagerPingInterval
 	handlers.terminalStreams = newTerminalStreamLifecycle()
 	if cfg.Terminal != nil {
@@ -236,14 +221,11 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		TransportName:                strings.TrimSpace(cfg.TransportName),
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
+		Subagents:                    cfg.Subagents,
 		Sessions:                     cfg.Sessions,
 		SessionAcceptance:            cfg.SessionAcceptance,
 		DrainController:              cfg.DrainController,
 		SessionCatalog:               cfg.SessionCatalog,
-		Network:                      cfg.Network,
-		NetworkStore:                 cfg.NetworkStore,
-		NetworkUsage:                 cfg.NetworkUsage,
-		Coordination:                 cfg.Coordination,
 		Observer:                     cfg.Observer,
 		SchemaStreams:                cfg.SchemaStreams,
 		Resources:                    cfg.Resources,
@@ -259,9 +241,8 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Clarify:                      cfg.Clarify,
 		Automation:                   cfg.Automation,
 		Loops:                        cfg.Loops,
+		TaskDesignations:             cfg.TaskDesignations,
 		Tasks:                        cfg.Tasks,
-		Bridges:                      cfg.Bridges,
-		Notifications:                cfg.Notifications,
 		Profiles:                     cfg.Profiles,
 		SupportBundles:               cfg.SupportBundles,
 		Settings:                     cfg.Settings,
@@ -292,12 +273,8 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		SkillExposures:               cfg.SkillExposures,
 		SkillExposureEvents:          cfg.SkillExposureEvents,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
-		MemoryStore:                  cfg.MemoryStore,
-		DreamTrigger:                 cfg.DreamTrigger,
-		MemoryExtractor:              cfg.MemoryExtractor,
-		MemoryProviders:              cfg.MemoryProviders,
-		MemorySessionLedger:          cfg.MemorySessionLedger,
 		RuntimeMemory:                cfg.RuntimeMemory,
+		HostLoad:                     cfg.HostLoad,
 		DeadEntities:                 cfg.DeadEntities,
 		Gateway:                      cfg.Gateway,
 		GatewayPairingSource:         strings.TrimSpace(cfg.GatewayPairingSource),
@@ -399,6 +376,9 @@ func (h *BaseHandlers) SetStreamDone(done <-chan struct{}) {
 	h.settingsMu.Unlock()
 	if h.windowManagerStreams != nil {
 		h.windowManagerStreams.reset()
+	}
+	if h.eventStreams != nil {
+		h.eventStreams.reset()
 	}
 	if h.terminalStreams != nil {
 		h.terminalStreams.reset()

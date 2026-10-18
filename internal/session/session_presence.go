@@ -151,8 +151,23 @@ func (m *Manager) settleSessionAttention(
 	if at.IsZero() {
 		at = m.now().UTC()
 	}
+	if service := m.subagentService(); service != nil {
+		summaries, err := service.Summaries(ctx, []string{sessionID})
+		if err != nil {
+			return err
+		}
+		if summaries[sessionID].Live > 0 {
+			return nil
+		}
+	}
 	m.presenceMu.Lock()
 	seen := m.hasLivePresenceLocked(sessionID, at)
+	if child, ok := m.Get(sessionID); ok {
+		info := child.Info()
+		if info.Lineage != nil && info.Lineage.SpawnRole == store.SubagentSpawnRole {
+			seen = true
+		}
+	}
 	commit, err := m.attentionStore.MarkSessionSettled(ctx, sessionID, seen, at)
 	if err == nil {
 		m.applyAttentionProjection(sessionID, commit.After)

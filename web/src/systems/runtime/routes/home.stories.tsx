@@ -50,12 +50,6 @@ export const Degraded: Story = {
           HttpResponse.json({
             ...statusFixture,
             health: { ...statusFixture.health, status: "degraded" },
-            memory: {
-              ...statusFixture.memory,
-              dream_enabled: false,
-              global_files: 0,
-              workspace_files: 0,
-            },
           })
         ),
       ],

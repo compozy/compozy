@@ -14,8 +14,9 @@ export interface GatewayStatusChipProps {
 }
 
 /**
- * Status chip for any gateway state that comes from the daemon. Tint tokens
- * only — a reachability state is information, not a banner.
+ * Status readout for any gateway state that comes from the daemon: a toned dot
+ * beside muted text, never a plate — a reachability state is information, not
+ * a button or a banner.
  */
 export function GatewayStatusChip({
   label,
@@ -24,7 +25,8 @@ export function GatewayStatusChip({
   "data-testid": testId,
 }: GatewayStatusChipProps) {
   return (
-    <Pill data-testid={testId} size="sm" tone={tone}>
+    <Pill data-testid={testId} form="plain" tone={tone}>
+      <Pill.Dot />
       {label}
       {detail ? <span className="sr-only"> — {detail}</span> : null}
     </Pill>

@@ -78,10 +78,8 @@ func worktreeEventSummary(event worktree.LifecycleEvent) store.EventSummary {
 		WorkspaceID: event.WorkspaceID,
 		Type:        event.Name,
 		Outcome:     outcome,
-		EventCorrelation: store.EventCorrelation{
-			WorktreeID: event.WorktreeID,
-			RunID:      event.RunID,
-		},
+		WorktreeID:  event.WorktreeID,
+		RunID:       event.RunID,
 	}
 	summary.SetContent(content)
 	return summary

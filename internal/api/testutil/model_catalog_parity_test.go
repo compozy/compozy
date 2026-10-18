@@ -152,7 +152,7 @@ func newParityHTTPRouter(
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 	if _, err := httpapi.New(
@@ -186,7 +186,7 @@ func newParityUDSRouter(
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	homePaths := newShortParityHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := testutil.ConfigForTest(homePaths)
 	if _, err := udsapi.New(
 		udsapi.WithEngine(engine),
 		udsapi.WithHomePaths(homePaths),
@@ -209,7 +209,7 @@ func newParityUDSRouter(
 func performParityRequest(t *testing.T, handler http.Handler, method string, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	request := httptest.NewRequestWithContext(context.Background(), method, path, http.NoBody)
+	request := httptest.NewRequestWithContext(t.Context(), method, path, http.NoBody)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
@@ -224,7 +224,7 @@ func performParityJSONRequest(
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
-	request := httptest.NewRequestWithContext(context.Background(), method, path, bytes.NewReader(body))
+	request := httptest.NewRequestWithContext(t.Context(), method, path, bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)

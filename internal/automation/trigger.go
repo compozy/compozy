@@ -165,18 +165,6 @@ func (r WebhookRequest) Validate(path string) error {
 	return nil
 }
 
-// MemoryConsolidatedEvent is the observer-facing completion payload used for normalized memory ingress.
-type MemoryConsolidatedEvent struct {
-	WorkspaceID string         `json:"workspace_id,omitempty"`
-	Timestamp   time.Time      `json:"timestamp"`
-	Data        map[string]any `json:"data,omitempty"`
-}
-
-// MemoryConsolidationObserver receives dream consolidation completions at the trigger-engine boundary.
-type MemoryConsolidationObserver interface {
-	OnMemoryConsolidated(ctx context.Context, event MemoryConsolidatedEvent) error
-}
-
 // TriggerEngine matches normalized activations against registered triggers and dispatches runs.
 type TriggerEngine struct {
 	dispatcher TriggerDispatcher

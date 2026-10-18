@@ -1,12 +1,13 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -21,6 +22,32 @@ type workspaceAgentEntries struct {
 	WorkspaceRoot string
 	Config        compozyconfig.Config
 	Diagnostics   []workspacepkg.AgentDiagnostic
+}
+
+func (h *BaseHandlers) globalAgentEntries(
+	ctx context.Context,
+	profileID string,
+	profileName string,
+) (workspaceAgentEntries, error) {
+	cfg, err := h.activeConfig(ctx)
+	if err != nil {
+		return workspaceAgentEntries{}, err
+	}
+	resolved := workspaceAgentEntries{Config: cfg}
+	if h.AgentCatalog != nil {
+		resolved.Entries, err = h.AgentCatalog.ListAgentsForWorkspace(ctx, &workspacepkg.ResolvedWorkspace{
+			ProfileID: profileID, ProfileName: profileName,
+		})
+		return resolved, err
+	}
+	defs, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, h.HomePaths, profileName)
+	if err != nil {
+		return workspaceAgentEntries{}, err
+	}
+	for _, def := range defs {
+		resolved.Entries = append(resolved.Entries, h.agentCatalogEntryFromDef(def, ""))
+	}
+	return resolved, nil
 }
 
 func (h *BaseHandlers) createAgentDraftAndPath(
@@ -137,20 +164,6 @@ func (h *BaseHandlers) workspaceAgentDef(
 	)
 }
 
-func (h *BaseHandlers) respondAgentDefs(
-	c *gin.Context,
-	agentDefs []compozyconfig.AgentDef,
-	cfg *compozyconfig.Config,
-	workspaceID string,
-	diagnostics ...[]workspacepkg.AgentDiagnostic,
-) {
-	entries := make([]AgentCatalogEntry, 0, len(agentDefs))
-	for _, agent := range agentDefs {
-		entries = append(entries, h.agentCatalogEntryFromDef(agent, workspaceID))
-	}
-	h.respondAgentEntries(c, entries, cfg, workspaceID, diagnostics...)
-}
-
 func (h *BaseHandlers) respondAgentEntries(
 	c *gin.Context,
 	entries []AgentCatalogEntry,
@@ -171,8 +184,8 @@ func (h *BaseHandlers) respondAgentEntries(
 			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, diagnosticWorkspaceID))
 		}
 	}
-	sort.Slice(agents, func(i, j int) bool {
-		return agents[i].Name < agents[j].Name
+	slices.SortFunc(agents, func(a, b contract.AgentPayload) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 	c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
 }

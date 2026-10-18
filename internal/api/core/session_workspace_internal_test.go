@@ -10,9 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
-	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -71,11 +69,11 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 	t.Run("Should lookup workspace id", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := lookupWorkspaceID(context.Background(), "core-test", nil, "alpha"); err == nil {
+		if _, err := lookupWorkspaceID(t.Context(), "core-test", nil, "alpha"); err == nil {
 			t.Fatal("lookupWorkspaceID(nil resolver) error = nil, want non-nil")
 		}
 
-		id, err := lookupWorkspaceID(context.Background(), "core-test", workspaceGetterStub{
+		id, err := lookupWorkspaceID(t.Context(), "core-test", workspaceGetterStub{
 			get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 				if ref != "alpha" {
 					t.Fatalf("Get ref = %q, want alpha", ref)
@@ -178,31 +176,7 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 		err        error
 		wantStatus int
 	}{
-		{
-			name:       "Should map invalid participation strategy to bad request",
-			err:        participation.ErrStrategyInvalid,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "Should map conflicting participation fields to bad request",
-			err:        participation.ErrStrategyChannelConflict,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "Should map an unknown participation channel to not found",
-			err:        participation.ErrChannelUnknown,
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "Should map administratively disabled Live participation to conflict",
-			err:        participation.ErrUnavailable,
-			wantStatus: http.StatusConflict,
-		},
-		{
-			name:       "Should map unsupported Live participation to unprocessable entity",
-			err:        participation.ErrLiveUnsupported,
-			wantStatus: http.StatusUnprocessableEntity,
-		},
+
 		{
 			name:       "Should map unsupported prompt images to unprocessable entity",
 			err:        session.ErrPromptImagesUnsupported,
@@ -350,10 +324,6 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 	seen := make(map[string]bool, len(payloads))
 	for _, payload := range payloads {
 		seen[payload.Name] = true
-		if payload.Name == "openclaw" &&
-			payload.RuntimeStrategy != contract.ProviderRuntimeStrategyProviderManaged {
-			t.Fatalf("openclaw runtime strategy = %q, want provider_managed", payload.RuntimeStrategy)
-		}
 	}
 	for _, want := range expected {
 		if !seen[want.Name] {

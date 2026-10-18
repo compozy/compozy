@@ -15,7 +15,7 @@ import { GlobalScopeToggle } from "../global-scope-toggle";
 function renderToggle(props: Partial<React.ComponentProps<typeof GlobalScopeToggle>> = {}) {
   const onCheckedChange = vi.fn();
   const view = render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <GlobalScopeToggle
         checked={false}
         tooltip="Global scope ~"
@@ -32,7 +32,7 @@ function rerenderToggle(
   props: Partial<React.ComponentProps<typeof GlobalScopeToggle>>
 ) {
   view.rerender(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <GlobalScopeToggle
         checked={false}
         tooltip="Global scope ~"

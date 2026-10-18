@@ -221,7 +221,7 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 			extension, getErr := manager.Get("connectivity-crash")
 			return markerLineCount(marker) >= 3 && getErr == nil && extension.Status.Active && extension.Status.Healthy
 		})
-		stopCtx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		stopCtx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
 		defer cancel()
 		if err := source.Teardown(stopCtx, gateway.TierPrivate, time.Now().Add(200*time.Millisecond)); err != nil {
 			t.Fatalf("Teardown(after restart) error = %v", err)
@@ -240,7 +240,7 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveConnectivitySource() error = %v", err)
 		}
-		teardownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+		teardownCtx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 		started := time.Now()
 		err = source.Teardown(teardownCtx, gateway.TierPrivate, time.Now().Add(25*time.Millisecond))
 		cancel()
@@ -298,9 +298,9 @@ type connectivityConformanceTrust struct{}
 func (connectivityConformanceTrust) ResolveProviderTrust(context.Context, string) (gateway.ProviderTrust, error) {
 	return gateway.ProviderTrust{
 		InstallSource: gateway.ProviderInstallSourceBundled,
-		ChannelScopes: []string{
-			gateway.ProviderChannelScope(gateway.TierPrivate),
-			gateway.ProviderChannelScope(gateway.TierPublic),
+		Permissions: []string{
+			gateway.ProviderPermission(gateway.TierPrivate),
+			gateway.ProviderPermission(gateway.TierPublic),
 		},
 	}, nil
 }
@@ -442,10 +442,8 @@ version = "0.1.0"
 description = "Connectivity subprocess conformance fixture"
 min_compozy_version = "0.6.0"
 
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["gateway.private", "gateway.public"]
+[gateway]
+permissions = ["gateway.private", "gateway.public"]
 
 [capabilities]
 provides = ["connectivity.provider"]

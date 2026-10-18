@@ -125,3 +125,8 @@ export function createSeamDragLogic<TSeam>() {
     },
   });
 }
+
+/** Keyboard seam step in weight space: 2% per arrow, 10% with Shift. */
+export function seamKeyStep(event: { shiftKey: boolean }): number {
+  return event.shiftKey ? 0.1 : 0.02;
+}

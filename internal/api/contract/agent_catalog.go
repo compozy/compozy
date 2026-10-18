@@ -16,7 +16,7 @@ type AgentSessionMetricsPayload struct {
 // temporarily unavailable.
 type AgentCatalogItemPayload struct {
 	Agent    AgentPayload                `json:"agent"`
-	Sessions *AgentSessionMetricsPayload `json:"sessions,omitempty"`
+	Sessions *AgentSessionMetricsPayload `json:"sessions,omitzero"`
 }
 
 // AgentCatalogFacetsPayload contains fleet-wide values before search, filters,
@@ -29,7 +29,7 @@ type AgentCatalogFacetsPayload struct {
 	Idle       int      `json:"idle"`
 }
 
-// AgentCatalogResponse is one bounded workspace-scoped agent fleet page.
+// AgentCatalogResponse is one bounded Global or workspace agent fleet page.
 type AgentCatalogResponse struct {
 	Agents            []AgentCatalogItemPayload `json:"agents"`
 	Page              CountedCursorPagePayload  `json:"page"`

@@ -2,12 +2,14 @@ package loop
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 )
@@ -215,11 +217,8 @@ func unionDiffVerdictKeys(
 			keys = append(keys, key)
 		}
 	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].gate == keys[j].gate {
-			return keys[i].item < keys[j].item
-		}
-		return keys[i].gate < keys[j].gate
+	slices.SortFunc(keys, func(a, b diffVerdictKey) int {
+		return cmp.Or(cmp.Compare(a.gate, b.gate), cmp.Compare(a.item, b.item))
 	})
 	return keys
 }
@@ -230,7 +229,7 @@ func marshalDiffVerdict(record gate.VerdictRecord, exists bool) (json.RawMessage
 	}
 	value := struct {
 		Outcome        gate.VerdictOutcome `json:"outcome"`
-		Score          *float64            `json:"score,omitempty"`
+		Score          *float64            `json:"score,omitzero"`
 		BlockingIssues json.RawMessage     `json:"blocking_issues"`
 		Criteria       json.RawMessage     `json:"criteria"`
 	}{record.Outcome, record.Score, record.BlockingIssues, record.Criteria}
@@ -313,7 +312,7 @@ func marshalDiffRoute(route RouteCause, exists bool) (json.RawMessage, error) {
 		Route       NodeID `json:"route"`
 		Cause       string `json:"cause"`
 		MatchedWhen string `json:"matched_when,omitempty"`
-		Default     bool   `json:"default,omitempty"`
+		Default     bool   `json:"default,omitzero"`
 	}{route.Route, route.Cause, route.MatchedWhen, route.Default}
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -323,14 +322,12 @@ func marshalDiffRoute(route RouteCause, exists bool) (json.RawMessage, error) {
 }
 
 func sortDiffNodeRows(rows []DiffNodeRow) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].NodeID == rows[j].NodeID {
-			if rows[i].ItemIndex == rows[j].ItemIndex {
-				return rows[i].Change < rows[j].Change
-			}
-			return rows[i].ItemIndex < rows[j].ItemIndex
-		}
-		return rows[i].NodeID < rows[j].NodeID
+	slices.SortStableFunc(rows, func(a, b DiffNodeRow) int {
+		return cmp.Or(
+			cmp.Compare(a.NodeID, b.NodeID),
+			cmp.Compare(a.ItemIndex, b.ItemIndex),
+			cmp.Compare(a.Change, b.Change),
+		)
 	})
 }
 
@@ -370,11 +367,7 @@ func diffRunInputs(base, against map[string]any) ([]DiffInputRow, error) {
 	for key := range against {
 		keys[key] = struct{}{}
 	}
-	ordered := make([]string, 0, len(keys))
-	for key := range keys {
-		ordered = append(ordered, key)
-	}
-	sort.Strings(ordered)
+	ordered := slices.Sorted(maps.Keys(keys))
 	rows := make([]DiffInputRow, 0, len(ordered))
 	for _, key := range ordered {
 		left, err := json.Marshal(base[key])

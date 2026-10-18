@@ -1,7 +1,12 @@
 ---
-title: Webhooks
+title: Link automations (webhooks)
 description: Set up signed CompozyOS webhook triggers for CI, deployment, and external event integrations.
 ---
+
+A link automation is what the Web UI shows as **Starts → When another app calls a link**. It is a
+trigger with `event = "webhook"` and appears in the **On events** view of the Automations window.
+The Web UI creates link automations as Global; the CLI, API, and `config.toml` can also scope one to
+a workspace, as the routes below show.
 
 Webhooks are the external ingress path for automation. They accept signed HTTP requests, normalize
 the request into a `webhook` activation envelope, and dispatch every enabled webhook trigger that
@@ -274,18 +279,18 @@ compozy automation triggers history <trigger-id> --last 20
 
 <RouteList>
   <RouteRow
-    href="/docs/automation/triggers"
-    label="Automation"
-    title="Triggers"
+    href="/docs/automation/events"
+    label="Automations"
+    title="Automations on events (triggers)"
     description="Filter event envelopes and render prompt templates."
-    meta="Event-driven"
+    meta="When something happens"
   />
   <RouteRow
-    href="/docs/automation/jobs"
-    label="Automation"
-    title="Jobs and Scheduling"
+    href="/docs/automation/schedules"
+    label="Automations"
+    title="Scheduled automations (jobs)"
     description="Run agents on cron, interval, or one-time schedules."
-    meta="Scheduled"
+    meta="On a schedule"
   />
   <RouteRow
     href="/docs/cli/automation/triggers/create"

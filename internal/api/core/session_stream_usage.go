@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -30,7 +31,8 @@ func (h *BaseHandlers) writeUsageChangedEvents(
 		}
 		cursor = max(cursor, event.Sequence)
 		switch event.Type {
-		case acp.EventTypeUsage, acp.EventTypeDone, acp.EventTypePromptDelivery:
+		case acp.EventTypeUsage, acp.EventTypeDone, acp.EventTypePromptDelivery,
+			acp.EventTypeCompaction, eventspkg.SessionCompactionFired:
 		default:
 			continue
 		}

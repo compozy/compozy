@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"os/exec"
@@ -200,26 +199,6 @@ func TestClassifyProviderAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("Should treat the Hermes ACP import check as preflight success", func(t *testing.T) {
-		t.Parallel()
-
-		provider := compozyconfig.ProviderConfig{
-			Command:       "hermes acp",
-			AuthStatusCmd: "hermes acp --check",
-		}
-		got := ClassifyProbeResult(
-			provider,
-			ProbeOutcome{ExitCode: 0, Stdout: "Hermes ACP check OK"},
-			presentEnv(),
-		)
-		if got.State != ProviderAuthStateAuthenticated {
-			t.Fatalf("State = %q, want %q", got.State, ProviderAuthStateAuthenticated)
-		}
-		if got.Code != "" {
-			t.Fatalf("Code = %q, want empty", got.Code)
-		}
-	})
-
 	t.Run("Should return needs login when probe reports unauthorized", func(t *testing.T) {
 		t.Parallel()
 
@@ -349,7 +328,7 @@ func TestClassifyProviderAuth(t *testing.T) {
 	t.Run("Should return explicit none when auth mode is none", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := ClassifyDeclared(context.Background(), compozyconfig.ProviderConfig{
+		got, err := ClassifyDeclared(t.Context(), compozyconfig.ProviderConfig{
 			AuthMode: compozyconfig.ProviderAuthModeNone,
 		}, nil)
 		if err != nil {

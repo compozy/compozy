@@ -28,7 +28,7 @@ func TestDaemonE2ESupportBundleCompletesThroughCLI(t *testing.T) {
 	t.Run("Should create poll and download a support bundle", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 		defer cancel()
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})

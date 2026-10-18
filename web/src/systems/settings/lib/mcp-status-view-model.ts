@@ -64,6 +64,8 @@ export interface MCPStatusCell {
 export type MCPAuthorizeLabel = "Authorize" | "Reauthorize";
 
 export interface MCPRowStatus {
+  /** One worst-of status for the row, in plain words; the four cells below are its breakdown. */
+  summary: MCPStatusCell;
   config: MCPStatusCell;
   auth: MCPStatusCell;
   runtime: MCPStatusCell;
@@ -208,6 +210,37 @@ function probeCell(server: SettingsMCPServerEntry): MCPStatusCell {
   };
 }
 
+const SUMMARY_DANGER_LABEL: Record<string, string> = {
+  config_error: "Setup problem",
+  auth_invalid: "Sign-in failed",
+  auth_refresh_failed: "Sign-in expired",
+  permission_denied: "Access denied",
+  runtime_unavailable: "Unavailable",
+  dead: "Unavailable",
+};
+
+/**
+ * The row's single status: the most severe of runtime, auth, and probe, in plain words. It
+ * never turns green unless the daemon reports the runtime ready; unknown values stay neutral.
+ */
+export function summarizeMCPStatus(server: SettingsMCPServerEntry): MCPStatusCell {
+  const runtime = server.runtime_status;
+  const auth = server.auth_status?.status;
+  const dangerLabel = runtime ? SUMMARY_DANGER_LABEL[runtime.state] : undefined;
+  if (dangerLabel) return { label: dangerLabel, tone: "danger" };
+  if (auth === "invalid") return { label: "Sign-in failed", tone: "danger" };
+  if (runtime?.probe === "failed") return { label: "Couldn't connect", tone: "danger" };
+  if (runtime?.state === "auth_required" || auth === "needs_login") {
+    return { label: "Needs sign-in", tone: "warning" };
+  }
+  if (runtime?.state === "auth_expired" || auth === "expired") {
+    return { label: "Sign-in expired", tone: "warning" };
+  }
+  if (!runtime) return { label: "Not checked yet", tone: "neutral" };
+  if (runtime.state === "ready") return { label: "Ready", tone: "success" };
+  return { label: formatStatusLabel(runtime.state), tone: "neutral" };
+}
+
 /**
  * Compose one server row's four independent status cells plus its repair action.
  * The `config` signal is always "Configured" — a rendered row IS a configured
@@ -216,6 +249,7 @@ function probeCell(server: SettingsMCPServerEntry): MCPStatusCell {
  */
 export function composeMCPRowStatus(server: SettingsMCPServerEntry): MCPRowStatus {
   return {
+    summary: summarizeMCPStatus(server),
     config: { label: "Configured", tone: "neutral", code: "configured=true" },
     auth: authCell(server),
     runtime: runtimeCell(server),

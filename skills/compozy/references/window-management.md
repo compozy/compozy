@@ -38,11 +38,18 @@ normalizes, and commits the complete topology atomically.
   was zoomed comes back zoomed on the desktop it minimized from, and a zoomed frame stays zoomed when
   its zoomed tab closes.
 - Preview, validation, rejected commands, and no-ops do not persist or emit topology events.
-- Snapshots and layout documents are version 4. The wire snapshot carries no `history` body; undo and
+- Snapshots and layout documents are version 5. The wire snapshot carries no `history` body; undo and
   redo stay daemon-internal, and the snapshot reports `closed_entry_count` instead of reopen bodies.
-  The daemon migrates a stored version 3 arrangement on load and persists it once under the next
+  The daemon migrates a stored version 3 or 4 arrangement on load and persists it once under the next
   revision, so caches keyed by revision refetch: a former focus desktop becomes a regular desktop whose
-  owner stays zoomed on it with its return anchor; layout history resets.
+  owner stays zoomed on it with its return anchor, retired `jobs`/`triggers` windows become
+  `automations` windows on the matching route, and layout history resets.
+- On load the daemon also drops windows whose app is no longer registered, renormalizes the topology,
+  rewrites a retired Settings sub-route to `/settings`, and persists the result once under the next
+  revision. After a successful persist it logs `windowmanager.snapshot_reconciled` with `workspace_id`,
+  `profile_id`, the sorted dropped app IDs (`dropped_apps`), the rewritten-route count
+  (`rewritten_routes`), and the new `revision`, counting the current arrangement, its history, and its
+  closed windows. Persisted `window_layout` resources follow the same registered-app rule.
 
 Read the current revision before mutating:
 
@@ -149,6 +156,20 @@ compozy window close --workspace <workspace-id> --revision <revision> --id <wind
 compozy window open --workspace <workspace-id> --revision <revision> --restore <window-id>
 ```
 
+Open jobs and triggers with `--app automations` (`--pathname /automations/jobs/<job-id>` or
+`/automations/triggers/<trigger-id>`). The retired app ids `jobs` and `triggers` still open
+Automations in v0.4.0 with a deprecation warning and fail like unknown ids from v0.5.0; never emit
+them in commands or `window_layout` resources.
+
+Where a new window lands follows `new_window_policy`: `tab` (default) joins the client's focused
+window as a tab when that window is visible on the open's desktop, else it falls back to
+`beside_focus` placement (an empty desktop gets one full pane); `beside_focus` tiles beside the
+client's focus; `floating` floats. Focus is per client, so an open without `--client`/`client_id`
+never joins the frame a person is looking at. Explicit placement wins over the policy:
+`--stack-target` joins that window's tabs, `--tiled` splits beside the client's focus, and
+`--floating` (`floating` on `compozy__window_open`) opens a free floating window; `--floating`
+cannot be combined with `--tiled` or `--stack-target`.
+
 Tabs:
 
 ```bash
@@ -223,6 +244,12 @@ compozy layout watch --workspace <workspace-id> -o jsonl
 compozy layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl
 ```
 
+`--arrangement` accepts `horizontal`, `vertical`, `grid`, `stack`, or `main_stack`; `main_stack`
+gives the first `--window` a 60% main column and splits the rest vertically beside it. Every
+`--window` is its own participant, so two named tabs of one deck are split into separate panes.
+`--keep-frames` (`keep_frames` on HTTP/UDS and `compozy__layout_arrange`) instead arranges each
+named window's whole tab frame as one participant, keeping the deck's tabs, active tab, and identity;
+name a deck once, by any of its tabs.
 `layout resize` moves one split boundary in weight space. `layout frame-resize` atomically rewrites
 abutting island frames: every group edge on the shared line moves together, and overlapping frames
 are rejected. `window resize` assigns a normalized frame to the unit containing the window —
@@ -250,7 +277,7 @@ Tab tools mirror the CLI verbs one to one: `compozy__window_group`, `compozy__wi
 `compozy__window_activate`, `compozy__window_pin`, `compozy__window_reopen`. `window_reorder` is the
 tool form of moving a member inside its own stack (`window_id` + clamped `index`); the CLI reaches the
 same reordering through `window group --insert-index`. Three existing tools carry the tab inputs:
-`compozy__window_open` accepts `stack_target_window_id`, `compozy__window_navigate` accepts
+`compozy__window_open` accepts `stack_target_window_id` (and `floating`), `compozy__window_navigate` accepts
 `mode` (`replace`/`push`/`pop`, and rejects `route` when `mode` is `pop`), and
 `compozy__window_close` accepts `scope` (`tab`/`group`/`others`/`right`, rejected together with
 `minimize`). All five tab tools are mutating and require `window_manager.write`.
@@ -313,9 +340,10 @@ compozy layout validate --workspace <workspace-id> --file layout.json -o json
 compozy layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
 ```
 
-Documents are version 4 and round-trip `floating_stacks`, `nav_stack`, and `pinned`. Export omits
-history and closed entries, so a raw round trip never restores reopen history. A version other than 4
-fails validation with `window_manager_invalid_topology` and the `topology.unsupported_version`
+Documents are version 5 and round-trip `floating_stacks`, `nav_stack`, and `pinned`. Export omits
+history and closed entries, so a raw round trip never restores reopen history. A version 4 document is
+still accepted and upgraded (its retired `jobs`/`triggers` windows become `automations`); any other
+version fails validation with `window_manager_invalid_topology` and the `topology.unsupported_version`
 diagnostic. This interface currently has no legacy-document converter. Preserve the original
 document and current state, and report the missing lossless upgrade path; manually rebuilding
 a layout is not a migration of the original data.

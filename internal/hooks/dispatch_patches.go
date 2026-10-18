@@ -59,43 +59,6 @@ func applySessionLifecyclePatch(payload SessionLifecyclePayload, patch SessionCr
 	return payload
 }
 
-//nolint:gocritic // The generic hook pipeline applies patches with value semantics.
-func applySandboxPreparePatch(
-	payload SandboxPreparePayload,
-	patch SandboxPreparePatch,
-) SandboxPreparePayload {
-	if patch.Deny {
-		payload.Denied = true
-		payload.DenyReason = patch.DenyReason
-	}
-	if patch.EnvOverrides != nil {
-		payload.EnvOverrides = cloneStringMap(patch.EnvOverrides)
-	}
-	return payload
-}
-
-func applySandboxSyncBeforePatch(
-	payload SandboxSyncBeforePayload,
-	patch SandboxSyncBeforePatch,
-) SandboxSyncBeforePayload {
-	if patch.Deny {
-		payload.Denied = true
-		payload.DenyReason = patch.DenyReason
-	}
-	if patch.ExcludePatterns != nil {
-		payload.ExcludePatterns = append([]string(nil), patch.ExcludePatterns...)
-	}
-	return payload
-}
-
-func applySandboxStopPatch(payload SandboxStopPayload, patch SandboxStopPatch) SandboxStopPayload {
-	if patch.Deny {
-		payload.Denied = true
-		payload.DenyReason = patch.DenyReason
-	}
-	return payload
-}
-
 func applyInputPreSubmitPatch(payload InputPreSubmitPayload, patch InputPreSubmitPatch) InputPreSubmitPayload {
 	if patch.Message != nil {
 		payload.Message = *patch.Message
@@ -187,19 +150,6 @@ func mergePermissionRequestPatch(
 	}
 	if patch.DecisionClass != nil {
 		payload.DecisionClass = *patch.DecisionClass
-	}
-	return payload
-}
-
-func applyContextCompactionPatch(payload ContextCompactPayload, patch ContextCompactionPatch) ContextCompactPayload {
-	if patch.Reason != nil {
-		payload.Reason = *patch.Reason
-	}
-	if patch.Strategy != nil {
-		payload.Strategy = *patch.Strategy
-	}
-	if patch.ContextBlocks != nil {
-		payload.ContextBlocks = cloneContextBlocks(patch.ContextBlocks)
 	}
 	return payload
 }

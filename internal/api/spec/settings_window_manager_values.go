@@ -30,6 +30,7 @@ func settingsWindowNewPolicyValues() []string {
 	return []string{
 		string(contract.SettingsWindowNewPolicyFloating),
 		string(contract.SettingsWindowNewPolicyBesideFocus),
+		string(contract.SettingsWindowNewPolicyTab),
 	}
 }
 

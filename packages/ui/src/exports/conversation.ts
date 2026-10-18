@@ -1,4 +1,4 @@
-// Conversation and run surfaces: markdown, chat, tool calls, network wire rows.
+// Conversation and run surfaces: markdown, chat, tool calls.
 export {
   Markdown,
   STREAMDOWN_SAFE_CONFIG,
@@ -21,6 +21,10 @@ export {
   type OwnerAvatarSize,
 } from "../components/custom/owner-avatar";
 export {
+  TranscriptDisclosure,
+  type TranscriptDisclosureProps,
+} from "../components/custom/transcript-disclosure";
+export {
   ChatMessageBubble,
   type ChatMessageAlign,
   type ChatMessageBubbleProps,
@@ -32,6 +36,12 @@ export {
   type ToolCallRowSectionProps,
   type ToolCallStatus,
 } from "../components/custom/tool-call-row";
+export {
+  DiffCard,
+  type DiffCardLine,
+  type DiffCardLineKind,
+  type DiffCardProps,
+} from "../components/custom/diff-card";
 export {
   ToolCallStatusIcon,
   type ToolCallStatusIconProps,

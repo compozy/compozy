@@ -2,218 +2,256 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
-type SandboxSyncBeforePatch struct {
-	Deny            bool     `json:"deny,omitempty"`
-	DenyReason      string   `json:"deny_reason,omitempty"`
-	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
+type TaskDependencyReferencePayload struct {
+	TaskID          string               `json:"task_id"`
+	DependsOnTaskID string               `json:"depends_on_task_id"`
+	Kind            DependencyKind       `json:"kind"`
+	CreatedAt       time.Time            `json:"created_at"`
+	DependsOn       TaskReferencePayload `json:"depends_on"`
 }
 
-type SandboxSyncBeforePayload struct {
-	Event           HookEvent `json:"event"`
-	Timestamp       time.Time `json:"timestamp"`
-	ProfileID       string    `json:"profile_id,omitempty"`
-	SessionID       string    `json:"session_id,omitempty"`
-	SessionName     string    `json:"session_name,omitempty"`
-	SessionType     string    `json:"session_type,omitempty"`
-	AgentName       string    `json:"agent_name,omitempty"`
-	WorkspaceID     string    `json:"workspace_id,omitempty"`
-	Workspace       string    `json:"workspace,omitempty"`
-	WorktreeID      string    `json:"worktree_id,omitempty"`
-	ACPSessionID    string    `json:"acp_session_id,omitempty"`
-	State           string    `json:"state,omitempty"`
-	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string    `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	SandboxID       string    `json:"sandbox_id,omitempty"`
-	Backend         string    `json:"backend,omitempty"`
-	Profile         string    `json:"profile,omitempty"`
-	InstanceID      string    `json:"instance_id,omitempty"`
-	RuntimeRootDir  string    `json:"runtime_root,omitempty"`
-	Direction       string    `json:"direction,omitempty"`
-	Reason          string    `json:"reason,omitempty"`
-	ExcludePatterns []string  `json:"exclude_patterns,omitempty"`
-	Denied          bool      `json:"denied,omitempty"`
-	DenyReason      string    `json:"deny_reason,omitempty"`
+type TaskDesignationRollupPayload struct {
+	DesignationGroupID string          `json:"designation_group_id"`
+	TaskID             string          `json:"task_id"`
+	Summary            json.RawMessage `json:"summary"`
+	CreatedAt          time.Time       `json:"created_at"`
 }
 
-type ScheduleMode string
-
-type ScheduleSpec struct {
-	Mode                ScheduleMode           `json:"mode"`
-	Expr                string                 `json:"expr,omitempty"`
-	Interval            string                 `json:"interval,omitempty"`
-	Time                string                 `json:"time,omitempty"`
-	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+type TaskDetail struct {
+	Summary              TaskSummaryPayload               `json:"summary"`
+	Task                 Task                             `json:"task"`
+	Children             []TaskSummaryPayload             `json:"children,omitempty"`
+	Dependencies         []TaskDependencyPayload          `json:"dependencies,omitempty"`
+	DependencyReferences []TaskDependencyReferencePayload `json:"dependency_references,omitempty"`
+	Runs                 []TaskRun                        `json:"runs,omitempty"`
+	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
+	Events               []TaskEventPayload               `json:"events,omitempty"`
 }
 
-type SchedulerCatchUpPolicy string
-
-type Scope string
-
-type Section struct {
-	Title string `json:"title,omitempty"`
-	Rows  []Row  `json:"rows"`
+type TaskEventPayload struct {
+	ID        string          `json:"id"`
+	TaskID    string          `json:"task_id"`
+	RunID     string          `json:"run_id,omitempty"`
+	EventType string          `json:"event_type"`
+	Actor     ActorIdentity   `json:"actor"`
+	Origin    Origin          `json:"origin"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+	Timestamp time.Time       `json:"timestamp"`
 }
 
-type SessionActivityHealth struct {
-	SessionID          string     `json:"session_id"`
-	TurnID             string     `json:"turn_id,omitempty"`
-	TurnSource         string     `json:"turn_source,omitempty"`
-	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
-	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
-	CurrentTool        string     `json:"current_tool,omitempty"`
-	ToolCallID         string     `json:"tool_call_id,omitempty"`
-	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
-	Status             string     `json:"status"`
-	StallState         string     `json:"stall_state,omitempty"`
-	StallReason        string     `json:"stall_reason,omitempty"`
+type TaskHealth struct {
+	Status                string             `json:"status"`
+	QueueDepthTotal       int                `json:"queue_depth_total"`
+	OldestQueuedAt        time.Time          `json:"oldest_queued_at"`
+	OldestQueueAgeMilli   int64              `json:"oldest_queue_age_ms"`
+	QueueDepth            []TaskQueueDepth   `json:"queue_depth,omitempty"`
+	StuckRuns             []StuckTaskRun     `json:"stuck_runs,omitempty"`
+	ActiveOrphanRuns      int                `json:"active_orphan_runs"`
+	TaskTotals            []TaskStatusTotal  `json:"task_totals,omitempty"`
+	RunTotals             []TaskRunTotal     `json:"run_totals,omitempty"`
+	OwnerTotals           []TaskOwnerTotal   `json:"owner_totals,omitempty"`
+	ForcedStopsSinceStart int                `json:"forced_stops_since_start"`
+	RecoverySinceStart    TaskRecoveryTotals `json:"recovery_since_start"`
 }
 
-type SessionAttentionChangedPayload struct {
+type TaskInbox struct {
+	UnreadTotal   int                         `json:"unread_total"`
+	ArchivedTotal int                         `json:"archived_total"`
+	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
+	Page          CountedCursorPagePayload    `json:"page"`
+	Facets        TaskInboxFacetsPayload      `json:"facets"`
+}
+
+type TaskInboxFacetsPayload struct {
+	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
+	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
+}
+
+type TaskInboxItemPayload struct {
+	Task             TaskInboxTaskPayload   `json:"task"`
+	Lane             TaskInboxLane          `json:"lane"`
+	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
+	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
+	BlockingReason   string                 `json:"blocking_reason,omitempty"`
+	LatestActivityAt time.Time              `json:"latest_activity_at"`
+	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
+	Triage           TaskTriageStatePayload `json:"triage"`
+}
+
+type TaskInboxLane string
+
+type TaskInboxLaneGroupPayload struct {
+	Lane        TaskInboxLane          `json:"lane"`
+	Count       int                    `json:"count"`
+	UnreadCount int                    `json:"unread_count"`
+	Items       []TaskInboxItemPayload `json:"items,omitempty"`
+}
+
+type TaskInboxParams struct {
+	Scope     CatalogScope  `json:"scope,omitempty"`
+	Workspace string        `json:"workspace,omitempty"`
+	Worktree  string        `json:"worktree,omitempty"`
+	OwnerKind OwnerKind     `json:"owner_kind,omitempty"`
+	OwnerRef  string        `json:"owner_ref,omitempty"`
+	Lane      TaskInboxLane `json:"lane,omitempty"`
+	Status    Status        `json:"status,omitempty"`
+	Priority  Priority      `json:"priority,omitempty"`
+	Unread    *bool         `json:"unread,omitempty"`
+	Query     string        `json:"query,omitempty"`
+	Cursor    string        `json:"cursor,omitempty"`
+	Limit     int           `json:"limit,omitempty"`
+}
+
+type TaskInboxPriorityFacetPayload struct {
+	Priority Priority `json:"priority"`
+	Count    int      `json:"count"`
+}
+
+type TaskInboxStatusFacetPayload struct {
+	Status Status `json:"status"`
+	Count  int    `json:"count"`
+}
+
+type TaskInboxTaskPayload struct {
+	ID             string     `json:"id"`
+	Identifier     string     `json:"identifier,omitempty"`
+	Title          string     `json:"title"`
+	Status         Status     `json:"status"`
+	Priority       Priority   `json:"priority,omitempty"`
+	Owner          *Ownership `json:"owner,omitempty"`
+	Scope          TaskScope  `json:"scope"`
+	WorkspaceID    string     `json:"workspace_id,omitempty"`
+	LatestEventSeq int64      `json:"latest_event_seq"`
+}
+
+type TaskLatencyMetricPayload struct {
+	Samples       int   `json:"samples"`
+	AverageMillis int64 `json:"average_ms"`
+	MaximumMillis int64 `json:"maximum_ms"`
+}
+
+type TaskNeedsAttentionPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
 	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	ParentTaskID   string    `json:"parent_task_id,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	From           string    `json:"from"`
-	To             string    `json:"to"`
-	Class          string    `json:"class"`
-	At             time.Time `json:"at"`
+	WorkflowID     string    `json:"workflow_id,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	ActorKind      string    `json:"actor_kind,omitempty"`
+	ActorID        string    `json:"actor_id,omitempty"`
+	OriginKind     string    `json:"origin_kind,omitempty"`
+	OriginRef      string    `json:"origin_ref,omitempty"`
+	TaskStatus     string    `json:"task_status,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	ReleaseReason  string    `json:"release_reason,omitempty"`
+	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
+	Note           string    `json:"note,omitempty"`
+	At             time.Time `json:"at,omitzero"`
 }
 
-type SessionAttentionObservationPatch struct{}
-
-type SessionConfigOptionPayload struct {
-	ID             string                            `json:"id"`
-	Label          string                            `json:"label,omitempty"`
-	Description    string                            `json:"description,omitempty"`
-	Category       string                            `json:"category,omitempty"`
-	Kind           string                            `json:"kind"`
-	CurrentValueID string                            `json:"current_value_id,omitempty"`
-	CurrentBool    *bool                             `json:"current_bool,omitempty"`
-	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
+type TaskObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
-type SessionConfigOptionValuePayload struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
+type TaskOwnerTotal struct {
+	OwnerKind OwnerKind `json:"owner_kind"`
+	OwnerRef  string    `json:"owner_ref"`
+	Count     int       `json:"count"`
 }
 
-type SessionContext struct {
+type TaskQueueDepth struct {
+	Count               int       `json:"count"`
+	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
+	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
+}
+
+type TaskRecoveredPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
 	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	ParentTaskID   string    `json:"parent_task_id,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	WorkflowID     string    `json:"workflow_id,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	ActorKind      string    `json:"actor_kind,omitempty"`
+	ActorID        string    `json:"actor_id,omitempty"`
+	OriginKind     string    `json:"origin_kind,omitempty"`
+	OriginRef      string    `json:"origin_ref,omitempty"`
+	TaskStatus     string    `json:"task_status,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	ReleaseReason  string    `json:"release_reason,omitempty"`
+	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
+	Note           string    `json:"note,omitempty"`
+	At             time.Time `json:"at,omitzero"`
 }
 
-type SessionCreatePatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
+type TaskRecoveryTotals struct {
+	Requeued      int `json:"requeued"`
+	MarkedRunning int `json:"marked_running"`
+	Failed        int `json:"failed"`
 }
 
-type SessionCreateResult struct {
+type TaskReferencePayload struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          Status     `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitempty"`
+	EffectivePaused bool       `json:"effective_paused,omitempty"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+type TaskRun struct {
+	ID                   string                 `json:"id"`
+	ProfileID            string                 `json:"profile_id,omitempty"`
+	ProfileName          string                 `json:"profile_name,omitempty"`
+	ProfileColor         string                 `json:"profile_color,omitempty"`
+	ProfileIcon          string                 `json:"profile_icon,omitempty"`
+	TaskID               string                 `json:"task_id"`
+	Status               TaskRunStatus          `json:"status"`
+	Attempt              int                    `json:"attempt"`
+	RecoveryCount        int                    `json:"recovery_count"`
+	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
+	FailureKind          string                 `json:"failure_kind,omitempty"`
+	ClaimedBy            *ActorIdentity         `json:"claimed_by,omitempty"`
+	SessionID            string                 `json:"session_id,omitempty"`
+	WorktreeID           string                 `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
+	Origin               Origin                 `json:"origin"`
+	IdempotencyKey       string                 `json:"idempotency_key,omitempty"`
+	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
+	ClaimTokenHash       string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil           *time.Time             `json:"lease_until,omitempty"`
+	HeartbeatAt          *time.Time             `json:"heartbeat_at,omitempty"`
+	Designation          *RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt             time.Time              `json:"queued_at"`
+	ClaimedAt            *time.Time             `json:"claimed_at,omitempty"`
+	StartedAt            *time.Time             `json:"started_at,omitempty"`
+	EndedAt              *time.Time             `json:"ended_at,omitempty"`
+	Error                string                 `json:"error,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
+	Result               json.RawMessage        `json:"result,omitempty"`
+	ResultRef            string                 `json:"result_ref,omitempty"`
+	ResultBytes          int64                  `json:"result_bytes,omitempty"`
+}
+
+type TaskRunAttachSessionParams struct {
+	ID        string `json:"id"`
 	SessionID string `json:"session_id"`
 }
-
-type SessionEvent struct {
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
-	Data      any       `json:"data,omitempty"`
-}
-
-type SessionEventsParams struct {
-	WorkspaceID string    `json:"workspace_id"`
-	SessionID   string    `json:"session_id"`
-	Type        string    `json:"type,omitempty"`
-	AgentName   string    `json:"agent_name,omitempty"`
-	TurnID      string    `json:"turn_id,omitempty"`
-	Limit       int       `json:"limit,omitempty"`
-	Offset      int64     `json:"offset,omitempty"`
-	Since       time.Time `json:"since,omitzero"`
-}
-
-type SessionFailureHealth struct {
-	SessionID       string      `json:"session_id"`
-	AgentName       string      `json:"agent_name,omitempty"`
-	Provider        string      `json:"provider,omitempty"`
-	WorkspaceID     string      `json:"workspace_id,omitempty"`
-	State           string      `json:"state,omitempty"`
-	FailureKind     FailureKind `json:"failure_kind"`
-	Summary         string      `json:"summary,omitempty"`
-	CrashBundlePath string      `json:"crash_bundle_path,omitempty"`
-	UpdatedAt       time.Time   `json:"updated_at"`
-}
-
-type SessionHealthGetParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-}
-
-type SessionHealthIneligibilityReason string
-
-type SessionHealthPayload struct {
-	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
-	Verified            *bool                            `json:"verified,omitempty"`
-	Escalated           *bool                            `json:"escalated,omitempty"`
-	Attention           string                           `json:"attention,omitempty"`
-	SessionID           string                           `json:"session_id"`
-	WorkspaceID         string                           `json:"workspace_id"`
-	AgentName           string                           `json:"agent_name"`
-	State               SessionHealthState               `json:"state"`
-	Health              SessionHealthStatus              `json:"health"`
-	ActivePrompt        bool                             `json:"active_prompt"`
-	Attachable          bool                             `json:"attachable"`
-	EligibleForWake     bool                             `json:"eligible_for_wake"`
-	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
-	LastActivityAt      *time.Time                       `json:"last_activity_at,omitempty"`
-	LastPresenceAt      *time.Time                       `json:"last_presence_at,omitempty"`
-	LastError           string                           `json:"last_error,omitempty"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
-}
-
-type SessionHealthResponse struct {
-	Health SessionHealthPayload `json:"health"`
-}
-
-type SessionHealthState string
-
-type SessionHealthStatus string

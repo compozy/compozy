@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -279,12 +280,9 @@ func filterAuthorizedBlockedReasons(
 }
 
 func containsRunID(runs []Run, runID string) bool {
-	for _, run := range runs {
-		if strings.TrimSpace(run.ID) == strings.TrimSpace(runID) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(runs, func(run Run) bool {
+		return strings.TrimSpace(run.ID) == strings.TrimSpace(runID)
+	})
 }
 
 // ListTasks returns task summaries that satisfy the supplied query filters

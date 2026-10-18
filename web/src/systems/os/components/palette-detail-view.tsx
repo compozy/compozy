@@ -48,7 +48,7 @@ export function PaletteDetailView({
             <Button
               key={rowActionKey(action)}
               size="sm"
-              variant={action.destructive ? "destructive" : "outline"}
+              variant={action.destructive ? "destructive" : "secondary"}
               onClick={() => onAction?.(action)}
             >
               {action.title}

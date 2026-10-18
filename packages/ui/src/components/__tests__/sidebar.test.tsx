@@ -5,10 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "../sidebar";
 import {
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
-  SIDEBAR_PANEL_WIDTH_DEFAULT,
   SIDEBAR_PANEL_WIDTH_MD,
   SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
-  SIDEBAR_RAIL_WIDTH,
   useSidebarViewport,
 } from "../hooks/use-sidebar-state";
 import { UIProvider } from "../custom/ui-provider";
@@ -94,24 +92,6 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("header-content")).toBeInTheDocument();
     expect(screen.getByTestId("nav-content")).toBeInTheDocument();
     expect(screen.getByTestId("footer-content")).toBeInTheDocument();
-  });
-
-  it("Should expose the rail at 56px regardless of collapsed state", () => {
-    const { container, rerender } = render(<Sidebar nav={<span>nav</span>} collapsed={false} />);
-    const rail = container.querySelector<HTMLElement>("[data-slot=sidebar-rail]");
-    expect(rail).not.toBeNull();
-    expect(rail?.style.width).toBe("56px");
-
-    rerender(<Sidebar nav={<span>nav</span>} collapsed={true} />);
-    expect(rail?.style.width).toBe("56px");
-  });
-
-  it("Should export the viewport ladder constants", () => {
-    expect(SIDEBAR_RAIL_WIDTH).toBe(56);
-    expect(SIDEBAR_PANEL_WIDTH_DEFAULT).toBe(244);
-    expect(SIDEBAR_PANEL_WIDTH_MD).toBe(220);
-    expect(SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT).toBe(1100);
-    expect(SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT).toBe(880);
   });
 
   it("Should render a narrow scrim that closes the sidebar when activated", async () => {

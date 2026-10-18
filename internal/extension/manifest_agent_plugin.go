@@ -1,10 +1,11 @@
 package extensionpkg
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -53,7 +54,7 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		}
 		skills = append(skills, filepath.Clean(relativePath))
 	}
-	sort.Strings(skills)
+	slices.Sort(skills)
 
 	servers := make(map[string]MCPServerConfig, len(pkg.Servers))
 	for _, server := range pkg.Servers {
@@ -121,16 +122,15 @@ func AgentPluginDiagnostics(name string, values []agentplugin.Diagnostic) []diag
 			diagnosticEvidenceScopeKey: scope, diagnosticEvidenceComponentKey: component,
 		})))
 	}
-	sort.Slice(items, func(left, right int) bool {
-		leftScope := diagnosticEvidenceString(items[left], diagnosticEvidenceScopeKey)
-		rightScope := diagnosticEvidenceString(items[right], diagnosticEvidenceScopeKey)
-		if leftScope != rightScope {
-			return leftScope < rightScope
-		}
-		if items[left].Code != items[right].Code {
-			return items[left].Code < items[right].Code
-		}
-		return items[left].Message < items[right].Message
+	slices.SortFunc(items, func(left, right diagnosticcontract.DiagnosticItem) int {
+		return cmp.Or(
+			cmp.Compare(
+				diagnosticEvidenceString(left, diagnosticEvidenceScopeKey),
+				diagnosticEvidenceString(right, diagnosticEvidenceScopeKey),
+			),
+			cmp.Compare(left.Code, right.Code),
+			cmp.Compare(left.Message, right.Message),
+		)
 	})
 	return items
 }

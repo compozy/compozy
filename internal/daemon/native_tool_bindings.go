@@ -5,6 +5,7 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	availability := n.nativeToolAvailability()
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
+	addNativeToolBindings(bindings, n.subagentToolBindings())
 	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
 	addNativeToolBindings(bindings, n.profileToolBindings(availability.profiles))
 	addNativeToolBindings(bindings, n.cmdPaletteToolBindings(availability.cmdPalette))
@@ -14,12 +15,9 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
 	addNativeToolBindings(
 		bindings,
-		n.networkToolBindings(availability.network, availability.networkRead, availability.networkUsage),
-	)
-	addNativeToolBindings(
-		bindings,
 		n.sessionToolBindings(availability.sessions, availability.sessionCatalog, availability.sessionRuntime),
 	)
+	addNativeToolBindings(bindings, n.sessionLayoutToolBindings(availability.sessionCatalog))
 	addNativeToolBindings(bindings, n.sessionAttentionToolBindings(availability.notifications))
 	addNativeToolBindings(bindings, n.sessionInputToolBindings(availability.sessions))
 	addNativeToolBindings(bindings, n.sessionNavigationToolBindings(availability.sessions))
@@ -55,17 +53,9 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		n.providerModelReadAvailability(),
 		n.providerModelMutationAvailability(),
 	))
-	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
-	addNativeToolBindings(bindings, n.memoryAdminToolBindings(memoryAdminAvailabilitySet{
-		store:         availability.memoryAdminStore,
-		extractor:     availability.memoryExtractor,
-		providers:     availability.memoryProviders,
-		sessionLedger: availability.memorySessionLedger,
-	}))
 	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
-	addNativeToolBindings(bindings, n.bridgeToolBindings(availability.bridges))
 	addNativeToolBindings(bindings, n.gatewayToolBindings(availability.gateway))
-	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks, availability.taskNotifications))
+	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.autonomyToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))

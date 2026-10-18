@@ -44,9 +44,9 @@ Per route: method, path, request body, response body — as the client sees
 them, with realistic values and status codes for success and each documented
 failure.
 
-## SDK / Bridges
+## SDK / Extensions
 
-The code a bridge or SDK consumer writes, compilable as shown, with the
+The code an extension or SDK consumer writes, compilable as shown, with the
 value or event it receives back.
 
 ## config.toml

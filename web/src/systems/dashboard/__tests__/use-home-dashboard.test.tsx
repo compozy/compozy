@@ -7,6 +7,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { StatusPayload } from "@/systems/status";
 import { statusFixture } from "@/systems/status/mocks";
 
 import { makeEmptyHomeOverview, makeHomeOverview } from "../mocks/fixtures";
@@ -104,6 +105,7 @@ vi.mock("@/systems/status/hooks/use-daemon-health", () => ({
 
 import { homePrefsStore } from "../hooks/use-home-prefs-store";
 import { useHomeDashboard } from "../hooks/use-home-dashboard";
+import { buildHomeSystemModel } from "../lib/home-system";
 
 function wrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -205,28 +207,6 @@ describe("useHomeDashboard", () => {
     expect(result.current.profileAggregate).toBe(true);
   });
 
-  it("Should scope the overview to a project workspace", async () => {
-    activeWorkspaceState.activeWorkspace = {
-      id: "ws-proj",
-      root_dir: "/Users/tester/dev/proj",
-      name: "proj",
-    };
-    activeWorkspaceState.activeWorkspaceId = "ws-proj";
-    activeWorkspaceState.runtimeWorkspaceId = "ws-proj";
-    activeWorkspaceState.scope = "workspace";
-    getHomeOverview.mockResolvedValue(makeHomeOverview());
-
-    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
-    await waitFor(() => {
-      expect(result.current.overviewStatus).toBe("ready");
-    });
-    expect(result.current.scope.workspaceParam).toBe("ws-proj");
-    expect(getHomeOverview).toHaveBeenCalledWith(
-      expect.objectContaining({ workspace: "ws-proj" }),
-      expect.anything()
-    );
-  });
-
   it("Should never issue a global overview or activity read for a project workspace on first mount", async () => {
     // Workspace-isolation guard: the queries stay disabled until menubar
     // workspace scope has a project id, so the daemon never sees an
@@ -262,6 +242,11 @@ describe("useHomeDashboard", () => {
       expect.objectContaining({ workspace_id: undefined }),
       expect.anything()
     );
+    expect(result.current.scope.workspaceParam).toBe("ws-proj");
+    expect(getHomeOverview).toHaveBeenCalledWith(
+      expect.objectContaining({ workspace: "ws-proj" }),
+      expect.anything()
+    );
   });
 
   it("Should report no work only when every overview counter is zero and nothing is live", async () => {
@@ -295,5 +280,52 @@ describe("useHomeDashboard", () => {
       expect(result.current.overviewStatus).toBe("error");
     });
     expect(result.current.overviewErrorMessage).toBe("daemon unavailable");
+  });
+});
+
+describe("buildHomeSystemModel", () => {
+  type StatusProvider = NonNullable<StatusPayload["providers"]>[number];
+  const provider = (name: string, state: string) => ({ name, state }) as StatusProvider;
+
+  it("Should stay not-normal and list no tiles before the daemon status loads", () => {
+    const model = buildHomeSystemModel(undefined, {
+      hookRunsToday: undefined,
+      hookFailuresToday: undefined,
+      retentionDays: undefined,
+    });
+
+    expect(model).toEqual({ allNormal: false, summary: "", tiles: [] });
+  });
+
+  it("Should flag an unready provider or failed hook and summarize uptime with provider readiness", () => {
+    const status: StatusPayload = {
+      ...statusFixture,
+      providers: [provider("claude", "ready"), provider("codex", "needs_auth")],
+    };
+    const quiet = buildHomeSystemModel(
+      { ...status, providers: [provider("claude", "ready")] },
+      { hookRunsToday: 4, hookFailuresToday: 0, retentionDays: 0 }
+    );
+    const degraded = buildHomeSystemModel(status, {
+      hookRunsToday: 4,
+      hookFailuresToday: 2,
+      retentionDays: 30,
+    });
+
+    expect(quiet.allNormal).toBe(true);
+    expect(quiet.tiles.find(tile => tile.key === "retention")?.value).toBe("Forever");
+    expect(degraded.allNormal).toBe(false);
+    expect(degraded.summary).toBe("Running for 2h 0m · 1 of 2 providers ready");
+    expect(degraded.tiles.map(tile => tile.key)).toEqual([
+      "daemon",
+      "providers",
+      "scheduler",
+      "hooks",
+      "retention",
+    ]);
+    expect(degraded.tiles.find(tile => tile.key === "hooks")).toMatchObject({
+      detail: "2 failed",
+      tone: "warning",
+    });
   });
 });

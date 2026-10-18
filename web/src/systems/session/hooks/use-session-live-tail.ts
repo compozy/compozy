@@ -11,6 +11,10 @@ import {
   sessionTranscriptOptions,
 } from "../lib/query-options";
 import { toReadonlyThreadMessages } from "../lib/session-thread-repository";
+import {
+  rescheduleSessionStreamBackedReads,
+  retainSessionStreamLiveness,
+} from "../lib/session-stream-liveness";
 import type { SessionTransportSnapshot } from "../lib/session-transport";
 import { createSessionLiveTailRuntime } from "./session-live-tail-runtime";
 import { sessionLiveTailLogic } from "./session-live-tail-store";
@@ -36,17 +40,20 @@ export function useSessionLiveTail({
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
   const store = useStore(sessionLiveTailLogic);
-  const queryEnabled = workspaceId.trim() !== "" && sessionId.trim() !== "";
+  const queryEnabled = sessionId.trim() !== "";
+  const projectLiveEnabled = enabled && workspaceId.trim() !== "";
   const sessionState = useQuery({
     ...sessionDetailOptions(workspaceId, sessionId),
-    enabled: queryEnabled && enabled,
+    enabled: queryEnabled && projectLiveEnabled,
   }).data?.state;
   const transcriptQuery = useInfiniteQuery({
     ...sessionTranscriptOptions(workspaceId, sessionId),
     enabled: queryEnabled,
   });
   const streamShouldOpen =
-    enabled && queryEnabled && (sessionState == null || isLiveSessionState(sessionState));
+    projectLiveEnabled &&
+    queryEnabled &&
+    (sessionState == null || isLiveSessionState(sessionState));
   const canOpenStream =
     streamShouldOpen &&
     typeof window !== "undefined" &&
@@ -83,6 +90,18 @@ export function useSessionLiveTail({
     snapshot => transportSnapshot(snapshot.context),
     shallowEqual
   );
+  const streamLive = transport.phase === "live";
+  // A live stream invalidates this session's control reads as they change, so they
+  // drop to the safety cadence while this tail holds the live edge.
+  useEffect(() => {
+    if (!streamLive) return;
+    const release = retainSessionStreamLiveness(sessionId);
+    rescheduleSessionStreamBackedReads(queryClient, workspaceId, sessionId);
+    return () => {
+      release();
+      rescheduleSessionStreamBackedReads(queryClient, workspaceId, sessionId);
+    };
+  }, [queryClient, sessionId, streamLive, workspaceId]);
   const transcriptMessages = flattenTranscriptMessages(transcriptQuery.data);
   const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending
     ? "pending"
@@ -101,7 +120,10 @@ export function useSessionLiveTail({
     loadOlder: () => {
       void transcriptQuery.fetchNextPage();
     },
-    retry: () => store.trigger.manualRecoveryRequested(),
+    retry: () => {
+      if (workspaceId.trim() === "") void transcriptQuery.refetch();
+      else store.trigger.manualRecoveryRequested();
+    },
     transport,
   };
 }

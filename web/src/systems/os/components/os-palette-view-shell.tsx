@@ -151,6 +151,7 @@ export function OsPaletteViewShell({
         <div className={paletteHeadClass}>
           <OsPaletteBreadcrumb breadcrumb={breadcrumb} />
           <CommandInput
+            variant="quiet"
             ref={inputRef}
             autoFocus
             value={query}

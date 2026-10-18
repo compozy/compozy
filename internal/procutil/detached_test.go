@@ -108,7 +108,7 @@ func TestSpawnDetachedLoggedProcessLifecycle(t *testing.T) {
 			closeDetachedLaunchFile = oldClose
 		})
 
-		process, err := SpawnDetachedLoggedProcess(context.Background(), DetachedLaunchRequest{
+		process, err := SpawnDetachedLoggedProcess(t.Context(), DetachedLaunchRequest{
 			Binary:  os.Args[0],
 			Args:    []string{"-test.run=^TestDetachedSleepHelperProcess$"},
 			Sandbox: []string{detachedSleepHelperEnv + "=1"},

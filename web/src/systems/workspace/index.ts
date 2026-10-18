@@ -298,7 +298,6 @@ export type { WorkspaceSetupContent } from "./hooks/use-workspace-setup-content"
 export type {
   WorkspaceSetupCollection,
   WorkspaceSetupDefaultsModel,
-  WorkspaceSetupSandboxOption,
 } from "./lib/workspace-setup-defaults";
 
 // Assisted exit surface (Task 07)

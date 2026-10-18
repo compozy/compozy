@@ -4,12 +4,8 @@ import "github.com/compozy/compozy/internal/api/contract"
 
 func registrySettingsFeatureOperations() []OperationSpec {
 	return []OperationSpec{
-		getSettingsMemoryOperationSpec(),
-		updateSettingsMemoryOperationSpec(),
 		getSettingsRolesOperationSpec(),
 		updateSettingsRolesOperationSpec(),
-		getSettingsNetworkOperationSpec(),
-		updateSettingsNetworkOperationSpec(),
 		getSettingsWindowManagerOperationSpec(),
 		updateSettingsWindowManagerOperationSpec(),
 		getSettingsCmdPaletteOperationSpec(),
@@ -54,70 +50,6 @@ func updateSettingsRolesOperationSpec() OperationSpec {
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsRolesRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
-			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func getSettingsMemoryOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPISettingsMemoryPath,
-		OperationID: "getSettingsMemory",
-		Summary:     "Read the memory settings section",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsMemoryResponse{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func updateSettingsMemoryOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPatch,
-		Path:        specAPISettingsMemoryPath,
-		OperationID: "updateSettingsMemory",
-		Summary:     "Update the memory settings section",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.UpdateSettingsMemoryRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
-			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func getSettingsNetworkOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPISettingsNetworkPath,
-		OperationID: "getSettingsNetwork",
-		Summary:     "Read the network settings section",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsNetworkResponse{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func updateSettingsNetworkOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPatch,
-		Path:        specAPISettingsNetworkPath,
-		OperationID: "updateSettingsNetwork",
-		Summary:     "Update the network settings section",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.UpdateSettingsNetworkRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},

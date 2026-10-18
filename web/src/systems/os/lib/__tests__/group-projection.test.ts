@@ -58,7 +58,7 @@ function snapshotFixture(
   windows: WindowManagerWindow[]
 ): WindowManagerSnapshot {
   return {
-    version: 4,
+    version: 5,
     workspaceId: "workspace:test",
     revision: 4,
     desktops,

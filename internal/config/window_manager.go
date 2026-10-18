@@ -15,6 +15,7 @@ const (
 
 	WindowNewPolicyFloating    = "floating"
 	WindowNewPolicyBesideFocus = "beside_focus"
+	WindowNewPolicyTab         = "tab"
 
 	WindowSmallViewportStack  = "stack"
 	WindowSmallViewportReject = "reject"
@@ -92,15 +93,14 @@ type WindowManagerSnapConfig struct {
 
 // WindowManagerBindingConfig maps each edge-center snap action; "reserved" blocks that edge-center snap.
 type WindowManagerBindingConfig struct {
-	TopCenter string `toml:"top_center"`
-	// BottomCenter defaults to reserved to keep the approach strip above the Dock clear of snaps.
+	TopCenter    string `toml:"top_center"`
 	BottomCenter string `toml:"bottom_center"`
 }
 
 // DefaultWindowManagerConfig returns the built-in behavior shared by daemon and web clients.
 func DefaultWindowManagerConfig() WindowManagerConfig {
 	return WindowManagerConfig{
-		NewWindowPolicy:     WindowNewPolicyFloating,
+		NewWindowPolicy:     WindowNewPolicyTab,
 		SmallViewportPolicy: WindowSmallViewportStack,
 		FocusPolicy:         WindowFocusClickDirectional,
 		FocusWrap:           false,
@@ -113,15 +113,13 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 		NavStackLimit:       50,
 		ClosedEntryLimit:    20,
 		DesktopTransition:   WindowDesktopTransitionSlide,
-		Gaps: WindowManagerGapsConfig{
-			Inner: 8, Top: 8, Right: 10, Bottom: 8, Left: 10,
-		},
+		Gaps:                WindowManagerGapsConfig{},
 		Snap: WindowManagerSnapConfig{
 			EdgeBand: 32, CornerReach: 150, ExitSlack: 16,
 			RepeatRatios: []float64{0.5, 0.666667, 0.333333},
 		},
 		Bindings: WindowManagerBindingConfig{
-			TopCenter: WindowBindingZoom, BottomCenter: WindowBindingReserved,
+			TopCenter: WindowBindingZoom, BottomCenter: WindowBindingZoom,
 		},
 		Shortcuts: map[string]windowmanager.ShortcutBinding{},
 		GlobalShortcuts: map[string]string{
@@ -170,6 +168,7 @@ func (c WindowManagerConfig) validateEnums() error {
 		c.NewWindowPolicy,
 		WindowNewPolicyFloating,
 		WindowNewPolicyBesideFocus,
+		WindowNewPolicyTab,
 	); err != nil {
 		return err
 	}

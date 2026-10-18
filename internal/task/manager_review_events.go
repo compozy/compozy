@@ -19,8 +19,6 @@ type runReviewBoundEventPayload struct {
 	RunID             string `json:"run_id"`
 	SessionID         string `json:"session_id"`
 	ReviewerAgentName string `json:"reviewer_agent_name,omitempty"`
-	ReviewerPeerID    string `json:"reviewer_peer_id,omitempty"`
-	ReviewerChannelID string `json:"reviewer_channel_id,omitempty"`
 }
 
 type runReviewRecordedEventPayload struct {
@@ -73,8 +71,6 @@ func runReviewBoundEvent(review RunReview, request BindRunReviewSessionRequest) 
 			RunID:             review.RunID,
 			SessionID:         request.SessionID,
 			ReviewerAgentName: request.ReviewerAgentName,
-			ReviewerPeerID:    request.ReviewerPeerID,
-			ReviewerChannelID: request.ReviewerChannelID,
 		},
 	}
 }

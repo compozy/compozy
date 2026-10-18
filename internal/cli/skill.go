@@ -56,7 +56,7 @@ type skillInfoItem struct {
 	Activation  contract.SkillActivationPayload `json:"activation"`
 	Metadata    map[string]any                  `json:"metadata,omitempty"`
 	Resources   []string                        `json:"resources,omitempty"`
-	Provenance  *SkillProvenanceRecord          `json:"provenance,omitempty"`
+	Provenance  *SkillProvenanceRecord          `json:"provenance,omitzero"`
 	Exposures   []contract.SkillExposurePayload `json:"exposures"`
 }
 

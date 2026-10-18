@@ -16,7 +16,6 @@ import (
 const (
 	roleErrorUnknown       = contract.CodeRoleUnknown
 	roleErrorAgentNotFound = contract.CodeRoleAgentNotFound
-	roleFieldTimeout       = "timeout"
 )
 
 // RoleResolutionError is a deterministic role-resolution failure.
@@ -136,9 +135,6 @@ func (r *roleResolver) resolveEffective(
 		Model:           strings.TrimSpace(common.Model),
 		ReasoningEffort: strings.TrimSpace(common.ReasoningEffort),
 	}
-	compaction := roleInvocationCorrelationFromContext(ctx, workspaceID).SessionCompaction
-	memoryEnabled := r.config.Memory.Enabled && effectiveConfig.Memory.Enabled
-	resolved.Enabled = effectiveRoleEnabled(role, common.Enabled, memoryEnabled, compaction)
 	resolved.setRuntime(speedpkg.Speed(strings.TrimSpace(string(common.Speed))), common.ACPOptions)
 	if !resolved.Enabled {
 		populateDisabledRoleIdentity(role, common, &resolved)
@@ -166,9 +162,6 @@ func (r *roleResolver) resolveEffective(
 		resolved.Builtin = builtin
 	}
 
-	if role == compozyconfig.RoleMemoryController {
-		return resolved, effectiveConfig, nil
-	}
 	if err := resolveRoleRuntime(effectiveConfig, common, &resolved); err != nil {
 		return ResolvedRole{}, nil, fmt.Errorf("daemon: resolve %s role runtime: %w", role, err)
 	}
@@ -295,24 +288,8 @@ func roleConfig(roles *compozyconfig.RolesConfig, role compozyconfig.RoleName) (
 	switch role {
 	case compozyconfig.RoleCoordinator:
 		return roles.Coordinator.RoleConfig, nil
-	case compozyconfig.RoleDream:
-		return roles.Dream, nil
-	case compozyconfig.RoleCheckpointSummary:
-		return roles.CheckpointSummary, nil
-	case compozyconfig.RoleMemoryExtractor:
-		return roles.MemoryExtractor, nil
 	case compozyconfig.RoleAutoTitle:
 		return roles.AutoTitle, nil
-	case compozyconfig.RoleMemoryController:
-		return compozyconfig.RoleConfig{
-			Enabled:         roles.MemoryController.Enabled,
-			Provider:        roles.MemoryController.Provider,
-			Model:           roles.MemoryController.Model,
-			ReasoningEffort: roles.MemoryController.ReasoningEffort,
-			Speed:           roles.MemoryController.Speed,
-			ACPOptions:      roles.MemoryController.ACPOptions,
-			FallbackChain:   roles.MemoryController.FallbackChain,
-		}, nil
 	default:
 		return compozyconfig.RoleConfig{}, &RoleResolutionError{Code: roleErrorUnknown, Role: role}
 	}
@@ -322,12 +299,8 @@ func defaultRoleIdentity(role compozyconfig.RoleName) (string, bool) {
 	switch role {
 	case compozyconfig.RoleCoordinator:
 		return compozyconfig.BuiltinCoordinatorAgentName, false
-	case compozyconfig.RoleDream, compozyconfig.RoleCheckpointSummary:
-		return compozyconfig.BuiltinDreamingCuratorAgentName, false
-	case compozyconfig.RoleMemoryExtractor, compozyconfig.RoleAutoTitle:
+	case compozyconfig.RoleAutoTitle:
 		return "", true
-	case compozyconfig.RoleMemoryController:
-		return "", false
 	default:
 		return "", false
 	}
@@ -369,12 +342,6 @@ func roleFields(role compozyconfig.RoleName, roles *compozyconfig.RolesConfig) m
 		fields["max_children"] = roles.Coordinator.MaxChildren
 		fields["max_active_sessions_per_workspace"] = roles.Coordinator.MaxActiveSessionsPerWorkspace
 	}
-	if role == compozyconfig.RoleMemoryController {
-		fields[roleFieldTimeout] = roles.MemoryController.Timeout
-		fields["top_k"] = roles.MemoryController.TopK
-		fields["prompt_version"] = roles.MemoryController.PromptVersion
-		fields["max_tokens_out"] = roles.MemoryController.MaxTokensOut
-	}
 	return fields
 }
 
@@ -385,19 +352,4 @@ func firstRoleValue(values ...string) string {
 		}
 	}
 	return ""
-}
-
-// Compaction denotes configured availability for status and actual applicability for invocation.
-func effectiveRoleEnabled(role compozyconfig.RoleName, enabled, memoryEnabled, compaction bool) bool {
-	if !enabled {
-		return false
-	}
-	switch role {
-	case compozyconfig.RoleDream, compozyconfig.RoleMemoryExtractor, compozyconfig.RoleMemoryController:
-		return memoryEnabled
-	case compozyconfig.RoleCheckpointSummary:
-		return memoryEnabled || compaction
-	default:
-		return true
-	}
 }

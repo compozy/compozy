@@ -51,7 +51,7 @@ const VIEW_ITEMS: PillGroupItem<LoopEditorView>[] = [
     label: (
       <span className="flex items-center gap-1.5">
         <Code2 aria-hidden="true" className="size-3.5" />
-        DSL
+        Code
       </span>
     ),
     testId: "loop-editor-view-dsl",
@@ -77,12 +77,12 @@ export function LoopEditorToolbar({
   const paletteExpanded = paletteMode === "expanded";
 
   return (
-    <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas-soft px-3.5">
+    <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas px-3.5">
       {paletteMode === "menu" ? null : (
         <Button
-          aria-label={paletteExpanded ? "Close node palette" : "Open node palette"}
+          aria-label={paletteExpanded ? "Close step list" : "Open step list"}
           aria-pressed={paletteExpanded}
-          className={cn(paletteExpanded ? "bg-elevated text-fg" : null)}
+          className={cn(paletteExpanded ? "bg-surface-2 text-fg" : null)}
           data-state={paletteExpanded ? "open" : "closed"}
           data-testid="loop-editor-palette-toggle"
           onClick={onTogglePalette}
@@ -107,14 +107,14 @@ export function LoopEditorToolbar({
       )}
 
       <div className="ml-auto flex items-center gap-2.5">
-        <div className="flex items-center gap-0.5 rounded-md border border-line-soft bg-input-fill p-0.5">
+        <div className="flex items-center gap-0.5 rounded-md bg-sunken p-0.5">
           <ToolIcon label="Auto layout" onClick={onAutoLayout}>
             <LayoutGrid aria-hidden="true" className="size-3.5" />
           </ToolIcon>
           <ToolIcon label="Zoom out" onClick={() => void flow.zoomOut()}>
             <ZoomOut aria-hidden="true" className="size-3.5" />
           </ToolIcon>
-          <span className="min-w-[38px] px-1 text-center font-mono text-mono-id text-subtle">
+          <span className="min-w-10 px-1 text-center font-mono text-mono-id text-subtle">
             {Math.round(zoom * 100)}%
           </span>
           <ToolIcon label="Zoom in" onClick={() => void flow.zoomIn()}>
@@ -130,7 +130,7 @@ export function LoopEditorToolbar({
           disabled={busy || !positionsDirty}
           onClick={onSaveLayout}
           size="sm"
-          title="Persist node positions to the annotations sidecar. Structural edits publish through Publish."
+          title="Saves where the steps sit on the canvas."
           type="button"
           variant="ghost"
         >
@@ -141,7 +141,7 @@ export function LoopEditorToolbar({
         <Button
           aria-label={inspectorOpen ? "Close inspector" : "Open inspector"}
           aria-pressed={inspectorOpen}
-          className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
+          className={cn(inspectorOpen ? "bg-surface-2 text-fg" : null)}
           data-state={inspectorOpen ? "open" : "closed"}
           data-testid="loop-editor-inspector-toggle"
           onClick={onToggleInspector}
@@ -167,13 +167,12 @@ function ToolIcon({
 }) {
   return (
     <Button
-      className="size-6 text-muted hover:bg-elevated hover:text-fg-strong"
       onClick={onClick}
-      size="icon-xs"
+      size="icon-sm"
       title={label}
       aria-label={label}
       type="button"
-      variant="ghost"
+      variant="quiet"
     >
       {children}
     </Button>

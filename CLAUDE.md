@@ -7,7 +7,7 @@ CompozyOS is a Go daemon managing ACP agents over JSON-RPC/stdio, SQLite state, 
 Real users run every release. Preserve the three regimes from SD-013 and L-040:
 
 - **User state:** SQLite, `config.toml`, workspace files, and persisted layouts upgrade losslessly; every shape change ships its migration. Data loss requires the user's recorded ADR sign-off and a release-note migration block.
-- **Public surfaces:** CLI verbs/flags/output, HTTP/UDS routes and DTOs, hooks, extension/bridge SDKs, config keys, and `compozy__*` IDs auto-migrate losslessly where possible; otherwise retain the old shape for one release after the replacement ships, warn with the replacement, then delete. Only surfaces documented `experimental` may break without that window.
+- **Public surfaces:** CLI verbs/flags/output, HTTP/UDS routes and DTOs, hooks, extension SDKs, config keys, and `compozy__*` IDs auto-migrate losslessly where possible; otherwise retain the old shape for one release after the replacement ships, warn with the replacement, then delete. Only surfaces documented `experimental` may break without that window.
 - **Internal code:** Go packages, `web/`, `@compozy/ui`, specs, RFCs, and `.compozy/tasks/*` rename every consumer together; delete obsolete code without aliases or legacy branches.
 - Compatibility translation belongs in boundary loaders/decoders/alias tables/migration SQL, with one shim generation and a named removal release. Breaking-change specs list delete targets and the regime of each. Read `docs/_memory/standing_directives.md` §SD-013 when designing a compatibility change; its planned gates are not implemented guarantees.
 

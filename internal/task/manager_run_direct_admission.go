@@ -16,8 +16,7 @@ func (m *Service) admitQueuedRunForDirectExecution(
 	}
 	if run.Status.Normalize() != TaskRunStatusQueued ||
 		run.RunKind.Normalize() != RunKindWorker ||
-		strings.TrimSpace(run.LoopRunID) != "" ||
-		!run.IsTaskAnchored() {
+		strings.TrimSpace(run.LoopRunID) != "" {
 		return Run{}, Task{}, fmt.Errorf(
 			"%w: task run %q cannot enter direct execution from %q",
 			ErrInvalidStatusTransition,

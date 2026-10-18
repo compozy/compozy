@@ -23,14 +23,14 @@ type goalPromptDiagnostic struct {
 	Note      string              `json:"note,omitempty"`
 	Type      string              `json:"type,omitempty"`
 	Outcome   gate.VerdictOutcome `json:"outcome,omitempty"`
-	Passed    *bool               `json:"passed,omitempty"`
-	Broken    *bool               `json:"broken,omitempty"`
-	ExitCode  *int                `json:"exit_code,omitempty"`
+	Passed    *bool               `json:"passed,omitzero"`
+	Broken    *bool               `json:"broken,omitzero"`
+	ExitCode  *int                `json:"exit_code,omitzero"`
 	Stdout    string              `json:"stdout,omitempty"`
 	Stderr    string              `json:"stderr,omitempty"`
 	Code      string              `json:"code,omitempty"`
 	Message   string              `json:"message,omitempty"`
-	Truncated bool                `json:"truncated,omitempty"`
+	Truncated bool                `json:"truncated,omitzero"`
 }
 
 func appendPreviousDiagnostics(

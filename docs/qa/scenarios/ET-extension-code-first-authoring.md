@@ -27,3 +27,17 @@ scaffold catalog. Flag only; Tasks 08–09 own the re-walk.
 QA walk 2026-08-07: both connectivity templates scaffolded and became discoverable in CLI help.
 The clean Go build then proved the published SDK lacks their declared API; TypeScript dependency
 resolution was blocked by the machine's minimum-release-age policy. External build remains blocked.
+
+Release CI repair: `TC-EXT-005` in `web/e2e/__tests__/extensions.spec.ts` exercises both
+tool-provider templates against the checked-out SDKs and a real daemon. Build immutable
+generations, install and invoke them, update to a generation with changed tool output, then
+disable and remove each extension. Check the installed cards at every standard viewport and
+confirm disabled tools and removed extensions disappear from their registries. TypeScript
+packages must start without access to the source directory's dependencies. The fixture registry
+serves the actual generated archives; it does not replace the extension subprocess or SDK.
+
+Focused re-walk 2026-09-30: `TC-EXT-005` passed against a freshly built daemon and both current
+SDKs (one Playwright journey, 17.8 seconds). Each language returned changed tool output after
+updating to 0.2.0, disappeared from the callable tool registry on disable, and disappeared from
+the installed catalog on removal. This verifies the two tool-provider templates; the older
+external-provider blockers above are not reclassified by this local SDK check.

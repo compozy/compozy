@@ -72,19 +72,17 @@ type AutonomyLeaseStore interface {
 // AutonomyLeaseHandle is the internal-only active lease handle used to call the
 // existing token-fenced lease writers.
 type AutonomyLeaseHandle struct {
-	RunID           string
-	TaskID          string
-	RunKind         RunKind
-	WorkspaceID     string
-	TargetSessionID string
-	OwnerKey        string
-	SessionID       string
-	Status          RunStatus
-	ClaimedBy       *ActorIdentity
-	ClaimToken      string
-	ClaimTokenHash  string
-	LeaseUntil      time.Time
-	HeartbeatAt     time.Time
+	RunID          string
+	TaskID         string
+	RunKind        RunKind
+	WorkspaceID    string
+	SessionID      string
+	Status         RunStatus
+	ClaimedBy      *ActorIdentity
+	ClaimToken     string
+	ClaimTokenHash string
+	LeaseUntil     time.Time
+	HeartbeatAt    time.Time
 }
 
 func autonomyError(reason AutonomyReasonCode, cause error, format string, args ...any) error {

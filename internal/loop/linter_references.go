@@ -158,12 +158,6 @@ func nodeStringFields(node dsl.Node) []namedString {
 			fields,
 			criterionStringFields(fmt.Sprintf("criteria[%d]", idx), criterion)...)
 	}
-	if node.Harvest != nil {
-		fields = append(fields,
-			namedString{name: "harvest.responder", value: node.Harvest.Responder},
-			namedString{name: "harvest.content_rule", value: node.Harvest.ContentRule},
-		)
-	}
 	return fields
 }
 

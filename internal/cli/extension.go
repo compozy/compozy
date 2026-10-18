@@ -34,7 +34,7 @@ const (
 	extensionRuntimeUnknown         = "unknown"
 	extensionDevVerb                = "dev"
 	extensionReloadVerb             = "reload"
-	extensionConfirmNetworkFlagName = "confirm-network-requirement"
+	extensionConfirmGatewayFlagName = "confirm-gateway-requirement"
 	extensionAgentPluginValue       = "agent plugin"
 	extensionMCPKind                = "mcp"
 	extensionMCPServerKind          = "mcp_server"
@@ -138,7 +138,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 	var asset string
 	var allowUnverified bool
 	var yes bool
-	var confirmNetworkDigest string
+	var confirmGatewayDigest string
 
 	cmd := &cobra.Command{
 		Use:   "install <source>",
@@ -157,7 +157,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 				plan.Attempts[index].Scope = selected.scope
 				plan.Attempts[index].WorkspaceID = selected.workspaceID
 				plan.Attempts[index].Profile = selected.profile
-				plan.Attempts[index].ConfirmNetworkDigest = strings.TrimSpace(confirmNetworkDigest)
+				plan.Attempts[index].ConfirmGatewayDigest = strings.TrimSpace(confirmGatewayDigest)
 			}
 			plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
 			if err != nil {
@@ -200,10 +200,10 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 	)
 	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
 	cmd.Flags().StringVar(
-		&confirmNetworkDigest,
-		extensionConfirmNetworkFlagName,
+		&confirmGatewayDigest,
+		extensionConfirmGatewayFlagName,
 		"",
-		"Confirm the candidate extension network requirement digest",
+		"Confirm the candidate extension gateway requirement digest",
 	)
 	return cmd
 }
@@ -251,7 +251,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 	var version string
 	var allowUnverified bool
 	var yes bool
-	var confirmNetworkDigest string
+	var confirmGatewayDigest string
 
 	cmd := &cobra.Command{
 		Use:   "update [name]",
@@ -263,10 +263,10 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			if !updateAll && len(args) != 1 {
 				return errors.New("cli: update requires an extension name unless --all is set")
 			}
-			if updateAll && strings.TrimSpace(confirmNetworkDigest) != "" {
+			if updateAll && strings.TrimSpace(confirmGatewayDigest) != "" {
 				return fmt.Errorf(
 					"cli: --%s applies only to a single extension update",
-					extensionConfirmNetworkFlagName,
+					extensionConfirmGatewayFlagName,
 				)
 			}
 			return nil
@@ -282,7 +282,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			items, err := updateMarketplaceExtensions(cmd.Context(), deps, extensionUpdateOptions{
 				Names: args, All: updateAll, CheckOnly: checkOnly, Version: version,
 				Scope: selected.scope, WorkspaceID: selected.workspaceID, Profile: selected.profile,
-				AllowUnverified: allowUnverified, ConfirmNetworkDigest: confirmNetworkDigest,
+				AllowUnverified: allowUnverified, ConfirmGatewayDigest: confirmGatewayDigest,
 			})
 			if err != nil {
 				return err
@@ -318,10 +318,10 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 	)
 	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
 	cmd.Flags().StringVar(
-		&confirmNetworkDigest,
-		extensionConfirmNetworkFlagName,
+		&confirmGatewayDigest,
+		extensionConfirmGatewayFlagName,
 		"",
-		"Confirm the candidate extension network requirement digest",
+		"Confirm the candidate extension gateway requirement digest",
 	)
 	return cmd
 }

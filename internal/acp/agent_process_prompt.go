@@ -36,12 +36,18 @@ type activePromptState struct {
 }
 
 type toolCallProjection struct {
-	title       string
-	name        string
-	kind        string
-	inputDigest [sha256.Size]byte
-	hasInput    bool
-	prechecked  bool
+	parentToolCallID string
+	providerToolName string
+	status           string
+	title            string
+	name             string
+	kind             string
+	inputDigest      [sha256.Size]byte
+	hasInput         bool
+	prechecked       bool
+	// async records the provider's background-launch marker. It does not make an
+	// update visible on its own: it stamps the call's result (see sendEventLocked).
+	async bool
 }
 
 const maxPendingToolResults = 128
@@ -145,36 +151,10 @@ func (p *AgentProcess) cancelCurrentPrompt() bool {
 	return true
 }
 
-// SetTurnSourceProvider configures a daemon-local callback that reports the current turn provenance.
-func (p *AgentProcess) SetTurnSourceProvider(provider func() string) {
-	if p == nil {
-		return
+func (p *AgentProcess) nextPromptText(message string, maintenance bool) (string, bool, SystemPromptDeliveryMode) {
+	if maintenance {
+		return message, false, ""
 	}
-
-	p.turnSourceProviderMu.Lock()
-	defer p.turnSourceProviderMu.Unlock()
-	p.turnSourceProvider = provider
-}
-
-func (p *AgentProcess) currentTurnSource() string {
-	if p == nil {
-		return ""
-	}
-
-	p.turnSourceProviderMu.RLock()
-	provider := p.turnSourceProvider
-	p.turnSourceProviderMu.RUnlock()
-	if provider == nil {
-		return ""
-	}
-	return strings.TrimSpace(provider())
-}
-
-func (p *AgentProcess) isNetworkTurn() bool {
-	return p.currentTurnSource() == networkCommandName
-}
-
-func (p *AgentProcess) nextPromptText(message string) (string, bool, SystemPromptDeliveryMode) {
 	userMessage := strings.TrimSpace(message)
 
 	p.systemPromptMu.Lock()
@@ -281,10 +261,14 @@ func (a *activePromptState) shouldSuppressToolCallLocked(event AgentEvent) bool 
 
 func newToolCallProjection(event AgentEvent) toolCallProjection {
 	projection := toolCallProjection{
-		title:      strings.TrimSpace(event.Title),
-		name:       strings.TrimSpace(event.ToolName()),
-		kind:       strings.TrimSpace(event.ToolKind()),
-		prechecked: event.ToolPrechecked(),
+		parentToolCallID: event.ParentToolCallID(),
+		providerToolName: event.ProviderToolName(),
+		status:           event.ToolStatus(),
+		title:            strings.TrimSpace(event.Title),
+		name:             strings.TrimSpace(event.ToolName()),
+		kind:             strings.TrimSpace(event.ToolKind()),
+		prechecked:       event.ToolPrechecked(),
+		async:            event.ProviderToolAsync(),
 	}
 	input := event.ToolInput()
 	if len(input) > 0 {
@@ -296,6 +280,18 @@ func newToolCallProjection(event AgentEvent) toolCallProjection {
 
 func (p toolCallProjection) merge(next toolCallProjection) (toolCallProjection, bool) {
 	changed := false
+	if next.parentToolCallID != "" && next.parentToolCallID != p.parentToolCallID {
+		p.parentToolCallID = next.parentToolCallID
+		changed = true
+	}
+	if next.providerToolName != "" && next.providerToolName != p.providerToolName {
+		p.providerToolName = next.providerToolName
+		changed = true
+	}
+	if next.status != "" && next.status != p.status {
+		p.status = next.status
+		changed = true
+	}
 	if next.title != "" && next.title != p.title {
 		p.title = next.title
 		changed = true
@@ -317,6 +313,7 @@ func (p toolCallProjection) merge(next toolCallProjection) (toolCallProjection, 
 		p.prechecked = true
 		changed = true
 	}
+	p.async = p.async || next.async
 	return p, changed
 }
 
@@ -362,6 +359,7 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	if a == nil {
 		return
 	}
+	event = a.stampAsyncToolResultLocked(event)
 	if err := a.ingest.Admit(event); err != nil {
 		a.failIngest(err)
 		return
@@ -370,6 +368,31 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	case a.activity <- struct{}{}:
 	default:
 	}
+}
+
+// stampAsyncToolResultLocked carries a background-launch marker that arrived on
+// an earlier update of the call (claude-agent-acp sends it from PostToolUse,
+// before the result) onto the result, so the persisted result says it is a
+// launch receipt rather than the work's outcome.
+func (a *activePromptState) stampAsyncToolResultLocked(event AgentEvent) AgentEvent {
+	if event.Type != EventTypeToolResult || event.ProviderToolAsync() {
+		return event
+	}
+	if projection, ok := a.seenToolCalls[strings.TrimSpace(event.ToolCallID)]; ok && projection.async {
+		return event.WithProviderToolAsync()
+	}
+	return event
+}
+
+func (p *AgentProcess) invalidatePromptOccupancy() {
+	active := p.currentPrompt()
+	if active == nil {
+		return
+	}
+	active.usageMu.Lock()
+	defer active.usageMu.Unlock()
+	active.usage.ContextUsed = nil
+	active.usage.ContextSize = nil
 }
 
 func (p *AgentProcess) mergePromptUsage(update TokenUsage) TokenUsage {

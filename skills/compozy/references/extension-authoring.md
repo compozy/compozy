@@ -27,7 +27,7 @@ extension: the next build overwrites it. Hand-written manifests are for resource
 which run no extension process. When a native resource-only manifest declares at least one skill,
 agent, Loop, automation, or layout path, `build` validates and copies those resources without running
 build or describe commands. Executable extension contracts — including hooks, tools, MCP servers,
-bridge metadata, and command groups — still require `package.json` or `go.mod`.
+and command groups — still require `package.json` or `go.mod`.
 
 There is no second place to declare identity, schemas, permissions, tools, hooks, or commands, so
 schema-digest drift cannot occur. Manifest generation is deterministic; identical source produces a
@@ -47,7 +47,6 @@ extension cannot claim compatibility its SDK does not have.
 | `tool-provider-ts`         | Agent-callable tools in TypeScript (default).  |
 | `tool-provider-go`         | Agent-callable tools in Go.                    |
 | `view-provider-ts`         | A programmable palette view with React.        |
-| `memory-backend-ts`        | The `memory.backend` provide surface.          |
 | `loop-watch-source-go`     | The `loop.watch_source` provide surface.       |
 | `connectivity-provider-go` | A Gateway connectivity provider in Go.         |
 | `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript. |
@@ -99,13 +98,13 @@ validated against the closed Host API method set at build, validate, install, an
 hard error, never a silent no-op. Both SDKs export the method names as typed constants.
 
 CompozyOS derives operator-facing consent areas (`area:access`, such as `sessions:read` or
-`memory:write`) from that list. Consent areas are a display and policy projection and are never
+`sessions:write`) from that list. Consent areas are a display and policy projection and are never
 authored. `compozy extension validate <dir> -o json` returns `consent_areas`; show that to the user
 before proposing an install.
 
 Grant ceilings by install source: dev links (`workspace`), local-path installs (`user`), and bundled
 extensions get every declared method. Published installs (`curated`, `github`, `git`) run under the
-marketplace tier, limited to `logs.read`, `memory.read`, `observe.read`, `session.read`,
+marketplace tier, limited to `logs.read`, `observe.read`, `session.read`,
 `skills.read`, and `tool.read`; anything outside is dropped at grant time with a recorded diagnostic.
 Design a mutating extension as a local or dev-linked install, not a published one.
 
@@ -160,25 +159,21 @@ Closed set, validated at build, install, and load.
 | Provide                 | Extension must implement                                                 | Public |
 | ----------------------- | ------------------------------------------------------------------------ | ------ |
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
-| `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
-| `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
-Missing a required service method fails the build. `bridge.adapter` is excluded from the public
-surface: an installed third-party manifest declaring it is rejected deterministically, because
-external bridge authoring is a planned follow-up program. Never scaffold one for a user.
+Missing a required service method fails the build.
 
 Every `watch/poll` response requires a stable `event_key`. The runtime trims it and normalizes its
 Unicode to NFC, one canonical byte form. Invalid UTF-8 and values over 256 bytes are rejected before
 a Loop starts. Redelivery of the same source key and event key returns the existing Loop run as a
 structured suppression instead of starting duplicate work.
 
-A `connectivity.provider` is global-only and requires a confirmed Live Network participation
-digest. Its `channel_scopes` must include `gateway.private`, `gateway.public`, or both; the daemon
+A `connectivity.provider` is global-only and requires a confirmed gateway permission digest.
+Its `[gateway].permissions` must include `gateway.private`, `gateway.public`, or both; the daemon
 refuses a tier outside that declared set before starting provider code. Register all three methods with `ConnectivityProvider` in Go or
 `registerConnectivityProvider` in TypeScript. `connectivity/establish` receives the tier, a loopback
 forward target, an opaque challenge path, and a deadline; return HTTPS endpoints only after the
@@ -201,11 +196,6 @@ never return credential values.
 The bundled `tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it
 through hidden input with `compozy extension secrets set tailscale --env TS_AUTHKEY`;
 never place the value in argv, a manifest, or a prompt.
-
-For a host bridge adapter, `delivery_id` is opaque: acknowledge the exact received value and sequence,
-without trimming or reformatting it. Cursor diagnostics identify ownership with a structured
-`{kind, workspace_id}` scope, never a joined string; `kind` is closed to `global` or `workspace`,
-and `workspace_id` is likewise opaque and byte-exact.
 
 ## Contributed Commands
 
@@ -258,12 +248,14 @@ What `build` writes, for reading rather than editing: `[extension]` (`name`, `ve
 `health_check_interval`, `shutdown_timeout`), `[resources.tools.<handler>]` (id, handler, backend
 kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, optional `command`),
 `[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, `[[profiles]]`, and
-`[network_participation]`.
+`[gateway]`.
 
-Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`.
+Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`. An
+automation resource whose trigger `event` is `memory.consolidated` (a removed event) is skipped with an
+`extension.retired_entries_ignored` warning; the extension's other resources still load.
 Resource paths resolve inside the extension root; `{{config_dir}}` is that root and
 `{{env:NAME}}` reads the daemon process environment. Hooks, tools, command groups, MCP servers,
-dynamic resource publication, bridge metadata, and subprocess behavior require a supported code toolchain.
+dynamic resource publication, and subprocess behavior require a supported code toolchain.
 
 When one extension ships both a Loop and tools, actions in that Loop may call only tools owned by
 the same extension without a global external-source grant. The daemon takes the owner from installed resource
@@ -276,7 +268,7 @@ profile to publish only when that profile exists and the extension is enabled th
 profile leaves the placement dormant.
 
 `[[profiles]]` declares `name`, optional `color` plus one of `icon` (any Lucide icon name) or `emoji`, optional
-`[profiles.defaults]` (`agent`, `provider`, `sandbox`), and optional `[[profiles.credentials]]`
+`[profiles.defaults]` (`agent`, `provider`), and optional `[[profiles.credentials]]`
 (`provider`, `slot`). Install preview reports create versus bind and credential needs. Installation
 creates a missing declaration once without activating it; an existing name binds without seeding;
 updates never mutate an existing profile; removal leaves the profile and credential requirements.
@@ -284,7 +276,7 @@ updates never mutate an existing profile; removal leaves the profile and credent
 Install enables kit resources by default. `compozy --profile <profile> extension enable|disable
 <name>` changes only that profile. Required environment variables are names in the manifest; bind
 them to Vault references through the extension secrets surface, which never returns values or
-references. When install or update returns a Network confirmation digest, retry only with that exact
+references. When install or update returns a Gateway confirmation digest, retry only with that exact
 digest.
 
 ## Structured Workflows

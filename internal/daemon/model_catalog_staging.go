@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -172,7 +171,7 @@ func reconcileProviderIDs(
 	for providerID := range providerSet {
 		providerIDs = append(providerIDs, providerID)
 	}
-	sort.Strings(providerIDs)
+	slices.Sort(providerIDs)
 	return providerIDs
 }
 
@@ -234,7 +233,7 @@ func (r *modelCatalogRuntime) stageLiveProviderConfigs(
 			staged.changed = append(staged.changed, providerID)
 		}
 	}
-	sort.Strings(staged.changed)
+	slices.Sort(staged.changed)
 	return staged, nil
 }
 

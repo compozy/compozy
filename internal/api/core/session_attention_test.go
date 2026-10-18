@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -14,12 +15,14 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
@@ -49,7 +52,7 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 			}
 			return leaseID, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		path := "/workspaces/ws-1/sessions/sess-attention/presence"
 
 		acquire := performRequest(t, fixture.Engine, http.MethodPost, path, []byte(`{"visible":true}`))
@@ -89,6 +92,35 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 		}
 	})
 
+	t.Run("Should distinguish canceled presence from a server failure", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{name: "Should report client cancellation", err: context.Canceled, status: 499},
+			{name: "Should preserve genuine server failures", err: fmt.Errorf("presence store unavailable"), status: http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				manager := attentionRouteSessionManager()
+				manager.Attention.PresenceFn = func(context.Context, string, string, bool) (string, error) {
+					return "", test.err
+				}
+				fixture := newHandlerFixture(
+					t,
+					manager,
+					testutil.StubObserver{},
+					testutil.StubWorkspaceService{},
+				)
+				response := performRequest(t, fixture.Engine, http.MethodPost,
+					"/workspaces/ws-1/sessions/sess-attention/presence", []byte(`{"visible":true}`))
+				assertAPIErrorResponse(t, response, test.status, test.err.Error())
+			})
+		}
+	})
+
 	t.Run("Should list a sanitized canonical interaction projection", func(t *testing.T) {
 		t.Parallel()
 
@@ -112,7 +144,7 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 				CreatedAt: time.Date(2026, 8, 15, 20, 0, 0, 0, time.UTC),
 			}}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -152,7 +184,7 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 				},
 			}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/attention-summary", nil)
 		if response.Code != http.StatusOK {
 			t.Fatalf("attention summary status = %d, want 200; body=%s", response.Code, response.Body.String())
@@ -189,7 +221,7 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 				Revision: 19,
 			}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -230,7 +262,7 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 				ResumeID: "wait-23",
 			}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -260,7 +292,7 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 			t.Fatal("WaitForBadge() called for invalid request")
 			return session.WaitOutcome{}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		tests := []struct {
 			name string
 			body string
@@ -333,8 +365,6 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 					manager,
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				response := performRequest(
 					t,
@@ -367,8 +397,6 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			attentionRouteSessionManager(),
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		headers := map[string]string{
 			agentidentity.HeaderSessionID: "sess-agent",
@@ -434,8 +462,6 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		headers := map[string]string{
 			agentidentity.HeaderSessionID: "sess-agent",
@@ -504,7 +530,7 @@ func attentionRouteSessionManager() testutil.StubSessionManager {
 // Source I/O is stubbed; acknowledgement uses real SQLite and source attention is never mutated.
 type notificationRouteObserver struct {
 	testutil.StubObserver
-	notifications.AttentionStore
+	attention.Store
 }
 
 func (notificationRouteObserver) TaskAttentionItems(
@@ -581,8 +607,8 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 				}
 				return page, nil
 			}
-			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
-			fixture.Handlers.Observer = notificationRouteObserver{AttentionStore: db}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.Observer = notificationRouteObserver{Store: db}
 			fixture.Handlers.Loops = &stubLoopService{
 				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
 					return contract.LoopNodeInventoryResponse{}, nil
@@ -659,4 +685,107 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 			}
 		},
 	)
+}
+
+type bellTaskObserver struct {
+	notificationRouteObserver
+	queries *[]observe.OverviewQuery
+	items   []observe.OverviewAttentionItem
+}
+
+func (o bellTaskObserver) TaskAttentionItems(
+	_ context.Context,
+	query observe.OverviewQuery,
+) ([]observe.OverviewAttentionItem, error) {
+	*o.queries = append(*o.queries, query)
+	return o.items, nil
+}
+
+// Invariant: the bell reads task attention once for every registered population, keeping each
+// task's notification identity and workspace binding. Owner: core bell handler.
+func TestAttentionNotificationTaskPopulation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should read tasks once and keep registered workspace bindings", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Errorf("close: %v", err)
+			}
+		})
+		manager := attentionRouteSessionManager()
+		manager.ListPageFn = func(context.Context, session.ListQuery) (session.ListPage, error) {
+			return session.ListPage{}, nil
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+				return []workspacepkg.Workspace{{ID: "ws-1", Name: "Alpha"}, {ID: "ws-2", Name: "Beta"}}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
+		at := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+		var queries []observe.OverviewQuery
+		fixture.Handlers.Observer = bellTaskObserver{
+			Store:   db,
+			queries: &queries,
+			items: []observe.OverviewAttentionItem{
+				{NotificationID: "n-global", TaskID: "task-global", Kind: "approval", Title: "G", OccurredAt: at},
+				{
+					NotificationID: "n-ws1",
+					TaskID:         "task-ws1",
+					WorkspaceID:    "ws-1",
+					Kind:           "failure",
+					Title:          "A",
+					OccurredAt:     at,
+				},
+				{
+					NotificationID: "n-gone",
+					TaskID:         "task-gone",
+					WorkspaceID:    "ws-gone",
+					Kind:           "failure",
+					Title:          "X",
+					OccurredAt:     at,
+				},
+			},
+		}
+		var loopWorkspaces []string
+		fixture.Handlers.Loops = &stubLoopService{
+			listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+				return contract.LoopNodeInventoryResponse{}, nil
+			},
+			listLoopRequestsFn: func(
+				_ context.Context, workspace string, _ core.LoopRequestListQuery,
+			) (contract.LoopRequestsResponse, error) {
+				loopWorkspaces = append(loopWorkspaces, workspace)
+				return contract.LoopRequestsResponse{}, nil
+			},
+		}
+		fixture.Handlers.Terminal = notificationRouteTerminal{}
+		fixture.Engine.GET("/notifications/attention", fixture.Handlers.AttentionNotifications)
+
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/notifications/attention?profile=default", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.AttentionNotificationsResponse
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if len(queries) != 1 || queries[0].TaskScope != taskpkg.CatalogScopeAll || queries[0].WorkspaceID != "" ||
+			!queries[0].ReadScope.AllProfiles {
+			t.Fatalf("task attention reads = %+v, want one all-population read", queries)
+		}
+		got := map[string]string{}
+		for _, item := range payload.Items {
+			got[item.ID] = item.SourceID + "@" + item.WorkspaceID + "/" + item.WorkspaceLabel
+		}
+		want := map[string]string{"n-global": "task-global@/Global", "n-ws1": "task-ws1@ws-1/Alpha"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("bell task rows = %v, want %v", got, want)
+		}
+		if !reflect.DeepEqual(loopWorkspaces, []string{"ws-1", "ws-2"}) {
+			t.Fatalf("loop reads = %v, want each registered workspace", loopWorkspaces)
+		}
+	})
 }

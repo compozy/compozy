@@ -3,21 +3,30 @@ import { useState, type SetStateAction } from "react";
 import { useSettingsPage } from "./use-settings-page";
 
 import {
-  SettingsApiError,
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
-  type SettingsUpdateTargetSet,
-  useApplySettingsUpdate,
   useCancelSettingsUpdate,
+  useProductUpdate,
   useReloadSettings,
   useSettingsApplyRecords,
   useSettingsGeneral,
-  useSettingsUpdate,
   useUpdateSettingsGeneral,
 } from "@/systems/settings";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 type GeneralConfig = SettingsGeneralSection["config"];
+type GeneralDraftState = { draft: GeneralConfig | null; workspaceKey: string };
+
+function releaseSavedDraft(
+  current: GeneralDraftState,
+  submitted: GeneralConfig,
+  workspaceKey: string
+): GeneralDraftState {
+  // Newer edits and drafts from another workspace still belong to the user.
+  return current.workspaceKey === workspaceKey && current.draft === submitted
+    ? { ...current, draft: null }
+    : current;
+}
 
 function applyResultLabel(result: {
   active_generation: number;
@@ -47,8 +56,8 @@ function updateActionError(error: unknown): string | null {
 
 export function useSettingsGeneralPage() {
   const query = useSettingsGeneral();
-  const update = useSettingsUpdate();
-  const updateApply = useApplySettingsUpdate();
+  const productUpdate = useProductUpdate();
+  const update = productUpdate.query;
   const updateCancel = useCancelSettingsUpdate();
   const applyRecords = useSettingsApplyRecords({ limit: 8 });
   const mutation = useUpdateSettingsGeneral();
@@ -59,10 +68,10 @@ export function useSettingsGeneralPage() {
   const envelope = query.data ?? null;
   const workspaceContextKey = activeWorkspaceId ?? "__none__";
 
-  const [draftState, setDraftState] = useState<{
-    draft: GeneralConfig | null;
-    workspaceKey: string;
-  }>({ draft: null, workspaceKey: workspaceContextKey });
+  const [draftState, setDraftState] = useState<GeneralDraftState>({
+    draft: null,
+    workspaceKey: workspaceContextKey,
+  });
   const draft =
     draftState.workspaceKey === workspaceContextKey
       ? (draftState.draft ?? envelope?.config ?? null)
@@ -103,6 +112,8 @@ export function useSettingsGeneralPage() {
     const body: SettingsUpdateGeneralRequest = { config: draft };
     mutation.mutate(body, {
       onSuccess: result => {
+        // The mutation awaits the canonical refetch before releasing its submitted draft.
+        setDraftState(current => releaseSavedDraft(current, draft, workspaceContextKey));
         setLastAppliedLabel(applyResultLabel(result));
       },
     });
@@ -116,12 +127,7 @@ export function useSettingsGeneralPage() {
     });
   };
 
-  const saveError =
-    mutation.error instanceof SettingsApiError
-      ? mutation.error.message
-      : mutation.error instanceof Error
-        ? mutation.error.message
-        : null;
+  const saveError = updateActionError(mutation.error);
 
   const handleRetry = () => {
     void query.refetch();
@@ -147,23 +153,18 @@ export function useSettingsGeneralPage() {
     // own answer (`accepted` or `blocked` with its holder) so the surface can
     // report it verbatim; terminal truth still comes from the `update` read.
     updateActions: {
-      apply: (targets: SettingsUpdateTargetSet) => updateApply.mutate({ targets }),
+      apply: productUpdate.apply,
       cancel: () => updateCancel.mutate(),
-      isApplying: updateApply.isPending,
+      isApplying: productUpdate.applying,
       isCanceling: updateCancel.isPending,
-      result: updateApply.data ?? null,
+      result: productUpdate.applyResult,
       cancelResult: updateCancel.data ?? null,
-      error: updateActionError(updateApply.error) ?? updateActionError(updateCancel.error),
+      error: productUpdate.applyError ?? updateActionError(updateCancel.error),
     },
     applyRecords,
     handleReload,
     isReloading: reload.isPending,
-    reloadError:
-      reload.error instanceof SettingsApiError
-        ? reload.error.message
-        : reload.error instanceof Error
-          ? reload.error.message
-          : null,
+    reloadError: updateActionError(reload.error),
     reloadResult: reload.data ?? null,
   };
 }

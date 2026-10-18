@@ -127,10 +127,7 @@ func webhookSecretWriteFromUpdateRequest(req contract.UpdateTriggerRequest) *aut
 	if req.WebhookSecretValue == nil {
 		return nil
 	}
-	write := automationpkg.WebhookSecretWrite{}
-	value := *req.WebhookSecretValue
-	write.Value = &value
-	return &write
+	return &automationpkg.WebhookSecretWrite{Value: new(*req.WebhookSecretValue)}
 }
 
 // ValidateAutomationManagedTriggerUpdate enforces the managed trigger mutation policy.

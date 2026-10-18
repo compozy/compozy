@@ -1,7 +1,9 @@
 "use client";
 
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import * as React from "react";
 
+import { DIALOG_ICON_WELL_TONE, DIALOG_TONE_EYEBROW, type DialogTone } from "../../lib/dialog-tone";
 import { cn } from "../../lib/utils";
 import { Alert, AlertDescription } from "../alert";
 import { Button } from "../button";
@@ -17,9 +19,10 @@ import {
 import { Field, FieldContent, FieldDescription, FieldLabel } from "../field";
 import { Input } from "../input";
 import { Eyebrow } from "./eyebrow";
+import { KindIcon } from "./kind-icon";
 
-type ConfirmDialogTone = "danger" | "warning" | "accent" | "neutral";
-type ConfirmDialogIconTone = "accent" | "neutral" | "danger";
+type ConfirmDialogTone = DialogTone;
+type ConfirmDialogIconTone = DialogTone;
 type ConfirmDialogNoteTone = "info" | "warning" | "accent" | "neutral";
 type ConfirmDialogIcon = React.ComponentType<{ className?: string }>;
 type DataAttributes = {
@@ -42,9 +45,9 @@ interface ConfirmDialogProps {
   noteTone?: ConfirmDialogNoteTone;
   error?: React.ReactNode;
   confirmIcon?: ConfirmDialogIcon;
-  /** 36px head well before the title block. Tone chrome comes from `iconTone`. */
+  /** Identity well (26 px) before the title block. Tone chrome comes from `iconTone`. */
   icon?: ConfirmDialogIcon;
-  /** Paints the icon well only. Defaults from `tone` (`warning` → `neutral`). */
+  /** Paints the icon well only. Defaults from `tone`; `neutral` is the mint identity well. */
   iconTone?: ConfirmDialogIconTone;
   /** Header sibling above `DialogTitle` — never nested inside the accessible name. */
   eyebrow?: React.ReactNode;
@@ -69,27 +72,211 @@ interface ConfirmDialogProps {
   children?: React.ReactNode;
 }
 
-const TONE_EYEBROW: Record<ConfirmDialogTone, string> = {
-  danger: "text-danger",
-  warning: "text-warning",
-  accent: "text-accent-strong",
-  neutral: "text-muted",
-};
-
-const ICON_WELL_TONE: Record<ConfirmDialogIconTone, string> = {
-  accent: "bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset",
-  neutral: "bg-canvas-tint text-muted ring-1 ring-line ring-inset",
-  danger: "bg-danger-tint text-danger ring-1 ring-danger/24 ring-inset",
-};
-
 function resolveIconTone(
   iconTone: ConfirmDialogIconTone | undefined,
   tone: ConfirmDialogTone
 ): ConfirmDialogIconTone {
   if (iconTone) return iconTone;
   if (tone === "danger") return "danger";
+  if (tone === "warning") return "warning";
   if (tone === "accent") return "accent";
   return "neutral";
+}
+
+function ConfirmDialogTitleBlock({
+  title,
+  description,
+  eyebrow,
+  tone,
+  hasIcon,
+  titleProps,
+  descriptionProps,
+}: Pick<
+  ConfirmDialogProps,
+  "title" | "description" | "eyebrow" | "titleProps" | "descriptionProps"
+> & {
+  tone: ConfirmDialogTone;
+  hasIcon: boolean;
+}) {
+  const { className: titleClassName, ...restTitleProps } = titleProps ?? {};
+  const { className: descriptionClassName, ...restDescriptionProps } = descriptionProps ?? {};
+  return (
+    <>
+      {eyebrow ? <Eyebrow className={DIALOG_TONE_EYEBROW[tone]}>{eyebrow}</Eyebrow> : null}
+      <DialogTitle {...restTitleProps} className={cn(eyebrow ? "mt-1" : undefined, titleClassName)}>
+        {title}
+      </DialogTitle>
+      {description ? (
+        <DialogDescription
+          {...restDescriptionProps}
+          className={cn(eyebrow || hasIcon ? "mt-1" : undefined, descriptionClassName)}
+        >
+          {description}
+        </DialogDescription>
+      ) : null}
+    </>
+  );
+}
+
+/** Note alert and caller body between the header and the footer; renders nothing when both are empty. */
+function ConfirmDialogStack({
+  note,
+  noteTone,
+  noteProps,
+  body,
+  bodyProps,
+}: Pick<ConfirmDialogProps, "note" | "noteProps" | "body" | "bodyProps"> & {
+  noteTone: ConfirmDialogNoteTone;
+}) {
+  if (!note && !body) return null;
+  const { className: noteClassName, ...restNoteProps } = noteProps ?? {};
+  const { className: bodyClassName, ...restBodyProps } = bodyProps ?? {};
+  return (
+    <div data-slot="confirm-dialog-stack" className="flex min-w-0 flex-col gap-4 px-5 pt-4 pb-5">
+      {note ? (
+        <Alert
+          variant={noteTone === "neutral" ? "default" : noteTone}
+          role="note"
+          {...restNoteProps}
+          className={cn("text-eyebrow", noteClassName)}
+        >
+          <AlertDescription>{note}</AlertDescription>
+        </Alert>
+      ) : null}
+      {body ? (
+        <div
+          data-slot="confirm-dialog-body"
+          {...restBodyProps}
+          className={cn("flex min-w-0 flex-col gap-3", bodyClassName)}
+        >
+          {body}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ConfirmDialogTypingField({
+  confirmTyping,
+  typedValue,
+  onTypedValueChange,
+  inputRef,
+  confirmInputProps,
+}: {
+  confirmTyping: string;
+  typedValue: string;
+  onTypedValueChange: (value: string) => void;
+  inputRef: React.Ref<HTMLInputElement>;
+  confirmInputProps: ConfirmDialogProps["confirmInputProps"];
+}) {
+  const inputId = confirmInputProps?.id ?? "confirm-dialog-typing";
+  return (
+    <div className="px-5 py-4">
+      <Field>
+        <FieldContent>
+          <FieldLabel htmlFor={inputId}>Type to confirm</FieldLabel>
+          <FieldDescription>
+            Enter <span className="font-mono">{confirmTyping}</span> to enable this action.
+          </FieldDescription>
+        </FieldContent>
+        <Input
+          autoComplete="off"
+          {...confirmInputProps}
+          id={inputId}
+          ref={inputRef}
+          onChange={event => {
+            onTypedValueChange(event.target.value);
+            confirmInputProps?.onChange?.(event);
+          }}
+          value={typedValue}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function ConfirmDialogError({
+  error,
+  errorProps,
+}: Pick<ConfirmDialogProps, "error" | "errorProps">) {
+  if (!error) return null;
+  const { className: errorClassName, ...restErrorProps } = errorProps ?? {};
+  return (
+    <div className="border-t border-line px-5 py-3">
+      <Alert variant="danger" {...restErrorProps} className={cn("text-eyebrow", errorClassName)}>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+function ConfirmDialogFooter({
+  footNote,
+  cancelLabel,
+  cancelRef,
+  cancelButtonProps,
+  confirmLabel,
+  confirmIcon: ConfirmIcon,
+  confirmBlocked,
+  confirmVariant,
+  confirmButtonProps,
+  onConfirm,
+}: Pick<
+  ConfirmDialogProps,
+  | "footNote"
+  | "cancelLabel"
+  | "cancelButtonProps"
+  | "confirmLabel"
+  | "confirmIcon"
+  | "confirmButtonProps"
+  | "onConfirm"
+> & {
+  cancelRef: React.Ref<HTMLButtonElement>;
+  confirmBlocked: boolean;
+  confirmVariant: React.ComponentProps<typeof Button>["variant"];
+}) {
+  return (
+    <DialogFooter
+      variant="ruled"
+      className={cn(
+        footNote && "sm:justify-between max-[760px]:flex-col max-[760px]:items-stretch"
+      )}
+    >
+      {footNote ? (
+        <div
+          data-slot="confirm-dialog-footnote"
+          className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-mono-id text-muted [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-faint"
+        >
+          {footNote}
+        </div>
+      ) : null}
+      <div
+        className="flex shrink-0 items-center justify-end gap-2"
+        data-slot="confirm-dialog-actions"
+      >
+        <DialogClose
+          ref={cancelRef}
+          render={<Button type="button" variant="ghost" {...cancelButtonProps} />}
+        >
+          {cancelLabel}
+        </DialogClose>
+        <Button
+          disabled={confirmBlocked}
+          type="button"
+          variant={confirmVariant}
+          {...confirmButtonProps}
+          onClick={event => {
+            confirmButtonProps?.onClick?.(event);
+            if (event.defaultPrevented) return;
+            void onConfirm();
+          }}
+        >
+          {ConfirmIcon ? <ConfirmIcon /> : null}
+          {confirmLabel}
+        </Button>
+      </div>
+    </DialogFooter>
+  );
 }
 
 function ConfirmDialog({
@@ -107,7 +294,7 @@ function ConfirmDialog({
   note,
   noteTone = "info",
   error,
-  confirmIcon: ConfirmIcon,
+  confirmIcon,
   icon: Icon,
   iconTone,
   eyebrow,
@@ -126,10 +313,15 @@ function ConfirmDialog({
   children,
 }: ConfirmDialogProps) {
   const [typedValue, setTypedValue] = React.useState("");
+  // Alert-dialog safety: open on the least destructive action, so a reflexive
+  // Enter never confirms. Named explicitly under the popup-first dialog policy.
+  // A typed confirmation opens on its input instead: typing is the next step,
+  // and the confirm action stays disabled until the text matches.
+  const cancelRef = React.useRef<HTMLButtonElement | null>(null);
+  const typingRef = React.useRef<HTMLInputElement | null>(null);
+  const mergedTypingRef = useMergedRefs(typingRef, confirmInputProps?.ref);
   const requiresTyping = typeof confirmTyping === "string" && confirmTyping.length > 0;
   const confirmBlocked = isPending || (requiresTyping && typedValue !== confirmTyping);
-  const confirmVariant: React.ComponentProps<typeof Button>["variant"] =
-    tone === "danger" || tone === "warning" ? "destructive" : "default";
   const resolvedIconTone = resolveIconTone(iconTone, tone);
   const handleOpenChange: React.ComponentProps<typeof Dialog>["onOpenChange"] = (
     nextOpen,
@@ -142,28 +334,17 @@ function ConfirmDialog({
   };
 
   const { className: contentClassName, ...restContentProps } = contentProps ?? {};
-  const { className: titleClassName, ...restTitleProps } = titleProps ?? {};
-  const { className: descriptionClassName, ...restDescriptionProps } = descriptionProps ?? {};
-  const { className: noteClassName, ...restNoteProps } = noteProps ?? {};
-  const { className: errorClassName, ...restErrorProps } = errorProps ?? {};
-  const { className: bodyClassName, ...restBodyProps } = bodyProps ?? {};
-  const noteVariant = noteTone === "neutral" ? "default" : noteTone;
 
   const titleBlock = (
-    <>
-      {eyebrow ? <Eyebrow className={TONE_EYEBROW[tone]}>{eyebrow}</Eyebrow> : null}
-      <DialogTitle {...restTitleProps} className={cn(eyebrow ? "mt-1" : undefined, titleClassName)}>
-        {title}
-      </DialogTitle>
-      {description ? (
-        <DialogDescription
-          {...restDescriptionProps}
-          className={cn(eyebrow || Icon ? "mt-1" : undefined, descriptionClassName)}
-        >
-          {description}
-        </DialogDescription>
-      ) : null}
-    </>
+    <ConfirmDialogTitleBlock
+      description={description}
+      descriptionProps={descriptionProps}
+      eyebrow={eyebrow}
+      hasIcon={Boolean(Icon)}
+      title={title}
+      titleProps={titleProps}
+      tone={tone}
+    />
   );
 
   return (
@@ -172,126 +353,56 @@ function ConfirmDialog({
       <DialogContent
         showCloseButton={false}
         unframed
+        initialFocus={requiresTyping ? typingRef : cancelRef}
         {...restContentProps}
         className={cn("sm:max-w-md", className, contentClassName)}
       >
         <DialogHeader variant="ruled">
           {Icon ? (
             <div className="flex items-start gap-3">
-              <div
+              <KindIcon
                 aria-hidden="true"
+                className={DIALOG_ICON_WELL_TONE[resolvedIconTone]}
                 data-icon-tone={resolvedIconTone}
                 data-slot="confirm-dialog-icon"
-                className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-icon-well",
-                  ICON_WELL_TONE[resolvedIconTone]
-                )}
-              >
-                <Icon className="size-4" />
-              </div>
+                icon={Icon}
+                tone="well"
+              />
               <div className="min-w-0 flex-1">{titleBlock}</div>
             </div>
           ) : (
             titleBlock
           )}
         </DialogHeader>
-        {note || body ? (
-          <div
-            data-slot="confirm-dialog-stack"
-            className="flex min-w-0 flex-col gap-4 px-5 pt-4 pb-5"
-          >
-            {note ? (
-              <Alert
-                variant={noteVariant}
-                role="note"
-                {...restNoteProps}
-                className={cn("text-xs", noteClassName)}
-              >
-                <AlertDescription>{note}</AlertDescription>
-              </Alert>
-            ) : null}
-            {body ? (
-              <div
-                data-slot="confirm-dialog-body"
-                {...restBodyProps}
-                className={cn("flex min-w-0 flex-col gap-3", bodyClassName)}
-              >
-                {body}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <ConfirmDialogStack
+          body={body}
+          bodyProps={bodyProps}
+          note={note}
+          noteProps={noteProps}
+          noteTone={noteTone}
+        />
         {requiresTyping ? (
-          <div className="px-5 py-4">
-            <Field>
-              <FieldContent>
-                <FieldLabel htmlFor={confirmInputProps?.id ?? "confirm-dialog-typing"}>
-                  Type to confirm
-                </FieldLabel>
-                <FieldDescription>
-                  Enter <span className="font-mono">{confirmTyping}</span> to enable this action.
-                </FieldDescription>
-              </FieldContent>
-              <Input
-                autoComplete="off"
-                {...confirmInputProps}
-                id={confirmInputProps?.id ?? "confirm-dialog-typing"}
-                onChange={event => {
-                  setTypedValue(event.target.value);
-                  confirmInputProps?.onChange?.(event);
-                }}
-                value={typedValue}
-              />
-            </Field>
-          </div>
+          <ConfirmDialogTypingField
+            confirmInputProps={confirmInputProps}
+            confirmTyping={confirmTyping}
+            inputRef={mergedTypingRef}
+            onTypedValueChange={setTypedValue}
+            typedValue={typedValue}
+          />
         ) : null}
-        {error ? (
-          <div className="border-t border-line px-5 py-3">
-            <Alert variant="danger" {...restErrorProps} className={cn("text-xs", errorClassName)}>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        ) : null}
-        <DialogFooter
-          variant="ruled"
-          className={cn(
-            footNote && "sm:justify-between max-[760px]:flex-col max-[760px]:items-stretch"
-          )}
-        >
-          {footNote ? (
-            <div
-              data-slot="confirm-dialog-footnote"
-              className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-mono-id text-muted [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-faint"
-            >
-              {footNote}
-            </div>
-          ) : null}
-          <div
-            className="flex shrink-0 items-center justify-end gap-2"
-            data-slot="confirm-dialog-actions"
-          >
-            <DialogClose
-              render={<Button size="sm" type="button" variant="ghost" {...cancelButtonProps} />}
-            >
-              {cancelLabel}
-            </DialogClose>
-            <Button
-              disabled={confirmBlocked}
-              size="sm"
-              type="button"
-              variant={confirmVariant}
-              {...confirmButtonProps}
-              onClick={event => {
-                confirmButtonProps?.onClick?.(event);
-                if (event.defaultPrevented) return;
-                void onConfirm();
-              }}
-            >
-              {ConfirmIcon ? <ConfirmIcon className="size-3" /> : null}
-              {confirmLabel}
-            </Button>
-          </div>
-        </DialogFooter>
+        <ConfirmDialogError error={error} errorProps={errorProps} />
+        <ConfirmDialogFooter
+          cancelButtonProps={cancelButtonProps}
+          cancelLabel={cancelLabel}
+          cancelRef={cancelRef}
+          confirmBlocked={confirmBlocked}
+          confirmButtonProps={confirmButtonProps}
+          confirmIcon={confirmIcon}
+          confirmLabel={confirmLabel}
+          confirmVariant={tone === "danger" || tone === "warning" ? "destructive" : "default"}
+          footNote={footNote}
+          onConfirm={onConfirm}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { Table } from "@compozy/ui";
+
 import { PanelSurface } from "@/storybook/story-layout";
+import type { TaskListItem } from "../../types";
 import { TaskCard } from "../task-card";
 import { TaskGroup } from "../task-group";
 import { TasksListRow } from "../tasks-list-row";
@@ -17,14 +20,29 @@ const meta: Meta<typeof TasksListRow> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function Frame({ children }: { children: React.ReactNode }) {
-  return <PanelSurface className="max-w-[340px] p-0">{children}</PanelSurface>;
+/** The Tasks table at a half-pane width: Task · Status · Owner (ID from 512px). */
+function Frame({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  return (
+    <PanelSurface className={wide ? "@container max-w-240 p-0" : "@container max-w-170 p-0"}>
+      <Table className="table-fixed" overflowX="hidden">
+        {children}
+      </Table>
+    </PanelSurface>
+  );
+}
+
+function Row({ task }: { task: TaskListItem }) {
+  return (
+    <tbody>
+      <TaskCard task={task} />
+    </tbody>
+  );
 }
 
 export const Pending: Story = {
   render: () => (
     <Frame>
-      <TasksListRow
+      <Row
         task={buildTaskFixture({ status: "pending", title: "Pending task", active_run: null })}
       />
     </Frame>
@@ -34,7 +52,7 @@ export const Pending: Story = {
 export const Running: Story = {
   render: () => (
     <Frame>
-      <TasksListRow task={buildTaskFixture({ status: "in_progress", title: "Running task" })} />
+      <Row task={buildTaskFixture({ status: "in_progress", title: "Running task" })} />
     </Frame>
   ),
 };
@@ -42,9 +60,7 @@ export const Running: Story = {
 export const Done: Story = {
   render: () => (
     <Frame>
-      <TasksListRow
-        task={buildTaskFixture({ status: "completed", title: "Done task", active_run: null })}
-      />
+      <Row task={buildTaskFixture({ status: "completed", title: "Done task", active_run: null })} />
     </Frame>
   ),
 };
@@ -52,9 +68,7 @@ export const Done: Story = {
 export const Failed: Story = {
   render: () => (
     <Frame>
-      <TasksListRow
-        task={buildTaskFixture({ status: "failed", title: "Failed task", active_run: null })}
-      />
+      <Row task={buildTaskFixture({ status: "failed", title: "Failed task", active_run: null })} />
     </Frame>
   ),
 };
@@ -62,17 +76,17 @@ export const Failed: Story = {
 export const Blocked: Story = {
   render: () => (
     <Frame>
-      <TasksListRow
+      <Row
         task={buildTaskFixture({ status: "blocked", title: "Blocked task", active_run: null })}
       />
     </Frame>
   ),
 };
 
-/** List groups with header dots and flush-left task cards (production list layout). */
+/** Status groups as table bodies, each led by its sunken glyph header (production list layout). */
 export const ListGroups: Story = {
   render: () => (
-    <PanelSurface className="max-w-[520px] p-0">
+    <Frame wide>
       <TaskGroup count={1} id="active" label="Active">
         <TaskCard task={TASK_FIXTURES[0]!} />
       </TaskGroup>
@@ -90,6 +104,6 @@ export const ListGroups: Story = {
       <TaskGroup count={1} id="failed" label="Failed">
         <TaskCard task={TASK_FIXTURES[3]!} />
       </TaskGroup>
-    </PanelSurface>
+    </Frame>
   ),
 };

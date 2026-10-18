@@ -11,7 +11,6 @@ import {
   useDeleteSession,
   useRepairSession,
   useRenameSession,
-  useResumeSession,
   useSendSessionPrompt,
   useUnarchiveSession,
 } from "../use-session-actions";
@@ -43,6 +42,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   clearSessionInputs: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  fetchSession: vi.fn(),
   fetchSessionInputs: vi.fn(),
   repairSession: vi.fn(),
   renameSession: vi.fn(),
@@ -50,7 +50,6 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   replaceSessionInput: vi.fn(),
   rewindSession: vi.fn(),
   stopSession: vi.fn(),
-  resumeSession: vi.fn(),
   sendSessionPrompt: vi.fn(),
   unarchiveSession: vi.fn(),
 }));
@@ -69,10 +68,10 @@ import {
   clearSessionInputs,
   createSession,
   deleteSession,
+  fetchSession,
   fetchSessionInputs,
   repairSession,
   renameSession,
-  resumeSession,
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
@@ -348,14 +347,17 @@ describe("session actions", () => {
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
   });
 
-  it("useSessionRewind sends the current durable fence and refreshes the transcript", async () => {
+  it("useSessionRewind refreshes a renamed profile owner and sends the current durable fence", async () => {
+    const owner = { ...createdSession, profile_name: "design-renamed" };
+    vi.mocked(fetchSession).mockResolvedValue(owner);
     vi.mocked(rewindSession).mockResolvedValue({
       rewind: { draft_text: "Return to this request." },
-      session: createdSession,
+      session: owner,
     });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
+    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
     const freshTranscript = transcriptCache("message-rewound");
     const fetchInfiniteQuery = vi
       .spyOn(queryClient, "fetchInfiniteQuery")
@@ -390,6 +392,7 @@ describe("session actions", () => {
     expect(rewindSession).toHaveBeenCalledWith(
       WORKSPACE_ID,
       createdSession.id,
+      owner.profile_name,
       {
         expected_epoch: 3,
         expected_generation: 7,
@@ -400,7 +403,7 @@ describe("session actions", () => {
       controller.signal
     );
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
-      createdSession
+      owner
     );
     expect(
       queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
@@ -622,107 +625,6 @@ describe("session actions", () => {
     });
   });
 
-  it("useResumeSession keeps the live tail suspended through state reconciliation", async () => {
-    vi.mocked(resumeSession).mockImplementation(async () => {
-      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
-      return createdSession;
-    });
-
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
-    const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
-    let releaseInvalidation!: () => void;
-    const invalidation = new Promise<void>(resolve => {
-      releaseInvalidation = resolve;
-    });
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(invalidation);
-    const { result } = renderHook(() => useResumeSession(), {
-      wrapper: createWrapper(queryClient),
-    });
-
-    let mutation!: Promise<SessionPayload>;
-    act(() => {
-      mutation = result.current.mutateAsync(createdSession.id);
-    });
-
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(3));
-    expect(cancelSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
-    });
-    expect(cancelSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.byIdRoot(createdSession.id),
-    });
-    expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
-
-    releaseInvalidation();
-    await act(async () => {
-      await mutation;
-    });
-
-    expect(
-      sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
-    ).toBeUndefined();
-  });
-
-  it.each(["success", "failure"] as const)(
-    "Should retain live-tail suppression until overlapping mutation owners settle after delete %s",
-    async deleteResult => {
-      let resolveResume!: (session: SessionPayload) => void;
-      let settleDelete!: () => void;
-      const deleteError = new Error("delete failed");
-      vi.mocked(resumeSession).mockReturnValue(
-        new Promise(resolve => {
-          resolveResume = resolve;
-        })
-      );
-      vi.mocked(deleteSession).mockReturnValue(
-        new Promise((resolve, reject) => {
-          settleDelete = () => {
-            if (deleteResult === "success") {
-              resolve();
-              return;
-            }
-            reject(deleteError);
-          };
-        })
-      );
-      const queryClient = new QueryClient({
-        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-      });
-      const { result } = renderHook(
-        () => ({ remove: useDeleteSession(), resume: useResumeSession() }),
-        { wrapper: createWrapper(queryClient) }
-      );
-
-      let deleteMutation!: Promise<unknown>;
-      let resumeMutation!: Promise<SessionPayload>;
-      act(() => {
-        deleteMutation = result.current.remove.mutateAsync(createdSession).catch(error => error);
-        resumeMutation = result.current.resume.mutateAsync(createdSession.id);
-      });
-
-      await waitFor(() =>
-        expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(2)
-      );
-
-      settleDelete();
-      await act(async () => {
-        const settledDelete = await deleteMutation;
-        expect(settledDelete).toBe(deleteResult === "success" ? undefined : deleteError);
-      });
-      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
-
-      resolveResume(createdSession);
-      await act(async () => {
-        await resumeMutation;
-      });
-      expect(
-        sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
-      ).toBeUndefined();
-    }
-  );
-
   it("useRepairSession invalidates the owning session query tree after repair completes", async () => {
     vi.mocked(repairSession).mockResolvedValue({
       session_id: createdSession.id,
@@ -767,12 +669,13 @@ describe("session actions", () => {
     });
   });
 
-  it("archive and unarchive invalidate the owning session query tree", async () => {
+  it("archive and unarchive use the row owner across workspace and profile selection", async () => {
+    const target = { ...createdSession, workspace_id: "ws-other", profile_name: "design" };
     vi.mocked(archiveSession).mockResolvedValue({
-      ...createdSession,
+      ...target,
       archived_at: "2026-08-04T12:00:00Z",
     });
-    vi.mocked(unarchiveSession).mockResolvedValue(createdSession);
+    vi.mocked(unarchiveSession).mockResolvedValue(target);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -783,32 +686,34 @@ describe("session actions", () => {
     );
 
     await act(async () => {
-      await result.current.archive.mutateAsync(createdSession.id);
-      await result.current.unarchive.mutateAsync(createdSession.id);
+      await result.current.archive.mutateAsync(target);
+      await result.current.unarchive.mutateAsync(target);
     });
 
     expect(archiveSession).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      createdSession.id,
+      target.workspace_id,
+      target.id,
+      target.profile_name,
       expect.any(AbortSignal)
     );
     expect(unarchiveSession).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      createdSession.id,
+      target.workspace_id,
+      target.id,
+      target.profile_name,
       expect.any(AbortSignal)
     );
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
+      queryKey: sessionKeys.detail(target.workspace_id, target.id),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+      queryKey: sessionKeys.workspaceLists(target.workspace_id),
     });
   });
 
   it("aborts an in-flight archive request when its hook unmounts", async () => {
     let requestSignal: AbortSignal | undefined;
     vi.mocked(archiveSession).mockImplementation(
-      (_workspaceId, _sessionId, signal) =>
+      (_workspaceId, _sessionId, _profile, signal) =>
         new Promise((_resolve, reject) => {
           requestSignal = signal;
           signal?.addEventListener("abort", () =>
@@ -825,7 +730,7 @@ describe("session actions", () => {
 
     let mutation!: Promise<SessionPayload>;
     act(() => {
-      mutation = result.current.mutateAsync(createdSession.id);
+      mutation = result.current.mutateAsync(createdSession);
     });
     await waitFor(() => expect(requestSignal).toBeInstanceOf(AbortSignal));
     unmount();
@@ -909,6 +814,7 @@ describe("session actions", () => {
     expect(renameSession).toHaveBeenCalledWith(
       WORKSPACE_ID,
       createdSession.id,
+      createdSession.profile_name,
       { name: "Release review" },
       expect.any(AbortSignal)
     );
@@ -933,7 +839,7 @@ describe("session actions", () => {
     });
 
     await act(async () => {
-      await result.current.mutateAsync({ id: createdSession.id, name: "Release review" });
+      await result.current.mutateAsync({ ...createdSession, name: "Release review" });
     });
 
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
@@ -1429,7 +1335,13 @@ describe("session lifecycle batches", () => {
 
   it("stops only eligible sessions sequentially and announces verified completion once", async () => {
     const stopped = { ...createdSession, id: "stopped", state: "stopped" as const };
-    const starting = { ...createdSession, id: "starting", state: "starting" as const };
+    const starting = {
+      ...createdSession,
+      id: "starting",
+      workspace_id: "ws_beta",
+      profile_name: "studio",
+      state: "starting" as const,
+    };
     let release!: (value: Awaited<ReturnType<typeof stopSession>>) => void;
     vi.mocked(stopSession)
       .mockImplementationOnce(
@@ -1456,7 +1368,9 @@ describe("session lifecycle batches", () => {
       ])
     );
     await waitFor(() => expect(stopSession).toHaveBeenCalledTimes(1));
-    expect(stopSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, { wait: true });
+    expect(stopSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, "default", {
+      wait: true,
+    });
     await act(async () =>
       release({
         session_id: createdSession.id,
@@ -1470,9 +1384,9 @@ describe("session lifecycle batches", () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledExactlyOnceWith("2 sessions stopped")
     );
-    expect(vi.mocked(stopSession).mock.calls.map(call => call[1])).toEqual([
-      createdSession.id,
-      "starting",
+    expect(vi.mocked(stopSession).mock.calls).toEqual([
+      [WORKSPACE_ID, createdSession.id, "default", { wait: true }],
+      ["ws_beta", "starting", "studio", { wait: true }],
     ]);
   });
 
@@ -1504,6 +1418,7 @@ describe("session lifecycle batches", () => {
     expect(archiveSession).toHaveBeenCalledExactlyOnceWith(
       WORKSPACE_ID,
       "stopped",
+      createdSession.profile_name,
       expect.any(AbortSignal)
     );
     act(() => result.current.actions.onUnarchiveMany?.([createdSession, stopped, archived]));
@@ -1511,6 +1426,7 @@ describe("session lifecycle batches", () => {
     expect(unarchiveSession).toHaveBeenCalledExactlyOnceWith(
       WORKSPACE_ID,
       "archived",
+      createdSession.profile_name,
       expect.any(AbortSignal)
     );
   });

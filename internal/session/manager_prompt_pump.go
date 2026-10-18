@@ -209,7 +209,12 @@ func (m *Manager) finishPromptPump(
 				"error", err,
 			)
 		}
-		m.publishLifecycleAttentionTransition(lifecycleCtx, before, session.Info())
+		m.publishLifecycleAttentionTransitionWake(
+			lifecycleCtx,
+			before,
+			session.Info(),
+			!promptTurnWasCanceled(session, turnState),
+		)
 	}
 	if fatalPromptFailure == nil {
 		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
@@ -230,6 +235,11 @@ func (m *Manager) finishPromptPump(
 			}
 		}
 	}
+	if session != nil && turnState != nil {
+		if service := m.ReplyWatches(); service != nil {
+			service.OnTurnSettled(lifecycleCtx, session.ID, turnState.turnID)
+		}
+	}
 	if session == nil {
 		closePromptOutput(out)
 		return
@@ -246,6 +256,12 @@ func (m *Manager) finishPromptPump(
 	}
 	closePromptOutput(out)
 	m.startNextQueuedInputPrompt(session.ID)
+}
+
+// promptTurnWasCanceled reports whether the finishing turn is still fenced as a
+// canceled turn, which is observable until clearPromptState retires the marker.
+func promptTurnWasCanceled(session *Session, turnState *promptTurnDispatchState) bool {
+	return session != nil && turnState != nil && session.promptCancellationRequested(turnState.turnID)
 }
 
 func closePromptOutput(out chan<- acp.AgentEvent) {

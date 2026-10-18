@@ -11,13 +11,6 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-type SessionSandboxMode string
-
-const (
-	SessionSandboxModeNone SessionSandboxMode = "none"
-	SessionSandboxModeRef  SessionSandboxMode = "ref"
-)
-
 type SessionRuntimeMode string
 
 const (
@@ -25,13 +18,7 @@ const (
 )
 
 type SessionPolicy struct {
-	Sandbox SessionSandboxPolicy
 	Runtime SessionRuntimePolicy
-}
-
-type SessionSandboxPolicy struct {
-	Mode       SessionSandboxMode
-	SandboxRef string
 }
 
 type SessionRuntimePolicy struct {
@@ -44,29 +31,10 @@ func sessionPolicyFromTaskExecutionProfile(profile *taskpkg.ExecutionProfile) Se
 		return SessionPolicy{}
 	}
 	return SessionPolicy{
-		Sandbox: SessionSandboxPolicy{
-			Mode:       SessionSandboxMode(profile.Sandbox.Mode.Normalize()),
-			SandboxRef: strings.TrimSpace(profile.Sandbox.SandboxRef),
-		},
+
 		Runtime: SessionRuntimePolicy{
 			Mode: SessionRuntimeMode(profile.Runtime.Mode.Normalize()),
 		},
-	}
-}
-
-func applySessionSandboxPolicy(opts *session.CreateOpts, p SessionPolicy) {
-	if opts == nil {
-		return
-	}
-	switch normalizeSessionSandboxMode(p.Sandbox.Mode) {
-	case SessionSandboxModeNone:
-		opts.DisableSandbox = true
-		opts.SandboxRef = ""
-	case SessionSandboxModeRef:
-		opts.DisableSandbox = false
-		opts.SandboxRef = strings.TrimSpace(p.Sandbox.SandboxRef)
-	default:
-		return
 	}
 }
 
@@ -82,11 +50,6 @@ func applySessionPermissionPolicy(opts *session.CreateOpts, p SessionPolicy) {
 	}
 	guidance := "Runtime evidence mode is enabled for this task. You may boot local app runtimes, " +
 		"run browser or simulator validation, and capture runtime evidence artifacts required by the task."
-	if sessionRuntimeEvidenceCanAutoApprove(p) {
-		opts.Permissions = compozyconfig.PermissionModeApproveAll
-	} else {
-		guidance += " Compozy keeps the configured permission mode because the task profile did not select a sandbox."
-	}
 	opts.PromptOverlay = joinPromptOverlays(opts.PromptOverlay, guidance)
 }
 
@@ -100,15 +63,6 @@ func applyAllowedToolsNarrowing(opts *session.CreateOpts, requested []string) er
 	}
 	opts.AllowedToolsOverride = normalized
 	return nil
-}
-
-func sessionRuntimeEvidenceCanAutoApprove(p SessionPolicy) bool {
-	return normalizeSessionSandboxMode(p.Sandbox.Mode) == SessionSandboxModeRef &&
-		strings.TrimSpace(p.Sandbox.SandboxRef) != ""
-}
-
-func normalizeSessionSandboxMode(mode SessionSandboxMode) SessionSandboxMode {
-	return SessionSandboxMode(strings.ToLower(strings.TrimSpace(string(mode))))
 }
 
 func normalizeSessionRuntimeMode(mode SessionRuntimeMode) SessionRuntimeMode {

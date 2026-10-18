@@ -27,7 +27,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		engine, _, _ := newTestEngine(t, testLimits())
 		value := objectValue("first")
 		created := applyPut(t, engine, "w1", "os_shell", "desktop", value, 0, ApplyOptions{})
-		got, err := engine.Get(context.Background(), "w1", "os_shell", "desktop")
+		got, err := engine.Get(t.Context(), "w1", "os_shell", "desktop")
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
@@ -53,7 +53,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 	t.Run("Should report an absent key without creating state (UT-003)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, path := newTestEngine(t, testLimits())
-		_, err := engine.Get(context.Background(), "w1", "os_shell", "missing")
+		_, err := engine.Get(t.Context(), "w1", "os_shell", "missing")
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("Get() error = %v, want ErrNotFound", err)
 		}
@@ -81,13 +81,13 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		engine, _, _ := newTestEngine(t, testLimits())
 		first := applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("one"), 0, ApplyOptions{})
 		applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("two"), first.Rev, ApplyOptions{})
-		_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpPut, Key: "desktop", Value: objectValue("stale"), IfRev: first.Rev,
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrRevConflict) {
 			t.Fatalf("Apply() error = %v, want ErrRevConflict", err)
 		}
-		got, getErr := engine.Get(context.Background(), "w1", "os_shell", "desktop")
+		got, getErr := engine.Get(t.Context(), "w1", "os_shell", "desktop")
 		if getErr != nil {
 			t.Fatalf("Get() error = %v", getErr)
 		}
@@ -109,7 +109,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		}
 		applyPut(t, engine, "w1", "os_shell", "exact", exact, 0, ApplyOptions{})
 		tooLarge := append(append([]byte(nil), exact[:len(exact)-2]...), 'x', '"', '}')
-		_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpPut, Key: "large", Value: tooLarge,
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrValueTooLarge) {
@@ -130,10 +130,10 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 				Value: objectValue("retained"),
 			}
 		}
-		if _, err := engine.Apply(context.Background(), "w1", "other", ops, ApplyOptions{}); err != nil {
+		if _, err := engine.Apply(t.Context(), "w1", "other", ops, ApplyOptions{}); err != nil {
 			t.Fatalf("Apply(511 retained identities) error = %v", err)
 		}
-		_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpPut, Key: "key:512", Value: objectValue("over-quota"),
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrKeyQuota) {
@@ -149,7 +149,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 	t.Run("Should reject malformed domains (UT-008)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		_, err := engine.Apply(context.Background(), "w1", "OS Shell", []Op{{
+		_, err := engine.Apply(t.Context(), "w1", "OS Shell", []Op{{
 			Kind: OpPut, Key: "desktop", Value: objectValue("value"),
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrInvalidDomain) {
@@ -161,7 +161,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
 		for _, key := range []string{"bad/key", strings.Repeat("k", 129)} {
-			_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+			_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 				Kind: OpPut, Key: key, Value: objectValue("value"),
 			}}, ApplyOptions{})
 			if !errors.Is(err, ErrInvalidKey) {
@@ -176,7 +176,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		applyPut(t, engine, "w1", "os_shell", "win:b", objectValue("b"), 0, ApplyOptions{})
 		applyPut(t, engine, "w1", "other", "hidden", objectValue("other"), 0, ApplyOptions{})
 		applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("desktop"), 0, ApplyOptions{})
-		entries, err := engine.List(context.Background(), "w1", "os_shell")
+		entries, err := engine.List(t.Context(), "w1", "os_shell")
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
@@ -195,7 +195,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		resolver.register("w1", "generation-1")
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		engine, err := Open(context.Background(), DatabasePath(t.TempDir()), resolver, testLimits(), WithLogger(logger))
+		engine, err := Open(t.Context(), DatabasePath(t.TempDir()), resolver, testLimits(), WithLogger(logger))
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -242,10 +242,10 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		if !deleted.Deleted || deleted.Rev != 2 {
 			t.Fatalf("deleted = %#v, want tombstone rev=2", deleted)
 		}
-		if entries, err := engine.List(context.Background(), "w1", "os_shell"); err != nil || len(entries) != 0 {
+		if entries, err := engine.List(t.Context(), "w1", "os_shell"); err != nil || len(entries) != 0 {
 			t.Fatalf("List() = %#v, %v; want no tombstones", entries, err)
 		}
-		subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)
 		}
@@ -260,7 +260,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		if err := subscription.Close(); err != nil {
 			t.Fatalf("Subscription.Close() error = %v", err)
 		}
-		_, err = engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err = engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpPut, Key: "desktop", Value: objectValue("stale"), IfRev: first.Rev,
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrRevConflict) {
@@ -276,7 +276,7 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
 		seed := applyPut(t, engine, "w1", "os_shell", "seed", objectValue("seed"), 0, ApplyOptions{})
-		_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{
+		_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{
 			{Kind: OpPut, Key: "one", Value: objectValue("one")},
 			{Kind: OpPut, Key: "two", Value: objectValue("two")},
 			{Kind: OpPut, Key: "seed", Value: objectValue("stale"), IfRev: seed.Rev + 1},
@@ -285,11 +285,11 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 			t.Fatalf("Apply(invalid batch) error = %v, want ErrRevConflict", err)
 		}
 		for _, key := range []string{"one", "two"} {
-			if _, getErr := engine.Get(context.Background(), "w1", "os_shell", key); !errors.Is(getErr, ErrNotFound) {
+			if _, getErr := engine.Get(t.Context(), "w1", "os_shell", key); !errors.Is(getErr, ErrNotFound) {
 				t.Fatalf("Get(%s) error = %v, want ErrNotFound after rollback", key, getErr)
 			}
 		}
-		results, applyErr := engine.Apply(context.Background(), "w1", "os_shell", []Op{
+		results, applyErr := engine.Apply(t.Context(), "w1", "os_shell", []Op{
 			{Kind: OpPut, Key: "one", Value: objectValue("one")},
 			{Kind: OpPut, Key: "two", Value: objectValue("two")},
 			{Kind: OpPut, Key: "seed", Value: objectValue("updated"), IfRev: seed.Rev},
@@ -306,14 +306,14 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
 		for _, value := range [][]byte{[]byte(`{"broken":`), []byte(`[]`), []byte(`"scalar"`), []byte(`null`)} {
-			_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{
+			_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{
 				{Kind: OpPut, Key: "valid", Value: objectValue("valid")},
 				{Kind: OpPut, Key: "invalid", Value: value},
 			}, ApplyOptions{})
 			if !errors.Is(err, ErrInvalidValue) {
 				t.Fatalf("Apply(value=%q) error = %v, want ErrInvalidValue", value, err)
 			}
-			_, getErr := engine.Get(context.Background(), "w1", "os_shell", "valid")
+			_, getErr := engine.Get(t.Context(), "w1", "os_shell", "valid")
 			if !errors.Is(getErr, ErrNotFound) {
 				t.Fatalf("Get(valid) error = %v, want rollback", getErr)
 			}
@@ -323,11 +323,11 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 	t.Run("Should reject an empty apply without advancing state (UT-088)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		_, err := engine.Apply(context.Background(), "w1", "os_shell", nil, ApplyOptions{})
+		_, err := engine.Apply(t.Context(), "w1", "os_shell", nil, ApplyOptions{})
 		if !errors.Is(err, ErrEmptyApply) {
 			t.Fatalf("Apply() error = %v, want ErrEmptyApply", err)
 		}
-		subscription, watchErr := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, watchErr := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if watchErr != nil {
 			t.Fatalf("Watch() error = %v", watchErr)
 		}
@@ -339,31 +339,31 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 	t.Run("Should reject invalid delete and operation shapes without state", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpDelete, Key: "missing",
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("Apply(delete missing) error = %v, want ErrNotFound", err)
 		}
-		_, err = engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err = engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpDelete, Key: "missing", IfRev: 7,
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("Apply(delete missing with CAS) error = %v, want ErrNotFound", err)
 		}
-		_, err = engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err = engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpDelete, Key: "missing", Value: objectValue("invalid"),
 		}}, ApplyOptions{})
 		if !errors.Is(err, ErrInvalidValue) {
 			t.Fatalf("Apply(delete with value) error = %v, want ErrInvalidValue", err)
 		}
-		_, err = engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+		_, err = engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 			Kind: OpKind(99), Key: "missing",
 		}}, ApplyOptions{})
 		if err == nil {
 			t.Fatal("Apply(unknown kind) error = nil, want validation failure")
 		}
-		entries, listErr := engine.List(context.Background(), "w1", "os_shell")
+		entries, listErr := engine.List(t.Context(), "w1", "os_shell")
 		if listErr != nil || len(entries) != 0 {
 			t.Fatalf("List() = %#v, %v; want empty after rejected mutations", entries, listErr)
 		}
@@ -387,15 +387,15 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 			ApplyOptions{},
 		)
 		resolver.markDeleting("w1")
-		preparation, err := engine.PrepareWorkspacePurge(context.Background(), "w1")
+		preparation, err := engine.PrepareWorkspacePurge(t.Context(), "w1")
 		if err != nil {
 			t.Fatalf("PrepareWorkspacePurge() error = %v", err)
 		}
-		if err := preparation.Rollback(context.Background()); err != nil {
+		if err := preparation.Rollback(t.Context()); err != nil {
 			t.Fatalf("Rollback() error = %v", err)
 		}
 		resolver.register("w1", "w1-generation-1")
-		preserved, err := engine.Get(context.Background(), "w1", "os_shell", "desktop")
+		preserved, err := engine.Get(t.Context(), "w1", "os_shell", "desktop")
 		if err != nil {
 			t.Fatalf("Get(after rollback) error = %v", err)
 		}
@@ -423,7 +423,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		resolver := newFakeWorkspaceResolver()
 		resolver.register("w1", "generation-1")
 		path := DatabasePath(t.TempDir())
-		engine, err := Open(context.Background(), path, resolver, testLimits())
+		engine, err := Open(t.Context(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -438,7 +438,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 			ApplyOptions{},
 		)
 		resolver.markDeleting("w1")
-		if _, err := engine.PrepareWorkspacePurge(context.Background(), "w1"); err != nil {
+		if _, err := engine.PrepareWorkspacePurge(t.Context(), "w1"); err != nil {
 			t.Fatalf("PrepareWorkspacePurge() error = %v", err)
 		}
 		if err := engine.Close(); err != nil {
@@ -446,11 +446,11 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		}
 
 		resolver.register("w1", "generation-1")
-		recovered, err := Open(context.Background(), path, resolver, testLimits())
+		recovered, err := Open(t.Context(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(recover existing workspace) error = %v", err)
 		}
-		got, err := recovered.Get(context.Background(), "w1", "os_shell", "desktop")
+		got, err := recovered.Get(t.Context(), "w1", "os_shell", "desktop")
 		if err != nil {
 			t.Fatalf("Get(recovered) error = %v", err)
 		}
@@ -459,14 +459,14 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		}
 
 		resolver.markDeleting("w1")
-		if _, err := recovered.PrepareWorkspacePurge(context.Background(), "w1"); err != nil {
+		if _, err := recovered.PrepareWorkspacePurge(t.Context(), "w1"); err != nil {
 			t.Fatalf("PrepareWorkspacePurge(second) error = %v", err)
 		}
 		if err := recovered.Close(); err != nil {
 			t.Fatalf("Close(second staged) error = %v", err)
 		}
 		resolver.remove("w1")
-		committed, err := Open(context.Background(), path, resolver, testLimits())
+		committed, err := Open(t.Context(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(recover deleted workspace) error = %v", err)
 		}
@@ -476,7 +476,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 			}
 		})
 		resolver.register("w1", "generation-2")
-		if entries, err := committed.List(context.Background(), "w1", "os_shell"); err != nil || len(entries) != 0 {
+		if entries, err := committed.List(t.Context(), "w1", "os_shell"); err != nil || len(entries) != 0 {
 			t.Fatalf("List(recreated) = %#v, %v; want empty", entries, err)
 		}
 	})
@@ -486,20 +486,20 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		base := newFakeWorkspaceResolver()
 		base.register("w1", "generation-1")
 		path := DatabasePath(t.TempDir())
-		engine, err := Open(context.Background(), path, base, testLimits())
+		engine, err := Open(t.Context(), path, base, testLimits())
 		if err != nil {
 			t.Fatalf("Open(seed) error = %v", err)
 		}
 		applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("recover"), 0, ApplyOptions{})
 		base.markDeleting("w1")
-		if _, err := engine.PrepareWorkspacePurge(context.Background(), "w1"); err != nil {
+		if _, err := engine.PrepareWorkspacePurge(t.Context(), "w1"); err != nil {
 			t.Fatalf("PrepareWorkspacePurge() error = %v", err)
 		}
 		if err := engine.Close(); err != nil {
 			t.Fatalf("Close(seed) error = %v", err)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		resolver := &cancelableRecoveryResolver{
 			base:    base,
@@ -543,16 +543,16 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("w1"), 0, ApplyOptions{})
 		applyPut(t, engine, "w1", "other", "hidden", objectValue("w1-other"), 0, ApplyOptions{})
 		applyPut(t, engine, "w2", "os_shell", "desktop", objectValue("w2"), 0, ApplyOptions{})
-		w1Subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		w1Subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(w1) error = %v", err)
 		}
-		w2Subscription, err := engine.Watch(context.Background(), "w2", []string{"os_shell"})
+		w2Subscription, err := engine.Watch(t.Context(), "w2", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch(w2) error = %v", err)
 		}
 		resolver.markDeleting("w1")
-		if err := engine.PurgeWorkspace(context.Background(), "w1"); err != nil {
+		if err := engine.PurgeWorkspace(t.Context(), "w1"); err != nil {
 			t.Fatalf("PurgeWorkspace() error = %v", err)
 		}
 		select {
@@ -567,17 +567,17 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		if event := receiveEvent(t, w2Subscription); event.Workspace != "w2" {
 			t.Fatalf("w2 event workspace = %q, want w2", event.Workspace)
 		}
-		if err := engine.PurgeWorkspace(context.Background(), "w1"); err != nil {
+		if err := engine.PurgeWorkspace(t.Context(), "w1"); err != nil {
 			t.Fatalf("second PurgeWorkspace() error = %v", err)
 		}
 		resolver.register("w1", "w1-generation-2")
 		for _, domain := range []string{"os_shell", "other"} {
-			entries, listErr := engine.List(context.Background(), "w1", domain)
+			entries, listErr := engine.List(t.Context(), "w1", domain)
 			if listErr != nil || len(entries) != 0 {
 				t.Fatalf("List(recreated %s) = %#v, %v; want empty", domain, entries, listErr)
 			}
 		}
-		w2Entry, err := engine.Get(context.Background(), "w2", "os_shell", "desktop")
+		w2Entry, err := engine.Get(t.Context(), "w2", "os_shell", "desktop")
 		if err != nil || !bytes.Equal(w2Entry.Value, objectValue("w2-next")) {
 			t.Fatalf("Get(w2) = %#v, %v; want untouched w2-next", w2Entry, err)
 		}
@@ -588,7 +588,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		resolver := newFakeWorkspaceResolver()
 		resolver.register("w1", "generation-1")
 		path := filepath.Join(t.TempDir(), "state", DatabaseName)
-		engine, err := Open(context.Background(), path, resolver, testLimits())
+		engine, err := Open(t.Context(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -596,7 +596,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		if err := engine.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
-		reopened, err := Open(context.Background(), path, resolver, testLimits())
+		reopened, err := Open(t.Context(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(reopen) error = %v", err)
 		}
@@ -605,7 +605,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
-		got, err := reopened.Get(context.Background(), "w1", "os_shell", "desktop")
+		got, err := reopened.Get(t.Context(), "w1", "os_shell", "desktop")
 		if err != nil {
 			t.Fatalf("Get(reopened) error = %v", err)
 		}
@@ -636,12 +636,12 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&logs, nil))
 
-		engine, err := Open(context.Background(), path, resolver, testLimits(), WithLogger(logger))
+		engine, err := Open(t.Context(), path, resolver, testLimits(), WithLogger(logger))
 		if err != nil {
 			t.Fatalf("Open(unversioned) error = %v", err)
 		}
 		_, err = engine.Get(
-			context.Background(),
+			t.Context(),
 			"w1",
 			"window_manager",
 			"snapshot",
@@ -666,7 +666,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 			t.Fatalf("Close(after hard cut) error = %v", err)
 		}
 
-		reopened, err := Open(context.Background(), path, resolver, testLimits())
+		reopened, err := Open(t.Context(), path, resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open(current contract) error = %v", err)
 		}
@@ -675,7 +675,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 				t.Errorf("Close(reopened current contract) error = %v", err)
 			}
 		})
-		got, err := reopened.Get(context.Background(), "w1", "window_manager", "snapshot")
+		got, err := reopened.Get(t.Context(), "w1", "window_manager", "snapshot")
 		if err != nil {
 			t.Fatalf("Get(reopened current contract) error = %v", err)
 		}
@@ -694,7 +694,7 @@ func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "state", DatabaseName)
 		seedAheadStore(t, path)
 
-		engine, err := Open(context.Background(), path, resolver, testLimits())
+		engine, err := Open(t.Context(), path, resolver, testLimits())
 		if engine != nil || !errors.Is(err, ErrStoreFormatTooNew) {
 			t.Fatalf("Open(ahead format) = %v, %v; want nil engine and ahead-version error", engine, err)
 		}

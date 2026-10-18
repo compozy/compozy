@@ -97,7 +97,7 @@ export function GatewayProviderSection({
           key={`${activation.name}:${activation.tier ?? "unknown"}`}
         >
           <ListingRow.Icon>
-            <Radio aria-hidden="true" className="size-3.5" />
+            <Radio aria-hidden="true" className="size-4" />
           </ListingRow.Icon>
           <ListingRow.Main>
             <ListingRow.Title>

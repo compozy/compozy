@@ -11,10 +11,12 @@ export interface SessionSidebarProps {
   disconnected: boolean;
   collapsedThreadIds: readonly string[];
   currentSessionId?: string;
+  /** The session on screen; a subagent session is revealed under its parent row. */
+  revealedSession?: SessionPayload | null;
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
-  onNewSession: () => void;
+  onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 
@@ -29,6 +31,7 @@ export function SessionSidebar({
   disconnected,
   collapsedThreadIds,
   currentSessionId,
+  revealedSession,
   view,
   onToggleThread,
   onSelectSession,
@@ -42,7 +45,7 @@ export function SessionSidebar({
       data-testid="session-sidebar"
       inert={!open}
       className={cn(
-        "flex shrink-0 flex-col overflow-hidden bg-rail transition-[width] duration-shell-slow motion-reduce:transition-none",
+        "flex shrink-0 flex-col overflow-hidden bg-sunken transition-[width] duration-shell-slow motion-reduce:transition-none",
         open ? "w-66 border-r border-line" : "w-0"
       )}
     >
@@ -53,6 +56,7 @@ export function SessionSidebar({
           disconnected={disconnected}
           collapsedThreadIds={collapsedThreadIds}
           currentSessionId={currentSessionId}
+          revealedSession={revealedSession}
           onToggleThread={onToggleThread}
           onSelectSession={onSelectSession}
           onNewSession={onNewSession}

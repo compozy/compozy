@@ -24,7 +24,7 @@ const meta: Meta<typeof SettingsEditorDialog> = {
     docs: {
       description: {
         component:
-          "`SettingsEditorDialog` pins the shared modal shell — ruled `EntityDialogHeader`, host size token, feedback strip, and `EntityDialogFooter` with its consequence hint — so vault and sandbox inherit chrome without per-page header forks. These stories exercise the *shell*; the real bodies live in `VaultEditor`, `MCPServerEditor`, and `ProviderDetailDialog`. Bodies here use the same `FormSection` + `ModalSettingsFieldRow` grammar production uses — never the settings-page row grammar, which belongs to routes.",
+          "`SettingsEditorDialog` pins the shared modal shell — ruled `EntityDialogHeader`, host size token, feedback strip, and `EntityDialogFooter` with its consequence hint — so vault and provider editors inherit chrome without per-page header forks. These stories exercise the *shell*; the real bodies live in `VaultEditor`, `MCPServerEditor`, and `ProviderDetailDialog`. Bodies here use the same `FormSection` + `ModalSettingsFieldRow` grammar production uses — never the settings-page row grammar, which belongs to routes.",
       },
     },
   },
@@ -40,12 +40,12 @@ export const Editor: Story = {
     <SettingsEditorDialog
       open
       canSave
-      description="Update command and model defaults for this provider overlay."
-      eyebrow="Settings · Provider"
-      hint="Saved overlays apply to new sessions in this workspace."
+      description="Update the command and default model for this provider."
+      eyebrow="Provider"
+      hint="Saved changes apply to new sessions in this project."
       icon={Settings2}
       isSaving={false}
-      metadata={<Pill tone="info">workspace override</Pill>}
+      metadata={<Pill tone="neutral">Project change</Pill>}
       mode="edit"
       onOpenChange={fn()}
       onSave={fn()}
@@ -83,14 +83,13 @@ export const Delete: Story = {
       open
       cancelLabel="Cancel"
       confirmIcon={Trash2}
-      confirmLabel="Delete"
+      confirmLabel="Reset to default"
       contentProps={{ "data-testid": "settings-providers-delete" }}
-      description="This removes the workspace override; built-in provider defaults remain available."
+      description="The provider goes back to the setup CompozyOS ships with."
       isPending={false}
-      note="The provider falls back to the built-in config after deletion."
       onConfirm={fn()}
       onOpenChange={fn()}
-      title="Delete provider overlay"
+      title="Reset provider to default"
     />
   ),
 };
@@ -142,7 +141,7 @@ export const CompactHost: Story = {
       eyebrow="System · Vault"
       hint={
         <>
-          Bind it from providers, bridges, or sandboxes as{" "}
+          Bind it from providers or extensions as{" "}
           <b className="font-medium text-muted">vault:&lt;reference&gt;</b>.
         </>
       }
@@ -157,7 +156,7 @@ export const CompactHost: Story = {
       title="Add vault secret"
     >
       <FormSection
-        help="Providers, bridges, and sandboxes bind this value by its reference."
+        help="Providers and extensions bind this value by its reference."
         title="The reference"
       >
         <Field>

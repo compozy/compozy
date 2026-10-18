@@ -2,7 +2,7 @@ package acp
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -105,7 +105,7 @@ func normalizedChoices(values []string) []string {
 	for value := range set {
 		choices = append(choices, value)
 	}
-	sort.Strings(choices)
+	slices.Sort(choices)
 	return choices
 }
 

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 
-import { Pill } from "@compozy/ui";
+import { Button, Pill } from "@compozy/ui";
 import { ImageIcon } from "lucide-react";
 
 import { statusTone } from "@/lib/status-tone";
@@ -275,10 +275,7 @@ function GridTileButton({
   return (
     <div
       aria-selected={selected}
-      className={cn(
-        "min-w-0 rounded-md border border-line bg-canvas-tint p-2",
-        selected && "border-line-strong bg-elevated shadow-focus-ring"
-      )}
+      className={cn("min-w-0 rounded-lg p-2", selected ? "bg-selected" : "bg-card shadow-card")}
       data-action-count={tile.actions?.length ?? 0}
       data-testid={`palette-grid-tile-${tile.id}`}
       role="gridcell"
@@ -293,7 +290,8 @@ function GridTileButton({
         <div className="mt-2 flex min-w-0 items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-card-title text-fg">{tile.title}</span>
           {tile.badge ? (
-            <Pill size="xs" tone={statusTone(tile.badge.tone)}>
+            <Pill form="plain" size="xs" tone={statusTone(tile.badge.tone)}>
+              <Pill.Dot />
               {tile.badge.label}
             </Pill>
           ) : null}
@@ -302,14 +300,15 @@ function GridTileButton({
       {extras.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {extras.map(action => (
-            <button
+            <Button
               key={action.title}
               type="button"
-              className="rounded-sm border border-line px-1.5 py-0.5 text-micro text-muted outline-none hover:bg-elevated"
+              size="xs"
+              variant="secondary"
               onClick={() => onAction(action)}
             >
               {action.title}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
@@ -340,7 +339,7 @@ function TileImage({
     return (
       <img
         alt=""
-        className="aspect-video w-full rounded-sm bg-canvas object-cover"
+        className="aspect-video w-full rounded-md bg-sunken object-cover"
         src={tile.image.url}
         onError={onError}
       />
@@ -349,9 +348,9 @@ function TileImage({
   const token = tile.image.token;
   const TokenIcon = token ? cmdPaletteIconRegistry[token] : undefined;
   return (
-    <div className="grid aspect-video w-full place-items-center rounded-sm bg-canvas text-subtle">
+    <div className="grid aspect-video w-full place-items-center rounded-md bg-sunken text-subtle">
       {tile.image.emoji && !failed ? (
-        <span aria-hidden="true" className="text-title">
+        <span aria-hidden="true" className="text-heading">
           {tile.image.emoji}
         </span>
       ) : TokenIcon && !failed ? (

@@ -86,8 +86,7 @@ func (s *service) putMCPServer(
 	result.ProfileName = profileName
 	result = mutationResultAtPath(result, target.Path())
 	result.Warnings = append(result.Warnings, cleanupWarnings...)
-	item := committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources)
-	result.MCPServer = &item
+	result.MCPServer = new(committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources))
 	return result, nil
 }
 

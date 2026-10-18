@@ -11,7 +11,8 @@ export const Route = createFileRoute("/_app/marketplace/$entryId")({
         search.from === "installed"
           ? { label: "Installed", search: { q: search.q }, to: "/marketplace/installed" }
           : { label: "Marketplace", search: { q: search.q }, to: "/marketplace" },
-      crumb: { label: params.entryId },
+      // The real name arrives through the page's topbar slot; until then show a readable slug.
+      crumb: { label: (search.installed_name ?? params.entryId).replaceAll("-", " ") },
     },
   }),
   component: createOsRouteSync("marketplace"),

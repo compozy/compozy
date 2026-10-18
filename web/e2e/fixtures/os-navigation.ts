@@ -4,7 +4,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * Shared OS window-shell navigation helpers.
  *
  * The current shell has no persistent sidebar: a user opens each app through the
- * Dock (or the menubar for Settings) and every interaction is scoped to the owning
+ * Dock rail (or the rail foot for Settings) and every interaction is scoped to the owning
  * OS window. Runtime window IDs are opaque; app and instance selectors come from
  * the authority-backed attributes rendered on each window surface. These helpers
  * mirror the proven patterns from `os-shell.spec.ts` so every spec shares one
@@ -17,23 +17,23 @@ export function appWindow(page: Page, app: string): Locator {
 }
 
 /**
- * Open an OS app window from the Dock or menubar and return its window locator.
+ * Open an OS app window from the Dock and return its window locator.
  *
  * `title` is the control's accessible name (the app title, e.g. `"Tasks"`); `app`
- * is the lowercase app identity (e.g. `"tasks"`). The same role+name click path
- * serves Dock launchers and the menubar Settings cog.
+ * is the lowercase app identity (e.g. `"tasks"`). Settings opens from the rail
+ * foot — or the compact tab bar's trailing foot, the same control.
  */
 export async function openAppWindow(page: Page, title: string, app: string): Promise<Locator> {
   const launcher =
     app === "settings"
-      ? page.locator('[data-slot="os-menubar-settings"]')
+      ? page.locator('[data-slot="os-rail-settings"]:visible')
       : page
           .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
           .getByRole("button", { name: title });
   if (app === "settings") {
     await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
-      "title",
-      /^Command palette · /u
+      "aria-keyshortcuts",
+      /^(?:Meta|Control)\+/u
     );
   }
   await launcher.click();
@@ -75,6 +75,23 @@ export async function windowID(win: Locator): Promise<string> {
     throw new Error("window surface must expose its opaque ID");
   }
   return testID.slice(prefix.length);
+}
+
+/**
+ * Close one app window the way an operator would. New windows open as tabs of
+ * the focused window by default, and a shared frame's own Close window would
+ * close every tab in it — so a window with a tab closes through that tab.
+ */
+export async function closeAppWindow(page: Page, win: Locator): Promise<void> {
+  const tabClose = page
+    .getByTestId(`os-window-tab-${await windowID(win)}`)
+    .locator('[data-slot="os-window-tab-close"]');
+  if ((await tabClose.count()) > 0) {
+    await tabClose.click();
+  } else {
+    await win.getByRole("button", { name: "Close window" }).click();
+  }
+  await expect(win).toBeHidden();
 }
 
 function escapeAttributeValue(value: string): string {
@@ -165,8 +182,8 @@ export function commandPalette(page: Page): Locator {
 export async function openCommandPalette(page: Page): Promise<Locator> {
   const palette = commandPalette(page);
   await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
-    "title",
-    /^Command palette · /u
+    "aria-keyshortcuts",
+    /^(?:Meta|Control)\+/u
   );
   await page.keyboard.press("ControlOrMeta+KeyK");
   await expect(palette).toBeVisible();

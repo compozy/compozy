@@ -1,38 +1,1480 @@
+## Daemon idle-cost and renderer batching — 2026-10-18
+
+Branch `perf/daemon-load-mitigations`. Hosted MCP projection streams wait on a `ProjectionEpoch`
+change channel (3s fallback) instead of a 100ms poll, cache shared immutable snapshots, and Goal tool
+availability uses a cheap per-session check invalidated on Goal/Loop transitions; the hosted MCP wire
+(SSE names, digests) is unchanged. Model-catalog refresh reads owner IDs with `SELECT DISTINCT`, checks
+TTL before ownership, honours TTL for providerless sources, skips row rewrites for unchanged content,
+backs off failed probes, and bounds sweep parallelism; no schema change. Goal outbox and Loop effect
+relays drain on post-commit store nudges; public config `goals.outbox_poll_interval` keeps its key but
+now means the fallback sweep and its default moves 100ms → 2s (explicit values keep their cadence;
+site config reference and official skill updated). Web live tail applies queued frames in one batch per
+animation frame; smooth reveal pauses while hidden; desktop windows set `backgroundThrottling: true`.
+Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile isolation are unchanged.
+
 # Compozy Change Impact
 
-## Issue 617 — Role fallback advances on a provider refusal
+## Role fallback after a provider refuses a title turn — 2026-10-18
 
-- **Trigger scope:** `invokeRoleWithFallback` has five production callers, not the three the issue
-  names: `Generate`, `Summarize`, `startCoordinatorSession`, `spawnExtractorSession` and `BreakTie`.
-  `BreakTie` already advanced on a refused turn because `InvokeTransientModel` sets `Accepted` only
-  after the prompt succeeds; `Generate` and `Summarize` now match it by prompting inside the
-  invocation closure. `startCoordinatorSession` and `spawnExtractorSession` hand their session on and
-  keep the spawn-acceptance predicate.
-- **Acceptance boundary:** unchanged. A route advances only when the provider refused the turn before
-  any output, classified from the typed `AgentEvent.ProviderError` codes ACP already emits
-  (`provider_auth_required`, `provider_rate_limited`). Any other prompt error stays on the accepted
-  route and ends the operation as before. `role.fallback.used` still precedes every attempt.
-- **Session lifecycle:** a refused child is stopped with `CauseFailed` before the next route runs, so
-  no attempt leaks a running session. The accepted child keeps its existing completion stop.
-- **Native tools / CLI / HTTP / UDS:** no route, verb, tool ID or DTO change. Provider failure kinds
-  and next actions are unchanged; no `use_fallback` action is introduced.
-- **Extensibility / hooks / config:** none. No `command` field on `RoleFallback` — a fallback route
-  already reaches a second account through a provider overlay — and no `fallback_chain` on `AgentDef`,
-  which would be unreachable for user prompts: those are governed by the session prompt-failure
-  barrier, which classifies on `store.FailureKind` and never consults a role chain.
-- **Workspace data isolation and compatibility:** no SQLite, config, persisted shape or migration
-  change. No official-skill (`skills/compozy/`) command change.
-- **Web / Docs:** no Web change. User-session quota fallback remains unimplemented, so
-  `docs/agents/providers.mdx` stays accurate as written.
-- **Refusal is bounded to a turn with no output:** the collectors only mark a refusal while the
-  accumulated output is empty. A provider that streams agent text and then refuses keeps the turn on
-  its accepted route, so a fallback never reruns work that already started. When stopping a refused
-  child fails, the attempt keeps ownership of that session and reports failure instead of starting
-  another route beside a session that may still be running.
-- **Owning tests:** `internal/daemon/role_fallback_test.go` — a predicate table over
-  `providerRefusedTurnError` and one end-to-end advance through the real `forkedAutoTitleGenerator`,
-  reusing the existing `autoTitleSpawnSessionsStub`. Both were mutation-checked against a predicate
-  that never marks a refusal.
+Owner: PR #662. Automatic title generation runs each prompt inside its role-owned fallback
+attempt. Typed authentication or rate-limit refusals before any output advance to the next route
+only after the refused child stops. A turn that produced output remains accepted; failed child
+cleanup retains ownership and ends the chain. Route account commands, ChainOwnerCaller, typed
+start acceptance, cancellation deadlines and role.fallback.used events retain their current owners.
+The retired checkpoint-summary and memory subsystems stay deleted. Existing auto-title and
+role-fallback suites own the rejection, partial-output and cleanup boundaries.
+
+Native tools, CLI/HTTP/UDS contracts, hooks, extension SDKs, config keys, workspace/profile data
+isolation and persisted state are unchanged. No migration or compatibility shim is needed. The site
+configuration reference describes the title-specific refusal boundary. Official skill commands and
+Web behavior are unchanged; title generation uses the existing title QA journey.
+
+## Release integration repairs — 2026-10-18
+
+Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
+while preserving the dispatch lease. Logging happens outside the session lock, keeping status and
+Stop responsive during a storage failure. `TestManagerAgentQueueDelivery` owns the regression and
+`RT-session-message-origin` records the recovery walk. Native tool IDs, wire shapes, hooks,
+configuration, official skill instructions, Web/Docs APIs, and workspace/profile isolation remain
+unchanged; no schema migration is needed.
+
+## Agent CPU priority and load-aware admission — 2026-10-17
+
+Branch `perf/daemon-load-mitigations`. Agent ACP process groups now start at a background CPU
+niceness (`setpriority(PRIO_PGRP)` after launch; Windows no-op) so tools they spawn inherit it, and a
+daemon load sampler (1-minute load average / logical CPUs, darwin `vm.loadavg`, linux `sysinfo`)
+makes the admission gate hold new sessions and prompts carrying the background-work context marker
+(scheduled/trigger/extension automation dispatch, Loop action/judge sessions and prompts, scheduler
+wakes) until pressure clears or a bounded wait elapses. User prompts, user-created sessions, subagent
+spawns, and manual automation runs are never delayed. Public surfaces, all additive (SD-013): config
+keys `daemon.load.agent_niceness` (10), `daemon.load.admission_threshold` (1.5, `0` disables),
+`daemon.load.admission_max_wait` (2m), restart-required and agent-mutable through the config tools;
+doctor item `runtime.load` over HTTP/UDS/CLI. Settings DTOs, OpenAPI, Web, native tool IDs, hooks,
+extension SDKs, persisted state, and workspace/profile isolation are unchanged; no migration. Site
+`configuration/config-toml.mdx`, the generated lifecycle matrix, and official skill
+`references/configuration.md` record the keys.
+
+## Session folders and manual order — 2026-10-17
+
+Issue #781 adds daemon-owned session folders and manual session order. Persisted state: global
+SQLite tables `session_folders` and `session_placements` (append-only migration 00139, additive, no
+backfill; existing users see no folders and their current sort). Public surfaces, all additive
+(SD-013): HTTP/UDS `GET|POST /api/workspaces/{workspace_id}/session-folders`,
+`PATCH|DELETE …/session-folders/{folder_id}`, `PUT …/session-order/{folders,sessions}`,
+`POST …/sessions/{session_id}/move`; `folder_id` on catalog rows and on `createSession`; catalog
+sort and `shell.sessions.sort` gain `manual`; the catalog stream adds kind `layout` (no session id)
+to `session_catalog_changed`. CLI: `compozy session folder list|create|rename|delete|reorder`,
+`compozy session move`, `compozy session reorder`, `session list --sort manual`. Native tools:
+`compozy__session_folder_{list,create,rename,delete,reorder}`, `compozy__session_move`,
+`compozy__session_reorder`, and `manual` in `compozy__session_list`. Workspace/profile isolation:
+folders and placements are keyed by profile and workspace; composite foreign keys prevent a session
+from joining another workspace's folder; foreign sessions read as not found; subagents follow their
+parent. Deleting a folder cascades only placements; session delete cascades its placement. Hooks and
+extension SDKs are unchanged. Official skill `references/runtime-operations.md`, site
+`docs/sessions/index.mdx`, generated CLI docs, and QA scenario
+`ET-web-session-folders-manual-order` record the contract.
+
+## Long-tail built-in provider removal — 2026-10-17
+
+Owner: branch `fix/issue-761-remove-longtail-providers`; issue #761.
+
+The built-in registry drops `hermes`, `openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`,
+`openhands`, `qoder`, `mistral`, `groq`, and `minimax` plus their 14 aliases. Kept: `claude`,
+`codex`, `gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, and the `pi_acp`
+harness with `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`.
+
+- **Native tools:** provider, model-catalog, and session tools lose the removed IDs from their
+  projections; no tool ID, input, or output shape changes.
+- **Extensibility/hooks/config:** provider IDs in `config.toml` (`defaults.provider`,
+  `[providers.<id>]`), agent `provider:`, and Loop/automation runtime defaults are public surface.
+  SD-013 deprecation window: a boundary shim in `internal/config/provider_retired.go` keeps
+  removed IDs and aliases resolving with their former definition and logs one
+  `provider.retired_builtin` warning per ID (`removed_in=v0.5.0`, `replacement` = exact
+  `[providers.<id>]` TOML). Delete target in v0.5.0: the shim (public-surface regime); afterwards
+  an undeclared reference fails as provider unavailable. A declared `[providers.<id>]` with its own
+  `command` (and `harness = "pi_acp"` for pi IDs) is a plain custom provider. Hermes/OpenClaw
+  special-casing (native `.agents/skills` readers, `HERMES_HOME`/`OPENCLAW_STATE_DIR` homes, Hermes
+  live discovery, OpenClaw provider-managed strategy, auth-probe needle) is deleted (internal
+  regime). Hooks and extension SDKs are unchanged.
+- **Workspace data isolation:** no schema change or migration; persisted sessions and transcripts
+  that name a removed provider stay readable. The Agents skill source now has no native readers,
+  so `.agents/skills` is injected for every provider within the same workspace/profile scope.
+- **Official skill:** `skills/compozy/references/{agent-definitions,extensions,native-tools,
+  runtime-operations,tools-and-skills}.md` describe only kept built-ins, the custom-provider path,
+  and the deprecation window.
+- **Web/Docs:** Settings and pickers drop the removed providers and their logos; site docs
+  (`agents/providers.mdx` gains "Run another ACP CLI" and "Retired built-in providers"), the bug
+  template, `MIGRATION_GUIDE.md` (`kiro` → `unsupported_destination_value`), and the canonical copy
+  trio (now Claude Code, Codex, and Cursor) are updated. QA: `RT-retired-builtin-provider-shim`
+  added; `RT-hermes-live-model-readiness` and `RT-openclaw-provider-managed-runtime` retired.
+  Release note: `.release-notes/twelve-long-tail-providers-leave-the-built-in-registry-1792269885.md`.
+
+## Issue 764 — Idle UI polling and attention cost — 2026-10-17
+
+`GET /api/notifications/attention` reads task attention once for every registered population
+(`CatalogScopeAll`) instead of a global read plus one read per workspace; each inbox read
+re-prepared the catalog CTE, so the cost grew with the workspace count. Notification identity
+(`attention.Identity` over the task row), per-row workspace binding, `AllProfiles` read scope,
+actor authorization, and the registered-workspace filter are unchanged; the needs-input escalation
+read now maps the all population onto stored task scopes. In the web client, a session's
+stream-backed reads (detail, by-id, usage, usage turns, prompt queue) drop to a 30 s safety read
+while its transcript stream is live, background session windows stop polling their queue, and the
+bell polls every 30 s while the document is hidden. Internal regime only: HTTP/UDS DTOs, CLI,
+native tools, hooks, extensibility, config keys, persisted state, and official `skills/compozy/`
+are unchanged; no migration or compatibility adapter is needed. Workspace/profile isolation is
+unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
+the change. No site documentation changes are needed.
+
+## Web runtime performance — 2026-10-17
+
+Owner: branch `perf/web-performance`. Evidence and limits:
+`docs/qa/reports/2026-10-17-web-performance.md`.
+
+Web-only internal changes defer the empty-desktop composer and worktree dialog
+modules, remove unconsumed attention queries, pause closed workspace-setup reads,
+filter subagent cache subscriptions by their existing workspace/session key, and
+reuse sparse facts from immutable transcript content. Message ordering, permission
+and failure precedence, bounded paging, stream fences, stale handling, aggregate
+counts, and existing Query keys remain authoritative. WeakMap entries follow the
+lifetime of their source arrays; replacement/removal and workspace isolation stay
+with the existing query/runtime owners.
+
+Native tools and `compozy__*` IDs, CLI, HTTP/UDS DTOs and routes, hooks, extension
+SDKs, configuration, user state, schemas, and official `skills/compozy/` are
+unchanged. No compatibility adapter, migration, code generation, or site docs
+change is needed. QA impact is flagged in `RT-047`,
+`RT-visible-session-streaming`, `ET-hidden-window-live-resources`,
+`RT-web-attention-title-count`, `LP-web-bell-loop-requests`,
+`MS-web-workspace-add-directory-browser`, and `ET-web-catalog-navigation`.
+Focused canonical suites and differential probes provide local slice evidence;
+heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
+
+## Profile-bound session actions — 2026-10-17
+
+Owner: issue #783, branch `fix/issue-783-profile-session-404`.
+Evidence and route-by-route audit: `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
+Web lifecycle mutations carry the selected row's profile and workspace; rewind
+and subagent cancellation refresh the current owner name through the canonical session detail query. Roster reads use the
+existing authorized aggregate read scope, and terminal 404/410 control polls stop. Failed
+cold-page walks require explicit retry. Existing workspace and profile authorization remains
+unchanged. OpenAPI additively documents already-supported profile selectors for archive,
+unarchive, rename, rewind, and subagent cancel; generated clients co-ship. HTTP/UDS paths and DTOs,
+CLI verbs, native `compozy__session_*`/subagent tool IDs, extensions, hooks, configuration,
+SQLite state, and workspace files retain their contracts; no migration or shim is needed.
+Official `skills/compozy/` already describes explicit owner selection and needs no change. Site guides need no
+behavioral rewrite. The session row, archive, profile-owner, and subagent QA scenarios cover
+the affected interactions; other profile surfaces are outside this focused change.
+
+## One-click product update — 2026-10-12
+
+The menubar update indicator becomes an "Update" pill that applies every eligible
+target through the existing `POST /api/settings/update/apply` in one click, holds a
+spinner while the operation runs, and opens Settings only for a failed update or a
+package-manager install. Settings → General → Updates folds the runtime and app
+tracks into one "CompozyOS" row with one version and one Update action; the
+runtime/app split no longer reaches the UI. A browser tab reloads itself once the
+daemon settles on a new version; the desktop app keeps relaunching through the
+existing installer handoff. Web-only (internal regime): HTTP/UDS DTOs, CLI
+`compozy update`, native tools, hooks, extensibility, configuration keys, persisted
+state, and official `skills/compozy/` are unchanged; no migration or compatibility
+adapter is needed. Workspace/profile isolation is unaffected (host-global update
+read). QA scenarios `APP-web-update-indicator` and `APP-web-update-two-track` record
+the new contract. No site documentation changes are needed.
+
+## Scheduled claim contention budget — 2026-10-11
+
+Scheduled claims use a one-second default attempt budget, configurable through the
+internal `WithSchedulerClaimTimeout` option, and observe scheduler cancellation.
+Failed claims return control to the existing exponential backoff without advancing
+the durable cursor. Durable finalization retains its cancellation-independent budget.
+The existing real-SQLite `TestSchedulerIntegrationSQLiteContention` owns recovery
+and exactly-once fire identity; QA scenario `TA-automation-crud-loop-target` records
+the reproduction and verification. Native tools, HTTP/UDS/CLI, Web, extensibility,
+hooks, configuration keys, and official `skills/compozy/` contracts are unchanged.
+Workspace/profile isolation and persisted schemas are unchanged; no migration or
+public compatibility adapter is needed. No site documentation changes are needed.
+
+## Session startup, Windows caching, and attention polling — 2026-10-11
+
+Owner: branch `fix/startup-cache-notifications`; issues #726–#730.
+Evidence: `docs/qa/reports/2026-10-11-startup-cache-notifications.md`.
+
+- ACP session creation uses a bounded 90-second default; other controls retain 30 seconds.
+  Explicit `WithControlTimeout` overrides, caller cancellation, retry classification, and
+  process cleanup remain authoritative. No new public configuration key is required.
+- Session model binding reuses a provider-live row only within a separate ten-minute
+  session binding window and the resolved provider/profile/workspace execution context.
+  The global five-minute discovery interval is unchanged. This internal reuse policy
+  adds no public configuration key.
+  Missing, expired, stale, future-dated, or unusable bindings still force discovery.
+  Claude and Cursor use their existing transport selection and validation rules.
+- Detached raw stdout/stderr moves to `logs/daemon-stdio.log`; structured logs stay at
+  `logs/compozy.log`, preserving rotation and all existing history. Raw startup failures
+  still appear in process errors. No persisted state migration or relocation is needed.
+- Skill discovery captures live filesystem metadata and ignores unstable NTFS directory
+  allocation sizes. Content, membership, link containment, and invalidation checks remain.
+- Attention reads omit unused inbox metadata through an internal query option. Public
+  inbox totals/facets, actor scope, filters, ordering, cursors, and notification IDs remain
+  unchanged. SQLite evaluates the shared facet population once through a materialized CTE.
+
+Native tools, HTTP/UDS, CLI, Web, extensions, hooks, SDKs, and official `skills/compozy/`
+retain their contracts. Web benefits from cheaper polling and startup; no UI change is
+needed. No schema or generated contract changes. The affected QA scenarios link the
+report. Heavy local gates are explicitly deferred to CI by the user; CI also runs the
+native Windows filesystem and detached rotation regressions.
+
+## SQLite performance and contention audit — 2026-10-09
+
+Owner: branch `perf/sqlite-contention`; evidence and verification are recorded in
+`docs/qa/reports/2026-10-09-sqlite-performance.md`. This work excludes the incremental
+transcript fold/cache/redaction already implemented in PR #715. Shared cancellation-aware
+write admission, transaction cleanup, bounded queries, no-op maintenance, connection reuse,
+and additive indexes reduce contention while retaining the existing public contracts.
+Database shutdown uses passive checkpoints so retained readers do not prevent close;
+committed WAL state survives reopen and explicit truncation still reports contention.
+
+Native tools and CLI/HTTP/UDS/Web session, subagent, task, Loop, automation, extension,
+and observation consumers keep their IDs, DTOs, ordering, scope, and mutation semantics.
+No extension SDK, hook payload, or configuration key changes. Session health transitions
+still persist before publishing hooks. Workspace/profile filters and existing authorization
+remain authoritative; no cross-workspace cache or storage relocation is introduced.
+User SQLite state upgrades through appended generated index migrations with reopen/data
+preservation coverage. Official `skills/compozy/` and site guidance need no contract rewrite.
+The owning QA scenario notes link the report and distinguish backend integration evidence
+from historical browser/provider verdicts. Remaining profile callback lock duration and
+unbounded inventory costs are explicit audit limits, not claimed as solved.
+
+## Agent collaboration — 2026-10-09
+
+Owner: spec `.compozy/tasks/agent-collaboration/` (ADR-001..004, §Compozy Cross-Surface Impact
+Audit); branch `agent-collaboration`, integrated from the parallel task branches. Additive across
+public surfaces (SD-013) except one recorded exception: `compozy__session_prompt` now rejects the
+calling session as its target (`invalid_request`, "session_prompt cannot target the calling
+session."), shipped without the one-release window per Business Rule 18 / ADR-002, with replacement
+guidance in the release note. No delete targets. Native tools: `compozy__subagent_delegate` and
+`compozy__subagent_status` gain `isolation`, `base_ref`, and the `worktree` facts object;
+`compozy__session_prompt` stamps the sender from scope (no input override), adds
+`notify_on_complete` and the `reply_watch` result, the self-target rejection, `message_hop_limit`
+(8 hops), and `input_agent_authored` for edit/promote of a queued session message;
+`compozy__session_status` gains `reply_watches`; no new tool IDs. Extensibility/hooks/config:
+`spawn.pre_create` gains read-only `subagent.isolation` and `subagent.worktree_id` (a rebind patch is
+`capability_denied`); `subagent.settled` gains typed `isolation` and optional `worktree` facts through
+its daemon bridge,
+with independent async snapshot copies and regenerated Go/TypeScript SDKs; worktree lifecycle
+hooks fire for isolated worktrees; no config keys (reuses `[worktrees] run_branch_namespace`,
+`setup_command`, `copy_list`) and no extension RPC. Public wire: CLI `compozy session subagents show`
+(Isolation/Worktree/Branch/Pull request/Observed lines), `compozy session status` ("Waiting for
+replies"), `compozy session input list` (`FROM` column); HTTP/UDS DTOs add `isolation`/`worktree`,
+`origin` on session-message events, inputs and queue entries, typed `metadata.synthetic` on
+`session_reply` wakes, the `data-compozy-session-message` transcript part, and `reply_watches`;
+OpenAPI and the generated Web client co-ship. User state: three additive Goose migrations — admission
+and queue `origin_json` plus `session_prompt_reply_watches`, and the `session_subagents` isolation,
+worktree, git, and PR columns; lossless, existing rows default to `isolation = 'shared'`. Workspace
+data isolation: isolated worktrees belong to the delegating session's workspace and are removed only
+through the existing worktree access rules and refusals; origin records the sender workspace;
+`session_prompt` reach is unchanged (the cross-workspace question stays open); reply watches are read
+only through the sender session's read access. Official skill: `SKILL.md` routing,
+`references/native-tools.md`, `references/tasks-and-orchestration.md`, `references/worktrees.md`,
+`references/runtime-operations.md`.
+Web/Docs: `_uiux.md` S1–S5 against the `docs/design/opendesign/agent-collaboration/` boards
+(VC-01..VC-07) — session message card, reply card, sent card, queue row, and isolated-subagent branch,
+PR link, hover facts and roster line; no new `@compozy/ui` primitive. Site reference pages
+`sessions/subagents.mdx` (isolation and worktree facts) and `sessions/orchestration.mdx` (session
+messages and replies), the new tutorial `sessions/isolated-subagents` ("Split work into pull requests
+with isolated subagents"), regenerated CLI and API references; glossary **Isolated Subagent**,
+**Session Message**, **Reply Wake**; `COPY.md` §6 "Session Message Terms" plus the isolated-subagent
+line in "Subagent Terms". QA: new `RT-session-message-origin`, `RT-session-message-reply`,
+`RT-subagent-isolated-worktree`, `ET-web-session-message-card`; reset to untested
+`RT-subagent-delegate`, `ET-web-subagent-card`, `RT-session-spawn-wake`,
+`ET-web-session-transcript-calm-grammar`.
+
+Isolation details (tasks 06–07): shared remains the default; settlement facts stay absent until
+observed. Git reads use `worktree.Service`, and forge PR states normalize case and whitespace.
+Recovery stops unadmitted children before safe cleanup, retries pending cleanup, and preserves
+admitted, dirty or ahead worktrees. Failed setup is the exception: force-remove its checkout and
+branch, including files written by setup, because the agent has not started. Bound stopped children
+retain a removed catalog tombstone; unbound failed materializations are deleted. Managed delivery
+holds settlement facts until its worktree fence releases. CLI show follows the approved compact
+`Branch … ← base · N ahead · clean/N changed`, numbered PR and `Observed` layout; missing facts are
+omitted. CLI input lists show `FROM you` or the sender title and session ID. Native schemas describe
+isolation/base_ref and enumerate all six PR states. The controller owns the integrated scenario walk;
+this packet validates scoped race suites and real isolated-subagent daemon integration, without QA labs.
+
+Review remediation (2026-10-10): reply admission retries re-arm only `send_failed` reservations;
+returned watch state reflects persisted state. Event lookup uses the admitted input ID and then its
+consuming turn; boot recovery tolerates individual row failures and warns for armed watches older
+than 24 hours. Target deletion/archive reconciles outstanding watches immediately. Sent transcript
+parts add actual `delivery` (`none`, `direct`, `after_turn`, `interrupt_then_prompt`); UI synthetic
+metadata contains only the agreed typed fields, with `summary` only for `session_reply`. No new
+hook, configuration, native tool ID, schema shape, or workspace access policy. The official native
+tool reference and orchestration site document operator notify refusal and retry behavior. QA
+ownership remains the scenarios above, linked by `J-session-collaboration`; the Web sent card gates
+its Steered/Interrupted chip on `delivery`.
+
+Long-running orchestration (2026-10-10, Pedro's report of an orchestrator stopped after 40 quiet
+minutes): an armed reply watch whose target is live, or a fired watch not yet delivered, is the new
+`awaiting_reply` work signal, so inactivity supervision never stops a sender while its answer can
+still arrive. A reply resumes a sender CompozyOS stopped (timeout/inactivity, shutdown, agent crash)
+and delivers once; operator stops, archive and delete are respected. Public surface: one additive
+value in the closed `WorkSignalKind` vocabulary (OpenAPI, Web client) on session status/describe;
+no new tool, route, config key or migration (new indexed query only). Docs: sessions lifecycle and
+orchestration, the isolated-subagents tutorial, skill runtime-operations and tasks-and-orchestration;
+QA `RT-session-message-reply` step 11. The broader durable multi-session watch is the next spec
+(`.compozy/tasks/session-orchestration-watch/_brief.md`).
+
+## Explicit release asset verification — 2026-10-09
+
+Owner: branch `fix/explicit-release-web-assets`. Manual release planning builds
+the Web output before comparing it with the pinned asset module. Run
+`37984738188` failed on a fresh checkout because `webAssetsCheck` requires
+`web/dist/index.html`, which the workflow had never generated. The existing
+WebBuild target owns generation; stale-pin and main-branch mutation guards remain.
+Native tools, hooks/config, workspace isolation, persisted user data, public Web
+behavior, and official `skills/compozy/` are unaffected. Validation uses the
+existing release workflow contract suite and a real Web build/pin comparison.
+
+## Release smoke teardown verdict — 2026-10-09
+
+Owner: branch `fix/release-smoke-teardown`. The QA teardown helper classifies
+processes from final liveness after signal escalation, preserving failure for
+live survivors while clearing stale signal-denial classifications for exited PIDs.
+Release run `37975462651`, macOS x64 smoke job `113982345844`, recorded PIDs 5097
+and 5108 in both `killed` and `survivors`; application provisioning had passed.
+The earlier PR failure was a separate DMG detach error during packaging.
+
+Native tools, extensibility/hooks/config, persisted user data, Web, and the
+official `skills/compozy/` surface are unaffected. Lab process isolation and
+signal scope remain unchanged. The bootstrap contract documents the verdict.
+Coverage belongs to the existing QA bootstrap helper smoke suite, including
+real owned/outside processes and signal-denial races at the OS I/O boundary.
+Packaged release smoke remains mandatory for publication.
+
+## Subagents — 2026-10-08
+
+Owner: spec `.compozy/tasks/subagents/` (ADR-001..005, §Compozy Cross-Surface Impact Audit); one PR
+from branch `subagents`. Additive across every public surface (SD-013); no delete targets. Native
+tools: four new IDs in the `sessions` toolset — `compozy__subagent_capabilities`,
+`compozy__subagent_delegate`, `compozy__subagent_status` (idempotent, not read-only: reading a terminal
+result acknowledges delivery), `compozy__subagent_cancel`; all require an active caller turn
+(`parent_not_active`). `compozy__session_spawn` and the creator wake keep their contracts; delegated
+children set `notify_creator=false`. Extensibility/hooks/config: new observe-only `subagent.settled`
+hook (family `subagent`); `spawn.pre_create` payloads gain `spawn_role: "subagent"` and a `subagent`
+object, and a TTL patch for the subagent role is `capability_denied`; new `[subagents]
+result_max_chars` (default 60000, 1000–1000000, global → workspace overlay); no new extension RPC; MCP
+sidecars and marketplace unaffected. Public wire: CLI `compozy session subagents [show|cancel]` and
+`compozy session list --subagents`; HTTP/UDS list/show/cancel routes, session-list `subagents` filter
+(default `include`) and `subagent_summary`; SSE `subagents_snapshot`/`subagent_updated`; transcript
+`data-compozy-subagent` part and optional `parentToolCallId`; synthetic `kind`/`subagent_ids`. User
+state: new `session_subagents` and `session_subagent_wakes` tables and `session_input_queue.priority`
+through one Goose migration. Workspace data isolation: records are workspace-scoped like sessions;
+children run in the parent's workspace and worktree (no cross-workspace delegation); CLI/HTTP reads
+use session read access and inaccessible sessions return `session_not_found`. Official skill:
+`SKILL.md` routing row, `references/native-tools.md` (protocol), `references/tasks-and-orchestration.md`
+(subagents vs spawned workers, shared worktree), `references/runtime-operations.md` (operator
+surfaces, lifecycle, restart); the creator-wake text now includes the `completed` reason and the
+canceled-turn suppression that `internal/session/spawn_wake.go` already implements (same drift fixed in
+site `sessions/orchestration.mdx` and `autonomy/safe-spawn.mdx`). Web/Docs: `_uiux.md` S1–S10 (card,
+group, hover, divider, waiting banner, tool phrases, status line, native nesting, sidebar chip,
+inspector roster) with the `HoverCard` primitive in `@compozy/ui`; site tutorial
+`sessions/subagents` ("Delegate to subagents"), `[subagents]` in `configuration/config-toml`,
+`subagent.settled` in `hooks/event-catalog`; generated CLI and API references regenerate from Cobra and
+OpenAPI. Glossary **Subagent** (delegated, provider-native, subagent wake) and COPY.md §6 "Subagent
+Terms". QA: new `RT-subagent-delegate`, `RT-subagent-restart`, `ET-web-subagent-card`,
+`ET-web-native-subagent`; `ET-web-session-sidebar-threads` reset to `untested` for the sidebar filter
+and chip (ADR-005).
+
+Follow-up 2026-10-09: acpmock `native_tool_call` executes injected hosted MCP tools from the
+ACP agent process and emits correlated tool/result updates; the fixture and driver docs live in
+`internal/testutil/acpmock/`. Hosted subagent bindings resolve an omitted turn ID only from a
+matching authoritative active run/generation and the parent activity snapshot. No public wire,
+hook, config, migration, or official skill shape changes. The daemon integration reads back the
+parent transcript after a real delegate call, enabling the Web subagent-card E2E fixture without
+operator-side delegation or synthetic tool results.
+
+
+Store remediation 2026-10-09 (fix-store): scoped roster reads reject an empty workspace and
+parent, cap pages at 200, and use direct ID lookup for internal cancellation/wait paths.
+Wake lookup uses a read snapshot and parent/state index; progress and pending transitions
+use the existing immediate transaction boundary. Recovery excludes stopped orphans and
+provider-native reservations. The unreleased 00131 migration gains a parent/state wake
+index and drops the redundant child index. M2 retry persistence and policy belong to fix-core. Parent catalog upserts follow summary changes while
+progress remains on the roster stream. Native tool IDs, hooks, config, HTTP/UDS shapes,
+workspace isolation, official skill and site contracts are unchanged. Existing owners:
+UT-056, UT-060, IT-021, IT-031, IT-032; QA scenarios RT-subagent-restart and
+ET-web-session-sidebar-threads retain their current fail verdict pending the controller's
+integrated re-walk. Search ancestry (m19/S9) remains unresolved because the catalog service
+combines active/durable rows and recuts pages after the store query; adding contextual
+ancestors requires an explicit pagination contract beyond a store-only change.
+
+
+Fix round 1 (sa-fix-core): wake steering freezes its batch on acceptance, channel-less pending
+injection settles with its original turn, and failed wake attempts persist across successor batches
+and restart (three failures dispose delivery and log `subagent.wake_abandoned`). The controller
+authorized adding `attempts` to unreleased migration 00131 in place; Atlas and sqlc are regenerated.
+Native work finalizes interrupted at turn/stop/recovery boundaries without a delivery wake. Recovery
+isolates row failures, preserves sent input identity, and resumes delegated work after clean shutdown.
+`subagent.settled` observers use the manager-owned asynchronous lifetime; denied concurrent replays
+retain `capability_denied`; parent locks retire after their last waiter. Hosted MCP derives omitted
+delegation keys from parent turn plus transport request identity when no provider call ID exists.
+Public DTOs, tool IDs, configuration and workspace authorization stay unchanged. ROOT descendants
+retain hosted native-tool access, verified over real MCP. Web consumers receive accurate native
+terminal state, catalog stream and one root attention completion. Official skill/site wording and
+real-provider scenario verdicts remain under sa-qa; automated evidence is in sa-fix-core-fix1.md.
+The existing RT-subagent-delegate, RT-subagent-native and RT-subagent-restart scenarios own re-walks.
+
+### API fix round 1
+
+Subagent payloads add `created_at` for stable Web ordering. HTTP/UDS cancellation accepts an empty
+body; tool request validation preserves `invalid_request` field messages through hosted MCP.
+Descriptors own idempotency and validation-error metadata. A shared hosted-name normalizer feeds
+transcript cards, native tool metadata, and hook classification. Later native task descriptions update
+the stored roster and card; a provider is no longer guessed in the card payload. CLI show/cancel can
+resolve an ID through authorized workspace routes without a registered cwd, and runtime display omits
+empty fields. Delegated speed defaults to `normal`; elapsed CLI output supports hours. Native tool
+IDs, config, hook shapes, workspace authorization, persisted schema, and official skill instructions
+are unchanged. Generated OpenAPI, Web client, and SDK contracts co-ship. Existing subagent QA scenarios
+remain failed pending the controller's re-walk; targeted API, daemon/SQLite/ACP, transcript, CLI, and
+registry suites own regression coverage.
+
+
+Tools fix round 2 (sa-tools): malformed hosted MCP `tools/call` params/metadata remain SDK-owned
+request errors (`-32602`) without terminating the connection. Dispatcher `maxLength` validation
+is opt-in through descriptor `InputErrorCode`, including descriptor registration; existing tool
+bindings retain their prior behavior. No tool IDs, hook/config contracts, workspace isolation,
+persisted data, Web or official skill/site changes. Owning automated evidence: hosted proxy
+transport and tools dispatcher suites; existing scenario verdicts remain unchanged.
+
+Fix round 2 (sa-fix-core): cancellation commits canceled/disposed before returning acceptance;
+the manager-owned lifecycle task stops the descendant tree independently of client cancellation.
+Interrupted pending steering remains deliverable and terminal wakes release transient tracking.
+Failed wakes explicitly retry after 200 ms, preserving the existing three-attempt durable cap;
+explicit turn cancellation takes precedence over a simultaneous error. Clean restart preserves an
+already completed admitted answer instead of adding a continuation turn. Public tool/HTTP shapes,
+workspace isolation, hooks/configuration and official skill contracts are unchanged. Web observes
+the persisted terminal row before physical stop finishes, consistent with 202/cancel_requested.
+Owning automated journeys and verification limits: sa-fix-core-fix2.md; real-provider verdicts remain
+with the QA owner. Native-event ingestion must stay inline before turn-settled reconciliation.
+
+
+Core fix round 3: async `subagent.settled` execution uses the service lifetime and the hook
+executor's timeout, so returning from dispatch cannot cancel its subprocess. Subagent spawn denial
+returns `capability_denied` with the hook reason alone. Wake retry backoff grows by 200 ms per failed
+attempt (three-attempt cap unchanged); disposal derives steer tracking from row wake IDs and retains
+partially claimed batches. Native tool behavior follows the existing contract; config/hook schemas,
+workspace isolation, official skills and Web shapes are unchanged. Owning tests and limits are in
+`sa-fix-core-fix3.md`; RT-subagent-delegate records automated coverage without changing its QA verdict.
+
+Tools fix round 3 (sa-tools): `compozy__subagent_capabilities` previews at most 40 models per
+delegable provider, current/default first, and omits model entries for unavailable providers.
+Provider options add `models_total` and `models_truncated`; delegate validation still uses the full
+catalog. Native descriptor/output schema and generated catalog co-ship with skill/site guidance.
+No HTTP DTO, Web, hooks/config, persistence or workspace isolation changes. UT-017 and the native
+binding suite own automation; RT-subagent-delegate retains its verdict pending the real-provider re-walk.
+
+Subagents CI follow-up: the skills-disabled startup allowance tracks the two complete bundled
+manuals (72,000 characters); the existing complete-manual assertion remains unchanged. No skill
+content, public tool/schema, hook/config, isolation or Web contract changes. The memory-retirement
+preservation test now isolates migration 00130, keeping its full data/schema/FK checks.
+
+## Memory removal — 2026-10-07
+
+CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the
+clientstate store while its isolated daemon is stopped, and inspects the reread raw snapshot before
+boot. The existing scenario then verifies registered Session visibility, Knowledge removal and stable
+geometry after reload with no console errors. This repairs only the test boundary; production
+reconciliation, public contracts, hooks/config, isolation and official skill behavior are unchanged.
+
+CI runtime parity follow-up: the existing HTTP/UDS fixture now opens the registered `session` app
+rather than the `sessions` palette view ID, and expects durable harness events for retained skills
+and situation augmenters. Removed workspace-knowledge and memory augmenters cannot emit those events.
+BR14 registered-app reconciliation and the existing no-op persistence/revision guards remain unchanged;
+the exact race-enabled UDS transport CI selector passes. No production, wire, config/hook, isolation,
+official skill or Web behavior changes are introduced by this fixture correction.
+
+Review round 3: automatic prompt recovery retains the original prepared ordinary payload independently of the constructed wire request. Each replacement runtime receives one freshly bounded historical replay plus that payload; maintenance recovery retains its literal command and deferred context. The experimental compactSession operation now declares its existing 400 ErrorPayload refusal for inactive sessions (`session_not_promptable`), co-shipping generated OpenAPI/Web contracts. Existing prompt-lifetime, compact-handler and schema suites own coverage. Native tools, hooks/extensions/config, workspace isolation, SQL and official skill instructions are unchanged; existing automatic-recovery and Compact now QA scenarios record the checks. No handwritten Web changes or browser/live-provider walkthrough is claimed.
+
+S14 / UT-W08 marker fields: experimental `compactions[].context_after` supplies the first event-level occupancy report after that ID's first terminal boundary and before the next ID's first terminal boundary; same-turn reports count, counter-only rows and later corrections do not. Experimental `context.cleared_by` identifies the compaction and first terminal sequence only while occupancy is unknown. Existing Go queries/contextusage/API conversions, CLI human/JSON/TOON and generated OpenAPI/Web types co-ship. Per-session ledger ownership, hooks/config and SQL are unchanged; the official runtime-operations skill and existing CLI usage scenario document the additive fields. The Web owner consumes the generated fields; browser scenario walks remain with that owner.
+
+Review round 2: accepted ordinary replay delivery clears effective pending state even when its metadata acknowledgment fails; later lifecycle persistence retries the cleared snapshot without making history deliverable again. Cached replay is re-bounded from its original pre-maintenance message cut under the current workspace derive budget and effective history-tool framing. Native Compact domain codes are co-shipped through shared safe HTTP/UDS/hosted-MCP 409 mapping and the generated public ErrorCode enum. Existing replay/maintenance, tool-route parity and hosted-MCP suites own the regressions; session isolation, hooks/config shape and SQL are unchanged. Existing runtime and native-tools skill instructions remain accurate; affected QA cases are updated, with browser/live-provider walks owned by the controller.
+
+Usage-stream follow-up (US-019 / BR11): the shared HTTP/UDS session stream emits the existing `session_usage_changed` payload for every persisted `compaction` snapshot and `session.compaction_fired` attribution, so Web invalidates the context reading and markers before prompt completion. Push and polling use the existing per-session cursor; no new DTO, native tool, hook/config, workspace scope, schema, or official-skill instruction is needed. Existing `TestWriteUsageChangedEvents` owns ordered mid-turn notification and replay deduplication; `ET-web-session-context-meter` now explicitly requires the mid-turn update. Browser scenario execution remains with the controller/Web QA owner.
+
+
+Owning decision: `.compozy/tasks/memory-removal/_spec.md` with ADR-001 (hard cut that never blocks
+the user), ADR-002 (CompozyOS-side compaction removed; every replay bounded), ADR-003 (workspace
+knowledge augmenter removed), and ADR-004 (native ACP compaction observed and requested,
+experimental). Release: the release after v0.3.0 (assumed v0.4.0); guide anchor `#memory-removal`.
+This is the user's recorded exception to the SD-013 public-surface window for the memory family;
+leftovers in user-owned files are retired without blocking the user.
+
+- **Native tools / CLI / HTTP / UDS / MCP / SDK:** the `compozy memory` tree, 40 `/api/memory*`,
+  settings, and workspace-ledger operations, the 35 `compozy__memory_*` tools with the
+  `compozy__memory` and `compozy__memory_admin` toolsets, MCP `compozy_host__memory__*`, the Host API
+  `memory/*`, `memory.backend`, consent `memory:read|write`, the `memory-backend-ts` scaffold, and the
+  SDK members are deleted; tool IDs are retired permanently. Added, all `experimental`:
+  `compozy session compact`, `compactSession`, and `compozy__session_compact` (toolset
+  `compozy__sessions`, risk `mutating`; refusals carry the structural `session_busy` and
+  `compaction_unsupported` codes on every surface, and the request is attributed `requested_by`
+  `cli`, `http`, `tool`, `goal`, or `web`). Changed: `session.compaction_fired`, usage `compactions[]`
+  markers (no `pressure_threshold`; `context_used`/`context_size` are omitted when unknown), the
+  session `type` enum (no `dream`), the roles roster (`coordinator`, `auto_title`), and
+  `StatusSchemaVersion` `2026-10-07` without `memory`. `GET …/history` and `compozy session history`
+  keep returning raw grouped ledger rows (`compaction` snapshot rows plus `session.compaction_fired`);
+  only the transcript projection folds one Compaction item per `compaction_id`. After a native terminal
+  compaction, the session usage API reports occupancy `unknown` until a later usage update carries
+  `used`; the Goal context readers stay unknown until an update carries both `used` and a positive
+  `size`.
+- **Extensibility / hooks / config:** `context.pre_compact` / `context.post_compact` become
+  observation-only (`labels` patch only) with a `compaction_trigger` matcher replacing
+  `compaction_reason` / `compaction_strategy`. `[memory]`, `[session.compaction]`, four roles, and the
+  `memory.consolidated` trigger event are removed; `[session.derive]` bounds every replay.
+  **v0.6.0 shim deletion list** (one shim generation, regime: public surface / user state):
+  the `archiveRetiredMemorySettings` config archive (global, profile, workspace overlays), the SOUL
+  `memory_policy` ignore rule, the retired tool-ID filter (`RetiredMemoryToolIDs`,
+  `RetiredMemoryToolsetIDs`, `DropRetiredToolReferences`), and the extension manifest retired-entry
+  filter (`dropRetiredMemoryManifestEntries`), plus AGENT.md and SKILL.md retired hook-matcher
+  filters (`ignoreRetiredAgentHookMatchers`, `ignoreRetiredSkillHookMatchers`) for
+  `compaction_reason` / `compaction_strategy`, warning once per owner. All of those boundary
+  filters expire in v0.6.0. Session migration `00009` and global migration
+  `00130` stay as migrations. Alongside the retired-ID tombstones, the session recovery list `retiredInternalSpawnRoles` records exactly
+  `memory-extractor` and `checkpoint-summary`. Its recovery boundary is permanent and does not expire in
+  v0.6.0 because retained session directories are never deleted.
+- **Workspace data isolation:** no workspace or profile boundary changes. Migration `00130` drops the
+  memory stream tables, `memory.consolidated` triggers and their dependents, and legacy `dream` /
+  `memory-extractor` sessions; session migration `00009` restores events archived by the removed
+  compaction (never inside a rewind receipt range). No file is deleted or rewritten: Markdown
+  memory, `knowledge/` directories, and `ledger.jsonl` files stay on disk, unread. `<workspace>/knowledge/`
+  is no longer injected into prompts. Disk recovery refuses non-empty unsupported session types or
+  explicitly retired internal spawn roles before durable-owner verification or metadata normalization. It logs
+  `observe.session_recovery_skipped` once per session per observer lifetime, and leaves those session directories unchanged. This is a permanent
+  recovery boundary; ordinary user sessions and custom advisory roles such as `reviewer` remain recoverable
+  without catalog rows.
+- **Review round 1 boundary repairs:** session upgrade restores physically archived transcript entries
+  and tool routes using persisted identities, preserves rewind exclusions and live projection state,
+  and advances the projection generation once. Review round 2 restores completion from the original
+  ordered event context, including boundaries before late routed tool results, while preserving the
+  final updated sequence and completed text across repeated opens. Review round 3 preserves routing
+  context predating interleaved entries and completion boundaries after intervening foreign events;
+  restored entries retain their original identities without disturbing surviving or reused-tool routes.
+  Review round 4 includes updates after failed historical compaction attempts, preserving the final
+  identity and public transcript sequence through the eventual archival and repeated opens.
+  Config retirement follows trigger array-element
+  ownership across noncontiguous descendant tables, preserving retained filters. Installed extension
+  automation resources ignore `memory.consolidated` before validation with
+  `extension.retired_entries_ignored`; explicit API/CLI trigger creation remains rejected. Nested
+  derive carries inherited omission evidence so the available history tool points to the immediate
+  source session. Archive publication guards and permission failures warn with path/reason and leave
+  retired settings inactive in the validated in-memory overlay; the next load retries publication.
+  Existing explicit retired-key config writes remain refused. Migration `00130` also removes persisted
+  `checkpoint-summary` roles while preserving advisory roles. The oldest-first suffix policy protects
+  the last eight replay messages while framing and the first-user pin fit; its unused `KeepRecent` field
+  is removed without changing the drop order. Layout reconciliation logs the profile, dropped app IDs and rewritten route count
+  after persistence. These repairs add no native tools, hooks, config keys, or workspace/profile
+  boundary changes; Web transcript reads/search/anchors retain restored history through the existing
+  contracts, and the migration guide's full-history promise remains unchanged.
+- **Official skill / Web / docs:** `skills/compozy/references/memory.md` is deleted and every memory
+  or CompozyOS-compaction mention is removed; `compozy__session_compact` and Compact now are
+  documented. Web drops the Knowledge app, Settings → Memory, the Home Memory tile, memory role
+  panels, and the context-meter threshold warning, and gains the Compact now button (context rail meter
+  section, no popover), the Compaction timeline item, agent/requested compaction markers, and the
+  post-compaction meter sentence. Site: memory docs, the `cli/memory` subtree, landing Memory/Dream
+  content, and the `defining-agent-sessions-compozyos` memory section are removed; new
+  `sessions/compaction.mdx`; migration guide (root and site) and a breaking release note ship.
+  COPY, README, PRODUCT, and the glossary drop memory vocabulary and gain a Compaction entry. Dated
+  history (release notes, QA reports, `_done` boards, lessons) stays untouched.
+- **QA / verification:** memory-only scenarios, journeys, and charters are deleted; compaction
+  scenarios are rewritten; the retirement canary `ET-retired-product-surfaces-absent` covers memory,
+  Dream, Knowledge, and CompozyOS-side compaction, including an upgrade leg. The upgraded-home lab
+  walk, Compact now, and the real-adapter Goal compaction walk own the user-visible journeys.
+
+## Automations — Jobs and Triggers merged in the Web UI — 2026-10-08
+
+Owner: spec `.compozy/tasks/automations/` (ADR-001..004); one PR from branch `automations`.
+The Web UI's Jobs and Triggers apps become one `automations` app (listing, detail, editor, dock,
+palette, Settings › Automation row, Loop "Automate ▾"); the daemon keeps both entities and every
+canonical noun (`job`, `trigger`). Native tools: ids unchanged;
+`compozy__automation_{jobs,triggers}_{list,get}` results gain `last_run`, the two list tools gain an optional `target` input
+(`agent|loop|task`) and one description clause naming the UI noun; `native-tool-catalog.json`
+regenerates. Extensibility/hooks/config: hooks, trigger events, extension manifests and SDK types
+unchanged; `window_layout` resources naming `jobs`/`triggers` are aliased to `automations` with
+WARN `windowmanager.app_id_deprecated` until v0.5.0 (none in-repo); `config.toml` keys unchanged,
+only Settings labels change. Public inputs on the one-release ladder (removal v0.5.0): web routes
+`/jobs*`, `/triggers*` (redirect stubs), CLI `--app jobs|triggers` (stderr warning), window commands,
+palette ids `app.open.{jobs,triggers}` / `palette.view.{jobs,triggers}` (WARN
+`cmdpalette.command_id_deprecated`). User state: saved desktops migrate permanently through snapshot
+v5 (no window closed); palette pins/recents/usage merge through Goose `00129`; `00128` adds the
+latest-run indexes and the catalog `target` column. Workspace data isolation: `last_run` is computed
+per owner column (`job_id` / `trigger_id`) inside the existing scoped list query; workspace/profile
+filters and the other-project detail state are unchanged. Official skill: `SKILL.md` routing row
+("Automations (jobs and triggers)"), `references/native-tools.md` (UI noun mapping, `last_run`,
+`target`), `references/window-management.md` (retired app ids). Docs: site category
+`automation/` retitled **Automations** with tutorials `run-an-agent-every-morning` and
+`react-when-a-session-fails`; `jobs.mdx` → `schedules.mdx`, `triggers.mdx` → `events.mdx` (permanent
+redirects in `packages/site/next.config.mjs`); inbound links, `loops/catalog.mdx` Automate menu and
+`workspaces/window-management.mdx` deprecation note updated; generated CLI reference regenerates from
+Cobra. COPY.md and glossary close the pending "Jobs / Triggers" alias row (Automations) and add a
+glossary `Automation` entry. Release note `.release-notes/one-automations-window-*.md` carries the
+migration block. QA: `TA-web-automations-listing`, `TA-web-automations-first-run`,
+`TA-web-automation-detail`, `TA-web-automation-editor`, `TA-web-automations-shell-entry`,
+`TA-web-automations-upgrade`, `TA-automation-last-run-agent` replace `ET-web-jobs-triggers-catalog`,
+`ET-web-trigger-detail-rule-page`, `TA-web-jobs-zero-inventory-suggestions`,
+`TA-web-triggers-zero-inventory-intro`, and `TA-web-automation-preview-toggle`; entry points of
+`TA-automation-crud-loop-target`, `TA-scheduled-session-restart-recovery`, `ET-palette-domain-views`,
+`ET-web-ui-resilience`, `ET-web-catalog-navigation`, and `TA-056` were flagged.
+
+Fix round 1: native list descriptions preserve the canonical job/trigger nouns and UI mapping.
+Shared retired-route vectors preserve explicit queries and leave nested detail paths unchanged.
+No wire, config, hook, workspace isolation, or official skill contract changes.
+
+## Modern Go adoption across module boundaries (#482) — 2026-10-06
+
+Owner: this refactor PR (branch `modern-go-482`; issue #482). Behavior-preserving migration of
+every Go module (root at Go 1.27.1, `sdk/go`, both SDK examples and both extension fixture modules
+at Go 1.26.4) plus `magefiles`, with continuous enforcement: `make go-lint` now lints all modules,
+`magefiles` (`mage` tag) and an `integration`-tag Modern Go pass; `forbidigo`/`depguard`/
+`copyloopvar` cover the guideline gaps `modernize` does not; `scripts/gate.sh` and CI select nested
+module lanes. Native tools: none — `compozy__*` descriptors, schemas and digests are byte-identical
+(`make codegen` produced no generated diff). Extensibility/hooks/config: no interface, hook-order,
+registry-order or `config.toml` key change; SDK and fixtures are now linted. Workspace isolation:
+unchanged. JSON: 1,238 scalar/pointer tags moved to `omitzero` only where `encoding/json` output is
+byte-identical; strings/collections, `IsZero` types, interfaces and generated or SDK-generator source
+tags keep `omitempty`. Official skill and Web: unchanged. Docs: new developer runbook
+`docs/runbooks/modern-go.md` (rule → enforcement map and retained exclusions). QA: no user-visible
+behavior, no scenario change.
+
+## Continue/fork runtime selection and top-level placement — 2026-10-06
+
+Owner: this fix PR (branch `fix-continue-agent`; spec `.compozy/tasks/session-continue-fork/`).
+A continued or forked child records its explicit runtime/route (fork: the source runtime) as
+`runtime.selected` at revision 1, so the unbound child's composer and a runtime-less first prompt
+bind the chosen runtime. Continue/fork lineage is provenance, not hierarchy: one predicate
+(`store.HierarchyParentSessionID`, web `sessionTreeParentId`) keeps those sessions out of the
+sidebar/catalog tree, the supervision active-child signal, and Goal descendant authorization.
+Spawned, provenance, and recovery children keep nesting. No SQLite or wire shape changes:
+`lineage.kind` (column + meta, backfilled by #684) already distinguishes the edge, and
+`parent_session_id` keeps naming the source for the origin pill, the CLI, and the `parent=`/`root=`
+filters (which match stored fields as-is). Native tools, hooks, config, and extensions keep their
+shapes; workspace isolation is unchanged. Docs: `sessions/lifecycle.mdx`; official skill:
+`runtime-operations.md`. QA: `ET-web-session-continue` (steps 10–11), `ET-web-session-fork-from-here`
+(reset to untested), `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal` (flagged).
+
+## Live model catalog freshness — 2026-10-06
+
+Owner: `docs/qa/scenarios/MS-live-model-release-refresh.md`.
+Claude live discovery now names version aliases after the release their provider label
+advertises (`opus` + "Opus 5.5" -> `claude-opus-5-5`, transport binding stays `opus`) and curates
+the advertised list, featuring aliases over pinned releases; user curation in `config.toml`
+still outranks it. ACP model inspection keeps the advertised list when a per-model option probe
+is rejected or runs out of budget (`acp.SessionModelInspection.ModelErrors`, internal); such a
+model reports unknown reasoning with a row `last_error` rather than static seed levels. The Web
+composer refresh sends `force: true`, matching the settings refresh, and reports failed sources
+of signed-in providers that a 200 aggregate refresh returns. HTTP/UDS/CLI routes, DTOs,
+`compozy__provider_models_*` tools, hooks, config keys, extension SDKs and SQLite shape are
+unchanged; persisted selections of the bare alias (`opus`) still launch because unknown Claude
+ids fall through to the transport value. Workspace/profile catalog contexts are untouched. No
+official `skills/compozy/` or site documentation change is required.
+
+Explicit caller cancellation aborts ACP discovery, including during its final option probe;
+deadline exhaustion still preserves the advertised list. Only aliases resolving to Claude
+release IDs receive live featured status; custom transport IDs remain ordinary curated rows.
+
+## Dependency upgrades — 2026-10-05
+
+Owner: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+Go/CEL/Bubble Tea/ULID and Bun library upgrades retain CLI, HTTP/UDS, native-tool IDs,
+hooks, extensions and config contracts. Native TypeScript 7 remains the checker while the
+OpenAPI generator uses its supported JavaScript compiler API. Profile input/storage decoders
+translate six renamed Lucide slugs losslessly; no profile ID, ownership, workspace isolation,
+database shape or stored payload is discarded. The same canonical slug reaches Web and native
+profile reads. The compatibility decoder is scheduled for removal in v0.5.0 after persisted
+names have been migrated. Official `skills/compozy/` instructions remain accurate.
+Web composer hydration waits for the assistant-ui commit before persisting observations,
+preserving per-session/project drafts. Catalog publication preserves existing compressed bytes
+when decompressed package content is identical across Go toolchain changes. The profile identity
+and composer text-entry scenarios plus existing CLI/profile/catalog suites own these journeys.
+Desktop restoration commits window frames before mounting layout-heavy bodies, preserving
+window identities, geometry, overlays and gestures. The existing 12-window performance E2E
+and desktop-shell lifecycle scenario own this Web-only scheduling change; native tools,
+data, public contracts, official skills and site documentation need no additional changes.
+Release validation additionally repairs run-agent lane cleanup ordering: terminal binding
+settlement records its cause before generic cancellation, while returned session IDs and
+workspace/epoch ownership stay intact. `compozy__loop_node_cancel`, CLI/HTTP/UDS cancellation
+and the Web control retain their shapes and semantics. No schema migration, historical data
+rewrite, hook/config/extension change, or official skill/site update is required. The existing
+binding integration suite and `LP-per-lane-node-control` own this internal settlement invariant.
+HTTP/UDS request cancellation and notification-ledger fault injection are test-harness changes.
+Web route entry now follows a live replacement of the remembered-profile read after silent
+query cancellation during reconnect, rereading the workspace lens on retries and checking it
+again after success. It still waits for authoritative profile identity before
+loading scoped work and propagates real read failures. Native tools, HTTP/UDS/CLI contracts,
+hooks, config, extension SDKs, persisted data and workspace/profile isolation are unchanged;
+no migration or official `skills/compozy/`/site documentation change is required. The existing
+route-preloading integration suite and terminal shell-config restart journey own verification.
+
+## Untested QA sweep — 2026-10-02
+
+Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
+
+- **PR 691 CI remediation:** Failed extension removal preserves nullable Profile creation
+  attribution with the rest of its rollback snapshot. Token-only programmable view opening
+  resolves registered attachments independently of command-channel readiness, retaining
+  foreign-client rejection. Web shows the fixed safe non-loopback refusal while keeping
+  arbitrary runtime errors hidden; Storybook co-ships catalog WebSocket fixtures.
+  No public DTO, route, native-tool ID, hook/config key, migration, SDK or workspace/Profile
+  ownership changes. Site and official skills/compozy contracts remain accurate.
+  [CI remediation evidence](../qa/reports/2026-10-05-pr-691-ci.md) records owning suites;
+  broad deferred QA remains deferred.
+
+
+- **Durable wait example:** not applicable — editorial only. The site's DSL example
+  replaces an unknown event with catalog-backed task.run.completed and links the hook
+  catalog. The exact YAML validates through the public CLI. Native tools, CLI/HTTP/UDS,
+  Web runtime behavior, extension/hook/config contracts, workspace/profile isolation,
+  persisted data and the official skills/compozy/ contract are unchanged. No migration
+  or new test file is needed. LP-live-run-survives-extension-disable and
+  BUG-20261005-loop-wait-example-unknown-event own the current-cycle evidence.
+
+- **Orchestrated task results:** The bundled staging transform uses the existing namespace
+  reference form for task IDs. Managed Goal normal/recovery readers concatenate ACP message
+  fragments verbatim, so completed outputs retain the final summary and task identities.
+  Action and verdict-only judge collectors also retain whitespace-only message chunks;
+  the existing adapter suites own their separate answer/verdict boundaries.
+  CLI/HTTP/UDS/native loop status and Web output inspection keep their existing schemas.
+  Hook/config/extension SDK contracts and workspace/profile isolation are unchanged; no
+  migration or historical output rewrite occurs. The site's copyable implement-tasks YAML
+  co-ships the same mapping; the official skill's traceability contract stays accurate.
+  LP-implement-tasks-orchestrated-mode and TA-080
+  own the fresh replay; the embedded runtime suite and daemon Goal reader suite own the
+  regressions. Bugs: BUG-20261005-loop-staged-task-id-literal and
+  BUG-20261005-goal-result-loses-fields; BUG-20261005-loop-result-drops-whitespace.
+
+- **Loop catalog profile scope:** Web passes the existing selected-profile or explicit
+  aggregate params through the catalog hook, route preloads, filter normalization and
+  adapter. The canonical cache key includes that scope; continuation keeps it. The
+  cross-workspace command palette preserves its existing acting profile on every page.
+  HTTP/UDS, CLI and native loop_list contracts and server filtering remain unchanged.
+  Extension enablement, hooks/config and workspace data keep their existing owners;
+  no schema migration or official skills/compozy/ contract change is needed. ET-052 and
+  BUG-20261005-loop-catalog-ignores-profile own the real leave/return replay. The existing
+  query-options suite owns paginated population isolation; route-preloading owns
+  loader/hook cache reuse and the adapter suite owns query serialization.
+
+- **Runs filter recovery:** Web carries origin/session filter presence into the existing
+  empty-state model and clears all roster filters through their current setters. Server
+  filtering, CLI/HTTP/UDS/native tools, extensions/hooks/config, workspace/profile isolation,
+  storage and the official skill remain unchanged. LP-008 and the route-composition suite
+  own recovery proof; the site Runs guide describes the clear-filter action. Bug:
+  `BUG-20261005-loop-filter-hides-existing-runs`.
+  Keep the toolbar mounted through query loading/failure so the session-id draft remains
+  editable. The existing real-daemon Loops Web E2E owns this distinct lifetime invariant
+  for `BUG-20261005-loop-session-filter-disappears`. The existing shared filter search stops
+  forcing focus back on blur, allowing its input and menu focus lifecycle to complete.
+  No new focus context, exported component prop or visual token changes; the same real-daemon
+  E2E covers initial input focus, continuous typing, reload and Escape-to-trigger.
+  The Runs view computes its optional filter fallback in the component body so React
+  Compiler can compile it; its existing default/explicit-filter behavior is unchanged.
+
+- **Breadcrumb destination:** The Web routing coordinator consumes a navigation-stack entry
+  only when it matches the selected parent. A deep link can leave a different entry behind;
+  that case uses the existing explicit navigation command. Matching history still pops once.
+  Native `compozy__window_*` tools, CLI/HTTP/UDS `window.navigate` semantics, persisted stacks,
+  layout migrations, hooks/extensions/config and workspace/profile ownership are unchanged.
+  The official window-management reference remains accurate for explicit pop commands; the
+  site Runs trail description remains valid. The coordinator suite owns the bridge invariant
+  and LP-web-runs-breadcrumb owns the real deep-link/Back/crumb replay. Bug:
+  `BUG-20261005-loop-breadcrumb-history-overrides-parent`.
+
+- **Human gate decisions and context:** Accepted approval/request-changes decisions rearm only
+  the matching wait epoch inside the existing decision transaction. Reevaluation settles the
+  awaiting verdict projection once; the append-only event ledger retains both observations and
+  final verdicts cannot be overwritten. HTTP/UDS, CLI and `compozy__loop_approve` keep their
+  authorization, routes, flags and decision contract. Pending criteria add an optional rendered
+  `prompt` to existing JSON diagnostics and detail DTOs; OpenAPI and generated TypeScript co-ship.
+  Existing history remains readable and is not rewritten. The approval event carries the question
+  and actual criterion count. Web projects the current generation/gate from durable detail and
+  fences its live fallback by the same identity. No SQLite table shape, migration, hooks,
+  extension/config changes, or workspace/profile ownership changes. The official skill's approval
+  semantics remain correct; the site guide describes durable questions and correct CLI flags.
+  The existing gate evaluator, store wait/history/coordinator, and Web run-page suites own the
+  distinct boundaries. LP-009/010/011 own the real decision replay. Bugs:
+  `BUG-20261005-loop-request-changes-finishes-done`, `BUG-20261005-loop-human-prompt-missing`.
+  The Runs table also reserves readable name width inside the shared scrolling Table primitive;
+  LP-008 owns mobile/desktop visual proof. No new component, token or public contract is introduced
+  for `BUG-20261005-loop-mobile-run-names-truncated`.
+  Usage and approval fallback facts now use the daemon's adjusted `started_at` budget clock;
+  the elapsed duration shown in Runs keeps its existing semantics. No new wire field is needed.
+  The existing usage projection suite and finished review replay own
+  `BUG-20261005-loop-usage-counts-human-wait`; the site approval guide explains the distinction.
+
+- **Managed Loop tool policy:** Carry the authored node's allowed_tools through managed
+  session creation and reject explicit restrictions that differ from an active pinned
+  profile. The existing Manager owns subset validation against the Agent ceiling.
+  CLI/HTTP/UDS/native Loop calls retain their routes, fields and deterministic validation
+  errors; Web consumes the existing node failure payload. No hook, extension, config key,
+  workspace/profile ownership, storage shape or migration changes. Official Loop guidance
+  and the DSL reference describe the enforced restriction and immutable reuse policy.
+  The existing managed runtime integration suite owns this boundary; LP-046 owns the real
+  provider-backed subset/refusal replay. Bug: BUG-20261005-loop-managed-allowed-tools-ignored.
+  Session subset failures also retain a typed policy cause through the existing error chain.
+  The Loop action_failure shape adds the specific allowed_tools_policy_violation code,
+  rejected tool and safe recovery guidance. Existing ErrValidation matching and raw CLI
+  error text remain stable; arbitrary errors still receive the safe generic projection.
+  This extends the existing failure taxonomy without a new DTO or migration. The same
+  integration case owns end-to-end refusal projection; existing session subset and daemon
+  safe-failure suites remain canaries. Reopened bug: BUG-20260713-loop-failure-hidden.
+
+- **Loop runtime field names:** Run and automation input wrappers pass their visible caption
+  IDs through the existing typed control to RuntimeSelector's caption-plus-value accessible
+  name. No shared selector behavior changes. CLI/HTTP/UDS/native tools, extension/hook/config
+  contracts, workspace/profile isolation, storage and official skill commands are unchanged.
+  LP-002 records the Web impact; no site contract changes. The existing LoopRunInputField
+  runtime case owns field distinction and value selection; fresh run/automation form walks
+  own real UI proof. Bug: `BUG-20261005-loop-runtime-labels-generic`.
+
+- **Vault name correction:** the existing validator keeps the namespace/path grammar and
+  `ErrUnsupportedSecretRef` identity, but reports a usable format correction without echoing the
+  rejected ref. CLI/HTTP/UDS/native callers retain their current status and DTO contracts. Web
+  New secret composes the existing field HelpTip; rejected writes retain their draft. No hook,
+  extension, config, storage, workspace/profile isolation, migration, or generated shape changes.
+  Official `skills/compozy/` commands remain valid; the site Vault guide explains supported names.
+  `TestVaultHandlersRejectInvalidRequests` owns rejection before storage and safe diagnostics;
+  Dora's real Vault recovery/overwrite walk owns UI evidence. Bug:
+  `BUG-20261004-vault-name-recovery-missing`.
+  The same editor now places its overwrite confirmation in the existing wrapping `AlertActions`
+  row instead of the absolutely positioned compact-action slot, keeping the consequence readable.
+  No shared primitive or consent behavior changes; browser layout replay owns
+  `BUG-20261004-vault-warning-covered`.
+  Settings rows also accept an explicit accessible help label for decorated field labels; Vault
+  supplies About name without changing input names or the shared HelpTip interaction lifetime.
+  The existing settings-field-row suite owns that association. Bug:
+  `BUG-20261004-vault-help-name-generic`.
+
+- **Attention policy after workspace deletion:** Channel-only Web writes omit the optional
+  profile mute replacement, preserving the server's current list. The canonical policy query
+  rereads after workspace-catalog removal; it never filters or rewrites daemon-owned mute rows.
+  SQLite replacement retains its transaction and rollback while reporting the existing typed
+  missing-workspace error, consumed by the shared HTTP/UDS 404 mapping. CLI/native config controls,
+  route/DTO/tool IDs, hooks, config keys, storage shape and profile/workspace ownership are unchanged.
+  Official configuration guidance and MS-attention-settings-roundtrip co-ship. The existing Web
+  page and SQLite repository suites own their separate write/reconciliation and atomic-error
+  invariants; the same public scenario owns the real replay.
+- **Task session and start-response ownership:** Dedicated and automatic task workers carry
+  the task's stable profile into session admission, and role reuse refuses a different profile.
+  Nominal run transitions and task execution retries retain inherited profile identity; shared
+  start/publish/approve handlers decorate the existing task/run fields. Task and run inspection
+  label their existing task summary through the same owner map. CLI, HTTP/UDS, Web and
+  hosted agent start consume that identity without changing routes, DTOs, tool IDs, hooks,
+  extension methods, configuration, workspace placement or stored schema. Existing sessions are
+  preserved; no history is reassigned. The official task guidance and TA-048 own public replay;
+  daemon bridge/role, task service and handler suites own their separate boundary invariants.
+- **Scheduler and run-page reads:** Active Dashboard scheduler status/backlog queries refresh at
+  the existing dashboard cadence and stop while its window is inactive. The scheduler remains
+  daemon-wide. Task/run detail, inspection, history, review lists, result pages and streams carry
+  the current profile read scope; route preloads share the same scoped cache identities.
+  Application entry hydrates the workspace lens and resolves its remembered profile before
+  parallel loaders and shell consumers start; an explicit local view retains precedence.
+  A failed identity read reaches the existing route retry boundary without default-profile work.
+  Missing OpenAPI selectors are restored from the existing task actor contract, including
+  single-profile writes and explicit aggregate reads; generated JSON/TypeScript co-ship.
+  This is additive public documentation of accepted parameters, with no renamed surface,
+  storage migration, config/hook change or native-tool ID change. Workspace authorization
+  remains server-owned. Official task guidance and TA-048 record the visible behavior;
+  handler, public-schema, query-controller, adapter and route suites own their distinct invariants.
+- **Attached command client lifetime:** HTTP/UDS and CLI client discovery, plus native
+  command invocation targeting, use the WindowManager's active command channels. Closed tabs no
+  longer cause multiple_clients or remain targetable. Registered presentation/context and attachment
+  authorization survive disconnection for reconnect; workspace scope and profile ownership remain
+  unchanged. No DTO, route, native-tool ID, hook, extension API, configuration or storage change.
+  The official native-tools reference explains live targeting. Existing daemon integration IT-031
+  owns disconnect/reconnect behavior; Web E2E-027 and the structured targeting scenario own real replay.
+- **Multi-client profile navigation:** the Web runtime refuses admission during a known conflict
+  before publishing an optimistic route. Completion of an accepted open uses the window's current
+  route, preserving an already consumed dialog intent. Existing conflict recovery and newer-intent
+  fences remain authoritative. No public surface, persisted state, native tool, hook, extension,
+  configuration or workspace/profile boundary change. Runtime/routing suites own the two races;
+  the profile palette and remote-write scenarios retain original-flow and adjacent Back evidence.
+
+- **Delegated profile selection result:** Web persists the canonical selection, returns the
+  client-command result over its original connection, then activates the new profile. Direct
+  UI selection keeps its optimistic behavior. The internal reply continuation is carried through
+  every consumer together; public CLI/HTTP/UDS/native command shapes, WebSocket frames, extension
+  contracts, hooks, configuration, storage and workspace/profile authority are unchanged. The
+  existing channel/stream suites and E2E-027 own verification; official profile guidance describes
+  the persisted result, and the same palette/remote-write scenarios own public replay.
+- **Profile palette argument handoff:** Attached CLI/HTTP/UDS/native command invocations retain
+  their existing action/args envelope; Web now reads the supplied profile and preserves scalar
+  navigation arguments through the same route builder as direct palette dispatch. Settings
+  carries create/rename suggestions into the canonical dialogs and consumes their route intent.
+  The existing profile selection, lifecycle plan revisions, destructive confirmation and local
+  authority remain unchanged. No native-tool ID, extension, hook, config, storage shape, migration
+  or workspace boundary changes. Official profile guidance explains the handoff. Existing
+  client-op, route and profile E2E suites own validation; the palette and remote-write scenarios
+  retain the public replay and the separate unresolved navigation stall.
+- **Profile owner response completeness:** Scheduler backlog runs inherit the owning task's
+  stable profile ID, and shared handlers decorate backlog task/run owners and task-update owners.
+  Existing HTTP/UDS fields now contain their promised identity; CLI and Web consume those same
+  fields. No route, DTO, native-tool ID, Host API method, hook, configuration, workspace boundary
+  or storage shape changes. Existing task-service and handler suites own the regressions;
+  official task guidance and the profile lifecycle scenario carry the public replay.
+- **Profile admission race diagnostics:** Session insertion translates only the two known SQLite
+  profile availability guards into a typed store refusal, including identity-bound registration.
+  Shared HTTP/UDS error handling returns the existing profile conflict payload and recovery action;
+  failed automation history retains that guidance. Native session/automation tool IDs and extension
+  methods are unchanged; their session admission guard remains authoritative. No new hook, config,
+  DTO, schema, migration or workspace/profile ownership rule. Web uses the existing error/history
+  fields. Store registration, transport error and automation history suites own their respective
+  invariants; official profile guidance and the lifecycle race scenario own operational recovery.
+- **Task run and operator action profile selection:** Run lifecycle and recovery, single/bulk
+  force controls, fan-out, task update/delete, dependencies and review request/submit now use the
+  existing CLI mutation selection boundary. HTTP/UDS routes and DTOs, native task tool IDs,
+  extension methods, hooks, configuration and workspace storage are unchanged; no migration.
+  Session-bound branches retain their authenticated identity. The existing CLI profile suite
+  owns request selection; the profile lifecycle and task-control journeys own real replay.
+  Official task guidance documents the affected commands. Web already sends the correct profile.
+- **Empty task block lists:** The shared mapper returns an allocated empty array to honor the
+  existing non-nullable response schema. HTTP/UDS and native `compozy__task_blocks` share this
+  boundary; CLI reads preserve it. No new route, tool ID, schema, hooks, configuration or workspace
+  ownership change. The existing HTTP task-block response suite owns regression coverage.
+- **Task CLI control profile selection:** Pause/resume/cancel, block/unblock/recover and block reads
+  use the existing single-profile boundary before transport. Task routes, native tools, extension
+  methods, hooks, configuration, workspace storage and Web behavior do not change; no migration
+  is needed. The existing CLI profile suite and the adjacent TA-010 walk own verification. The
+  original overview approval repair remains verified. Approval-pending CLI copy is made neutral
+  because source policy can require approval for read-only commands too.
+- **Extension task response state:** Host API task payloads derive draft from the canonical status
+  and copy the persisted creator notification flag, cursor, current run, pause inheritance, block
+  reasons and attention metadata, including detail summaries. Free-text state stays redacted. Existing task
+  methods, SDK/OpenAPI shapes, native-tool IDs, hooks, configuration, workspace/profile ownership
+  and storage remain unchanged; no migration or generated-contract change is required. The task
+  serialization suite and TA-001's adjacent extension-command replay own verification. Official
+  extension guidance documents the fields; Web already displays the correctly persisted state.
+- **Extension Host API workspace/profile binding:** The shared boundary recognizes the existing
+  workspace_profile process scope and retains its workspace for domain calls and actor derivation.
+  Own-workspace task creation keeps the bound profile; global and foreign workspace requests remain
+  refused. Resource methods retain their full compound scope for kernel authorization. Host API
+  method names, SDK shapes, native-tool IDs, hooks, configuration, database and workspace placements
+  do not change. Existing resource and task handler suites own coverage; the profile approval
+  scenario owns the real command replay. Official extension guidance and site permissions docs
+  explain the binding. Web consumes the existing execution result without a new contract.
+- **Pending palette decisions:** Add `approvals resolve <id> --decision approved|denied` and
+  `POST /api/tools/approvals/{id}/resolve` on HTTP/UDS. Existing show/cancel behavior remains;
+  OpenAPI now documents their existing profile selector as well. The shared profile resolver
+  rechecks availability and session immutability before the coordinator enforces recorded ownership,
+  expiry and the single-decision fence. HTTP uses the existing privileged loopback mutation guard.
+  Deferred tools retain current policy checks and single-use authorization under the original
+  workspace/profile. Web keeps a pending invocation open, exposes an explicit decision, and reads
+  asynchronous execution state through a profile-keyed canonical query. Public contracts, generated
+  Web types, CLI/site documentation and official native-tool guidance co-ship. No new native-tool
+  ID, hook, extension contract, configuration key, database shape or workspace placement; existing
+  `compozy__cmd_palette_invoke` callers receive the same approval ticket. No migration is required.
+- **Settings restart truth:** Web reads the daemon's existing configuration status for current
+  restart requirements, including writes from CLI/HTTP/UDS and other documents. The settings apply
+  owner retains restart-required scoped writes outside the global hash until the next daemon boot;
+  unrelated live writes cannot erase that requirement. Existing status payloads carry this truth
+  across CLI/HTTP/UDS without a shape change or persistence migration. The latest apply
+  record identifies the notice dismissed by the operator; it does not decide whether a restart is
+  required. A previous successful operation cannot hide a later requirement. Settings mutations
+  and terminal restart observations invalidate the canonical status/apply queries. The existing
+  session-storage envelope upgrades losslessly from version 0 to 1, retaining operation identity
+  and pending mutation while adding the dismissed apply-record ID. No daemon schema, public route,
+  native-tool ID, hook, extension, configuration key or workspace/profile ownership changes.
+  Official configuration guidance, MS-037 and its existing hook/presentation suites own verification.
+- **Native permission cancellation:** ACP emits a terminal system cancellation when its caller or
+  connection closes; session persistence marks the interaction canceled and clears derived pending
+  attention. The existing native approval deadline reports `approval_timed_out` even when ACP
+  returns its normal canceled outcome. Operator allow/reject choices, tool IDs, HTTP/UDS routes,
+  authorization, hooks, configuration and workspace/profile ownership stay unchanged. The existing
+  interaction status accepts cancellation, so no schema migration is needed. Web consumes the
+  canonical projection; official runtime guidance and the profile/attention scenarios co-ship.
+  Existing ACP, session transition and daemon bridge suites own the regressions.
+- **Extension-declared profile provenance:** Global migration 00127 preserves every declaration
+  marker and adds nullable creation provenance: existing rows remain unknown; new profile creation
+  records true and binding records false. Creation claims also require the current profile ID, so
+  deleting/recreating a name cannot transfer authorship. Existing create-once markers still prevent
+  reseeding. Install/apply results consult persisted provenance before emitting the existing
+  `extension.profile_created` event when creation races with the operator. CLI, HTTP/UDS and native
+  extension detail retain the boolean `created_by_extension`; true confirms authorship, while false
+  includes binding and unknown historical origin. No verb, route, native-tool ID, configuration,
+  resource placement or authorization changes; workspace/profile ownership remains enforced by the
+  existing extension and profile boundaries. Web already reads the shared payload and needs no new
+  control. Official extension guidance and site installation docs explain the historical limit.
+- **Retained Global history upgrades:** Catalog and health readers accept the workspace-free
+  scope written by the existing home-to-Global migration. Creation profile versions 3–5 retain
+  their original sandbox/Network fields solely as hash-bound provenance; current creation still
+  writes version 6. The catalog's logical scope and the immutable events.db owner are resolved
+  separately, with the original creation witness proving Global ownership. Metadata, database
+  owner rows and historical hashes are not rewritten; no new schema or migration is introduced.
+  HTTP/UDS add read-only `/api/sessions/{session_id}/transcript`, `/transcript/search`,
+  `/transcript/outline`, `/status`, `/events`, `/history` and `/stream` routes for Global history,
+  enforcing both Global ownership and profile read scope. Existing project routes and mutation
+  boundaries stay intact. CLI transcript, search, outline, status, events (including follow) and
+  history reads select the owning route; filters, archive selection, bounds and SSE cursors
+  retain their existing semantics. Global status omits project-only Heartbeat wake enrichment;
+  project Heartbeat failures still propagate. Native session tools keep their existing
+  project/caller scope and IDs. No hook, extension SDK or configuration changes. Web links ask
+  to enable Global without replacing the remembered project and render retained history read-only.
+  Out-of-scope documents hide a session locally without retiring its shared window; only
+  confirmed deletion or an explicit delete retires it. Existing presence and content guards remain.
+  Generated OpenAPI/Web types, official runtime guidance and session control-plane docs co-ship.
+  The retained-history bug and Global scope scenarios own the released-binary upgrade replay.
+- **Native tools / CLI / HTTP / UDS:** Generic CLI tool invocation preserves public
+  `credential_requirements` metadata and its discovery schema, matching the existing daemon
+  contract. Validation patterns retain their exact syntax only inside discovery schemas; descriptions,
+  defaults, and unrelated data keep normal secret redaction. Scoped session-list JSONL restores its documented leading `profile_resolution`
+  frame for both empty and populated pages; aggregate frames and trailing page metadata remain.
+  Profile selection reads retain the effective `profile` and add optional `note` for archived
+  remembered fallback; CLI resolution preserves that provenance. No route, tool ID, or command changes.
+- **Document-wide streams:** `/api/sessions/catalog-stream`, `/api/worktrees/catalog-stream`,
+  and `/api/logs/stream` add WebSocket upgrades with one existing SSE frame per text message.
+  HTTP/UDS SSE remains supported. Session/log upgrades resume through `last_event_id`, preserving
+  header precedence and leaving existing numeric log query filters unchanged. Stream scopes,
+  redaction, event names, payloads, and gateway tickets retain their owners. Upgraded connections
+  join transport shutdown through the existing stream lifecycle primitive. Three Web consumers
+  opt in so background notifications and profile lifecycle sweeps stay live across documents.
+  Official runtime guidance, generated OpenAPI/Web types, and session/worktree docs co-ship.
+- **Extensibility / hooks / config:** The shared redactor recognizes the public metadata field;
+  nested secret fields and secret-shaped free text retain their existing protection. No new
+  configuration, hook, or extension capability.
+- **Overview CLI validation:** An explicitly supplied `--usage-window=0` now receives the same
+  accepted-value validation as other invalid numbers. Omission retains the 30-day default; HTTP,
+  UDS, native tools, and generated contracts already express 7, 30, or 90. No migration is needed.
+- **Task execution CLI:** Publish, start, approve, and reject now resolve the selected profile
+  through the existing command wrapper before transport. The daemon retains its existing
+  ownership checks, including not-found responses for a foreign profile. No wire, native-tool,
+  Web, hook, configuration, or persistence change; official task guidance co-ships.
+- **Approval CLI ownership:** `approvals show` and `approvals cancel` resolve the selected profile
+  through the existing command wrapper before transport, including flag, environment and remembered
+  selection. The daemon's ownership checks remain authoritative. No command, wire, native-tool,
+  Web, hook, configuration, extension or stored-state shape changes; no migration is required.
+  Official native-tool guidance and the existing palette command suite co-ship; the QA report
+  records the real pending-approval replay and profile lifecycle plan readback.
+- **Automation cursor scope:** CLI transports opaque job/trigger cursors to the daemon. Shared
+  HTTP/UDS and native-tool parsers receive the resolved profile scope before fingerprint validation.
+  Canonical filter/order/count/cursor validation remains authoritative, including refusal after
+  profile or filter changes. Extension Host already binds scope first and is unchanged. Web
+  continuation consumes the repaired HTTP boundary. No DTO, cursor version, route, tool ID,
+  hook, config, workspace storage or migration changes. Existing CLI cursor fixtures now carry
+  real profile identity; public replays cover TA-052/TA-056. Official native-tool guidance co-ships.
+- **Global automation details:** The Web detail boundary recognizes the resolved Global lens
+  and retains refusal for a different concrete project. Project-owned edit forms resolve agent
+  and Loop catalogs from the returned definition's workspace. Server profile authorization,
+  mutation ownership and managed-source restrictions remain authoritative. No native-tool, CLI,
+  HTTP/UDS, extension, hook, config or stored-state contract changes; no migration is needed.
+  Official skill commands and site API guidance remain current. TA-052/TA-056 and the existing
+  detail-hook suite own the repair evidence; fresh Chrome/CLI/UDS replay covers saved behavior.
+- **Global scope persistence:** Daemon-derived window-scope cleanup no longer persists a stale
+  document's navigation snapshot. Workspace readers skip observations for an already retained
+  desktop. Explicit selection and first desktop resolution still persist with the same v4 key,
+  version 1 envelope and lossless version 0 migration. Open documents retain their own view;
+  reload uses the saved selection. No native tools, CLI/HTTP/UDS, hooks, configuration, extension,
+  workspace-file or daemon-storage change. Official skill and site commands remain current.
+  The workspace persistence suite and MS-web-menubar-global-scope-toggle own the repair evidence.
+- **Task-backed job detail:** The Web job read surface reuses the form preview's pure run digest
+  to display the persisted task title, description and owner, including the existing job-default
+  fallback. Agent and Loop destinations retain their presentation. No native-tool, CLI/HTTP/UDS,
+  extension, hook, configuration, profile/workspace isolation or stored-state contract changes;
+  no migration is needed. Official skill and site interfaces remain current. TA-052 and the
+  existing job detail/form suites own the regression and fresh browser replay.
+- **Retained Loop window scope:** A foreground scoped Loop route adopts its known project;
+  retained background windows and later shell scope choices no longer trigger that adoption.
+  Route ownership validation and persisted scope formats stay unchanged. No native-tool,
+  CLI/HTTP/UDS, extension, hook, config or workspace-storage contract changes; no migration.
+  Official skill and site commands remain current. The existing Loops E2E suite owns the
+  regression, with fresh Bruno replay shared by the Global toggle and automation catalog scenarios.
+- **Offline automation pagination:** Jobs and Triggers carry Query's paused state to their
+  shared pagination control. Loaded rows remain usable while the disabled control explains that
+  continuation is waiting for connectivity. Existing reconnect, focus and invalidation policies
+  remain authoritative. No native-tool, CLI/HTTP/UDS, extension, hook, config, profile/workspace
+  isolation or stored-state changes; no migration. Official skill and site contracts remain
+  current. The existing catalog component suite and both live catalogs own verification.
+- **Trigger submission feedback:** The Web trigger editor keeps server submission errors beside
+  its persistent actions in both form and preview views. Existing request validation, mutation
+  ownership and draft recovery remain authoritative. No native-tool, CLI/HTTP/UDS, extension,
+  hook, configuration, workspace isolation or stored-state contract changes; no migration.
+  Official skill and site interfaces remain current. ET-web-jobs-triggers-catalog and the
+  existing trigger form suite own the hidden-error regression and fresh recovery replay.
+- **Automation preview directions:** Job schedule recovery and Trigger webhook/template guidance
+  name the existing form/preview footer actions after the permanent preview rail was removed.
+  This is a presentation-only correction; draft, validation and submission behavior are unchanged.
+  No native tools, CLI/HTTP/UDS, extension, hook, config, workspace isolation or stored-state changes;
+  no migration. Official skill and site interfaces remain current. TA-web-automation-preview-toggle
+  owns the before/after real replay; existing form/editor suites retain behavior coverage.
+- **Saved Loop target recovery copy:** Incompatible and unavailable automation targets give
+  edit-mode remedies that preserve the immutable target; creation keeps its picker remedy.
+  The existing mode and availability projection remain authoritative. No native-tool,
+  CLI/HTTP/UDS, extension, hook, config, isolation, stored-state or migration changes. Official
+  skill/site interfaces remain current; both real editors and existing form suites own proof.
+- **Local Web bundle revalidation:** Static HTTP responses use the opened file's modification
+  time, so COMPOZY_WEB_DIST_DIR rewrites invalidate prior HTML and asset validators without a
+  daemon restart. Embedded zero-time assets retain the existing start-time fallback. Routes,
+  CSP, range handling, native tools, CLI/UDS contracts, extensions, hooks, configuration keys,
+  workspace data and persisted shapes stay unchanged; no migration. Official skill/site
+  contracts remain current. The existing HTTP static suite and real entry/rewrite replay in
+  TA-web-automation-preview-toggle own regression evidence.
+- **Trigger authoring and error recovery:** The Loop mapping example follows the existing
+  accepted template grammar; the preview serializes strings as valid sample JSON. Failed
+  Trigger detail reads expose the existing catalog-return action alongside the daemon error.
+  No native-tool, CLI/HTTP/UDS, extension, hook, configuration, workspace isolation or stored-state
+  contract changes; no migration. Official skill and site contracts remain current. The existing
+  trigger form/detail suites and fresh Bruno replays own verification, including mapping save
+  and independent readback. The mapping copy uses replay evidence rather than a prose assertion.
+- **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
+  owner, matching the existing delete audit convention. The payload retains the affected profile
+  and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives
+  the existing named event and sweeps the unavailable view. Ordinary writes under archived owners
+  remain refused. No schema, wire, native-tool, hook, config or extension change, and no migration.
+  The existing daemon recorder suite uses real SQLite; official profile guidance and QA replay
+  document the event's ownership and restored live projection.
+- **Profile operation recovery audit and reservation:** Failure/recovery audits use the same
+  permanent operator owner as archive/delete, retaining the affected profile and operation in
+  their existing payload. Archived identity audits follow the same rule using an internal subject
+  state snapshot; active identity event ownership is unchanged. Pending operations block edits inside the
+  canonical manager transaction. CLI, HTTP/UDS and delegated actions share this guard; ordinary
+  unavailable-owner writes remain refused. No wire, tool ID, hook, config, extension or storage
+  shape changes; no migration is needed. Web observes the existing event stream and refusal.
+  Official profile guidance and the recovery QA scenario co-ship. Existing daemon-recorder and
+  profile-availability suites own regression coverage.
+- **Unavailable profile Web entry:** The window-manager HTTP adapter retains typed profile
+  refusals emitted before its handler. The existing desktop projection carries its load error
+  to the menubar, which exposes profile recovery and the server's remedy instead of a generic
+  layout retry. An explicit profile switch provides access to Settings; remembered ownership
+  and the unavailable-owner guard stay intact. No CLI, HTTP/UDS, native-tool, hook, config,
+  extension or workspace-storage shape changes; no migration. The Profiles E2E suite and the
+  existing recovery scenario cover cold entry and subsequent recovery. Official profile guidance
+  names this Web recovery path; site documentation has no separate affected contract.
+- **Profile view recovery:** The Web shell keeps its global profile lifecycle feed alive while
+  desktop authority reconnects, so externally deleting the viewed profile can sweep the client
+  to default. Other stream budgets remain unchanged. Public CLI, HTTP/UDS, native tools, hooks,
+  configuration, extensions and persisted state retain their contracts; no migration is needed.
+  The official profile workflow remains current. The existing profile E2E suite and fresh
+  browser/CLI/UDS replay cover recovery, refresh persistence and retained neighboring profiles.
+- **Profile dialog feedback:** Lifecycle mutations retain their failed state for their sole dialog
+  consumer instead of also emitting a raw error toast. Inline validation and plan-retry callbacks
+  remain active; existing success notices are preserved. Name refusals bind to the submitted value,
+  while operation failures remain visible at form level and pending mutations retain their lifetime.
+  This changes only Web feedback ownership and the internal create-dialog props/story.
+  CLI, HTTP/UDS, native tools, hooks, configuration, extensions, workspace isolation and persisted
+  shapes are unchanged; no migration or official skill command update is needed. The owning
+  Settings E2E flow covers reserved/duplicate refusals and recovery with a valid name; the existing
+  create-dialog suite covers current-value validity, operation errors and pending submissions.
+- **Profile emoji keyboard navigation:** Create and edit-identity dialogs let arrow keys reach
+  Frimousse's existing navigation listener through Base UI's event customization API. Escape,
+  focus containment and all other modal consumers keep their existing behavior. The shared picker
+  and dependencies are unchanged. CLI, HTTP/UDS, native tools, hooks, config, extensions, workspace
+  isolation and persisted shapes retain their contracts; no migration or official skill change.
+  E2E-014 covers keyboard identity selection and the saved public response; fresh keyboard replay
+  covers both dialogs, canceled creation, focus return and reload persistence.
+- **Profile archive automation pause:** CLI, HTTP/UDS, Web and native profile actions share a
+  resource-aware archive plan and atomic pause transaction. Dynamic definitions retain their resource
+  identity with a new version; configuration/extension definitions retain their content and receive
+  existing enabled overrides. A journaled runtime synchronization finishes before success; failed
+  synchronization remains unavailable until explicit operation retry. Other profiles remain unchanged.
+  No wire, tool ID, hook, config key or schema shape changes. Official profile guidance co-ships.
+  Web renders the same existing paused-list fields; both Web and CLI lifecycle scenarios track replay.
+- **Profile deletion ownership:** Public counts and the transactional delete guard include canonical
+  job/trigger resource owners and unshadowed legacy definitions, regardless of enabled state.
+  Web uses the corrected count to withhold deletion of nonempty profiles. CLI, HTTP/UDS and native
+  lifecycle actions share the existing profile_owns_work refusal. No tool ID, wire, hook, config,
+  extension or persisted shape changes; no migration is required. Other owners and resource content
+  remain unchanged. Official profile guidance and the two lifecycle scenarios co-ship.
+- **Profile lifecycle navigation:** Browser Back/Forward uses the existing dialog close operation,
+  including its transient drafts and success state. Palette route intents are consumed by the owning
+  Settings window after raising a canonical dialog, so cancellation cannot be replayed on reload.
+  The existing window-manager route replacement persists the consumed state. Public lifecycle
+  commands, HTTP/UDS/native tool IDs, hooks, extensions, config, workspace content and storage shapes
+  retain their contracts; no migration or official skill command change is needed. Web lifecycle
+  QA and the existing profile E2E suite own the changed behavior.
+- **Profile project restoration:** Web transfers the active view only when changing between
+  workspace and Global breadth. Leaving a distinct project releases its ephemeral view; re-entry
+  waits for the remembered selection query to settle before pinning the client view. External
+  updates still leave an already-open client's profile unchanged. CLI, HTTP/UDS, native tools,
+  hooks, extensions, config, workspace files and persisted shapes retain their contracts; no
+  migration is needed. The official profile guidance and switcher QA scenario co-ship with the
+  existing E2E-013, while aggregate breadth and two-client E2Es retain their separate invariants.
+- **Profile rename repository offers:** Web derives accepted repository ids from the current
+  daemon plan and retains only explicit declines in transient dialog state. Offers start selected,
+  name edits preserve declines, and absent candidates cannot enter the request. E2E-016 uses real
+  repositories to verify accepted-only movement and unchanged declined content. Public CLI,
+  HTTP/UDS, native tools, hooks, configuration, extensions, workspace isolation and persisted
+  shapes retain their contracts; no migration or official skill command change is needed.
+- **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
+  workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
+  selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The
+  existing native tool, CLI, hooks, config, and persistence contracts stay intact. Session lifecycle
+  docs and the official runtime skill explain explicit owner selection. No migration is required.
+- **Retained history isolation:** Boot logs typed session-database identity refusals and excludes
+  those stores from subsequent boot history processing, allowing healthy sessions to remain
+  available. CLI, HTTP/UDS, Web, and native history reads retain the existing ownership refusal;
+  no store is adopted or rewritten. Migration failures and cancellation still stop boot. No wire,
+  schema, config, hook, or extension change. The daemon operations guide and official runtime skill
+  document complete-directory recovery; the existing boot suite and isolated runtime own evidence.
+- **Extension manifest compatibility:** TOML and JSON static-resource string paths normalize into
+  the current path/profile objects at decode. Current placements, strict unknown-field rejection,
+  and canonical build output remain. This SD-013 regime-2 adapter is removed in v0.3.0-beta.31;
+  authoring/manifest guides, official extension guidance, and a migration release note co-ship.
+  CLI, HTTP/UDS, and native extension build/dev/install callers share the loader; there are no new
+  routes, tools, hooks, config keys, Web controls, or stored-state changes.
+- **Workspace data isolation:** No persistent state or workspace selection changes.
+- **Native invocation approval:** HTTP/UDS approval issuance shares the native input binder with
+  dispatch, so workspace names, paths and inherited operator workspace selection produce matching
+  approval digests. Supplied input digests are checked before binding; digest-only approvals retain
+  their existing bound-input contract. Final post-hook input, profile/session/workspace/agent scope,
+  expiry and single-use enforcement remain at the approval store. No tool ID, schema, route, CLI
+  flag, Web control, config key or stored-state change; no migration is required. Official tool
+  guidance and the owning boot suite co-ship, with real operator replay in the QA report.
+- **Native workspace identity:** the shared input binder emits the registration key used by
+  session authority and automation/task persistence. Registered IDs, durable IDs, names and paths
+  remain accepted selectors. CLI/HTTP/UDS and hosted native tools now address the same project;
+  aliases for the caller's project no longer trigger foreign-access approval. Persisted memory
+  and configuration identities retain their own resolver paths. This changes no stored shape,
+  public field, permission mode, hook contract or Web control and requires no migration. Official
+  native-tool guidance and the boot/automation owning suites co-ship; the dated report owns replay.
+- **Task catalog workspace selection:** the task service preserves an explicit authorized target
+  through the existing task-resource workspace policy instead of replacing it with the caller.
+  Omitted targets retain caller defaults and the acting profile still fences the catalog. Native
+  dispatch continues to canonicalize aliases and refuse agent global/all scope. CLI/HTTP/UDS
+  operator behavior, Web reads, hooks/config, extensions, stored data and public shapes are
+  unchanged; no migration is required. The existing task integration suite and official task
+  reference co-ship, with a real hosted replay in the owning QA report.
+- **Hook authoring reference:** not applicable — editorial only. Tool-event examples and the
+  official extension skill use the existing `tool_id` matcher/payload field; permission-event
+  `tool_name` remains documented separately. No runtime, wire, config, hook or workspace-state
+  contract changes. Public create/restart/catalog/delete replay confirms authoring recovery.
+- **Agent context runtime identity:** The shared situation projection prefers the session's
+  effective model over its configured agent default. Authenticated HTTP/UDS context reads and
+  the fresh prompt context share this correction; pending runtime selection remains intent.
+  There is no DTO, tool ID, CLI, Web, hook/config, or persistence change. Existing startup
+  snapshots remain historical. The owning situation suite, real provider replay, RT-031 and
+  official runtime guidance cover the change; no migration or compatibility adapter is needed.
+- **Directory-browser recovery:** The shared Web browser retains known parent/home/root
+  destinations when a directory read fails. Both Add project and first-run onboarding consume
+  that navigation state; the failed path and error remain visible, and no stale directory entries
+  are substituted. Filesystem HTTP/UDS responses, CLI/native tools, hooks/config, stored workspace
+  state, and official skill commands are unchanged. The directory-browser suite and the existing
+  Add project scenario own regression/replay evidence; no compatibility migration is needed.
+- **Onboarding Skip scope:** Explicit Skip enables the existing persisted Global scope only after
+  completion succeeds, retaining the remembered project. Normal Finish and failed completion retain
+  their previous scope. The change is internal Web orchestration: no API/CLI/native-tool, hook,
+  configuration, workspace data, or schema changes. Official structured-surface commands remain
+  unchanged; the owning Add project scenario records the populated-catalog handoff and its replay.
+- **Official skill / Web / Docs:** Profile guidance documents the optional fallback note. Web
+  consumers continue using the existing effective profile field; generated DTOs co-ship. Onboarding
+  references now match the observed empty workspace catalog and optional Skip-to-Global flow.
+  Onboarding grid sections allow long paths to truncate within their columns; existing controls,
+  tokens, and state remain unchanged. Four-width browser replay confirms visible controls.
+- **Compatibility:** The profile-selection note is additive under SD-013's public-surface regime.
+  Existing profile values and persistence remain unchanged; no migration or deprecation is needed.
+- **Verification:** Both regression cases failed before the change. The full redactor race suite
+  passes (80.1% coverage); a rebuilt CLI reproduces complete structured HTTP/UDS parity. The two
+  session-list regressions also failed before repair; the complete CLI race suite passes, and
+  rebuilt scoped/aggregate JSONL output retains one leading frame and a usable trailing page.
+
+## Release PR 680 — CI and generated extension packaging
+
+- **Native tools / CLI / HTTP / UDS:** existing extension init, build, install, update,
+  disable, remove, and tool invocation contracts are unchanged.
+- **Extensibility / hooks / config:** TypeScript tool, memory, and connectivity templates
+  bundle runtime dependencies with the existing Bun build convention after type checking.
+  Newly generated packages remain executable outside the source tree. No SDK API, hook,
+  permission, or configuration schema changes.
+- **Workspace data isolation:** no persistent state changes. The nightly journey uses its
+  isolated daemon home, registry server, and generated source directories.
+- **Official skill / Web / Docs:** no operator command changes in `skills/compozy/` and no
+  product UI changes. The extension quickstart documents the standalone build; the existing
+  authoring QA scenario maps to the restored TypeScript/Go nightly lifecycle coverage.
+- **Compatibility:** existing user sources are untouched; the template build-script correction
+  applies to newly scaffolded extensions. No migration is required.
+- **Verification:** the scheduler integration fixture explicitly claims its active run because
+  equal queue timestamps are ordered by run ID. Its escalation assertions remain intact.
+  Nightly coverage continues to reject an empty executable scenario set.
+
+## Shell rail v2 — rail dock, flush tiling defaults, light and dark themes
+
+Owning design: `docs/design/opendesign/shell-rail/` (`shell-rail-v2.html`, `DESIGN-NOTES.md`,
+`brand-spec.md`, `IMPLEMENTATION-PLAN.md`); orchestration contract `.compozy/tasks/shell-rail/CONTRACT.md`
+(decisions D1–D9).
+
+- **Native tools / CLI / HTTP / UDS:** additive only. `compozy__layout_arrange` and
+  `compozy layout arrange --arrangement` gain `main_stack` (the first listed window takes a 60% main
+  column; the rest stack beside it); the OpenAPI enum and generated clients carry it. The command
+  palette registry gains `layout.arrange.main-stack`, `layout.arrange.columns`, and
+  `window.move_to_desktop.1` … `.9`, all unbound by default and bindable through
+  `window_manager.shortcuts`. `layout.arrange` gains an optional `keep_frames` boolean (DTO,
+  OpenAPI, generated Web types, `compozy__layout_arrange` schema, CLI `--keep-frames`): set, each
+  named window stands for its whole tab frame and a deck is arranged whole; omitted, every named
+  window is still its own participant, exactly as before. The shell's Window › Arrange sends it.
+  No `compozy__*` ID, route, DTO field, or verb is renamed or removed.
+- **Extensibility / hooks / config:** no new hook, event, or extension capability; arrange presets
+  and move-to-desktop run through the existing layout/window commands and emit the existing
+  window-manager events. Three public `[window_manager]` **defaults** change (SD-013 public-surface
+  change, auto-migrating because only the default moves): `gaps.*` 8/8/10/8/10 → `0`,
+  `new_window_policy` `floating` → `beside_focus`, `bindings.bottom_center` `reserved` → `zoom`.
+  Explicit values in `config.toml` or layout documents keep winning; no key is renamed and no stored
+  value is rewritten. The repo `config.toml` example follows the new defaults. The theme is not a
+  config key: the preference lives in browser localStorage (`compozy.theme`: `light` | `dark` |
+  `system`, default `dark`) and is applied before first paint by the same-origin `/theme-boot.js`.
+- **Workspace data isolation:** unchanged. Window arrangements stay per (workspace, profile); new
+  presets and moves act only on the addressed workspace's topology. The theme is per browser, never
+  per workspace or per profile, and never crosses to the daemon.
+- **Official CompozyOS skill:** `skills/compozy/references/window-management.md` documents
+  `main_stack` and `--keep-frames` / `keep_frames`; its configuration section states no default values, so the default changes need no
+  skill edit. `references/configuration.md` points to the same section; checked, no stale values.
+- **Web / Docs impact:** the Web shell is redesigned — full-width 52px topbar with the desktop pager
+  and All desktops in the tray, the dock as a 60px left rail with a profile / theme / Settings foot
+  (bottom tab bar below 960px), gutterless flat tiling with 9px hairline seams, browser-style window
+  tabs, quiet window controls, a flat default desk with an empty-desktop card, Inter/Geist Mono type,
+  and light plus dark themes across every primitive. `packages/site` keeps its own theme and type
+  (D9, pinned in `packages/site/app/global.css`). Public docs updated:
+  `configuration/config-toml.mdx` (new defaults), `configuration/shortcuts.mdx` (new palette ids),
+  `cli/layout/arrange.mdx`, `workspaces/window-management.mdx`. Internal design references updated:
+  `DESIGN.md` (per-theme tables), `docs/design/opendesign/design-system/` (chapter 02 and the shared
+  CSS), `COPY.md`, `docs/_memory/glossary.md`.
+- **Compatibility:** user state is untouched (no migration; layout documents, profiles, and
+  `config.toml` values survive as written). Users who relied on the old defaults restore them with
+  explicit values; the release note carries the SD-013 migration block. Retired internal tokens
+  (`--shell-glass*`, dock/window shadows and radii, traffic-light sizes) are internal-regime and are
+  deleted with their last consumer, without aliases.
+- **QA:** changed shell scenarios are reset to `untested` and new ones added (seam resize, arrange
+  presets, move window to desktop, dock foot + compact tab bar, empty-desktop card, Inter type ramp,
+  theme scenarios); `ET-web-dock-magnification` is deleted and `ET-web-geist-wght-medium-510`
+  retired. The final QA pass walks them.
+- **Polish round 2 (P6, window opening):** `new_window_policy` gains `tab` and it becomes the default
+  in both config layers (was `beside_focus` on this unreleased branch, `floating` in the last
+  release): a client open joins the client's focused window as a tab when that window is visible on
+  the open's desktop, otherwise it falls back to beside-focus placement (an empty desktop gets one
+  full pane). Clientless opens never join a frame by policy; a peer client keeps its visible tab when
+  another client's open creates a new frame. `window.open` gains an optional `floating` flag
+  (additive: contract DTO, OpenAPI/TS, `compozy__window_open`, `compozy window open --floating`);
+  it conflicts with `insert_tiled`/`stack_target_window_id`. The Settings enum, Settings › Layouts
+  picker (Tab in focused window), `config.toml` example, site docs (`config-toml.mdx`,
+  `window-management.mdx`, generated `cli/window/open.mdx`), the release note's migration table, and
+  `skills/compozy/references/{window-management,native-tools}.md` carry both. Web: rail ⌥-click
+  splits, ⇧-click opens on a new desktop, and the rail menu (now on Sessions too) offers new tab /
+  split / new window / new desktop / Go to tab. Workspace data isolation unchanged. QA: dock default
+  size, Sessions launch, multi-instance, terminal native flow, and tab deck scenarios updated.
+  E2E triage on the integrated tree added three product fixes with no contract change: snaps store
+  exact zone fractions (odd-width desks drifted), a client's fallback focus after a close resolves to
+  the frame's shown tab (daemon `focusForDesktop`), and Continue/Fork "New window" opens the child as
+  a split so the source stays visible under the tab default.
+
+## PR 685 — Wake creator on child turn completion
+
+- **Native tools / CLI / HTTP / UDS:** no `compozy__*` ID, toolset, route, DTO, flag, or schema
+  changed. `SpawnWakeReasonCompleted` ("completed") is an internal session wake reason consumed by
+  the daemon bridge; no public surface gains a value.
+- **Extensibility / hooks / config:** no new hook, extension capability, SDK shape, permission, or
+  config key. The existing `NotifyCreator` lineage flag and notification opt-out still gate delivery.
+- **Workspace data isolation:** unchanged. Wake dispatch resolves the creator from the child's
+  recorded lineage parent and rejects self-wakes; no new table, migration, or cross-workspace read.
+- **Official CompozyOS skill:** checked `skills/compozy/` spawn/wake/creator-notification guidance
+  (`references/runtime-operations.md`, `references/native-tools.md`, `references/tasks-and-orchestration.md`);
+  no reference needs updating — no public verb, tool, or config changed.
+- **Web / Docs impact:** no `web/` route, component, or hook change; no `packages/site` doc change is
+  required.
+- **Compatibility:** additive internal behavior — `SpawnWakeReasonCompleted` is a new reason value and
+  the `BadgeDone` mapping was previously a no-op for waking; no SD-013 public-surface break, no migration.
+
+## Package cleanup — Network, Bridges, and managed Sandbox hard cut
+
+Owning decision: `.compozy/tasks/pkgs-cleanup/adr-hardcut.md`; implementation and validation evidence:
+`.compozy/tasks/pkgs-cleanup/implementation.md`. This is the user's explicitly authorized exception
+to SD-013; no compatibility window or lossless translation of retired product data is required.
+
+- **Native tools / CLI / HTTP / UDS / SDK:** remove retired product commands, tools, routes, schemas,
+  flags, and DTO fields together. Tasks/autonomy, Goal, SOUL, HEARTBEAT, attention, status cursors,
+  local session operation, MCP/ACP adapters, and transport networking remain.
+- **Extensibility / hooks / config:** remove Bridge providers, notification presets/subscriptions,
+  Network participation and managed Sandbox configuration. Retain tool extensions, hooks, authored
+  context access, webhooks, and Gateway; `[gateway]` uses `gateway.private` / `gateway.public` and
+  digest-confirmed requirements. Preserve Herdr hook IPC and native provider execution policy.
+- **State / isolation:** migration 00121 deletes retired product tables, Network wake runs and their
+  dependent records, and obsolete fields; clears retained references; rebuilds retained ownership
+  constraints. Local sessions, Tasks and ordinary runs, workspaces, SOUL, HEARTBEAT, notification
+  cursors, and recorded Gateway consent remain. Backup and destructive-state disposition are in the
+  release-note migration block and public migration guide.
+- **Web / docs / official skill:** remove product routes, panels, forms, search/navigation entries,
+  landing sections, Marketplace Bridge catalog, screenshots and dedicated RFC/design guidance.
+  Rewrite mixed Task/Loop/agent documentation around retained local functionality. The canonical
+  `skills/compozy/` instructions describe only supported operations. Published release history stays
+  historical; old blog descriptions carry a current-scope notice.
+- **QA / verification:** owning suites verify retired surfaces are absent and retained local journeys
+  remain, including SOUL/HEARTBEAT authoring and wake policy. Current QA scenarios drop obsolete journeys
+  and retain historical run evidence. Site content generation, typecheck, tests, build, and generated
+  CLI checks are tracked in the implementation checkpoint with their actual status.
+
+PR 681 review/CI remediation: migration 00121 deletes triage owned by retired Network actors rather
+than relabeling it into a retained actor's composite key; existing daemon triage flags survive
+upgrade and reopen. Extension TOML/JSON loaders reject `network_participation` with Gateway rebuild
+and digest-confirmation guidance; no compatibility conversion or implicit authorization is added.
+Migration/release guidance distinguishes preservation of the recorded consent tuple from authority
+for a new manifest. Public routes, native tools, hooks, workspace boundaries, and the official skill
+remain as audited above. Web rendering sections are decomposed without changing controls or state.
+Owning migration, manifest, runtime, and browser suites verify the corrected paths.
+
+## Issue 669 — Preserve whitespace in session transcripts
+
+- **Session transcript:** canonical, legacy, and raw agent text retain whitespace-only chunks between
+  nonblank chunks through projection; raw nonblank text also retains surrounding spaces. The existing
+  Web renderer keeps split Mermaid fences within their code block and renders subsequent Markdown
+  headings and paragraphs normally.
+- **Persisted sessions:** projection version 2 replays only assistant entries containing whitespace-only
+  chunks or padded raw text when a version 1 session database opens. It leaves the authoritative event
+  ledger, unrelated entries, message identity, sequence fences, active entry, and generation unchanged.
+  The upgrade is transactional and idempotent; no SQL schema migration is needed.
+- **Surfaces and isolation:** the session transcript REST and stream payloads inherit the corrected
+  text. Routes, SDK shapes, configuration, native tools, hooks, and workspace ownership are unchanged.
+  Inactive-session query opens upgrade version 1 through the owned writable path before returning a
+  read-only reader; direct read-only opens still never mutate a database.
+- **Verification:** transcript parser/projection regressions and the persisted version 1 upgrade
+  regression cover exact Markdown bytes, unrelated data, identity, generation, and repeated open.
+
+## Issue 671 — Awaited child output matches its declared shape
+
+- **Native tools / CLI / HTTP / UDS:** Loop validate and publish reject unsupported `run-loop`
+  `produces` fields, types, or constraints. Existing run/status/result routes and IDs stay unchanged. Awaited
+  nodes with the exact declared `loop_run_id` and `status` strings persist those terminal values.
+- **Extensibility / hooks / config:** no new hook, extension capability, or configuration key.
+  The authored `produces` schema selects the structured result already allowed by the Loop DSL.
+- **Compatibility / isolation:** awaited nodes without `produces` retain their scalar terminal
+  output. Historical unsupported declarations retain that scalar too. Existing Run snapshots and
+  workspaces are unchanged; child identity still comes from the same-workspace parent-owned Run.
+- **Web / docs / official skill:** the shared validator supplies Web editor diagnostics without a
+  UI change. Site authoring references document both result forms. The official Loop skill already
+  directs operators to the persisted `child_loop_run_id`; no instruction change is needed.
+- **QA / verification:** `LP-run-loop-await-child-ordering` adds declared-output and validation
+  checks. Focused linter and coordinator tests cover rejection, child `done`/`no-op`, legacy scalar
+  output, and downstream template rendering. A live restart walk remains separate evidence.
+
+## PR 661 CI remediation — metadata-only session restart
+
+- **Native tools / CLI / HTTP / UDS / extensions / hooks / config / official skill:** no contract or configuration change. The existing restart action can reach ready when a concurrently accepted, unbound session has metadata but no event database.
+- **Workspace data isolation and compatibility:** the boot upgrade still verifies catalog ownership and migrates every existing retained event database. Only an owned session with no runtime transition or ACP identity and no database has nothing to upgrade; missing histories for previously bound sessions, even if now unbound, and incompatible existing databases still refuse boot. No state is deleted or migrated by this change.
+- **Web / Docs / QA:** no UI or public documentation shape changes. `TA-scheduled-session-restart-recovery` and its existing `jobs-hardening.spec.ts` browser journey own the restart evidence; the manager query suite covers metadata-only boot and the bound-session refusal.
+
+## Clarify keepalive — unbounded default plus ACP ping
+
+Owning spec: `.compozy/tasks/clarify-keepalive/_spec.md` (Part II §Impact Analysis lists delete targets and regimes; ADR-001 records the ping-transport decision; reuses `.compozy/tasks/clarify-timeout` ADR-001 for the unbounded default).
+
+- **Native tools / CLI / HTTP / UDS:** `compozy__clarify` keeps its ID, schemas, and risk; `session clarify pending|answer` keep their verbs and shapes except unbounded pending reports `deadline: null`. No route, DTO, or verb added or removed.
+- **Extensibility / hooks / config:** extension `clarify/ask` and both SDK `AskClarification` paths inherit the wait and keepalive with no manifest, permission, or SDK change. Config `tools.clarify.timeout` keeps its key and duration shape; omitted/`0s` becomes unbounded (default flips from 5m), `1s`–`24h` stays finite — SD-013 regime 2 with release-note migration block, explicit finite values auto-keep working. The key is agent-mutable at user scope only: workspace and profile writes are rejected (`--scope user` guidance). New ACP agent-facing notification `_compozy/clarify_ping` (identity-only, ignorable by non-supporting agents). Follow-up (2026-09-18): the ACP ping alone does not keep real agents alive — opencode's MCP client aborts any hosted tool call after its ~60s default request window, and the ACP notification never reaches that timer. The hosted stdio proxy now emits standard MCP `notifications/progress` (every 30s while a call blocks, token echoed from the request) so `resetTimeoutOnProgress` clients reset instead of canceling; clients without a progress token receive nothing.
+- **Workspace data isolation:** pings resolve session → own live agent process only; no cross-session or cross-workspace delivery. Pending waits stay broker-owned in memory; no stored-data change, no migration.
+- **Official skill:** `skills/compozy/references/runtime-operations.md` clarify section stays valid (same verbs); provider contract note for `_compozy/clarify_ping` co-shipped in `packages/site/content/docs/agents/providers.mdx` ("Clarification keepalive") alongside the spec's `_dx.md`.
+- **Web/Docs/QA:** no `web/` rendering change in this spec (zero-deadline display owned by `clarify-timeout`); the nullable wire deadline co-ships only the regenerated OpenAPI nullable flag, the generated TS type, and a matching `string | null` parameter widening. `packages/site` co-ships the config reference, the provider doc, and the stale-bounded-wording sweep (`tools/toolsets.mdx`, `sessions/permissions.mdx`, `extensions/develop.mdx`); the durable clarify transcript projects `deadline: null` for unbounded waits. QA: `J-answer-agent-requests` gains the unbounded branch, MS/RT scenarios and four charters carry the cycle. Verification owned by `_tests.md` (bridge/config/session/acp suites plus E2E-001/E2E-002).
+
+## Issue 667 — Start session workspace default agent
+
+- **Web:** unspecified Start session actions preselect the active workspace registration's
+  `default_agent`; worktree actions use their owning workspace registration. Agent-specific
+  actions preserve the explicitly selected agent. An absent default retains the existing
+  `general` fallback and still requires a valid agent before submission.
+- **Native tools / CLI / HTTP / UDS / extensibility / hooks / config / SDK / official skill:** no
+  contract, configuration key, or behavior change. The Web reads the existing workspace catalog.
+- **Workspace / profile isolation and compatibility:** the chosen agent comes from the exact
+  target workspace row; no other workspace default, session profile binding, or persisted session
+  data changes. Existing sessions retain their agent bindings.
+- **Docs / QA:** workspace configuration guidance and the Start session scenario describe the
+  preselection. The session-create hook suite covers ordinary and worktree launches; the
+  isolated daemon-served browser replay confirms the registered default in the dialog.
 
 ## Issue 655 — Claude model identity and effort discovery
 
@@ -287,11 +1729,11 @@ For an unaffected entry, name the checked surfaces and why the change cannot aff
 
 Owning spec: `.compozy/tasks/session-continue-fork/_spec.md` (Part II §Impact Analysis lists delete targets and regimes; ADR-001…008 record the decisions; exploration in `.compozy/tasks/session-handoff/analysis/summary.md`, decisions D1–D9 in `../session-handoff/DECISIONS.md`; peer review round 1 incorporated 2026-09-11). Implementation slices link here and update only affected entries. Program order (D8): `fallback-account` ships first and owns route/account resolution, the accepted-binding commit, and resume affinity; this spec consumes that contract as a hard prerequisite.
 
-- **Native tools:** new `compozy__session_continue` and `compozy__session_fork` in the sessions toolset (risk `mutating`, same permission gate as `compozy__session_create`); `compozy__session_create|rewind|describe` keep their IDs and schemas; session read payloads gain `lineage.kind`, `lineage.origin_message_id`, `lineage.origin_agent_name`, `derivation` (`kind`, `source_session_id`, `seed`, `native_state`, `native_fork_error`, `first_prompt`), and `runtime.acp_caps.supports_fork_session|supports_resume_session` (additive). Tool catalog and digests regenerate.
-- **Extensibility and hooks:** no hook, manifest, skill/capability, Host API, bridge SDK, or MCP sidecar change; hooks keep dispatching at their call sites (post-create for the child after its commit); hook payloads that embed lineage gain the optional fields only. ACP: `initialize.agentCapabilities.sessionCapabilities.fork|resume` captured; unstable `session/fork` called only on an idle, bound source that advertises it, under the source's exclusive prompt slot; every ACP notification and callback is routed by session id (bound / fork sink / foreign-dropped) so clone traffic never reaches the source (ADR-003). Failure vocabulary: `provider_error.next_action` gains `handoff` (additive enum value; decorated by the session owner from the typed session type; older clients render it as their neutral step). Config: new `[session.derive] max_replay_bytes` (default 131072, min 4096, hard bound) and `max_message_bytes` (default 16384, 1024…max_replay_bytes), workspace overlay; no other key changes. Event: new `session.derived` on the child ledger, emitted from the committed creation transition.
-- **Workspace data isolation:** the child session belongs to the source's workspace/worktree and profile; the derive routes use the workspace route guard (a source in another workspace is 404). Global `sessions` gains `lineage_kind`, `origin_message_id`, `origin_agent_name` (migration `00110`, lossless backfill from `session_type`/`spawn_role`/`parent_session_id`); per-session `meta.json` documents written before the feature are upgraded at the read boundary by the same rule (regime 1, no rewrite on read). New global side table `session_derivations` keyed `(workspace_id, idempotency_key)` with an immutable outcome; rows are tombstoned (`child_deleted_at`) by the session delete path, never removed. The carried context is one immutable payload in the child's own meta (`imported_context`), taken from one read-only snapshot of the source and never written to the source; attachment bytes are not copied. The optional first message is admitted through the existing `session_prompt_admissions` (key `<derive key>:first`). Nothing crosses workspaces or profiles.
+- **Native tools:** new `compozy__session_continue` and `compozy__session_fork` in the sessions toolset (risk `mutating`, same permission gate as `compozy__session_create`); `compozy__session_create|rewind|describe` keep their IDs and schemas; session read payloads gain `lineage.kind`, `lineage.origin_message_id`, `lineage.origin_agent_name`, `derivation` (`kind`, `source_session_id`, `seed`, `native_state`, `native_fork_error`, `first_prompt`), and `runtime.acp_caps.supports_fork_session|supports_resume_session` (additive); the compact status read (`GET …/sessions/{id}/status`, `compozy session status`) gains optional `lineage` and `derivation` for continued/forked sessions so the CLI prints its `Origin`/`Derivation` lines (task_05). Tool catalog and digests regenerate.
+- **Extensibility and hooks:** no hook, manifest, skill/capability, Host API, bridge SDK, or MCP sidecar change; hooks keep dispatching at their call sites (post-create for the child after its commit); hook payloads that embed lineage gain the optional fields only. ACP: `initialize.agentCapabilities.sessionCapabilities.fork|resume` captured; unstable `session/fork` called only on an idle, bound source that advertises it, under the source's exclusive prompt slot; every ACP notification and callback is routed by session id (bound / fork sink / foreign-dropped) so clone traffic never reaches the source (ADR-003). Failure vocabulary: `provider_error.next_action` gains `handoff` (additive enum value; decorated by the session owner from the typed session type; older clients render it as their neutral step). Config: new `[session.derive] max_replay_bytes` (default 131072, min 4096, hard bound) and `max_message_bytes` (default 16384, 1024…max_replay_bytes), workspace overlay; no other key changes. Event: new `session.derived` written to the daemon event ledger for the child (`compozy logs --session <child> --type session.derived`), emitted right after the committed creation transition. Derive response (task_03): `derived.child_session_id` is always set and `session` is omitted when the recorded child was deleted (`child_deleted: true`).
+- **Workspace data isolation:** the child session belongs to the source's workspace/worktree and profile; the derive routes use the workspace route guard (a source in another workspace is 404). Global `sessions` gains `lineage_kind`, `origin_message_id`, `origin_agent_name` (migration `00122` — the spec text says `00110`, but `00110`–`00121` shipped first — lossless backfill from `session_type`/`spawn_role`/`parent_session_id`); per-session `meta.json` documents written before the feature are upgraded at the read boundary by the same rule (regime 1, no rewrite on read). New global side table `session_derivations` keyed `(workspace_id, idempotency_key)` with an immutable outcome; rows are tombstoned (`child_deleted_at`) by the session delete path, never removed. The carried context is one immutable payload in the child's own meta (`imported_context`), taken from one read-only snapshot of the source and never written to the source; attachment bytes are not copied. The optional first message is admitted through the existing `session_prompt_admissions` (key `<derive key>:first`). Nothing crosses workspaces or profiles.
 - **Official CompozyOS skill:** `skills/compozy/references/runtime-operations.md` §sessions documents `session continue|fork`, `derive/preview` (`native_fork_possible`, `cut.turn_id`), `lineage.kind`, `derivation`, retry semantics (`replayed`, `child_deleted`), `handoff`, and the two tools.
-- **Web/Docs:** `web/src/systems/session/components/session-row-actions.tsx` and `hooks/use-session-topbar-slot.tsx` (two menu items), `components/session-continue-dialog.tsx` / `session-fork-dialog.tsx` / `session-fork-message-action.tsx` / `session-origin-pill.tsx` / `session-continue-divider.tsx` (new), `components/session-status-line.tsx` (pill), `components/session-inspector-memory.tsx` (Origin + Seed rows), `components/runtime-activity-notice.tsx` + `lib/provider-error.ts` (`handoff`), `web/src/components/assistant-ui/message-actions.tsx` (fork action), `web/src/systems/os/apps/session/session-window-content.tsx` ("Restart in a new session", `lineage_kind: recovery`). `packages/site`: `sessions/lifecycle.mdx` (new section incl. durable carried context, native bootstrap states, retry semantics), `sessions/resume.mdx` (cross-link), `agents/providers.mdx` (`handoff`), `cli/session/continue.mdx` + `fork.mdx` + `new.mdx` (`--lineage-kind`) + `status.mdx`, `api/sessions.mdx` (three operations, additive fields), `configuration/config-toml.mdx` (`[session.derive]`), `sessions/events.mdx` (`session.derived`). `COPY.md` + `docs/_memory/glossary.md`: `fork` = conversation fork (this feature); recovery button renamed; `handoff` stays a Network term. Verification owners: `_tests.md` (UT/IT/E2E), `eng-ui-screenshot` bundles for `docs/design/opendesign/session-continue-fork/`, QA scenarios `RT-conversation-rewind` (rewind on provenance/derived children; carried context kept) and `ET-web-session-sidebar-threads` updated and reset to `untested`; new `ET-web-session-continue`, `ET-web-session-fork-from-here`, `ET-cli-session-continue`, `RT-session-derive-native-fork`, `RT-session-derive-retry`, `RT-provider-error-handoff`.
+- **Web/Docs:** `web/src/systems/session/components/session-row-actions.tsx` and `hooks/use-session-topbar-slot.tsx` (two menu items), `components/session-continue-dialog.tsx` / `session-fork-dialog.tsx` / `session-fork-message-action.tsx` / `session-origin-pill.tsx` / `session-continue-divider.tsx` (new), `components/session-status-line.tsx` (pill), `components/session-inspector-origin-section.tsx` (new — Origin + Seed rows in the Context sidebar, since the ledger meta panel was removed by #635; task_04), `components/runtime-activity-notice.tsx` + `lib/provider-error.ts` (`handoff`), `web/src/components/assistant-ui/message-actions.tsx` (fork action), `web/src/systems/os/apps/session/session-window-content.tsx` ("Restart in a new session", `lineage_kind: recovery`). `packages/site`: `sessions/lifecycle.mdx` (new section incl. durable carried context, native bootstrap states, retry semantics), `sessions/resume.mdx` (cross-link), `agents/providers.mdx` (`handoff`), `cli/session/continue.mdx` + `fork.mdx` + `new.mdx` (`--lineage-kind`) + `status.mdx`, `api/sessions.mdx` (three operations, additive fields), `configuration/config-toml.mdx` (`[session.derive]`), `sessions/events.mdx` (`session.derived`). `COPY.md` + `docs/_memory/glossary.md`: `fork` = conversation fork (this feature); recovery button renamed; `handoff` stays a Network term. Verification owners: `_tests.md` (UT/IT/E2E), `eng-ui-screenshot` bundles for `docs/design/opendesign/session-continue-fork/`, QA scenarios `RT-conversation-rewind` (rewind on provenance/derived children; carried context kept; "Fork from here" beside Rewind), `ET-web-session-sidebar-threads`, and `ET-web-sessions-catalog-modal` (row-menu Continue/Fork; task_06) updated and reset to `untested`; new `ET-web-session-continue`, `ET-web-session-fork-from-here`, `ET-cli-session-continue`, `RT-session-derive-native-fork`, `RT-session-derive-retry`, `RT-provider-error-handoff`, `RT-session-lineage-upgrade` (pre-feature home; task_07 plan `docs/qa/reports/2026-09-28-session-continue-fork-plan.md`).
 - **Compatibility:** SD-013 regime 1 for the `sessions` migration and the `meta.json` read-boundary upgrade (both lossless); regime 2 additive for routes, CLI verbs, tools, DTO fields, config keys, event, and the `handoff` value; the rewind rule relaxation (`--parent` children become rewindable) is additive public behavior; the label "Fork into a new session" → "Restart in a new session" is a copy change with its QA scenario; `conversationHasParentLineage`, the `Status`-based parent lookup in `validateCreateLineageReferences`, and the id-agnostic `handleSessionUpdate` path are internal hard-cuts with no shim.
 
 ## Fallback account — route `command`, agent `fallback_chain`, `use_fallback`
@@ -1018,3 +2460,975 @@ Windows CI also exposed missing `FILE_READ_ATTRIBUTES` on the existing removal h
 Gateway credential deletion and journal recovery now request that right for their existing
 handle-based type/reparse checks. The canonical atomic-removal suite runs in the Windows
 job alongside Gateway recovery; no safety check or test assertion was removed.
+
+## Issue 673 — ACP provider full-access preference
+
+- **Native tools / CLI / HTTP / UDS:** existing session and agent reads report the effective ACP
+  mode; no tool IDs, routes, commands, or DTO fields change. A narrower session permission policy
+  drops an inherited unrestricted agent mode at start and on later runtime changes; explicit
+  unrestricted session selections are refused. A preference newly enabled after session start is
+  also refused on a restricted prompt runtime change.
+- **Extensibility / hooks / config:** `[permissions] provider_full_access` is an opt-in, operator-owned
+  TOML setting. It maps to Codex `agent-full-access` and Claude Code `bypassPermissions` for new
+  `approve-all` sessions. Existing defaults remain when it is false; unsupported ACP providers
+  report a resolution error. Agent-authored ACP mode options retain precedence. Explicit `yolo`
+  and `auto` modes are also treated as unrestricted at the session permission boundary.
+- **Workspace isolation / compatibility:** no stored schema or migration changes. CompozyOS native
+  tool policy, workspace sandbox selection, and operating-system permissions still apply. The
+  provider-native command sandbox may be removed inside those boundaries when explicitly selected.
+- **Web / docs / official skill:** no new Web control or skill command. Site configuration and
+  permissions guides document the option and its limits. `RT-provider-full-access-mode` owns the
+  live Codex/Claude walk; the previous Codex-only probe and focused Go suites are recorded there.
+
+## Reported issue batch — 657, 659, 663, 665, 666, 675, 676, 677, 678, 679, 682
+
+Owning delivery: branch `fix/reported-issues-657-682`; real-runtime evidence and remaining
+verification are tracked in `docs/qa/reports/2026-09-29-reported-issues.md`.
+
+PR #686 review remediation keeps the same audit owner. Managed delivery rechecks selected index
+state before staging and records its own staged proof for recovery; deterministic safety refusals
+are terminal, completion releases the session fence first, and unreadable journals remain intact
+while unmatched interrupted SQL receipts fail without effects. The daemon preserves running
+receipts on failed directory inventory and retries inventory failures or temporary SQLite
+BUSY/LOCKED under its owned shutdown lifecycle; successful recovery stops polling and concurrent active controls remain intact.
+Live applying installer identity survives its deadline, Linux discovery compares all versioned installations and retains an
+unversioned fallback, and MIME registration has bounded subprocess cleanup. ACP forced stop
+verifies PID/start identity; SQLite callbacks reject active same-database reentry and preserve
+request diagnostic context. Facets documents its existing parent/root/resumable filters through
+generated OpenAPI consumers. Web blocked-query retries retain only blocked hashes, unused facets
+are disabled, search is debounced with scope-fenced previous rows and disabled stale actions, and
+request client IDs reuse the existing browser cryptography boundary. No config, hooks, capability
+IDs, SQLite shape, or permission boundary changes; journal additions preserve existing records.
+The official worktree reference and generated CLI example require the actual reviewed scope.
+The existing packaged Electron shell suite owns a real sixty-minute catalog request-rate
+regression using public session/Loop activity and unchanged fixed budgets. Desktop CI retains
+its current-head/runtime/client receipt on success or failure; no local runtime is launched.
+CI exposed duplicate shell terminal-facet polling alongside live stream reconciliation. The
+shell now uses the shared live clock for healthy reads, retains visible disconnected polling
+fallback and retries failed facets reads at the existing thirty-second error interval even with a
+live stream. Native public surfaces, configuration, persisted state and official skill contracts
+remain unchanged.
+
+- **Native tools / CLI / HTTP / UDS / SDK:** worktree exit plans and commits add explicit reviewed
+  paths and a content fingerprint; managed delivery uses validated session identity, a durable
+  intent, checkout fencing and exact draft-PR reconciliation. Existing whole-worktree commit
+  behavior remains available. Session catalog reads add an opt-in count-free continuation while
+  ordinary clients retain exact totals. A separate scoped metadata facets read owns exact chip
+  and group counts, including pending terminal approvals. Web catalog rows use bounded count-free
+  pages with explicit continuation, Unicode-aware title/agent search and preserved navigator ordering.
+  Dock selection uses the existing creation order through a bounded one-row page; an explicit click
+  resolves current server truth before selecting create or open and allows retry after a read failure.
+  Deliberate new window opens use the serialized command's current revision; ordinary semantic
+  identity lookups retain their revision fence against duplicate windows.
+  The separate unread-notification title channel retains bounded background polling and error
+  backoff while automatic session catalog and summary reads pause when hidden.
+  Workspace detail reads explicitly request the operator's
+  aggregate profile view; server workspace and agent authorization remain authoritative.
+  Aborted presence requests retain the shared cancellation status. Forge contracts add optional
+  branch, base, commit and draft evidence; old extensions remain usable for ordinary exit actions,
+  while managed delivery requires proven identity. Generators co-ship the affected consumers.
+- **Extensibility / hooks / config:** ACP control stages have bounded deadlines and session/new
+  gets a bounded fresh-process retry after verified cleanup. Prompt and clarification lifetimes
+  retain their existing owners. Task authoring emits escaped YAML title scalars, keeps H1 aligned,
+  and validates through the existing importer. An unhandled permanent invalid-input action failure
+  closes the Loop before automatic generation succession; authored correction routes and allow-fail
+  retain their existing precedence. Skill and native-tool failures carry safe phase
+  diagnostics that distinguish resource/registry failure from SQLite event-write contention.
+  No credential, authored resource content or raw claim token is added to diagnostics.
+  Local SQLite writer admission waits with context cancellation before reserving a pooled connection
+  and before the unchanged external-BUSY retry budget. Durable delivery terminal receipts use the
+  same owner; internal waiting cannot exhaust SQLite attempts before acquiring admission.
+- **Workspace data isolation / compatibility:** session and worktree identities remain scoped to
+  their registered owner; a delivery fence applies only to the exact checkout. Existing SQLite,
+  config and session history are preserved. Appended catalog indexes upgrade the global database
+  (migrations 00123 and 00124) without changing or deleting rows. Migration 00125 widens the
+  persisted worktree exit-operation action constraint to include managed `deliver`, preserving
+  existing operations and the active-operation uniqueness rule. Recovered child adoption requires the exact parent, workspace,
+  node receipt and current authored child inputs, including the original optional typed
+  `inputs.reviewed_worktree` JSON-string proof using the existing DSL input type.
+  The registered worktree owner independently verifies its
+  scoped HEAD, branch, content and index fingerprint; absent or changed proof still reruns.
+  Expired updater operations settle through the journal owner; live executor and irreversible handoff protections
+  remain. Linux installation detection follows the executable/running authenticated shell;
+  desktop scheme registration launches that executable directly with URL arguments.
+- **Web / docs / official skill:** catalog event wakes coalesce, preserve dirty work after in-flight
+  reads, back off errors and defer hidden-window refetches. Global-null scope enables the canonical
+  all-workspaces read while an unresolved project stays disabled. Requests carry a bounded client ID in
+  daemon logs. Session navigation retains abort cleanup and authoritative scoped lookup. Official
+  worktree guidance and affected site/CLI references explain selective scope and managed delivery;
+  authoring references agree with the strict importer. Existing scenarios gain the changed public
+  acceptance walks. Test, live-runtime, platform and current-head CI receipts remain separate
+  claims in the owning report and PR; implementation alone is not delivery evidence.
+
+## Issue 689 — Loop reconciliation and result persistence under SQLite contention
+
+- **Native tools / CLI / HTTP / UDS:** existing Loop and task reads converge after an action
+  returns even when SQLite temporarily rejects terminal writes. The daemon retries persistence
+  while retaining the result; a transient SQLite persistence error does not become a transport failure that
+  re-executes a side-effecting tool. Tool event summaries and action lease heartbeats use the
+  same cancellable persistence retry boundary. No command, route, DTO or tool ID changes.
+  Pending terminal writes reserve their existing ownership in the task service and retain the
+  original command timestamp; automatic lease recovery excludes those reservations. Explicit
+  ownership changes still invalidate the claim token. Shutdown allows a bounded settlement grace.
+- **Extensibility / hooks / configuration:** extension tool invocation and post-call hooks run
+  once. Only the subsequent event/result write is retried. Automation claim failures use
+  capped exponential backoff, preserving the original fire identity. Existing scheduler clocks
+  and daemon lifetimes own waiting and shutdown; no new operator setting is needed.
+- **Workspace data / compatibility:** global migration 00126 adds reconciliation indexes
+  without changing rows. Candidate discovery is read-only and starts from live execution records
+  or unsettled tasks. Each orphan repair rechecks terminal status under its own transaction.
+  Provenance repair runs after readiness until successful, with conditional per-record writes
+  that preserve concurrent metadata edits and select the latest coordinator per task, breaking
+  timestamp ties by run ID. Empty heartbeat retention avoids writer admission.
+  Existing profile/workspace filters, claim tokens and ownership fences remain authoritative.
+- **Web / docs / official skill:** existing Web views receive the corrected persisted task/Loop
+  state; no Web component or public skill syntax changes. The official `skills/compozy/` commands
+  remain valid. Acceptance and verification are recorded in
+  `docs/qa/reports/2026-10-03-issue-689-sqlite-contention.md` and the affected terminal-settlement
+  and automation scenarios. Related issue 678 is addressed only for shared contention paths.
+
+## Native task filter error classification (2026-10-02 QA)
+
+- Native `compozy__task_list` now preserves task-domain validation as `tool_invalid_input` / `schema_invalid` through its existing error mapper. HTTP/UDS native invocation and the CLI share this dispatch.
+- Extensibility, hooks, configuration and workspace isolation are unchanged; no persisted shape or migration. The accepted task filters and official skill contract remain unchanged.
+- Web task catalogs are unaffected. QA owner: `ET-native-workspace-scope-isolation`, bug `BUG-20261002-native-task-filter-error`; the dated report retains the hosted observation and fresh public replay.
+
+## Native hook dispatch repair (2026-10-02 QA)
+
+- Native tools now execute configured typed pre-call, post-call and post-error hooks at registry dispatch. Public CLI/HTTP/UDS invocation and hosted MCP share the repair; configuration keys and DTOs stay unchanged.
+- Hook input patches retain the canonical workspace and immutable tool metadata, then pass the existing schema, workspace policy and approval gates. ACP observations do not repeat native lifecycle dispatch.
+- Active session hook runs and lifecycle events use the existing session-owned recorder. No storage migration, workspace data movement, new worker or process owner is introduced.
+- The internal HookRunner contract and its consumers change together. External MCP/extension registry backends retain their existing behavior; this adapter handles native tools only.
+- Official skill impact is documented in `skills/compozy/references/native-tools.md`. Web hook/session views consume the same existing audit records. QA owner: `ET-native-workspace-scope-isolation`; bug `BUG-20261002-native-hook-dispatch-missing` and the dated report retain replay evidence.
+
+## Settings search focus repair (2026-10-04 QA)
+
+- Web Settings connects its advertised `/` search shortcut to the existing document keyboard
+  boundary, scoped to the active visible Settings window. Fields, dialogs, modified chords and
+  already-handled keys retain ownership. Shared listing-search consumers are adjacent canaries.
+- Native tools, HTTP/UDS/CLI contracts, hooks, extensibility, config and workspace data isolation
+  are unchanged. No persisted shape or migration; the official `skills/compozy/` contract is
+  unaffected. Product wording and shortcut labels remain unchanged.
+- QA/docs owner: `MS-web-settings-takeover-redesign`, bug
+  `BUG-20261004-settings-search-shortcut-inactive`, and the 2026-10-02 untested report. Owning
+  navigation-suite regression proof and fresh Chrome replay are required before verification.
+
+## Help-tip dismissal preserves editor drafts (2026-10-04 QA)
+
+- Shared Web UI Tooltip/Dialog composition gives an open descendant tooltip the first Escape,
+  including hover while a sibling field retains focus. The nearest dialog defers its dismissal
+  through Base UI's public event API; the tooltip keeps its existing dismissal lifecycle.
+  Peer dialogs remain independent, and a subsequent Escape can close the enclosing dialog.
+- HelpTip opts out of the trigger's click-to-close policy because its existing click handler opens
+  explanatory content for touch. Touch activation retains the open lifetime across compatibility
+  mouseleave events; outside press, blur and Escape still dismiss it. Generic Tooltip triggers
+  retain their current click policy.
+- Native tools, HTTP/UDS/CLI contracts, hooks, extensibility, config and workspace data isolation
+  are unchanged. No persisted shape, migration or official `skills/compozy/` change is needed.
+- QA/docs owners: `MS-web-modal-help-tips` and `MS-web-entity-modal-shell`, bug
+  `BUG-20261004-help-tip-discards-draft` and `BUG-20261004-help-tip-vanishes-on-tap`.
+  The existing shared HelpTip suite owns stable pointer activation, draft/focus and
+  dialog-isolation coverage; real task and adjacent editor replays verify the production bundle.
+
+## Compact Settings choice layout (2026-10-04 QA)
+
+- SettingsChoiceGroup reuses the owning Settings window container breakpoint for its columns,
+  so permission cards stack with compact navigation. No new token, primitive or selection state.
+- Native tools, CLI/HTTP/UDS, hooks, extensions, config keys, workspace/profile data and official
+  `skills/compozy/` contracts are unaffected. No persisted shape or migration.
+- QA/docs owner: MS-web-settings-takeover-redesign and
+  BUG-20261004-settings-choices-ignore-window. Matched reference/browser captures own reflow
+  evidence; the existing choice-group suite owns keyboard and RTL selection.
+
+## General idle-timeout save and display (2026-10-04 QA)
+
+- Web General Settings parses canonical compound Go durations through the existing Settings
+  duration helper. A successful save releases only its acknowledged draft after the mutation's
+  canonical refetch; newer or differently scoped drafts survive. The save bar can settle cleanly
+  without erasing a pending user edit, and reload reflects the persisted cutoff.
+- Native tools, CLI/HTTP/UDS DTOs, hook and extension contracts, config keys, restart behavior and
+  timeout enforcement are unchanged. User state, workspace/profile data and official
+  skills/compozy/ contracts need no migration or update.
+- QA/docs owners are MS-web-settings-takeover-redesign and adjacent MS-025, with
+  BUG-20261004-settings-idle-timeout-display. The existing General route suite owns display;
+  the existing General page-model suite owns save reconciliation and pending-edit preservation.
+  A fresh real-browser save/reload/restore walk confirms the production bundle.
+
+## Settings launcher availability (2026-10-04 QA)
+
+- The shared Web rail foot reads settings.general through the existing palette projection,
+  so floating and compact Settings controls reflect the same availability as their dispatch.
+  Local theme changes remain independent. No timer, command bypass or second readiness owner.
+- Native tools, CLI/HTTP/UDS contracts, hooks, extensibility, config, workspace/profile data,
+  persisted layouts and official skills/compozy/ behavior are unchanged; no migration is needed.
+- QA/docs owner: MS-web-settings-takeover-redesign and
+  BUG-20261004-settings-startup-false-offline. The canonical os-dock component suite owns
+  missing/unavailable/available command transitions; fresh Chrome entry verifies the actual
+  startup ordering and neighboring theme/launcher behavior.
+
+
+## Settings explicit saves without a connection (2026-10-04 QA)
+
+- Web Settings form mutations attempt transport immediately and settle through the existing error
+  path, preserving draft/discard/retry control. General, Memory, Automation, Diagnostics,
+  Extensions, Roles, Persona, Skills and Notifications share this explicit-save policy.
+  Attention retains its gesture-owned request. Global QueryClient and other domain mutation
+  admission/retry policies remain unchanged; there is no new queue, timer or retry layer.
+  Rejected fetches at these Settings write adapters become the existing SettingsApiError with
+  status zero, actionable save guidance and the original error as cause. Cancellation and HTTP
+  validation diagnostics retain their identity; no shared API-client behavior changes.
+- Native tools, CLI/HTTP/UDS DTOs, hooks, extensibility and config keys are unchanged. Public
+  writes retain their validation and scope ownership. No stored config/schema migration,
+  workspace/profile data movement or official skills/compozy/ change is needed.
+- QA/docs owner: MS-web-settings-takeover-redesign and BUG-20261004-settings-offline-save-stuck.
+  The existing Settings mutation suite owns offline settlement and explicit retry after
+  reconnect; fresh browser error/discard/retry/reload walks verify draft recovery and restoration.
+
+## Relative CLI workspace registration (2026-10-04 QA)
+
+- The workspace add positional root is resolved against the invoking CLI directory before the
+  existing create request. Absolute roots retain their behavior. The daemon still owns symlink
+  canonicalization, home refusal and registration; the CLI adds no lookup or home-policy copy.
+- Native tools, HTTP/UDS DTOs and validation, Web registration, hooks, extensibility and config
+  are unchanged. No migration, workspace/profile data movement or permission change is needed.
+  The official skills/compozy/ native registration contract is unchanged; site resolver guidance
+  documents the CLI-relative versus transport-absolute input boundary.
+- QA owner: RT-home-workspace-not-registrable and BUG-20261004-workspace-add-relative-path.
+  TestWorkspaceAddBuildsRequest owns relative-root conversion and directory-resolution failure;
+  fresh CLI/HTTP/UDS replay owns canonical refusal, project persistence and baseline restoration.
+
+
+## Task execution switch labels (2026-10-04 QA)
+
+- Web task creation connects the existing execution switches to their visible labels. The shared
+  Switch and FieldTitle primitives, copy, draft values and task execution policy are unchanged.
+- Native tools, CLI/HTTP/UDS routes/DTOs, hooks, extensibility, config, profile/workspace isolation,
+  persisted data and official skills/compozy/ behavior are unchanged; no migration is needed.
+- QA owner: MS-global-scope-no-workspace-work and BUG-20261004-task-execution-switches-unnamed.
+  The existing task editor component suite owns name-based operation; a fresh browser walk
+  confirms the real accessible tree, saved Global draft and adjacent project draft behavior.
+
+
+## Global agent fleet visibility (2026-10-04 QA)
+
+- HTTP/UDS GET /api/agents/catalog accepts an omitted workspace for the existing Global
+  definition population. Profile resolution remains authoritative; server filters, facets,
+  ordering and cursor pagination apply before the page cut. Existing workspace requests and
+  cursor fingerprints retain their shape and behavior; Web cache keys retain profile identity.
+- Session Manager and the durable aggregate accept Global breadth with an explicit profile
+  read scope. Exact metrics count visible sessions by agent name across projects and no-workspace
+  work, preserving live overlays and existing internal/archive exclusions. No schema migration.
+- Web catalog, route preload, detail metrics and session rows accept resolved Global scope;
+  unresolved scope still gates reads. No fabricated workspace, client filtering or totals.
+  Existing project-required session mutations retain their admission rules.
+- Native tools, CLI agent list/info, extension contracts, hooks and config keys are unchanged.
+  No workspace/profile data movement occurs. The owning OpenAPI source, generated types, site
+  agent guide and official skills/compozy/references/agent-definitions.md co-ship the additive read.
+- QA owner: MS-global-scope-no-workspace-work and BUG-20261004-global-agents-project-gate.
+  Existing core fleet, Session Manager, SQLite aggregate and route preload suites own the
+  changed boundaries. The global-agents-* receipts record the completed Global/project replay,
+  independent HTTP/UDS counts and cursor boundaries, reload persistence and owned-object cleanup.
+
+## QA delivery diagnostics (2026-10-04)
+
+- The bounded SWR 2.5.1 package patch preserves deferred focus/reconnect revalidation while
+  preventing a DOM event from becoming the timer delay. It changes no API, native tool,
+  extension/hook/config contract or persisted workspace data. Its removal condition and owning
+  visibility/focus checks are recorded in the 2026-10-02 untested QA report.
+- Component fixtures preserve their behavioral checks while settling asynchronous work and
+  unmounting before shared state resets. UIProvider still verifies both OS motion preferences.
+  Official skill and site content need no additional behavior change for these test repairs.
+- Dependency patch edits now select all JS workspace validation in make gate, with full PR CI
+  still required. The existing gate integration classification suite owns this delivery contract.
+- The React SDK test configuration uses an explicit .mjs extension and both invocation
+  paths follow it. This fixes the ESM-as-CommonJS loader diagnostic while preserving the
+  SDK's published dual-module package. The existing renderer suite validates the runner.
+
+
+## Loop catalog controls (2026-10-05 QA)
+
+- Web keeps the existing search toolbar mounted during catalog loading and exposes the
+  existing kind/category filters through shared filter chips. One route update commits
+  all selected facets; the daemon continues to filter, sort, count and page results.
+- Search uses the existing debounced draft/commit owner so pending navigation cannot
+  replace new keystrokes. A selected category remains labeled when other facets exclude
+  it; the UI does not fabricate a count for that selection.
+- Native tools, CLI/HTTP/UDS DTOs, hooks, extensions and config are unchanged. Query
+  workspace/profile isolation and persisted data retain their existing owners. No
+  migration or official skills/compozy/ behavior change is needed.
+- QA/docs owner: LP-001, BUG-20261005-loop-catalog-filters-missing and
+  BUG-20261005-loop-search-loses-focus. The existing chip projection suite owns filter
+  values; the existing Loop E2E suite owns focus across real daemon responses. The
+  persona replay verifies counted Rows/Cards continuation and filters from server facets.
+
+## Loop prompt cancellation (2026-10-05 QA)
+
+- The daemon action adapter preserves the ACP canceled outcome as the existing safe cancellation
+  failure. Run-agent output validation cannot restart a canceled turn as a schema-repair prompt.
+  Measured usage survives the error. The real Manager stop and binding owners remain unchanged.
+- Native loop_cancel and loop_node_cancel, CLI/HTTP/UDS cancellation, Goal command judges and Web
+  Cancel run retain their current contracts. No tool ID, DTO, extension/hook/config key, persisted
+  enum or schema changes. Workspace/profile authorization and owned-session isolation are unchanged.
+- The official skills/compozy/references/loops.md cancellation contract already requires fencing
+  new work and stopping owned sessions; this repair restores that promise. Site cancellation
+  guidance remains accurate. QA owner: LP-003 and BUG-20261005-loop-cancel-leaves-worker-running.
+  The canonical prompt-adapter suite covers the canceled outcome; existing run-agent and judge
+  suites are adjacent canaries. A fresh Bruno Web cancellation replay supplies real provider proof.
+
+## Loop worker stop attribution (2026-10-05 QA)
+
+- **Native tools and public surfaces:** Session status/history through CLI, HTTP, UDS and native
+  tools gain the additive stop reason `owner_released`. The cleanup relay uses it for automatic
+  terminal, reseed and revoked-binding retirement; explicit stop/cancel remains user-requested.
+  Existing IDs, routes, request shapes and historical classifications remain valid. OpenAPI and
+  generated Web types co-ship from the enum source.
+- **Extensibility, hooks and configuration:** No hook, SDK or configuration shape changes. Task
+  and Loop outcomes retain their authority; retiring a worker does not assert success. Actual
+  provider/process failures continue to take precedence over neutral retirement.
+- **Workspace data isolation:** Existing cleanup identities and scoped ownership determine the
+  session to stop. Retry/acknowledgement and first-writer cleanup metadata remain unchanged.
+  The existing unconstrained persisted stop-reason text needs no schema migration or history rewrite.
+- **Web and documentation:** The session status fold attributes the new reason to automatic
+  retirement from either the resource or durable transcript, without an operator marker or false
+  failure. The lifecycle stop-reason table and official `skills/compozy/references/loops.md`
+  explain the distinction. QA owner: LP-003 and BUG-20261005-loop-worker-cleanup-user-canceled;
+  canonical relay, lifecycle, node-cancel and Web status suites own focused coverage, followed by
+  real successful/exhausted owner replays and an explicit-cancel canary.
+
+## Loop terminal failure navigation (2026-10-05 QA)
+
+- Web offers failed-step navigation only for an actual failure blocker with a node or gate
+  reference. Budget exhaustion and stalling retain generic Inspect without inventing a failure.
+- Native tools, CLI/HTTP/UDS contracts, extensions, hooks, configuration and persisted data are
+  unchanged. Existing scoped run reads remain authoritative; no migration or isolation change.
+- No official skill or site contract changes are needed. QA owner: LP-003 and
+  BUG-20261005-loop-budget-phantom-failure-action. The existing LoopRunBriefing component suite
+  owns action availability/navigation; a real exhausted/failed pair supplies the persona replay.
+
+## Loop gate succession and progress bounds (2026-10-05 QA)
+
+- The coordinator's initial rejected control plan uses the existing idle-generation
+  finisher, preserving gate verdicts and explicit routes before terminal/successor
+  admission. Successful control-only completion keeps its existing behavior.
+  Gate-driven revise/next_generation checks the established
+  repeated-blocker and failure terminal guard before creating another generation.
+- Native loop_run/status/why and their CLI/HTTP/UDS/Web consumers retain the same tool IDs,
+  routes, DTOs, terminal enums and configuration keys. This restores authored behavior;
+  no compatibility shim, schema migration or historical run rewrite is required.
+- Existing generation/gate hook dispatch and scoped workspace/profile readers remain the
+  owners. No extension SDK or config shape changes. Stored output payloads continue through
+  the existing hydration path; no new persistence or cross-workspace lookup is introduced.
+- Site guardrail guidance and official skills/compozy/references/loops.md retain the same
+  contract. Clarify initial in-body routing and repeated-blocker precedence there. QA owner:
+  LP-003, LP-revise-repair-context and the two gate-routing bug records in the owning report.
+  Existing coordinator suites own the invariants; real command-gate runs own replay evidence.
+
+
+## Desktop restoration readiness and shortcut verification (2026-10-06)
+
+- Web waits for existing window-manager configuration before exposing restored desktops,
+  preventing a transient empty composer from delaying restored frames. Internal projection
+  only: native tools, CLI/HTTP/UDS contracts, extensibility/hooks/configuration, workspace
+  isolation and persisted layouts are unchanged. No migration or compatibility shim.
+- Electron changes only the packaged test's native-focus precondition; production security
+  and shortcut behavior remain unchanged. Official skills and public site documentation
+  require no changes.
+- QA owners: ET-web-desktop-shell-lifecycle (E2E-023) and
+  ET-electron-session-copy-debug (E2E-034). Evidence and verification limits are recorded
+  in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+
+## Loop-record navigation verification (2026-10-06)
+
+Verification only: the existing Tasks E2E now observes the rendered Loop detail
+before returning. Native tools, extensibility/hooks/configuration, workspace data
+isolation, public Web behavior, docs contracts and official skills are unchanged.
+No migration or release note is needed. QA owner: TA-web-tasks-calm-default-reveal.
+
+## Terminal fixture verification (2026-10-06)
+
+Verification only: the existing interactive CLI test peer answers required DA1
+queries, and the alternate-screen fixture builds before entering the isolated home.
+Production native tools, public surfaces, extensibility/hooks/configuration, workspace
+data isolation, Web behavior and official skills are unchanged. No migration or
+release note is needed. Existing terminal E2Es own the invariants; QA slices are
+ET-terminal-cli-public-contract and ET-terminal-stream-resilience. Evidence and
+remaining verification are in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+## Profile recovery guidance during registration retries (2026-10-06)
+
+The Web client retains its last registration failure while a retry is in flight,
+clearing it after success or rebinding the workspace/profile. Native tools, CLI/HTTP/UDS
+routes and DTOs, hooks/extensions/configuration, persisted data and workspace/profile
+isolation are unchanged. No compatibility adapter or migration is required. Official
+skills/compozy and site contracts remain accurate; the release note explains the visible
+repair. Owner: ET-profile-operations-recovery and the existing registration hook suite;
+evidence: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+## SQLite commit acknowledgement (2026-10-06)
+
+The shared write boundary checks cancellation after the existing mutation authorization fence,
+then finishes COMMIT without caller cancellation, matching driver transaction semantics.
+Successful writes retain their success acknowledgement instead of being retried as deadline
+failures. Native tools, CLI/HTTP/UDS and Web consumers benefit without DTO, tool ID, hook,
+extension SDK or configuration changes. Workspace/profile scoping and persisted schemas stay
+unchanged; no migration, compatibility adapter or official skill/site rewrite is needed.
+The roster read E2E now owns a cancellation-driven retry fixture; the separate two-second
+node-timeout E2E remains unchanged. Owners: TestExecuteWrite, TestDaemonToolEventSink,
+LP-run-read-agent-journey and ET-skill-view-actionable-errors.
+Evidence is recorded in docs/qa/reports/2026-10-05-dependency-upgrades.md.
+
+## Windows lifecycle and desktop text menus — 2026-10-10
+
+Owner: branch `fix/windows-desktop-issues`; issues #717–#721, #698, #699.
+Native tools and CLI/HTTP/UDS shapes are unchanged. Session list/status projections
+read registered workspace roots without resolving runtime resources; create/resume
+still use complete resolution. No timed cache or cross-workspace state is added.
+Windows update locks keep process-owner metadata in `update.lock.owner`, following
+the daemon PID sidecar convention; exclusive locking stays on `update.lock`.
+Rooted writes request mutation access only to their target directory while keeping
+handle-relative no-follow traversal. Session deletion retains the family lease and
+directory capability, closes the descendant database handle for Windows renames,
+and rebinds the same database identity and owner afterward. Tombstone cleanup
+closes the database before directory removal. Bound tree removal acquires a write-capable
+handle for the same directory identity and opens nested directories for mutation,
+so Windows can flush each deletion without weakening durability checks. SQLite schemas and user data do not
+change. The icon catalog accepts LF and CRLF source checkouts.
+
+Desktop adds native editing/link menus, spelling suggestions, dictionary additions,
+and multilingual spelling settings. Optional `spellcheck.enabled` and
+`spellcheck.languages` fields extend `desktop-window.json`; its decoder accepts
+existing files losslessly. Electron owns dictionary storage and macOS owns native
+language selection. These are shell preferences, not daemon config or extension
+contracts. Extensibility/hooks and official `skills/compozy/` are unchanged because
+there are no new agent operations. Web custom menus remain renderer-owned; browser
+behavior is unchanged. Operator docs cover the desktop preferences. QA owners are
+APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
+RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
+Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+
+
+## Bundled spec-cycle portability — issue #736 (2026-10-16)
+
+Owner: `fix/issue-736-spec-cycle-skills`. The spec-cycle 0.5.1 instruction payload
+replaces missing preflight/review dependencies with a language-neutral inline
+self-check and optional available reviewer. Templates use the target project's
+compatibility, design, vocabulary, and component authorities. Delivery/review
+instructions and rebase helpers no longer require repository-only skills or paths.
+All shipped skills, references, agents and loops in spec-cycle and open-design
+were audited; connectivity/tailscale and forge/github ship no such resources.
+
+Native tool IDs and schemas, CLI/HTTP/UDS, hooks, config, Web, workspace/profile
+isolation and persisted user data are unchanged. SD-013: this repairs extension
+instruction content without removing a public skill or changing authored task
+shapes; no migration or compatibility shim. The nine-skill catalog stays stable.
+The internal create-spec/create-tasks/final-verify variants remain separate under
+`scripts/postinstall.sh`; the shared execute-task copy inherits the portable edit.
+Official `skills/compozy/` and site API contracts stay accurate. The site review-and-fix example mirrors the corrected shipped Loop definition.
+
+Owning checks: embedded spec-cycle product-contract suite, real materialization
+and managed-install update, dependency closure, and installed shell helper
+execution in a foreign Git repository. QA owner: `ET-spec-cycle-skill-bundle`.
+Heavy daemon/provider-driven walks and full gates are CI-owned by maintainer
+instruction; targeted checks do not establish provider-authored spec quality.
+
+
+
+
+
+
+## Session attachment image previews — issue #738 (2026-10-16)
+
+- Web composer and transcript images open an accessible, dismissible preview inside the
+  session using the existing @compozy/ui Dialog. The transcript trigger no longer links
+  the Electron/browser app window to the attachment bytes route. Close, Escape and
+  backdrop dismissal return focus to the initiating control, including OS-window portals.
+- Native tools, CLI, HTTP/UDS attachment routes/DTOs, configuration, extensions/hooks and
+  the assistant-ui attachment runtime are unchanged. Existing workspace/session-scoped
+  URLs remain authoritative; no new cache, persistence or cross-workspace read is added.
+- SD-013 regime: internal Web composition only, with no persisted shape change, migration,
+  public compatibility shim or removal window. Official skills/compozy/ and packages/site
+  contracts need no update. QA owner: ET-session-attachment-paste-reload; the existing
+  SessionThread suite owns preview behavior. Heavy delivery gates run only in CI by
+  maintainer instruction; rendered evidence uses isolated Storybook, not a daemon lab.
+
+
+Issue #738 follow-up: non-image attachment cards request a filename-preserving download,
+with a separate browsing context as a fallback. The Electron navigation-policy owner now
+rejects same-origin `/api` documents (including scoped attachment bytes and encoded paths)
+while retaining SPA routes and the existing external-link policy. This is an internal
+renderer/shell fix; native tool/HTTP/UDS/config/hook/skill contracts and user state do not
+change. The existing desktop navigation-policy suite owns the additional guard; the
+browser walk verifies TXT/PDF downloads without unloading the session.
+
+
+## Issue #751 — subagent drill-in E2E readiness (2026-10-16)
+
+Owner: `fix/issue-751-e2e-004-main`. Main CI run `38359736994` clicked the visible
+queued card container before its roster supplied the child session to the UI;
+the Playwright trace shows a static `role="group"` at `call@6196`, not an open
+button. E2E-004 now targets the accessible `Open <title>` button for ordinary
+and modifier clicks, waiting for the rendered navigation affordance. The
+child-window, origin-divider, composer, return-to-parent and second-window
+assertions remain intact. Owning suite: `web/e2e/__tests__/subagents.spec.ts`;
+QA scenario: `ET-web-subagent-card` drill-in (E2E-004).
+
+Product rule: a card without a confirmed child session does not navigate. The
+existing UT-W16 wiring case now starts with a queued delegated card without a
+child, confirms that clicking cannot navigate, then updates the live roster
+cache and verifies ordinary/modifier navigation without reload or remount.
+The existing live-tail suite owns `subagent_updated` delivery into that cache.
+
+This changes test synchronization only. Native tools, CLI, HTTP/UDS, config,
+extensions/hooks, workspace/profile isolation, persisted user state, Web
+behavior, official `skills/compozy/` and site docs are unchanged. SD-013:
+internal test code; no compatibility shim or migration. Heavy validation is
+delegated to PR CI per maintainer instruction; no local daemon lab is started.
+
+## Issue #747 — Goal origin identity after runtime binding — 2026-10-16
+
+Owner: `fix/issue-747-goal-origin-profile`.
+
+Goal admission now validates the immutable creation witness independently of the
+session's mutable runtime provider. Logical creation records the configured
+provider; the first prompt may bind another provider, and later prompts may replace
+it. Those supported transitions must not invalidate the unchanged creation witness.
+Creation-profile reference, policy digest, workspace, agent, active-session state,
+caller lineage and store-transaction creation-digest checks remain enforced.
+
+CLI `session goal`, HTTP/UDS Goal commands and native `compozy__goal_control` share
+this correction. Their schemas, status codes and existing
+`goal_origin_profile_unavailable` reason remain compatible. Failure logs add a
+fixed `check` label plus workspace/session correlation IDs; they contain no profile
+payload, provider command, prompt overlay, credentials or secrets. No SQLite shape,
+config, user data, extension/hook contract or workspace ownership changes. No
+migration or compatibility shim is needed under SD-013. Web benefits through the
+same service without renderer changes. Official `skills/compozy/` already documents
+immutable creation identity and per-run runtime selection; no skill or site API
+reference update is needed. QA owner: `docs/qa/scenarios/GL-001.md`.
+
+Validation uses the existing daemon Goal command lifecycle suite with real SQLite,
+including cross-provider set/replace, invalid-provider rejection without Run
+creation and immutable identity readback. The existing Session Manager lifecycle
+suite also verifies logical creation with the agent default, initial binding to
+another provider, process replacement, persisted witness retention and rejection
+of an unresolved provider without changing the accepted process. Existing
+managed-runtime borrowed-origin integration coverage, full gates and broad
+end-to-end runs are delegated to PR CI per maintainer instruction.
+
+## Issue #737 — Tailscale HTTPS browser origin forwarding (2026-10-16)
+
+Owner: `fix/issue-737-tailscale-origin`, PR #743. The bundled provider uses an HTTP reverse
+proxy after TLS termination, replaces client forwarding headers with its HTTPS scheme and
+original Host, and rejects authorities other than its advertised endpoint. The private
+verification relay remains TCP with the existing end-to-end TLS/challenge proof. Forwarded
+schemes are trusted only by gateway-tier HTTP listeners from actual IP loopback peers;
+foreign origins and mismatched ports remain forbidden. Device pairing/authentication remains
+mandatory. No CLI verb/output, HTTP/UDS route/DTO, native tool ID, SDK/provider wire shape,
+hook or config key changes. Workspace/profile ownership, stored data and credentials retain
+their existing boundaries; no migration, compatibility alias or deprecation is required.
+
+The existing Web pairing and module requests now pass same-origin checks; no React or visual
+surface changes. Official `skills/compozy/` commands and gateway guidance remain accurate.
+Site Tailscale docs explain the advertised URL and pairing response. QA owner:
+`RT-connectivity-provider-route`, with focused socket/TLS/SQLite evidence and external-tailnet
+limits in `docs/qa/reports/2026-10-16-issue-737-tailscale-origin.md`.
+
+Provider health degrades only for listener/upstream dial failures; individual request errors
+and client cancellation do not withdraw the route. Long-poll responses allow the 30-minute SessionWait maximum plus a one-minute header
+settlement margin, while client writes retain renewed inactivity deadlines, including hijacked
+WebSockets. Existing provider and HTTP middleware/pairing suites own these invariants.
+
+## Issue #739 — Loop action claim ownership and recovery
+
+The daemon retries SQLite claim persistence before executing an action. The task store applies
+its existing daemon-owner settlement guard to lease release and block-and-release, preventing a
+bound worker from clearing the claim while its provider continues. Force failure commits the
+Loop node failure and canonical failure event with the task run, then publishes the terminal hook
+that wakes its coordinator.
+Terminal hooks recover profile identity from the owning task; sessionless mechanical/coordinator
+runs have no terminal-session resource to release.
+
+CLI and HTTP/UDS keep their verbs, routes and DTOs. Native `compozy__task_run_release` and the
+session-bound block path now enforce the existing Loop ownership contract; ordinary agent-owned
+leases still release normally. Extension terminal hooks retain their shapes and now receive the
+owning profile. No config, schema, migration, generated contract, workspace boundary or Web
+renderer changes. SD-013: lossless user state, stable public shapes and an authorization bug fix;
+no compatibility shim or removal release is needed. Official skill:
+`skills/compozy/references/loops.md`; public docs:
+`packages/site/content/docs/autonomy/task-runs-and-leases.mdx`. QA owner:
+`TA-loop-worker-exclusive-dispatch`; targeted real-SQLite evidence is recorded in the issue report.
+
+## Issue #746 — Stable session-list sorting
+
+- Owner: `fix/issue-746-session-sort-stable`. Shell sort adds `created` and `name`, defaulting only
+  unset preferences to `created`. Explicit persisted activity/attention choices are retained; no
+  state shape changes, migration, deletion, or compatibility shim. SD-013 regimes 1/2 preserved.
+- HTTP/UDS `/api/sessions`, CLI `session list --sort`, and native `compozy__session_list` add `name`;
+  existing `created` and all existing public defaults/orders remain unchanged. Name is visible-title
+  Unicode lowercase ascending, creation time descending, ID descending. Opaque cursors retain version
+  2 for existing sorts and add an optional name anchor bound to the query fingerprint.
+- Settings shell DTO/OpenAPI/generated clients add both values; config validation/defaults and
+  global-only persistence remain daemon-owned. No extensions, hooks, credentials, or isolation rules
+  change. Filtering/profile/workspace scope still precedes ordering and the page cut.
+- Web menu exposes four choices. The hierarchy preserves catalog order for nested children; no
+  client sorting or activity-based fallback is added. All-workspace groups request the same sort.
+- Official `skills/compozy/references/runtime-operations.md`, site config/CLI docs, and
+  `RT-web-session-attention-sort` QA scenario co-ship. Targeted tests cover config overlays, real
+  SQLite + active overlay pagination, Unicode/ties/search, menu selection and nested row stability.
+- The first automatic title after a session's first turn is a rename boundary: Name may reposition
+  the row once, whereas Created ignores title changes. Pointer overlays distinguish an absent sort
+  from an explicit persisted value; serialized old defaults are preserved as explicit values.
+- Heavy gates/whole-app QA are CI-owned by explicit maintainer instruction for this assignment.
+
+## Provider catalog refresh failures — issue #740
+
+The shared source-status projection adds optional `failure_reason` (`auth_required`,
+`timeout`, or `refresh_failed`) for failed sources. CLI JSON/JSONL/TOON, HTTP/UDS,
+native `compozy__provider_models_status`/`refresh`, and extension Host API reuse
+this projection; generated OpenAPI and Go/TypeScript/Web contracts co-ship.
+Existing `last_error` diagnostics and HTTP statuses remain compatible (SD-013
+regime 2, additive). Human CLI and Web use calm guidance instead of subprocess
+text. The session selector attributes discovery failures to their provider while
+keeping other providers and cached/curated models usable. Settings reports the
+same reason. No SQLite/config migration, hook, extension permission, or cache-scope
+change; existing profile/workspace execution boundaries remain authoritative.
+Official runtime skill references and the site model-catalog guide explain status
+classification. QA: `RT-model-catalog-cold-open`; rendered Storybook evidence and
+targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
+## Issue #750 — Queued inputs before prepared Goal prompts
+
+- **Owner:** issue #750, branch `fix/issue-750-goal-queue-starvation`.
+- **Cause and policy:** a Goal can prepare a durable prompt during an existing turn. Its older
+  enqueue time allowed it to win FIFO over later admitted input at that turn's boundary. The unified
+  selector now drains eligible public inputs before a prepared Goal, preserving interrupt,
+  priority and FIFO ordering within a finite public batch. The first claim durably freezes its
+  maximum admitted rowid; later arrivals follow one Goal prompt, preventing livelock. Queue mode
+  never interrupts a long active turn; urgent guidance uses fenced steer or interrupt.
+- **Native tools / CLI / HTTP / UDS:** queued `compozy__session_prompt` inputs, operator prompts and
+  `prompt-reply:` wakes receive the same ordering. Existing queue/status positions and counts remain
+  public-only. No IDs, routes, DTOs, command grammar, error codes or configuration keys change.
+- **Goal / reply ownership:** the existing managed claim, budget checks, binding/control fences,
+  work-turn accounting, reply-watch admission and atomic wake handoff remain authoritative. Public
+  input turns do not consume Goal work turns. The selector reads persisted queue state on resume;
+  the nullable batch boundary survives restart without an in-memory fairness cursor.
+- **Extensibility / hooks / config:** existing synthetic wakes share the ordering; no extension SDK,
+  hook payload, permission, provider or configuration changes.
+- **Isolation / compatibility:** selection stays scoped to the exact session and current input
+  generation. Profile/workspace admission and origin authority are unchanged. SD-013 public behavior
+  bug fix with unchanged public shapes. Append-only migration 00137 adds one nullable integer
+  boundary without backfill; Atlas/sqlc own the generated artifacts. Existing queue rows and user
+  data survive migration and reopen; no public compatibility shim is needed.
+- **Official skill / Web / site docs:** document ordering in `skills/compozy/references/loops.md`
+  and the session messaging reference, plus the site's Goal guide. Web observes the corrected queue
+  dispatch through existing session events; no React changes or visual evidence required.
+- **QA / validation:** update RT-session-message-origin, RT-session-message-reply and GL-015.
+  The existing managed-runtime integration suite owns deterministic real-SQLite admission, reply
+  wake priority/deduplication and Goal state/accounting coverage. Heavy gates, full E2E and labs are
+  CI-owned by explicit maintainer instruction; targeted race checks run locally. The existing
+  global queue suite covers finite batches with concurrent admissions/reopen; the global migration
+  suite covers retained queue state. The reported Needs-you badge comes from loop_run quarantine
+  supervision, not queue backlog, and remains outside this scheduling fix.
+
+## Issue 742 — Session message cards for real providers — 2026-10-16
+
+Owner: branch `fix/issue-742-session-message-cards`; issue #742 (regression of #722).
+`compozy__session_prompt` input, output, and errors are unchanged. Its transcript card part
+(`data-compozy-session-message`, `transcript.UISessionMessagePayload`) keeps its shape and now
+reads the recorded provider forms: Claude's streamed arguments and string `raw_output`, and
+Codex's MCP `{server, tool, arguments}` envelope with a result that names no tool. A part is
+projected only once the call names its target, so no part without `target_session_id` reaches
+clients. The composer prompt stream folds each turn's events through
+`transcript.SessionMessageCards`, matching the transcript entry.
+
+User state (SD-013): the materialized transcript projection moves from version 2 to 3. Opening a
+session database reprojects only the assistant entries that hold a `compozy__session_prompt` call,
+following the #670 whitespace upgrade; the event ledger is unchanged and remains authoritative. The
+upgrade runs once per session database, in one write transaction that records the version last, so
+a rerun or an interrupted run reprojects the same entries from the ledger without duplicating or
+dropping a card. As with #670, an older runtime treats a version 3 projection as incompatible
+(ahead failure, explicit).
+
+HTTP: every listener that serves the Web (local, private tier, public operator) sends
+`Cache-Control: no-cache` for the SPA shell and unversioned public files, and
+`public, max-age=31536000, immutable` for Vite-fingerprinted `assets/` files. Routes, DTOs, OpenAPI, CLI, config, hooks,
+extension contracts, and native tool descriptors are unchanged, so the official
+`skills/compozy/` and `packages/site` docs need no update. Desktop loads the shell with
+`pragma: no-cache`, so a shell cached by an older runtime is skipped after an update. Web never
+draws a raw data row for a session-message part it cannot name, and a call split across two
+assistant messages by a queued prompt draws one card. Workspace isolation is unchanged: the
+upgrade runs per session database. QA owners: ET-web-session-message-card and
+APP-desktop-runtime-bundle-coherence.
+
+## Issue #756 — daemon-owned verification session visibility
+
+- Native tools, CLI, HTTP/UDS: public session catalogs omit `system` sessions whose immutable creation policy has `runtime_mode=verdict-only` when no type is selected; existing explicit `type=system` / `--type system` retains audit access. The filter applies to active overlays, durable pages, totals and facets before pagination. Direct ID/history reads remain available.
+- Goals: judge creation carries the bound Goal session as informational provenance; ordinary Loop gates use their origin. No spawn governance is granted. The Goal disclosure provides an explicit, paginated verification-session audit with transcript links, coordinated by a session hook and refreshed through the existing catalog stream rather than fixed polling.
+- Attention: verdict-only system sessions do not emit operator attention catalog events or contribute to default attention counts/bell candidates. Durable lifecycle events, hooks and owning work outcomes remain authoritative.
+- Shutdown: completed/owner-released idle sessions ask the driver to close the process directly and verify exit; active turns and failed termination retain cancellation/escalation behavior.
+- SD-013: no persisted shape change or destructive migration. Historical verdict-only system rows are filtered from their existing creation policy at read time. Public flags, routes, DTO shapes, hooks and tool IDs remain compatible; the intentional default population correction has an existing explicit audit selector. No config, extension SDK, permission or provider routing change. Profile/workspace predicates remain server-owned.
+- Web/docs/official skill: Goal audit UI, Goal/session-list QA scenarios, site Goal guide and `skills/compozy/` runtime/Loop guidance co-ship. Heavy validation is delegated to exact-head PR CI per maintainer instruction; targeted local suites and rendered evidence are recorded in the PR.
+
+
+Issue #756 system-session inventory: Loop/Goal judges (`loop_runtime_adapters.go`) force verdict-only/deny-all. Managed Loop/Goal workers (`loop_managed_binding_profile.go`), task workers (`task_session_bridge.go`), scheduler role workers (`task_role_sessions.go`), task reviewers (`review_router_create.go`), automations (`automation/dispatch_context.go`) and extension-created sessions (`extension/host_api_sessions.go`) also use system type and may require operator action; they remain visible. Heartbeat reuses its bound session; coordinator/spawned sessions use separate types; auto-title is already excluded by spawn role. Visibility therefore uses existing immutable `runtime_mode=verdict-only`, not type alone or a name heuristic. It is derived in bounded catalog projections; no stored shape changes. Judge lineage has no subagent spawn role, and the viewed-session path must not reveal it as a child/chip.
+
+## Session row provider mark — 2026-10-16
+
+Owner: branch `feat/issue-754-session-provider-logo`; issue #754.
+Every session row in the shared Web list (window sidebar, sessions modal, nested
+children, revealed subagents, all-workspaces groups) leads its sub line with the
+provider mark of `runtime.effective.provider`, drawn from `providerKindIconRegistry`
+in neutral ink. The row's accessible name and the mark's tooltip read `Provider · Model`
+in the runtime selector's display names, from the same cached `/api/providers` and
+`/api/model-catalog/models` reads (wire id where the catalog has none); the glyph is
+not a tab stop and the tooltip also opens on the row's keyboard focus. A session that
+has never bound a runtime renders no mark. The sub line now runs under the time
+column, so the mark costs no attention word. Data comes from the existing list
+payload and the catalog stream's `upserted` re-read, so continue, fork, and process
+replacement repaint the mark with no per-row request. Web-only (internal regime):
+HTTP/UDS DTOs, OpenAPI, CLI, native tools, hooks, extensibility, configuration keys,
+persisted state, and official `skills/compozy/` are unchanged; no migration or
+compatibility adapter is needed. Workspace/profile isolation is unaffected (the row
+renders its own payload). No site documentation changes are needed. QA owner:
+`ET-web-session-sidebar-threads`; automated owner: the `SessionList provider marks`
+suite in `web/src/systems/session/components/__tests__/session-list.test.tsx`.
+
+
+## Post-merge runtime selector repair — 2026-10-16
+
+Owner: `fix/main-ci-after-merges`; main CI run 38936400681; originating PR #745.
+The Web runtime selector keeps provider discovery guidance in a bounded scroll region
+so multiple failures cannot collapse the model list or intercept model clicks. All
+provider guidance and keyboard/model/reasoning behavior remain available. Sidebar
+Storybook catalog fixtures move unchanged into a helper to satisfy the source-size
+limit after #758/#759. Internal Web-only changes: no native tool, CLI, HTTP/UDS,
+hook/extensibility/configuration, persisted-state, workspace/profile-isolation,
+official skill, or site documentation contract changes. QA owner:
+`RT-model-catalog-cold-open`; regression owner: the rendered `ProviderAuthRequired`
+story plus the existing session provider override E2E journeys.
+
+
+## Session-list connection warnings — issue #767 — 2026-10-16
+
+Owner: branch `fix/issue-767-false-disconnected-banner`; issue #767.
+The window sidebar used the composer transport guard, which immediately reports reconnecting
+(`waiting-reconnect`, or `connecting` with a retained live timestamp) as disconnected. It now
+reuses the existing 2-second transport-feedback grace. The sessions modal's catalog owner waits
+10 seconds across reconnect attempts before reporting stale, clears on open/valid events, and
+cancels its timer on teardown. Disabled/connecting/loading states are not connection failures.
+Superseded catalog reads keep TanStack cancellation semantics; actual query failures stay visible.
+
+- Web: sidebar and sessions modal only; no new polling, query, dependency, or retry path.
+- Native tools, CLI, HTTP/UDS DTOs, hooks, extensions, config and official `skills/compozy/`: unchanged.
+- Workspace/profile isolation: existing scoped keys, stream URLs and generation fences remain authoritative.
+- User state/migrations: none. Public compatibility: unchanged. Site docs: no public contract change.
+- QA: `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal`; targeted hook regressions,
+  real local frontend walkthrough and rendered browser fault-injection evidence. Heavy gates run only in CI.
+
+## Issue #766 — background native subagents and the composer subagents control
+
+Owner: branch `fix/issue-766-subagent-status-indicator`; issue #766.
+
+- Runtime: a Claude Agent/Task call that runs in the background returns a launch receipt at once.
+  The ACP layer lifts claude-agent-acp's PostToolUse marker (`_meta.claudeCode.toolResponse`
+  `status: "async_launched"` / `isAsync: true`) and stamps it on that tool result; the session
+  layer also reads the launch input `run_in_background: true`. The receipt no longer settles the
+  provider-native row: it stays `running`/`working`. claude-agent-acp holds the prompt response
+  until every background subagent of the turn has settled and reports each outcome only to the
+  model, so the turn's non-canceled `done` completes those rows with `result: null`. Native tool
+  events are now ingested on the persistence path (when the event is recorded) instead of the
+  prompt-delivery pump, so ingestion and the `done` handling run on the goroutine that settles the
+  turn, in ledger order, whatever a slow prompt consumer does. Canceled turns, parent stops and boot
+  recovery still settle them `interrupted`. Foreground calls keep settling on their result.
+  Codex's own collab subagents are still not recorded as provider-native rows (unchanged).
+- Native tools, CLI, HTTP/UDS: `compozy__subagent_status`, `compozy session subagents`, and the
+  subagent routes keep their shapes; background provider-native rows now read `running` until the
+  turn ends and then `completed` without a result. The `subagent.settled` hook fires at that later
+  point with the same payload shape. Session events gain an optional `provider_tool_async` field on
+  the launch result (additive, omitted otherwise).
+- Persisted state (SD-013): no SQLite schema change or migration. Rows written before this change
+  that settled on a launch receipt keep their recorded status and result; they are settled history
+  and are not rewritten from prose. The event-ledger field is additive and older readers ignore it.
+- Web: the composer toolbar adds `SessionComposerSubagents` after the context ring and before the
+  attach button — a quiet icon while nothing runs, the subagent avatar's live dot plus the live
+  count while subagents work — and a `@compozy/ui` Popover that hosts the inspector's roster rows
+  (`SubagentRoster`, extracted from the inspector section and shared). The inspector section stays:
+  the inspector is closed by default, and the sidebar chip and transcript group "and N more" land on
+  it. The roster hook gains `coldRead` so an always-mounted host reads only the stream roster until
+  the session reports subagents or the popover opens.
+- Workspace/profile isolation: unchanged; rows stay scoped to their parent session and workspace.
+- Official skill and docs: `skills/compozy/references/native-tools.md`, the site subagents guide,
+  `COPY.md` Subagent Terms, and QA scenarios `ET-web-native-subagent` and `ET-web-subagent-card`
+  co-ship. Automated owners: `TestClaudeAgentSubagentContract`, `TestNativeSubagentEventFromStored`,
+  `TestSubagentNativeLifecycle`, IT-020 `TestSubagentNativeDaemonIntegration`, and the
+  `SubagentComposerControl`, composer-placement, and composer-control wiring web tests.
+
+## Daemon idle cost and Goal liveness — issues #762, #763, #764, #765 (2026-10-16)
+
+Owner: branch `daemon-cpu-attention`.
+- #763 Goal liveness: the Goal executor reports its bound session through the new liveness-only
+  action port (`loop.ReportActionLivenessSession`). The action heartbeat uses that session's activity
+  as evidence, so a working Goal no longer raises `silence` or a false session `needs-attention`. It
+  binds no `task_runs.session_id` and adds no confirmed-death resume for Goal segments. Persisted
+  false `silence` flags clear on the next evidence through the existing path. For every action
+  node, evidence now requires session activity newer than the last observation or an in-flight
+  tool, and a detected stall removes it. A session that stays alive without new activity therefore
+  still reaches its silence window instead of renewing liveness from a stale timestamp.
+- #762 hosted MCP: the projection stream (`/internal/hosted-mcp/projection/stream`, UDS) calls
+  `HostedService.StreamProjection`. Without an authoritative generation (always today, because native
+  availability carries none), it reuses the bind's last projection for at most 1s unless the daemon
+  projection epoch advanced (dispatch, catalog, settings). One-shot `Projection` reads stay fresh. The
+  wire payload, digest and SSE events are unchanged. Native tool availability flips reach agents
+  within about 1s instead of 100ms.
+- #764 usage reads: `session.Manager.Compactions` reads only compaction, compaction-fired, usage and
+  done rows instead of the whole history, and returns early when a session has no compaction marker.
+  This lowers the cost of `/usage` and `/usage/turns` for large sessions. Markers are read after the
+  usage rows, so a compaction appended between reads cannot lend its usage to an earlier one. The attention bell's
+  per-workspace inbox fan-out is unchanged and stays open on #764.
+- #765 session WAL: the writer keeps its PASSIVE checkpoint every 128 writes. Once it has been idle
+  for 1s after writes, it checkpoints and truncates a WAL above 16MB, letting readers delay that
+  idle-only truncation by at most 200ms, and retries a deferred truncation with 1s–30s idle-gated
+  backoff. Truncation never runs inside a write burst, so it adds no writer stall there.
+  `store.CheckpointTruncateConnection` exposes the existing busy-aware TRUNCATE on an acquired
+  connection.
+- SD-013: no persisted shape, migration, config key, CLI, HTTP/UDS DTO, hook, extension SDK or
+  native tool change. Workspace/profile isolation is unchanged. Official `skills/compozy/` and
+  `packages/site` need no update; behavior only becomes accurate (no false attention) and cheaper.
+  QA owner: `TA-action-run-liveness`.
+
+
+## Terminal background progress — issue #774 — 2026-10-17
+
+Owner: branch `fix/issue-774-terminal-workspace-stall`.
+
+- Runtime: PTY output is always drained independently of viewer ACKs. Existing bounded ACK/drop
+  queues, demotion, GAP, snapshot and replay remain. Removed internal Group wait coordination.
+  Preserve ATTACHED before overflow GAPs, and emit replay demotion events without reacquiring
+  the session lock.
+- Web: writable and read-only browser attachments use the existing drop flow; hidden, suspended,
+  minimized and stale renderers cannot pause the process. Input rights and resize votes remain
+  controlled by attach mode. Obsolete browser ACK bookkeeping is removed with all consumers.
+  Render and snapshot-tail buffers are bounded at 1 MiB or 1,024 frames; overflow requests a current snapshot
+  without throttling the PTY. Input stays gated through recovery, including pending replay.
+  Repeated server queue trims merge undelivered GAP ranges and byte counts.
+- Native tools/CLI/HTTP/UDS: `terminal_read` and `terminal_wait` observe background progress. Existing
+  `flow=ack` clients remain accepted with bounded queues; no request/frame/DTO shape changes.
+  Canceled terminal requests are classified as 499 using the existing `api_error` envelope.
+- Hooks/extensibility/config: no new hook, SDK shape, setting, permission, dependency or timer.
+- Compatibility/user state: no persisted layout, workspace-file or SQLite changes, no migration.
+  Profile/workspace authorization and retained history bounds remain authoritative.
+- Official `skills/compozy/`: existing detach/closed-browser process-lifetime guidance remains true;
+  no native invocation contract changes. Site documentation needs no changed command or shape.
+- QA: `ET-terminal-stream-resilience` owns workspace-switch, hidden-view and recovery checks.
+  Evidence is tracked in `docs/qa/reports/2026-10-17-issue-774-terminal-workspace-stall.md`.
+
+## Issue #782 — hung-turn watchdog and silent idle runtime release (2026-10-17)
+
+Owner: branch `fix/silent-idle-session-reclaim`; issue #782.
+
+- Runtime: `session.supervision.quiet_after`/`stop_grace` become a hung-turn watchdog. Silence
+  accrues only while a turn is in flight and waiting on the agent; an idle session (no turn in
+  flight) or a turn blocked on a pending permission/clarify request never warns or stops for
+  inactivity, and a quiet warning clears when the turn ends. The in-flight path is unchanged:
+  `session.supervision_warning`, the stop ladder with cause `inactivity`,
+  `session.supervision_stopped`, `stop_reason: "timeout"`/`stop_detail: "inactivity"`, task
+  recovery, Loop death-resume and reply-wake. A new idle runtime release stops the agent process of
+  an idle session with no work signal, no unknown source, no pending interaction, and ACP
+  `session/load` support after `session.supervision.idle_release_after`. The session stays
+  `active`, `runtime.status: "unbound"`, keeps transcript and ACP session id, and the next prompt
+  from any surface rebinds through `session/load`, falling back to bounded transcript replay, or
+  binds a newly selected route with the transcript. An unclean daemon exit while released boots the
+  session `stopped`/`shutdown` with detail "daemon exited while the idle session runtime was
+  released"; a later prompt resumes it.
+- Native tools, CLI, HTTP/UDS: no new tool or route; session describe/status/resource fields keep
+  their shapes. `runtime.status: "unbound"` on an active session now also means a released
+  runtime, and `supervision.quiet_warning` appears only during in-flight turns.
+- Extensibility/hooks/config (SD-013, additive): new key `session.supervision.idle_release_after`
+  (duration, default `30m`, zero or positive, `0` disables), readable/writable through config
+  get/set and `compozy__config_*`. A release dispatches no `session.post_stop` hook; the
+  process-level `agent.stopped` hook fires as for any runtime replacement. Inactivity stops, and the hooks that follow them, now happen only for
+  in-flight turns. No persisted schema change or migration; the released shape is the existing
+  active/unbound metadata.
+- Workspace/profile isolation: unchanged.
+- Web: the window-level quiet warning notice ("Quiet for … This session stops in …", Stop now) is
+  removed; a quiet in-flight turn adds a muted "quiet for …" segment to the working status line.
+  Released sessions render as ordinary idle sessions. Historic inactivity stops keep "Stopped after
+  … · no work for …".
+- Official skill and docs: `skills/compozy/references/runtime-operations.md`, `native-tools.md`,
+  `loops.md`, `tasks-and-orchestration.md`; site `sessions/lifecycle`, `sessions/health`,
+  `sessions/events` (stale `runtime_warning`/legacy-key text corrected), `sessions/orchestration`,
+  `agents/heartbeat`, and `configuration/config-toml`. QA scenarios `RT-session-native-stop`
+  (supervision branch rewritten, idle-release branch added, re-walk required) and
+  `RT-session-message-reply` (step 11).
+
+## Settings "Pause idle agents after" drives idle runtime release (2026-10-17)
+
+Owner: branch `fix/settings-idle-release-control`, stacked on #787; issue #782.
+
+- Runtime: unchanged. The Settings → General control that wrote the unenforced
+  `session.limits.timeout` now writes `session.supervision.idle_release_after` (restart-required
+  under the existing `session.*` lifecycle rule).
+- HTTP/UDS (SD-013 regime 2, additive + deprecate N→N+1): `SettingsGeneralConfigPayload` gains
+  optional `idle_release_after` (Go duration, zero or positive; omitted on PATCH keeps the current
+  value; always returned on GET). `session_timeout` keeps its required shape and its meaning
+  (`session.limits.timeout`), is marked `deprecated` in OpenAPI, and a PATCH carrying a non-zero
+  value returns `Warning: 299 compozy "... use idle_release_after; removed in v0.5.0"`. Delete
+  target v0.5.0: the `session_timeout` DTO field, its decoder/encoder, and the Warning header.
+- Config (SD-013 regime 2, deprecate N→N+1): `session.limits.timeout` stays readable/writable
+  through `config get/set` and `compozy__config_*`; a non-zero value logs a load-time
+  deprecation warning. Delete target v0.5.0: the key, `SessionLimitsConfig`, its overlay, CLI and
+  tool-surface entries. No persisted schema change or migration.
+- Native tools/CLI/hooks/extensions: no shape change. Workspace/profile isolation: unchanged.
+- Web (regime 3): row label "Pause idle agents after", test id
+  `settings-page-general-idle-release-input`, presets Never/15m/30m/1h/4h/1d plus the configured
+  value as-is; E2E selectors and the settings transport spec follow the new field and key.
+- Official skill and docs: `skills/compozy/references/configuration.md` (new Idle Session
+  Settings section), `runtime-operations.md`; site `configuration/config-toml`,
+  `sessions/lifecycle`. QA scenario `MS-025` (re-walk required for the renamed control).
+
+
+## Issue #760 — Session messaging for long orchestrations
+
+- **Owner:** issue #760, branch `fix/issue-760-session-messaging-delivery`.
+- **Cause and policy:** a real 10-executor run showed queued agent messages never reaching long-turn
+  targets, agents outranking the operator, one turn per message, a hop limit that measured chat length,
+  and guidance that taught the failing paths. The queue is now operator-first with separate caps and a
+  real `queue_position`; agent steer never interrupts; `supersede`, batched dispatch (up to 8) and
+  promotion to steer after `queue_promote_after` apply; hops count forwarding only and a per sender→target
+  rate budget replaces depth as the flood guard, and a reply wake restores the sender's own hop so
+  sequential orchestration never accumulates; `in_reply_to` and a reply-watch TTL make replies explicit,
+  and an explicit answer never releases the sender's reply watch (the completion wake still fires).
+- **Native tools / CLI / HTTP / UDS:** `compozy__session_prompt` gains `supersede` and `in_reply_to`,
+  and its descriptor text explains `mode` and `notify_on_complete` (catalog fixture updated). New typed
+  error `message_rate_limited` (HTTP 429); the native tool returns the same detailed message as HTTP
+  (limit, window, retry delay). `compozy session prompt` gains `--from-session`, `--in-reply-to`,
+  `--supersede`; origin stamping is opt-in, not automatic (`--from-session auto` or an id; inside a
+  managed session without the flag it prints a stderr hint and stays operator input) so existing
+  scripts keep interrupt, slash commands and operator priority. `--in-reply-to` and `--supersede`
+  without a sending session are refused (CLI error; HTTP 400 and native tool `invalid_request`). Identity is a local trusted
+  session-ID header: no spoof protection beyond local operator trust. Operator promote of agent rows is
+  allowed (edit still `input_agent_authored`). OpenAPI and generated web types co-ship. All additive.
+- **Extensibility / hooks / config:** new `[session.messaging]` keys `rate_limit_messages`,
+  `rate_limit_window`, `reply_watch_ttl` (default 24h, `0s` never expires) and
+  `queue_promote_after`; no hook, extension SDK or permission change; origin gains `in_reply_to`.
+- **Isolation / compatibility:** all reads and rate counts are scoped to the exact sender and target
+  session; no cross-workspace change. Append-only migration 00138 (with the Atlas/sqlc
+  artifacts) widens the reply-watch outcome check (adds `expired`) and the session-input queue schema
+  (`origin_class`/`origin_session_id` with lossless backfill, per-sender steer index), copying `rowid`
+  so Goal batch cutoffs keep their meaning; existing rows survive. Boot recovery also returns steers
+  staged before a restart to delivery (agent steers to the queue, operator steers dispatchable). SD-013: public additions only, behavior fixes inside the
+  experimental-free messaging contract; no shim.
+- **Official skill / Web / site docs:** `native-tools.md`, `runtime-operations.md` and
+  `tasks-and-orchestration.md` carry the queue-vs-steer guidance and supervisor/worker protocol; the
+  `cy-orquestrate-issue` skill and executor prompt use the native tool with an orchestrator ID and a
+  milestone-only reporting protocol. Web adds the In reply chip, No reply outcome, grouped inbound
+  cards, Steer on agent queue rows and attention reasons; site orchestration, config and CLI prompt
+  pages and COPY.md §Session Message Terms updated.
+- **Review remediation:** promotion runs `input.pre_submit` and only injects messages whose runtime
+  matches the live turn; the admission fingerprint includes `supersede` and `in_reply_to` (omitted when
+  unset, so older receipts replay unchanged); reverting a reserved promotion reopens its admission;
+  Web reply links are keyed by peer session plus message id.
+- **QA / validation:** RT-session-message-origin (steps 9–16), RT-session-message-reply (12–13) and
+  ET-web-session-message-card.md updated; deterministic regressions run on real SQLite in the owning suites. Heavy gates are CI-owned.
+

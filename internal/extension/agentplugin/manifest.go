@@ -2,10 +2,11 @@ package agentplugin
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 )
 
 var manifestFields = map[string]struct{}{
@@ -58,11 +59,8 @@ func (m *ManifestDocument) Load(opts LoadOptions) (*Package, error) {
 	}
 	pkg.Layout = layout
 
-	sort.Slice(pkg.Diagnostics, func(left, right int) bool {
-		if pkg.Diagnostics[left].Scope == pkg.Diagnostics[right].Scope {
-			return pkg.Diagnostics[left].Message < pkg.Diagnostics[right].Message
-		}
-		return pkg.Diagnostics[left].Scope < pkg.Diagnostics[right].Scope
+	slices.SortFunc(pkg.Diagnostics, func(left, right Diagnostic) int {
+		return cmp.Or(cmp.Compare(left.Scope, right.Scope), cmp.Compare(left.Message, right.Message))
 	})
 	return pkg, nil
 }
@@ -123,7 +121,7 @@ func decodeManifest(content []byte) (*Package, string, error) {
 			unknown = append(unknown, field)
 		}
 	}
-	sort.Strings(unknown)
+	slices.Sort(unknown)
 	for _, field := range unknown {
 		pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
 			Scope: scopeManifest, Message: "ignored unknown top-level field: " + field,
@@ -216,7 +214,7 @@ func optionalAuthor(fields map[string]json.RawMessage, issues *[]Issue) *AuthorI
 			unknown = append(unknown, field)
 		}
 	}
-	sort.Strings(unknown)
+	slices.Sort(unknown)
 	for _, field := range unknown {
 		*issues = append(*issues, Issue{Path: fieldAuthor + "." + field, Message: "unknown field"})
 	}

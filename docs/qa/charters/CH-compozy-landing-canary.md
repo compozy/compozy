@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Render the landing locally at desktop and mobile widths; read the locked hero definition, inspect the static OS shell, and follow all six ordered sections through the CTA."
-      - "Explain in plain language how work, memory, permissions, coordination, and extensibility form one system and identify which proof supports the claim."
+      - "Explain in plain language how work, permissions, coordination, and extensibility form one system and identify which proof supports the claim."
       - "Check that comparison claims cite their sources, beta copy is explicit, and no control or metric implies runtime support that does not exist."
     must_avoid:
       - "Installing a beta, calling a live registry, testing Sigstore/cosign output, changing hosting routes, or touching DNS."

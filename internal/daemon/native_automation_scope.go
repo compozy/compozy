@@ -3,7 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
-	"sort"
+	"slices"
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -245,18 +245,16 @@ func sortedNativeAutomationRuns(runsByID map[string]automationpkg.Run, limit int
 	for _, run := range runsByID {
 		runs = append(runs, run)
 	}
-	sort.Slice(runs, func(left, right int) bool {
-		leftStarted := runs[left].StartedAt
-		rightStarted := runs[right].StartedAt
+	slices.SortFunc(runs, func(a, b automationpkg.Run) int {
 		switch {
-		case leftStarted != nil && rightStarted == nil:
-			return true
-		case leftStarted == nil && rightStarted != nil:
-			return false
-		case leftStarted != nil && rightStarted != nil && !leftStarted.Equal(*rightStarted):
-			return leftStarted.After(*rightStarted)
+		case a.StartedAt != nil && b.StartedAt == nil:
+			return -1
+		case a.StartedAt == nil && b.StartedAt != nil:
+			return 1
+		case a.StartedAt != nil && b.StartedAt != nil && !a.StartedAt.Equal(*b.StartedAt):
+			return b.StartedAt.Compare(*a.StartedAt)
 		default:
-			return runs[left].ID > runs[right].ID
+			return strings.Compare(b.ID, a.ID)
 		}
 	})
 	if limit > 0 && len(runs) > limit {

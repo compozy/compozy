@@ -292,7 +292,7 @@ func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing
 	<-firstPromptEntered
 
 	syntheticEventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
-		Message: "synthetic prompt",
+		Message: "synthetic prompt", MessageID: "priority-wake", Priority: 1,
 		Metadata: acp.PromptSyntheticMeta{
 			TaskRunID: "run-2",
 			Reason:    "task_run_completed",
@@ -301,6 +301,11 @@ func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing
 	})
 	if err != nil {
 		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+
+	pending, err := h.manager.inputQueue.List(t.Context(), session.ID)
+	if err != nil || len(pending) != 1 || pending[0].MessageID != "priority-wake" || pending[0].Priority != 1 {
+		t.Fatalf("synthetic identity and priority = %#v, %v", pending, err)
 	}
 
 	if got := len(h.driver.promptCalls); got != 1 {

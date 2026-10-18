@@ -33,9 +33,9 @@ func TestLookupReturnsFirstWaveSurfaceMetadata(t *testing.T) {
 func TestResolveManifestRequestRejectsIllegalFamilyBeforeHandshake(t *testing.T) {
 	t.Parallel()
 
-	_, err := ResolveManifestRequest([]string{string(FamilyBridgeInstances)}, resources.ResourceScopeKindUser)
+	_, err := ResolveManifestRequest([]string{"unknown_family"}, resources.ResourceScopeKindUser)
 	if err == nil {
-		t.Fatal("ResolveManifestRequest() error = nil, want daemon-only family rejection")
+		t.Fatal("ResolveManifestRequest() error = nil, want unknown family rejection")
 	}
 }
 
@@ -45,18 +45,6 @@ func TestResolveManifestRequestRejectsIllegalScopeBeforeHandshake(t *testing.T) 
 	_, err := ResolveManifestRequest([]string{string(FamilyTools)}, resources.ResourceScopeKind("session"))
 	if err == nil {
 		t.Fatal("ResolveManifestRequest() error = nil, want invalid scope rejection")
-	}
-}
-
-func TestNormalizeAllowedKindsRejectsDaemonOnlyKinds(t *testing.T) {
-	t.Parallel()
-
-	_, err := NormalizeAllowedKinds([]resources.ResourceKind{
-		resources.ResourceKind("tool"),
-		resources.ResourceKind("bridge.instance"),
-	})
-	if err == nil {
-		t.Fatal("NormalizeAllowedKinds() error = nil, want daemon-only rejection")
 	}
 }
 

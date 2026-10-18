@@ -1,32 +1,71 @@
 import { createStoreLogic } from "@xstate/store";
 
+import type { AutomationEditorSeed } from "@/systems/automation";
+
+/** The deep link this page instance acted on. */
+interface HandledSeed {
+  key: string;
+  /** The URL no longer needs cleaning: it was stripped, or a save navigated away. */
+  settled: boolean;
+}
+
 interface AutomationCreateSeedState {
-  consumedLoop: string | null;
+  handled: HandledSeed | null;
 }
 
 type AutomationCreateSeedEvents = {
   seedObserved: {
     activeWorkspaceId: string | null | undefined;
-    consume: (loop: string) => void;
-    loop: string | null;
+    editorOpen: boolean;
+    seed: AutomationEditorSeed | null;
+    workspaceResolved: boolean;
+    open: (seed: AutomationEditorSeed) => void;
+    /** A Loop seed in Global: the Loop lives in a project. */
+    refuse: () => void;
+    strip: () => void;
   };
+  /** The operator closed the editor this deep link opened. */
+  operatorClosed: { strip: () => void };
+  /** The editor saved: its navigation to the detail page replaces the URL. */
+  saved: {};
 };
 
-/** One-shot route intent consumption; URL callbacks enter through events. */
+/**
+ * The `?create=` deep link stays in the URL while the editor it opened is
+ * open, so a page that mounts late or remounts (cold load, window hydration,
+ * a development double mount) opens it again. Only an explicit operator close
+ * strips the params; an editor reset by anything else (a lens change, a
+ * disposed lifecycle) reopens.
+ */
 export const automationCreateSeedLogic = createStoreLogic<
   AutomationCreateSeedState,
   AutomationCreateSeedEvents
 >({
-  context: { consumedLoop: null },
+  context: { handled: null },
   on: {
+    operatorClosed: (context, event, enqueue) => {
+      if (!context.handled || context.handled.settled) return;
+      enqueue.effect(event.strip);
+      return { handled: { ...context.handled, settled: true } };
+    },
+    saved: context =>
+      context.handled ? { handled: { ...context.handled, settled: true } } : undefined,
     seedObserved: (context, event, enqueue) => {
-      const loop = event.loop;
-      if (loop === null) {
-        return context.consumedLoop === null ? undefined : { consumedLoop: null };
+      const { seed, editorOpen, activeWorkspaceId } = event;
+      if (seed === null) return context.handled === null ? undefined : { handled: null };
+      if (!event.workspaceResolved || editorOpen) return;
+      const handled = context.handled?.key === seed.key ? context.handled : null;
+      if (seed.loop !== undefined && !activeWorkspaceId) {
+        if (handled) return;
+        enqueue.effect(() => {
+          event.refuse();
+          event.strip();
+        });
+        return { handled: { key: seed.key, settled: true } };
       }
-      if (!event.activeWorkspaceId || context.consumedLoop === loop) return;
-      enqueue.effect(() => event.consume(loop));
-      return { consumedLoop: loop };
+      if (handled?.settled) return;
+      enqueue.effect(() => event.open(seed));
+      return { handled: { key: seed.key, settled: false } };
     },
   },
 });

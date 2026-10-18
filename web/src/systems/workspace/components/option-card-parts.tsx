@@ -36,7 +36,7 @@ export function OptionCardIcon({
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-glaze",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-2",
         tone === "accent" ? "text-accent" : "text-fg",
         className
       )}
@@ -61,7 +61,7 @@ export function OptionCardTitle({ className, children, ...props }: React.Compone
   return (
     <p
       data-slot="option-card-title"
-      className={cn("text-sm font-medium text-fg", className)}
+      className={cn("text-item-title font-medium text-fg", className)}
       {...props}
     >
       {children}
@@ -78,7 +78,7 @@ export function OptionCardDescription({
   return (
     <p
       data-slot="option-card-description"
-      className={cn("mt-1 text-sm leading-6 text-muted", className)}
+      className={cn("mt-1 text-small-body text-muted", className)}
       {...props}
     >
       {children}

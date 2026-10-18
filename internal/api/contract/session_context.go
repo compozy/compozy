@@ -18,18 +18,24 @@ type SessionUsageChangedPayload struct {
 	Kind     string `json:"kind"`
 }
 
+// SessionContextClearedByPayload identifies an experimental compaction freshness boundary.
+type SessionContextClearedByPayload struct {
+	CompactionID string `json:"compaction_id"`
+	Sequence     int64  `json:"sequence"`
+}
+
 type SessionContextPayload struct {
-	State             SessionContextState            `json:"state"`
-	Used              *int64                         `json:"used,omitempty"`
-	Size              *int64                         `json:"size,omitempty"`
-	Ratio             *float64                       `json:"ratio,omitempty"`
-	SizeSource        string                         `json:"size_source,omitempty"`
-	Stale             *bool                          `json:"stale,omitempty"`
-	Sequence          *int64                         `json:"sequence,omitempty"`
-	ReportedTurnID    string                         `json:"reported_turn_id,omitempty"`
-	ReportedAt        *time.Time                     `json:"reported_at,omitempty"`
-	PressureThreshold *float64                       `json:"pressure_threshold,omitempty"`
-	Injected          *SessionContextInjectedPayload `json:"injected,omitempty"`
+	ClearedBy      *SessionContextClearedByPayload `json:"cleared_by,omitzero"`
+	State          SessionContextState             `json:"state"`
+	Used           *int64                          `json:"used,omitzero"`
+	Size           *int64                          `json:"size,omitzero"`
+	Ratio          *float64                        `json:"ratio,omitzero"`
+	SizeSource     string                          `json:"size_source,omitempty"`
+	Stale          *bool                           `json:"stale,omitzero"`
+	Sequence       *int64                          `json:"sequence,omitzero"`
+	ReportedTurnID string                          `json:"reported_turn_id,omitempty"`
+	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
+	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
 }
 
 type SessionContextInjectedPayload struct {
@@ -45,7 +51,7 @@ type SessionContextRowPayload struct {
 	Kind             string    `json:"kind"`       // text | binary
 	OwnerKind        string    `json:"owner_kind"` // full | startup_opaque
 	Bytes            int64     `json:"bytes"`
-	Tokens           *int64    `json:"tokens,omitempty"` // absent for binary and startup_opaque
+	Tokens           *int64    `json:"tokens,omitzero"` // absent for binary and startup_opaque
 	DeliveredTurnID  string    `json:"delivered_turn_id"`
 	DeliverySequence int64     `json:"delivery_sequence"`
 	SentAt           time.Time `json:"sent_at"`
@@ -53,7 +59,7 @@ type SessionContextRowPayload struct {
 	Unchanged        bool      `json:"unchanged"`
 	Stale            bool      `json:"stale"`
 	Delivery         string    `json:"delivery,omitempty"`
-	HookModified     bool      `json:"hook_modified,omitempty"`
+	HookModified     bool      `json:"hook_modified,omitzero"`
 	Name             string    `json:"name,omitempty"`
 }
 
@@ -65,8 +71,8 @@ type SessionUsageTurnsResponse struct {
 type SessionUsageTurnPayload struct {
 	TurnID   string                      `json:"turn_id"`
 	Sequence int64                       `json:"sequence"`
-	Usage    *TokenUsagePayload          `json:"usage,omitempty"`
-	Injected *SessionTurnInjectedPayload `json:"injected,omitempty"`
+	Usage    *TokenUsagePayload          `json:"usage,omitzero"`
+	Injected *SessionTurnInjectedPayload `json:"injected,omitzero"`
 }
 
 type SessionTurnInjectedPayload struct {
@@ -81,23 +87,29 @@ type SessionContextSpanPayload struct {
 	Key          string `json:"key"`
 	Kind         string `json:"kind"`
 	Bytes        int64  `json:"bytes"`
-	Tokens       *int64 `json:"tokens,omitempty"`
+	Tokens       *int64 `json:"tokens,omitzero"`
 	Unchanged    bool   `json:"unchanged"`
-	StartupDedup bool   `json:"startup_dedup,omitempty"`
+	StartupDedup bool   `json:"startup_dedup,omitzero"`
 	Delivery     string `json:"delivery,omitempty"`
-	HookModified bool   `json:"hook_modified,omitempty"`
+	HookModified bool   `json:"hook_modified,omitzero"`
 	Name         string `json:"name,omitempty"`
 }
 
+// SessionCompactionContextAfterPayload is the first experimental occupancy report after a compaction.
+type SessionCompactionContextAfterPayload struct {
+	Used     int64  `json:"used"`
+	Size     *int64 `json:"size,omitzero"`
+	Sequence int64  `json:"sequence"`
+}
+
 type SessionCompactionPayload struct {
-	TurnID       string    `json:"turn_id"`
-	Sequence     int64     `json:"sequence"`
-	At           time.Time `json:"at"`
-	SpanArchived bool      `json:"span_archived"`
-	FromSequence int64     `json:"from_sequence"`
-	ToSequence   int64     `json:"to_sequence"`
-	ContextUsed  int64     `json:"context_used"`
-	ContextSize  int64     `json:"context_size"`
-	Pressure     float64   `json:"pressure"`
-	Strategy     string    `json:"strategy"`
+	ContextAfter *SessionCompactionContextAfterPayload `json:"context_after,omitzero"`
+	TurnID       string                                `json:"turn_id"`
+	Sequence     int64                                 `json:"sequence"`
+	At           time.Time                             `json:"at"`
+	CompactionID string                                `json:"compaction_id"`
+	Trigger      string                                `json:"trigger"`
+	Status       string                                `json:"status"`
+	ContextUsed  *int64                                `json:"context_used,omitzero"`
+	ContextSize  *int64                                `json:"context_size,omitzero"`
 }

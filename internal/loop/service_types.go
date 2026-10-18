@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -22,18 +21,13 @@ type NodeID = dsl.NodeID
 
 // Inputs carries user inputs plus runtime-only start metadata.
 type Inputs struct {
-	ProfileID                  string                 `json:"-"`
-	Values                     map[string]any         `json:"values,omitempty"`
-	ParentLoopRunID            RunID                  `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides            LoopConfig             `json:"config_overrides"`
-	InheritedEnvironment       *dsl.EnvironmentSpec   `json:"-"`
-	StartMetadata              map[string]any         `json:"start_metadata,omitempty"`
-	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
-	NetworkParticipationSource participation.Source   `json:"-"`
-	// NetworkParticipationSnapshot is a trusted immutable origin snapshot. It is used
-	// when a session-origin Goal must inherit the exact resolved network contract.
-	NetworkParticipationSnapshot *participation.Spec `json:"-"`
-	Admission                    *AdmissionIdentity  `json:"-"`
+	ProfileID            string               `json:"-"`
+	Values               map[string]any       `json:"values,omitempty"`
+	ParentLoopRunID      RunID                `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides      LoopConfig           `json:"config_overrides"`
+	InheritedEnvironment *dsl.EnvironmentSpec `json:"-"`
+	StartMetadata        map[string]any       `json:"start_metadata,omitempty"`
+	Admission            *AdmissionIdentity   `json:"-"`
 }
 
 // Status is the closed loop_runs.status vocabulary.
@@ -153,21 +147,21 @@ func (s CompletionState) Valid() bool {
 //
 //nolint:revive // TechSpec "Core Interfaces" names this public type LoopConfig.
 type LoopConfig struct {
-	HumanGateEnabled   *bool                `json:"human_gate_enabled,omitempty"   yaml:"human_gate_enabled,omitempty"`
-	ReattemptStrategy  *ReattemptStrategy   `json:"reattempt_strategy,omitempty"   yaml:"reattempt_strategy,omitempty"`
-	EnabledChecks      json.RawMessage      `json:"enabled_checks_json,omitempty"  yaml:"enabled_checks_json,omitempty"`
-	IterationCap       *int                 `json:"iteration_cap,omitempty"        yaml:"iteration_cap,omitempty"`
-	BudgetTokens       *int                 `json:"budget_tokens,omitempty"        yaml:"budget_tokens,omitempty"`
-	BudgetWallSec      *int                 `json:"budget_wall_sec,omitempty"      yaml:"budget_wall_sec,omitempty"`
-	BudgetOnExceeded   *dsl.BudgetExceeded  `json:"budget_on_exceeded,omitempty"   yaml:"budget_on_exceeded,omitempty"`
-	NoProgressWindow   *int                 `json:"no_progress_window,omitempty"   yaml:"no_progress_window,omitempty"`
-	FanOutWidth        *int                 `json:"fan_out_width,omitempty"        yaml:"fan_out_width,omitempty"`
-	GateMaxRevisions   *int                 `json:"gate_max_revisions,omitempty"   yaml:"gate_max_revisions,omitempty"`
-	RuntimeDefaults    *RuntimeDefaults     `json:"runtime_defaults,omitempty"     yaml:"runtime_defaults,omitempty"`
-	RuntimeRules       []RuntimeRule        `json:"runtime_rules,omitempty"        yaml:"runtime_rules,omitempty"`
-	Environment        *dsl.EnvironmentSpec `json:"environment,omitempty"          yaml:"environment,omitempty"`
-	Lifecycle          *LifecycleConfig     `json:"lifecycle,omitempty"            yaml:"lifecycle,omitempty"`
-	RequestExpireAfter *string              `json:"request_expire_after,omitempty" yaml:"request_expire_after,omitempty"`
+	HumanGateEnabled   *bool                `json:"human_gate_enabled,omitzero"   yaml:"human_gate_enabled,omitempty"`
+	ReattemptStrategy  *ReattemptStrategy   `json:"reattempt_strategy,omitzero"   yaml:"reattempt_strategy,omitempty"`
+	EnabledChecks      json.RawMessage      `json:"enabled_checks_json,omitempty" yaml:"enabled_checks_json,omitempty"`
+	IterationCap       *int                 `json:"iteration_cap,omitzero"        yaml:"iteration_cap,omitempty"`
+	BudgetTokens       *int                 `json:"budget_tokens,omitzero"        yaml:"budget_tokens,omitempty"`
+	BudgetWallSec      *int                 `json:"budget_wall_sec,omitzero"      yaml:"budget_wall_sec,omitempty"`
+	BudgetOnExceeded   *dsl.BudgetExceeded  `json:"budget_on_exceeded,omitzero"   yaml:"budget_on_exceeded,omitempty"`
+	NoProgressWindow   *int                 `json:"no_progress_window,omitzero"   yaml:"no_progress_window,omitempty"`
+	FanOutWidth        *int                 `json:"fan_out_width,omitzero"        yaml:"fan_out_width,omitempty"`
+	GateMaxRevisions   *int                 `json:"gate_max_revisions,omitzero"   yaml:"gate_max_revisions,omitempty"`
+	RuntimeDefaults    *RuntimeDefaults     `json:"runtime_defaults,omitzero"     yaml:"runtime_defaults,omitempty"`
+	RuntimeRules       []RuntimeRule        `json:"runtime_rules,omitempty"       yaml:"runtime_rules,omitempty"`
+	Environment        *dsl.EnvironmentSpec `json:"environment,omitzero"          yaml:"environment,omitempty"`
+	Lifecycle          *LifecycleConfig     `json:"lifecycle,omitzero"            yaml:"lifecycle,omitempty"`
+	RequestExpireAfter *string              `json:"request_expire_after,omitzero" yaml:"request_expire_after,omitempty"`
 }
 
 // EffectiveConfig is the fully resolved non-null runtime config.
@@ -285,15 +279,14 @@ type PlanNodePreview struct {
 
 // PlanPreview is the no-state preview returned by DryRun.
 type PlanPreview struct {
-	LoopName                     string                 `json:"loop_name"`
-	ResolvedInputs               map[string]any         `json:"resolved_inputs"`
-	InputOrigins                 map[string]InputOrigin `json:"input_origins"`
-	Generation                   int                    `json:"generation"`
-	Nodes                        []PlanNodePreview      `json:"nodes"`
-	Contract                     dsl.Contract           `json:"contract"`
-	MaterializedContract         dsl.Contract           `json:"materialized_contract"`
-	EffectiveConfig              EffectiveConfig        `json:"effective_config"`
-	ResolvedNetworkParticipation participation.Spec     `json:"resolved_network_participation"`
+	LoopName             string                 `json:"loop_name"`
+	ResolvedInputs       map[string]any         `json:"resolved_inputs"`
+	InputOrigins         map[string]InputOrigin `json:"input_origins"`
+	Generation           int                    `json:"generation"`
+	Nodes                []PlanNodePreview      `json:"nodes"`
+	Contract             dsl.Contract           `json:"contract"`
+	MaterializedContract dsl.Contract           `json:"materialized_contract"`
+	EffectiveConfig      EffectiveConfig        `json:"effective_config"`
 }
 
 // DisplayCost is derived UI-only cost information.

@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 	"unicode/utf8"
 
@@ -16,13 +18,12 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/network/participation"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.T) {
@@ -377,73 +378,80 @@ func TestPromptPersistenceFailureStopsSessionBeforeLiveDelivery(t *testing.T) {
 func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t, WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
-		ActivityHeartbeatInterval: time.Hour,
-		ProgressNotifyInterval:    0,
-		QuietAfter:                0,
-		StopGrace:                 0,
-		TimeoutCancelGrace:        2 * time.Second,
-		PromptDeadline:            20 * time.Millisecond,
-	}))
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
-			t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+	// Keep the deadline and stop budgets while advancing blocked time virtually.
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
+			ActivityHeartbeatInterval: time.Hour,
+			ProgressNotifyInterval:    0,
+			QuietAfter:                0,
+			StopGrace:                 0,
+			TimeoutCancelGrace:        2 * time.Second,
+			PromptDeadline:            20 * time.Millisecond,
+		}))
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(
+				testutil.Context(t),
+				session.ID,
+			); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+			}
+		})
+
+		source := make(chan acp.AgentEvent, 1)
+		var promptTurnID string
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			promptTurnID = req.TurnID
+			return source, nil
+		}
+		// The deadline issues the cancel under test; the cleanup stop ladder later
+		// sends a second cooperative cancel to the already-quiesced turn, which must
+		// not replay the provider error into the closed source.
+		var deadlineCancel sync.Once
+		h.driver.cancelHook = func(proc *fakeProcess) error {
+			deadlineCancel.Do(func() {
+				source <- acp.AgentEvent{
+					Type:      acp.EventTypeError,
+					SessionID: proc.handle.SessionID,
+					TurnID:    promptTurnID,
+					Timestamp: time.Now().UTC(),
+					Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
+				}
+				close(source)
+			})
+			return nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "long running")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if got, want := len(events), 2; got != want {
+			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		}
+		if got, want := events[0].Type, acp.EventTypeRuntimeWarning; got != want {
+			t.Fatalf("Prompt() first event type = %q, want %q", got, want)
+		}
+		if got, want := events[1].Type, acp.EventTypeError; got != want {
+			t.Fatalf("Prompt() second event type = %q, want %q", got, want)
+		}
+		if events[0].Runtime == nil || events[0].Runtime.DeadlineAt == nil {
+			t.Fatalf("Prompt() first runtime = %#v, want deadline payload", events[0].Runtime)
+		}
+		// The deadline cancels the turn in turn scope; the provider answers that cancel
+		// with a fatal transport error, so the session-scope ladder stops the process
+		// exactly once. Its cooperative phase may re-issue the cancel before the
+		// forced stop verifies exit, which the once-guarded hook above absorbs.
+		h.notifier.waitForStopped(t, session.ID)
+		if got := h.driver.cancelCalls; got < 1 {
+			t.Fatalf("driver cancel calls = %d, want at least 1", got)
+		}
+		if got := h.driver.stopCalls; got != 1 {
+			t.Fatalf("driver stop calls = %d, want 1", got)
 		}
 	})
-
-	source := make(chan acp.AgentEvent, 1)
-	var promptTurnID string
-	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		promptTurnID = req.TurnID
-		return source, nil
-	}
-	// The deadline issues the cancel under test; the cleanup stop ladder later
-	// sends a second cooperative cancel to the already-quiesced turn, which must
-	// not replay the provider error into the closed source.
-	var deadlineCancel sync.Once
-	h.driver.cancelHook = func(proc *fakeProcess) error {
-		deadlineCancel.Do(func() {
-			source <- acp.AgentEvent{
-				Type:      acp.EventTypeError,
-				SessionID: proc.handle.SessionID,
-				TurnID:    promptTurnID,
-				Timestamp: time.Now().UTC(),
-				Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
-			}
-			close(source)
-		})
-		return nil
-	}
-
-	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "long running")
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-	events := collectEvents(t, eventsCh)
-	if got, want := len(events), 2; got != want {
-		t.Fatalf("Prompt() events = %d, want %d", got, want)
-	}
-	if got, want := events[0].Type, acp.EventTypeRuntimeWarning; got != want {
-		t.Fatalf("Prompt() first event type = %q, want %q", got, want)
-	}
-	if got, want := events[1].Type, acp.EventTypeError; got != want {
-		t.Fatalf("Prompt() second event type = %q, want %q", got, want)
-	}
-	if events[0].Runtime == nil || events[0].Runtime.DeadlineAt == nil {
-		t.Fatalf("Prompt() first runtime = %#v, want deadline payload", events[0].Runtime)
-	}
-	// The deadline cancels the turn in turn scope; the provider answers that cancel
-	// with a fatal transport error, so the session-scope ladder stops the process
-	// exactly once. Its cooperative phase may re-issue the cancel before the
-	// forced stop verifies exit, which the once-guarded hook above absorbs.
-	h.notifier.waitForStopped(t, session.ID)
-	if got := h.driver.cancelCalls; got < 1 {
-		t.Fatalf("driver cancel calls = %d, want at least 1", got)
-	}
-	if got := h.driver.stopCalls; got != 1 {
-		t.Fatalf("driver stop calls = %d, want 1", got)
-	}
 }
 
 func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *testing.T) {
@@ -838,6 +846,109 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 			}
 		})
 	}
+	// UT-015/UT-028: an agent chain never runs after acceptance; an operator runtime
+	// change replaces the accepted-route record and a resume follows it.
+	t.Run("Should keep a chained agent available and never advance after acceptance", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v", err)
+		}
+		session, _ := h.manager.Get(created.ID)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(
+				testutil.Context(t),
+				session.ID,
+			); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+			}
+		})
+		var prompts atomic.Int32
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			event := acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, Timestamp: time.Now()}
+			if prompts.Add(1) == 1 {
+				event.Type = acp.EventTypeError
+				event.Error = "HTTP 429 rate limit exceeded"
+				event.Failure = &store.SessionFailure{Kind: store.FailurePrompt, Summary: event.Error}
+				event.ProviderError = &acp.ProviderErrorDiagnostic{
+					Code: acp.ProviderErrorRateLimited, Provider: "claude", NextAction: acp.ProviderFailureActionRetry,
+					OccurrenceCount: 1,
+				}
+			}
+			stream <- event
+			close(stream)
+			return stream, nil
+		}
+		for _, expected := range []string{acp.EventTypeError, acp.EventTypeDone} {
+			stream, err := h.manager.Prompt(t.Context(), session.ID, "continue")
+			if err != nil {
+				t.Fatalf("prompt before %s: %v", expected, err)
+			}
+			if events := collectEvents(t, stream); len(events) != 1 || events[0].Type != expected {
+				t.Fatalf("prompt events = %#v, want %s", events, expected)
+			}
+		}
+		if session.Info().State != StateActive || len(startCommands(h)) != 1 || len(ledger.fallbackRows()) != 0 {
+			t.Fatalf("after a turn refusal: state=%s starts=%v rows=%d, want active, one start, no fallback",
+				session.Info().State, startCommands(h), len(ledger.fallbackRows()))
+		}
+		stored, err := h.manager.Events(t.Context(), session.ID, store.EventQuery{Type: acp.EventTypeError, Limit: 10})
+		if err != nil || len(stored) != 1 {
+			t.Fatalf("stored provider errors = %d, error = %v", len(stored), err)
+		}
+		if replayed, err := transcript.UnmarshalAgentEvent(stored[0].Content); err != nil ||
+			replayed.ProviderError == nil || replayed.ProviderError.NextAction != acp.ProviderFailureActionHandoff {
+			// A post-acceptance refusal never advances the chain (no use_fallback); on a user
+			// session the session owner prescribes handoff (session-continue-fork ADR-006).
+			t.Fatalf("turn refusal next_action = %#v, error = %v, want handoff", replayed.ProviderError, err)
+		}
+
+		codexModel := h.cfg.Providers["codex"].Models.Default
+		if _, err := h.manager.SetRuntimeSelection(
+			t.Context(), session.ID, RuntimeSelection{Provider: "codex", Model: codexModel}, 0,
+		); err != nil {
+			t.Fatalf("SetRuntimeSelection(codex) error = %v", err)
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "on codex")
+		if err != nil {
+			t.Fatalf("Prompt(codex) error = %v", err)
+		}
+		collectEvents(t, stream)
+		codexCommand := h.cfg.Providers["codex"].Command
+		if got := startCommands(h); len(got) != 2 || got[1] != codexCommand || len(ledger.fallbackRows()) != 0 {
+			t.Fatalf("runtime set starts = %v rows=%d, want the requested codex route and no fallback event",
+				got, len(ledger.fallbackRows()))
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Provider != "codex" || meta.AcceptedRoute.Attempt != 0 ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(codexCommand) ||
+			derefString(meta.ACPSessionID) != "acp-2" {
+			t.Fatalf("meta after runtime set = %#v acp=%v, want codex attempt 0 with acp-2",
+				meta.AcceptedRoute, meta.ACPSessionID)
+		}
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		resumed, err := h.manager.Resume(t.Context(), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		h.driver.mu.Lock()
+		resumeCall := h.driver.startCalls[len(h.driver.startCalls)-1]
+		h.driver.mu.Unlock()
+		if resumeCall.Command != codexCommand || resumeCall.ResumeSessionID != "acp-2" {
+			t.Fatalf(
+				"resume start = %q/%q, want the codex route loading acp-2",
+				resumeCall.Command,
+				resumeCall.ResumeSessionID,
+			)
+		}
+		session = resumed
+	})
 	t.Run("Should keep generic prompt failures active", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -1172,7 +1283,8 @@ func TestCancelPrompt(t *testing.T) {
 	t.Run("Should ignore cancel errors once the process is already done", func(t *testing.T) {
 		t.Parallel()
 
-		cleanupCtx := testutil.Context(t)
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), 45*time.Second)
+		t.Cleanup(cancelCleanup)
 		catalog := newRecordingSessionCatalog()
 		h := newHarness(t, WithSessionCatalog(catalog))
 		session := createSession(t, h)
@@ -1405,8 +1517,7 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		const wantTitle = "Checkout webhook retries"
 		persistenceStarted := make(chan struct{})
 		releasePersistence := make(chan struct{})
-		var releaseOnce sync.Once
-		release := func() { releaseOnce.Do(func() { close(releasePersistence) }) }
+		release := sync.OnceFunc(func() { close(releasePersistence) })
 		t.Cleanup(release)
 		catalog.registerHook = func(ctx context.Context, info store.SessionInfo) error {
 			if info.Name != wantTitle {
@@ -1848,58 +1959,6 @@ func (s *promptCommandServiceStub) Expand(
 	return "VERIFIED REVIEW INSTRUCTIONS\n\n" + message, nil
 }
 
-func TestPromptNetworkAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptInputAugmenter(func(
-		_ context.Context,
-		_ *Session,
-		message string,
-	) (string, error) {
-		return message + "\n\nNETWORK AUGMENT", nil
-	}))
-	session := createLiveNetworkSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	eventsCh, err := h.manager.PromptNetwork(
-		testutil.Context(t),
-		session.ID,
-		"network message",
-		acp.PromptNetworkMeta{
-			MessageID: "msg-1",
-			Kind:      "direct",
-			Channel:   "builders",
-			From:      "ops.peer",
-		},
-	)
-	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
-	}
-	_ = collectEvents(t, eventsCh)
-
-	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
-	if err != nil {
-		t.Fatalf("Query() error = %v", err)
-	}
-	if len(stored) == 0 {
-		t.Fatal("stored events = 0, want at least one event")
-	}
-	if got := h.driver.promptCalls[0].Message; got != "network message\n\nNETWORK AUGMENT" {
-		t.Fatalf("driver prompt message = %q, want augmented network content", got)
-	}
-	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
-		t.Fatalf("driver turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
-	}
-	if !strings.Contains(stored[0].Content, `"text":"network message"`) {
-		t.Fatalf("stored user_message content = %s, want original network message", stored[0].Content)
-	}
-	if strings.Contains(stored[0].Content, "NETWORK AUGMENT") {
-		t.Fatalf("stored user_message content = %s, want no augmentation block", stored[0].Content)
-	}
-}
-
 func TestPromptAugmenterPropagatesFailureAndSkipsDriverDispatch(t *testing.T) {
 	t.Parallel()
 
@@ -1952,7 +2011,7 @@ func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	session := createLiveNetworkSession(t, h)
+	session := createSession(t, h)
 	t.Cleanup(func() {
 		reportSessionStop(t, h, session.ID)
 	})
@@ -1975,74 +2034,14 @@ func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	}
 	_ = collectEvents(t, firstEvents)
 
-	secondEvents, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network prompt")
-	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
+	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceUser {
+		t.Fatalf("user prompt source = %q, want user", got)
 	}
-	_ = collectEvents(t, secondEvents)
-
-	if got, want := len(h.driver.promptCalls), 2; got != want {
-		t.Fatalf("len(promptCalls) = %d, want %d", got, want)
-	}
-	if got, want := h.driver.promptCalls[0].Meta.TurnSource, acp.PromptTurnSourceUser; got != want {
-		t.Fatalf("promptCalls[0].Meta.TurnSource = %q, want %q", got, want)
-	}
-	networkMeta := acp.PromptNetworkMeta{
-		MessageID: "msg-1",
-		Kind:      "direct",
-		Channel:   "builders",
-		From:      "ops.peer",
-	}
-	thirdEvents, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network prompt", networkMeta)
-	if err != nil {
-		t.Fatalf("PromptNetwork(with meta) error = %v", err)
-	}
-	_ = collectEvents(t, thirdEvents)
-	if got, want := h.driver.promptCalls[2].Meta.TurnSource, acp.PromptTurnSourceNetwork; got != want {
-		t.Fatalf("promptCalls[2].Meta.TurnSource = %q, want %q", got, want)
-	}
-	if h.driver.promptCalls[2].Meta.Network == nil {
-		t.Fatal("promptCalls[2].Meta.Network = nil, want populated metadata")
-	}
-	if got, want := h.driver.promptCalls[2].Meta.Network.MessageID, networkMeta.MessageID; got != want {
-		t.Fatalf("promptCalls[2].Meta.Network.MessageID = %q, want %q", got, want)
-	}
-	if !slices.Equal(seenSources, []TurnSource{TurnSourceUser, TurnSourceNetwork, TurnSourceNetwork}) {
-		t.Fatalf(
-			"seen turn sources = %#v, want %#v",
-			seenSources,
-			[]TurnSource{TurnSourceUser, TurnSourceNetwork, TurnSourceNetwork},
-		)
+	if !slices.Equal(seenSources, []TurnSource{TurnSourceUser}) {
+		t.Fatalf("seen turn sources = %#v, want user", seenSources)
 	}
 	if got := session.CurrentTurnSource(); got != "" {
 		t.Fatalf("CurrentTurnSource() after prompts = %q, want empty", got)
-	}
-}
-
-func TestPromptNetworkRejectsMultipleMetadataValues(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	_, err := h.manager.PromptNetwork(
-		testutil.Context(t),
-		session.ID,
-		"network prompt",
-		acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "direct"},
-		acp.PromptNetworkMeta{MessageID: "msg-2", Kind: "direct"},
-	)
-	if err == nil {
-		t.Fatal("PromptNetwork(multiple meta) error = nil, want validation failure")
-	}
-	if !strings.Contains(err.Error(), "at most one metadata value") {
-		t.Fatalf("PromptNetwork(multiple meta) error = %v, want multiple-metadata validation", err)
-	}
-	if got := len(h.driver.promptCalls); got != 0 {
-		t.Fatalf("len(promptCalls) = %d, want 0 when PromptNetwork validation fails", got)
 	}
 }
 
@@ -2135,12 +2134,6 @@ func TestApprovePermissionReturnsNotActiveForStoppedSession(t *testing.T) {
 func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
 	testCases := []struct {
 		name    string
 		hookErr error
@@ -2228,8 +2221,10 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 			"ACP subprocess exited unexpectedly",
 			errors.New("acp subprocess exited: exit status 23"),
 		)
-		var typedProcessExit *acp.FailureError
-		if !errors.As(processExitErr, &typedProcessExit) || typedProcessExit.Kind != store.FailureProcess {
+		if typedProcessExit, ok := errors.AsType[*acp.FailureError](
+			processExitErr,
+		); !ok ||
+			typedProcessExit.Kind != store.FailureProcess {
 			t.Fatalf("process exit error = %#v, want typed process_exit failure", processExitErr)
 		}
 		proc.crash(processExitErr, "codex stderr after process exit")
@@ -2565,50 +2560,54 @@ func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {
 func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	t.Run("Should deliver the assembled startup context", func(t *testing.T) {
+		t.Parallel()
 
-	var (
-		called         bool
-		gotWorkspace   string
-		gotAgentName   string
-		gotAgentPrompt string
-	)
-	h.manager = newManagerWithHarness(
-		t,
-		h,
-		WithPromptAssembler(
-			promptAssemblerFunc(
-				func(_ context.Context, agent compozyconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
-					called = true
-					gotWorkspace = workspace.RootDir
-					gotAgentName = agent.Name
-					gotAgentPrompt = agent.Prompt
-					return agent.Prompt + "\n\nmemory block", nil
-				},
+		h := newHarness(t)
+
+		var (
+			called         bool
+			gotWorkspace   string
+			gotAgentName   string
+			gotAgentPrompt string
+		)
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithPromptAssembler(
+				promptAssemblerFunc(
+					func(_ context.Context, agent compozyconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
+						called = true
+						gotWorkspace = workspace.RootDir
+						gotAgentName = agent.Name
+						gotAgentPrompt = agent.Prompt
+						return agent.Prompt + "\n\nstartup context block", nil
+					},
+				),
 			),
-		),
-	)
+		)
 
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+
+		if !called {
+			t.Fatal("Create() did not invoke the configured prompt assembler")
+		}
+		if gotWorkspace != h.workspace {
+			t.Fatalf("assembler workspace = %q, want %q", gotWorkspace, h.workspace)
+		}
+		if gotAgentName != "coder" {
+			t.Fatalf("assembler agent name = %q, want %q", gotAgentName, "coder")
+		}
+		if gotAgentPrompt != "You are a coding assistant." {
+			t.Fatalf("assembler prompt = %q, want original agent prompt", gotAgentPrompt)
+		}
+		if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\nstartup context block" {
+			t.Fatalf("start system prompt = %q, want assembled prompt", got)
+		}
 	})
-
-	if !called {
-		t.Fatal("Create() did not invoke the configured prompt assembler")
-	}
-	if gotWorkspace != h.workspace {
-		t.Fatalf("assembler workspace = %q, want %q", gotWorkspace, h.workspace)
-	}
-	if gotAgentName != "coder" {
-		t.Fatalf("assembler agent name = %q, want %q", gotAgentName, "coder")
-	}
-	if gotAgentPrompt != "You are a coding assistant." {
-		t.Fatalf("assembler prompt = %q, want original agent prompt", gotAgentPrompt)
-	}
-	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\nmemory block" {
-		t.Fatalf("start system prompt = %q, want assembled prompt", got)
-	}
 }
 
 func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
@@ -2618,7 +2617,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 
 	var (
 		called       bool
-		gotChannel   string
 		gotType      Type
 		gotWorkspace string
 	)
@@ -2633,7 +2631,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 				prompt string,
 			) (string, error) {
 				called = true
-				gotChannel = startup.NetworkParticipation.ChannelID
 				gotType = startup.SessionType
 				gotWorkspace = startup.Workspace
 				return prompt + "\n\noverlay block", nil
@@ -2642,10 +2639,9 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+		AgentName: "coder",
+		Name:      "session",
+		Workspace: h.workspaceID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -2656,9 +2652,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 
 	if !called {
 		t.Fatal("Create() did not invoke the configured startup prompt overlay")
-	}
-	if gotChannel != "builders" {
-		t.Fatalf("startup overlay channel = %q, want %q", gotChannel, "builders")
 	}
 	if gotType != SessionTypeUser {
 		t.Fatalf("startup overlay session type = %q, want %q", gotType, SessionTypeUser)
@@ -2671,139 +2664,16 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	}
 }
 
-func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	networkSkill, err := skillbundled.LoadResource(testBundledCompozySkillName, testBundledNetworkReference)
-	if err != nil {
-		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledCompozySkillName, testBundledNetworkReference, err)
-	}
-	networkSkill = strings.TrimSpace(networkSkill)
-
-	h.manager = newManagerWithHarness(
-		t,
-		h,
-		WithPromptAssembler(
-			startupPromptAssemblerFunc(
-				func(
-					_ context.Context,
-					startup StartupPromptContext,
-					agent compozyconfig.AgentDef,
-					workspace *workspacepkg.ResolvedWorkspace,
-				) (string, error) {
-					if got, want := workspace.RootDir, h.workspace; got != want {
-						t.Fatalf("assembler workspace = %q, want %q", got, want)
-					}
-					prompt := agent.Prompt + "\n\nmemory block"
-					if startup.NetworkParticipation.Mode != participation.ModeLive {
-						return prompt, nil
-					}
-					return prompt + "\n\n" + networkSkill, nil
-				},
-			),
-		),
-	)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    "coder",
-		Name:                         "networked",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	wantPrompt := "You are a coding assistant.\n\nmemory block\n\n" + networkSkill
-	if got := h.driver.startCalls[0].SystemPrompt; got != wantPrompt {
-		t.Fatalf("start system prompt = %q, want %q", got, wantPrompt)
-	}
-	if got := strings.Count(h.driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("network skill occurrences = %d, want 1", got)
-	}
-}
-
-func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
-		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
-	}
-}
-
-func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	h.cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
-	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
-		Agents: []compozyconfig.AgentDef{
-			{
-				Name:     compozyconfig.DefaultAgentName,
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			},
-			{
-				Name:     "coder",
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			},
-		},
-	})
-	h.manager = newManagerWithHarness(t, h)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-		Type:      SessionTypeDream,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
-		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
-	}
-}
-
 func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
 	h.cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{
 			{
 				Name:     compozyconfig.DefaultAgentName,
@@ -3030,6 +2900,15 @@ func TestCancelTurn(t *testing.T) {
 			t.Fatalf("session outcome = %#v, %v", stopOutcome, err)
 		}
 		collectEvents(t, events)
+		stored := readStoredEvents(t, session)
+		if got := countEventType(stored, eventspkg.SessionTurnQuiesced); got != 1 {
+			t.Fatalf("persisted turn quiescence receipts = %d, want 1", got)
+		}
+		quiesced := storedEventByType(t, stored, eventspkg.SessionTurnQuiesced)
+		stopped := storedEventByType(t, stored, EventTypeSessionStopped)
+		if quiesced.Sequence >= stopped.Sequence {
+			t.Fatalf("quiescence sequence %d must precede session stop %d", quiesced.Sequence, stopped.Sequence)
+		}
 		h.driver.mu.Lock()
 		starts, cancels := len(h.driver.startCalls), h.driver.cancelCalls
 		h.driver.mu.Unlock()
@@ -3271,4 +3150,590 @@ func TestPromptCompletionOwnership(t *testing.T) {
 			t.Fatal("current completion did not close its channel")
 		}
 	})
+}
+
+func acceptFallbackReviewer(t *testing.T, h *harness) *Session {
+	t.Helper()
+	created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+	})
+	if err != nil {
+		t.Fatalf("CreateAccepted(reviewer) error = %v", err)
+	}
+	session, ok := h.manager.Get(created.ID)
+	if !ok {
+		t.Fatalf("Get(%q) did not find accepted session", created.ID)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+			!errors.Is(err, ErrSessionNotFound) {
+			t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+		}
+	})
+	return session
+}
+
+// Invariant: a first bind advances through the agent chain only before ACP acceptance,
+// commits one ledger event before each fallback attempt, and leaves one attributed
+// provider_failure marker per refused route (IT-003, UT-012, UT-013).
+func TestPromptBindFallbackChain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bind on the first accepting route with attributed evidence", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  missingCLIRefusal(),
+		})
+		session := acceptFallbackReviewer(t, h)
+
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "review the diff")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		if got := collectEvents(t, events); len(got) == 0 || got[len(got)-1].Type != acp.EventTypeDone {
+			t.Fatalf("Prompt() events = %#v, want a completed turn", got)
+		}
+		codexCommand := h.cfg.Providers["codex"].Command
+		if got, want := startCommands(
+			h,
+		), []string{
+			fallbackSeatZero,
+			fallbackSeatOne,
+			codexCommand,
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("start commands = %v, want %v", got, want)
+		}
+		info := session.Info()
+		if info.ACPSessionID != "acp-3" || info.Provider != "codex" {
+			t.Fatalf("binding = %q on %q, want acp-3 on codex", info.ACPSessionID, info.Provider)
+		}
+		rows := ledger.fallbackRows()
+		if len(rows) != 2 {
+			t.Fatalf("session.fallback.used rows = %d, want 2", len(rows))
+		}
+		for index, want := range []string{fallbackSeatOne, codexCommand} {
+			payload := decodeFallbackPayload(t, rows[index])
+			if payload.Phase != fallbackPhaseBind || payload.Attempt != index+1 ||
+				payload.ProviderCommandFingerprint != providerCommandFingerprint(want) {
+				t.Fatalf("row %d payload = %#v, want bind attempt %d for %q", index, payload, index+1, want)
+			}
+			if rows[index].SessionID != session.ID || rows[index].WorkspaceID != h.workspaceID {
+				t.Fatalf("row %d correlation = %#v", index, rows[index])
+			}
+		}
+		markers := transcriptMarkersOfKind(t, h.manager, session.ID, transcript.MarkerProviderFailure)
+		if len(markers) != 2 {
+			t.Fatalf("provider_failure markers = %d, want one per refused route", len(markers))
+		}
+		for index, want := range []struct {
+			command string
+			action  acp.ProviderFailureAction
+		}{
+			{fallbackSeatZero, acp.ProviderFailureActionUseFallback},
+			{fallbackSeatOne, acp.ProviderFailureActionInstallCLI},
+		} {
+			evidence := markers[index].Evidence
+			if evidence["provider_command_fingerprint"] != providerCommandFingerprint(want.command) ||
+				evidence["next_action"] != string(want.action) || evidence["attempt"] != float64(index) {
+				t.Fatalf("marker %d evidence = %#v, want %s for %q", index, evidence, want.action, want.command)
+			}
+		}
+		if strings.Contains(markers[0].Summary, "SEAT=") ||
+			!strings.HasPrefix(markers[0].Summary, "Provider refused route 1") {
+			t.Fatalf("marker summary = %q", markers[0].Summary)
+		}
+		if stored := readStoredEvents(t, session); countEventType(stored, acp.EventTypeError) != 0 ||
+			countEventType(stored, EventTypeSessionStopped) != 0 {
+			t.Fatalf("stored events carry agent error/stop events for refused routes: %#v", stored)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 2 || meta.AcceptedRoute.Provider != "codex" ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(codexCommand) ||
+			derefString(meta.ACPSessionID) != "acp-3" {
+			t.Fatalf(
+				"meta accepted route = %#v acp=%v, want codex attempt 2 with acp-3",
+				meta.AcceptedRoute,
+				meta.ACPSessionID,
+			)
+		}
+	})
+
+	t.Run("Should stop the chain when an attempt is accepted and then fails", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  acp.WrapAcceptedStart("acp-seat-one", errors.New("set_config_option failed")),
+		})
+		session := acceptFallbackReviewer(t, h)
+
+		_, err := h.manager.Prompt(testutil.Context(t), session.ID, "review the diff")
+		if err == nil || !StartAccepted(err) {
+			t.Fatalf("Prompt() error = %v, want the accepted attempt's failure", err)
+		}
+		if got := startCommands(h); len(got) != 2 {
+			t.Fatalf("start commands = %v, want the chain to stop after the accepted attempt", got)
+		}
+		if rows := ledger.fallbackRows(); len(rows) != 1 {
+			t.Fatalf("session.fallback.used rows = %d, want 1", len(rows))
+		}
+	})
+
+	t.Run("Should run one bind sequence for concurrent first prompts", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h))
+		release := make(chan struct{})
+		entered := make(chan struct{})
+		h.driver.startContextHook = func(_ context.Context, opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.Command == fallbackSeatZero {
+				return nil, rateLimitRefusal()
+			}
+			close(entered)
+			<-release
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence)), nil
+		}
+		session := acceptFallbackReviewer(t, h)
+		first := make(chan error, 1)
+		go func() {
+			events, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
+			if err == nil {
+				collectEvents(t, events)
+			}
+			first <- err
+		}()
+		select {
+		case <-entered:
+		case <-testutil.Context(t).Done():
+			t.Fatal("fallback attempt did not start")
+		}
+		secondEvents, secondErr := h.manager.Prompt(testutil.Context(t), session.ID, "second")
+		if secondErr != nil && !errors.Is(secondErr, ErrPromptInProgress) {
+			t.Fatalf("second Prompt() error = %v, want busy-input handling", secondErr)
+		}
+		if rows := ledger.fallbackRows(); len(rows) != 1 {
+			t.Fatalf("session.fallback.used rows during the sequence = %d, want 1", len(rows))
+		}
+		close(release)
+		if err := <-first; err != nil {
+			t.Fatalf("first Prompt() error = %v", err)
+		}
+		if secondErr == nil {
+			collectEvents(t, secondEvents)
+		}
+		if got := startCommands(h); len(got) != 2 {
+			t.Fatalf("start commands = %v, want exactly one bind sequence", got)
+		}
+		if rows := ledger.fallbackRows(); len(rows) != 1 {
+			t.Fatalf("session.fallback.used rows = %d, want 1", len(rows))
+		}
+	})
+
+	t.Run("Should restore the unbound binding when the prompt is canceled mid-sequence", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		entered := make(chan struct{})
+		h.driver.startContextHook = func(startCtx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if opts.Command == fallbackSeatZero {
+				return nil, rateLimitRefusal()
+			}
+			close(entered)
+			<-startCtx.Done()
+			return nil, startCtx.Err()
+		}
+		session := acceptFallbackReviewer(t, h)
+		promptResult := make(chan error, 1)
+		go func() {
+			_, err := h.manager.Prompt(testutil.Context(t), session.ID, "cancel during fallback")
+			promptResult <- err
+		}()
+		select {
+		case <-entered:
+		case <-testutil.Context(t).Done():
+			t.Fatal("fallback attempt did not start")
+		}
+		canceled, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		select {
+		case <-promptResult:
+		case <-testutil.Context(t).Done():
+			t.Fatal("canceled prompt did not return")
+		}
+		if _, err := h.manager.AwaitTurnQuiesced(testutil.Context(t), session.ID, canceled.TurnID); err != nil {
+			t.Fatalf("AwaitTurnQuiesced() error = %v", err)
+		}
+		info := session.Info()
+		if info.RuntimeStatus != RuntimeStatusUnbound || info.ACPSessionID != "" {
+			t.Fatalf("binding after cancel = %q acp=%q, want unbound", info.RuntimeStatus, info.ACPSessionID)
+		}
+		if got := startCommands(h); len(got) != 2 {
+			t.Fatalf("start commands = %v, want no attempt after cancellation", got)
+		}
+		if markers := transcriptMarkersOfKind(
+			t,
+			h.manager,
+			session.ID,
+			transcript.MarkerProviderFailure,
+		); len(
+			markers,
+		) != 1 ||
+			markers[0].Evidence["provider_command_fingerprint"] != providerCommandFingerprint(fallbackSeatZero) {
+			t.Fatalf("provider_failure markers = %#v, want the primary refusal retained", markers)
+		}
+		if stored := readStoredEvents(t, session); countEventType(stored, acp.EventTypeError) != 0 {
+			t.Fatalf("stored events carry agent errors after cancellation: %#v", stored)
+		}
+
+		h.driver.mu.Lock()
+		h.driver.startContextHook = nil
+		h.driver.mu.Unlock()
+		refuseStartCommands(h, nil)
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind normally")
+		if err != nil {
+			t.Fatalf("later Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+		if got := session.Info().ACPSessionID; got == "" {
+			t.Fatal("later prompt did not bind the runtime")
+		}
+	})
+}
+
+func TestRequestCompaction(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		commands []store.SessionAdvertisedCommand
+		want     string
+	}{
+		{name: "Should submit compact in maintenance mode", commands: []store.SessionAdvertisedCommand{{Name: "compact"}}, want: "compact"},
+		{name: "Should submit compress when compact is unavailable", commands: []store.SessionAdvertisedCommand{{Name: "compress"}}, want: "compress"},
+		{name: "Should prefer compact over compress", commands: []store.SessionAdvertisedCommand{{Name: "compress"}, {Name: "compact"}}, want: "compact"},
+		{name: "Should reject agents without compaction", commands: []store.SessionAdvertisedCommand{{Name: "review"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t, WithPromptInputAugmenter(func(context.Context, *Session, string) (string, error) {
+				return "", errors.New("maintenance must skip augmentation")
+			}))
+			session := createSession(t, h)
+			session.replaceAdvertisedCommands(tc.commands, h.manager.now())
+			result, events, err := h.manager.RequestCompaction(
+				WithCompactionRequestedBy(t.Context(), "tool"),
+				session.ID,
+			)
+			if tc.want == "" {
+				if !errors.Is(err, ErrCompactionUnsupported) {
+					t.Fatalf("error = %v", err)
+				}
+				h.driver.mu.Lock()
+				calls := len(h.driver.promptCalls)
+				h.driver.mu.Unlock()
+				if calls != 0 {
+					t.Fatalf("unsupported submitted %d prompts", calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if result.Command != tc.want || result.PromptID == "" || result.SessionID != session.ID {
+				t.Fatalf("result = %#v", result)
+			}
+			h.driver.mu.Lock()
+			request := h.driver.promptCalls[0]
+			h.driver.mu.Unlock()
+			if request.Message != "/"+tc.want || !request.Maintenance || len(request.Sections) != 0 {
+				t.Fatalf("request = %#v", request)
+			}
+			ledger, err := session.recorderHandle().
+				Query(t.Context(), store.EventQuery{Type: "session.compaction.requested"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(ledger) != 1 {
+				t.Fatalf("requested events = %d", len(ledger))
+			}
+			var payload struct {
+				Command     string `json:"command"`
+				RequestedBy string `json:"requested_by"`
+			}
+			requestedEvent, err := transcript.UnmarshalAgentEvent(ledger[0].Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(requestedEvent.Raw, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Command != tc.want || payload.RequestedBy != "tool" {
+				t.Fatalf("requested payload = %#v", payload)
+			}
+		})
+	}
+	t.Run("Should preserve the literal command against mutating input hooks", func(t *testing.T) {
+		t.Parallel()
+		dispatcher := &spyHookDispatcher{
+			dispatchInputPreSubmitFn: func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+				payload.Message = "hook instructions\n" + payload.Message
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		request := h.driver.promptCalls[0]
+		h.driver.mu.Unlock()
+		if request.Message != "/compact" || !request.Maintenance {
+			t.Fatalf("mutating hook changed maintenance=%#v", request)
+		}
+	})
+
+	t.Run("Should accept one concurrent request and reject an active turn", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		source := make(chan acp.AgentEvent, 1)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		type attempt struct {
+			events <-chan acp.AgentEvent
+			err    error
+		}
+		results := make(chan attempt, 2)
+		start := make(chan struct{})
+		var workers sync.WaitGroup
+		for range 2 {
+			workers.Go(func() {
+				<-start
+				_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+				results <- attempt{events: events, err: err}
+			})
+		}
+		close(start)
+		workers.Wait()
+		close(results)
+		accepted := 0
+		var events <-chan acp.AgentEvent
+		for result := range results {
+			if result.err == nil {
+				accepted++
+				events = result.events
+			} else if !errors.Is(result.err, ErrPromptInProgress) {
+				t.Fatalf("error=%v", result.err)
+			}
+		}
+		if accepted != 1 {
+			t.Fatalf("accepted=%d", accepted)
+		}
+		if _, _, err := h.manager.RequestCompaction(t.Context(), session.ID); !errors.Is(err, ErrPromptInProgress) {
+			t.Fatalf("active turn error=%v", err)
+		}
+		source <- acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: h.manager.now(), PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(source)
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		calls := len(h.driver.promptCalls)
+		h.driver.mu.Unlock()
+		if calls != 1 {
+			t.Fatalf("driver calls=%d", calls)
+		}
+	})
+	t.Run("Should preserve pending context until the ordinary prompt", func(t *testing.T) {
+		t.Parallel()
+		var augmented atomic.Int32
+		h := newHarness(
+			t,
+			WithPromptInputAugmenter(func(_ context.Context, _ *Session, message string) (string, error) {
+				augmented.Add(1)
+				return message, nil
+			}),
+		)
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		session.mu.Lock()
+		session.importedContext = &store.SessionImportedContext{}
+		session.mu.Unlock()
+		const replay = "pending imported and resumed context"
+		h.manager.stageResumeReplay(session.ID, replay)
+		_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		if h.manager.pendingResumeReplay(session.ID) != replay || session.importedContextSnapshot().Consumed != nil {
+			t.Fatal("maintenance consumed pending context")
+		}
+		if augmented.Load() != 0 {
+			t.Fatal("maintenance invoked augmenter")
+		}
+		events, err = h.manager.Prompt(t.Context(), session.ID, "ordinary prompt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		requests := slices.Clone(h.driver.promptCalls)
+		h.driver.mu.Unlock()
+		if requests[0].Message != "/compact" || !requests[0].Maintenance {
+			t.Fatalf("maintenance=%#v", requests[0])
+		}
+		if !strings.Contains(requests[1].Message, replay) || requests[1].Maintenance {
+			t.Fatalf("ordinary=%#v", requests[1])
+		}
+		if h.manager.pendingResumeReplay(session.ID) != "" || session.importedContextSnapshot().Consumed == nil ||
+			augmented.Load() != 1 {
+			t.Fatal("ordinary prompt did not consume pending context once")
+		}
+	})
+}
+
+// nativeOrderRecorder records the subagent transitions the prompt path drives, in order.
+type nativeOrderRecorder struct {
+	SubagentService
+	mu    sync.Mutex
+	calls []string
+}
+
+func (r *nativeOrderRecorder) record(call string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, call)
+}
+
+func (r *nativeOrderRecorder) snapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.calls...)
+}
+
+func (r *nativeOrderRecorder) OnNativeToolEvent(_ context.Context, _ string, ev NativeSubagentEvent) error {
+	r.record(fmt.Sprintf("native:%s:%s:%t", ev.ProviderToolCallID, ev.Status, ev.Background))
+	return nil
+}
+
+func (r *nativeOrderRecorder) OnNativeTurnDone(_ context.Context, _, turn string, _ time.Time) error {
+	r.record("done:" + turn)
+	return nil
+}
+
+func (r *nativeOrderRecorder) OnParentTurnSettled(_ context.Context, _, turn string) error {
+	r.record("settled:" + turn)
+	return nil
+}
+
+func (r *nativeOrderRecorder) OnChildSettled(context.Context, string) error { return nil }
+
+func (r *nativeOrderRecorder) OnParentStopped(context.Context, string) error { return nil }
+
+func (r *nativeOrderRecorder) Summaries(context.Context, []string) (map[string]store.SubagentSummary, error) {
+	return map[string]store.SubagentSummary{}, nil
+}
+
+// Invariant: native Agent/Task events and the provider's answer reach the subagent service on the
+// persistence path, in ledger order and before turn settlement, even while nobody reads the prompt
+// stream (issue #766); owner: Manager prompt persistence.
+func TestNativeSubagentPersistenceOrder(t *testing.T) {
+	t.Parallel()
+	t.Run("Should ingest a background launch and the turn's answer before settling it", func(t *testing.T) {
+		t.Parallel()
+		// A one-event prompt buffer stalls the unread delivery pump after the first event.
+		h := newHarness(t, WithPromptBufferSize(1))
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		recorder := &nativeOrderRecorder{}
+		h.manager.SetSubagentService(recorder)
+		source := make(chan acp.AgentEvent, 4)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return source, nil
+		}
+		output, err := h.manager.Prompt(t.Context(), active.ID, "background work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn := active.CurrentTurnID()
+		source <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Starting S1.", TurnID: turn}
+		source <- acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "toolu_bg", TurnID: turn}.
+			WithProviderToolMetadata("", "Agent", "pending").
+			WithTool("Agent", json.RawMessage(`{"description":"S1","run_in_background":true}`), false)
+		source <- acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "toolu_bg", TurnID: turn}.
+			WithProviderToolMetadata("", "Agent", "completed").
+			WithProviderToolAsync()
+		source <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turn, PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(source)
+		// The prompt stream stays unread until the turn has settled.
+		waitForCondition(t, "turn settled", func() bool {
+			return slices.Contains(recorder.snapshot(), "settled:"+turn)
+		})
+		want := []string{
+			"native:toolu_bg:pending:true",
+			"native:toolu_bg:completed:true",
+			"done:" + turn,
+			"settled:" + turn,
+		}
+		if got := recorder.snapshot(); !slices.Equal(got, want) {
+			t.Fatalf("calls = %q, want %q", got, want)
+		}
+		collectEvents(t, output)
+	})
+}
+
+// Invariant: only user/agent cancellation disposes delegated-turn delivery; owner: Manager cancellation (UT-061).
+func TestSubagentPromptCancel(t *testing.T) {
+	t.Parallel()
+	for _, cause := range []PromptCancelCause{PromptCancelUser, PromptCancelAgent, PromptCancelSyntheticAdmission, PromptCancelSteerFallback} {
+		t.Run("Should classify cancellation "+string(cause)+" UT-061", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			output, err := h.manager.Prompt(t.Context(), active.ID, "active parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, db, _ := newSubagentTestService(t)
+			db.rows["delegated"] = store.SessionSubagent{
+				ID:              "delegated",
+				ParentSessionID: active.ID,
+				ParentTurnID:    active.CurrentTurnID(),
+				Status:          "running",
+				Delivery:        "none",
+			}
+			h.manager.SetSubagentService(s)
+			result, err := h.manager.CancelPromptWithCause(t.Context(), active.ID, cause)
+			if err != nil || result.Outcome != PromptCancelOutcomeCanceled {
+				t.Fatal(result, err)
+			}
+			close(source)
+			collectEvents(t, output)
+			db.mu.Lock()
+			delivery := db.rows["delegated"].Delivery
+			db.mu.Unlock()
+			want := "none"
+			if cause == PromptCancelUser || cause == PromptCancelAgent {
+				want = "disposed"
+			}
+			if delivery != want {
+				t.Fatalf("delivery=%s want=%s", delivery, want)
+			}
+		})
+	}
 }

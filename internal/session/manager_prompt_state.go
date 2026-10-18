@@ -26,6 +26,7 @@ type promptTurnDispatchState struct {
 type promptRecoveryState struct {
 	executionCtx      context.Context
 	request           acp.PromptRequest
+	originalMessage   string
 	attempts          int
 	exhaustedRecorded bool
 }
@@ -53,7 +54,9 @@ func clearPromptState(session *Session, turnID string) {
 	session.currentTurnID = ""
 	session.currentTurnSource = ""
 	session.currentPromptMessage = ""
+	session.currentPromptDelivery = PromptDeliveryNormal
 	session.currentPromptMeta = acp.PromptMeta{}
+	session.currentTurnHopFloor = 0
 	session.currentSkillInvocations = nil
 	session.currentPromptCancel = nil
 	session.promptCancelRequested = false

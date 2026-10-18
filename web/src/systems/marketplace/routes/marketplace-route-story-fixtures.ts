@@ -36,50 +36,50 @@ export const defaultCatalog = [
 
 export const defaultExtensions = [
   installedExtension(herdrInstalled, {
-    contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
   }),
   installedExtension(context7Installed, {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
   }),
 ];
 
 export const installedExtensions: ExtensionEntry[] = [
   ...defaultExtensions,
   installedExtension(githubInstalled, {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
     enabled: false,
   }),
   installedExtension(repositoryInstalled, {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 1 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 1 },
   }),
 ];
 
 export const installedServerExtensions: ExtensionEntry[] = [
   installedExtension(githubInstalled, {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
     mcp_servers: [
       storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
     ],
   }),
   installedExtension(context7Installed, {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
     mcp_servers: [storyContext7Server({ runtime_name: "context7", status: "running" })],
   }),
   installedExtension(installedListing(storyCatalog.postgres), {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
     inputs: [{ active: false, id: "database_url", set: false, type: "secret" }],
     mcp_servers: [storyPostgresServer({ status: "stopped" })],
     missing_inputs: ["database_url"],
     workspace_id: "ws_story_fintech",
   }),
   installedExtension(herdrInstalled, {
-    contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
   }),
 ];
 
 export const installedAuthorizeExtensions: ExtensionEntry[] = [
   installedExtension(githubInstalled, {
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
     mcp_servers: [
       storyGithubServer({ runtime_name: "github.github", status: "needs_authorization" }),
     ],
@@ -88,14 +88,14 @@ export const installedAuthorizeExtensions: ExtensionEntry[] = [
 
 export const installedUpdateExtensions: ExtensionEntry[] = [
   installedExtension(herdrInstalled, {
-    contents: { agents: 0, bridges: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
   }),
   installedExtension(
     installedListing(storyCatalog.batuta, {
       installedVersion: "0.4.0",
       updateAvailable: true,
     }),
-    { contents: { agents: 0, bridges: 0, hooks: 0, loops: 2, mcp_servers: 0, skills: 1 } }
+    { contents: { agents: 0, hooks: 0, loops: 2, mcp_servers: 0, skills: 1 } }
   ),
   installedExtension(context7Installed),
 ];

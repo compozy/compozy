@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,7 +35,7 @@ func TestActiveSkillsForHookDeclarations(t *testing.T) {
 
 		registry := skills.NewRegistry(skills.RegistryConfig{})
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-hooks", RootDir: root},
+			ID: "ws-hooks", RootDir: root,
 			Agents: []compozyconfig.AgentDef{{
 				Name:       "broken-agent",
 				SourcePath: agentPath,
@@ -44,7 +43,7 @@ func TestActiveSkillsForHookDeclarations(t *testing.T) {
 		}
 
 		activeSkills, err := activeSkillsForHookDeclarations(
-			context.Background(),
+			t.Context(),
 			registry,
 			resolved,
 			"broken-agent",

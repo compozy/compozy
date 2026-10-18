@@ -72,22 +72,41 @@ test("registers the MSW worker, guards local APIs, and renders route-story deep 
       true
     );
 
-    const sessionCatalogStreamResponse = page.waitForResponse(response => {
-      return new URL(response.url()).pathname === "/api/sessions/catalog-stream";
-    });
     await page.goto(storyURL(storybook.baseURL, "systems-loops-routes-loopruns--run-detail"), {
       waitUntil: "domcontentloaded",
     });
-    const catalogResponse = await sessionCatalogStreamResponse;
-    expect(catalogResponse.status()).toBe(200);
-    expect(catalogResponse.headers()["content-type"]).toContain("text/event-stream");
-
     const loopsWindow = page.getByRole("region", { name: "Loops window" });
     await expect(loopsWindow).toBeVisible();
     await expect(loopsWindow).toHaveAttribute("data-stack-active", "");
+    const catalogFrame = await page.evaluate(
+      () =>
+        new Promise<string>((resolve, reject) => {
+          const url = new URL(
+            "/api/sessions/catalog-stream?all_workspaces=true&profile=default",
+            location.href
+          );
+          url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+          const socket = new WebSocket(url);
+          socket.onmessage = event => {
+            socket.close();
+            resolve(String(event.data));
+          };
+          socket.onerror = () => {
+            socket.close();
+            reject(new Error("Storybook session catalog stream failed"));
+          };
+        })
+    );
+    expect(catalogFrame).toContain("event: session_catalog_changed");
+    expect(catalogFrame).toContain("data: ");
+
     await expect(page.getByTestId("loop-run-status-pill")).toBeVisible();
     expect(browserConsole.filter(entry => entry.includes("Cannot update a component"))).toEqual([]);
   } finally {
+    await test.info().attach("browser-console", {
+      body: browserConsole.join("\n"),
+      contentType: "text/plain",
+    });
     if (storybook) await stopStorybook(storybook);
   }
 });

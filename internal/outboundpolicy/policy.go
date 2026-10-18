@@ -3,6 +3,7 @@ package outboundpolicy
 
 import (
 	"errors"
+	"maps"
 	"net"
 	"net/netip"
 	"net/url"
@@ -180,9 +181,7 @@ func (p Policy) validateAddress(address netip.Addr, explicitLoopback bool, allow
 
 func cloneOriginsWith(existing map[origin]struct{}, added origin) map[origin]struct{} {
 	cloned := make(map[origin]struct{}, len(existing)+1)
-	for configured := range existing {
-		cloned[configured] = struct{}{}
-	}
+	maps.Copy(cloned, existing)
 	cloned[added] = struct{}{}
 	return cloned
 }

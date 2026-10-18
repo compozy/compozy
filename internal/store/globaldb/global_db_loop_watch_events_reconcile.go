@@ -296,20 +296,18 @@ func (g *LoopRepo) writeWatchEventsGapEvent(
 		return fmt.Errorf("store: marshal watch-events gap event: %w", err)
 	}
 	summary := store.EventSummary{
-		ProfileID:   profileID,
-		SessionID:   watchEventsRecoverySessionID,
-		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
-		Type:        eventType,
-		AgentName:   watchEventsDaemonAgentName,
-		Outcome:     outcome,
-		EventCorrelation: store.EventCorrelation{
-			RunID:           strings.TrimSpace(run.ID),
-			SchedulerReason: watchEventsGapReason,
-			ActorKind:       string(taskpkg.ActorKindDaemon),
-			ActorID:         watchEventsRecoverySessionID,
-		},
-		Summary:   watchEventsGapSummary(eventType, subscription),
-		Timestamp: now.UTC(),
+		ProfileID:       profileID,
+		SessionID:       watchEventsRecoverySessionID,
+		WorkspaceID:     strings.TrimSpace(subscription.WorkspaceID),
+		Type:            eventType,
+		AgentName:       watchEventsDaemonAgentName,
+		Outcome:         outcome,
+		RunID:           strings.TrimSpace(run.ID),
+		SchedulerReason: watchEventsGapReason,
+		ActorKind:       string(taskpkg.ActorKindDaemon),
+		ActorID:         watchEventsRecoverySessionID,
+		Summary:         watchEventsGapSummary(eventType, subscription),
+		Timestamp:       now.UTC(),
 	}
 	summary.SetContent(content)
 	return g.observe.WriteEventSummary(ctx, summary)

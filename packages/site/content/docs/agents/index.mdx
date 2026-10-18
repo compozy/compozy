@@ -9,7 +9,7 @@ start CompozyOS resolves that definition into an ACP subprocess, injects environ
 session, and supervises it through stop.
 
 Use this section when you need to answer which agent will run, which provider command CompozyOS will
-execute, what capabilities the agent advertises to the network, or why a session did not launch the
+execute, what capabilities the agent offers for task selection, or why a session did not launch the
 way you expected. Agent docs sit between configuration and sessions: configuration explains the
 files, sessions explain live runtime state, and this section explains the handoff from definition to
 managed subprocess.
@@ -21,7 +21,7 @@ managed subprocess.
 </OperatorNote>
 
 For a new project, start with definitions, confirm the provider ID on the providers page, then check
-spawning if the process fails. Reach for capabilities when the question is what another peer can
+spawning if the process fails. Reach for capabilities when the question is what another agent can
 discover about the agent, not how the process starts.
 
 ## In this section

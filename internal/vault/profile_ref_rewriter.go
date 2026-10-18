@@ -44,7 +44,6 @@ type profileRefPrefix struct {
 var profileRefLocations = []profileRefLocation{
 	{name: "vault_secrets.ref", table: "vault_secrets", column: "ref"},
 	{name: "extension_env_bindings.secret_ref", table: "extension_env_bindings", column: "secret_ref"},
-	{name: "bridge_secret_bindings.secret_ref", table: "bridge_secret_bindings", column: "secret_ref"},
 	{name: "automation_triggers.webhook_secret_ref", table: "automation_triggers", column: "webhook_secret_ref"},
 	{name: "mcp_auth_tokens.access_token_ref", table: mcpAuthTokensTable, column: "access_token_ref"},
 	{name: "mcp_auth_tokens.refresh_token_ref", table: mcpAuthTokensTable, column: "refresh_token_ref"},

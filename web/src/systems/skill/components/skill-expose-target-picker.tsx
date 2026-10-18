@@ -106,7 +106,7 @@ export function SkillExposeTargetPicker({
             data-testid={`${TEST_ID}-trigger`}
             disabled={disabled}
             size="sm"
-            variant="outline"
+            variant="secondary"
           >
             Expose to…
           </Button>

@@ -221,10 +221,10 @@ func subLoopLocalNodeAlias(current dsl.NodeID, candidate dsl.NodeID) (string, bo
 	}
 	candidateID := string(candidate)
 	prefix := currentPrefix + subLoopNodeSeparator
-	if !strings.HasPrefix(candidateID, prefix) {
+	alias, found := strings.CutPrefix(candidateID, prefix)
+	if !found {
 		return "", false
 	}
-	alias := strings.TrimPrefix(candidateID, prefix)
 	if alias == "" || strings.Contains(alias, subLoopNodeSeparator) {
 		return "", false
 	}
@@ -233,11 +233,11 @@ func subLoopLocalNodeAlias(current dsl.NodeID, candidate dsl.NodeID) (string, bo
 
 func subLoopNodePrefix(nodeID dsl.NodeID) (string, bool) {
 	value := string(nodeID)
-	idx := strings.LastIndex(value, subLoopNodeSeparator)
-	if idx <= 0 {
+	prefix, _, found := strings.CutLast(value, subLoopNodeSeparator)
+	if !found || prefix == "" {
 		return "", false
 	}
-	return value[:idx], true
+	return prefix, true
 }
 
 func scopedNodeOutput(

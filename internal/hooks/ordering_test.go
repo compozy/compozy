@@ -154,14 +154,12 @@ func testResolvedHook(name string, source HookSource, priority int, skillSource 
 	}
 
 	return &ResolvedHook{
-		RegisteredHook: RegisteredHook{
-			Name:     name,
-			Event:    HookSessionPostCreate,
-			Source:   source,
-			Mode:     HookModeAsync,
-			Priority: int32(priority),
-			Executor: stubExecutor{kind: kind},
-		},
+		Name:     name,
+		Event:    HookSessionPostCreate,
+		Source:   source,
+		Mode:     HookModeAsync,
+		Priority: int32(priority),
+		Executor: stubExecutor{kind: kind},
 		Decl: HookDecl{
 			Name:         name,
 			Event:        HookSessionPostCreate,

@@ -1,5 +1,6 @@
 // Suite: session-hierarchy
-// Invariant: sessions nest under their loaded creation parent (orphans stay roots),
+// Invariant: sessions nest under their loaded hierarchy parent (orphans stay roots;
+// continued and forked sessions are top-level, their source is provenance only),
 // thread collection flattens descendants in list order, and collapsed-thread
 // signals surface the most urgent child state.
 // Owning layer: unit (systems/session/lib)
@@ -9,15 +10,20 @@ import { sessionRuntime } from "../../mocks/fixtures";
 import type { SessionPayload } from "../../types";
 import {
   buildSessionTree,
-  childSessionSignalTone,
+  childSessionSignalState,
   collectThreadSessions,
   filterThreadSessions,
-  visibleSessionOrder,
 } from "../session-hierarchy";
+import { subagentContextRequests, withSubagentContext } from "../session-subagent-context";
 
 function treeSession(
   id: string,
-  options: { parent?: string; badge?: string; sessionType?: SessionPayload["type"] } = {}
+  options: {
+    parent?: string;
+    kind?: NonNullable<SessionPayload["lineage"]>["kind"];
+    badge?: string;
+    sessionType?: SessionPayload["type"];
+  } = {}
 ): SessionPayload {
   return {
     supervision: null,
@@ -40,6 +46,7 @@ function treeSession(
           lineage: {
             parent_session_id: options.parent,
             root_session_id: options.parent,
+            ...(options.kind ? { kind: options.kind } : {}),
             spawn_depth: 1,
             auto_stop_on_parent: false,
             notify_creator: true,
@@ -49,8 +56,6 @@ function treeSession(
               skills: [],
               mcp_servers: [],
               workspace_paths: [],
-              network_channels: [],
-              sandbox_profiles: [],
             },
           },
         }
@@ -86,6 +91,31 @@ describe("buildSessionTree", () => {
     expect(tree.roots.map(session => session.id)).toEqual(["sess-origin"]);
     expect(tree.childrenByParent.get("sess-origin")?.map(session => session.id)).toEqual([
       "sess-goal",
+    ]);
+  });
+
+  it("Should keep continued and forked sessions top-level while spawned children nest", () => {
+    const source = treeSession("sess-source");
+    const continued = treeSession("sess-continued", { parent: "sess-source", kind: "continue" });
+    const forked = treeSession("sess-forked", { parent: "sess-source", kind: "fork" });
+    const spawned = treeSession("sess-spawned", { parent: "sess-source", kind: "spawn" });
+    const spawnedByContinued = treeSession("sess-worker", {
+      parent: "sess-continued",
+      kind: "spawn",
+    });
+
+    const tree = buildSessionTree([source, continued, forked, spawned, spawnedByContinued]);
+
+    expect(tree.roots.map(session => session.id)).toEqual([
+      "sess-source",
+      "sess-continued",
+      "sess-forked",
+    ]);
+    expect(tree.childrenByParent.get("sess-source")?.map(session => session.id)).toEqual([
+      "sess-spawned",
+    ]);
+    expect(tree.childrenByParent.get("sess-continued")?.map(session => session.id)).toEqual([
+      "sess-worker",
     ]);
   });
 
@@ -147,45 +177,8 @@ describe("collectThreadSessions", () => {
   });
 });
 
-describe("visibleSessionOrder", () => {
-  it("Should match workspace and all-workspace visible row order [UT-065]", () => {
-    const rootA = treeSession("sess-a");
-    const childA = treeSession("sess-a-child", { parent: "sess-a" });
-    const rootB = { ...treeSession("sess-b"), agent_name: "reviewer" };
-    const base = {
-      collapsedThreadIds: new Set<string>(),
-      collapsedWorkspaceIds: new Set<string>(),
-      workspaceGroups: [],
-    };
-
-    expect(
-      visibleSessionOrder([rootA, childA, rootB], { ...base, scope: "workspace" }).map(
-        session => session.id
-      )
-    ).toEqual(["sess-a", "sess-a-child", "sess-b"]);
-    expect(
-      visibleSessionOrder([rootA, childA, rootB], {
-        ...base,
-        scope: "workspace",
-        collapsedThreadIds: new Set(["sess-a"]),
-      }).map(session => session.id)
-    ).toEqual(["sess-a", "sess-b"]);
-    expect(
-      visibleSessionOrder([], {
-        ...base,
-        scope: "all-workspaces",
-        collapsedWorkspaceIds: new Set(["ws-hidden"]),
-        workspaceGroups: [
-          { workspaceId: "ws-hidden", sessions: [rootA] },
-          { workspaceId: "ws-visible", sessions: [rootB] },
-        ],
-      }).map(session => session.id)
-    ).toEqual(["sess-b"]);
-  });
-});
-
-describe("childSessionSignalTone", () => {
-  it("Should rank the needs-you class above runtime health above running", () => {
+describe("childSessionSignalState", () => {
+  it("Should rank waiting on the operator above failures above running", () => {
     const running = treeSession("sess-running", { parent: "p", badge: "running" });
     const hung = treeSession("sess-hung", { parent: "p", badge: "hung" });
     const waiting = treeSession("sess-waiting", { parent: "p", badge: "waiting-for-auth" });
@@ -194,23 +187,110 @@ describe("childSessionSignalTone", () => {
     const stopped = treeSession("sess-stopped", { parent: "p", badge: "stopped" });
     const unverified = treeSession("sess-unverified", { parent: "p", badge: "needs-attention" });
 
-    expect(childSessionSignalTone([stopped])).toBeNull();
-    expect(childSessionSignalTone([stopped, running])).toBe("accent");
-    expect(childSessionSignalTone([running, hung])).toBe("warning");
-    expect(childSessionSignalTone([running, hung, waiting])).toBe("danger");
-    expect(childSessionSignalTone([running, asking])).toBe("danger");
-    expect(childSessionSignalTone([running, failed])).toBe("danger");
-    // An unverified stop needs the operator but is inked warning: it escalates
-    // above running without reading as a failure of the operator's work.
-    expect(childSessionSignalTone([running, unverified])).toBe("warning");
-    expect(childSessionSignalTone([running, unverified, waiting])).toBe("danger");
+    expect(childSessionSignalState([stopped])).toBeNull();
+    expect(childSessionSignalState([stopped, running])).toBe("running");
+    expect(childSessionSignalState([running, hung])).toBe("failed");
+    expect(childSessionSignalState([running, failed])).toBe("failed");
+    expect(childSessionSignalState([running, hung, waiting])).toBe("attention");
+    expect(childSessionSignalState([running, asking])).toBe("attention");
+    expect(childSessionSignalState([failed, asking])).toBe("attention");
+    // An unverified stop needs the operator: it escalates like any needs-you ask.
+    expect(childSessionSignalState([running, unverified])).toBe("attention");
   });
 
   it("Should leave finished-unseen work unsignalled — done is an inbox item, not an escalation", () => {
     const done = treeSession("sess-done", { parent: "p", badge: "done" });
     const running = treeSession("sess-running", { parent: "p", badge: "running" });
 
-    expect(childSessionSignalTone([done])).toBeNull();
-    expect(childSessionSignalTone([done, running])).toBe("accent");
+    expect(childSessionSignalState([done])).toBeNull();
+    expect(childSessionSignalState([done, running])).toBe("running");
+  });
+});
+
+// S9: subagent sessions are off the page; context rules decide which ancestors to read and
+// where the rows land, so a subagent always nests and never becomes a root.
+describe("subagent context", () => {
+  const subagent = (id: string, parent: string): SessionPayload => {
+    const session = treeSession(id, { parent });
+    return { ...session, lineage: { ...session.lineage!, spawn_role: "subagent" } };
+  };
+  const ids = (sessions: readonly SessionPayload[]) => sessions.map(session => session.id);
+
+  it("Should request each missing hop and nest a depth-3 reveal under the on-page ancestor", () => {
+    const root = treeSession("root");
+    const a = subagent("a", "root");
+    const b = subagent("b", "a");
+    const viewed = subagent("viewed", "b");
+    const input = { sessions: [root], revealed: viewed, searching: false };
+
+    expect(subagentContextRequests({ ...input, loaded: new Map() })).toEqual([
+      { sessionId: "b", workspaceId: "ws-1" },
+    ]);
+    expect(subagentContextRequests({ ...input, loaded: new Map([["b", b]]) })).toEqual([
+      { sessionId: "a", workspaceId: "ws-1" },
+    ]);
+    const loaded = new Map([
+      ["a", a],
+      ["b", b],
+    ]);
+    expect(subagentContextRequests({ ...input, loaded })).toEqual([]);
+    const listed = withSubagentContext({ ...input, loaded });
+    expect(ids(listed)).toEqual(["root", "a", "b", "viewed"]);
+    expect(buildSessionTree(listed).roots.map(session => session.id)).toEqual(["root"]);
+  });
+
+  it("Should reveal nothing when the chain reaches a non-subagent ancestor off the page", () => {
+    const offPage = treeSession("off-page");
+    const viewed = subagent("viewed", "off-page");
+    const listed = withSubagentContext({
+      sessions: [treeSession("other")],
+      loaded: new Map([["off-page", offPage]]),
+      revealed: viewed,
+      searching: false,
+    });
+
+    expect(ids(listed)).toEqual(["other"]);
+  });
+
+  it("Should lead a search match's thread with its non-matching ancestor and hold it while loading", () => {
+    const parent = treeSession("parent");
+    const middle = subagent("middle", "parent");
+    const match = subagent("match", "middle");
+    const page = [treeSession("other"), match];
+
+    expect(
+      ids(withSubagentContext({ sessions: page, loaded: new Map(), searching: true }))
+    ).toEqual(["other"]);
+    const listed = withSubagentContext({
+      sessions: page,
+      loaded: new Map([
+        ["middle", middle],
+        ["parent", parent],
+      ]),
+      searching: true,
+    });
+    expect(ids(listed)).toEqual(["other", "parent", "middle", "match"]);
+    expect(buildSessionTree(listed).roots.map(session => session.id)).toEqual(["other", "parent"]);
+  });
+
+  it("Should keep rows below a deleted ancestor, led by the outermost surviving row", () => {
+    const middle = subagent("middle", "gone");
+    const viewed = subagent("viewed", "middle");
+    const match = subagent("match", "gone");
+    const input = {
+      sessions: [treeSession("other"), match],
+      loaded: new Map([["middle", middle]]),
+      deleted: new Set(["gone"]),
+      searching: true,
+    };
+
+    expect(subagentContextRequests({ ...input, revealed: viewed })).toEqual([]);
+    const listed = withSubagentContext({ ...input, revealed: viewed });
+    expect(ids(listed)).toEqual(["middle", "viewed", "other", "match"]);
+    expect(buildSessionTree(listed).roots.map(session => session.id)).toEqual([
+      "middle",
+      "other",
+      "match",
+    ]);
   });
 });

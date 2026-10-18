@@ -40,70 +40,73 @@ export function formatWallClock(seconds: number): string {
   return `${seconds}s`;
 }
 
+/**
+ * Plain labels for the per-loop limits, shared by the detail rail, the configure
+ * dialog, and the run-form overrides so every surface names a limit the same way.
+ * The config keys stay canonical in payloads.
+ */
+export const LOOP_LIMIT_LABELS = {
+  iteration_cap: "Max rounds",
+  budget_tokens: "Token budget",
+  budget_wall_sec: "Time limit",
+  budget_on_exceeded: "When a budget runs out",
+  no_progress_window: "Rounds without progress",
+  fan_out_width: "Parallel workers",
+  gate_max_revisions: "Max revision requests",
+} as const;
+
+/** Display-only labels for `budget_on_exceeded`; the submitted value stays the enum. */
+export const LOOP_BUDGET_POLICY_LABELS = {
+  halt: "Stop the run",
+  escalate: "Pause and ask me",
+} as const satisfies Record<LoopRunRecord["budget_on_exceeded"], string>;
+
 export interface LoopLimitRow {
   label: string;
-  /** Per-loop default (left). */
+  /** Per-loop default. */
   value: string;
-  /** Daemon ceiling or qualifier (right); prefixed `/` renders as `/ ceiling`. */
+  /** Hard ceiling or qualifier, read on demand (tooltip), never a column. */
   ceiling: string;
 }
 
-/**
- * Limit rows on the Loop-detail right rail, pairing each per-loop default with
- * its daemon ceiling or runtime qualifier.
- */
-/**
- * The single policy→outcome vocabulary for `budget_on_exceeded`, shared by the
- * limits rail (split value/ceiling) and the inspect "On limit" tile (one line).
- * The param is the closed daemon union (`"halt" | "escalate"`), so an unmapped
- * policy fails at compile time rather than silently folding to `halt`.
- */
-export function onExceededPolicy(policy: LoopRunRecord["budget_on_exceeded"]): {
-  policy: "escalate" | "halt";
-  target: string;
-} {
-  return {
-    policy,
-    target: policy === "escalate" ? "→ needs-approval" : "→ exhausted",
-  };
-}
-
+/** Limit rows on the Loop-detail right rail, each with its ceiling for the on-demand hint. */
 export function buildLoopLimits(effectiveConfig: LoopEffectiveConfig): LoopLimitRow[] {
   const effective = resolveLoopEffectiveConfig(effectiveConfig);
-  const { policy: onExceeded, target: onExceededTarget } = onExceededPolicy(
-    effective.budget_on_exceeded
-  );
   return [
     {
-      label: "Iteration cap",
+      label: LOOP_LIMIT_LABELS.iteration_cap,
       value: effective.iteration_cap === 0 ? UNBOUNDED_CAP : String(effective.iteration_cap),
-      ceiling: `/ ${LOOP_CEILINGS.iterationCap}`,
+      ceiling: `Up to ${LOOP_CEILINGS.iterationCap}`,
     },
     {
-      label: "Token budget",
+      label: LOOP_LIMIT_LABELS.budget_tokens,
       value: formatTokenBudget(effective.budget_tokens),
-      ceiling: `/ ${LOOP_CEILINGS.tokens}`,
+      ceiling: `Up to ${LOOP_CEILINGS.tokens}`,
     },
     {
-      label: "Wall clock",
+      label: LOOP_LIMIT_LABELS.budget_wall_sec,
       value: formatWallClock(effective.budget_wall_sec),
-      ceiling: `/ ${LOOP_CEILINGS.wallClock}`,
+      ceiling: `Up to ${LOOP_CEILINGS.wallClock}`,
     },
-    { label: "On exceeded", value: onExceeded, ceiling: onExceededTarget },
     {
-      label: "No-progress window",
+      label: LOOP_LIMIT_LABELS.budget_on_exceeded,
+      value: LOOP_BUDGET_POLICY_LABELS[effective.budget_on_exceeded],
+      ceiling: "",
+    },
+    {
+      label: LOOP_LIMIT_LABELS.no_progress_window,
       value: String(effective.no_progress_window),
-      ceiling: `/ ${LOOP_CEILINGS.noProgressWindow}`,
+      ceiling: `Up to ${LOOP_CEILINGS.noProgressWindow}`,
     },
     {
-      label: "Fan-out window",
-      value: effective.fan_out_width > 0 ? String(effective.fan_out_width) : "≤ tasks",
-      ceiling: "no fixed cap",
+      label: LOOP_LIMIT_LABELS.fan_out_width,
+      value: effective.fan_out_width > 0 ? String(effective.fan_out_width) : "Auto",
+      ceiling: "No fixed limit",
     },
     {
-      label: "Gate max revisions",
+      label: LOOP_LIMIT_LABELS.gate_max_revisions,
       value: String(effective.gate_max_revisions),
-      ceiling: `/ ${LOOP_CEILINGS.gateMaxRevisions}`,
+      ceiling: `Up to ${LOOP_CEILINGS.gateMaxRevisions}`,
     },
   ];
 }

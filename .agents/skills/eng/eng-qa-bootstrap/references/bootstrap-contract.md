@@ -63,8 +63,8 @@ The bootstrap helper writes two canonical artifacts under:
 ## QA evidence contract files
 
 - `scenario-contract.json` defines the release-grade minimums that downstream QA must satisfy before a `PASS` claim.
-- An explicit `targeted` profile requires only its declared `--required-surface` values; it does not invent agent, channel, Task, artifact-reuse, disruption, or provider minimums for a bounded non-agent journey.
-- `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, channels, task tree, provider plan, cross-surface targets, disruption probes, and artifacts. When `--playbook` was passed, the charter is materialized from the playbook spec and includes `playbook_ref`, `required_deliverables`, and `required_collaboration`.
+- An explicit `targeted` profile requires only its declared `--required-surface` values; it does not invent agent, Task, artifact-reuse, disruption, or provider minimums for a bounded non-agent journey.
+- `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, task tree, provider plan, cross-surface targets, disruption probes, and artifacts. When `--playbook` was passed, the charter is materialized from the playbook spec and includes `playbook_ref`, `required_deliverables`, and `required_collaboration`.
 - `journey-log.jsonl` is append-only structured evidence. Each meaningful CLI/API/Web/runtime/provider action must add one row.
 - `provider-attempt.json` records live provider-backed proof or the exact blocked boundary. A blocked provider boundary supports a `BLOCKED` result, not a live-provider `PASS`.
 - The auditor writes `qa-audit-report.json` and `qa-audit-report.md`; exit code `2` is a blocking QA failure.
@@ -75,13 +75,10 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 
 - `.compozy/playbook.json` — the resolved playbook spec (the canonical structured JSON parsed from `references/playbooks/<ref>.md`).
 - `.compozy/agents/<agent-id>.json` — one file per agent declared by the playbook (id, role, persona, system_prompt, workspace_id, workspace_path, skills, playbook_ref).
-- `.compozy/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
+- `.compozy/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, playbook_ref.
 - `.compozy/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
 - `project/` — the only root registered with Compozy for agents under test; it excludes `qa-artifacts/`, manifests, audit contracts, and provider evidence.
 - `project/workspaces/<workspace-name>/README.md` — per-workspace stub README.
-- `knowledge/<...>` — canonical copy of every knowledge file declared by the playbook.
-- `project/workspaces/<workspace-name>/knowledge/global/<...>` — every global knowledge file projected into each readable agent workspace.
-- `project/workspaces/<workspace-name>/knowledge/<...>` — only the scoped knowledge files declared by that workspace.
 
 `PLAYBOOK_REF` and `KICKOFF_POSTED=false` are written to the manifest env. `eng-real-scenario-qa` Step 4 flips `KICKOFF_POSTED=true` and sets `KICKOFF_TIMESTAMP` after posting the single in-persona kickoff.
 
@@ -115,6 +112,7 @@ Use `make qa-reap` only for intentional machine-wide stale-lab recovery, not nor
 - It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps a `teardown` block into the manifest. `"clean": true` in that block is the required completion evidence.
 - Exception: a lab may stay alive ONLY while the same active session/loop continues using it (reuse policy above). A continuation that ends without reusing the lab inherits the teardown obligation.
 - Exit code `1` (survivors remain) is a blocking failure: diagnose the survivors, do not ignore them.
+- Classify survivors from the final process-liveness check after escalation. An earlier signal permission error remains blocking only while that PID is still alive; a terminated PID must never appear in both `killed` and `survivors`.
 
 ## Machine-readable continuation block
 

@@ -19,7 +19,7 @@ charter:
       - "Set and replace a child Goal with an explicit provider/model/reasoning/speed runtime, then read status and clear it through every structured surface."
       - "Use the caller session as the target, an authorized descendant as the target, and an unrelated same-workspace session as a negative control."
       - "Compare HTTP, UDS, CLI JSON/JSONL, and compozy__goal_control outcome, reason_code, snapshot, and content type."
-      - "Confirm failed binding evidence remains queryable and origin/network provenance does not change when the worker runtime changes."
+      - "Confirm failed binding evidence remains queryable and origin provenance does not change when the worker runtime changes."
     must_avoid:
       - "Using slash-command prompt text to impersonate another agent session or reading SQLite directly."
     evidence_expectations:

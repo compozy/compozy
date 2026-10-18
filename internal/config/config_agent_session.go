@@ -44,8 +44,9 @@ type SessionConfig struct {
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
-	Compaction  SessionCompactionConfig  `toml:"compaction"`
+	Messaging   SessionMessagingConfig   `toml:"messaging"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
+	Derive      SessionDeriveConfig      `toml:"derive"`
 }
 
 // SessionStopConfig bounds the cooperative phase before process termination.
@@ -68,8 +69,11 @@ type SessionAttachmentsRetentionConfig struct {
 	MaxAge   time.Duration `toml:"max_age"`
 }
 
-// SessionLimitsConfig defines runtime limits applied to every session.
+// SessionLimitsConfig holds the released session.limits keys.
 type SessionLimitsConfig struct {
+	// Timeout is deprecated and enforced by no session; it stays readable and
+	// writable until its removal in v0.5.0. Idle sessions use
+	// SessionSupervisionConfig.IdleReleaseAfter.
 	Timeout time.Duration `toml:"timeout,omitempty"`
 }
 
@@ -81,7 +85,10 @@ type SessionSupervisionConfig struct {
 	PromptDeadline            time.Duration `toml:"prompt_deadline,omitempty"`
 	QuietAfter                time.Duration `toml:"quiet_after"`
 	StopGrace                 time.Duration `toml:"stop_grace"`
-	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
+	// IdleReleaseAfter releases the agent process of a session that has no turn in
+	// flight and no work for this long; the next prompt rebinds it. Zero disables.
+	IdleReleaseAfter   time.Duration `toml:"idle_release_after"`
+	TimeoutCancelGrace time.Duration `toml:"timeout_cancel_grace,omitempty"`
 }
 
 // SessionBusyInputConfig controls operator input submitted while a turn is active.
@@ -89,14 +96,6 @@ type SessionBusyInputConfig struct {
 	DefaultMode  string `toml:"default_mode,omitempty"`
 	QueueCap     int    `toml:"queue_cap,omitempty"`
 	MaxTextBytes int    `toml:"max_text_bytes,omitempty"`
-}
-
-// SessionCompactionConfig controls pressure-triggered persisted-context compaction.
-type SessionCompactionConfig struct {
-	Enabled            bool          `toml:"enabled"`
-	PressureThreshold  float64       `toml:"pressure_threshold"`
-	MaxAttemptsPerTurn int           `toml:"max_attempts_per_turn"`
-	FailureCooldown    time.Duration `toml:"failure_cooldown"`
 }
 
 const (
@@ -108,6 +107,20 @@ const (
 
 // PermissionMode is the static permission policy applied by the daemon.
 type PermissionMode string
+
+// Rank orders valid modes from least to most permissive; invalid modes rank below all valid modes.
+func (m PermissionMode) Rank() int {
+	switch m {
+	case PermissionModeDenyAll:
+		return 0
+	case PermissionModeApproveReads:
+		return 1
+	case PermissionModeApproveAll:
+		return 2
+	default:
+		return -1
+	}
+}
 
 const (
 	// DefaultAgentName is the bootstrap agent name used across the system.
@@ -121,7 +134,18 @@ const (
 
 // PermissionsConfig defines the global default permission policy.
 type PermissionsConfig struct {
-	Mode PermissionMode `toml:"mode"`
+	Mode               PermissionMode `toml:"mode"`
+	ProviderFullAccess bool           `toml:"provider_full_access,omitempty"`
+}
+
+// IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
+func IsUnrestrictedACPMode(mode string) bool {
+	switch mode {
+	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", "auto":
+		return true
+	default:
+		return false
+	}
 }
 
 // ObservabilityConfig controls global event retention settings.
@@ -131,4 +155,11 @@ type ObservabilityConfig struct {
 	MaxGlobalBytes    int64                         `toml:"max_global_bytes"`
 	AgentProbeTimeout time.Duration                 `toml:"agent_probe_timeout"`
 	Transcripts       ObservabilityTranscriptConfig `toml:"transcripts"`
+}
+
+// ObservabilityTranscriptConfig configures transcript capture and retention.
+type ObservabilityTranscriptConfig struct {
+	Enabled            bool  `toml:"enabled"`
+	SegmentBytes       int   `toml:"segment_bytes"`
+	MaxBytesPerSession int64 `toml:"max_bytes_per_session"`
 }

@@ -2,16 +2,13 @@ package extensionpkg
 
 import (
 	"context"
-
-	"fmt"
+	"maps"
 
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -125,14 +122,12 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 	m.mu.RLock()
 	byName := make(map[string]*ExtensionInfo, len(m.extensions)+len(m.devExtensions))
 	for name, ext := range m.extensions {
-		snapshot := cloneExtensionInfo(&ext.info)
-		byName[name] = &snapshot
+		byName[name] = new(cloneExtensionInfo(&ext.info))
 	}
 	if workspaceID != "" {
 		for key, ext := range m.devExtensions {
 			if key.WorkspaceID == workspaceID {
-				snapshot := ext.info
-				byName[key.Name] = &snapshot
+				byName[key.Name] = new(ext.info)
 			}
 		}
 	}
@@ -212,56 +207,6 @@ func (m *Manager) Statuses() []ExtensionStatus {
 	return statuses
 }
 
-// BridgeTargetSnapshots calls the negotiated bridge target snapshot service on
-// the named bridge-capable extension runtime.
-func (m *Manager) BridgeTargetSnapshots(
-	ctx context.Context,
-	extensionName string,
-	req bridgepkg.BridgeTargetSnapshotRequest,
-) ([]bridgepkg.BridgeTargetSnapshot, error) {
-	if err := req.Validate(); err != nil {
-		return nil, err
-	}
-	process, name, err := m.extensionServiceProcess(
-		ctx,
-		extensionName,
-		extensionprotocol.ExtensionServiceMethodBridgeTargets,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var response bridgepkg.BridgeTargetSnapshotResponse
-	if err := process.Call(
-		ctx,
-		string(extensionprotocol.ExtensionServiceMethodBridgeTargets),
-		req,
-		&response,
-	); err != nil {
-		return nil, fmt.Errorf("extension: list bridge target snapshots via %q: %w", name, err)
-	}
-	for index, target := range response.Targets {
-		if err := target.Validate(); err != nil {
-			return nil, fmt.Errorf("extension: bridge target snapshot %d from %q: %w", index, name, err)
-		}
-	}
-	return cloneBridgeTargetSnapshots(response.Targets), nil
-}
-
-func cloneBridgeTargetSnapshots(values []bridgepkg.BridgeTargetSnapshot) []bridgepkg.BridgeTargetSnapshot {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]bridgepkg.BridgeTargetSnapshot, len(values))
-	for index, value := range values {
-		cloned[index] = value
-		if len(value.Capabilities) > 0 {
-			cloned[index].Capabilities = append([]string(nil), value.Capabilities...)
-		}
-	}
-	return cloned
-}
-
 // AgentDefinitions returns the currently registered extension agent definitions.
 func (m *Manager) AgentDefinitions() []compozyconfig.AgentDef {
 	if m == nil {
@@ -272,11 +217,7 @@ func (m *Manager) AgentDefinitions() []compozyconfig.AgentDef {
 	defer m.mu.RUnlock()
 
 	var agents []compozyconfig.AgentDef
-	names := make([]string, 0, len(m.extensions))
-	for name := range m.extensions {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(m.extensions))
 	for _, name := range names {
 		ext := m.extensions[name]
 		if !ext.registered {

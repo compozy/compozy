@@ -65,6 +65,18 @@ func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService,
 			}
 			return generation.ProjectionGeneration(ctx, scope)
 		},
+		ProjectionEpoch: func() uint64 {
+			if state == nil {
+				return 0
+			}
+			return state.toolProjectionEpoch.Current()
+		},
+		ProjectionChanges: func() <-chan struct{} {
+			if state == nil {
+				return nil
+			}
+			return state.toolProjectionEpoch.Changes()
+		},
 	})
 }
 

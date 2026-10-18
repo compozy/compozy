@@ -92,11 +92,12 @@ func (m *Manager) mergePersistedSessionInfos(
 			}
 			continue
 		}
-		info := m.sessionInfoFromMeta(ctx, meta)
-		if activeInfo := activeByID[id]; activeInfo != nil {
-			info = activeInfo
-		} else if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
-			return nil, nil, err
+		info := activeByID[id]
+		if info == nil {
+			info = m.sessionInfoFromMeta(ctx, &meta)
+			if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
+				return nil, nil, err
+			}
 		}
 		infos = append(infos, info)
 		seen[id] = struct{}{}
@@ -125,11 +126,11 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 		return nil, err
 	}
 	if !m.isPending(target) {
-		if err := requirePersistedProvider(meta); err != nil {
+		if err := requirePersistedProvider(&meta); err != nil {
 			return nil, err
 		}
 	}
-	info := m.sessionInfoFromMeta(ctx, meta)
+	info := m.sessionInfoFromMeta(ctx, &meta)
 	if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
 		return nil, err
 	}

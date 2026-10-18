@@ -53,101 +53,13 @@ type DaemonClient interface {
 	ListProviders(ctx context.Context) (contract.ProviderListResponse, error)
 	ProbeProviderAuth(ctx context.Context, providerID string) (contract.ProviderAuthProbeResponse, error)
 	ProviderModelClient
-	NetworkCoordinationClient
 	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
 	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
 	DeleteVaultSecret(ctx context.Context, ref string) error
-	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
-	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
-	NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error)
-	CreateNetworkChannel(
-		ctx context.Context,
-		workspaceRef string,
-		request CreateNetworkChannelRequest,
-	) (NetworkChannelDetailRecord, error)
-	UpdateNetworkChannel(
-		ctx context.Context,
-		workspaceRef string,
-		channel string,
-		request UpdateNetworkChannelRequest,
-	) (NetworkChannelDetailRecord, error)
-	ListNetworkSubscriptions(
-		ctx context.Context,
-		query NetworkSubscriptionsQuery,
-	) ([]NetworkSubscriptionRecord, error)
-	SetNetworkSubscription(
-		ctx context.Context,
-		workspaceRef string,
-		channel string,
-		request NetworkSubscriptionRequest,
-	) (NetworkSubscriptionRecord, error)
-	DeleteNetworkSubscription(
-		ctx context.Context,
-		workspaceRef string,
-		channel string,
-		sessionID string,
-		threadID string,
-	) error
-	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) (contract.NetworkThreadsResponse, error)
-	NetworkThread(
-		ctx context.Context,
-		workspaceRef string,
-		channel string,
-		threadID string,
-	) (NetworkThreadRecord, error)
-	NetworkThreadMessages(
-		ctx context.Context,
-		query NetworkConversationMessagesQuery,
-	) (contract.NetworkThreadMessagesResponse, error)
-	NetworkDirects(ctx context.Context, query NetworkDirectsQuery) (contract.NetworkDirectRoomsResponse, error)
-	NetworkDirectResolve(
-		ctx context.Context,
-		workspaceRef string,
-		channel string,
-		request NetworkDirectResolveRequest,
-	) (NetworkDirectRoomRecord, error)
-	NetworkDirect(
-		ctx context.Context,
-		workspaceRef string,
-		channel string,
-		directID string,
-	) (NetworkDirectRoomRecord, error)
-	NetworkDirectMessages(
-		ctx context.Context,
-		query NetworkConversationMessagesQuery,
-	) (contract.NetworkDirectRoomMessagesResponse, error)
-	NetworkWork(ctx context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error)
-	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
-	NetworkInbox(ctx context.Context, workspaceRef string, sessionID string) ([]NetworkEnvelopeRecord, error)
-	PromoteNetworkThreadTask(
-		ctx context.Context,
-		workspaceRef string,
-		channel string,
-		threadID string,
-		request PromoteNetworkThreadTaskRequest,
-	) (PromoteNetworkThreadTaskRecord, error)
 	extensionClientAPI
 	MarketplaceClient
 	MCPSettingsClient
-	bridgeClientAPI
-	ListNotificationPresets(ctx context.Context, query NotificationPresetQuery) (NotificationPresetListRecord, error)
-	GetNotificationPreset(ctx context.Context, name string) (NotificationPresetRecord, error)
-	CreateNotificationPreset(
-		ctx context.Context,
-		request CreateNotificationPresetRequest,
-	) (NotificationPresetRecord, error)
-	UpdateNotificationPreset(
-		ctx context.Context,
-		name string,
-		request UpdateNotificationPresetRequest,
-	) (NotificationPresetRecord, error)
-	SetNotificationPresetEnablement(
-		ctx context.Context,
-		name string,
-		request contract.SetNotificationPresetEnablementRequest,
-	) (contract.NotificationPresetEnablementPayload, error)
-	DeleteNotificationPreset(ctx context.Context, name string) error
 	sessionClientAPI
 	CreateWorkspace(ctx context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error)
 	ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error)
@@ -232,54 +144,6 @@ type DaemonClient interface {
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
 	ListLogs(ctx context.Context, query LogsListQuery) ([]LogEventRecord, error)
 	StreamLogs(ctx context.Context, query LogsListQuery, lastEventID string, handler SSEHandler) error
-	MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error)
-	MemoryHistory(ctx context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
-	ListMemory(ctx context.Context, query MemoryListQuery) (MemoryListRecord, error)
-	ShowMemory(ctx context.Context, filename string, query MemorySelectorQuery) (MemoryEntryRecord, error)
-	CreateMemory(ctx context.Context, request MemoryCreateRequest) (MemoryMutationRecord, error)
-	EditMemory(ctx context.Context, filename string, request MemoryEditRequest) (MemoryMutationRecord, error)
-	DeleteMemory(ctx context.Context, filename string, query MemorySelectorQuery) (MemoryDeleteRecord, error)
-	SearchMemory(ctx context.Context, request MemorySearchRequest) (MemorySearchRecord, error)
-	ReindexMemory(ctx context.Context, request MemoryReindexRequest) (MemoryReindexRecord, error)
-	PromoteMemory(ctx context.Context, request MemoryPromoteRequest) (MemoryPromoteRecord, error)
-	ResetMemory(ctx context.Context, request MemoryResetRequest) (MemoryResetRecord, error)
-	ReloadMemory(ctx context.Context, request MemorySelectorQuery) (MemoryReloadRecord, error)
-	MemoryScopeShow(ctx context.Context, query MemorySelectorQuery) (MemoryScopeShowRecord, error)
-	ListMemoryDecisions(ctx context.Context, query MemoryDecisionListQuery) (MemoryDecisionListRecord, error)
-	GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error)
-	RevertMemoryDecision(
-		ctx context.Context,
-		id string,
-		request MemoryDecisionRevertRequest,
-	) (MemoryDecisionRevertRecord, error)
-	GetMemoryRecallTrace(ctx context.Context, sessionID string, turnSeq int64) (MemoryRecallTraceRecord, error)
-	ListMemoryDreams(ctx context.Context) (MemoryDreamListRecord, error)
-	GetMemoryDream(ctx context.Context, id string) (MemoryDreamRecord, error)
-	TriggerMemoryDream(ctx context.Context, request MemoryDreamTriggerRequest) (MemoryDreamTriggerRecord, error)
-	RetryMemoryDream(ctx context.Context, id string, request MemoryDreamRetryRequest) (MemoryDreamRetryRecord, error)
-	GetMemoryDreamStatus(ctx context.Context) (MemoryDreamListRecord, error)
-	ListMemoryDailyLogs(ctx context.Context, query MemorySelectorQuery) (MemoryDailyLogListRecord, error)
-	GetMemoryExtractorStatus(ctx context.Context, sessionID string) (MemoryExtractorStatusRecord, error)
-	ListMemoryExtractorFailures(ctx context.Context) (MemoryExtractorFailuresRecord, error)
-	RetryMemoryExtractor(ctx context.Context, request MemoryExtractorRetryRequest) (MemoryExtractorRetryRecord, error)
-	DrainMemoryExtractor(ctx context.Context) (MemoryExtractorDrainRecord, error)
-	ListMemoryProviders(ctx context.Context) (MemoryProviderListRecord, error)
-	GetMemoryProvider(ctx context.Context, name string) (MemoryProviderRecord, error)
-	SelectMemoryProvider(
-		ctx context.Context,
-		request MemoryProviderSelectRequest,
-	) (MemoryProviderLifecycleRecord, error)
-	EnableMemoryProvider(
-		ctx context.Context,
-		name string,
-		request MemoryProviderLifecycleRequest,
-	) (MemoryProviderLifecycleRecord, error)
-	DisableMemoryProvider(
-		ctx context.Context,
-		name string,
-		request MemoryProviderLifecycleRequest,
-	) (MemoryProviderLifecycleRecord, error)
-	CreateMemoryAdhocNote(ctx context.Context, request MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
 	automationClientAPI
 	ListTasks(ctx context.Context, query TaskListQuery) (TaskListRecord, error)
 	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)
@@ -327,22 +191,6 @@ type DaemonClient interface {
 		request *TaskWorktreePolicyRequest,
 	) (TaskExecutionProfileRecord, error)
 	DeleteTaskExecutionProfile(ctx context.Context, id string) error
-	CreateTaskBridgeNotificationSubscription(
-		ctx context.Context,
-		taskID string,
-		request *TaskBridgeNotificationSubscriptionRequest,
-	) (TaskBridgeNotificationSubscriptionRecord, error)
-	ListTaskBridgeNotificationSubscriptions(
-		ctx context.Context,
-		taskID string,
-		query TaskBridgeNotificationSubscriptionQuery,
-	) ([]TaskBridgeNotificationSubscriptionRecord, error)
-	GetTaskBridgeNotificationSubscription(
-		ctx context.Context,
-		taskID string,
-		subscriptionID string,
-	) (TaskBridgeNotificationSubscriptionRecord, error)
-	DeleteTaskBridgeNotificationSubscription(ctx context.Context, taskID string, subscriptionID string) error
 	RequestTaskRunReview(
 		ctx context.Context,
 		runID string,
@@ -410,24 +258,6 @@ type DaemonClient interface {
 		request AgentSpawnRequest,
 		credentials agentidentity.Credentials,
 	) (AgentSpawnRecord, error)
-	AgentChannels(ctx context.Context, credentials agentidentity.Credentials) ([]AgentChannelRecord, error)
-	AgentChannelRecv(
-		ctx context.Context,
-		channel string,
-		query AgentChannelRecvQuery,
-		credentials agentidentity.Credentials,
-	) ([]AgentChannelMessageRecord, error)
-	AgentChannelSend(
-		ctx context.Context,
-		channel string,
-		request AgentChannelSendRequest,
-		credentials agentidentity.Credentials,
-	) (AgentChannelMessageRecord, error)
-	AgentChannelReply(
-		ctx context.Context,
-		request AgentChannelReplyRequest,
-		credentials agentidentity.Credentials,
-	) (AgentChannelMessageRecord, error)
 	AgentTaskClaimNext(
 		ctx context.Context,
 		request AgentTaskClaimNextRequest,

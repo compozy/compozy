@@ -33,7 +33,8 @@ type AgentDef struct {
 	CategoryPath          []string             `json:"category_path,omitempty"    yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
 	MCPServers            []MCPServer          `json:"mcp_servers,omitempty"      yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
 	Hooks                 []hookspkg.HookDecl  `json:"hooks,omitempty"            yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
-	Capabilities          *CapabilityCatalog   `json:"capabilities,omitempty"     yaml:"-"                          toml:"-"`
+	FallbackChain         []RoleFallback       `json:"fallback_chain,omitempty"   yaml:"fallback_chain,omitempty"   toml:"fallback_chain,omitempty"`
+	Capabilities          *CapabilityCatalog   `json:"capabilities,omitzero"      yaml:"-"                          toml:"-"`
 	Prompt                string               `json:"prompt,omitempty"           yaml:"-"`
 	SourcePath            string               `json:"-"                          yaml:"-"                          toml:"-"`
 	SourceLayer           string               `json:"-"                          yaml:"-"                          toml:"-"`
@@ -62,6 +63,7 @@ type parsedAgentDef struct {
 	CategoryPath    []string                `yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
 	MCPServers      []MCPServer             `yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
 	Hooks           []parsedHookDeclaration `yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
+	FallbackChain   []RoleFallback          `yaml:"fallback_chain,omitempty"   toml:"fallback_chain,omitempty"`
 }
 
 // WorkspaceDiscoverySource identifies where a discovery root came from.
@@ -311,6 +313,7 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		Skills:          normalizeAgentSkillsConfig(parsed.Skills),
 		CategoryPath:    normalizeAgentCategoryPath(parsed.CategoryPath),
 		MCPServers:      cloneMCPServers(parsed.MCPServers),
+		FallbackChain:   normalizeRoleFallbacks(parsed.FallbackChain),
 		Prompt:          strings.TrimSpace(body),
 	}
 	agent.SetSpeed(parsed.Speed)
@@ -414,6 +417,10 @@ func wrapFrontmatterError(err error) error {
 func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
 	if hasEmbeddedTabFrontmatterKey(data) {
 		return ErrInvalidAgentFrontmatterKey
+	}
+	data, err := ignoreRetiredAgentHookMatchers(data)
+	if err != nil {
+		return err
 	}
 
 	yamlErr := yaml.UnmarshalWithOptions(data, parsed, yaml.Strict())

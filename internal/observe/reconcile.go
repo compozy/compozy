@@ -1,12 +1,13 @@
 package observe
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
@@ -40,7 +41,7 @@ func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error)
 		return store.ReconcileResult{}, fmt.Errorf("observe: reconcile sessions: %w", err)
 	}
 	result.Indexed = append(result.Indexed, creationIndexed...)
-	sort.Strings(result.Indexed)
+	slices.Sort(result.Indexed)
 
 	return result, nil
 }
@@ -106,8 +107,8 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]recoveredSession,
 		}
 	}
 
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].ID < sessions[j].ID
+	slices.SortFunc(sessions, func(a, b recoveredSession) int {
+		return cmp.Compare(a.ID, b.ID)
 	})
 
 	return sessions, nil
@@ -130,6 +131,10 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 	}
 
 	sessionID := strings.TrimSpace(meta.ID)
+	if reason := session.RecoveryMetadataSkipReason(&meta); reason != "" {
+		o.warnSkippedSessionRecovery(&meta, reason)
+		return recoveredSession{}, false
+	}
 	if strings.TrimSpace(meta.Provider) == "" {
 		o.logger.Warn(
 			"observe: skipping invalid session metadata",
@@ -139,7 +144,7 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 		)
 		return recoveredSession{}, false
 	}
-	ownerAuthoritative, err := o.verifyRecoveredSessionOwner(ctx, entryName, meta)
+	ownerAuthoritative, err := o.verifyRecoveredSessionOwner(ctx, entryName, &meta)
 	if err != nil {
 		o.logger.Warn(
 			"observe: skipping session with unverified durable owner",
@@ -149,8 +154,32 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 		)
 		return recoveredSession{}, false
 	}
-	normalized := o.normalizeRecoveredMeta(metaPath, meta, ownerAuthoritative)
+	normalized := o.normalizeRecoveredMeta(metaPath, &meta, ownerAuthoritative)
 	return recoveredSessionFromMeta(&normalized), true
+}
+
+func (o *Observer) warnSkippedSessionRecovery(meta *store.SessionMeta, reason string) {
+	sessionID := strings.TrimSpace(meta.ID)
+	o.mu.Lock()
+	if o.recoverySkipped == nil {
+		o.recoverySkipped = make(map[string]struct{})
+	}
+	_, logged := o.recoverySkipped[sessionID]
+	o.recoverySkipped[sessionID] = struct{}{}
+	o.mu.Unlock()
+	if logged {
+		return
+	}
+	spawnRole := ""
+	if meta.Lineage != nil {
+		spawnRole = meta.Lineage.SpawnRole
+	}
+	o.logger.Warn("observe.session_recovery_skipped",
+		"session_id", sessionID,
+		"session_type", meta.SessionType,
+		"spawn_role", spawnRole,
+		"reason", reason,
+	)
 }
 
 func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
@@ -159,7 +188,7 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		stopReason = *meta.StopReason
 	}
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
-	recovered := recoveredSession{SessionInfo: store.SessionInfo{
+	recovered := recoveredSession{
 		ID:                       meta.ID,
 		ProfileID:                meta.ProfileID,
 		Name:                     meta.Name,
@@ -187,16 +216,14 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		StopDetail:               meta.StopDetail,
 		Failure:                  store.CloneSessionFailure(meta.Failure),
 		Liveness:                 store.CloneSessionLivenessMeta(meta.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(meta.Sandbox),
-		SoulSnapshotID:           strings.TrimSpace(meta.SoulSnapshotID),
-		SoulDigest:               strings.TrimSpace(meta.SoulDigest),
-		ParentSoulDigest:         strings.TrimSpace(meta.ParentSoulDigest),
-		CreatedAt:                meta.CreatedAt,
-		UpdatedAt:                meta.UpdatedAt,
-	}}
+
+		SoulSnapshotID:   strings.TrimSpace(meta.SoulSnapshotID),
+		SoulDigest:       strings.TrimSpace(meta.SoulDigest),
+		ParentSoulDigest: strings.TrimSpace(meta.ParentSoulDigest),
+		CreatedAt:        meta.CreatedAt,
+		UpdatedAt:        meta.UpdatedAt}
 	recovered.SetACPOptions(meta.ACPOptionsValue())
 	recovered.SetRuntimeRecovery(meta.RuntimeRecoveryValue())
-	recovered.SetNetworkSpec(meta.NetworkSpecSnapshot())
 	if meta.CreationProfile != nil {
 		profile := store.NormalizeSessionCreationProfile(*meta.CreationProfile)
 		identity := store.SessionCreationIdentity{
@@ -212,23 +239,23 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 
 func (o *Observer) normalizeRecoveredMeta(
 	path string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	ownerAuthoritative bool,
 ) store.SessionMeta {
 	normalized, changed := session.ClassifyInactiveMetaForRecovery(o.now(), meta)
-	if !changed || !ownerAuthoritative {
+	if meta == nil || !changed || !ownerAuthoritative {
 		return normalized
 	}
 
 	normalized.UpdatedAt = o.now()
-	if err := store.WriteSessionMeta(path, normalized); err != nil {
+	if err := store.WriteSessionMeta(path, &normalized); err != nil {
 		o.logger.Warn(
 			"observe: persist recovered session classification failed",
 			"session_id", strings.TrimSpace(meta.ID),
 			"path", path,
 			"error", err,
 		)
-		return session.AnnotateUnpersistedRecovery(normalized, err)
+		return session.AnnotateUnpersistedRecovery(&normalized, err)
 	}
 
 	return normalized

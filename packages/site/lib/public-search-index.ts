@@ -3,13 +3,8 @@ import { allPosts, type Post } from "@/lib/blog";
 import { loadChangelogReleases } from "@/lib/changelog/github-client";
 import type { ChangelogRelease } from "@/lib/changelog/types";
 import { docsGroupForUrl } from "@/lib/docs-navigation";
-import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { bundledExtensions } from "@/lib/marketplace-bundled";
-import {
-  bundledExtensionDescription,
-  MARKETPLACE_DESCRIPTION,
-  marketplaceBridgesDescription,
-} from "@/lib/marketplace-copy";
+import { bundledExtensionDescription, MARKETPLACE_DESCRIPTION } from "@/lib/marketplace-copy";
 import { extensionEntries, marketplaceEntryPath, installCommand } from "@/lib/marketplace-catalog";
 import { docsSource } from "@/lib/source";
 
@@ -203,30 +198,6 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     },
   }));
 
-  const bridges: AdvancedIndex[] = [
-    {
-      id: "/marketplace/bridges",
-      url: "/marketplace/bridges",
-      title: "Bridges — Marketplace",
-      description: marketplaceBridgesDescription(bridgeProviders.length),
-      breadcrumbs: ["Marketplace"],
-      tag: "Marketplace",
-      structuredData: { headings: [], contents: [] },
-    },
-    ...bridgeProviders.map<AdvancedIndex>(provider => ({
-      id: `/marketplace/bridges#${provider.platform}`,
-      url: `/marketplace/bridges#${provider.platform}`,
-      title: `${provider.displayName} bridge`,
-      description: provider.description,
-      breadcrumbs: ["Marketplace", "Bridges"],
-      tag: "Marketplace",
-      structuredData: {
-        headings: [],
-        contents: [{ heading: undefined, content: provider.description }],
-      },
-    })),
-  ];
-
   const bundled = bundledExtensions.map<AdvancedIndex>(extension => ({
     id: extension.path,
     url: extension.path,
@@ -252,7 +223,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     },
   }));
 
-  return [overview, ...entries, ...bridges, ...bundled];
+  return [overview, ...entries, ...bundled];
 }
 
 export async function buildPublicSearchIndexes(): Promise<AdvancedIndex[]> {

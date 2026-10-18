@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func summaryFromTaskRecord(record Task) Summary {
@@ -183,37 +181,35 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 			continue
 		}
 		if current == nil || prefersActiveRun(run, *current) {
-			candidate := run
-			current = &candidate
+			current = new(run)
 		}
 	}
 	if current == nil {
 		return nil
 	}
 	summary := &RunSummary{
-		ID:                           current.ID,
-		TaskID:                       current.TaskID,
-		Status:                       current.Status,
-		Attempt:                      int(current.Attempt),
-		RecoveryCount:                int(current.RecoveryCount),
-		PreviousRunID:                current.PreviousRunID,
-		FailureKind:                  current.FailureKind,
-		MaxAttempts:                  maxAttempts,
-		SessionID:                    current.SessionID,
-		WorktreeID:                   current.WorktreeIDValue(),
-		ResolvedWorktreeMode:         current.ResolvedWorktreeModeValue(),
-		ResolvedWorktreeRef:          current.ResolvedWorktreeRefValue(),
-		ClaimedBy:                    cloneActorIdentity(current.ClaimedBy),
-		ClaimTokenHash:               current.ClaimTokenHash,
-		LeaseUntil:                   current.LeaseUntil,
-		HeartbeatAt:                  current.HeartbeatAt,
-		ResolvedNetworkParticipation: participation.CloneSpec(current.NetworkSpecSnapshot()),
-		DesignationGroupID:           current.DesignationGroupID,
-		QueuedAt:                     current.QueuedAt,
-		ClaimedAt:                    current.ClaimedAt,
-		StartedAt:                    current.StartedAt,
-		EndedAt:                      current.EndedAt,
-		Error:                        current.Error,
+		ID:                   current.ID,
+		TaskID:               current.TaskID,
+		Status:               current.Status,
+		Attempt:              int(current.Attempt),
+		RecoveryCount:        int(current.RecoveryCount),
+		PreviousRunID:        current.PreviousRunID,
+		FailureKind:          current.FailureKind,
+		MaxAttempts:          maxAttempts,
+		SessionID:            current.SessionID,
+		WorktreeID:           current.WorktreeIDValue(),
+		ResolvedWorktreeMode: current.ResolvedWorktreeModeValue(),
+		ResolvedWorktreeRef:  current.ResolvedWorktreeRefValue(),
+		ClaimedBy:            cloneActorIdentity(current.ClaimedBy),
+		ClaimTokenHash:       current.ClaimTokenHash,
+		LeaseUntil:           current.LeaseUntil,
+		HeartbeatAt:          current.HeartbeatAt,
+		DesignationGroupID:   current.DesignationGroupID,
+		QueuedAt:             current.QueuedAt,
+		ClaimedAt:            current.ClaimedAt,
+		StartedAt:            current.StartedAt,
+		EndedAt:              current.EndedAt,
+		Error:                current.Error,
 	}
 	ApplyRunDesignationSummary(summary, *current)
 	return summary
@@ -295,24 +291,21 @@ func cloneOwnership(owner *Ownership) *Ownership {
 	if owner == nil {
 		return nil
 	}
-	cloned := *owner
-	return &cloned
+	return new(*owner)
 }
 
 func cloneActorIdentity(actor *ActorIdentity) *ActorIdentity {
 	if actor == nil {
 		return nil
 	}
-	cloned := *actor
-	return &cloned
+	return new(*actor)
 }
 
 func cloneNeedsAttention(attention *NeedsAttention) *NeedsAttention {
 	if attention == nil {
 		return nil
 	}
-	cloned := *attention
-	return &cloned
+	return new(*attention)
 }
 
 func sameOwnership(left *Ownership, right *Ownership) bool {
@@ -342,9 +335,7 @@ func cloneRawJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	cloned := make(json.RawMessage, len(raw))
-	copy(cloned, raw)
-	return cloned
+	return json.RawMessage(bytes.Clone(raw))
 }
 
 func rawJSONValue(raw *json.RawMessage) json.RawMessage {

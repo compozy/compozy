@@ -85,8 +85,7 @@ func (r *Registry) complete(ctx context.Context, id string, completion ProcessCo
 		errText = completion.Err.Error()
 		state = ProcessStateFailed
 	}
-	completedAt := r.now().UTC()
-	if err := r.updateStateLocked(ctx, id, state, completion.ExitCode, errText, &completedAt); err != nil {
+	if err := r.updateStateLocked(ctx, id, state, completion.ExitCode, errText, new(r.now().UTC())); err != nil {
 		return err
 	}
 	r.mu.Lock()

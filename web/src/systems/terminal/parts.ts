@@ -70,7 +70,6 @@ export {
   terminalsRunning,
   type TerminalBadgeInput,
   type TerminalBadgeProjection,
-  type TerminalPendingApproval,
 } from "./lib/terminal-badge";
 // Session transcript blocks need replay and catalog types without opening the
 // Terminal app.

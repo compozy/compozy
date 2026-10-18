@@ -14,9 +14,9 @@ import (
 // Selection is one typed provider-advertised ACP runtime option.
 // Exactly one of ValueID or BoolValue must be set.
 type Selection struct {
-	ID        string `json:"id"                   yaml:"id"                   toml:"id"`
-	ValueID   string `json:"value_id,omitempty"   yaml:"value_id,omitempty"   toml:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitempty" yaml:"bool_value,omitempty" toml:"bool_value,omitempty"`
+	ID        string `json:"id"                  yaml:"id"                   toml:"id"`
+	ValueID   string `json:"value_id,omitempty"  yaml:"value_id,omitempty"   toml:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero" yaml:"bool_value,omitempty" toml:"bool_value,omitempty"`
 }
 
 // Normalize validates and returns an ownership-safe canonical selection.

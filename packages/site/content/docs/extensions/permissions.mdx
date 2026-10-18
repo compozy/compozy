@@ -12,7 +12,7 @@ compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 	Name:    "release-notes",
 	Version: "0.1.0",
 	Permissions: compozysdk.PermissionsConfig{
-		Requires: []compozysdk.HostAPIMethod{"sessions/list", "memory/recall", "memory/store"},
+		Requires: []compozysdk.HostAPIMethod{"sessions/list", "skills/list"},
 	},
 	Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
 })
@@ -22,7 +22,7 @@ compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 
 ```toml
 [permissions]
-  requires = ["memory/recall", "memory/store", "sessions/list"]
+  requires = ["sessions/list", "skills/list"]
 ```
 
 ## Closed set
@@ -35,6 +35,10 @@ ERROR permissions.requires[0]  unknown Host API permission
 ```
 
 Both SDKs export the method names as typed constants, so a typo fails before the daemon sees it.
+
+The retired `memory/*` methods, together with the `memory.read` and `memory.write` entries, are the one
+exception: a manifest that still requires them keeps loading with those entries dropped. See
+[Retired manifest entries](/docs/extensions/manifest#retired-manifest-entries).
 
 ## Derived consent areas
 
@@ -50,7 +54,7 @@ Extension package validation
 ===========================
 Status:   valid
 Issues:   0
-Consent:  memory:read, memory:write, sessions:read
+Consent:  sessions:read, skills:read
 ```
 
 The same summary is available structurally:
@@ -64,13 +68,12 @@ compozy extension validate ./dist/gen-<hash> -o json
   "manifest": {
     "name": "hello",
     "provides": ["tool.provider"],
-    "permissions": ["memory/recall", "memory/store", "sessions/list"]
+    "permissions": ["sessions/list", "skills/list"]
   },
   "issues": [],
   "consent_areas": [
-    { "area": "memory", "access": "read" },
-    { "area": "memory", "access": "write" },
-    { "area": "sessions", "access": "read" }
+    { "area": "sessions", "access": "read" },
+    { "area": "skills", "access": "read" }
   ]
 }
 ```
@@ -78,31 +81,29 @@ compozy extension validate ./dist/gen-<hash> -o json
 Consent areas are a display and policy projection. Enforcement always runs against the declared
 method list, per call.
 
+A subprocess bound to a workspace and named profile retains both owners for domain Host API calls.
+For example, `tasks/create` can omit the workspace and scope: the daemon binds them to the process's
+workspace and stamps the task with its profile. Explicit global or foreign workspace requests are
+refused. Resource methods retain the complete `workspace_profile` scope for kernel authorization;
+approving a palette command does not expand the extension's scope.
+
 ## Permission catalog
 
-Twenty-six consent areas cover the cataloged methods.
+Twenty-four consent areas cover the cataloged methods.
 
 | Consent area       | Host API methods                                                                                                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `automation:read`  | `automation/jobs`, `automation/jobs/get`, `automation/jobs/runs`, `automation/runs`, `automation/triggers`, `automation/triggers/get`, `automation/triggers/runs`                                                             |
 | `automation:write` | `automation/jobs/create`, `automation/jobs/delete`, `automation/jobs/trigger`, `automation/jobs/update`, `automation/triggers/create`, `automation/triggers/delete`, `automation/triggers/fire`, `automation/triggers/update` |
-| `bridge:read`      | `bridges/instances/get`, `bridges/instances/list`                                                                                                                                                                             |
-| `bridge:write`     | `bridges/instances/report_state`, `bridges/messages/ingest`                                                                                                                                                                   |
 | `clarify:ask`      | `clarify/ask`                                                                                                                                                                                                                 |
 | `heartbeat:read`   | `agents/heartbeat/get`, `agents/heartbeat/history`, `agents/heartbeat/status`, `agents/heartbeat/validate`                                                                                                                    |
 | `heartbeat:write`  | `agents/heartbeat/delete`, `agents/heartbeat/put`, `agents/heartbeat/rollback`, `agents/heartbeat/wake`                                                                                                                       |
 | `logs:read`        | `logs/list`                                                                                                                                                                                                                   |
-| `memory:read`      | `memory/recall`                                                                                                                                                                                                               |
-| `memory:write`     | `memory/forget`, `memory/store`                                                                                                                                                                                               |
 | `model:read`       | `models/list`, `models/status`                                                                                                                                                                                                |
 | `model:write`      | `models/refresh`                                                                                                                                                                                                              |
-| `network:read`     | `network/channels`, `network/direct/messages`, `network/directs`, `network/peers`, `network/status`, `network/thread/get`, `network/thread/messages`, `network/threads`, `network/usage`, `network/work/get`                  |
-| `network:write`    | `network/direct/resolve`, `network/send`                                                                                                                                                                                      |
 | `observe:read`     | `observe/health`                                                                                                                                                                                                              |
 | `resources:read`   | `resources/get`, `resources/list`                                                                                                                                                                                             |
 | `resources:write`  | `resources/snapshot`                                                                                                                                                                                                          |
-| `sandbox:exec`     | `sandbox/exec`                                                                                                                                                                                                                |
-| `sandbox:read`     | `sandbox/info`, `sandbox/list`                                                                                                                                                                                                |
 | `sessions:read`    | `sessions/events`, `sessions/health/get`, `sessions/list`, `sessions/status`, `sessions/status/get`                                                                                                                           |
 | `sessions:write`   | `sessions/archive`, `sessions/create`, `sessions/prompt`, `sessions/stop`, `sessions/unarchive`                                                                                                                               |
 | `skills:read`      | `skills/list`                                                                                                                                                                                                                 |
@@ -113,7 +114,7 @@ Twenty-six consent areas cover the cataloged methods.
 
 Read and write are separate areas everywhere, so a read-only reviewer extension never requests a
 mutation grant. Paged collection methods (`tasks`, `tasks/inbox`, `automation/jobs`,
-`automation/triggers`, and the `network/*` collections) return bounded envelopes with page metadata —
+`automation/triggers`) return bounded envelopes with page metadata —
 read the collection field and its page metadata together, never as a bare array.
 
 ## Source ceilings
@@ -127,8 +128,8 @@ The install source decides how much of the declared list can be granted.
 | Bundled with the daemon                        | `bundled`      | Every declared method.                                                                                                    |
 | Published (`curated`, `github`, `git`)         | `marketplace`  | Only methods inside the read-oriented ceiling below. Everything else is dropped at grant time with a recorded diagnostic. |
 
-The published ceiling is `logs.read`, `memory.read`, `observe.read`, `session.read`, `skills.read`,
-and `tool.read`. A published extension that declares `sessions/prompt`, `models/refresh`, or
+The published ceiling is `logs.read`, `observe.read`, `session.read`, `skills.read`, and
+`tool.read`. A published extension that declares `sessions/prompt`, `models/refresh`, or
 `tasks/create` still installs, but those methods are not granted, and the trust report names each
 dropped request. Read the outcome with:
 

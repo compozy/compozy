@@ -1,9 +1,8 @@
-import { ChevronRight, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import { createElement } from "react";
 
 import {
   SessionToolCallRow,
-  SessionSummaryDisclosure,
   liveToolLabel,
   parallelToolLabel,
   getToolIcon,
@@ -14,6 +13,7 @@ import { toolMessageFromPart } from "./session-timeline-tool-message";
 
 import { cn } from "@/lib/utils";
 import { useSessionThreadLiveData } from "./hooks/use-session-thread-live-data";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 import type { SessionLiveToolRow, SessionTimelineToolPart } from "./session-timeline.logic";
 
@@ -21,18 +21,20 @@ function LiveToolGlyph({ part }: { part: SessionTimelineToolPart }) {
   return createElement(getToolIcon(resolveRegisteredToolName(part.toolName), part.args), {
     "aria-hidden": true,
     className: "size-3.5 shrink-0 text-subtle",
-    strokeWidth: 1.75,
   });
 }
 
-// The one live line: kind glyph in the 20px well, the sentence shimmering
-// (plain subtle text when still — under reduced motion, or while the window
-// is paused — the word "Running" carries the state), nothing on the right.
+// The one live line: kind glyph in the 20px well, the verb shimmering (plain
+// subtle text when still — under reduced motion, or while the window is
+// paused — the word "Running" carries the state), then its object as the same
+// mono chip the settled row shows, nothing on the right. Plain text, not a
+// popover: the raw input is one click away once the call settles into its tool
+// row; a truncated object keeps the full text on hover.
 function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: boolean }) {
   const label = liveToolLabel(part.toolName, part.args, part.toolTitle);
   return (
     <div
-      className="flex min-h-transcript-line min-w-0 items-center gap-transcript-inline-gap px-1 text-small-body"
+      className="flex min-h-transcript-line min-w-0 items-center gap-1.5 px-1 text-small-body"
       data-testid="live-tool-row"
       data-live-kind={part.toolName}
     >
@@ -40,18 +42,24 @@ function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: b
         <LiveToolGlyph part={part} />
       </span>
       <span
-        className={cn(
-          "min-w-0 max-w-sm flex-1 truncate font-medium",
-          still ? "text-subtle" : "session-shimmer"
-        )}
+        className="flex min-w-0 items-center gap-1.5"
         data-testid="live-tool-label"
+        // A polite status: assistive tech hears "Running …" when the call
+        // starts, the cue the shimmer gives sighted readers.
+        role="status"
+        aria-label={label.text}
+        title={part.toolTitle ?? label.text}
       >
-        <SessionSummaryDisclosure
-          summary={label.text}
-          label="Tool details"
-          detail={`${part.toolTitle ?? part.toolName}\n\n${JSON.stringify({ tool: part.toolName, ...(part.toolTitle ? { title: part.toolTitle } : {}), input: part.args }, null, 2)}`}
-          className="max-w-full font-medium"
-        />
+        <span
+          className={cn("shrink-0 whitespace-nowrap", still ? "text-subtle" : "session-shimmer")}
+        >
+          {label.verb}
+        </span>
+        {label.preview ? (
+          <span className="min-w-0 truncate rounded-xs bg-hover px-1.5 py-px font-mono text-transcript-body text-muted">
+            {label.preview}
+          </span>
+        ) : null}
       </span>
     </div>
   );
@@ -68,7 +76,7 @@ export interface SessionLiveToolRowViewProps {
  * `SessionLiveToolRow` (ADR-006 rule 1): exactly one live row for the calls
  * still running. A single call reads "Running {tool} — {preview}"; several stay
  * one honest row — "Running N tools…" with the `layers` glyph — that expands to
- * the in-flight list. A running child agent is its own row with the bot glyph.
+ * the in-flight list.
  * The shimmer is the only motion in the transcript: it dies under reduced
  * motion and stops while the window is paused (US-018.EC-2) — a view that is
  * not applying frames has no cadence to show.
@@ -87,7 +95,6 @@ export function SessionLiveToolRowView({
     return (
       <div
         data-testid="live-tool"
-        data-agent={row.agent || undefined}
         data-still={still || undefined}
         className="flex min-w-0 flex-col"
       >
@@ -112,38 +119,26 @@ export function SessionLiveToolRowView({
       data-still={still || undefined}
       className="flex min-w-0 flex-col"
     >
-      <button
-        type="button"
-        aria-expanded={row.expanded}
+      <TranscriptDisclosure
         aria-controls={detailsId}
         data-testid="live-tool-parallel"
-        onClick={onToggle}
-        className={cn(
-          "group/live inline-flex min-h-transcript-line w-full min-w-0 items-center gap-transcript-inline-gap rounded-md px-1 text-left text-small-body",
-          "transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-      >
-        <span className="flex size-5 shrink-0 items-center justify-center rounded-xs">
-          <Layers aria-hidden="true" className="size-3.5 shrink-0 text-subtle" strokeWidth={1.75} />
-        </span>
-        <span
-          className={cn(
-            "min-w-0 max-w-sm flex-1 truncate font-medium",
-            still ? "text-subtle" : "session-shimmer"
-          )}
-          data-testid="live-tool-label"
-        >
-          {parallelToolLabel(row.entries.length)}
-        </span>
-        <ChevronRight
-          aria-hidden="true"
-          className={cn(
-            "size-3 shrink-0 text-faint opacity-0 transition-[opacity,transform] duration-base ease-out group-hover/live:opacity-100 motion-reduce:transition-none",
-            row.expanded ? "rotate-90 opacity-100" : null
-          )}
-          strokeWidth={1.75}
-        />
-      </button>
+        expanded={row.expanded}
+        icon={<Layers aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />}
+        label={
+          <span
+            className={cn(still ? "text-subtle" : "session-shimmer")}
+            data-testid="live-tool-label"
+          >
+            {parallelToolLabel(row.entries.length)}
+          </span>
+        }
+        onToggle={onToggle}
+      />
+      {/* The disclosure label lives inside its button, so the running count is
+          announced from a sibling status instead. */}
+      <span className="sr-only" role="status">
+        {parallelToolLabel(row.entries.length)}
+      </span>
       <div
         id={detailsId}
         data-testid="live-tool-entries"

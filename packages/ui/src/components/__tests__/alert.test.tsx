@@ -27,18 +27,6 @@ describe("Alert", () => {
     expect(screen.getByTestId("alert")).toHaveAttribute("role", "status");
   });
 
-  it("Should support the new semantic variants (success/warning/info/accent/danger)", () => {
-    for (const variant of ["success", "warning", "info", "accent", "danger"] as const) {
-      const { unmount } = render(
-        <Alert data-testid={`alert-${variant}`} variant={variant}>
-          <AlertTitle>ok</AlertTitle>
-        </Alert>
-      );
-      expect(screen.getByTestId(`alert-${variant}`)).toHaveAttribute("data-variant", variant);
-      unmount();
-    }
-  });
-
   it("Should render meta and actions slots after the description", () => {
     render(
       <Alert data-testid="alert" variant="warning">

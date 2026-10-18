@@ -8,9 +8,7 @@ import (
 )
 
 const (
-	// AgentNameMaxLength keeps an authored name safe when a normal generated
-	// session id is composed into a Network Live peer id. Network peers allow
-	// 128 characters; generated session ids use 21, and the separator uses one.
+	// AgentNameMaxLength bounds authored agent identities.
 	AgentNameMaxLength = 106
 	// agentNamePatternBody is the shared canonical grammar without anchors.
 	agentNamePatternBody = `[a-z][a-z0-9_-]{0,105}`

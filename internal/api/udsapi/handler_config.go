@@ -9,22 +9,21 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
-	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type handlerConfig struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
+	subagents             session.SubagentService
 	sessionCatalog        core.SessionCatalog
+	taskDesignations      core.TaskDesignationStore
+	skillExposureStore    store.SkillExposureRepository
+	skillExposureEvents   store.EventSummaryStore
 	tasks                 core.TaskService
-	network               core.NetworkService
-	networkStore          core.NetworkStore
-	networkUsage          store.NetworkUsageStore
-	coordination          workspacepkg.CoordinationCommands
 	observer              core.Observer
 	schemaStreams         core.SchemaStreamStatusReader
 	resources             core.ResourceService
@@ -32,8 +31,6 @@ type handlerConfig struct {
 	terminal              core.TerminalProvider
 	automation            core.AutomationManager
 	loops                 core.LoopService
-	bridges               core.BridgeService
-	notifications         core.NotificationPresetService
 	profiles              core.ProfileService
 	supportBundles        core.SupportBundleService
 	tools                 core.ToolRegistry
@@ -66,18 +63,14 @@ type handlerConfig struct {
 	heartbeatPurger       core.HeartbeatHistoryPurger
 	heartbeatStatus       core.HeartbeatStatusService
 	heartbeatWake         core.HeartbeatWakeService
-	sessionHealth         core.SessionHealthReader
 	wakeEvents            core.HeartbeatWakeEventReader
+	sessionHealth         core.SessionHealthReader
 	coordinatorRole       core.CoordinatorRoleResolver
 	roles                 core.RolesStatusProvider
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
-	memoryStore           *memory.Store
-	dreamTrigger          core.DreamTrigger
-	memoryExtractor       core.MemoryExtractorService
-	memoryProviders       core.MemoryProviderService
-	memoryLedger          core.MemorySessionLedgerService
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
+	hostLoad              doctor.HostLoadSnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	gateway               core.GatewayService
 	homePaths             compozyconfig.HomePaths

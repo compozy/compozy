@@ -100,7 +100,6 @@ func (m *Service) ForceReleaseRun(
 		return nil, err
 	}
 	mutation := settlement.mutation
-	defer m.restoreTaskRunNetworkBestEffort(ctx, mutation.Previous.SessionID, mutation.Run.ID)
 	m.dispatchTaskRunReleased(ctx, mutation.Run, settlement.task, actor, mutation.Previous, normalized.Reason)
 	return &mutation.Run, nil
 }
@@ -138,7 +137,9 @@ func (m *Service) ForceFailRun(
 		return nil, err
 	}
 	mutation := settlement.mutation
-	defer m.restoreTaskRunNetworkBestEffort(ctx, mutation.Previous.SessionID, mutation.Run.ID)
+	if mutation.Run.IsLoopWorker() {
+		m.dispatchTaskRunFailed(ctx, mutation.Run, settlement.task, actor)
+	}
 	return &mutation.Run, nil
 }
 
@@ -255,7 +256,6 @@ func (m *Service) RecoverRun(
 		return nil, err
 	}
 	result := settlement.result
-	defer m.restoreTaskRunNetworkBestEffort(ctx, result.PreviousRun.SessionID, result.Run.ID)
 	m.dispatchTaskRunEnqueued(ctx, result.Run, settlement.task, actor, "")
 	return &result, nil
 }

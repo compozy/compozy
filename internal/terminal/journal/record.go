@@ -147,14 +147,12 @@ func terminalIDString(value *terminalpkg.ID) *string {
 	if value == nil {
 		return nil
 	}
-	result := string(*value)
-	return &result
+	return new(string(*value))
 }
 
 func timeMillis(value *time.Time) *int64 {
 	if value == nil {
 		return nil
 	}
-	result := value.UnixMilli()
-	return &result
+	return new(value.UnixMilli())
 }

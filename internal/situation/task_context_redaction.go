@@ -27,7 +27,7 @@ func selectTaskContextRun(taskRecord taskpkg.Task, runs []taskpkg.Run) (taskpkg.
 	if len(runs) == 0 {
 		return taskpkg.Run{}, false
 	}
-	sorted := append([]taskpkg.Run(nil), runs...)
+	sorted := slices.Clone(runs)
 	sortRunsByAttemptAndActivity(sorted)
 	return sorted[0], true
 }
@@ -53,7 +53,7 @@ func cloneRawJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	return append(json.RawMessage(nil), raw...)
+	return slices.Clone(raw)
 }
 
 func redactTaskContextPayload(raw json.RawMessage) (json.RawMessage, error) {

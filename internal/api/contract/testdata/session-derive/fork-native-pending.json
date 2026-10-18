@@ -1,0 +1,19 @@
+{
+    "derived": {
+        "kind": "fork",
+        "source_session_id": "sess_01J9R2K7M4T1",
+        "origin_agent_name": "codex",
+        "through_turn_id": "turn_01J9R2N9C3",
+        "seed": "native_fork",
+        "native_state": "pending",
+        "acp_session_id": "acp_01J9R2T5H2CE",
+        "replay_message_count": 42,
+        "replay_bytes": 62771,
+        "truncated": false,
+        "omitted_count": 0,
+        "source_turn_in_progress": false,
+        "first_prompt": "staged",
+        "replayed": false,
+        "child_session_id": "sess_01J9R2T5H2CD"
+    }
+}

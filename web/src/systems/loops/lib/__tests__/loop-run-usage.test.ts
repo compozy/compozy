@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { loopRunDetailByRunId } from "../../mocks/fixtures";
 import type { LoopRunRecord } from "../../types";
+import { emptyLoopRunLiveState } from "../loop-events";
+import { projectLoopRunPageView } from "../loop-run-page-view";
 import {
   buildRunUsage,
   deriveCostEstimate,
@@ -39,6 +41,17 @@ describe("runElapsedSeconds", () => {
     });
 
     expect(runElapsedSeconds(historical, Date.parse("2026-07-22T15:00:00Z"))).toBe(18 * 60);
+  });
+
+  it("Should stop a finished run at its completion time", () => {
+    const finished = run({
+      status: "done",
+      created_at: "2026-07-22T14:00:00Z",
+      completed_at: "2026-07-22T14:05:00Z",
+      last_progress_at: "2026-07-22T14:18:00Z",
+    });
+
+    expect(runElapsedSeconds(finished, Date.parse("2026-07-22T15:00:00Z"))).toBe(5 * 60);
   });
 });
 
@@ -87,6 +100,33 @@ describe("formatClockDuration", () => {
 });
 
 describe("buildRunUsage", () => {
+  it.each(["done", "blocked", "paused", "needs-approval", "watching"] as const)(
+    "Should exclude parked time from the %s run's budget usage",
+    status => {
+      const view = projectLoopRunPageView({
+        run: run({
+          status,
+          created_at: "2026-10-05T13:00:00Z",
+          started_at: "2026-10-05T13:18:00Z",
+          last_progress_at: "2026-10-05T13:20:00Z",
+          completed_at:
+            status === "done" || status === "blocked" ? "2026-10-05T13:20:00Z" : undefined,
+          budget_wall_sec: 600,
+        }),
+        generations: [],
+        live: emptyLoopRunLiveState(),
+        definition: undefined,
+        nowMs: Date.parse("2026-10-05T13:25:00Z"),
+      });
+
+      expect(view.usageRows.find(row => row.key === "time")).toMatchObject({
+        value: "2m 00s",
+        max: "/ 10m",
+        tone: "neutral",
+      });
+    }
+  );
+
   it("Should render capped rows with ceilings and unbounded rows as ∞", () => {
     const rows = buildRunUsage(
       run({

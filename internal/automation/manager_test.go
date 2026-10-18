@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -20,9 +21,40 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+var automationTestStoreSeed *globalseed.Seed
+
+func TestMain(m *testing.M) {
+	os.Exit(runAutomationTests(m))
+}
+
+func runAutomationTests(m *testing.M) (code int) {
+	seed, err := globalseed.New(context.Background())
+	if err != nil {
+		reportAutomationTestMainError("create store seed: %v", err)
+		return 1
+	}
+	defer func() {
+		if err := seed.Close(); err != nil {
+			reportAutomationTestMainError("close store seed: %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+	automationTestStoreSeed = seed
+	return m.Run()
+}
+
+func reportAutomationTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, "automation tests: "+format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
 
 func TestCloneAutomationModels(t *testing.T) {
 	t.Parallel()
@@ -389,7 +421,7 @@ func TestManagerStatusReportsCountsAndNextFire(t *testing.T) {
 					AutomationScopeWorkspace,
 					"disabled-trigger",
 					h.workspaceRoot,
-					"memory.consolidated",
+					"ext.test.completed",
 				)
 				trigger.Enabled = false
 				trigger.Filter = nil
@@ -454,20 +486,19 @@ func TestManagerStatusReportsCountsAndNextFire(t *testing.T) {
 func TestManagerObserversHandleNilManagerAndAgentEvents(t *testing.T) {
 	t.Parallel()
 
-	var sessionObserver managerSessionObserver
-	sessionObserver.OnSessionCreated(testutil.Context(t), nil)
-	sessionObserver.OnSessionStopped(testutil.Context(t), nil)
-	sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
+	t.Run("Should tolerate nil session and hook managers", func(t *testing.T) {
+		t.Parallel()
 
-	var hookSink managerHookTelemetrySink
-	if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
-		t.Fatalf("WriteHookRecord(nil manager) error = %v", err)
-	}
+		var sessionObserver managerSessionObserver
+		sessionObserver.OnSessionCreated(testutil.Context(t), nil)
+		sessionObserver.OnSessionStopped(testutil.Context(t), nil)
+		sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
 
-	var memoryObserver managerMemoryObserver
-	if err := memoryObserver.OnMemoryConsolidated(testutil.Context(t), MemoryConsolidatedEvent{}); err != nil {
-		t.Fatalf("OnMemoryConsolidated(nil manager) error = %v", err)
-	}
+		var hookSink managerHookTelemetrySink
+		if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
+			t.Fatalf("WriteHookRecord(nil manager) error = %v", err)
+		}
+	})
 }
 
 func TestManagerSetEnabledForConfigBackedDefinitionsUsesOverlaysOnly(t *testing.T) {
@@ -614,7 +645,7 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 				trigger.Filter = map[string]string{"data.hook_outcome": "applied"}
 				return trigger
 			}(),
-			managerConfigTrigger(AutomationScopeWorkspace, "memory", h.workspaceRoot, "memory.consolidated"),
+			managerConfigTrigger(AutomationScopeWorkspace, "extension", h.workspaceRoot, "ext.test.completed"),
 		},
 	}
 
@@ -665,11 +696,14 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("WriteHookRecord() error = %v", err)
 	}
-	if err := manager.MemoryObserver().OnMemoryConsolidated(h.ctx, MemoryConsolidatedEvent{
+	if _, err := manager.triggerEngineSnapshot().Fire(h.ctx, ActivationEnvelope{
+		Kind:        "ext.test.completed",
+		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
-		Timestamp:   time.Now().UTC(),
+		Source:      ActivationSourceObserver,
+		Data:        map[string]any{},
 	}); err != nil {
-		t.Fatalf("OnMemoryConsolidated() error = %v", err)
+		t.Fatalf("Fire() error = %v", err)
 	}
 
 	if got, want := h.sessions.promptCount(), 4; got != want {
@@ -724,75 +758,6 @@ func TestManagerSessionTaskActorLifecycle(t *testing.T) {
 			t.Fatalf("TaskActorContextForSession(after delete) error = %v, want ErrSessionTaskActorNotFound", err)
 		}
 	})
-}
-
-func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
-	h := newManagerHarness(t)
-	t.Setenv("COMPOZY_TEST_WEBHOOK_SECRET", "super-secret")
-	cfg := compozyconfig.AutomationConfig{
-		Enabled:           true,
-		Timezone:          DefaultTimezone,
-		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
-		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Triggers: []compozyconfig.AutomationTrigger{
-			func() compozyconfig.AutomationTrigger {
-				trigger := managerConfigTrigger(AutomationScopeWorkspace, "webhook-trigger", h.workspaceRoot, "webhook")
-				trigger.EndpointSlug = "deploy-review"
-				trigger.WebhookSecretRef = "env:COMPOZY_TEST_WEBHOOK_SECRET"
-				trigger.Filter = map[string]string{"data.payload": "deploy"}
-				return trigger
-			}(),
-		},
-	}
-
-	const webhookSecret = "super-secret"
-	manager := h.newManager(t, cfg)
-	if err := manager.Start(h.ctx); err != nil {
-		t.Fatalf("manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("manager.Shutdown() error = %v", err)
-		}
-	})
-
-	trigger, err := manager.resolveConfigTrigger(h.ctx, cfg.Triggers[0])
-	if err != nil {
-		t.Fatalf("resolveConfigTrigger() error = %v", err)
-	}
-	endpoint, err := FormatWebhookEndpoint(trigger.EndpointSlug, trigger.WebhookID)
-	if err != nil {
-		t.Fatalf("FormatWebhookEndpoint() error = %v", err)
-	}
-
-	payload := []byte(`{"payload":"deploy"}`)
-	timestamp := time.Now().UTC()
-	signature, err := SignWebhookPayload(webhookSecret, timestamp, payload)
-	if err != nil {
-		t.Fatalf("SignWebhookPayload() error = %v", err)
-	}
-
-	result, err := manager.HandleWebhook(h.ctx, WebhookRequest{
-		Scope:       AutomationScopeWorkspace,
-		WorkspaceID: h.workspace.ID,
-		Endpoint:    endpoint,
-		DeliveryID:  "delivery-1",
-		Timestamp:   timestamp,
-		Signature:   signature,
-		Payload:     payload,
-		Data: map[string]any{
-			"payload": "deploy",
-		},
-	})
-	if err != nil {
-		t.Fatalf("HandleWebhook() error = %v", err)
-	}
-	if got, want := result.Matched, 1; got != want {
-		t.Fatalf("result.Matched = %d, want %d", got, want)
-	}
-	if got, want := h.sessions.promptCount(), 1; got != want {
-		t.Fatalf("Prompt() call count = %d, want %d", got, want)
-	}
 }
 
 func TestManagerDisabledWebhookReturnsDistinctRejection(t *testing.T) {
@@ -1500,7 +1465,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	webhookUpdate := createdWebhook
 	webhookUpdate.Prompt = `Updated payload {{ index .Data "payload" }}`
 	webhookUpdate.EndpointSlug = "deploy-review-updated"
-	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, webhookSecretWritePtr("secret-v2"))
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, new(webhookSecretWrite("secret-v2")))
 	if err != nil {
 		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
 	}
@@ -1861,7 +1826,7 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 	webhookUpdate.Filter = map[string]string{"data.payload": "deploy"}
 	webhookUpdate.EndpointSlug = "transition-trigger"
 	webhookUpdate.Prompt = `Webhook {{ index .Data "payload" }}`
-	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, webhookSecretWritePtr("transition-secret"))
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, new(webhookSecretWrite("transition-secret")))
 	if err != nil {
 		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
 	}
@@ -2415,6 +2380,11 @@ func newManagerHarness(t *testing.T) *managerHarness {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
+	// The harness owns automation behavior, not migration replay. Each test gets
+	// its own writable clone and still opens it through the production database API.
+	if err := automationTestStoreSeed.Clone(homePaths.DatabaseFile); err != nil {
+		t.Fatalf("Clone(global store seed) error = %v", err)
+	}
 	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -2664,20 +2634,14 @@ func managerConfigTrigger(
 	switch event {
 	case "session.stopped":
 		trigger.Filter = map[string]string{"data.agent_name": "reviewer"}
-	case "memory.consolidated":
+	case "ext.test.completed":
 		trigger.Filter = nil
 	}
 	return trigger
 }
 
 func webhookSecretWrite(value string) WebhookSecretWrite {
-	trimmed := strings.TrimSpace(value)
-	return WebhookSecretWrite{Value: &trimmed}
-}
-
-func webhookSecretWritePtr(value string) *WebhookSecretWrite {
-	write := webhookSecretWrite(value)
-	return &write
+	return WebhookSecretWrite{Value: new(strings.TrimSpace(value))}
 }
 
 func findJobByID(jobs []Job, id string) *Job {

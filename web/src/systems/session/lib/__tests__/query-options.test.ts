@@ -13,7 +13,10 @@ import {
   sessionInputsOptions,
   sessionResolvedInteractionsOptions,
   sessionScopedDetailOptions,
+  sessionUsageOptions,
+  sessionUsageTurnsOptions,
 } from "../query-options";
+import { retainSessionStreamLiveness } from "../session-stream-liveness";
 
 function pollingIntervalFor(state: SessionPayload["state"] | undefined): number | false {
   const refetchInterval = sessionDetailOptions("ws_alpha", "sess_1").refetchInterval;
@@ -207,5 +210,76 @@ describe("sessionInputsOptions", () => {
     expect(options.retry(1, error)).toBe(false);
     expect(options.refetchInterval({ state: { error } } as never)).toBe(1_000);
     expect(sessionInputsOptions("ws_alpha", "sess_2").queryKey).not.toEqual(options.queryKey);
+  });
+});
+
+// Owner: session query policy. A live session stream invalidates these reads as they change,
+// so every stream-backed read drops to the safety cadence while that session's stream is live.
+describe("stream-backed session reads", () => {
+  function cadences(sessionId: string, state: SessionPayload["state"]) {
+    const call = (interval: unknown, query: unknown) => {
+      if (interval === false) return false;
+      if (typeof interval !== "function") throw new Error("expected a stream-aware cadence");
+      return interval(query as never) as number | false;
+    };
+    const data = { state: { data: { state } as SessionPayload, error: null } };
+    return {
+      detail: call(sessionDetailOptions("ws_alpha", sessionId).refetchInterval, data),
+      byId: call(
+        sessionScopedDetailOptions(sessionId, { all_profiles: true }).refetchInterval,
+        data
+      ),
+      inputs: call(
+        sessionInputsOptions("ws_alpha", sessionId, { sessionState: state }).refetchInterval,
+        data
+      ),
+      controlPollInputs: call(
+        sessionInputsOptions("ws_alpha", sessionId, { sessionState: state, refetchInterval: 1_000 })
+          .refetchInterval,
+        data
+      ),
+      usage: call(sessionUsageOptions("ws_alpha", sessionId, state).refetchInterval, data),
+      usageTurns: call(
+        sessionUsageTurnsOptions("ws_alpha", sessionId, state).refetchInterval,
+        data
+      ),
+    };
+  }
+
+  it("Should use the safety cadence only while the session's own stream is live", () => {
+    const fallback = {
+      detail: 5_000,
+      byId: 5_000,
+      inputs: 5_000,
+      controlPollInputs: 1_000,
+      usage: 5_000,
+      usageTurns: 5_000,
+    };
+    expect(cadences("sess_stream", "active")).toEqual(fallback);
+
+    const release = retainSessionStreamLiveness("sess_stream");
+    const second = retainSessionStreamLiveness("sess_stream");
+    try {
+      expect(cadences("sess_stream", "active")).toEqual({
+        detail: 30_000,
+        byId: 30_000,
+        inputs: 30_000,
+        controlPollInputs: 1_000,
+        usage: 30_000,
+        usageTurns: 30_000,
+      });
+      expect(cadences("sess_stream", "starting").detail).toBe(500);
+      expect(
+        Object.values(cadences("sess_stream", "stopped")).every(value => value === false)
+      ).toBe(true);
+      expect(cadences("sess_other", "active")).toEqual(fallback);
+      release();
+      release();
+      expect(cadences("sess_stream", "active").detail).toBe(30_000);
+    } finally {
+      release();
+      second();
+    }
+    expect(cadences("sess_stream", "active")).toEqual(fallback);
   });
 });

@@ -11,7 +11,7 @@ import type {
   SettingsPersonaSection,
   SettingsUpdatePersonaRequest,
 } from "../types";
-import { SettingsApiError } from "./settings-api-error";
+import { SettingsApiError, throwSettingsSaveTransportError } from "./settings-api-error";
 import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 export async function getSettingsPersona(
@@ -36,11 +36,13 @@ export async function updateSettingsPersona(
   filter: SettingsPersonaFilter,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/persona", {
-    body,
-    params: { query: normalizeSettingsLayerFilter(filter) },
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/persona", {
+      body,
+      params: { query: normalizeSettingsLayerFilter(filter) },
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update profile defaults", response, error),

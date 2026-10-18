@@ -65,3 +65,16 @@ func (s *Service) ResolveSteer(
 	}
 	return owner.ResolveSessionSteer(ctx, sessionID, entryID, delivery, s.now())
 }
+
+type staleDispatchStore interface {
+	FailStaleDispatchingSessionInputs(context.Context, time.Time) (int, error)
+}
+
+// FailStaleDispatches settles leases left by a previous daemon process.
+func (s *Service) FailStaleDispatches(ctx context.Context) (int, error) {
+	owner, ok := s.store.(staleDispatchStore)
+	if !ok {
+		return 0, errors.New("inputqueue: stale dispatch store is required")
+	}
+	return owner.FailStaleDispatchingSessionInputs(ctx, s.now())
+}

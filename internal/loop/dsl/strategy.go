@@ -154,9 +154,9 @@ func (t *StrategyThreshold) decodePercent(value string) error {
 
 // StrategySpec declares one fan-out join strategy.
 type StrategySpec struct {
-	Kind      StrategyKind       `json:"kind"                yaml:"kind"`
-	Threshold *StrategyThreshold `json:"threshold,omitempty" yaml:"threshold,omitempty"`
-	Missing   MissingPolicy      `json:"missing,omitempty"   yaml:"missing,omitempty"`
+	Kind      StrategyKind       `json:"kind"               yaml:"kind"`
+	Threshold *StrategyThreshold `json:"threshold,omitzero" yaml:"threshold,omitempty"`
+	Missing   MissingPolicy      `json:"missing,omitempty"  yaml:"missing,omitempty"`
 }
 
 func (s StrategySpec) ValidateShape() error {

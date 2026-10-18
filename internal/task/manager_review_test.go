@@ -1,10 +1,11 @@
 package task
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -92,8 +93,7 @@ func (s *inMemoryManagerStore) RecordRunReview(
 					continue
 				}
 				if candidate.Review.ReviewID == review.ReviewID {
-					continuation := cloneTaskRun(candidate)
-					result.ContinuationRun = &continuation
+					result.ContinuationRun = new(cloneTaskRun(candidate))
 					break
 				}
 			}
@@ -153,8 +153,7 @@ func (s *inMemoryManagerStore) RecordRunReview(
 		RequiredCapabilities:  append([]string(nil), run.RequiredCapabilities...),
 		PreferredCapabilities: append([]string(nil), run.PreferredCapabilities...),
 	}
-	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
-	continuation.SetNetworkState(run.NetworkSpecSnapshot(), wakeID, targetSessionID, ownerKey)
+
 	if err := continuation.Validate(); err != nil {
 		return RunReviewResult{}, err
 	}
@@ -191,8 +190,7 @@ func (s *inMemoryManagerStore) BindRunReviewSession(
 	review.Status = RunReviewStatusInReview
 	review.ReviewerSessionID = normalized.SessionID
 	review.ReviewerAgentName = normalized.ReviewerAgentName
-	review.ReviewerPeerID = normalized.ReviewerPeerID
-	review.ReviewerChannelID = normalized.ReviewerChannelID
+
 	review.StartedAt = boundAt.UTC()
 	review.UpdatedAt = boundAt.UTC()
 	s.reviews[review.ReviewID] = cloneRunReview(&review)
@@ -235,8 +233,8 @@ func (s *inMemoryManagerStore) ListRunReviews(_ context.Context, query RunReview
 		}
 		reviews = append(reviews, cloneRunReview(&review))
 	}
-	sort.Slice(reviews, func(i int, j int) bool {
-		return reviews[i].ReviewID < reviews[j].ReviewID
+	slices.SortFunc(reviews, func(a, b RunReview) int {
+		return cmp.Compare(a.ReviewID, b.ReviewID)
 	})
 	if normalized.Limit > 0 && len(reviews) > normalized.Limit {
 		return append([]RunReview(nil), reviews[:normalized.Limit]...), nil
@@ -288,7 +286,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithRunReviewRequestedObserver(observer))
 
 		review, created, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
 			validActorContext(),
 		)
@@ -303,7 +301,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 
 		duplicate, created, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
 			validActorContext(),
 		)
@@ -338,7 +336,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 
 		_, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
 			validActorContext(),
 		)
@@ -353,7 +351,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		store := reviewManagerStoreForTest(TaskRunStatusCompleted)
 		manager := newTaskManagerForTest(t, store)
 		review, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
 			validActorContext(),
 		)
@@ -361,7 +359,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			t.Fatalf("RequestRunReview() error = %v", err)
 		}
 
-		got, err := manager.GetRunReview(context.Background(), review.ReviewID, validActorContext())
+		got, err := manager.GetRunReview(t.Context(), review.ReviewID, validActorContext())
 		if err != nil {
 			t.Fatalf("GetRunReview() error = %v", err)
 		}
@@ -369,7 +367,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			t.Fatalf("GetRunReview().ReviewID = %q, want %q", got.ReviewID, review.ReviewID)
 		}
 
-		_, err = manager.GetRunReview(context.Background(), " ", validActorContext())
+		_, err = manager.GetRunReview(t.Context(), " ", validActorContext())
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("GetRunReview(blank) error = %v, want %v", err, ErrValidation)
 		}
@@ -382,7 +380,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		reviewerSessionID := strings.Repeat("s", MaxReferenceBytes)
 		review, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyOnFailure},
 			validActorContext(),
 		)
@@ -391,12 +389,11 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 
 		binding, err := manager.BindRunReviewSession(
-			context.Background(),
+			t.Context(),
 			BindRunReviewSessionRequest{
 				ReviewID:          review.ReviewID,
 				SessionID:         reviewerSessionID,
 				ReviewerAgentName: "reviewer",
-				ReviewerChannelID: "review-channel",
 			},
 			validActorContext(),
 		)
@@ -407,7 +404,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			t.Fatalf("binding.SessionID = %q, want %q", got, want)
 		}
 
-		lookup, err := manager.LookupRunReviewForSession(context.Background(), reviewerSessionID, validActorContext())
+		lookup, err := manager.LookupRunReviewForSession(t.Context(), reviewerSessionID, validActorContext())
 		if err != nil {
 			t.Fatalf("LookupRunReviewForSession() error = %v", err)
 		}
@@ -415,7 +412,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			t.Fatalf("lookup.ReviewID = %q, want %q", got, want)
 		}
 		listed, err := manager.ListRunReviews(
-			context.Background(),
+			t.Context(),
 			RunReviewQuery{Status: RunReviewStatusInReview, ReviewerSessionID: reviewerSessionID},
 			validActorContext(),
 		)
@@ -436,7 +433,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		store := reviewManagerStoreForTest(TaskRunStatusFailed)
 		manager := newTaskManagerForTest(t, store)
 		review, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyOnFailure},
 			validActorContext(),
 		)
@@ -445,7 +442,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 
 		_, err = manager.BindRunReviewSession(
-			context.Background(),
+			t.Context(),
 			BindRunReviewSessionRequest{
 				ReviewID:  review.ReviewID,
 				SessionID: strings.Repeat("s", MaxReferenceBytes+1),
@@ -477,7 +474,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		store := reviewManagerStoreForTest(TaskRunStatusCompleted)
 		manager := newTaskManagerForTest(t, store)
 		review, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
 			validActorContext(),
 		)
@@ -498,7 +495,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			},
 		}
 		result, err := manager.RecordRunReview(
-			context.Background(),
+			t.Context(),
 			recordRequest,
 			validActorContext(),
 		)
@@ -515,7 +512,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			!containsEventType(store.events, taskEventRunReviewApproved) {
 			t.Fatalf("events = %#v, want recorded and approved", sortedEventTypes(store.events))
 		}
-		if _, err := manager.RecordRunReview(context.Background(), recordRequest, validActorContext()); err != nil {
+		if _, err := manager.RecordRunReview(t.Context(), recordRequest, validActorContext()); err != nil {
 			t.Fatalf("RecordRunReview(replay) error = %v", err)
 		}
 		if got := countEventType(store.events, taskEventRunReviewRecorded); got != 1 {
@@ -532,7 +529,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		store := reviewManagerStoreForTest(TaskRunStatusCompleted)
 		manager := newTaskManagerForTest(t, store)
 		review, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
 			validActorContext(),
 		)
@@ -542,7 +539,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 
 		confidence := 0.73
 		result, err := manager.RecordRunReview(
-			context.Background(),
+			t.Context(),
 			RecordRunReviewRequest{
 				ReviewID: review.ReviewID,
 				RunID:    review.RunID,
@@ -578,7 +575,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 
 		replay, err := manager.RecordRunReview(
-			context.Background(),
+			t.Context(),
 			RecordRunReviewRequest{
 				ReviewID: review.ReviewID,
 				RunID:    review.RunID,
@@ -619,7 +616,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		store := reviewManagerStoreForTest(TaskRunStatusCompleted)
 		manager := newTaskManagerForTest(t, store)
 		review, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
 			validActorContext(),
 		)
@@ -640,7 +637,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		confidence := 0.73
 
 		result, err := manager.RecordRunReview(
-			context.Background(),
+			t.Context(),
 			RecordRunReviewRequest{
 				ReviewID: review.ReviewID,
 				RunID:    review.RunID,
@@ -683,7 +680,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(testSessionExecutor{}))
 		actor := validActorContext()
 
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Review exhaustion",
@@ -692,26 +689,26 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
+		run, err = admitRunDirectlyForTest(t.Context(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("claimExactRunForTest() error = %v", err)
 		}
-		run, err = manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
+		run, err = manager.StartRun(t.Context(), run.ID, StartRun{}, actor)
 		if err != nil {
 			t.Fatalf("StartRun() error = %v", err)
 		}
-		if _, err := manager.CompleteRun(context.Background(), run.ID, RunResult{
+		if _, err := manager.CompleteRun(t.Context(), run.ID, RunResult{
 			Value: []byte(`{"ok":true}`),
 		}, actor); err != nil {
 			t.Fatalf("CompleteRun() error = %v", err)
 		}
 
 		review, _, err := manager.RequestRunReview(
-			context.Background(),
+			t.Context(),
 			RunReviewRequest{TaskID: taskRecord.ID, RunID: run.ID, Policy: ReviewPolicyAlways},
 			actor,
 		)
@@ -721,7 +718,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 
 		confidence := 0.61
 		if _, err := manager.RecordRunReview(
-			context.Background(),
+			t.Context(),
 			RecordRunReviewRequest{
 				ReviewID: review.ReviewID,
 				RunID:    review.RunID,
@@ -739,14 +736,14 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			t.Fatalf("RecordRunReview(exhausted) error = %v, want %v", err, ErrInvalidStatusTransition)
 		}
 
-		storedReview, err := manager.GetRunReview(context.Background(), review.ReviewID, actor)
+		storedReview, err := manager.GetRunReview(t.Context(), review.ReviewID, actor)
 		if err != nil {
 			t.Fatalf("GetRunReview() error = %v", err)
 		}
 		if got, want := storedReview.Status, RunReviewStatusRequested; got != want {
 			t.Fatalf("stored review status = %q, want %q", got, want)
 		}
-		runs, err := manager.ListTaskRuns(context.Background(), taskRecord.ID, RunQuery{}, actor)
+		runs, err := manager.ListTaskRuns(t.Context(), taskRecord.ID, RunQuery{}, actor)
 		if err != nil {
 			t.Fatalf("ListTaskRuns() error = %v", err)
 		}

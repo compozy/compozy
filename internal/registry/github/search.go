@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -126,10 +127,7 @@ func (c *Client) fetchRepositorySearchPage(
 }
 
 func containsTopic(topics []string, wanted string) bool {
-	for _, topic := range topics {
-		if strings.EqualFold(strings.TrimSpace(topic), wanted) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(topics, func(topic string) bool {
+		return strings.EqualFold(strings.TrimSpace(topic), wanted)
+	})
 }

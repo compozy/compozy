@@ -1,18 +1,20 @@
 import { agentFixtures } from "@/systems/agent/mocks";
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 
 import {
   storyAgentNames,
   storyWorkspaceIds,
   storyWorkspaceNames,
 } from "@/storybook/fintech-scenario";
-import { createAutomationJobDraft, createAutomationTriggerDraft } from "@/systems/automation";
-import type {
-  CreateAutomationJobRequest,
-  CreateAutomationTriggerRequest,
-} from "@/systems/automation";
+import type { AutomationEditorSection } from "@/systems/automation";
 import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";
+import {
+  automationCondition,
+  createAutomationFormDraft,
+  type AutomationFormDraft,
+} from "@/systems/automation/lib/automation-form-draft";
 
 const meta: Meta<typeof AutomationEditorDialog> = {
   title: "systems/automation/components/AutomationEditorDialog",
@@ -33,45 +35,58 @@ const storyWorkspaces = [
   { id: storyWorkspaceIds.growth, name: storyWorkspaceNames.growth },
 ];
 
-const EDITED_JOB_PROMPT =
-  "Summarize launch blockers, approvals, and the next cutover milestone for the " +
-  `${storyWorkspaceNames.hq} launch room.`;
-
-const EDITED_TRIGGER_PROMPT =
-  'Session {{ .Data.session_id }} stopped with reason "{{ .Data.stop_reason }}". ' +
-  "Summarize what went wrong and one suggested next step.";
-
-function jobDraft(mode: "create" | "edit"): CreateAutomationJobRequest {
-  const base = createAutomationJobDraft(ACTIVE_WORKSPACE_ID);
-  if (mode === "create") {
-    return base;
-  }
+function readySchedule(): AutomationFormDraft {
   return {
-    ...base,
-    name: "launch-command-digest",
+    ...createAutomationFormDraft(ACTIVE_WORKSPACE_ID),
+    name: "morning-digest",
     agent_name: storyAgentNames.product,
-    prompt: EDITED_JOB_PROMPT,
+    prompt: "Summarize yesterday's sessions for the team channel.",
+    schedule: { mode: "cron", expr: "0 9 * * 1-5" },
   };
 }
 
-function triggerDraft(mode: "create" | "edit"): CreateAutomationTriggerRequest {
-  const base = createAutomationTriggerDraft(ACTIVE_WORKSPACE_ID);
-  if (mode === "create") {
-    return base;
-  }
+function readyEvent(): AutomationFormDraft {
   return {
-    ...base,
+    ...createAutomationFormDraft(ACTIVE_WORKSPACE_ID, { start: "event" }),
     name: "summarize-failures",
     agent_name: storyAgentNames.support,
-    event: "session.stopped",
-    scope: "workspace",
-    filter: { "data.stop_reason": "error" },
-    prompt: EDITED_TRIGGER_PROMPT,
+    conditions: [automationCondition("data.stop_reason", "error")],
+    prompt:
+      'Session {{ .Data.session_id }} stopped with reason "{{ .Data.stop_reason }}". ' +
+      "Summarize what went wrong and one suggested next step.",
   };
 }
 
-function AutomationEditorJobHarness({ mode }: { mode: "create" | "edit" }) {
-  const [draft, setDraft] = useState<CreateAutomationJobRequest>(() => jobDraft(mode));
+function readyLink(): AutomationFormDraft {
+  return {
+    ...createAutomationFormDraft(ACTIVE_WORKSPACE_ID, { start: "webhook" }),
+    name: "deploy-webhook",
+    agent_name: storyAgentNames.product,
+    endpoint_slug: "deploy",
+    webhook_id: "wbh_abc123",
+    webhook_secret_value: "whsec_demo",
+    prompt: "A deploy started: {{ .Data.payload }}. Watch it and report back.",
+  };
+}
+
+interface HarnessProps {
+  initialDraft: () => AutomationFormDraft;
+  mode?: "create" | "edit";
+  lockedLoop?: string;
+  section?: AutomationEditorSection;
+  submitError?: string;
+  submitErrorField?: "name";
+}
+
+function AutomationEditorHarness({
+  initialDraft,
+  mode = "create",
+  lockedLoop,
+  section,
+  submitError,
+  submitErrorField,
+}: HarnessProps) {
+  const [draft, setDraft] = useState<AutomationFormDraft>(initialDraft);
 
   return (
     <AutomationEditorDialog
@@ -80,54 +95,102 @@ function AutomationEditorJobHarness({ mode }: { mode: "create" | "edit" }) {
       editor={{
         draft,
         isPending: false,
-        kind: "jobs",
+        lockedLoop,
         mode,
         onCancel: () => undefined,
         onChange: setDraft,
         onSubmit: () => undefined,
+        section,
+        submitError,
+        submitErrorField,
       }}
       workspaces={storyWorkspaces}
     />
   );
 }
 
-function AutomationEditorTriggerHarness({ mode }: { mode: "create" | "edit" }) {
-  const [draft, setDraft] = useState<CreateAutomationTriggerRequest>(() => triggerDraft(mode));
+/** editor VC-01: a new schedule, ready to create. */
+export const NewSchedule: Story = {
+  args: {},
+  render: () => <AutomationEditorHarness initialDraft={readySchedule} />,
+};
 
-  return (
-    <AutomationEditorDialog
-      agents={agentFixtures}
-      activeWorkspaceId={ACTIVE_WORKSPACE_ID}
-      editor={{
-        draft,
-        isPending: false,
-        kind: "triggers",
-        mode,
-        onCancel: () => undefined,
-        onChange: setDraft,
-        onSubmit: () => undefined,
-      }}
-      workspaces={storyWorkspaces}
+/** editor VC-01: an event start with a condition. */
+export const NewOnEvent: Story = {
+  args: {},
+  render: () => <AutomationEditorHarness initialDraft={readyEvent} />,
+};
+
+/** editor VC-01: a link start, always Global. */
+export const NewOnLink: Story = {
+  args: {},
+  render: () => <AutomationEditorHarness initialDraft={readyLink} />,
+};
+
+/** editor VC-05: a blank draft reads "Needs a fix" with the missing parts dashed. */
+export const NeedsAFix: Story = {
+  args: {},
+  render: () => (
+    <AutomationEditorHarness initialDraft={() => createAutomationFormDraft(ACTIVE_WORKSPACE_ID)} />
+  ),
+};
+
+/** editor VC-02: the preview swap for a schedule (next runs + request). */
+export const Preview: Story = {
+  args: {},
+  render: () => <AutomationEditorHarness initialDraft={readySchedule} />,
+  play: async ({ canvasElement }) => {
+    // The dialog portals out of the story root.
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByTestId("automation-preview-toggle"));
+  },
+};
+
+/** editor VC-03: Options open with retries on. */
+export const OptionsOpen: Story = {
+  args: {},
+  render: () => (
+    <AutomationEditorHarness
+      initialDraft={() => ({
+        ...readySchedule(),
+        retry: { strategy: "backoff", max_retries: 3, base_delay: "2s" },
+      })}
+      section="options"
     />
-  );
-}
-
-export const CreateJob: Story = {
-  args: {},
-  render: () => <AutomationEditorJobHarness mode="create" />,
+  ),
 };
 
-export const EditJob: Story = {
+/** editor VC-04: edit mode locks Starts and Does and says why. */
+export const EditLocked: Story = {
   args: {},
-  render: () => <AutomationEditorJobHarness mode="edit" />,
+  render: () => <AutomationEditorHarness initialDraft={readySchedule} mode="edit" />,
 };
 
-export const CreateTrigger: Story = {
+/** US-027: the Loop page seed fixes Does to its Loop. */
+export const FromLoopPage: Story = {
   args: {},
-  render: () => <AutomationEditorTriggerHarness mode="create" />,
+  render: () => (
+    <AutomationEditorHarness
+      initialDraft={() => ({
+        ...createAutomationFormDraft(ACTIVE_WORKSPACE_ID, {
+          start: "event",
+          loop: "review-and-fix",
+        }),
+        name: "fix-on-failure",
+      })}
+      lockedLoop="review-and-fix"
+    />
+  ),
 };
 
-export const EditTrigger: Story = {
+/** US-019 EC-1: the daemon's name conflict lands on the Name field. */
+export const NameConflict: Story = {
   args: {},
-  render: () => <AutomationEditorTriggerHarness mode="edit" />,
+  render: () => (
+    <AutomationEditorHarness
+      initialDraft={readySchedule}
+      submitError="An automation named morning-digest already exists."
+      submitErrorField="name"
+    />
+  ),
 };

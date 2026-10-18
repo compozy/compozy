@@ -92,7 +92,9 @@ function resolveMergeTarget(
   if (gesture?.status !== "active") return null;
 
   const state = manager.getState();
-  const origin = storeContext.workArea?.origin ?? { x: 0, y: 0 };
+  // Unmeasured layer: no truthful origin to map the pointer into, so no target.
+  const origin = storeContext.workArea?.origin;
+  if (origin === undefined) return null;
   const layerPoint = { x: point.clientX - origin.x, y: point.clientY - origin.y };
   const candidates: Array<{
     registration: MergeTargetRegistration;

@@ -61,21 +61,12 @@ func hookConfigMatcher(cfg HookMatcherConfig) hookspkg.HookMatcher {
 		DecisionClass:    strings.TrimSpace(cfg.DecisionClass),
 		MessageRole:      strings.TrimSpace(cfg.MessageRole),
 		MessageDeltaType: strings.TrimSpace(cfg.MessageDeltaType),
-	}
-	matcher.NetworkMatcher = &hookspkg.NetworkMatcher{
-		Channel:   strings.TrimSpace(cfg.Channel),
-		Surface:   strings.TrimSpace(cfg.Surface),
-		Kind:      strings.TrimSpace(cfg.Kind),
-		Direction: strings.TrimSpace(cfg.Direction),
-		WorkState: strings.TrimSpace(cfg.WorkState),
-	}
-	matcher.CompactionMatcher = &hookspkg.CompactionMatcher{
-		Reason:   strings.TrimSpace(cfg.CompactionReason),
-		Strategy: strings.TrimSpace(cfg.CompactionStrategy),
-	}
+
+		CompactionMatcher: &hookspkg.CompactionMatcher{
+			Trigger: strings.TrimSpace(cfg.CompactionTrigger),
+		}}
 	if cfg.ToolReadOnly != nil {
-		value := *cfg.ToolReadOnly
-		matcher.ToolReadOnly = &value
+		matcher.ToolReadOnly = new(*cfg.ToolReadOnly)
 	}
 	return matcher
 }

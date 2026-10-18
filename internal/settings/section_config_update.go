@@ -20,14 +20,10 @@ func (s *service) updateConfigBackedSection(
 		return s.updateGeneralSection(ctx, req)
 	case SectionPersona:
 		return s.updatePersonaSection(ctx, req)
-	case SectionMemory:
-		return s.updateMemorySection(ctx, req)
 	case SectionRoles:
 		return s.updateRolesSection(ctx, req)
 	case SectionAutomation:
 		return s.updateAutomationSection(ctx, req)
-	case SectionNetwork:
-		return s.updateNetworkSection(ctx, req)
 	case SectionGateway:
 		return s.updateGatewaySection(ctx, req)
 	case SectionWindowManager:
@@ -104,23 +100,6 @@ func (s *service) updateGeneralSection(
 	})
 }
 
-func (s *service) updateMemorySection(
-	ctx context.Context,
-	req SectionUpdateRequest,
-) (MutationResult, error) {
-	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if req.Memory == nil {
-		return MutationResult{}, validationError(errors.New("settings: memory section payload is required"))
-	}
-	changed := diffMemorySettings(&cfg.Memory, req.Memory)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
-		return applyMemorySettings(editor, req.Memory)
-	})
-}
-
 func (s *service) updateAutomationSection(
 	ctx context.Context,
 	req SectionUpdateRequest,
@@ -135,23 +114,6 @@ func (s *service) updateAutomationSection(
 	changed := diffAutomationSettings(&cfg, *req.Automation)
 	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyAutomationSettings(editor, *req.Automation)
-	})
-}
-
-func (s *service) updateNetworkSection(
-	ctx context.Context,
-	req SectionUpdateRequest,
-) (MutationResult, error) {
-	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if req.Network == nil {
-		return MutationResult{}, validationError(errors.New("settings: network section payload is required"))
-	}
-	changed := diffNetworkSettings(cfg.Network, *req.Network)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
-		return applyNetworkSettings(editor, *req.Network)
 	})
 }
 

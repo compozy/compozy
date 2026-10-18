@@ -72,7 +72,7 @@ export function SettingsByteField({
       <div className="flex items-center gap-1.5">
         <Input
           aria-label={label}
-          className="h-7 w-24 text-right font-mono text-form-input tabular-nums"
+          className="h-control-compact w-24 text-right font-mono text-form-input tabular-nums"
           disabled={disabled}
           inputMode="decimal"
           onChange={event => {

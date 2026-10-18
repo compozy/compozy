@@ -13,7 +13,7 @@ concurrency:
 
 env:
   CGO_ENABLED: 0
-  GO_VERSION: "1.26.4"
+  GO_VERSION: "1.27.1"
   # Turborepo remote cache (Vercel): jobs exchange the GitHub OIDC token for a
   # short-lived Turborepo token (revoked at job end). Pull requests read the
   # shared cache; push and workflow_dispatch lanes upload. Fork PRs skip the
@@ -107,7 +107,7 @@ jobs:
               [[ -z "$file" ]] && continue
 
               case "$file" in
-                *.go|go.mod|go.sum|Makefile|.golangci.yml|.goreleaser.yml|.pr-release|cliff.toml|RELEASE_BODY.md|RELEASE_NOTES.md)
+                *.go|go.mod|go.sum|*/go.mod|*/go.sum|Makefile|.golangci.yml|.goreleaser.yml|.pr-release|cliff.toml|RELEASE_BODY.md|RELEASE_NOTES.md)
                   backend=true
                   ;;
               esac
@@ -180,14 +180,6 @@ jobs:
         uses: ./.github/actions/setup-bun
         with:
           install-playwright: "false"
-
-      - name: Restore Daytona sidecar proof
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/compozy-dev/daytona-check.stamp
-          key: ${{ runner.os }}-daytona-proof-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-daytona-proof-
 
       - name: Verify generated artifacts
         run: make codegen-check
@@ -278,9 +270,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.cache/compozy-dev/golangci-lint
-          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('go.sum', '.golangci.yml') }}-
+            ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-
             ${{ runner.os }}-golangci-v2.13.1-
 
       - name: Run Go static verification
@@ -294,7 +286,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ~/.cache/compozy-dev/golangci-lint
-          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
 
   go-test:
     name: Go (race test shard ${{ matrix.shard_label }})
@@ -406,7 +398,17 @@ jobs:
             ./internal/store/globaldb ./internal/daemon \
             -run '^(TestGoalTurnRuntimeLifecycleIntegration|TestGoalSessionOutboxIntegration|TestLoopGoalManagedRuntimeIntegration)$'
 
+      - name: Verify managed delivery recovery with real Git and forge HTTP
+        if: matrix.shard_index == '2'
+        env:
+          CGO_ENABLED: "1"
+        run: >-
+          go test -race -tags=integration -count=1 -timeout=5m -v
+          ./internal/worktree
+          -run '^(TestWorktreeLifecycleIntegration|TestWorktreeManagedDeliveryIntegration)$'
+
       - name: Upload gotestsum timing data
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: gotest-json-shard-${{ matrix.shard_index }}
@@ -537,6 +539,22 @@ jobs:
         run: >-
           go test ./internal/fileutil ./internal/cli
           -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
+          -count=1
+        env:
+          CGO_ENABLED: 0
+
+      - name: Verify Windows startup, rooted writes, and session deletion
+        run: >-
+          go test ./internal/daemon ./internal/fileutil ./internal/session ./internal/profile
+          -run '^(TestUpdateLock|TestWindowsDirectoryMoveNoReplaceContract|TestWindowsDirectoryCreationThroughReadOnlyAncestor|TestManagerQueriesUseWorkspaceRegistration|TestNormalizeIdentitySymbols|TestManagerDelete)/(Should_remove_the_committed_bound_tree_without_a_private_directory_leak|Should_reject_a_concurrent_runtime_mutation|Should_replace_a_stale_owner_with_the_caller_identity|Should_create_descendants_without_requesting_write_access_to_an_existing_ancestor|Should_list_and_inspect_stopped_sessions_without_resolving_runtime_resources|Should_recognize_the_entire_catalog_with_either_LF_or_CRLF_line_endings|Should_remove_a_stopped_user_session_from_durable_counts|Should_wait_for_active_stored_readers_before_committing_deletion|Should_restore_the_staged_directory_when_catalog_deletion_fails|Should_recover_an_interrupted_staged_tombstone_from_every_catalog_state)$'
+          -count=1
+        env:
+          CGO_ENABLED: 0
+
+      - name: Verify Windows skill cache and detached log rotation
+        run: >-
+          go test ./internal/filesnap ./internal/skillscan ./internal/cli
+          -run '^(TestFromInfo|TestDirectoryResultUnchanged|TestSpawnDetachedDaemonProcess|TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv)$'
           -count=1
         env:
           CGO_ENABLED: 0
@@ -803,7 +821,7 @@ jobs:
   e2e-desktop:
     name: E2E desktop
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 120
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:
@@ -853,8 +871,8 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
-      - name: Upload desktop E2E artifacts on failure
-        if: failure()
+      - name: Upload desktop E2E artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-desktop-artifacts

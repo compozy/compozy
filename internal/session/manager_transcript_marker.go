@@ -22,9 +22,36 @@ func (m *Manager) emitTranscriptMarker(
 	summary string,
 	evidence map[string]any,
 ) {
-	if err := m.recordTranscriptMarker(ctx, session, turnID, kind, summary, evidence); err != nil {
+	in := transcriptMarkerInput{Kind: kind, Summary: summary, Evidence: evidence}
+	if err := m.recordTranscriptMarker(ctx, session, turnID, in); err != nil {
 		m.sessionLogger(session).Warn("session: emit transcript marker failed", "kind", kind, "error", err)
 	}
+}
+
+// transcriptMarkerInput makes attribution explicit: when Route is set, the marker's
+// provider_command_fingerprint is the attempted route's fingerprint; otherwise the
+// session's current routing snapshot (today's behavior).
+type transcriptMarkerInput struct {
+	Kind     string
+	Summary  string
+	Evidence map[string]any
+	Route    *FallbackRoute
+	Command  string // effective command of the attempt when Route has none
+}
+
+// markerCommandFingerprint attributes a provider failure to the attempted route when
+// one is named, else to the session's bound route.
+func (in transcriptMarkerInput) markerCommandFingerprint(session *Session) string {
+	if in.Route != nil {
+		if command := strings.TrimSpace(in.Route.Command); command != "" {
+			return providerCommandFingerprint(command)
+		}
+		return providerCommandFingerprint(in.Command)
+	}
+	if session == nil {
+		return ""
+	}
+	return providerCommandFingerprint(session.providerRoutingSnapshot().Command)
 }
 
 // recordTranscriptMarker correlates provider failures without persisting raw command credentials.
@@ -32,16 +59,15 @@ func (m *Manager) recordTranscriptMarker(
 	ctx context.Context,
 	session *Session,
 	turnID string,
-	kind string,
-	summary string,
-	evidence map[string]any,
+	in transcriptMarkerInput,
 ) error {
-	if kind == transcript.MarkerProviderFailure && session != nil {
+	kind, summary, evidence := in.Kind, in.Summary, in.Evidence
+	if kind == transcript.MarkerProviderFailure && (session != nil || in.Route != nil) {
 		evidence = maps.Clone(evidence)
 		if evidence == nil {
 			evidence = make(map[string]any)
 		}
-		evidence["provider_command_fingerprint"] = providerCommandFingerprint(session.providerRoutingSnapshot().Command)
+		evidence["provider_command_fingerprint"] = in.markerCommandFingerprint(session)
 	}
 	marker, err := transcript.NewMarker(kind, summary, m.now(), evidence)
 	if err != nil {
@@ -78,18 +104,15 @@ func (m *Manager) persistResumeReplayMarker(
 			fmt.Errorf("session: generate context rebuilt marker turn id for %q: %w", spec.sessionID, err),
 		)
 	}
-	if err := m.recordTranscriptMarker(
-		ctx,
-		session,
-		turnID,
-		transcript.MarkerSessionRecovered,
-		contextRebuiltMarkerSummary,
-		map[string]any{
+	if err := m.recordTranscriptMarker(ctx, session, turnID, transcriptMarkerInput{
+		Kind:    transcript.MarkerSessionRecovered,
+		Summary: contextRebuiltMarkerSummary,
+		Evidence: map[string]any{
 			transcriptMarkerEvidenceSourceKey: "events.db",
 			"message_count":                   spec.resumeReplayMessageCount,
 			"fallback_reason":                 fallbackReason,
 		},
-	); err != nil {
+	}); err != nil {
 		return startupFailure(
 			"session replay marker persistence failed",
 			fmt.Errorf("session: persist context rebuilt marker for %q: %w", spec.sessionID, err),

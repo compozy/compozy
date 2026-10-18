@@ -10,14 +10,9 @@ import {
   type TaskEditorModalMode,
   type TaskEditorModalStatus,
 } from "../task-editor-modal";
-import {
-  createTaskEditorDraft,
-  taskEditorDraftFromTask,
-  type TaskEditorDraft,
-} from "../../lib/task-editor";
+import { createTaskEditorDraft, type TaskEditorDraft } from "../../lib/task-editor";
 import type { TaskTemplateId } from "../../lib/task-templates";
-import { buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
-import type { TaskOwnerKind, TaskRecord } from "../../types";
+import type { TaskOwnerKind } from "../../types";
 import { QueueOwnershipSection } from "../task-form/queue-ownership-section";
 
 vi.mock("@/systems/status", () => ({
@@ -32,19 +27,6 @@ interface RenderModalOptions {
   isSubmitting?: boolean;
   status?: TaskEditorModalStatus;
 }
-
-const editTask = {
-  id: "task_42",
-  identifier: "TASK-42",
-  title: "Summarize review feedback",
-  status: "in_progress",
-  scope: "workspace",
-  origin: { kind: "cli", ref: "op" },
-  workspace_id: "ws_alpha",
-  created_at: "2026-04-11T09:00:00Z",
-  updated_at: "2026-04-11T09:30:00Z",
-  created_by: { kind: "human", ref: "pedro" },
-} as unknown as TaskRecord;
 
 const workspaces = [
   { id: "ws_alpha", name: "launch-hq" },
@@ -119,8 +101,9 @@ function renderModal({
 }
 
 describe("TaskEditorModal", () => {
-  it("Should render the create header and Simple template grid by default", () => {
-    renderModal();
+  it("Should render the default create state and dismiss through its only close control", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderModal();
 
     const modal = screen.getByTestId("task-editor-modal");
     expect(modal).toBeInTheDocument();
@@ -130,12 +113,12 @@ describe("TaskEditorModal", () => {
     expect(within(header as HTMLElement).getByText("Autonomy · Task")).toBeInTheDocument();
     expect(within(header as HTMLElement).getByText("Create task")).toBeInTheDocument();
     expect(
-      within(header as HTMLElement).getByText(/A task is a durable contract/)
+      within(header as HTMLElement).getByText(/A task is a piece of work you hand to an agent/)
     ).toBeInTheDocument();
     // The description no longer duplicates as a paragraph in the scrolling body.
     expect(
       within(screen.getByTestId("task-editor-modal-body")).queryByText(
-        /A task is a durable contract/
+        /A task is a piece of work you hand to an agent/
       )
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("task-mode-simple")).toHaveAttribute("aria-pressed", "true");
@@ -144,6 +127,19 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-template-epic")).toBeInTheDocument();
     // Advanced-only sections stay hidden in Simple mode.
     expect(screen.queryByTestId("task-parent-input")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
+      "Creates in launch-hq"
+    );
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
+    expect(screen.queryByTestId("task-workspace-select")).toBeNull();
+    const closes = screen.getAllByRole("button", { name: /close/i });
+    expect(closes).toHaveLength(1);
+    await user.click(closes[0]!);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("Should open an advanced-only template in Advanced mode", () => {
@@ -154,32 +150,10 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
   });
 
-  it("Should expose exactly one close route", () => {
-    renderModal();
-
-    // The header owns dismissal; DialogContent's stock close stays disabled so
-    // the two never render together.
-    const closes = screen.getAllByRole("button", { name: /close/i });
-    expect(closes).toHaveLength(1);
-    expect(closes[0]).toHaveAttribute("data-slot", "entity-dialog-header-close");
-    expect(
-      screen.getByTestId("task-editor-modal").querySelector('[data-slot="dialog-close"]')
-    ).toBeNull();
-  });
-
-  it("Should dismiss through the header close control", async () => {
-    const user = userEvent.setup();
-    const { onOpenChange } = renderModal();
-
-    await user.click(screen.getByRole("button", { name: /close/i }));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("Should switch to Advanced and reveal the advanced numbered sections", () => {
+  it("Should reveal Advanced sections with field tips and visible approval consequences", () => {
     renderModal();
 
     fireEvent.click(screen.getByTestId("task-mode-advanced"));
-
     expect(screen.getByTestId("task-mode-advanced")).toHaveAttribute("aria-pressed", "true");
     // Placement
     expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
@@ -192,22 +166,10 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-execution-toggle")).toBeInTheDocument();
     // Advanced is a disclosure tier, not a replacement: required fields stay put.
     expect(screen.getByTestId("task-title-input")).toBeInTheDocument();
-  });
-
-  it("Should keep field help behind tips and leave approval consequences visible", () => {
-    renderModal();
-
-    fireEvent.click(screen.getByTestId("task-mode-advanced"));
 
     expect(
       screen.queryByText("Describe the expected outcome, constraints, and completion criteria.")
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Local by default. Live requires an explicit channel strategy.")
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole("button", { name: "About network participation" }).length
-    ).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "About parent task" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "About owner" })).toBeInTheDocument();
     expect(screen.queryByText(/makes this a child in an epic/)).not.toBeInTheDocument();
@@ -224,7 +186,7 @@ describe("TaskEditorModal", () => {
     fireEvent.click(screen.getByTestId("task-execution-toggle"));
     expect(screen.getByRole("button", { name: "About save as draft" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "About auto-enqueue when ready" })
+      screen.getByRole("button", { name: "About starting automatically" })
     ).toBeInTheDocument();
     expect(screen.queryByText(/Create the contract without enqueueing/)).not.toBeInTheDocument();
   });
@@ -271,20 +233,6 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-priority-high")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("Should show a read-only destination statement for the workspace draft", () => {
-    renderModal();
-
-    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
-      "Creates in launch-hq"
-    );
-    expect(
-      screen
-        .getByTestId("workspace-scope-statement")
-        .closest('[data-slot="entity-dialog-footer-hint"]')
-    ).not.toBeNull();
-    expect(screen.queryByTestId("task-workspace-select")).toBeNull();
-  });
-
   it("Should select a template card and emit onTemplateChange", () => {
     const { onTemplateChange } = renderModal();
 
@@ -297,18 +245,23 @@ describe("TaskEditorModal", () => {
     );
   });
 
-  it("Should toggle Save as draft and flip the submit label to Save draft", () => {
+  it("Should identify the execution switches and update their draft values", () => {
     const { onDraftChange } = renderModal();
 
     fireEvent.click(screen.getByTestId("task-mode-advanced"));
     // Execution panel is collapsed until expanded.
-    expect(screen.queryByTestId("task-save-draft-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Save as draft" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("task-execution-toggle"));
-    fireEvent.click(screen.getByTestId("task-save-draft-toggle"));
+    fireEvent.click(screen.getByRole("switch", { name: "Save as draft" }));
 
     expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ saveAsDraft: true }));
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save draft");
+
+    fireEvent.click(screen.getByRole("switch", { name: "Start automatically when ready" }));
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ saveAsDraft: true, autoEnqueueOnReady: true })
+    );
   });
 
   it("Should call onSubmit when the form is submitted", () => {
@@ -322,7 +275,7 @@ describe("TaskEditorModal", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ title: "Ship it" }), false);
   });
 
-  it("Should render edit mode without the toolbar, templates, or network channel input", () => {
+  it("Should render edit mode without the toolbar or templates", () => {
     const draft: TaskEditorDraft = {
       ...createTaskEditorDraft("blank", "ws_alpha"),
       title: "Summarize review feedback",
@@ -339,7 +292,6 @@ describe("TaskEditorModal", () => {
     expect(screen.queryByTestId("task-mode-advanced")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-template-one_shot")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
-    expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Lives in launch-hq");
     expect(
@@ -386,41 +338,6 @@ describe("TaskEditorModal", () => {
     // Dismissal stays reachable so the host can navigate back to the task.
     await user.click(screen.getByRole("button", { name: /close/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("Should submit persisted Live participation inherited from a Loop run", () => {
-    const loopTask = {
-      ...editTask,
-      execution_mode: "loop_run",
-    } as TaskRecord;
-    const draft = taskEditorDraftFromTask(
-      loopTask,
-      buildTaskExecutionProfileFixture({
-        task_id: loopTask.id,
-        network_participation: {
-          mode: "live",
-          channel_strategy: "loop_run",
-        },
-      })
-    );
-
-    const { onSubmit } = renderModal({ mode: "edit", draft });
-
-    expect(screen.getByTestId("task-editor-participation-mode")).toHaveValue("live");
-    expect(screen.getByTestId("task-editor-participation-strategy")).toHaveValue("loop_run");
-    expect(screen.queryByTestId("task-editor-participation-channel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-modal-submit")).toBeEnabled();
-
-    fireEvent.submit(screen.getByTestId("task-editor-modal-form"));
-
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        networkParticipationMode: "live",
-        networkChannelId: "",
-        networkChannelStrategy: "loop_run",
-      }),
-      false
-    );
   });
 });
 

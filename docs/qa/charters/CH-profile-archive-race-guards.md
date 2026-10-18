@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 60
   guidance:
     must_try:
-      - "Archive against work creation: with a queued run waiting and a scheduled automation about to fire, archive the owner and prove the claim either completed before the commit or was refused — never a run created for an archived profile. Repeat against a session spawn and a bridge delivery."
+      - "Archive against work creation: with a queued run waiting and a scheduled automation about to fire, archive the owner and prove the claim either completed before the commit or was refused — never a run created for an archived profile. Repeat against a session spawn."
       - "Archive against delivery: hold a notification permit open, attempt the archive, and require the retryable `profile_deliveries_in_flight`. Then kill the daemon with the permit row surviving, restart, and count deliveries by delivery id — unarchive must not repeat one."
       - "Archive and delete against approvals: leave an executable pending approval owned by the profile, read both plans, and require it listed as a blocker with `profile_approvals_pending` naming the approval ids; clear it and prove the plans and the mutations change accordingly."
       - "Race the namespace: start a rename so its operation is pending, then attempt to create or rename onto both the reserved old and new names — each must fail `profile_name_taken` naming the holding operation. Fire two same-name creates at once and end with exactly one profile. Run an extension install declaring a name at the same moment the operator creates it and end with one profile, bound not seeded, marked once."

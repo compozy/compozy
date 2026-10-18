@@ -9,27 +9,15 @@ import {
   UIProvider,
 } from "@compozy/ui";
 import {
-  BlackboxLogo,
   ClaudeLogo,
-  ClineLogo,
   CursorLogo,
   GeminiLogo,
   GithubLogo,
-  GooseLogo,
-  GroqLogo,
-  HermesLogo,
-  JunieLogo,
   KimiLogo,
-  KiroLogo,
-  MinimaxLogo,
-  MistralLogo,
   OpenAILogo,
-  OpenClawLogo,
   OpenCodeLogo,
-  OpenHandsLogo,
   OpenRouterLogo,
   PiLogo,
-  QoderLogo,
   QwenLogo,
   VercelLogo,
   XAILogo,
@@ -40,6 +28,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BUILTIN_PROVIDER_INTEGRATIONS, type BuiltinProviderIntegration } from "./provider-data";
 import { SectionFrame } from "./primitives/section-frame";
+
+// D9: the site keeps its boxed tooltip; the shared tooltip became the product's inverted pill.
+const SITE_TOOLTIP_CLASS =
+  "rounded-md! bg-canvas-soft px-3 text-form-label font-normal text-fg-strong shadow-hairline";
 
 type Provider = BuiltinProviderIntegration & { logo: ReactNode };
 
@@ -52,26 +44,14 @@ const providerLogos: Record<BuiltinProviderIntegration["id"], ReactNode> = {
   opencode: <OpenCodeLogo aria-hidden className={logoClassName} />,
   copilot: <GithubLogo aria-hidden className={logoClassName} />,
   cursor: <CursorLogo aria-hidden className={logoClassName} />,
-  kiro: <KiroLogo aria-hidden className="size-6" />,
   pi: <PiLogo aria-hidden className="size-6" />,
-  blackbox: <BlackboxLogo aria-hidden className={logoClassName} />,
-  cline: <ClineLogo aria-hidden className={logoClassName} />,
-  goose: <GooseLogo aria-hidden className={logoClassName} />,
-  hermes: <HermesLogo aria-hidden className={logoClassName} />,
-  junie: <JunieLogo aria-hidden className="size-6" />,
   "kimi-cli": <KimiLogo aria-hidden className={logoClassName} />,
-  openclaw: <OpenClawLogo aria-hidden className="size-6" />,
-  openhands: <OpenHandsLogo aria-hidden className={logoClassName} />,
-  qoder: <QoderLogo aria-hidden className={logoClassName} />,
   "qwen-code": <QwenLogo aria-hidden className={logoClassName} />,
   openrouter: <OpenRouterLogo aria-hidden className={logoClassName} />,
   zai: <ZAILogo aria-hidden className={logoClassName} />,
   moonshot: <KimiLogo aria-hidden className={logoClassName} />,
   "vercel-ai-gateway": <VercelLogo aria-hidden className={logoClassName} />,
   xai: <XAILogo aria-hidden className={logoClassName} />,
-  minimax: <MinimaxLogo aria-hidden className="size-6" />,
-  mistral: <MistralLogo aria-hidden className="size-6" />,
-  groq: <GroqLogo aria-hidden className="size-6" />,
 };
 
 const PROVIDERS: Provider[] = BUILTIN_PROVIDER_INTEGRATIONS.map(provider => ({
@@ -83,10 +63,10 @@ const PROVIDERS: Provider[] = BUILTIN_PROVIDER_INTEGRATIONS.map(provider => ({
 // with PROVIDERS order; keep the '*' count in sync whenever PROVIDERS grows or
 // shrinks so the radial mask continues to fade the band ends instead of orphans.
 const QUILT_PATTERN = [
-  ".*..*.*.*..*.*",
-  "*.*.**.*.*..*.",
-  ".*.**.*.*.*.*.",
-  "*..*.*.*..*..*",
+  ".*...*..*...*.",
+  "...*...*...*..",
+  "*...*.....*..*",
+  "..*...*.*.....",
 ] as const;
 const QUILT_COLS = QUILT_PATTERN[0].length;
 
@@ -119,9 +99,8 @@ export function SupportedAgents() {
         <div className="max-w-[40ch]">
           <Eyebrow className="text-accent">Bring the agents you use</Eyebrow>
           <p className="mt-2 text-base leading-snug text-fg">
-            CompozyOS launches built-in CLI and provider integrations as durable sessions. Local is
-            the default; choose Live when a session should discover peers, share capabilities, and
-            coordinate through Compozy Network.
+            CompozyOS launches built-in CLI and provider integrations as durable sessions, with
+            shared tools, explicit permissions, and history that stays on your machine.
           </p>
           <Link
             href="/docs/agents/providers"
@@ -190,7 +169,7 @@ function ProviderQuilt({ providers }: { providers: Provider[] }) {
                       {provider.logo}
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>{provider.name}</TooltipContent>
+                  <TooltipContent className={SITE_TOOLTIP_CLASS}>{provider.name}</TooltipContent>
                 </Tooltip>
               );
             })}

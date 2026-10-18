@@ -31,7 +31,7 @@ type RunResultPage struct {
 	Bytes      int64  `json:"bytes"`
 	TotalBytes int64  `json:"total_bytes"`
 	DataBase64 string `json:"data_base64"`
-	NextOffset int64  `json:"next_offset,omitempty"`
+	NextOffset int64  `json:"next_offset,omitzero"`
 	EOF        bool   `json:"eof"`
 }
 
@@ -46,15 +46,15 @@ func (r Run) ResultValue() json.RawMessage {
 // SetResult replaces the terminal result with an isolated copy.
 func (r *Run) SetResult(result json.RawMessage) {
 	r.RunResultState = &RunResultState{
-		Result:              rawJSONPointer(result),
-		RunResultDescriptor: RunResultDescriptor{ResultBytes: int64(len(result))},
+		Result:      rawJSONPointer(result),
+		ResultBytes: int64(len(result)),
 	}
 }
 
 // SetExternalResult replaces the inline value with its durable opaque descriptor.
 func (r *Run) SetExternalResult(ref string, bytes int64) {
 	r.RunResultState = &RunResultState{
-		RunResultDescriptor: RunResultDescriptor{ResultRef: ref, ResultBytes: bytes},
+		ResultRef: ref, ResultBytes: bytes,
 	}
 }
 

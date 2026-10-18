@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -32,9 +33,9 @@ func classifyProviderEventErrorCode(eventError string) string {
 		strings.Contains(normalized, "token refresh"),
 		strings.Contains(normalized, "refresh token"):
 		return "provider_auth_failure"
-	case strings.Contains(normalized, "timeout"),
+	case strings.Contains(normalized, daemonTimeoutKey),
 		strings.Contains(normalized, "deadline"):
-		return roleFieldTimeout
+		return daemonTimeoutKey
 	case strings.Contains(normalized, "disconnect"),
 		strings.Contains(normalized, "connection"),
 		strings.Contains(normalized, "transport"),
@@ -83,6 +84,17 @@ func evaluatePromptProviderFailure(
 				code,
 				eventError,
 				"check provider service status, quota, or credentials",
+			),
+		)
+	}
+
+	if stopReason == acp.PromptStopReasonCancelled {
+		return looppkg.NewSafeActionFailureError(
+			fmt.Errorf("daemon: prompt canceled: %w", context.Canceled),
+			looppkg.NewActionFailure(
+				string(store.FailureCanceled),
+				"The worker prompt was canceled.",
+				"Start a new run when you are ready to continue the work.",
 			),
 		)
 	}

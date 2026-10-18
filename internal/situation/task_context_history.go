@@ -85,8 +85,7 @@ func (s *Service) recentTaskEvents(
 		event := record.Event
 		var runSummary *taskpkg.RunSummary
 		if run, ok := runsByID[strings.TrimSpace(event.RunID)]; ok {
-			summary := runSummaryFromTaskRun(run, taskRecord.MaxAttempts)
-			runSummary = &summary
+			runSummary = new(runSummaryFromTaskRun(run, taskRecord.MaxAttempts))
 		}
 		payload := cloneRawJSON(event.Payload)
 		redactedPayload, err := redactTaskContextPayload(payload)

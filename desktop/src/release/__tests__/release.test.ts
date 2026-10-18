@@ -1,6 +1,4 @@
-import { createServer } from "node:http";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse as parseYAML } from "yaml";
@@ -309,50 +307,5 @@ releaseDate: "${date}"
     expect(shouldDisableDifferentialDownload("x64", "arm64")).toBe(true);
     expect(shouldDisableDifferentialDownload("arm64", "arm64")).toBe(false);
     expect(shouldDisableDifferentialDownload("x64", "x64")).toBe(false);
-  });
-
-  it("Should rehearse N to N+1 through the generic provider HTTP path", async () => {
-    const manifest = (version: string) => `version: ${version}
-files:
-  - url: CompozyOS-${version}-mac-arm64.zip
-    sha512: arm64-${version}
-    size: 10
-  - url: CompozyOS-${version}-mac-x64.zip
-    sha512: x64-${version}
-    size: 10
-releaseDate: 2026-08-16T12:00:00Z
-`;
-    let liveManifest = manifest("1.0.0-beta.1");
-    const server = createServer((request, response) => {
-      if (request.url === "/channel-beta/desktop/latest-mac.yml") {
-        response.writeHead(200, { "content-type": "text/yaml" }).end(liveManifest);
-        return;
-      }
-      if (request.url === "/CompozyOS-1.0.0-beta.2-mac-x64.zip") {
-        response.writeHead(200, { "content-type": "application/zip" }).end("candidate");
-        return;
-      }
-      response.writeHead(404).end();
-    });
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    try {
-      const address = server.address() as AddressInfo;
-      const provider = `http://127.0.0.1:${address.port}/channel-beta/desktop`;
-      expect(await (await fetch(`${provider}/latest-mac.yml`)).text()).toContain("1.0.0-beta.1");
-
-      liveManifest = manifest("1.0.0-beta.2");
-      const candidate = await (await fetch(`${provider}/latest-mac.yml`)).text();
-      expect(candidate).toContain("CompozyOS-1.0.0-beta.2-mac-arm64.zip");
-      expect(candidate).toContain("CompozyOS-1.0.0-beta.2-mac-x64.zip");
-      const packageResponse = await fetch(
-        `http://127.0.0.1:${address.port}/CompozyOS-1.0.0-beta.2-mac-x64.zip`
-      );
-      expect(packageResponse.status).toBe(200);
-      expect(await packageResponse.text()).toBe("candidate");
-    } finally {
-      await new Promise<void>((resolve, reject) =>
-        server.close(error => (error ? reject(error) : resolve()))
-      );
-    }
   });
 });

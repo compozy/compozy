@@ -18,6 +18,11 @@ func TestContextIsCanceledOnCleanup(t *testing.T) {
 
 	t.Run("Should cancel the context during cleanup", func(t *testing.T) {
 		ctx = Context(t)
+		t.Cleanup(func() {
+			if !errors.Is(ctx.Err(), context.Canceled) {
+				t.Errorf("Context() before cleanup = %v, want context.Canceled", ctx.Err())
+			}
+		})
 		go func() {
 			<-ctx.Done()
 			close(done)
@@ -148,7 +153,7 @@ func TestFreeTCPPort(t *testing.T) {
 
 				port := FreeTCPPort(t)
 				listener, err := (&net.ListenConfig{}).Listen(
-					context.Background(),
+					t.Context(),
 					"tcp",
 					fmt.Sprintf("127.0.0.1:%d", port),
 				)

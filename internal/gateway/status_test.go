@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"context"
 	"errors"
 	"net/netip"
 	"strings"
@@ -152,14 +151,14 @@ func TestStatusProjection(t *testing.T) {
 			Devices: []DeviceSession{{ID: "dev_test"}},
 		}}
 		policy := newTestPolicy(t, store, newTestEffects(nil), true)
-		_, err := policy.Transition(context.Background(), TransitionRequest{
+		_, err := policy.Transition(t.Context(), TransitionRequest{
 			Target: TargetSurface, Tier: TierPublic, Surface: SurfaceOperatorUI,
 			Desired: DesiredEnabled, Consent: false,
 		})
 		if !errors.Is(err, ErrConsentRequired) {
 			t.Fatalf("Transition() error = %v, want ErrConsentRequired", err)
 		}
-		snapshot, snapshotErr := store.Snapshot(context.Background())
+		snapshot, snapshotErr := store.Snapshot(t.Context())
 		if snapshotErr != nil {
 			t.Fatalf("Snapshot() error = %v", snapshotErr)
 		}

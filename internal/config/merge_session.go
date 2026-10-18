@@ -3,7 +3,11 @@ package config
 import (
 	"log/slog"
 	"strings"
+	"sync"
 )
+
+// Config reloads are frequent; the deprecated session.limits.timeout warns once per process.
+var sessionLimitsTimeoutDeprecation sync.Once
 
 func (o sessionOverlay) Apply(dst *SessionConfig) {
 	if o.Stop.CooperativeGrace != nil {
@@ -12,13 +16,21 @@ func (o sessionOverlay) Apply(dst *SessionConfig) {
 	o.Limits.Apply(&dst.Limits)
 	o.Supervision.Apply(&dst.Supervision)
 	o.BusyInput.Apply(&dst.BusyInput)
-	o.Compaction.Apply(&dst.Compaction)
+	o.Messaging.Apply(&dst.Messaging)
 	o.Attachments.Apply(&dst.Attachments)
+	o.Derive.Apply(&dst.Derive)
 }
 
 func (o sessionLimitsOverlay) Apply(dst *SessionLimitsConfig) {
 	if o.Timeout != nil {
 		dst.Timeout = *o.Timeout
+		// Retain the released key through v0.4; remove it in v0.5.0.
+		if dst.Timeout > 0 {
+			sessionLimitsTimeoutDeprecation.Do(func() {
+				slog.Warn("session.limits.timeout is deprecated and has no effect; " +
+					"use session.supervision.idle_release_after before v0.5.0")
+			})
+		}
 	}
 }
 
@@ -39,23 +51,11 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	if o.StopGrace != nil {
 		dst.StopGrace = *o.StopGrace
 	}
+	if o.IdleReleaseAfter != nil {
+		dst.IdleReleaseAfter = *o.IdleReleaseAfter
+	}
 	if o.TimeoutCancelGrace != nil {
 		dst.TimeoutCancelGrace = *o.TimeoutCancelGrace
-	}
-}
-
-func (o sessionCompactionOverlay) Apply(dst *SessionCompactionConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
-	if o.PressureThreshold != nil {
-		dst.PressureThreshold = *o.PressureThreshold
-	}
-	if o.MaxAttemptsPerTurn != nil {
-		dst.MaxAttemptsPerTurn = *o.MaxAttemptsPerTurn
-	}
-	if o.FailureCooldown != nil {
-		dst.FailureCooldown = *o.FailureCooldown
 	}
 }
 

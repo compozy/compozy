@@ -63,7 +63,7 @@ function NestRowTrailing({ entry, checked }: { entry: WorktreeNestEntry; checked
       {checked ? (
         // One selection marker per layer: the check lives on the nest row
         // while the parent surface carries its own scope marker.
-        <Check aria-hidden="true" className="size-deck-glyph shrink-0 text-fg-strong" />
+        <Check aria-hidden="true" className="size-deck-glyph shrink-0 text-fg" />
       ) : null}
     </>
   );
@@ -116,7 +116,7 @@ export function WorktreeNestRow({
           data-slot="worktree-nest-row-name"
           className={cn(
             "min-w-0 truncate text-small-body font-medium tracking-tight",
-            entry.displayState === "missing" ? "text-muted" : "text-fg-strong"
+            entry.displayState === "missing" ? "text-muted" : "text-fg"
           )}
         >
           {entry.name}

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-command-palette
 expected: Every palette configuration mutation available in Settings is scriptable with identical semantics: bind and unbind (in-app and --global), alias set and clear, pin and unpin, and personalization show and reset apply atomically through the daemon, return the same structured conflict and validation errors HTTP returns (shortcut_conflict and alias_conflict naming the owner, invalid_alias with the grammar rule), transfer ownership only with explicit overwrite, reflect live in connected shells without restart, and read back consistently through bindings, list, the settings sections, and config.toml.
 entry_points: compozy cmd-palette bind|unbind (+ --global)|alias set|alias clear|bindings|pin|unpin|personalization show|reset; GET|PATCH /api/settings/window-manager (HTTP + UDS); GET|PATCH /api/settings/cmd-palette (HTTP + UDS); PUT|DELETE /api/cmd-palette/pins/{id} (HTTP + UDS); compozy config get|set cmd_palette.*; [cmd_palette] in config.toml
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-agent-command-invoke; ET-web-command-palette-shortcuts; ET-palette-personalization-lifecycle; ET-desktop-global-summon
 ---
 
@@ -53,3 +53,7 @@ Walk (task_11 plan):
 Expected evidence: CLI transcripts for every error class beside the matching HTTP response bodies,
 the `bindings -o json` snapshot showing effective + dormant + conflicts, and a screenshot of the
 open shell reflecting a scripted rebind without reload.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -113,6 +113,5 @@ func CloneSessionFailure(failure *SessionFailure) *SessionFailure {
 	if failure == nil {
 		return nil
 	}
-	clone := failure.Normalize()
-	return &clone
+	return new(failure.Normalize())
 }

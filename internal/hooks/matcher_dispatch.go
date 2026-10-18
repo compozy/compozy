@@ -1,5 +1,7 @@
 package hooks
 
+import "slices"
+
 func selectMatchingHooks[P any](
 	snapshot []*ResolvedHook,
 	payload P,
@@ -30,12 +32,9 @@ func selectMatchingHooks[P any](
 }
 
 func hookWorkspaceShadowed[P any](decl HookDecl, payload P, match matcherFunc[P]) bool {
-	for _, workspaceID := range decl.PlacementWorkspaces() {
-		if match(HookMatcher{WorkspaceID: workspaceID}, payload) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(decl.PlacementWorkspaces(), func(workspaceID string) bool {
+		return match(HookMatcher{WorkspaceID: workspaceID}, payload)
+	})
 }
 
 type profileOwnedHookPayload interface {
@@ -60,26 +59,6 @@ func matchSessionLifecycle(matcher HookMatcher, payload SessionLifecyclePayload)
 
 func matchSessionRuntimeRecovery(matcher HookMatcher, payload SessionRuntimeRecoveryPayload) bool {
 	return matcher.MatchesSession(payload.SessionContext)
-}
-
-func matchSandboxPrepare(matcher HookMatcher, payload *SandboxPreparePayload) bool {
-	return matcher.MatchesSandboxPrepare(payload)
-}
-
-func matchSandboxReady(matcher HookMatcher, payload SandboxReadyPayload) bool {
-	return matcher.MatchesSandboxReady(payload)
-}
-
-func matchSandboxSyncBefore(matcher HookMatcher, payload SandboxSyncBeforePayload) bool {
-	return matcher.MatchesSandboxSyncBefore(payload)
-}
-
-func matchSandboxSyncAfter(matcher HookMatcher, payload SandboxSyncAfterPayload) bool {
-	return matcher.MatchesSandboxSyncAfter(payload)
-}
-
-func matchSandboxStop(matcher HookMatcher, payload SandboxStopPayload) bool {
-	return matcher.MatchesSandboxStop(payload)
 }
 
 func matchInputPreSubmit(matcher HookMatcher, payload InputPreSubmitPayload) bool {
@@ -166,10 +145,6 @@ func matchMessage(matcher HookMatcher, payload MessagePayload) bool {
 	return matcher.MatchesMessage(payload)
 }
 
-func matchNetwork(matcher HookMatcher, payload NetworkPayload) bool {
-	return matcher.MatchesNetwork(payload)
-}
-
 func matchWindowManager(matcher HookMatcher, payload WindowManagerPayload) bool {
 	return matchStringField(matcher.WorkspaceID, payload.WorkspaceID)
 }
@@ -198,7 +173,7 @@ func matchPermissionDenied(matcher HookMatcher, payload PermissionDeniedPayload)
 	return matcher.MatchesPermissionDenied(payload)
 }
 
-func matchContextCompact(matcher HookMatcher, payload ContextCompactPayload) bool {
+func matchContextCompact(matcher HookMatcher, payload ContextCompactionPayload) bool {
 	return matcher.MatchesContextCompact(payload)
 }
 

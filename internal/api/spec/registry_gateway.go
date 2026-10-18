@@ -15,8 +15,8 @@ const (
 	specAPIGatewayStreamTicketsPath  = specAPIGatewayPath + "/stream-tickets"
 	specAPIGatewayIngressPath        = specAPIGatewayPath + "/ingress-bindings"
 	specAPIGatewayIngressSubjectPath = specAPIGatewayIngressPath + "/{subject_kind}/{subject_id}"
-	specAPIBridgeCallbackPath        = "/api/bridge-callbacks/{id}"
-	specBinaryContentType            = "*/*"
+
+	specBinaryContentType = "*/*"
 )
 
 func registryGatewayOperations() []OperationSpec {
@@ -34,9 +34,6 @@ func registryGatewayOperations() []OperationSpec {
 		gatewayStreamTicketOperation(),
 		gatewayIngressBindOperation(),
 		gatewayIngressUnbindOperation(),
-		gatewayBridgeCallbackGetOperation(),
-		gatewayBridgeCallbackPostOperation(),
-		gatewayBridgeCallbackHeadOperation(),
 	}
 }
 
@@ -52,72 +49,6 @@ func gatewayAuditOperation() OperationSpec {
 				Status:      500,
 				Description: specInternalServerErrorDescription,
 				Body:        contract.ErrorPayload{},
-			},
-		},
-	}
-}
-
-func gatewayBridgeCallbackGetOperation() OperationSpec {
-	return gatewayBridgeCallbackOperation(
-		httpMethodGet,
-		"probeGatewayBridgeCallback",
-		"Probe one bound bridge callback",
-	)
-}
-
-func gatewayBridgeCallbackPostOperation() OperationSpec {
-	operation := gatewayBridgeCallbackOperation(
-		httpMethodPost,
-		"deliverGatewayBridgeCallback",
-		"Deliver one bound bridge callback",
-	)
-	operation.RequestBody = map[string]any{}
-	return operation
-}
-
-func gatewayBridgeCallbackHeadOperation() OperationSpec {
-	return gatewayBridgeCallbackOperation(
-		httpMethodHead,
-		"headGatewayBridgeCallback",
-		"Probe one bound bridge callback",
-	)
-}
-
-func gatewayBridgeCallbackOperation(
-	method string,
-	operationID string,
-	summary string,
-) OperationSpec {
-	return OperationSpec{
-		Method: method, Path: specAPIBridgeCallbackPath,
-		OperationID: operationID, Summary: summary,
-		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP},
-		Parameters: []ParameterSpec{pathParam("id", "Bridge instance id")},
-		Responses: []ResponseSpec{
-			{
-				Status:      200,
-				Description: "Adapter response",
-				Body:        binaryResponse{},
-				ContentType: specBinaryContentType,
-			},
-			{Status: 204, Description: "Confirmed callback endpoint"},
-			{Status: 400, Description: "Invalid callback request", Body: contract.ErrorPayload{}},
-			{
-				Status:      404,
-				Description: "Bound bridge callback not found",
-				Body:        contract.ErrorPayload{},
-			},
-			{
-				Status:      413,
-				Description: specPayloadTooLargeDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 429, Description: specRateLimitedDescription, Body: contract.ErrorPayload{}},
-			{Status: 502, Description: "Bridge adapter unavailable", Body: contract.ErrorPayload{}},
-			{Status: 504, Description: "Bridge adapter timed out", Body: contract.ErrorPayload{}},
-			{
-				Default: true, Description: "Adapter-owned response",
-				Body: binaryResponse{}, ContentType: specBinaryContentType,
 			},
 		},
 	}

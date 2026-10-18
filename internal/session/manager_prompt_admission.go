@@ -80,7 +80,7 @@ func (m *Manager) submitAdmittedGoalByTarget(
 			return SendPromptResult{}, err
 		}
 	}
-	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime, target.meta); err != nil {
+	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime, &target.meta); err != nil {
 		return SendPromptResult{}, err
 	}
 	return m.submitAdmittedGoalPrompt(ctx, target.session, preparation, opts, admissionReq)
@@ -124,7 +124,7 @@ func (m *Manager) submitAdmittedPromptByTarget(
 			return SendPromptResult{}, err
 		}
 	}
-	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime, target.meta); err != nil {
+	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime, &target.meta); err != nil {
 		return SendPromptResult{}, err
 	}
 	session := target.session
@@ -169,7 +169,7 @@ func (m *Manager) submitAdmittedDirectPrompt(
 	req promptRequest,
 	mode BusyInputMode,
 	admissionReq store.SessionPromptAdmissionRequest,
-) (SendPromptResult, error) {
+) (resultOut SendPromptResult, sendErr error) {
 	admission, replayed, err := m.claimPromptAdmission(ctx, admissionReq)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -177,7 +177,11 @@ func (m *Manager) submitAdmittedDirectPrompt(
 	if replayed != nil {
 		return *replayed, nil
 	}
-	req = bindPromptAdmissionRequest(req, admission)
+	defer func() { m.replyWatchSendResult(ctx, admission, sendErr) }()
+	req, err = bindPromptAdmissionRequest(req, admission)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	committed := false
 	req.commitDispatch = func(dispatchCtx context.Context) error {
 		if err := m.commitPromptAdmissionDispatch(dispatchCtx, admission); err != nil {
@@ -214,7 +218,7 @@ func (m *Manager) submitAdmittedBusyPrompt(
 ) (SendPromptResult, error) {
 	switch mode {
 	case BusyInputModeQueue:
-		return m.enqueueAdmittedBusyPrompt(ctx, session, admissionReq)
+		return m.enqueueAdmittedBusyPrompt(ctx, session, req.supersede, admissionReq)
 	case BusyInputModeSteer:
 		result, err := m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
 		// The completed turn can disappear between the busy snapshot and staging.
@@ -234,6 +238,7 @@ func (m *Manager) submitAdmittedBusyPrompt(
 func (m *Manager) enqueueAdmittedBusyPrompt(
 	ctx context.Context,
 	session *Session,
+	supersede bool,
 	admissionReq store.SessionPromptAdmissionRequest,
 ) (SendPromptResult, error) {
 	if m.inputQueue == nil {
@@ -244,7 +249,7 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 		return SendPromptResult{}, err
 	}
 	admission, entry, position, created, err := m.inputQueue.EnqueueAdmitted(
-		ctx, admissionReq, generation, session.CurrentTurnID(),
+		ctx, admissionReq, generation, session.CurrentTurnID(), supersede,
 	)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
@@ -257,6 +262,7 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 		return SendPromptResult{}, err
 	}
 	if created {
+		m.settleSupersededQueuedInputs(ctx, session, &entry)
 		m.emitTranscriptMarker(
 			ctx, session, session.CurrentTurnID(), transcript.MarkerPromptQueued,
 			"Input queued while the session is busy.",
@@ -270,7 +276,11 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 	// Pair the durable enqueue with the turn-end selector kick. Whichever side
 	// observes the session idle after the enqueue owns dispatch.
 	m.startNextQueuedInputPrompt(session.ID)
+	if created && entry.OriginClass == store.SessionInputOriginClassAgent {
+		m.schedulePromoteLongTurnQueuedInputs(session)
+	}
 	result.Replayed = !created
+	m.replyWatchSendResult(ctx, admission, nil)
 	return result, nil
 }
 
@@ -299,21 +309,26 @@ func (m *Manager) stageAdmittedSteerPrompt(
 		admissionReq,
 		targetTurnID,
 		generation,
+		req.supersede,
 	)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
 	if err := m.activateSteeringInput(ctx, session, &entry); err != nil {
 		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
-		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
+		indeterminate := m.promptDispatchIndeterminate(ctx, admission, activationErr)
+		m.replyWatchSendResult(ctx, admission, indeterminate)
+		return SendPromptResult{}, indeterminate
 	}
 	result, err := sendPromptResultFromAdmission(admission)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
 	result.SteerDelivery = entry.SteerDelivery
+	result.Delivery = entry.Delivery
 	result.PreviousTurnID = entry.TargetTurnID
 	result.Replayed = !created
+	m.replyWatchSendResult(ctx, admission, nil)
 	return result, nil
 }
 
@@ -340,7 +355,9 @@ func (m *Manager) interruptAdmittedPrompt(
 	}
 	if err := m.ensureInterruptingInputActivated(ctx, session, &entry); err != nil {
 		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
-		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
+		indeterminate := m.promptDispatchIndeterminate(ctx, admission, activationErr)
+		m.replyWatchSendResult(ctx, admission, indeterminate)
+		return SendPromptResult{}, indeterminate
 	}
 	if created {
 		m.emitTranscriptMarker(
@@ -360,6 +377,7 @@ func (m *Manager) interruptAdmittedPrompt(
 		return SendPromptResult{}, err
 	}
 	result.Replayed = !created
+	m.replyWatchSendResult(ctx, admission, nil)
 	return result, nil
 }
 
@@ -377,7 +395,10 @@ func (m *Manager) submitAdmittedGoalPrompt(
 	if replayed != nil {
 		return *replayed, nil
 	}
-	preparation.request = bindPromptAdmissionRequest(preparation.request, admission)
+	preparation.request, err = bindPromptAdmissionRequest(preparation.request, admission)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	if session == nil {
 		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
 		if err != nil {
@@ -426,48 +447,4 @@ func (m *Manager) commitPromptAdmissionDispatch(
 		admission.IdempotencyKey,
 		m.now(),
 	)
-}
-
-func (m *Manager) completePromptAdmission(
-	ctx context.Context,
-	admission store.SessionPromptAdmission,
-	result SendPromptResult,
-) (SendPromptResult, error) {
-	stored, err := sessionPromptAdmissionResult(result)
-	if err != nil {
-		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-	}
-	if _, err := m.promptAdmissionStore.CompleteSessionPromptAdmission(
-		ctx,
-		admission.WorkspaceID,
-		admission.SessionID,
-		admission.IdempotencyKey,
-		stored,
-		m.now(),
-	); err != nil {
-		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-	}
-	result.MessageID = admission.MessageID
-	result.IdempotencyKey = admission.IdempotencyKey
-	return result, nil
-}
-
-func (m *Manager) promptDispatchIndeterminate(
-	ctx context.Context,
-	admission store.SessionPromptAdmission,
-	cause error,
-) error {
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-	defer cancel()
-	reason := "dispatch failed after the at-most-once boundary: " + cause.Error()
-	markErr := m.promptAdmissionStore.MarkSessionPromptAdmissionIndeterminate(
-		cleanupCtx,
-		admission.WorkspaceID,
-		admission.SessionID,
-		admission.IdempotencyKey,
-		reason,
-		m.now(),
-	)
-	indeterminate := fmt.Errorf("%w: %s", store.ErrSessionPromptDispatchIndeterminate, reason)
-	return errors.Join(indeterminate, markErr)
 }

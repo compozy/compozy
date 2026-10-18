@@ -14,14 +14,14 @@ const (
 	observeOverviewCommandKey = "overview"
 	observeSectionKey         = "section"
 	observeSectionMeta        = "meta"
-	observeSectionNetwork     = "network"
-	observeUsageSectionKey    = "usage"
-	observeTokensLabel        = "tokens"
-	observeApprovalsLabel     = "approvals"
-	observeWindowLabel        = "window"
-	observeLabelCompleted     = "completed"
-	observeLabelFailed        = "failed"
-	observeCostUnknown        = "unknown"
+
+	observeUsageSectionKey = "usage"
+	observeTokensLabel     = "tokens"
+	observeApprovalsLabel  = "approvals"
+	observeWindowLabel     = "window"
+	observeLabelCompleted  = "completed"
+	observeLabelFailed     = "failed"
+	observeCostUnknown     = "unknown"
 )
 
 func newObserveCommand(deps commandDeps) *cobra.Command {
@@ -49,7 +49,7 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
   # Scope aggregates to one workspace with a 7-day usage window
   compozy observe overview --workspace launch-hq --usage-window 7`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if usageWindow != 0 {
+			if cmd.Flags().Changed("usage-window") {
 				if err := observe.ValidateUsageWindowDays(usageWindow); err != nil {
 					return fmt.Errorf("--usage-window must be 7, 30, or 90")
 				}
@@ -109,7 +109,7 @@ func observeOverviewBundle(overview *contract.ObserveOverviewPayload) outputBund
 				{"outcomes", overview.Outcomes},
 				{observeUsageSectionKey, overview.Usage},
 				{"pulse", overview.Pulse},
-				{observeSectionNetwork, overview.Network},
+
 				{"system", overview.System},
 				{"freshness", overview.Freshness},
 			}
@@ -157,7 +157,7 @@ func renderObserveOverviewHuman(overview *contract.ObserveOverviewPayload) strin
 			renderOverviewPulseRows(&overview.Pulse),
 		),
 		renderHumanSection("System", []keyValue{
-			{Label: "network messages today", Value: fmt.Sprintf("%d", overview.Network.MessagesToday)},
+
 			{
 				Label: "hooks today",
 				Value: fmt.Sprintf(

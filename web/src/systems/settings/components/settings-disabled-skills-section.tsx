@@ -47,14 +47,13 @@ export function SettingsDisabledSkillsSection({
         />
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-line"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-testid="settings-page-skills-disabled-list"
         >
           <Table>
             <TableHeader>
-              <TableRow className="bg-elevated">
+              <TableRow>
                 <TableHead className="eyebrow text-muted">Skill</TableHead>
-                <TableHead className="eyebrow text-muted">Identifier</TableHead>
                 <TableHead className="eyebrow w-[1%] text-right text-muted">Disabled</TableHead>
               </TableRow>
             </TableHeader>
@@ -63,11 +62,10 @@ export function SettingsDisabledSkillsSection({
                 <TableRow key={name} data-testid={`settings-page-skills-disabled-item-${name}`}>
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
-                      <Wrench className="size-3 text-subtle" />
-                      <span className="truncate text-sm text-fg">{name}</span>
+                      <Wrench className="size-3.5 text-subtle" />
+                      <span className="truncate text-body text-fg">{name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted">{name}</TableCell>
                   <TableCell className="text-right">
                     <Switch
                       data-testid={`settings-page-skills-disabled-toggle-${name}`}

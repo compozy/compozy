@@ -61,12 +61,7 @@ func TestStartBindingShouldDeriveActorsForEverySurface(t *testing.T) {
 			wantActor:  task.ActorKindAutomation,
 			wantOrigin: task.OriginKindAutomation,
 		},
-		{
-			name:       "Should derive network as network peer",
-			kind:       dsl.StartNetwork,
-			wantActor:  task.ActorKindNetworkPeer,
-			wantOrigin: task.OriginKindNetwork,
-		},
+
 		{
 			name:       "Should derive extension as extension",
 			kind:       dsl.StartExtension,
@@ -107,19 +102,17 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 
 		def := startBindingDefinition()
 		resolver := startBindingResolver(t, def)
-		values, err := loop.ResolveStartTargetInputs(context.Background(), resolver, loop.StartTargetResolution{
-			StartTargetValidation: loop.StartTargetValidation{
-				WorkspaceID: "ws-1",
-				ProfileID:   "profile-marketing",
-				LoopName:    "valid-loop",
-				Kind:        dsl.StartTrigger,
-				Inputs: map[string]any{
-					"tasks": "task-ref",
-					"count": 2,
-				},
-				InputMapping: map[string]string{
-					"title": "{{ .trigger.payload.title }}",
-				},
+		values, err := loop.ResolveStartTargetInputs(t.Context(), resolver, loop.StartTargetResolution{
+			WorkspaceID: "ws-1",
+			ProfileID:   "profile-marketing",
+			LoopName:    "valid-loop",
+			Kind:        dsl.StartTrigger,
+			Inputs: map[string]any{
+				"tasks": "task-ref",
+				"count": 2,
+			},
+			InputMapping: map[string]string{
+				"title": "{{ .trigger.payload.title }}",
 			},
 			TriggerPayload: map[string]any{"title": "mapped-title"},
 		})
@@ -137,7 +130,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 	t.Run("Should reject undeclared start surface with reason code", func(t *testing.T) {
 		t.Parallel()
 
-		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
+		err := loop.ValidateStartTarget(t.Context(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
 				ProfileID:   "profile-marketing",
@@ -154,7 +147,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 	t.Run("Should defer missing required inputs to the shared service resolver", func(t *testing.T) {
 		t.Parallel()
 
-		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
+		err := loop.ValidateStartTarget(t.Context(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
 				ProfileID:   "profile-marketing",
@@ -170,7 +163,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 	t.Run("Should reject non payload mapping grammar", func(t *testing.T) {
 		t.Parallel()
 
-		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
+		err := loop.ValidateStartTarget(t.Context(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
 				ProfileID:   "profile-marketing",
@@ -205,7 +198,6 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 		{name: "Should start from trigger", kind: dsl.StartTrigger},
 		{name: "Should start from schedule", kind: dsl.StartSchedule},
 		{name: "Should start from webhook", kind: dsl.StartWebhook},
-		{name: "Should start from network", kind: dsl.StartNetwork},
 		{name: "Should start from extension", kind: dsl.StartExtension},
 		{name: "Should start from native tool", kind: dsl.StartNativeTool},
 	}
@@ -219,7 +211,7 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 			store := newFakeLoopStore()
 			resolver := startBindingResolver(t, def)
 			svc := newTestService(t, store, def)
-			run, err := loop.StartFromBinding(context.Background(), svc, resolver, loop.StartBindingRequest{
+			run, err := loop.StartFromBinding(t.Context(), svc, resolver, loop.StartBindingRequest{
 				WorkspaceID: "ws-1",
 				LoopName:    "valid-loop",
 				Kind:        tt.kind,

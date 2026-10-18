@@ -32,14 +32,14 @@ export function TerminalJournalToolbar({ chips, onChange }: TerminalJournalToolb
               data-testid="terminal-journal-filters-add"
               size="sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
-              <ListFilter aria-hidden="true" className="size-3" />
+              <ListFilter aria-hidden="true" data-icon="inline-start" />
               Filter
             </Button>
           }
         />
-        <span className="ml-auto text-badge text-subtle">Newest first</span>
+        <span className="ml-auto text-eyebrow text-subtle">Newest first</span>
       </ListingToolbar>
     </div>
   );

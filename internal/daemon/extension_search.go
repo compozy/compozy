@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -9,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -170,7 +170,7 @@ func normalizeExtensionSearchRequest(
 			seen[source] = struct{}{}
 			sources = append(sources, source)
 		}
-		sort.Strings(sources)
+		slices.Sort(sources)
 	}
 	digest := sha256.Sum256([]byte(query + "\x00" + strings.Join(sources, ",")))
 	fingerprint = hex.EncodeToString(digest[:])
@@ -212,18 +212,14 @@ func (s *daemonExtensionService) loadExtensionSearchSnapshot(
 	if err := ctx.Err(); err != nil {
 		return extensionSearchSnapshot{}, fmt.Errorf("daemon: extension search canceled: %w", err)
 	}
-	sort.Slice(allItems, func(left int, right int) bool {
-		leftPriority := slices.Index(sources, allItems[left].Source)
-		rightPriority := slices.Index(sources, allItems[right].Source)
-		if leftPriority != rightPriority {
-			return leftPriority < rightPriority
-		}
-		if allItems[left].Slug != allItems[right].Slug {
-			return allItems[left].Slug < allItems[right].Slug
-		}
-		return allItems[left].Version < allItems[right].Version
+	slices.SortFunc(allItems, func(a, b contract.ExtensionSearchItem) int {
+		return cmp.Or(
+			cmp.Compare(slices.Index(sources, a.Source), slices.Index(sources, b.Source)),
+			strings.Compare(a.Slug, b.Slug),
+			strings.Compare(a.Version, b.Version),
+		)
 	})
-	sort.Strings(degraded)
+	slices.Sort(degraded)
 	createdAt := s.now().UTC()
 	fencePayload, err := json.Marshal(struct {
 		Items     []contract.ExtensionSearchItem `json:"items"`

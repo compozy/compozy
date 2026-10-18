@@ -1,0 +1,8 @@
+{
+    "message_id": "msg_01J9R2N3V0QF",
+    "name": "Migration cleanup (alt)",
+    "idempotency_key": "idem_01J9R2R1D7KX",
+    "expected_epoch": 3,
+    "expected_generation": 12,
+    "expected_max_sequence": 418
+}

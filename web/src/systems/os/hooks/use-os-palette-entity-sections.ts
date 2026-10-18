@@ -1,21 +1,23 @@
 import { useAgents } from "@/systems/agent";
-import { useAutomationJobs, useAutomationTriggers } from "@/systems/automation";
-import { useBridges } from "@/systems/bridges";
+import {
+  useAutomationJobs,
+  useAutomationTimeZone,
+  useAutomationTriggers,
+} from "@/systems/automation";
 import { useLoops } from "@/systems/loops";
 import { useTasks } from "@/systems/tasks";
-import { useWorktrees } from "@/systems/workspace";
+import { useActiveWorkspace, useWorktrees } from "@/systems/workspace";
 
 import {
   agentRoute,
-  bridgeRoute,
-  jobRoute,
   loopRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
+  paletteAutomationViews,
+  projectAutomationRows,
   rowSeed,
   section,
   taskRoute,
-  triggerRoute,
   worktreeRowSeed,
   workspaceLabel,
   type OsPaletteDomainSection,
@@ -44,9 +46,7 @@ export function useOsPaletteEntitySections(
     useAgentSection(context, catalogs),
     useTaskSection(context),
     useLoopSection(context, catalogs),
-    useJobSection(context),
-    useTriggerSection(context),
-    useBridgeSection(context),
+    useAutomationSection(context),
   ];
 }
 
@@ -190,91 +190,36 @@ function useLoopSection(context: OsPaletteDomainContext, catalogs: OsPaletteWork
   );
 }
 
-function useJobSection(context: OsPaletteDomainContext) {
-  const enabled = paletteDomainEnabled(context, "Jobs");
-  const jobs = useAutomationJobs(
-    paletteWorkspaceCatalogFilters(context.scope, context.workspaceId),
-    { enabled }
-  );
+function useAutomationSection(context: OsPaletteDomainContext) {
+  const enabled = paletteDomainEnabled(context, "Automations");
+  const filters = paletteWorkspaceCatalogFilters(context.scope, context.workspaceId);
+  const jobs = useAutomationJobs(filters, { enabled });
+  const triggers = useAutomationTriggers(filters, { enabled });
+  const timeZone = useAutomationTimeZone();
+  // `context.workspaceNames` is a Global-only label index; the sentence names the
+  // project in every scope, exactly as the listing does.
+  const { registeredWorkspaces } = useActiveWorkspace();
   usePaletteInfiniteCatalog(jobs, enabled);
-  if (context.signals === null) return EMPTY_SECTION("Jobs");
-  return section(
-    "Jobs",
-    jobs.jobs.map(job =>
-      rowSeed("Jobs", {
-        key: `job:${job.id}`,
-        label: job.name,
-        detail: job.agent_name,
-        workspaceLabel: workspaceLabel(context.scope, job.workspace_id, context.workspaceNames),
-        app: "jobs",
-        route: jobRoute(job.id),
-        ...(job.workspace_id ? { workspaceId: job.workspace_id } : {}),
-      })
-    ),
-    jobs,
-    enabled,
-    context.query,
-    context.signals,
-    { limit: context.domainLimit, catalogTotal: jobs.total }
-  );
-}
-
-function useTriggerSection(context: OsPaletteDomainContext) {
-  const enabled = paletteDomainEnabled(context, "Triggers");
-  const triggers = useAutomationTriggers(
-    paletteWorkspaceCatalogFilters(context.scope, context.workspaceId),
-    { enabled }
-  );
   usePaletteInfiniteCatalog(triggers, enabled);
-  if (context.signals === null) return EMPTY_SECTION("Triggers");
+  if (context.signals === null) return EMPTY_SECTION("Automations");
+  const views = paletteAutomationViews(jobs.jobs, triggers.triggers, {
+    timeZone,
+    names: context.workspaceNames,
+    projects: registeredWorkspaces,
+  });
+  const rows = projectAutomationRows(views, context.scope, context.workspaceNames);
+  const failed = jobs.isError ? jobs : triggers;
   return section(
-    "Triggers",
-    triggers.triggers.map(trigger =>
-      rowSeed("Triggers", {
-        key: `trigger:${trigger.id}`,
-        label: trigger.name,
-        detail: trigger.event,
-        workspaceLabel: workspaceLabel(context.scope, trigger.workspace_id, context.workspaceNames),
-        app: "triggers",
-        route: triggerRoute(trigger.id),
-        ...(trigger.workspace_id ? { workspaceId: trigger.workspace_id } : {}),
-      })
-    ),
-    triggers,
+    "Automations",
+    rows.map(row => rowSeed("Automations", row)),
+    {
+      isError: jobs.isError || triggers.isError,
+      isLoading: jobs.isLoading || triggers.isLoading,
+      error: failed.error,
+    },
     enabled,
     context.query,
     context.signals,
-    { limit: context.domainLimit, catalogTotal: triggers.total }
-  );
-}
-
-function useBridgeSection(context: OsPaletteDomainContext) {
-  const enabled = paletteDomainEnabled(context, "Bridges");
-  const bridges = useBridges(
-    context.scope === "workspace" && context.workspaceId
-      ? { scope: "workspace", workspace_id: context.workspaceId }
-      : { scope: "all" },
-    { enabled }
-  );
-  usePaletteInfiniteCatalog(bridges, enabled);
-  if (context.signals === null) return EMPTY_SECTION("Bridges");
-  return section(
-    "Bridges",
-    bridges.bridges.map(bridge =>
-      rowSeed("Bridges", {
-        key: `bridge:${bridge.id}`,
-        label: bridge.display_name,
-        detail: bridge.platform,
-        workspaceLabel: workspaceLabel(context.scope, bridge.workspace_id, context.workspaceNames),
-        app: "bridges",
-        route: bridgeRoute(bridge.id),
-        ...(bridge.workspace_id ? { workspaceId: bridge.workspace_id } : {}),
-      })
-    ),
-    bridges,
-    enabled,
-    context.query,
-    context.signals,
-    { limit: context.domainLimit, catalogTotal: bridges.total }
+    { limit: context.domainLimit, catalogTotal: jobs.total + triggers.total }
   );
 }

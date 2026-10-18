@@ -2,8 +2,9 @@ package contract
 
 import (
 	"encoding/json"
+	"maps"
 	"reflect"
-	"sort"
+	"slices"
 	"testing"
 )
 
@@ -29,11 +30,8 @@ func TestRoleStatusJSONContract(t *testing.T) {
 		if err := json.Unmarshal(encoded, &fields); err != nil {
 			t.Fatalf("json.Unmarshal(RoleStatus) error = %v", err)
 		}
-		keys := make([]string, 0, len(fields))
-		for key := range fields {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.AppendSeq(make([]string, 0, len(fields)), maps.Keys(fields))
+		slices.Sort(keys)
 		want := []string{
 			"acp_options",
 			"agent",
@@ -72,7 +70,7 @@ func TestRoleStatusJSONContract(t *testing.T) {
 
 		timeout := "250ms"
 		encoded, err := json.Marshal(RoleStatus{
-			Role:           "memory_controller",
+			Role:           "coordinator",
 			Enabled:        true,
 			ResolutionMode: RoleResolutionModeInherit,
 			Timeout:        &timeout,

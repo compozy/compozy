@@ -9,7 +9,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -22,7 +22,7 @@ func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "No-op hook task",
@@ -30,11 +30,11 @@ func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		claimed, err := claimExactRunForTest(context.Background(), manager, run.ID, actor)
+		claimed, err := claimExactRunForTest(t.Context(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("claimExactRunForTest() error = %v", err)
 		}
@@ -43,7 +43,7 @@ func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
 		}
 
 		events, err := store.ListTaskEvents(
-			context.Background(),
+			t.Context(),
 			EventQuery{TaskID: taskRecord.ID, RunID: run.ID},
 		)
 		if err != nil {
@@ -54,12 +54,12 @@ func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
 		}
 
 		statusPayload := hookspkg.TaskStatusChangedPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskStatusChanged},
-			TaskContext: hookspkg.TaskContext{TaskID: taskRecord.ID},
-			FromStatus:  string(TaskStatusReady),
-			ToStatus:    string(TaskStatusInProgress),
+			Event:      hookspkg.HookTaskStatusChanged,
+			TaskID:     taskRecord.ID,
+			FromStatus: string(TaskStatusReady),
+			ToStatus:   string(TaskStatusInProgress),
 		}
-		gotStatus, err := noopTaskRunHooks{}.DispatchTaskStatusChanged(context.Background(), statusPayload)
+		gotStatus, err := noopTaskRunHooks{}.DispatchTaskStatusChanged(t.Context(), statusPayload)
 		if err != nil {
 			t.Fatalf("DispatchTaskStatusChanged() error = %v", err)
 		}
@@ -87,7 +87,7 @@ func TestTaskStatusChangedHookShouldReflectOnlyRealTransitions(t *testing.T) {
 			},
 		}))
 		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "No-op status hook task",
@@ -97,7 +97,7 @@ func TestTaskStatusChangedHookShouldReflectOnlyRealTransitions(t *testing.T) {
 		}
 
 		manager.dispatchTaskStatusChanged(
-			context.Background(),
+			t.Context(),
 			*taskRecord,
 			TaskStatusPending,
 			Status(" pending "),
@@ -124,7 +124,7 @@ func TestTaskStatusChangedHookShouldReflectOnlyRealTransitions(t *testing.T) {
 			},
 		}))
 		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Real status hook task",
@@ -134,7 +134,7 @@ func TestTaskStatusChangedHookShouldReflectOnlyRealTransitions(t *testing.T) {
 		}
 
 		manager.dispatchTaskStatusChanged(
-			context.Background(),
+			t.Context(),
 			*taskRecord,
 			TaskStatusPending,
 			TaskStatusInProgress,
@@ -169,7 +169,7 @@ func TestTaskRunPreClaimHookDenialPreservesQueuedRun(t *testing.T) {
 		}))
 		actor := validActorContext()
 
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Denied claim task",
@@ -177,23 +177,23 @@ func TestTaskRunPreClaimHookDenialPreservesQueuedRun(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		_, err = claimExactRunForTest(context.Background(), manager, run.ID, actor)
+		_, err = claimExactRunForTest(t.Context(), manager, run.ID, actor)
 		if !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("claimExactRunForTest() error = %v, want %v", err, ErrPermissionDenied)
 		}
 
-		storedRun, err := store.GetTaskRun(context.Background(), run.ID)
+		storedRun, err := store.GetTaskRun(t.Context(), run.ID)
 		if err != nil {
 			t.Fatalf("GetTaskRun() error = %v", err)
 		}
 		if got, want := storedRun.Status, TaskRunStatusQueued; got != want {
 			t.Fatalf("storedRun.Status = %q, want %q", got, want)
 		}
-		events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID, RunID: run.ID})
+		events, err := store.ListTaskEvents(t.Context(), EventQuery{TaskID: taskRecord.ID, RunID: run.ID})
 		if err != nil {
 			t.Fatalf("ListTaskEvents() error = %v", err)
 		}
@@ -226,7 +226,7 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Hook context task",
@@ -235,7 +235,7 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 
-		execution, err := manager.StartTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+		execution, err := manager.StartTask(t.Context(), taskRecord.ID, ExecutionRequest{}, actor)
 		if err != nil {
 			t.Fatalf("StartTask() error = %v", err)
 		}
@@ -282,7 +282,7 @@ func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
 		},
 	}))
 	actor := validActorContext()
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Observation hook context task",
@@ -291,7 +291,7 @@ func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 
-	enqueueCtx, cancel := context.WithCancel(context.Background())
+	enqueueCtx, cancel := context.WithCancel(t.Context())
 	cancelEnqueue = cancel
 	defer cancel()
 	run, err := manager.EnqueueRun(enqueueCtx, EnqueueRun{TaskID: taskRecord.ID}, actor)
@@ -302,7 +302,7 @@ func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
 		t.Fatal("enqueued hook did not observe its detached bounded context")
 	}
 
-	claimCtx, cancel := context.WithCancel(context.Background())
+	claimCtx, cancel := context.WithCancel(t.Context())
 	cancelClaim = cancel
 	defer cancel()
 	if _, err := claimExactRunForTest(claimCtx, manager, run.ID, actor); err != nil {
@@ -347,7 +347,7 @@ func TestTaskRunPreClaimHookUsesCallerCancellation(t *testing.T) {
 			},
 		}))
 		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Pre-claim hook context task",
@@ -355,12 +355,12 @@ func TestTaskRunPreClaimHookUsesCallerCancellation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
 
-		claimCtx, cancelClaim := context.WithCancel(context.Background())
+		claimCtx, cancelClaim := context.WithCancel(t.Context())
 		if _, err := claimExactRunForTest(claimCtx, manager, run.ID, actor); err != nil {
 			t.Fatalf("claimExactRunForTest() error = %v", err)
 		}
@@ -444,7 +444,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 		maxAttempts := 4
 
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Hooked lease task",
@@ -457,13 +457,13 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		claimAndRun := func(label string, at time.Time) *ClaimResult {
 			t.Helper()
 			if _, err := manager.EnqueueRun(
-				context.Background(),
+				t.Context(),
 				EnqueueRun{TaskID: taskRecord.ID},
 				actor,
 			); err != nil {
 				t.Fatalf("EnqueueRun(%s) error = %v", label, err)
 			}
-			claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 				Scope:            ScopeGlobal,
 				ClaimerSessionID: "sess-hooks",
 				LeaseDuration:    2 * time.Minute,
@@ -476,7 +476,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		}
 
 		claim := claimAndRun("complete", now)
-		if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		if _, err := manager.HeartbeatRunLease(t.Context(), LeaseHeartbeat{
 			RunID:         claim.Run.ID,
 			ClaimToken:    claim.ClaimToken,
 			LeaseDuration: 2 * time.Minute,
@@ -484,7 +484,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		}, agent); err != nil {
 			t.Fatalf("HeartbeatRunLease() error = %v", err)
 		}
-		if _, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		if _, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Result:     RunResult{},
@@ -494,7 +494,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		}
 
 		claim = claimAndRun("release", now.Add(time.Minute))
-		if _, err := manager.ReleaseRunLease(context.Background(), LeaseRelease{
+		if _, err := manager.ReleaseRunLease(t.Context(), LeaseRelease{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Reason:     "handoff",
@@ -503,7 +503,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 			t.Fatalf("ReleaseRunLease() error = %v", err)
 		}
 
-		claim, err = manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		claim, err = manager.ClaimNextRun(t.Context(), ClaimCriteria{
 			Scope:            ScopeGlobal,
 			ClaimerSessionID: "sess-hooks",
 			LeaseDuration:    2 * time.Minute,
@@ -512,7 +512,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ClaimNextRun(fail) error = %v", err)
 		}
-		if _, err := manager.FailRunLease(context.Background(), LeaseFailure{
+		if _, err := manager.FailRunLease(t.Context(), LeaseFailure{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Failure:    RunFailure{Error: "boom"},
@@ -525,7 +525,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		expiredRun := store.runs[expiring.Run.ID]
 		expiredRun.LeaseUntil = now.Add(3*time.Minute - time.Second)
 		store.runs[expiring.Run.ID] = expiredRun
-		if recovered, err := manager.RecoverExpiredRunLeases(context.Background(), ExpiredLeaseRecovery{
+		if recovered, err := manager.RecoverExpiredRunLeases(t.Context(), ExpiredLeaseRecovery{
 			Now:    now.Add(3 * time.Minute),
 			Reason: "orphaned_on_boot",
 		}, agent); err != nil {
@@ -590,7 +590,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		agent := agentActorContextForTest("sess-exhausted", "ws-exhausted")
 		now := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
 		maxAttempts := 1
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Exhausted lease task",
@@ -599,11 +599,11 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 			RunID:            run.ID,
 			Scope:            ScopeGlobal,
 			ClaimerSessionID: "sess-exhausted",
@@ -614,7 +614,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 			t.Fatalf("ClaimNextRun() error = %v", err)
 		}
 
-		results, err := manager.RecoverExpiredRunLeases(context.Background(), ExpiredLeaseRecovery{
+		results, err := manager.RecoverExpiredRunLeases(t.Context(), ExpiredLeaseRecovery{
 			Now:    claim.LeaseUntil.Add(time.Second),
 			Reason: "orphaned_on_boot",
 		}, actor)
@@ -676,7 +676,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 		}))
 		operator := validActorContext()
 		agent := agentActorContextForTest("sess-task-hooks", "ws-task-hooks")
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-task-hooks",
@@ -688,12 +688,12 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
 		claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 			Scope:            ScopeWorkspace,
 			WorkspaceID:      taskRecord.WorkspaceID,
 			ClaimerSessionID: "sess-task-hooks",
@@ -707,7 +707,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", claim.Run.ID, run.ID)
 		}
 
-		block, err := manager.BlockTask(context.Background(), BlockRequest{
+		block, err := manager.BlockTask(t.Context(), BlockRequest{
 			TaskID:     taskRecord.ID,
 			Kind:       BlockKindNeedsInput,
 			Reason:     "creator clarification required",
@@ -732,13 +732,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 				blocked.TaskContext,
 			)
 		}
-		if blocked.ResolvedNetworkParticipation == nil ||
-			*blocked.ResolvedNetworkParticipation != participation.LocalSpec() {
-			t.Fatalf(
-				"blocked.ResolvedNetworkParticipation = %#v, want canonical Local snapshot",
-				blocked.ResolvedNetworkParticipation,
-			)
-		}
+
 		if blocked.ClaimTokenHash == "" || !VerifyClaimToken(claim.ClaimToken, blocked.ClaimTokenHash) {
 			t.Fatalf("blocked.ClaimTokenHash = %q, want hash verifying raw token", blocked.ClaimTokenHash)
 		}
@@ -747,7 +741,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 		}
 
 		cleared, err := manager.ClearTaskBlock(
-			context.Background(),
+			t.Context(),
 			taskRecord.ID,
 			block.ID,
 			"creator answered",
@@ -773,13 +767,13 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			t.Fatalf("unblocked.Details = %s, want %s", got, want)
 		}
 
-		currentTask, err := store.GetTask(context.Background(), taskRecord.ID)
+		currentTask, err := store.GetTask(t.Context(), taskRecord.ID)
 		if err != nil {
 			t.Fatalf("GetTask() error = %v", err)
 		}
 		escalatedAt := claimNow.Add(time.Minute)
 		manager.dispatchTaskNeedsAttention(
-			context.Background(),
+			t.Context(),
 			currentTask,
 			agent,
 			"breaker limit reached",
@@ -787,7 +781,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			nil,
 		)
 		manager.dispatchTaskRecovered(
-			context.Background(),
+			t.Context(),
 			currentTask,
 			operator,
 			"operator resumed",
@@ -806,14 +800,14 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			t.Fatalf("recovered payload = %#v, want task.recovered correlation", recovered)
 		}
 
-		storedBlocks, err := manager.ListTaskBlocks(context.Background(), taskRecord.ID, true, operator)
+		storedBlocks, err := manager.ListTaskBlocks(t.Context(), taskRecord.ID, true, operator)
 		if err != nil {
 			t.Fatalf("ListTaskBlocks(includeCleared) error = %v", err)
 		}
 		assertJSONDoesNotContain(t, "stored task blocks", storedBlocks, claim.ClaimToken)
 		assertJSONDoesNotContain(t, "task.blocked payload", blocked, claim.ClaimToken)
 
-		events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
+		events, err := store.ListTaskEvents(t.Context(), EventQuery{TaskID: taskRecord.ID})
 		if err != nil {
 			t.Fatalf("ListTaskEvents() error = %v", err)
 		}
@@ -855,7 +849,7 @@ func TestTaskHookContextCarriesParentTaskID(t *testing.T) {
 			},
 		}))
 		actor := validActorContext()
-		parent, err := manager.CreateTask(context.Background(), CreateTask{
+		parent, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Root task",
@@ -863,7 +857,7 @@ func TestTaskHookContextCarriesParentTaskID(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
 		}
-		child, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+		child, err := manager.CreateChildTask(t.Context(), parent.ID, CreateTask{
 			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-child",
@@ -873,14 +867,14 @@ func TestTaskHookContextCarriesParentTaskID(t *testing.T) {
 			t.Fatalf("CreateChildTask() error = %v", err)
 		}
 
-		if _, err := manager.BlockTask(context.Background(), BlockRequest{
+		if _, err := manager.BlockTask(t.Context(), BlockRequest{
 			TaskID: parent.ID,
 			Kind:   BlockKindNeedsInput,
 			Reason: "root needs input",
 		}, actor); err != nil {
 			t.Fatalf("BlockTask(parent) error = %v", err)
 		}
-		if _, err := manager.BlockTask(context.Background(), BlockRequest{
+		if _, err := manager.BlockTask(t.Context(), BlockRequest{
 			TaskID: child.ID,
 			Kind:   BlockKindNeedsInput,
 			Reason: "child needs input",
@@ -935,99 +929,6 @@ func TestTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 		t.Parallel()
 		testTaskRunHookContextCarriesLoopFilterKeys(t)
 	})
-
-	t.Run("Should carry taskless wake correlation from the run snapshot", func(t *testing.T) {
-		t.Parallel()
-
-		manager := newTaskManagerForTest(t, newInMemoryManagerStore())
-		run := Run{
-			ID:          "run-wake",
-			WorkspaceID: "ws-wake",
-			RunKind:     RunKindNetworkWake,
-			Status:      TaskRunStatusRunning,
-		}
-		liveSpec := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-wake",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "wake-channel",
-			Source:          participation.SourceExplicitRequest,
-		}
-		run.SetNetworkState(liveSpec, "wake-1", "sess-target", "owner-1")
-
-		payload := manager.taskRunHookContext(run, Task{}, validActorContext())
-		if payload.TaskID != "" || payload.WorkspaceID != "ws-wake" ||
-			payload.WakeID != "wake-1" || payload.TargetSessionID != "sess-target" ||
-			payload.OwnerKey != "owner-1" {
-			t.Fatalf("wake hook context = %#v, want taskless durable correlation", payload)
-		}
-		if payload.RunKind == nil || *payload.RunKind != RunKindNetworkWake.String() {
-			t.Fatalf("wake hook run kind = %#v, want %q", payload.RunKind, RunKindNetworkWake)
-		}
-		if payload.ResolvedNetworkParticipation == nil || *payload.ResolvedNetworkParticipation != liveSpec {
-			t.Fatalf("wake hook participation = %#v, want %#v", payload.ResolvedNetworkParticipation, liveSpec)
-		}
-	})
-}
-
-func TestTaskRunPreClaimCriteriaCarriesExactWakeIdentity(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should carry exact wake identity through pre-claim criteria", func(t *testing.T) {
-		t.Parallel()
-
-		var got hookspkg.TaskRunPreClaimPayload
-		manager := newTaskManagerForTestWithOptions(
-			t,
-			newInMemoryManagerStore(),
-			WithTaskRunHooks(recordingTaskRunHooks{
-				preClaim: func(
-					_ context.Context,
-					payload hookspkg.TaskRunPreClaimPayload,
-				) (hookspkg.TaskRunPreClaimPayload, error) {
-					got = payload
-					return payload, nil
-				},
-			}),
-		)
-		criteria := ClaimCriteria{
-			RunID: "run-wake", RunKind: RunKindNetworkWake, Scope: ScopeWorkspace,
-			WorkspaceID: "ws-wake", TargetSessionID: "sess-target", ClaimerSessionID: "sess-target",
-			CallerNetworkParticipation: participation.CloneSpec(participation.Spec{
-				Version: participation.SpecVersion, Mode: participation.ModeLive, WorkspaceID: "ws-wake",
-				ChannelStrategy: participation.StrategyNamed, ChannelID: "wake-channel",
-				Source: participation.SourceExplicitRequest, Bounds: participation.Bounds{
-					MaxWakes: 1, MaxWakeWallTime: "1s", MaxTotalWallTime: "1s",
-					MaxInputTokens: 10, MaxOutputTokens: 10, MaxWakeDepth: 1, CoalesceWindow: "100ms",
-				},
-			}),
-			Now: time.Date(2026, 7, 13, 23, 0, 0, 0, time.UTC),
-		}
-		if _, err := manager.dispatchTaskRunPreClaimCriteria(
-			context.Background(),
-			criteria,
-			validActorContext(),
-		); err != nil {
-			t.Fatalf("dispatchTaskRunPreClaimCriteria() error = %v", err)
-		}
-		if got.TaskRunContext == nil || got.RunID != "run-wake" || got.RunKind == nil ||
-			*got.RunKind != RunKindNetworkWake.String() || got.TargetSessionID != "sess-target" {
-			t.Fatalf("pre-claim wake context = %#v, want exact wake identity", got.TaskRunContext)
-		}
-		if got.Criteria.RunID != "run-wake" || got.Criteria.RunKind != RunKindNetworkWake.String() ||
-			got.Criteria.TargetSessionID != "sess-target" {
-			t.Fatalf("pre-claim wake criteria = %#v, want exact wake identity", got.Criteria)
-		}
-		if got.ResolvedNetworkParticipation == nil ||
-			*got.ResolvedNetworkParticipation != *criteria.CallerNetworkParticipation {
-			t.Fatalf(
-				"pre-claim participation = %#v, want trusted caller snapshot %#v",
-				got.ResolvedNetworkParticipation,
-				criteria.CallerNetworkParticipation,
-			)
-		}
-	})
 }
 
 func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
@@ -1042,23 +943,19 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 		LoopRunID: "loop-run-1",
 		Status:    TaskRunStatusCompleted,
 	}
-	liveSpec := participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     "ws-1",
-		ChannelStrategy: participation.StrategyLoopRun,
-		ChannelID:       "loop-run-1",
-		Source:          participation.SourceLoopDefinition,
-	}
-	run.SetNetworkState(liveSpec, "", "", "")
+
 	taskRecord := Task{
 		ID:           "task-node",
+		ProfileID:    "profile-loop",
 		ParentTaskID: "task-coordinator",
 		WorkspaceID:  "ws-1",
 		Status:       TaskStatusCompleted,
 	}
 
 	payload := manager.taskRunHookContext(run, taskRecord, actor)
+	if payload.ProfileID != taskRecord.ProfileID {
+		t.Fatalf("ProfileID = %q, want owning task profile %q", payload.ProfileID, taskRecord.ProfileID)
+	}
 	if got, want := payload.LoopRunID, "loop-run-1"; got != want {
 		t.Fatalf("LoopRunID = %q, want %q", got, want)
 	}
@@ -1067,17 +964,6 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 	}
 	if got, want := *payload.RunKind, RunKindWorker.String(); got != want {
 		t.Fatalf("RunKind = %q, want %q", got, want)
-	}
-	if got := payload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
-		t.Fatalf("ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
-	}
-
-	taskPayload := manager.taskHookContext(taskRecord, actor, &BlockTaskAndReleaseRunResult{
-		Run:           run,
-		ReleaseReason: "blocked",
-	})
-	if got := taskPayload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
-		t.Fatalf("TaskContext.ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
 	}
 }
 

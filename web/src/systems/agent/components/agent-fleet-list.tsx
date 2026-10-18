@@ -51,7 +51,7 @@ function AgentFleetList({
         >
           {Array.from({ length: 6 }, (_, index) => (
             <div
-              className="flex flex-col gap-3 rounded-lg bg-canvas-soft p-4"
+              className="flex flex-col gap-3 rounded-lg bg-card p-4 shadow-card"
               key={`agent-fleet-card-skeleton-${index}`}
             >
               <div className="flex items-start gap-3">
@@ -76,12 +76,12 @@ function AgentFleetList({
       <div
         aria-busy="true"
         aria-label="Loading agents"
-        className="min-h-0 flex-1 overflow-hidden rounded-lg border border-line bg-canvas-soft"
+        className="min-h-0 flex-1 overflow-hidden rounded-lg bg-card shadow-card"
         data-testid="agent-fleet-loading"
       >
         <SkeletonRows count={8} className="gap-0" rowClassName="px-4 py-3">
           <div className="flex items-center gap-3.5">
-            <Skeleton className="size-[34px] shrink-0 rounded-md" />
+            <Skeleton className="size-icon-well-row shrink-0 rounded-md" />
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <Skeleton className="h-3 w-40" />
               <Skeleton className="h-2.5 w-64 max-w-full" />
@@ -110,7 +110,7 @@ function AgentFleetList({
               New agent
             </Button>
           }
-          description="Agents define the provider, model, and instructions a session runs with."
+          description="An agent is an assistant with its own instructions and model. Create one to start working with it."
           icon={Users2}
           title="No agents yet"
         />
@@ -169,7 +169,7 @@ function AgentFleetList({
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-slot="agent-fleet-rows"
         >
           {rows.map(row => (

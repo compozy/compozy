@@ -131,7 +131,22 @@ var agentCreateInputSchema = `{
 		"toolsets":{"type":"array","items":{"type":"string"}},
 		"deny_tools":{"type":"array","items":{"type":"string"}},
 		"category_path":{"type":"array","items":{"type":"string"}},
-		"disabled_skills":{"type":"array","items":{"type":"string"}}
+		"disabled_skills":{"type":"array","items":{"type":"string"}},
+		"fallback_chain":{"type":"array","items":` + agentFallbackRouteInputSchema + `}
+	},
+	"additionalProperties":false
+}`
+
+var agentFallbackRouteInputSchema = `{
+	"type":"object",
+	"required":["provider","model"],
+	"properties":{
+		"provider":{"type":"string","minLength":1},
+		"model":{"type":"string","minLength":1},
+		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+		"speed":{"type":"string","enum":["normal","fast"]},
+		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
+		"command":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

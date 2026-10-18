@@ -2,7 +2,10 @@ package store
 
 import "strings"
 
-const defaultSessionType = "user"
+const (
+	defaultSessionType = "user"
+	sessionTypeSpawned = "spawned"
+)
 
 // NormalizeSessionType applies the default session type when empty.
 func NormalizeSessionType(value string) string {

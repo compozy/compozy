@@ -3,40 +3,10 @@ package hooks
 import (
 	"encoding/json"
 	"reflect"
-	"strings"
+
 	"testing"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
-
-func TestTaskRunContextNetworkSpecSnapshot(t *testing.T) {
-	t.Run("Should project an absent typed snapshot as Local without reading compatibility fields", func(t *testing.T) {
-		t.Parallel()
-
-		context := TaskRunContext{}
-		if got, want := context.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
-			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
-		}
-	})
-
-	t.Run("Should return the immutable typed snapshot by value", func(t *testing.T) {
-		t.Parallel()
-
-		want := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-hooks",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "operations",
-			Source:          participation.SourceExplicitRequest,
-		}
-		context := TaskRunContext{ResolvedNetworkParticipation: participation.CloneSpec(want)}
-		if got := context.NetworkSpecSnapshot(); got != want {
-			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
-		}
-	})
-}
 
 func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	t.Parallel()
@@ -76,7 +46,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	reason := "blocked"
 	toolID := "compozy__grep"
 	toolName := "grep"
-	strategy := "summarize"
 	text := "patched"
 	role := "assistant"
 	deltaType := "text"
@@ -113,16 +82,16 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		SessionContext: sampleSession,
 	})
 	assertJSONRoundTrip(t, "SessionCreatePatch", SessionCreatePatch{
-		ControlPatch: ControlPatch{Deny: true, DenyReason: "policy"},
-		SessionName:  &sessionName,
-		SessionType:  &sessionType,
-		AgentName:    &agentName,
-		WorkspaceID:  &workspaceID,
-		Workspace:    &workspace,
+		Deny: true, DenyReason: "policy",
+		SessionName: &sessionName,
+		SessionType: &sessionType,
+		AgentName:   &agentName,
+		WorkspaceID: &workspaceID,
+		Workspace:   &workspace,
 	})
 	assertJSONRoundTrip(t, "SessionPostCreatePatch", SessionPostCreatePatch{
-		ControlPatch: ControlPatch{DenyReason: "observe"},
-		SessionName:  &sessionName,
+		DenyReason:  "observe",
+		SessionName: &sessionName,
 	})
 	assertJSONRoundTrip(t, "SessionPreResumePatch", SessionPreResumePatch{
 		SessionType: &sessionType,
@@ -131,98 +100,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		AgentName: &agentName,
 	})
 	assertJSONRoundTrip(t, "SessionPreStopPatch", SessionPreStopPatch{
-		ControlPatch: ControlPatch{Deny: true, DenyReason: "stop"},
+		Deny: true, DenyReason: "stop",
 	})
 	assertJSONRoundTrip(t, "SessionPostStopPatch", SessionPostStopPatch{
 		Workspace: &workspace,
-	})
-
-	assertJSONRoundTrip(t, "SandboxPreparePayload", SandboxPreparePayload{
-		PayloadBase:    samplePayloadBase(HookSandboxPrepare),
-		SessionContext: sampleSession,
-		SandboxID:      "env-1",
-		Backend:        "daytona",
-		Profile: SandboxProfilePayload{
-			Profile:        "daytona-dev",
-			Backend:        "daytona",
-			SyncMode:       "session-bidirectional",
-			Persistence:    "transient",
-			RuntimeRootDir: "/workspace",
-			DestroyOnStop:  true,
-			Env:            map[string]string{"BASE": "1"},
-		},
-		LocalRootDir:        "/local",
-		LocalAdditionalDirs: []string{"/local-extra"},
-		AgentCommand:        "codex",
-		AgentEnv:            []string{"BASE=1"},
-		Permissions:         "approve-all",
-		ResumeACPState:      "acp-1",
-		EnvOverrides:        map[string]string{"SECRET": "token"},
-		Denied:              true,
-		DenyReason:          "policy",
-	})
-	assertJSONRoundTrip(t, "SandboxReadyPayload", SandboxReadyPayload{
-		PayloadBase:           samplePayloadBase(HookSandboxReady),
-		SessionContext:        sampleSession,
-		SandboxID:             "env-1",
-		Backend:               "daytona",
-		Profile:               "daytona-dev",
-		InstanceID:            "instance-1",
-		RuntimeRootDir:        "/runtime",
-		RuntimeAdditionalDirs: []string{"/runtime-extra"},
-	})
-	assertJSONRoundTrip(t, "SandboxSyncBeforePayload", SandboxSyncBeforePayload{
-		PayloadBase:     samplePayloadBase(HookSandboxSyncBefore),
-		SessionContext:  sampleSession,
-		SandboxID:       "env-1",
-		Backend:         "daytona",
-		Profile:         "daytona-dev",
-		InstanceID:      "instance-1",
-		RuntimeRootDir:  "/runtime",
-		Direction:       "to_runtime",
-		Reason:          "start",
-		ExcludePatterns: []string{"node_modules/**"},
-		Denied:          true,
-		DenyReason:      "blocked",
-	})
-	assertJSONRoundTrip(t, "SandboxSyncAfterPayload", SandboxSyncAfterPayload{
-		PayloadBase:      samplePayloadBase(HookSandboxSyncAfter),
-		SessionContext:   sampleSession,
-		SandboxID:        "env-1",
-		Backend:          "daytona",
-		Profile:          "daytona-dev",
-		InstanceID:       "instance-1",
-		RuntimeRootDir:   "/runtime",
-		Direction:        "from_runtime",
-		Reason:           "stop",
-		FilesSynced:      5,
-		BytesTransferred: 4096,
-		DurationMS:       37,
-		Errors:           []string{"retryable warning"},
-	})
-	assertJSONRoundTrip(t, "SandboxStopPayload", SandboxStopPayload{
-		PayloadBase:    samplePayloadBase(HookSandboxStop),
-		SessionContext: sampleSession,
-		SandboxID:      "env-1",
-		Backend:        "daytona",
-		Profile:        "daytona-dev",
-		InstanceID:     "instance-1",
-		RuntimeRootDir: "/runtime",
-		StopReason:     "user_requested",
-		WillDestroy:    true,
-		Denied:         true,
-		DenyReason:     "retain",
-	})
-	assertJSONRoundTrip(t, "SandboxPreparePatch", SandboxPreparePatch{
-		ControlPatch: ControlPatch{Deny: true, DenyReason: "policy"},
-		EnvOverrides: map[string]string{"SECRET": "token"},
-	})
-	assertJSONRoundTrip(t, "SandboxSyncBeforePatch", SandboxSyncBeforePatch{
-		ControlPatch:    ControlPatch{Deny: true, DenyReason: "sync blocked"},
-		ExcludePatterns: []string{"tmp/**"},
-	})
-	assertJSONRoundTrip(t, "SandboxStopPatch", SandboxStopPatch{
-		ControlPatch: ControlPatch{Deny: true, DenyReason: "retain"},
 	})
 
 	assertJSONRoundTrip(t, "InputPreSubmitPayload", InputPreSubmitPayload{
@@ -237,7 +118,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		}},
 	})
 	assertJSONRoundTrip(t, "InputPreSubmitPatch", InputPreSubmitPatch{
-		ControlPatch:  ControlPatch{Deny: true, DenyReason: "input"},
+		Deny: true, DenyReason: "input",
 		Message:       &text,
 		ContextBlocks: sampleContextBlocks,
 	})
@@ -251,7 +132,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		ContextBlocks:  sampleContextBlocks,
 	})
 	assertJSONRoundTrip(t, "PromptPatch", PromptPatch{
-		ControlPatch:  ControlPatch{DenyReason: "prompt"},
+		DenyReason:    "prompt",
 		Prompt:        &text,
 		ContextBlocks: sampleContextBlocks,
 	})
@@ -402,9 +283,9 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Model:          "gpt-5.4",
 	})
 	assertJSONRoundTrip(t, "AgentStartPatch", AgentStartPatch{
-		ControlPatch: ControlPatch{DenyReason: "agent"},
-		Command:      &toolName,
-		Args:         []string{"--safe"},
+		DenyReason: "agent",
+		Command:    &toolName,
+		Args:       []string{"--safe"},
 	})
 	assertJSONRoundTrip(t, "AgentSpawnedPatch", AgentSpawnedPatch{
 		Labels: map[string]string{"state": "spawned"},
@@ -448,19 +329,17 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		NewDigest:                  "soul-digest",
 	})
 	assertJSONRoundTrip(t, "AgentHeartbeatPolicyResolvedPayload", AgentHeartbeatPolicyResolvedPayload{
-		PayloadBase: samplePayloadBase(HookAgentHeartbeatPolicyResolved),
-		AuthoredContextProvenance: AuthoredContextProvenance{
-			WorkspaceID:      "ws-1",
-			AgentName:        "coder",
-			SourcePath:       ".compozy/agents/coder/HEARTBEAT.md",
-			SnapshotID:       "hbs-1",
-			Digest:           "hb-digest",
-			ConfigDigest:     "cfg-digest",
-			ValidationStatus: "valid",
-			Valid:            true,
-			Active:           true,
-		},
-		Summary: "check in",
+		PayloadBase:      samplePayloadBase(HookAgentHeartbeatPolicyResolved),
+		WorkspaceID:      "ws-1",
+		AgentName:        "coder",
+		SourcePath:       ".compozy/agents/coder/HEARTBEAT.md",
+		SnapshotID:       "hbs-1",
+		Digest:           "hb-digest",
+		ConfigDigest:     "cfg-digest",
+		ValidationStatus: "valid",
+		Valid:            true,
+		Active:           true,
+		Summary:          "check in",
 	})
 	assertJSONRoundTrip(t, "AgentHeartbeatWakeBeforePayload", AgentHeartbeatWakeBeforePayload{
 		PayloadBase:      samplePayloadBase(HookAgentHeartbeatWakeBefore),
@@ -493,25 +372,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		LastPresenceAt:      time.Date(2026, time.April, 9, 12, 0, 0, 0, time.UTC),
 		IneligibilityReason: "",
 	})
-	assertJSONRoundTrip(t, "NetworkMessagePersistedPayload", NetworkMessagePersistedPayload{
-		PayloadBase: samplePayloadBase(HookNetworkMessagePersisted),
-		SessionID:   "sess-coder",
-		Channel:     "builders",
-		Surface:     "thread",
-		ThreadID:    "thread_alpha",
-		MessageID:   "msg_01",
-		Kind:        "trace",
-		Direction:   "received",
-		WorkID:      "work_01",
-		WorkState:   "completed",
-		PeerFrom:    "coder.sess-abc",
-		PeerTo:      "reviewer.sess-xyz",
-		TraceID:     "trace_01",
-		CausationID: "msg_parent",
-	})
-	assertJSONRoundTrip(t, "NetworkObservationPatch", NetworkObservationPatch{
-		Labels: map[string]string{"consumer": "observer"},
-	})
 	assertJSONRoundTrip(t, "AuthoredContextObservationPatch", AuthoredContextObservationPatch{})
 
 	assertJSONRoundTrip(t, "TurnStartPayload", TurnStartPayload{
@@ -529,8 +389,8 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		UserMessage:    "bye",
 	})
 	assertJSONRoundTrip(t, "TurnStartPatch", TurnStartPatch{
-		ControlPatch: ControlPatch{DenyReason: "turn"},
-		Labels:       map[string]string{"phase": "start"},
+		DenyReason: "turn",
+		Labels:     map[string]string{"phase": "start"},
 	})
 	assertJSONRoundTrip(t, "TurnEndPatch", TurnEndPatch{
 		Labels: map[string]string{"phase": "end"},
@@ -567,10 +427,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Raw:            sampleRaw,
 	})
 	assertJSONRoundTrip(t, "MessageStartPatch", MessageStartPatch{
-		ControlPatch: ControlPatch{DenyReason: "message"},
-		Role:         &role,
-		DeltaType:    &deltaType,
-		Text:         &text,
+		DenyReason: "message",
+		Role:       &role,
+		DeltaType:  &deltaType,
+		Text:       &text,
 	})
 	assertJSONRoundTrip(t, "MessageDeltaPatch", MessageDeltaPatch{
 		DeltaType: &deltaType,
@@ -583,49 +443,43 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		PayloadBase:    samplePayloadBase(HookToolPreCall),
 		SessionContext: sampleSession,
 		TurnContext:    sampleTurn,
-		ToolCallRef: ToolCallRef{
-			ToolCallID: "tool-1",
-			ToolID:     "compozy__grep",
-			ReadOnly:   true,
-		},
-		ToolInput: sampleRaw,
+		ToolCallID:     "tool-1",
+		ToolID:         "compozy__grep",
+		ReadOnly:       true,
+		ToolInput:      sampleRaw,
 	})
 	assertJSONRoundTrip(t, "ToolPostCallPayload", ToolPostCallPayload{
 		PayloadBase:    samplePayloadBase(HookToolPostCall),
 		SessionContext: sampleSession,
 		TurnContext:    sampleTurn,
-		ToolCallRef: ToolCallRef{
-			ToolCallID: "tool-1",
-			ToolID:     "compozy__grep",
-			ReadOnly:   true,
-		},
-		Title:      "grep result",
-		ToolInput:  sampleRaw,
-		ToolResult: sampleRaw,
+		ToolCallID:     "tool-1",
+		ToolID:         "compozy__grep",
+		ReadOnly:       true,
+		Title:          "grep result",
+		ToolInput:      sampleRaw,
+		ToolResult:     sampleRaw,
 	})
 	assertJSONRoundTrip(t, "ToolPostErrorPayload", ToolPostErrorPayload{
 		PayloadBase:    samplePayloadBase(HookToolPostError),
 		SessionContext: sampleSession,
 		TurnContext:    sampleTurn,
-		ToolCallRef: ToolCallRef{
-			ToolCallID: "tool-1",
-			ToolID:     "compozy__grep",
-			ReadOnly:   true,
-		},
-		Title:     "grep error",
-		ToolInput: sampleRaw,
-		Error:     "failed",
+		ToolCallID:     "tool-1",
+		ToolID:         "compozy__grep",
+		ReadOnly:       true,
+		Title:          "grep error",
+		ToolInput:      sampleRaw,
+		Error:          "failed",
 	})
 	assertJSONRoundTrip(t, "ToolCallPatch", ToolCallPatch{
-		ControlPatch: ControlPatch{DenyReason: "tool"},
-		ToolID:       &toolID,
-		ReadOnly:     &readOnly,
-		ToolInput:    sampleRaw,
+		DenyReason: "tool",
+		ToolID:     &toolID,
+		ReadOnly:   &readOnly,
+		ToolInput:  sampleRaw,
 	})
 	assertJSONRoundTrip(t, "ToolResultPatch", ToolResultPatch{
-		ControlPatch: ControlPatch{DenyReason: "result"},
-		Title:        &title,
-		ToolResult:   sampleRaw,
+		DenyReason: "result",
+		Title:      &title,
+		ToolResult: sampleRaw,
 	})
 	assertJSONRoundTrip(t, "ToolPostErrorPatch", ToolPostErrorPatch{
 		Error: &reason,
@@ -678,7 +532,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		ToolCall:       PermissionToolCall{ID: "tool-2", Kind: "read", Title: "Read secret", Status: "done"},
 	})
 	assertJSONRoundTrip(t, "PermissionRequestPatch", PermissionRequestPatch{
-		ControlPatch:  ControlPatch{Deny: true, DenyReason: "permission"},
+		Deny: true, DenyReason: "permission",
 		Decision:      &allowOnce,
 		DecisionClass: &role,
 		Reason:        &reason,
@@ -687,16 +541,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "PermissionDeniedPatch", PermissionDeniedPatch{})
 
 	sampleTaskContext := TaskContext{
-		TaskID:       "task-1",
-		ParentTaskID: "task-parent",
-		WorkspaceID:  "ws-1",
-		WorkflowID:   "wf-1",
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-			Version:   participation.SpecVersion,
-			Mode:      participation.ModeLive,
-			ChannelID: "builders",
-			Source:    participation.SourceExplicitRequest,
-		}),
+		TaskID:         "task-1",
+		ParentTaskID:   "task-parent",
+		WorkspaceID:    "ws-1",
+		WorkflowID:     "wf-1",
 		AgentName:      "codex",
 		ActorKind:      "agent_session",
 		ActorID:        "sess-1",
@@ -746,69 +594,38 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Labels: map[string]string{"source": "test"},
 	})
 
-	assertJSONRoundTrip(t, "ContextPreCompactPayload", ContextPreCompactPayload{
-		PayloadBase:    samplePayloadBase(HookContextPreCompact),
-		SessionContext: sampleSession,
-		TurnContext:    sampleTurn,
-		Reason:         "token_limit",
-		Strategy:       "summarize",
-		Summary:        "before",
-		ContextBlocks:  sampleContextBlocks,
-	})
-	assertJSONRoundTrip(t, "ContextPostCompactPayload", ContextPostCompactPayload{
-		PayloadBase:    samplePayloadBase(HookContextPostCompact),
-		SessionContext: sampleSession,
-		TurnContext:    sampleTurn,
-		Reason:         "token_limit",
-		Strategy:       "summarize",
-		Summary:        "after",
-		ContextBlocks:  sampleContextBlocks,
-	})
-	assertJSONRoundTrip(t, "ContextPreCompactPatch", ContextPreCompactPatch{
-		ControlPatch:  ControlPatch{DenyReason: "compact"},
-		Reason:        &reason,
-		Strategy:      &strategy,
-		ContextBlocks: sampleContextBlocks,
-	})
-	assertJSONRoundTrip(t, "ContextPostCompactPatch", ContextPostCompactPatch{
-		Strategy: &strategy,
-	})
+	assertJSONRoundTrip(
+		t,
+		"ContextPreCompactPayload",
+		ContextPreCompactPayload{
+			PayloadBase:    samplePayloadBase(HookContextPreCompact),
+			SessionContext: sampleSession,
+			TurnContext:    sampleTurn,
+			CompactionID:   "c1",
+			Trigger:        "agent",
+		},
+	)
+	assertJSONRoundTrip(
+		t,
+		"ContextPostCompactPayload",
+		ContextPostCompactPayload{
+			PayloadBase:    samplePayloadBase(HookContextPostCompact),
+			SessionContext: sampleSession,
+			TurnContext:    sampleTurn,
+			CompactionID:   "c1",
+			Trigger:        "agent",
+			Status:         "completed",
+			Summary:        "after",
+		},
+	)
+	assertJSONRoundTrip(t, "ContextPreCompactPatch", ContextPreCompactPatch{Labels: map[string]string{"k": "v"}})
+	assertJSONRoundTrip(t, "ContextPostCompactPatch", ContextPostCompactPatch{Labels: map[string]string{"k": "v"}})
 	assertJSONRoundTrip(
 		t,
 		"WindowManagerPayload",
 		windowManagerDispatchTestPayload(HookWindowManagerLayoutApplied),
 	)
 	assertJSONRoundTrip(t, "WindowManagerObservationPatch", WindowManagerObservationPatch{})
-}
-
-func TestNetworkPayloadExcludesRawMessageMaterial(t *testing.T) {
-	t.Parallel()
-
-	payload := NetworkMessagePersistedPayload{
-		PayloadBase: PayloadBase{
-			Event:     HookNetworkMessagePersisted,
-			Timestamp: time.Date(2026, time.May, 5, 12, 0, 0, 0, time.UTC),
-		},
-		Channel:     "builders",
-		Surface:     "direct",
-		DirectID:    "direct_99401d24bee62651d189e5a561785466",
-		MessageID:   "msg_01",
-		Kind:        "say",
-		Direction:   "sent",
-		WorkID:      "work_01",
-		TraceID:     "trace_01",
-		CausationID: "msg_parent",
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("json.Marshal(NetworkMessagePersistedPayload) error = %v", err)
-	}
-	text := string(encoded)
-	for _, forbidden := range []string{"body", "text", "preview_text", "compozy_claim_"} {
-		if strings.Contains(text, forbidden) {
-			t.Fatalf("encoded network payload contains %q: %s", forbidden, text)
-		}
-	}
 }
 
 func assertJSONRoundTrip[T any](t *testing.T, name string, sample T) {
@@ -829,6 +646,83 @@ func assertJSONRoundTrip[T any](t *testing.T, name string, sample T) {
 
 		if !reflect.DeepEqual(sample, decoded) {
 			t.Fatalf("%s round-trip mismatch\ngot:  %#v\nwant: %#v", name, decoded, sample)
+		}
+	})
+}
+
+// UT-042: the hook boundary preserves delegation metadata on the wire.
+func TestSubagentHookPayloads(t *testing.T) {
+	t.Run("Should serialize delegation and settlement payloads", func(t *testing.T) {
+		t.Parallel()
+		pre := SpawnPreCreatePayload{
+			SpawnRole: "subagent",
+			Subagent:  &SubagentSpawnPayload{Title: "Review", Role: "review", TaskChars: 42},
+		}
+		raw, err := json.Marshal(pre)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		sub, ok := decoded["subagent"].(map[string]any)
+		if !ok || decoded["spawn_role"] != "subagent" || sub["title"] != "Review" || sub["role"] != "review" ||
+			sub["task_chars"] != float64(42) {
+			t.Fatalf("payload = %s", raw)
+		}
+		settled := SubagentSettledPayload{
+			Event:           HookSubagentSettled,
+			WorkspaceID:     "ws",
+			SubagentID:      "sub",
+			ParentSessionID: "parent",
+			ChildSessionID:  new("child"),
+			Origin:          "delegated",
+			Status:          "completed",
+			Runtime:         SubagentRuntimePayload{Provider: "codex", Model: "model"},
+			DurationMS:      123,
+			Isolation:       "worktree",
+			Worktree: &SubagentWorktreePayload{
+				ID:                "wt",
+				Name:              "review",
+				Branch:            "run/review",
+				BaseRef:           "main",
+				BaseSHA:           "sha",
+				Path:              "/checkout",
+				HeadSHA:           "head",
+				CommitsAhead:      new(2),
+				DirtyFiles:        new(0),
+				ObservedAt:        new(time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)),
+				PullRequestStatus: "open",
+				PullRequest: &SubagentPullRequestPayload{
+					URL:    "https://example.test/pull/7",
+					Number: 7,
+					State:  "open",
+				},
+			},
+		}
+		raw, err = json.Marshal(settled)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got SubagentSettledPayload
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, settled) {
+			t.Fatalf("round trip = %#v", got)
+		}
+		cloned := settled.cloneForAsync()
+		cloned.Worktree.ID = "changed"
+		*cloned.Worktree.CommitsAhead = 99
+		*cloned.Worktree.DirtyFiles = 99
+		*cloned.Worktree.ObservedAt = time.Time{}
+		cloned.Worktree.PullRequest.State = "closed"
+		if !reflect.DeepEqual(got, settled) {
+			t.Fatal("async clone changed the original snapshot", settled)
+		}
+		if HookSubagentSettled.SyncEligible() || HookSubagentSettled.Family() != HookEventFamilySubagent {
+			t.Fatal("settlement must be observe-only in subagent family")
 		}
 	})
 }

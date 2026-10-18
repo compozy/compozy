@@ -45,7 +45,7 @@ func TestLoopProjectorShouldBuildAndApplyCatalogSnapshot(t *testing.T) {
 				Spec:    testLoopSpec(t, "loop-a", looppkg.SourceUser),
 			},
 		}
-		plan, err := projector.Build(context.Background(), records)
+		plan, err := projector.Build(t.Context(), records)
 		if err != nil {
 			t.Fatalf("projector.Build() error = %v", err)
 		}
@@ -55,7 +55,7 @@ func TestLoopProjectorShouldBuildAndApplyCatalogSnapshot(t *testing.T) {
 		if got, want := plan.Revision(), int64(7); got != want {
 			t.Fatalf("plan.Revision() = %d, want %d", got, want)
 		}
-		if err := projector.Apply(context.Background(), plan); err != nil {
+		if err := projector.Apply(t.Context(), plan); err != nil {
 			t.Fatalf("projector.Apply() error = %v", err)
 		}
 		snapshot := catalog.Snapshot()
@@ -158,38 +158,6 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 	})
 
-	t.Run("Should preserve read-only definitions when deletion is denied", func(t *testing.T) {
-		t.Parallel()
-
-		fixture := newLoopAPIForkFixture(t)
-		before, err := os.ReadFile(fixture.sourcePath)
-		if err != nil {
-			t.Fatalf("ReadFile(source before delete) error = %v", err)
-		}
-
-		err = fixture.service.DeleteLoop(
-			fixture.ctx, fixture.workspaceID, store.DefaultProfileID, "implement-tasks",
-		)
-		if !errors.Is(err, looppkg.ErrDefinitionReadOnly) {
-			t.Fatalf("DeleteLoop(read-only) error = %v, want ErrDefinitionReadOnly", err)
-		}
-		after, err := os.ReadFile(fixture.sourcePath)
-		if err != nil {
-			t.Fatalf("ReadFile(source after delete) error = %v", err)
-		}
-		if !bytes.Equal(after, before) {
-			t.Fatal("read-only definition changed after rejected deletion")
-		}
-		if _, err := fixture.service.GetLoop(
-			fixture.ctx,
-			fixture.workspaceID,
-			store.DefaultProfileID,
-			"implement-tasks",
-		); err != nil {
-			t.Fatalf("GetLoop(after rejected delete) error = %v", err)
-		}
-	})
-
 	t.Run("Should return created loops before asynchronous catalog projection runs", func(t *testing.T) {
 		t.Parallel()
 
@@ -228,6 +196,14 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		def := loopAPITestDocument(t, "alpha", 999, "created publish")
 
+		// The same empty catalog owns the missing-fork and fresh-create boundaries.
+		_, err = service.CreateLoop(
+			ctx, "ws-create", store.DefaultProfileID, contract.CreateLoopRequest{ForkFromName: "missing-loop"},
+		)
+		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			t.Fatalf("CreateLoop(fork missing) error = %v, want ErrDefinitionNotFound", err)
+		}
+
 		response, err := service.CreateLoop(
 			ctx, "ws-create", store.DefaultProfileID, contract.CreateLoopRequest{Definition: &def},
 		)
@@ -258,6 +234,34 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		t.Parallel()
 
 		fixture := newLoopAPIForkFixture(t)
+
+		// Rejected source deletion leaves the same source available for a workspace fork.
+		before, err := os.ReadFile(fixture.sourcePath)
+		if err != nil {
+			t.Fatalf("ReadFile(source before delete) error = %v", err)
+		}
+
+		err = fixture.service.DeleteLoop(
+			fixture.ctx, fixture.workspaceID, store.DefaultProfileID, "implement-tasks",
+		)
+		if !errors.Is(err, looppkg.ErrDefinitionReadOnly) {
+			t.Fatalf("DeleteLoop(read-only) error = %v, want ErrDefinitionReadOnly", err)
+		}
+		after, err := os.ReadFile(fixture.sourcePath)
+		if err != nil {
+			t.Fatalf("ReadFile(source after delete) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatal("read-only definition changed after rejected deletion")
+		}
+		if _, err := fixture.service.GetLoop(
+			fixture.ctx,
+			fixture.workspaceID,
+			store.DefaultProfileID,
+			"implement-tasks",
+		); err != nil {
+			t.Fatalf("GetLoop(after rejected delete) error = %v", err)
+		}
 
 		response, err := fixture.service.CreateLoop(
 			fixture.ctx, fixture.workspaceID, store.DefaultProfileID, contract.CreateLoopRequest{
@@ -616,49 +620,6 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 	})
 
-	t.Run("Should classify missing fork sources as not found", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		db := openDaemonTestGlobalDB(t)
-		homePaths := testHomePaths(t)
-		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
-			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
-		}
-		now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
-		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
-			ID:        "ws-fork",
-			Name:      "workspace-fork",
-			RootDir:   workspaceRoot,
-			CreatedAt: now,
-			UpdatedAt: now,
-		}); err != nil {
-			t.Fatalf("InsertWorkspace() error = %v", err)
-		}
-		resolver, err := workspacepkg.NewResolver(
-			db,
-			workspacepkg.WithHomePaths(homePaths),
-			workspacepkg.WithLogger(discardLogger()),
-		)
-		if err != nil {
-			t.Fatalf("workspace.NewResolver() error = %v", err)
-		}
-		service := &daemonLoopAPIService{
-			catalog:           newResourceCatalog(looppkg.CloneResourceSpec),
-			publisher:         &loopAPITestPublisher{},
-			workspaceResolver: resolver,
-			now:               func() time.Time { return now },
-		}
-
-		_, err = service.CreateLoop(
-			ctx, "ws-fork", store.DefaultProfileID, contract.CreateLoopRequest{ForkFromName: "missing-loop"},
-		)
-		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
-			t.Fatalf("CreateLoop(fork missing) error = %v, want ErrDefinitionNotFound", err)
-		}
-	})
-
 	t.Run("Should classify absent definitions as not found", func(t *testing.T) {
 		t.Parallel()
 
@@ -720,11 +681,11 @@ func TestLoopSourceSyncerShouldProjectAndDeleteManagedRecords(t *testing.T) {
 			},
 		)
 
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("Sync(first) error = %v", err)
 		}
 		records, err := store.List(
-			context.Background(),
+			t.Context(),
 			loopSyncActor(),
 			resources.ResourceFilter{Kind: looppkg.ResourceKind},
 		)
@@ -739,11 +700,11 @@ func TestLoopSourceSyncerShouldProjectAndDeleteManagedRecords(t *testing.T) {
 		}
 
 		providerItems = nil
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("Sync(second) error = %v", err)
 		}
 		records, err = store.List(
-			context.Background(),
+			t.Context(),
 			loopSyncActor(),
 			resources.ResourceFilter{Kind: looppkg.ResourceKind},
 		)
@@ -778,8 +739,8 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 
 		entered := make(chan int, 2)
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		defer releaseOnce.Do(func() { close(release) })
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		defer releaseOnce()
 		wantErr := errors.New("stop after provider")
 		var calls atomic.Int32
 		syncer := newLoopSourceSyncer(
@@ -797,7 +758,7 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 
 		firstDone := make(chan error, 1)
 		go func() {
-			firstDone <- syncer.Sync(context.Background())
+			firstDone <- syncer.Sync(t.Context())
 		}()
 		if call := <-entered; call != 1 {
 			t.Fatalf("first provider call = %d, want 1", call)
@@ -805,7 +766,7 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 
 		secondDone := make(chan error, 1)
 		go func() {
-			secondDone <- syncer.Sync(context.Background())
+			secondDone <- syncer.Sync(t.Context())
 		}()
 		select {
 		case call := <-entered:
@@ -813,7 +774,7 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 		case <-time.After(25 * time.Millisecond):
 		}
 
-		releaseOnce.Do(func() { close(release) })
+		releaseOnce()
 		if err := <-firstDone; !errors.Is(err, wantErr) {
 			t.Fatalf("first Sync() error = %v, want %v", err, wantErr)
 		}

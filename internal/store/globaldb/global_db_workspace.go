@@ -26,9 +26,15 @@ func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace
 	}
 
 	if err := g.queries.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
-		ID: normalized.ID, RootDir: normalized.RootDir, AddDirs: addDirsJSON, Name: normalized.Name,
-		DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent), SandboxRef: normalized.SandboxRef,
-		CreatedAt: store.FormatTimestamp(normalized.CreatedAt), UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
+		ID:           normalized.ID,
+		RootDir:      normalized.RootDir,
+		AddDirs:      addDirsJSON,
+		Name:         normalized.Name,
+		DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent),
+		CreatedAt: store.FormatTimestamp(
+			normalized.CreatedAt,
+		),
+		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
 	}); err != nil {
 		return fmt.Errorf(
 			"store: insert workspace %q: %w",
@@ -55,7 +61,7 @@ func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace
 		RootDir: normalized.RootDir, AddDirs: addDirsJSON, Name: normalized.Name,
 		DefaultAgent: nullableWorkspaceString(
 			normalized.DefaultAgent,
-		), SandboxRef: normalized.SandboxRef,
+		),
 		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt), ID: normalized.ID,
 	})
 	if err != nil {
@@ -304,7 +310,7 @@ func workspaceFromGenerated(
 		ID: row.ID, RootDir: row.RootDir, AdditionalDirs: addDirs, Name: row.Name,
 		DefaultAgent: strings.TrimSpace(
 			row.DefaultAgent.String,
-		), SandboxRef: strings.TrimSpace(row.SandboxRef),
+		),
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil
 }
@@ -321,7 +327,6 @@ func normalizeWorkspaceRecord(
 	normalized.RootDir = strings.TrimSpace(normalized.RootDir)
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.DefaultAgent = strings.TrimSpace(normalized.DefaultAgent)
-	normalized.SandboxRef = strings.TrimSpace(normalized.SandboxRef)
 	normalized.AdditionalDirs = compactStrings(normalized.AdditionalDirs)
 
 	switch {

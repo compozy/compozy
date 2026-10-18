@@ -6,7 +6,7 @@
 <title>CompozyOS DS · 08 Empty States</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <link rel="stylesheet" href="ds-shell.css">
 <link rel="stylesheet" href="ds-docs.css">
@@ -28,7 +28,7 @@ svg.disclosure-icon{width:12px;height:12px}
 .est-host .win-body{display:flex}
 .est-col{max-width:720px;width:100%;margin:auto;display:flex;flex-direction:column;gap:22px;padding:28px 24px}
 /* ds-core scopes `.empty b` to the title — emphasis inside the sentence must not inherit it */
-.empty p b{font-size:inherit;line-height:inherit;letter-spacing:inherit;font-weight:510;color:var(--fg)}
+.empty p b{font-size:inherit;line-height:inherit;letter-spacing:inherit;font-weight:500;color:var(--fg)}
 
 /* --- suggestion panel --- */
 .est-sug__head{display:flex;flex-direction:column;gap:4px;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
@@ -47,7 +47,7 @@ li[data-state] .est-row:hover{background:transparent}
 .est-ico[data-tone="success"]{background:var(--success-tint);color:var(--success)}
 .est-main{min-width:0}
 .est-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.est-name b{font-size:13.5px;font-weight:510;letter-spacing:var(--track-row-title);color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.est-name b{font-size:13.5px;font-weight:500;letter-spacing:var(--track-row-title);color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .est-desc{font-size:12.5px;line-height:1.5;color:var(--muted);margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
 .est-acts{display:flex;align-items:center;gap:6px;flex:none}
 /* the modern height animation — grid-template-rows 0fr → 1fr */
@@ -63,7 +63,7 @@ li[data-open="true"] .est-detail{grid-template-rows:1fr}
 li[data-state="dismissed"] .est-live{grid-template-rows:0fr}
 li[data-state="dismissed"]{border-top-color:transparent}
 .est-done{display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:12.5px;color:var(--muted)}
-.est-done b{font-family:var(--font-mono);font-size:12px;font-weight:510;color:var(--fg-strong)}
+.est-done b{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong)}
 .est-done .btn{margin-left:auto}
 .est-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--subtle)}
 .est-cli{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:2px 6px}
@@ -74,7 +74,7 @@ li[data-state="dismissed"]{border-top-color:transparent}
 .est-stale{display:flex;align-items:center;gap:9px;padding:9px 16px;border-bottom:1px solid var(--line-soft);background:var(--warning-tint);font-size:12px;color:var(--muted)}
 .est-jrow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:13px}
 .est-jrow:first-of-type{border-top:0}
-.est-jrow b{font-weight:510;color:var(--fg-strong)}
+.est-jrow b{font-weight:500;color:var(--fg-strong)}
 .est-jrow .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .est-skrow{display:grid;grid-template-columns:28px minmax(0,1fr) 72px;gap:12px;align-items:center;padding:13px 16px;border-top:1px solid var(--line-soft)}
 .est-skrow:first-child{border-top:0}

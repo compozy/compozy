@@ -85,13 +85,11 @@ func (s gatewayIngressAuditSink) record(
 		WorkspaceID: binding.WorkspaceID,
 		Type:        eventType, Outcome: string(outcome),
 		Summary: summary, Timestamp: now().UTC(),
-		EventCorrelation: store.EventCorrelation{
-			ActorKind: event.ActorKind,
-			ActorID: diagnostics.RedactAndBound(
-				event.ActorID,
-				maxGatewayAuditFieldBytes,
-			),
-		},
+		ActorKind: event.ActorKind,
+		ActorID: diagnostics.RedactAndBound(
+			event.ActorID,
+			maxGatewayAuditFieldBytes,
+		),
 	}, payload)); err != nil {
 		return fmt.Errorf("daemon: record gateway ingress event: %w", err)
 	}

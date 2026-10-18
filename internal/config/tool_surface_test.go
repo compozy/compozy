@@ -59,26 +59,6 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
-			name: "Should allow session compaction enablement mutation",
-			path: "session.compaction.enabled",
-			kind: ConfigValueBool,
-		},
-		{
-			name: "Should allow session compaction pressure mutation",
-			path: "session.compaction.pressure_threshold",
-			kind: ConfigValueFloat,
-		},
-		{
-			name: "Should allow session compaction attempt cap mutation",
-			path: "session.compaction.max_attempts_per_turn",
-			kind: ConfigValueInt,
-		},
-		{
-			name: "Should allow session compaction cooldown mutation",
-			path: "session.compaction.failure_cooldown",
-			kind: ConfigValueDuration,
-		},
-		{
 			name: "Should allow session attachment max file bytes mutation",
 			path: "session.attachments.max_file_bytes",
 			kind: ConfigValueInt64,
@@ -239,11 +219,6 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
-			name: "Should allow task orchestration sandbox mode mutation",
-			path: "task.orchestration.profile.default_sandbox_mode",
-			kind: ConfigValueString,
-		},
-		{
 			name: "Should allow task orchestration worktree mode mutation",
 			path: "task.orchestration.profile.default_worktree_mode",
 			kind: ConfigValueString,
@@ -281,11 +256,6 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name: "Should allow task orchestration provider override gate mutation",
 			path: "task.orchestration.profile.allow_task_provider_override",
-			kind: ConfigValueBool,
-		},
-		{
-			name: "Should allow task orchestration sandbox none gate mutation",
-			path: "task.orchestration.profile.allow_task_sandbox_none",
 			kind: ConfigValueBool,
 		},
 		{
@@ -348,46 +318,18 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			path: "task.orchestration.review.failure_policy",
 			kind: ConfigValueString,
 		},
-		{
-			name: "Should allow memory controller policy origins mutation",
-			path: "memory.controller.policy.allow_origins",
-			kind: ConfigValueStringSlice,
-		},
-		{
-			name: "Should allow memory recall scoring mutation",
-			path: "memory.recall.weights.bm25_unicode",
-			kind: ConfigValueFloat,
-		},
-		{
-			name: "Should allow memory extractor queue mutation",
-			path: "memory.extractor.queue.coalesce_max",
-			kind: ConfigValueInt,
-		},
-		{
-			name: "Should allow memory dream gate mutation",
-			path: "memory.dream.gates.min_score",
-			kind: ConfigValueFloat,
-		},
-		{
-			name: "Should allow memory provider timeout mutation",
-			path: "memory.provider.timeout",
-			kind: ConfigValueDuration,
-		},
+
 		{
 			name: "Should allow full roles section mutation",
 			path: "roles",
 			kind: ConfigValueTable,
 		},
 		{
-			name: "Should allow dream role model mutation",
-			path: "roles.dream.model",
+			name: "Should allow auto-title role model mutation",
+			path: "roles.auto_title.model",
 			kind: ConfigValueString,
 		},
-		{
-			name: "Should allow memory controller role timeout mutation",
-			path: "roles.memory_controller.timeout",
-			kind: ConfigValueDuration,
-		},
+
 		{
 			name: "Should allow Marketplace catalog TTL mutation",
 			path: "marketplace.catalog.ttl",
@@ -434,6 +376,12 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueStringSlice,
 		},
 		{
+			// The timeout policy is operated via `compozy config set tools.clarify.timeout`.
+			name: "Should allow clarify timeout mutation",
+			path: "tools.clarify.timeout",
+			kind: ConfigValueDuration,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,
@@ -454,70 +402,16 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			denial: ConfigPathSecretForbidden,
 		},
 		{
-			name:   "Should reject sandbox runtime root trust path",
-			path:   "sandboxes.default.runtime_root",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
 			name:   "Should reject provider command trust root",
 			path:   "providers.claude.command",
 			denial: ConfigPathTrustForbidden,
 		},
 		{
-			name:   "Should reject memory global dir trust root",
-			path:   "memory.global_dir",
+			name:   "Should reject agent mutation of provider full access preference",
+			path:   "permissions.provider_full_access",
 			denial: ConfigPathTrustForbidden,
 		},
-		{
-			name:   "Should reject memory extractor inbox trust root",
-			path:   "memory.extractor.inbox_path",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
-			name:   "Should reject memory session ledger trust root",
-			path:   "memory.session.ledger_root",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
-			name:   "Should reject informational workspace TOML path",
-			path:   "memory.workspace.toml_path",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
-			name:   "Should reject removed network port path",
-			path:   "network.port",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed dream agent path",
-			path:   "memory.dream.agent",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed dream enabled path",
-			path:   "memory.dream.enabled",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed extractor model path",
-			path:   "memory.extractor.model",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed extractor enabled path",
-			path:   "memory.extractor.enabled",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed controller LLM model path",
-			path:   "memory.controller.llm.model",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed recall signal metrics path",
-			path:   "memory.recall.signals.metrics_enabled",
-			denial: ConfigPathForbidden,
-		},
+
 		{
 			name:   "Should reject removed automatic title path",
 			path:   "session.auto_title_enabled",
@@ -695,76 +589,6 @@ func TestToolConfigPathPolicy(t *testing.T) {
 	}
 }
 
-func TestToolConfigPathPolicyShouldExposeOnlyCurrentNetworkPaths(t *testing.T) {
-	t.Parallel()
-
-	allowed := map[string]ValueKind{
-		"network.live.defaults.max_wakes":           ConfigValueInt,
-		"network.live.defaults.max_wake_wall_time":  ConfigValueString,
-		"network.live.defaults.max_total_wall_time": ConfigValueString,
-		"network.live.defaults.max_input_tokens":    ConfigValueInt64,
-		"network.live.defaults.max_output_tokens":   ConfigValueInt64,
-		"network.live.defaults.max_wake_depth":      ConfigValueInt,
-		"network.live.defaults.coalesce_window":     ConfigValueString,
-		networkLiveLimitsMaxWakesPath:               ConfigValueInt,
-		"network.live.limits.max_wake_wall_time":    ConfigValueString,
-		"network.live.limits.max_total_wall_time":   ConfigValueString,
-		"network.live.limits.max_input_tokens":      ConfigValueInt64,
-		"network.live.limits.max_output_tokens":     ConfigValueInt64,
-		"network.live.limits.max_wake_depth":        ConfigValueInt,
-		networkLiveLimitsMinCoalesceWindowPath:      ConfigValueString,
-		"network.live.limits.max_coalesce_window":   ConfigValueString,
-	}
-	for pathValue, wantKind := range allowed {
-		t.Run("Should allow "+pathValue, func(t *testing.T) {
-			t.Parallel()
-
-			path, err := ParseDottedConfigPath(pathValue)
-			if err != nil {
-				t.Fatalf("ParseDottedConfigPath() error = %v", err)
-			}
-			policy, err := ClassifyToolConfigPath(path)
-			if err != nil {
-				t.Fatalf("ClassifyToolConfigPath() error = %v", err)
-			}
-			if policy.Denial != ConfigPathAllowed {
-				t.Fatalf("PathPolicy.Denial = %q, want allowed", policy.Denial)
-			}
-			if policy.Kind != wantKind {
-				t.Fatalf("PathPolicy.Kind = %d, want %d", policy.Kind, wantKind)
-			}
-		})
-	}
-
-	removed := []string{
-		"network.default_channel",
-		"network.port",
-		"network.max_payload",
-		"network.activation_top_k",
-		"network.digest_flush_interval",
-		"network.digest_max_envelopes",
-		"network.response_guidance_max_bytes",
-		"network.delivery_structured_body_max_bytes",
-	}
-	for _, pathValue := range removed {
-		t.Run("Should reject "+pathValue, func(t *testing.T) {
-			t.Parallel()
-
-			path, err := ParseDottedConfigPath(pathValue)
-			if err != nil {
-				t.Fatalf("ParseDottedConfigPath() error = %v", err)
-			}
-			policy, err := ClassifyToolConfigPath(path)
-			if err != nil {
-				t.Fatalf("ClassifyToolConfigPath() error = %v", err)
-			}
-			if policy.Denial != ConfigPathForbidden {
-				t.Fatalf("PathPolicy.Denial = %q, want %q", policy.Denial, ConfigPathForbidden)
-			}
-		})
-	}
-}
-
 func TestNormalizeToolConfigValue(t *testing.T) {
 	t.Run("Should normalize supported kinds and reject malformed values", func(t *testing.T) {
 		t.Parallel()
@@ -901,12 +725,6 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 	cfg := DefaultWithHome(homePaths)
 	cfg.Defaults.Agent = "planner"
 	cfg.Roles.Coordinator.Enabled = true
-	cfg.Sandboxes["dev"] = SandboxProfile{
-		Backend: "local",
-		Env: map[string]string{
-			"TOKEN": "secret",
-		},
-	}
 	cfg.Providers["private"] = ProviderConfig{
 		Command:      "provider-acp",
 		AuthMode:     ProviderAuthModeNativeCLI,
@@ -960,10 +778,6 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 			heartbeatMaxWakes,
 			ok,
 		)
-	}
-	env, ok := EntryByPath(entries, "sandboxes.dev.env.TOKEN")
-	if !ok || env.Value != RedactedValue() || !env.Redacted {
-		t.Fatalf("EntryByPath(env) = %#v/%v, want redacted env", env, ok)
 	}
 	login, ok := EntryByPath(entries, "providers.private.auth_login_command")
 	if !ok || login.Value != RedactedValue() || !login.Redacted {

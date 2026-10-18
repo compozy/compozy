@@ -134,7 +134,7 @@ func TestResolveManifestToolDescriptorsIncludesDigestAndMetadata(t *testing.T) {
 						Tags:           []string{"search"},
 						SearchHints:    []string{"issues"},
 						RequiredCapabilities: []string{
-							"memory.read",
+							"logs.read",
 						},
 						Visibility: "session",
 					},
@@ -160,7 +160,7 @@ func TestResolveManifestToolDescriptorsIncludesDigestAndMetadata(t *testing.T) {
 		if got, want := descriptor.Tool.Visibility, toolspkg.VisibilitySession; got != want {
 			t.Fatalf("Tool.Visibility = %q, want %q", got, want)
 		}
-		if got, want := descriptor.Tool.MaxResultBytes, int64(4096); got != want {
+		if got, want := descriptor.Tool.ExecutionMetadata().MaxResultBytes, int64(4096); got != want {
 			t.Fatalf("Tool.MaxResultBytes = %d, want %d", got, want)
 		}
 		presentation := descriptor.Tool.Presentation()
@@ -191,7 +191,7 @@ func TestResolveManifestToolDescriptorsIncludesDigestAndMetadata(t *testing.T) {
 		if got, want := runtime.Handler, "lookup.run"; got != want {
 			t.Fatalf("RuntimeDescriptor.Handler = %q, want %q", got, want)
 		}
-		if got, want := runtime.Capabilities, []string{"memory.read", "tool.provider"}; !slices.Equal(got, want) {
+		if got, want := runtime.Capabilities, []string{"logs.read", "tool.provider"}; !slices.Equal(got, want) {
 			t.Fatalf("RuntimeDescriptor.Capabilities = %#v, want %#v", got, want)
 		}
 	})

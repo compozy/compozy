@@ -18,6 +18,7 @@ import { windowManagerLayoutArea } from "./window-manager-layout-area";
 export {
   createTileSnapTarget,
   progressiveSnapRatio,
+  tileZoneFraction,
   type SnapCorner,
   type SnapEdge,
   type SnapSide,
@@ -40,11 +41,11 @@ export const DEFAULT_SNAP_TARGET_CONFIG: SnapTargetConfig = {
   edgeBand: 32,
   cornerReach: 150,
   exitSlack: 16,
-  innerGap: 8,
+  innerGap: 0,
   outerGaps: { top: 0, right: 0, bottom: 0, left: 0 },
   repeatRatios: [0.5, 0.666667, 0.333333],
   topCenter: "zoom",
-  bottomCenter: "reserved",
+  bottomCenter: "zoom",
 };
 
 export interface ZoomSnapTarget {

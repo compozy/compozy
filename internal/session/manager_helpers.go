@@ -16,11 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) startPermissions(sessionType Type, configured string) compozyconfig.PermissionMode {
-	if normalizeSessionType(sessionType) == SessionTypeDream {
-		return compozyconfig.PermissionModeApproveAll
-	}
-
+func (m *Manager) startPermissions(configured string) compozyconfig.PermissionMode {
 	mode := compozyconfig.PermissionMode(strings.TrimSpace(configured))
 	if mode == "" {
 		return compozyconfig.PermissionModeApproveReads
@@ -32,7 +28,8 @@ func (m *Manager) writeMeta(session *Session) error {
 	if session == nil {
 		return errors.New("session: session is required")
 	}
-	if err := store.WriteSessionMeta(session.MetaPath(), session.meta()); err != nil {
+	meta := session.meta()
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		return fmt.Errorf("session: write meta for %q: %w", session.ID, err)
 	}
 	return nil
@@ -44,7 +41,6 @@ func (m *Manager) activateAndWatch(
 	proc *AgentProcess,
 	adoptCurrentModel bool,
 	resolved compozyconfig.ResolvedAgent,
-	networkCapabilities []NetworkPeerCapability,
 	postEvent hookspkg.HookEvent,
 	preserveStopReason bool,
 ) error {
@@ -58,13 +54,6 @@ func (m *Manager) activateAndWatch(
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)
-	}
-	if err := m.joinNetworkPeer(ctx, session, networkCapabilities); err != nil {
-		rollbackErr := m.rollbackActivation(session, proc, now)
-		return errors.Join(
-			fmt.Errorf("session: join network channel for %q: %w", session.ID, err),
-			rollbackErr,
-		)
 	}
 
 	m.dispatchAgentSpawned(ctx, session, proc, resolved)
@@ -82,42 +71,6 @@ func (m *Manager) activateAndWatch(
 	}
 	m.watchProcess(session)
 	return nil
-}
-
-func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabilities []NetworkPeerCapability) error {
-	if ctx == nil {
-		return errors.New("session: join network peer context is required")
-	}
-	if session == nil {
-		return nil
-	}
-
-	return m.joinNetworkPeerWithBinding(
-		ctx,
-		session,
-		session.Info().NetworkParticipation,
-		session.Info().NetworkOwnerKey,
-		capabilities,
-		false,
-	)
-}
-
-func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error {
-	if ctx == nil {
-		return errors.New("session: leave network peer context is required")
-	}
-	if session == nil {
-		return nil
-	}
-
-	lifecycle := m.currentNetworkPeerLifecycle()
-	if lifecycle == nil {
-		return nil
-	}
-
-	session.networkPeerMu.Lock()
-	defer session.networkPeerMu.Unlock()
-	return lifecycle.LeaveChannel(ctx, session.ID)
 }
 
 func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now time.Time) error {

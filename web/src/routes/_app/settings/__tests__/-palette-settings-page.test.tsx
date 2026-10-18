@@ -18,7 +18,12 @@ const state = vi.hoisted(() => ({
   setPersonalization: vi.fn(),
 }));
 
-vi.mock("@/systems/settings", () => ({
+vi.mock("@/systems/settings", async () => ({
+  SettingsPageState: (
+    await vi.importActual<typeof import("@/systems/settings/components/settings-page-state")>(
+      "@/systems/settings/components/settings-page-state"
+    )
+  ).SettingsPageState,
   SettingsGroup: ({ children }: PropsWithChildren) => <section>{children}</section>,
   SettingsPageFrame: ({ children }: PropsWithChildren) => <main>{children}</main>,
   SettingRow: ({
@@ -112,10 +117,10 @@ describe("PaletteSettingsPage", () => {
     state.error = new Error("palette settings failed");
     render(<PaletteSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-palette-error")).toHaveTextContent(
-      "palette settings failed"
-    );
-    await user.click(screen.getByRole("button", { name: "Retry" }));
+    const error = screen.getByTestId("settings-page-palette-error");
+    expect(error).toHaveTextContent("Couldn't load Palette");
+    expect(error).toHaveTextContent("palette settings failed");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(state.handleRetry).toHaveBeenCalledTimes(1);
   });
 

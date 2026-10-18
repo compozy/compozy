@@ -39,18 +39,20 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	defer cancel()
 	owners, err := h.profileOwnerIdentities(c.Request.Context())
 	if err != nil {
+		cancel()
 		respondProfileError(c, err)
 		return
 	}
 
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+	writer, closeStream, ok := h.prepareEventStream(c)
+	if !ok {
+		cancel()
 		return
 	}
+	defer closeStream()
+	defer cancel()
 	if err := WriteSSEComment(writer, "session catalog stream ready"); err != nil {
 		h.logSSEWriteFailure(sessionCatalogChangedEvent, err)
 		return
@@ -101,11 +103,12 @@ func (h *BaseHandlers) parseSessionCatalogScope(c *gin.Context) (session.Catalog
 	if err != nil {
 		return session.CatalogScope{}, err
 	}
-	afterSequence, err := parseLastEventID(c.GetHeader("Last-Event-ID"), h.transportName())
+	cursor := eventStreamCursor(c)
+	afterSequence, err := parseLastEventID(cursor, h.transportName())
 	if err != nil {
 		return session.CatalogScope{}, err
 	}
-	replay := strings.TrimSpace(c.GetHeader("Last-Event-ID")) != ""
+	replay := cursor != ""
 	if allWorkspaces {
 		return session.CatalogScope{
 			ReadScope:     readScope,
@@ -142,6 +145,12 @@ func (h *BaseHandlers) parseSessionCatalogWorkspace(c *gin.Context) (bool, strin
 		return false, "", err
 	}
 	workspaceRef := strings.TrimSpace(c.Query("workspace_id"))
+	if routeRef := c.Param("workspace_id"); routeRef != "" {
+		if workspaceRef != "" && workspaceRef != routeRef {
+			return false, "", fmt.Errorf("%w: conflicting workspace_id", session.ErrCatalogScopeInvalid)
+		}
+		workspaceRef = routeRef
+	}
 	if (workspaceRef != "") == allWorkspaces {
 		return false, "", fmt.Errorf(
 			"%w: choose exactly one workspace_id or all_workspaces=true",

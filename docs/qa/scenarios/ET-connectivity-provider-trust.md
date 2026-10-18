@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/12-private-provider-degraded-status.json;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/33-provider-restart-rewalk.json;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/41-extension-template-discovery.json
 last_report: docs/qa/reports/2026-08-07-remote-gateway.md
-overlaps: ET-extension-manifest-v2-surfaces; ET-extension-code-first-authoring; ET-ext-network-confirm
+overlaps: ET-extension-manifest-v2-surfaces; ET-extension-code-first-authoring
 ---
 
 Own third-party authoring, consent, and the real-subprocess protocol walk: initialization and

@@ -13,7 +13,7 @@ const meta: Meta<typeof Timeline> = {
     docs: {
       description: {
         component:
-          "Vertical timeline rail (`<ol>`) with a hairline `--line` spine running through the leading-icon column. Pair with `TimelineEvent` rows. Use for run histories, audit logs, network activity feeds.",
+          "Vertical timeline rail (`<ol>`) with a hairline `--line` spine running through the leading-icon column. Pair with `TimelineEvent` rows. Use for run histories, audit logs, task activity feeds.",
       },
     },
   },

@@ -76,6 +76,8 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// streamHostedMCPProjection pushes projection snapshots when the daemon projection epoch advances
+// or the bind is released, with a slow fallback re-read for availability inputs that carry no epoch.
 func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	if h == nil || h.HostedMCP == nil {
 		core.RespondError(c, http.StatusServiceUnavailable, mcppkg.ErrHostedDisabled, false)
@@ -88,7 +90,8 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	}
 	bindID := strings.TrimSpace(c.Query("bind_id"))
 	lastDigest := strings.TrimSpace(c.Query("last_digest"))
-	response, err := h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
+	changes := h.HostedMCP.ProjectionChanges()
+	response, err := h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer)
 	if err != nil {
 		respondHostedMCPError(c, err)
 		return
@@ -98,12 +101,13 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 		core.RespondError(c, http.StatusInternalServerError, err, false)
 		return
 	}
-	interval := h.PollInterval
-	if interval <= 0 {
-		interval = defaultPollInterval
+	coalesce := h.PollInterval
+	if coalesce <= 0 {
+		coalesce = defaultPollInterval
 	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	refresh := h.HostedMCP.StreamRefreshInterval()
+	fallback := time.NewTimer(refresh)
+	defer fallback.Stop()
 	for {
 		if response.Digest != "" && response.Digest != lastDigest {
 			if writeErr := core.WriteSSE(writer, core.SSEMessage{
@@ -118,14 +122,11 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 			}
 			lastDigest = response.Digest
 		}
-		select {
-		case <-c.Request.Context().Done():
+		if !h.awaitHostedMCPProjectionChange(c, changes, fallback, refresh, coalesce) {
 			return
-		case <-h.StreamDoneChannel():
-			return
-		case <-ticker.C:
 		}
-		response, err = h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
+		changes = h.HostedMCP.ProjectionChanges()
+		response, err = h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer)
 		if err != nil {
 			status := hostedMCPStatus(err)
 			if h.Logger != nil {
@@ -140,6 +141,45 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 			return
 		}
 	}
+}
+
+// awaitHostedMCPProjectionChange blocks until a change signal or the fallback refresh fires. A
+// change signal waits one coalesce interval more so a burst of epoch advances causes one rebuild.
+// It reports false when the request or stream lifetime ended.
+func (h *Handlers) awaitHostedMCPProjectionChange(
+	c *gin.Context,
+	changes mcppkg.HostedProjectionChanges,
+	fallback *time.Timer,
+	refresh time.Duration,
+	coalesce time.Duration,
+) bool {
+	ctx := c.Request.Context()
+	done := h.StreamDoneChannel()
+	signaled := false
+	select {
+	case <-ctx.Done():
+		return false
+	case <-done:
+		return false
+	case <-changes.Epoch:
+		signaled = true
+	case <-changes.Released:
+		signaled = true
+	case <-fallback.C:
+	}
+	if signaled {
+		settle := time.NewTimer(coalesce)
+		defer settle.Stop()
+		select {
+		case <-ctx.Done():
+			return false
+		case <-done:
+			return false
+		case <-settle.C:
+		}
+	}
+	fallback.Reset(refresh)
+	return true
 }
 
 type hostedMCPStreamErrorPayload struct {
@@ -286,11 +326,13 @@ func isHostedMCPTerminalError(err error) bool {
 }
 
 func isHostedMCPToolError(err error) bool {
-	var toolErr *toolspkg.ToolError
-	var validationErr *toolspkg.ValidationError
-	return errors.As(err, &toolErr) ||
-		errors.As(err, &validationErr) ||
-		errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+	if _, ok := errors.AsType[*toolspkg.ToolError](err); ok {
+		return true
+	}
+	if _, ok := errors.AsType[*toolspkg.ValidationError](err); ok {
+		return true
+	}
+	return errors.Is(err, toolspkg.ErrToolInvalidInput) ||
 		errors.Is(err, toolspkg.ErrToolNotFound) ||
 		errors.Is(err, toolspkg.ErrToolDenied) ||
 		errors.Is(err, toolspkg.ErrToolApprovalRequired) ||

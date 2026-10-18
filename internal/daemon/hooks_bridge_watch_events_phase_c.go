@@ -64,9 +64,7 @@ func dispatchEventPostRecordWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.EventPostRecordPayload,
 ) (hookspkg.EventPostRecordPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookEventPostRecord,
 		payload,
 		hookRuntime.DispatchEventPostRecord,
@@ -80,9 +78,7 @@ func dispatchCoordinatorSpawnedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorSpawnedPayload,
 ) (hookspkg.CoordinatorSpawnedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorSpawned,
 		payload,
 		hookRuntime.DispatchCoordinatorSpawned,
@@ -106,9 +102,7 @@ func dispatchCoordinatorDecisionWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorDecisionPayload,
 ) (hookspkg.CoordinatorDecisionPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorDecision,
 		payload,
 		hookRuntime.DispatchCoordinatorDecision,
@@ -132,9 +126,7 @@ func dispatchCoordinatorStoppedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorStoppedPayload,
 ) (hookspkg.CoordinatorStoppedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorStopped,
 		payload,
 		hookRuntime.DispatchCoordinatorStopped,
@@ -158,9 +150,7 @@ func dispatchCoordinatorFailedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorFailedPayload,
 ) (hookspkg.CoordinatorFailedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorFailed,
 		payload,
 		hookRuntime.DispatchCoordinatorFailed,
@@ -231,16 +221,15 @@ func (n *hooksNotifier) writeCoordinatorWatchEvent(
 		return nil
 	}
 	content, err := json.Marshal(map[string]any{
-		watchEventsPayloadAgentNameKey:                    strings.TrimSpace(payload.AgentName),
-		watchEventsPayloadCoordinatorSessionIDKey:         strings.TrimSpace(payload.CoordinatorSessionID),
-		watchEventsPayloadResolvedNetworkParticipationKey: payload.ResolvedNetworkParticipation,
-		watchEventsPayloadWorkflowIDKey:                   strings.TrimSpace(payload.WorkflowID),
-		watchEventsPayloadProviderKey:                     strings.TrimSpace(payload.Provider),
-		watchEventsPayloadModelKey:                        strings.TrimSpace(payload.Model),
-		watchEventsPayloadDecisionKindKey:                 strings.TrimSpace(payload.DecisionKind),
-		watchEventsPayloadDecisionKey:                     strings.TrimSpace(payload.Decision),
-		watchEventsPayloadStopReasonKey:                   strings.TrimSpace(payload.StopReason),
-		watchEventsPayloadErrorKey:                        strings.TrimSpace(payload.Error),
+		watchEventsPayloadAgentNameKey:            strings.TrimSpace(payload.AgentName),
+		watchEventsPayloadCoordinatorSessionIDKey: strings.TrimSpace(payload.CoordinatorSessionID),
+		watchEventsPayloadWorkflowIDKey:           strings.TrimSpace(payload.WorkflowID),
+		watchEventsPayloadProviderKey:             strings.TrimSpace(payload.Provider),
+		watchEventsPayloadModelKey:                strings.TrimSpace(payload.Model),
+		watchEventsPayloadDecisionKindKey:         strings.TrimSpace(payload.DecisionKind),
+		watchEventsPayloadDecisionKey:             strings.TrimSpace(payload.Decision),
+		watchEventsPayloadStopReasonKey:           strings.TrimSpace(payload.StopReason),
+		watchEventsPayloadErrorKey:                strings.TrimSpace(payload.Error),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: marshal coordinator watch event: %w", err)
@@ -260,22 +249,20 @@ func (n *hooksNotifier) writeCoordinatorWatchEvent(
 		}
 	}
 	return writer.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
-		ProfileID:   profileID,
-		SessionID:   strings.TrimSpace(payload.CoordinatorSessionID),
-		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
-		Type:        string(event),
-		AgentName:   strings.TrimSpace(payload.AgentName),
-		Provider:    strings.TrimSpace(payload.Provider),
-		Outcome:     coordinatorWatchEventOutcome(event),
-		EventCorrelation: store.EventCorrelation{
-			TaskID:               strings.TrimSpace(payload.TaskID),
-			RunID:                strings.TrimSpace(payload.RunID),
-			WorkflowID:           strings.TrimSpace(payload.WorkflowID),
-			CoordinatorSessionID: strings.TrimSpace(payload.CoordinatorSessionID),
-			HookEvent:            string(event),
-		},
-		Summary:   coordinatorWatchEventSummary(event, payload),
-		Timestamp: payload.Timestamp.UTC(),
+		ProfileID:            profileID,
+		SessionID:            strings.TrimSpace(payload.CoordinatorSessionID),
+		WorkspaceID:          strings.TrimSpace(payload.WorkspaceID),
+		Type:                 string(event),
+		AgentName:            strings.TrimSpace(payload.AgentName),
+		Provider:             strings.TrimSpace(payload.Provider),
+		Outcome:              coordinatorWatchEventOutcome(event),
+		TaskID:               strings.TrimSpace(payload.TaskID),
+		RunID:                strings.TrimSpace(payload.RunID),
+		WorkflowID:           strings.TrimSpace(payload.WorkflowID),
+		CoordinatorSessionID: strings.TrimSpace(payload.CoordinatorSessionID),
+		HookEvent:            string(event),
+		Summary:              coordinatorWatchEventSummary(event, payload),
+		Timestamp:            payload.Timestamp.UTC(),
 	}, content))
 }
 

@@ -48,7 +48,7 @@ Verbatim canonical rules — the Compozy delta. `golang-master` owns the generic
 ## Architecture Discipline (cross-package)
 
 - Interfaces defined where consumed (Go-style): `session/` defines `AgentDriver`, `acp/` implements it.
-- Direct function calls through interfaces. Outside the `internal/network` NATS boundary, do not add event buses, NATS routing, or reflection-based routing.
+- Direct function calls through interfaces. Do not add event buses, NATS routing, or reflection-based routing.
 - No back-pointers between packages — inject callbacks or interfaces.
 - Functional options for constructors: `NewManager(opts ...Option)`.
 - Maps for <10 items — no registry interfaces for small collections.

@@ -7,9 +7,8 @@
 // module owns the mapping and the accessible words; palette fidelity is owned
 // by the artboards and Storybook capture, never by a unit test.
 
-import { compactSessionSummary } from "./session-summary";
-
-import { getToolCompactSummary, resolveRegisteredToolName, toolHeadingName } from "./tool-labels";
+import { resolveToolDisplay, toolDisplaySentence } from "./tool-display";
+import { resolveRegisteredToolName } from "./tool-labels";
 
 export type SessionToolVisualStatus =
   | "live"
@@ -89,67 +88,22 @@ export function toolVisualState(
 export interface SessionLiveToolLabel {
   verb: string;
   preview: string | null;
-  /** Full accessible sentence ("Running shell — go test ./..."). */
+  /** Full accessible sentence ("Running go test ./..."). */
   text: string;
 }
 
-const LIVE_VERB: Record<SessionToolKind, string> = {
-  command: "Running shell",
-  edit: "Editing",
-  read: "Reading",
-  search: "Searching",
-  web: "Fetching",
-  agent: "Running agent",
-  other: "Running",
-};
-
-/** Chooses an activity verb from canonical tool identity rather than provider prose. */
-function liveVerb(kind: SessionToolKind, registryTool: string): string {
-  if (kind === "search") return registryTool === "Glob" ? "Finding files" : "Searching content";
-  if (kind === "web") return registryTool === "WebSearch" ? "Searching the web" : "Fetching";
-  if (kind === "other") return `Running ${toolHeadingName(registryTool)}`;
-  return LIVE_VERB[kind];
-}
-
-/** Builds a bounded input preview, including an agent's description or prompt. */
-function livePreview(
-  kind: SessionToolKind,
-  registryTool: string,
-  args: Record<string, unknown>
-): string | null {
-  if (kind === "agent") {
-    const description = args.description ?? args.prompt;
-    return typeof description === "string" && description.trim()
-      ? compactSessionSummary(description)
-      : null;
-  }
-  const summary = getToolCompactSummary(registryTool, args);
-  return summary && summary.trim().length > 0 ? summary : null;
-}
-
-/** Combines the canonical action with a bounded provider title or input preview. */
+/** The live sentence: the same verb and object the settled row shows, in the active tense. */
 export function liveToolLabel(
   toolName: string,
   args: Record<string, unknown> = {},
   title?: string
 ): SessionLiveToolLabel {
-  const registryTool = resolveRegisteredToolName(toolName);
-  const kind = toolVisualKind(toolName);
-  const verb = liveVerb(kind, registryTool);
-  const description =
-    title && title !== registryTool
-      ? title
-      : toolHeadingName(toolName) === "tool" && toolName !== "tool"
-        ? toolName
-        : null;
-  const preview = description
-    ? compactSessionSummary(description)
-    : livePreview(kind, registryTool, args);
-  if (preview === null) return { verb, preview, text: verb };
-  // Paths read as the object of the verb ("Editing a/b.ts"); everything else is
-  // set off with a dash ("Running shell — go test").
-  const joined = kind === "edit" || kind === "read" ? `${verb} ${preview}` : `${verb} — ${preview}`;
-  return { verb, preview, text: joined };
+  const display = resolveToolDisplay(
+    { toolName, args, ...(title ? { toolTitle: title } : {}) },
+    "active"
+  );
+  const preview = display.target ?? null;
+  return { verb: display.verb, preview, text: toolDisplaySentence(display) };
 }
 
 /** The parallel row sentence: one honest count, never one row per call. */

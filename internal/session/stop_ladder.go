@@ -98,7 +98,7 @@ func (m *Manager) runTerminationLadder(
 	ctx context.Context, proc *AgentProcess, target terminationTarget,
 ) (terminationResult, error) {
 	started := m.now()
-	outcome := terminationResult{StopOutcome: StopOutcome{FinalState: StateStopping, Phase: StopPhaseCooperative}}
+	outcome := terminationResult{FinalState: StateStopping, Phase: StopPhaseCooperative}
 	if proc == nil {
 		outcome.Verified, outcome.processExited = true, true
 		return outcome, nil

@@ -1,8 +1,8 @@
 import {
   getOsAppDescriptor,
   getOsAppMinimum,
-  OS_APP_DESCRIPTORS,
   OS_WINDOW_CONSERVATIVE_MINIMUM,
+  osAppId,
 } from "./app-catalog";
 import { applyFrameSeamPreviewToDesktop } from "./frame-seams";
 import { buildDesktopFrames, type OsWindowFrameModel } from "./group-projection";
@@ -169,10 +169,6 @@ function normalizedRectToPixels(rect: NormalizedRect, area: PixelRect): OsRect {
   };
 }
 
-function osAppId(value: string): OsAppId | null {
-  return Object.hasOwn(OS_APP_DESCRIPTORS, value) ? (value as OsAppId) : null;
-}
-
 export interface OsDesktopRuntimeViewInput {
   snapshot: WindowManagerSnapshot | null;
   globalConfig: WindowManagerConfig | null;
@@ -185,7 +181,6 @@ export interface OsDesktopRuntimeViewInput {
   loadError: Error | null;
   wallpaper: OsWallpaper;
   reduceMotion: boolean;
-  dockMagnify: boolean;
 }
 
 /** Assembles the selector store the shell renders: projections → frames → windows. */
@@ -241,13 +236,13 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     focusedId: client?.focusedWindowId ?? null,
     wallpaper: input.wallpaper,
     reduceMotion: input.reduceMotion,
-    dockMagnify: input.dockMagnify,
     presentation:
       workArea.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "stack"
         ? "compact"
         : "floating",
     viewportState: viewportRejected ? "rejected" : "ready",
     hydration,
+    loadError: input.loadError,
     connectionStatus: input.connectionStatus,
     desktopBounds: {
       width: workArea.w,

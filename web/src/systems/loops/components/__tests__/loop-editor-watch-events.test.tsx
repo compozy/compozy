@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
@@ -66,7 +66,7 @@ describe("LoopEditorWatchEvents", () => {
       />
     );
     const thirdEditor = screen.getByTestId("loop-watch-event-filter-2");
-    thirdEditor.focus();
+    act(() => thirdEditor.focus());
 
     fireEvent.click(screen.getByRole("button", { name: "Remove subscription 2" }));
 

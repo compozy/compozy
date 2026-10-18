@@ -16,15 +16,15 @@ func (r *RuntimeRegistry) completeDispatch(
 ) (ToolResult, error) {
 	sanitized, err := r.resultProcessor().Sanitize(ctx, target.descriptor, providerResult)
 	if err != nil {
-		return r.failResultProcessing(ctx, target, req, started, ToolResult{}, err)
+		return r.failResultProcessing(ctx, scope, target, req, started, ToolResult{}, err)
 	}
-	patched, err := r.runPostCallHook(ctx, target, req, sanitized)
+	patched, err := r.runPostCallHook(ctx, scope, target, req, sanitized)
 	if err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallDenied)
 	}
 	finalized, err := r.resultProcessor().Finalize(ctx, scope, target.descriptor, patched)
 	if err != nil {
-		return r.failResultProcessing(ctx, target, req, started, finalized, err)
+		return r.failResultProcessing(ctx, scope, target, req, started, finalized, err)
 	}
 	if err := r.emit(ctx, target, req, ToolCallCompleted, ToolEventData{
 		StartedAt: started,
@@ -45,6 +45,7 @@ func (r *RuntimeRegistry) completeDispatch(
 
 func (r *RuntimeRegistry) failResultProcessing(
 	ctx context.Context,
+	scope Scope,
 	target *dispatchTarget,
 	req CallRequest,
 	started time.Time,
@@ -55,9 +56,8 @@ func (r *RuntimeRegistry) failResultProcessing(
 	if embedded, ok := partialResultFromError(normalized); ok {
 		partial = embedded
 	}
-	if hookErr := r.runPostErrorHook(ctx, target, req, normalized); hookErr != nil {
-		normalized = inheritPartialResult(hookErr, normalized)
-	}
+	patchedErr := r.runPostErrorHook(ctx, scope, target, req, normalized)
+	normalized = inheritPartialResult(patchedErr, normalized)
 	return partial, r.failDispatchWithResult(
 		ctx,
 		target,
@@ -71,6 +71,7 @@ func (r *RuntimeRegistry) failResultProcessing(
 
 func (r *RuntimeRegistry) runPostCallHook(
 	ctx context.Context,
+	scope Scope,
 	target *dispatchTarget,
 	req CallRequest,
 	result ToolResult,
@@ -78,7 +79,7 @@ func (r *RuntimeRegistry) runPostCallHook(
 	if r.hooks == nil {
 		return result, nil
 	}
-	patched, err := r.hooks.PostCall(ctx, req, result)
+	patched, err := r.hooks.PostCall(ctx, scope, target.descriptor, req, result)
 	if err != nil {
 		return result, normalizeHookError(target.descriptor.ID, err)
 	}
@@ -87,17 +88,22 @@ func (r *RuntimeRegistry) runPostCallHook(
 
 func (r *RuntimeRegistry) runPostErrorHook(
 	ctx context.Context,
+	scope Scope,
 	target *dispatchTarget,
 	req CallRequest,
 	callErr error,
 ) error {
 	if r.hooks == nil {
-		return nil
+		return callErr
 	}
-	if err := r.hooks.PostError(ctx, req, callErr); err != nil {
+	patched, err := r.hooks.PostError(ctx, scope, target.descriptor, req, callErr)
+	if err != nil {
 		return normalizeHookError(target.descriptor.ID, err)
 	}
-	return nil
+	if patched == nil {
+		return callErr
+	}
+	return normalizeToolError(target.descriptor.ID, patched)
 }
 
 func (r *RuntimeRegistry) failDispatch(

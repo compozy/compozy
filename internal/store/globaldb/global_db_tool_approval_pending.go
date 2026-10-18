@@ -219,11 +219,11 @@ func toolApprovalStatusFromRow(row sqlcgen.ToolApprovalPending) (toolspkg.Approv
 		},
 		Args: json.RawMessage(row.ArgsJson), RequestedAt: time.UnixMilli(row.RequestedAt).UTC(),
 		ExpiresAt: time.UnixMilli(row.ExpiresAt).UTC(), ResumeFence: row.ResumeFence != 0,
+		Result:     rawJSON(row.ResultJson),
+		Error:      rawJSON(row.ErrorJson),
+		ResolvedAt: nullableApprovalTime(row.ResolvedAt),
+		ExecutedAt: nullableApprovalTime(row.ExecutedAt),
 	}
-	status.Result = rawJSON(row.ResultJson)
-	status.Error = rawJSON(row.ErrorJson)
-	status.ResolvedAt = nullableApprovalTime(row.ResolvedAt)
-	status.ExecutedAt = nullableApprovalTime(row.ExecutedAt)
 	if !json.Valid(status.Target.Payload) || !json.Valid(status.Args) ||
 		(len(status.Result) > 0 && !json.Valid(status.Result)) ||
 		(len(status.Error) > 0 && !json.Valid(status.Error)) {
@@ -257,6 +257,5 @@ func nullableApprovalTime(value sql.NullInt64) *time.Time {
 	if !value.Valid {
 		return nil
 	}
-	parsed := time.UnixMilli(value.Int64).UTC()
-	return &parsed
+	return new(time.UnixMilli(value.Int64).UTC())
 }

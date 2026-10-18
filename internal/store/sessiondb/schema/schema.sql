@@ -72,6 +72,7 @@ CREATE TABLE conversation_rewind_state (
 		target_message_id TEXT NOT NULL,
 		covered_through_sequence INTEGER NOT NULL CHECK(covered_through_sequence >= 0),
 		messages_json TEXT NOT NULL CHECK(json_valid(messages_json)),
+		baseline_stale INTEGER NOT NULL DEFAULT 0 CHECK(baseline_stale IN (0,1)),
 		updated_at TEXT NOT NULL
 	);
 
@@ -148,6 +149,8 @@ CREATE TRIGGER session_db_identity_immutable_insert
 		END;
 
 CREATE UNIQUE INDEX idx_events_sequence ON events(sequence);
+
+CREATE INDEX idx_events_active_sequence ON events(sequence) WHERE archived = 0;
 
 CREATE INDEX idx_events_timestamp ON events(timestamp);
 

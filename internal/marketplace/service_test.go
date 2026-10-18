@@ -102,10 +102,12 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 		return service
 	}
 
+	// Nil-context guards return before touching this fixture; only the detail case refreshes it.
+	service := newService(t)
+
 	t.Run("Should return source status and resolve detail by immutable id", func(t *testing.T) {
 		t.Parallel()
 
-		service := newService(t)
 		ctx := testutil.Context(t)
 		states, err := service.Status(ctx)
 		if err != nil {
@@ -181,7 +183,6 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 	t.Run("Should reject nil contexts and service receivers with specific diagnostics", func(t *testing.T) {
 		t.Parallel()
 
-		service := newService(t)
 		ctx := testutil.Context(t)
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
 		_, err := service.Browse(nil, "", 0, 10)
@@ -215,7 +216,10 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 	})
 }
 
-func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
+// Invariant: fetch error identity determines the refresh error class.
+// Owner: pure fetch-error classification; canonical suite: service_test.go.
+// Refresh persistence and notification wiring remain in the lifecycle and stale-fallback suites.
+func TestClassifyFetchError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -277,17 +281,8 @@ func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := openMarketplaceTestStore(t)
-			source := &recordingSource{fetch: func(context.Context) (*Document, error) {
-				return nil, tc.fetchErr
-			}}
-			service := newMarketplaceTestService(t, store, source, time.Now().UTC(), nil)
-			report, err := service.Refresh(testutil.Context(t))
-			if err == nil {
-				t.Fatal("Refresh() error = nil, want source failure")
-			}
-			if got := report.Outcomes[0].ErrorClass; got != tc.wantClass {
-				t.Fatalf("Refresh().ErrorClass = %q, want %q", got, tc.wantClass)
+			if got := classifyFetchError(tc.fetchErr); got != tc.wantClass {
+				t.Fatalf("classifyFetchError(%v) = %q, want %q", tc.fetchErr, got, tc.wantClass)
 			}
 		})
 	}
@@ -375,7 +370,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Browse() error = %v", err)
 		}
-		if got, want := result.Entries[0].EntryID, "bridge-github"; got != want {
+		if got, want := result.Entries[0].EntryID, "github-tools"; got != want {
 			t.Fatalf("Browse() entry id = %q, want checkout entry %q", got, want)
 		}
 	})
@@ -1074,8 +1069,8 @@ func TestCatalogServiceSources(t *testing.T) {
 		replacement := team
 		replacement.Config.Ref = "github:other/plugins"
 		err = service.SetSources(ctx, append(slices.Clone(feed), replacement))
-		var retained *SourceNameRetainedError
-		if !errors.Is(err, ErrSourceNameRetained) || !errors.As(err, &retained) ||
+		retained, ok := errors.AsType[*SourceNameRetainedError](err)
+		if !errors.Is(err, ErrSourceNameRetained) || !ok ||
 			retained.Name != "team" || !slices.Equal(retained.RetainedBy, []string{"first", "second"}) {
 			t.Fatalf("retained name = %v", err)
 		}

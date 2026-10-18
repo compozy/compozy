@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { taskRunResultPageOptions } from "../lib/query-options";
 import type { TaskRunResultPage } from "../types";
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 
 const TASK_RUN_RESULT_PAGE_BYTES = 16 * 1024;
 
@@ -43,7 +44,8 @@ export function useTaskRunResult({
   runId,
   workspaceId,
 }: UseTaskRunResultOptions): TaskRunResultController {
-  const identity = `${workspaceId}\u0000${runId}\u0000${resultRef}`;
+  const { params, key: profileKey } = useProfileReadScope();
+  const identity = `${profileKey}\u0000${workspaceId}\u0000${runId}\u0000${resultRef}`;
   const queryClient = useQueryClient();
   const [disclosure, setDisclosure] = useState<IdentityState<boolean>>({
     identity,
@@ -61,6 +63,7 @@ export function useTaskRunResult({
       resultRef,
       offset,
       TASK_RUN_RESULT_PAGE_BYTES,
+      params,
       open
     )
   );
@@ -93,6 +96,7 @@ export function useTaskRunResult({
     try {
       const text = await readCompleteResult({
         expectedBytes: resultBytes,
+        scope: params,
         queryClient,
         resultRef,
         runId,
@@ -124,6 +128,7 @@ export function useTaskRunResult({
 }
 
 interface CompleteResultRequest {
+  scope: ProfileScopeParams;
   expectedBytes: number;
   queryClient: ReturnType<typeof useQueryClient>;
   resultRef: string;
@@ -132,6 +137,7 @@ interface CompleteResultRequest {
 }
 
 async function readCompleteResult({
+  scope,
   expectedBytes,
   queryClient,
   resultRef,
@@ -143,7 +149,14 @@ async function readCompleteResult({
   let totalBytes: number | null = null;
   while (totalBytes === null || offset < totalBytes) {
     const page = await queryClient.fetchQuery(
-      taskRunResultPageOptions(workspaceId, runId, resultRef, offset, TASK_RUN_RESULT_PAGE_BYTES)
+      taskRunResultPageOptions(
+        workspaceId,
+        runId,
+        resultRef,
+        offset,
+        TASK_RUN_RESULT_PAGE_BYTES,
+        scope
+      )
     );
     if (totalBytes === null) totalBytes = page.total_bytes;
     if (page.total_bytes !== totalBytes || page.offset !== offset) {

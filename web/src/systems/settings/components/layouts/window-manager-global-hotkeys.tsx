@@ -60,7 +60,7 @@ export function WindowManagerGlobalHotkeys({
       </span>
       <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
         <Globe2 aria-hidden="true" className="size-4 text-subtle" />
-        <h3 className="text-form-label font-medium text-fg">Global hotkeys</h3>
+        <h3 className="text-body font-medium text-fg">Global hotkeys</h3>
       </div>
 
       {needsAccessibility ? (
@@ -76,7 +76,7 @@ export function WindowManagerGlobalHotkeys({
                 nativeButton={false}
                 render={<a aria-label="Open System Settings" href={settingsUrl} />}
                 size="sm"
-                variant="outline"
+                variant="secondary"
               >
                 Open System Settings
                 <ExternalLink aria-hidden="true" className="size-3.5" />
@@ -108,7 +108,7 @@ export function WindowManagerGlobalHotkeys({
               <div className="px-4 py-3" key={registration.commandId}>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="min-w-48 flex-1">
-                    <p className="text-form-label font-medium text-fg">
+                    <p className="text-body font-medium text-fg">
                       {titleFor(registration.commandId)}
                     </p>
                     <p className="font-mono text-micro text-faint">{registration.commandId}</p>
@@ -119,7 +119,7 @@ export function WindowManagerGlobalHotkeys({
                     disabled={!shell || recorder.saving}
                     size="sm"
                     type="button"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => recorder.start(registration.commandId)}
                   >
                     {recorder.recording === registration.commandId ? (
@@ -132,7 +132,7 @@ export function WindowManagerGlobalHotkeys({
                     <p className="text-form-hint text-subtle">
                       {statusText(shell, registration.status)}
                     </p>
-                    {reason ? <p className="text-micro text-faint">{reason}</p> : null}
+                    {reason ? <p className="text-eyebrow text-subtle">{reason}</p> : null}
                   </div>
                 </div>
                 {conflict ? (
@@ -151,7 +151,7 @@ export function WindowManagerGlobalHotkeys({
           })}
         </div>
       )}
-      <p className="border-t border-line-soft px-4 py-2 text-micro text-faint">
+      <p className="border-t border-line-soft px-4 py-2 text-eyebrow text-subtle">
         physical keys — non-QWERTY layouts may differ from the printed legend
       </p>
     </section>

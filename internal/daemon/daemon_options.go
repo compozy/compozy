@@ -13,8 +13,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/gateway"
 
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providers"
 
@@ -63,16 +61,6 @@ func WithCompozyExecutableResolver(resolver func() (string, error)) Option {
 		if resolver != nil {
 			d.executable = resolver
 		}
-	}
-}
-
-// WithBridgeSecretResolver injects the daemon-owned resolver used to convert
-// bridge secret bindings into launch-time bound secret material. When this
-// option is not supplied, daemon boot wires the canonical vault-backed resolver.
-func WithBridgeSecretResolver(resolver BridgeSecretResolver) Option {
-	return func(d *Daemon) {
-		d.bridgeSecretResolver = resolver
-		d.bridgeSecretResolverExplicit = true
 	}
 }
 
@@ -199,11 +187,7 @@ func (d *Daemon) applyCoreDefaults() {
 
 func (d *Daemon) applyRuntimeFactoryDefaults() {
 	d.applySessionManagerFactoryDefault()
-	if d.newDreamService == nil {
-		d.newDreamService = func(opts ...memory.Option) consolidation.Service {
-			return memory.NewService(opts...)
-		}
-	}
+
 	d.applyObserverFactoryDefault()
 	d.applyExtensionManagerFactoryDefault()
 	d.applyAutomationManagerFactoryDefault()
