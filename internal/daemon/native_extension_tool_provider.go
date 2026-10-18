@@ -29,6 +29,7 @@ type daemonExtensionToolProvider struct {
 
 var _ toolspkg.Provider = (*daemonExtensionToolProvider)(nil)
 var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionToolProvider)(nil)
+var _ toolspkg.ProjectionAvailabilityProvider = (*daemonExtensionToolProvider)(nil)
 
 // newDaemonScopedExtensionToolProvider validates workspace scope while preserving an absent provider as nil.
 func newDaemonScopedExtensionToolProvider(
@@ -73,6 +74,35 @@ func (p *daemonExtensionToolProvider) List(
 		return nil, err
 	}
 	return p.inner.List(ctx, canonical)
+}
+
+// ProjectionAvailability preserves canonical workspace scope for request-local batches.
+func (p *daemonExtensionToolProvider) ProjectionAvailability(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	ids []toolspkg.ToolID,
+) map[toolspkg.ToolID]toolspkg.Availability {
+	canonical, err := p.canonicalWorkspaceScope(ctx, scope)
+	availability := make(map[toolspkg.ToolID]toolspkg.Availability, len(ids))
+	if err != nil {
+		for _, id := range ids {
+			availability[id] = toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
+		}
+		return availability
+	}
+	if source, ok := p.inner.(toolspkg.ProjectionAvailabilityProvider); ok {
+		return source.ProjectionAvailability(ctx, canonical, ids)
+	}
+	for _, id := range ids {
+		handle, found, resolveErr := p.inner.Resolve(ctx, canonical, id)
+		switch {
+		case resolveErr != nil:
+			availability[id] = toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
+		case found && handle != nil:
+			availability[id] = handle.Availability(ctx, canonical)
+		}
+	}
+	return availability
 }
 
 func (p *daemonExtensionToolProvider) Resolve(

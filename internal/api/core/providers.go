@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -76,7 +77,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 	}
 	statusCommand := strings.TrimSpace(provider.AuthStatusCmd)
 	if statusCommand == "" {
-		respondProviderAuthStatusCommandRequired(c, providerName)
+		h.probeProviderAuthWithoutStatusCommand(c, providerName, provider)
 		return
 	}
 	env, err := h.providerProbeEnv(providerName, provider)
@@ -135,6 +136,66 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 			DurationMs: result.DurationMs,
 		},
 	})
+}
+
+func (h *BaseHandlers) probeProviderAuthWithoutStatusCommand(
+	c *gin.Context, providerName string, provider compozyconfig.ProviderConfig,
+) {
+	if authproviders.UsesACPProbe(provider) &&
+		provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
+		h.probeProviderACPAuth(c, providerName, provider)
+		return
+	}
+	respondProviderAuthStatusCommandRequired(c, providerName)
+}
+
+// probeProviderACPAuth runs one non-interactive disposable ACP probe for
+// providers without a native status command. It never sends authenticate and
+// omits the native command-result probe object. A successful probe clears a
+// cached startup failure through the existing invalidation hook; any other
+// outcome leaves the cache untouched.
+func (h *BaseHandlers) probeProviderACPAuth(
+	c *gin.Context,
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+) {
+	env, err := h.providerProbeEnv(providerName, provider)
+	if err != nil {
+		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
+		return
+	}
+	declared, err := authproviders.ClassifyDeclared(c.Request.Context(), provider, &env)
+	if err != nil {
+		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
+		return
+	}
+	if declared.State == authproviders.ProviderAuthStateMissingCLI {
+		h.respondProviderAuthStatus(c, providerName, provider, declared, &env)
+		return
+	}
+	probe := h.ProviderACPProbe
+	if probe == nil {
+		probe = acp.ProbeAuthentication
+	}
+	probeErr := probe(c.Request.Context(), acp.SessionInspectionRequest{
+		AgentName: providerName,
+		Command:   strings.TrimSpace(provider.Command),
+		Cwd:       env.CommandDir,
+		Env:       append([]string(nil), env.CommandEnv...),
+	})
+	if ctxErr := c.Request.Context().Err(); ctxErr != nil {
+		if probeErr == nil {
+			probeErr = ctxErr
+		}
+		RespondError(c, http.StatusInternalServerError, probeErr, h.MaskInternalErrors)
+		return
+	}
+	classification := acp.ClassifyProbeError(providerName, probeErr)
+	if classification.State == authproviders.ProviderAuthStateAuthenticated &&
+		c.Request.Context().Err() == nil && h.OnProviderAuthSuccess != nil {
+		h.OnProviderAuthSuccess()
+	}
+	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 }
 
 func respondProviderAuthStatusCommandRequired(c *gin.Context, providerName string) {
@@ -228,12 +289,19 @@ func (h *BaseHandlers) providerProbeEnv(
 	if err != nil {
 		return authproviders.ProbeEnv{}, err
 	}
+	// ACP probes need a working directory even when the daemon's launch directory was removed.
+	commandDir, err := os.Getwd()
+	info, statErr := os.Stat(commandDir)
+	if err != nil || statErr != nil || !info.IsDir() {
+		commandDir = os.TempDir()
+	}
 	return authproviders.ProbeEnv{
 		ProviderName:   providerName,
 		HomePaths:      h.HomePaths,
 		LookupEnv:      os.LookupEnv,
 		Vault:          h.Vault,
 		CommandEnv:     commandEnv,
+		CommandDir:     commandDir,
 		ResolveCommand: h.ProviderAuthCommandResolver,
 		RunCommand:     h.ProviderAuthRunner,
 	}, nil

@@ -78,6 +78,7 @@ type handlerConfig struct {
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
+	hostLoad              doctor.HostLoadSnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	appTokens             core.AppTokenManager
 	openAPI               *core.OpenAPIDocument
@@ -250,6 +251,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SkillsRegistry:         cfg.skillsRegistry,
 		SkillResources:         cfg.skillResources,
 		RuntimeMemory:          cfg.runtimeMemory,
+		HostLoad:               cfg.hostLoad,
 		DeadEntities:           cfg.deadEntities,
 		AppTokens:              cfg.appTokens,
 		OpenAPI:                cfg.openAPI,

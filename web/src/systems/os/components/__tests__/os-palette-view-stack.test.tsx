@@ -14,7 +14,6 @@ const profileMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/systems/profiles", () => ({
-  useProfileLens: () => ({ scope: "global" as const }),
   useProfilesPaletteView: profileMocks.useProfilesPaletteView,
 }));
 
@@ -71,7 +70,7 @@ describe("OsPaletteViewStack profiles integration", () => {
     });
     expect(screen.getByTestId("profile-row-marketing")).toHaveTextContent("Marketing profile");
     expect(profileMocks.useProfilesPaletteView).toHaveBeenCalledWith(
-      expect.objectContaining({ lens: { scope: "global" }, query: "" })
+      expect.objectContaining({ query: "" })
     );
   });
 });

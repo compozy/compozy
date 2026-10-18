@@ -74,6 +74,8 @@ type daemonLoopAPIService struct {
 	runReads          looppkg.RunReadService
 	logger            *slog.Logger
 	publishMu         sync.Mutex
+	// goalToolsChanged invalidates hosted tool projections after Goal state commands.
+	goalToolsChanged func()
 }
 
 var _ core.LoopService = (*daemonLoopAPIService)(nil)
@@ -161,6 +163,7 @@ func newDaemonLoopAPIService(
 		responderPolicy:   responderPolicy,
 		runReads:          looppkg.NewRunReadService(readStore, now),
 		logger:            logger,
+		goalToolsChanged:  goalToolProjectionInvalidator(state),
 	}, nil
 }
 

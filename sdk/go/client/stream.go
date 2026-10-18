@@ -29,7 +29,14 @@ type Stream[T any] struct {
 
 var _ io.Closer = (*Stream[any])(nil)
 
-func newStream[T any](ctx context.Context, c *Client, method, path string, headers http.Header, body any, operationID string) (*Stream[T], error) {
+func newStream[T any](
+	ctx context.Context,
+	c *Client,
+	method, path string,
+	headers http.Header,
+	body any,
+	operationID string,
+) (result *Stream[T], err error) {
 	headers = headers.Clone()
 	if headers == nil {
 		headers = make(http.Header)
@@ -39,11 +46,16 @@ func newStream[T any](ctx context.Context, c *Client, method, path string, heade
 	if err != nil {
 		return nil, &StreamError{Op: operationID, Err: err}
 	}
+	defer func() {
+		if result == nil {
+			err = errors.Join(err, response.Body.Close())
+		}
+	}()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, errors.Join(responseError(response), drainClose(response.Body))
+		return nil, responseError(response)
 	}
 	if !isEventStream(response) {
-		return nil, errors.Join(&StreamError{Op: operationID, Err: errors.New("expected text/event-stream response")}, drainClose(response.Body))
+		return nil, &StreamError{Op: operationID, Err: errors.New("expected text/event-stream response")}
 	}
 	return &Stream[T]{decoder: newSSEDecoder(ctx, response.Body), op: operationID}, nil
 }

@@ -2,12 +2,27 @@ package testutil
 
 import (
 	"cmp"
+	"context"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
 )
+
+func (s StubSessionManager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*session.Info, error) {
+	if s.ListForWorkspaceFn != nil {
+		return s.ListForWorkspaceFn(ctx, workspaceID)
+	}
+	infos, err := s.ListAll(ctx)
+	filtered := make([]*session.Info, 0, len(infos))
+	for _, info := range infos {
+		if info != nil && info.WorkspaceID == workspaceID {
+			filtered = append(filtered, info)
+		}
+	}
+	return filtered, err
+}
 
 func stubSessionListPage(infos []*session.Info, query session.ListQuery) session.ListPage {
 	limit := query.Limit

@@ -547,7 +547,8 @@ Busy input order is operator input, then messages from other sessions, then synt
 (reply wakes, subagent wakes), then enqueue time within each class. `queue_cap` applies separately to
 operator and agent/wake entries, so agents cannot exhaust the operator's slots; `queue_position` is
 the real rank in that order. An agent-origin `steer` never interrupts: when injection is unavailable
-it is queued, and steer supersede is scoped per sender, so it cannot cancel an operator steer.
+or operator input waits it is queued behind that input, and steer supersede is scoped per sender, so
+it cannot cancel an operator steer.
 Consecutive agent messages and reply wakes (up to 8) dispatch as one turn, each keeping its own origin
 and reply watch; operator input is never merged. A message from another session that waits on a
 target in the same turn longer than `session.messaging.queue_promote_after` (default `2m`, `0s`
@@ -1088,6 +1089,18 @@ When a session behaves unexpectedly:
 7. Use `compozy session repair <id> --dry-run -o json` before any repair write.
 
 Do not treat stale UI state or chat messages as runtime authority.
+
+For the `agy` built-in, authentication is protocol-owned: sign in explicitly with
+`compozy provider auth login agy`, verify with `compozy provider auth status agy --remote`,
+and retry the failed session without a daemon restart. `needs_login` means run the explicit
+login; `missing_cli` means install `agy_acp_server` for the OS — never substitute the
+interactive `agy` CLI and never collect a secret. A successful remote probe clears a cached
+startup failure; failed or canceled probes change nothing. Agy models come only from live
+`provider_live:agy` discovery: select an exact currently advertised ID, use `view=all` before
+concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a
+secret-binding or shell workaround. In Settings the provider shows `Sign-in unverified` until a
+live probe succeeds, and the runtime picker plus session attribution carry the exact selected
+model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
 
 ## Status, Doctor, Logs, And Support
 

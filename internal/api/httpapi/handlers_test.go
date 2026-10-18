@@ -2015,6 +2015,7 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 		providerNames = append(providerNames, provider.Name)
 	}
 	expectedNames := []string{
+		"agy",
 		"alpha",
 		"claude",
 		"codex",

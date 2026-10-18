@@ -37,15 +37,7 @@ export function useCreateProfile() {
     mutationFn: (params: CreateProfileParams) => createProfile(params),
     onSuccess: (profile, input) => {
       notifyUser({ message: `Created ${profile.name}.`, tone: "success" });
-      const activation = input.activate;
-      if (activation?.scope === "global") {
-        setProfileView({ scope: "global" }, { kind: "profile", profile: profile.name });
-      } else if (activation?.scope === "workspace" && activation.workspace_id) {
-        setProfileView(
-          { scope: "workspace", workspaceId: activation.workspace_id },
-          { kind: "profile", profile: profile.name }
-        );
-      }
+      if (input.activate) setProfileView({ kind: "profile", profile: profile.name });
       return reconcile(queryClient, profile.name);
     },
   });

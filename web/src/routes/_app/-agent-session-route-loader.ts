@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { resolveActiveWorkspaceSelection } from "./-route-preload";
+import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
   resolveSessionOwner,
@@ -11,7 +11,7 @@ import {
   type SessionOwnerDialogState,
   sessionTranscriptOptions,
 } from "@/systems/session";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import { readProfileScopeParams } from "@/systems/profiles";
 
 /**
  * A deep link either loads under the active workspace, belongs to another workspace (the operator
@@ -55,7 +55,7 @@ export async function prefetchAgentSessionRoute({
     // using it alone would silently open a foreign workspace's session.
     await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
     await queryClient.ensureQueryData(
-      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient, readProfileLens()))
+      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient))
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
@@ -69,7 +69,7 @@ export async function prefetchAgentSessionRoute({
     throw error;
   }
 
-  await Promise.allSettled([
+  await settleRouteQueries([
     queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, sessionId)),
   ]);
 
@@ -92,7 +92,7 @@ async function resolveForeignSession(
   }
   if (owner.workspaceId === activeWorkspaceId || (globalScope && owner.workspaceId === "")) {
     await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
-    await Promise.allSettled([
+    await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
     return { status: "loaded", workspaceId: owner.workspaceId };

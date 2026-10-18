@@ -3,8 +3,8 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 const (
-	specAppTokensKey                   = "app-tokens"
-	specAppTokenLocalCallerDescription = "App-token management is restricted to local callers"
+	specAppTokensKey              = "app-tokens"
+	specAppLocalCallerDescription = "App-token management is restricted to local callers"
 )
 
 func appTokenOperations() []OperationSpec {
@@ -21,7 +21,7 @@ func appTokenOperations() []OperationSpec {
 					Body:        contract.AppTokenIssuedResponse{},
 				},
 				{Status: 400, Description: "Invalid app token name or origins", Body: contract.ErrorPayload{}},
-				{Status: 403, Description: specAppTokenLocalCallerDescription, Body: contract.ErrorPayload{}},
+				{Status: 403, Description: specAppLocalCallerDescription, Body: contract.ErrorPayload{}},
 				{Status: 409, Description: "Active app token limit reached", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			},
@@ -44,7 +44,7 @@ func appTokenOperations() []OperationSpec {
 				{Status: 200, Description: "Active tokens first, then revoked; newest first within each group",
 					Body: contract.AppTokensResponse{}},
 				{Status: 400, Description: "Invalid app token state", Body: contract.ErrorPayload{}},
-				{Status: 403, Description: specAppTokenLocalCallerDescription, Body: contract.ErrorPayload{}},
+				{Status: 403, Description: specAppLocalCallerDescription, Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			},
 		},
@@ -58,7 +58,7 @@ func appTokenOperations() []OperationSpec {
 			Responses: []ResponseSpec{
 				{Status: 200, Description: specUpdatedDescription, Body: contract.AppTokenResponse{}},
 				{Status: 400, Description: "Invalid app token name or origins", Body: contract.ErrorPayload{}},
-				{Status: 403, Description: specAppTokenLocalCallerDescription, Body: contract.ErrorPayload{}},
+				{Status: 403, Description: specAppLocalCallerDescription, Body: contract.ErrorPayload{}},
 				{Status: 404, Description: "App token not found", Body: contract.ErrorPayload{}},
 				{Status: 409, Description: "Revoked app tokens cannot be updated", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -73,7 +73,7 @@ func appTokenOperations() []OperationSpec {
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "App token revoked; changed is false when already revoked",
 					Body: contract.AppTokenRevokeResponse{}},
-				{Status: 403, Description: specAppTokenLocalCallerDescription, Body: contract.ErrorPayload{}},
+				{Status: 403, Description: specAppLocalCallerDescription, Body: contract.ErrorPayload{}},
 				{Status: 404, Description: "App token not found", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			},

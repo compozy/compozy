@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	goalSessionOutboxBatchSize    = 50
-	goalSessionOutboxPollInterval = 100 * time.Millisecond
+	goalSessionOutboxBatchSize = 50
+	// goalSessionOutboxPollInterval is the fallback sweep; committed enqueues
+	// nudge the relay immediately, so the sweep only covers missed nudges.
+	goalSessionOutboxPollInterval = 2 * time.Second
 	loopSessionCleanupConcurrency = 64
 	loopSessionCleanupStopTimeout = 5 * time.Second
 )
@@ -50,6 +52,8 @@ type goalSessionOutboxRelay struct {
 	now          func() time.Time
 	batchSize    int
 	pollInterval time.Duration
+	nudge        chan struct{}
+	nudgeOnce    sync.Once
 }
 
 type goalSnapshotChangedPayload struct {
@@ -78,8 +82,30 @@ func (r *goalSessionOutboxRelay) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-r.nudgeChannel():
 		}
 	}
+}
+
+// Nudge wakes the relay after a committed Goal session outbox or Loop session
+// cleanup enqueue. It never blocks; concurrent nudges coalesce into one drain.
+func (r *goalSessionOutboxRelay) Nudge() {
+	if r == nil {
+		return
+	}
+	select {
+	case r.nudgeChannel() <- struct{}{}:
+	default:
+	}
+}
+
+func (r *goalSessionOutboxRelay) nudgeChannel() chan struct{} {
+	r.nudgeOnce.Do(func() {
+		if r.nudge == nil {
+			r.nudge = make(chan struct{}, 1)
+		}
+	})
+	return r.nudge
 }
 
 func (r *goalSessionOutboxRelay) DeliverPending(ctx context.Context) error {

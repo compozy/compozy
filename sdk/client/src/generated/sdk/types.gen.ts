@@ -4941,7 +4941,7 @@ export type ProviderLoginDescriptorPayload = {
   executable?: string;
   presence: "present" | "missing" | "unknown";
   recommended_action?: "install_cli" | "login" | "bind_secret" | "retry" | "inspect" | "no_retry";
-  source?: "auth_login_command";
+  source?: "auth_login_command" | "auth_acp_method";
 };
 
 export type ProviderModelConfigurationPayload = {
@@ -7580,6 +7580,7 @@ export type SettingsProviderSecretWritePayload = {
 };
 
 export type SettingsProviderSettingsPayload = {
+  auth_acp_method?: string;
   auth_mode?: string;
   auth_status_command?: string;
   base_url?: string;
@@ -7596,6 +7597,7 @@ export type SettingsProviderSettingsPayload = {
 };
 
 export type SettingsProviderWritePayload = {
+  auth_acp_method?: string | null;
   auth_login_command?: string | null;
   auth_mode?: string;
   auth_status_command?: string;

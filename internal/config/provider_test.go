@@ -2956,6 +2956,167 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 	})
 }
 
+func TestProviderACPMethodValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept a native ACP method and retain it through resolution", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command:       "custom-agent --acp",
+					Harness:       ProviderHarnessACP,
+					AuthMode:      ProviderAuthModeNativeCLI,
+					AuthACPMethod: "oauth-personal",
+				},
+			},
+		}
+
+		provider, err := cfg.ResolveProvider("custom")
+		if err != nil {
+			t.Fatalf("ResolveProvider(native ACP method) error = %v", err)
+		}
+		if got := provider.AuthACPMethod; got != "oauth-personal" {
+			t.Fatalf("ResolveProvider() AuthACPMethod = %q, want %q", got, "oauth-personal")
+		}
+		if got := provider.EffectiveACPMethod(); got != "oauth-personal" {
+			t.Fatalf("EffectiveACPMethod() = %q, want %q", got, "oauth-personal")
+		}
+
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Provider: "custom", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent(native ACP method) error = %v", err)
+		}
+		if got := resolved.AuthACPMethod; got != "oauth-personal" {
+			t.Fatalf("ResolveAgent() AuthACPMethod = %q, want %q", got, "oauth-personal")
+		}
+
+		if got := cloneProvider(provider).AuthACPMethod; got != "oauth-personal" {
+			t.Fatalf("cloneProvider() AuthACPMethod = %q, want %q", got, "oauth-personal")
+		}
+	})
+
+	for _, name := range []string{"custom", "agy"} {
+		t.Run("Should reject a method on pi_acp provider "+name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := Config{
+				Providers: map[string]ProviderConfig{
+					name: {
+						Command:         "pi-agent --acp",
+						Harness:         ProviderHarnessPiACP,
+						RuntimeProvider: name,
+						AuthMode:        ProviderAuthModeNativeCLI,
+						AuthACPMethod:   "oauth-personal",
+					},
+				},
+			}
+
+			_, err := cfg.ResolveProvider(name)
+			if err == nil {
+				t.Fatalf("ResolveProvider(%s pi_acp method) error = nil, want validation error", name)
+			}
+			if !strings.Contains(err.Error(), "providers."+name+".auth_acp_method") ||
+				!strings.Contains(err.Error(), `harness = "acp"`) {
+				t.Fatalf("ResolveProvider(%s pi_acp method) error = %v, want harness guidance", name, err)
+			}
+		})
+	}
+
+	t.Run("Should reject a method with incompatible auth modes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, mode := range []ProviderAuthMode{ProviderAuthModeNone, ProviderAuthModeBoundSecret} {
+			provider := ProviderConfig{
+				Command:       "custom-agent --acp",
+				Harness:       ProviderHarnessACP,
+				AuthMode:      mode,
+				AuthACPMethod: "oauth-personal",
+			}
+			if mode == ProviderAuthModeBoundSecret {
+				provider.CredentialSlots = []ProviderCredentialSlot{apiKeyCredentialSlot("CUSTOM_API_KEY")}
+			} else {
+				provider.NoneSecurity = ProviderNoneSecurityLocalTransport
+			}
+			cfg := Config{Providers: map[string]ProviderConfig{"custom": provider}}
+
+			_, err := cfg.ResolveProvider("custom")
+			if err == nil {
+				t.Fatalf("ResolveProvider(%s method) error = nil, want validation error", mode)
+			}
+			if !strings.Contains(err.Error(), "providers.custom.auth_acp_method") {
+				t.Fatalf("ResolveProvider(%s method) error = %v, want field path", mode, err)
+			}
+		}
+	})
+
+	t.Run("Should trim and retain a padded method identifier", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command:       "custom-agent --acp",
+					Harness:       ProviderHarnessACP,
+					AuthMode:      ProviderAuthModeNativeCLI,
+					AuthACPMethod: "  oauth-personal ",
+				},
+			},
+		}
+
+		provider, err := cfg.ResolveProvider("custom")
+		if err != nil {
+			t.Fatalf("ResolveProvider(padded method) error = %v", err)
+		}
+		if got := provider.AuthACPMethod; got != "oauth-personal" {
+			t.Fatalf("ResolveProvider() AuthACPMethod = %q, want trimmed %q", got, "oauth-personal")
+		}
+	})
+
+	t.Run("Should reject malformed method identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		for _, method := range []string{"oauth\x00personal", "oauth\npersonal", "oauth\x7fpersonal"} {
+			cfg := Config{
+				Providers: map[string]ProviderConfig{
+					"custom": {
+						Command:       "custom-agent --acp",
+						Harness:       ProviderHarnessACP,
+						AuthMode:      ProviderAuthModeNativeCLI,
+						AuthACPMethod: method,
+					},
+				},
+			}
+
+			_, err := cfg.ResolveProvider("custom")
+			if err == nil {
+				t.Fatalf("ResolveProvider(%q) error = nil, want validation error", method)
+			}
+			if !strings.Contains(err.Error(), "providers.custom.auth_acp_method") {
+				t.Fatalf("ResolveProvider(%q) error = %v, want field path", method, err)
+			}
+		}
+	})
+
+	t.Run("Should clear the inherited method on an explicit incompatible mode change", func(t *testing.T) {
+		t.Parallel()
+
+		for _, mode := range []ProviderAuthMode{ProviderAuthModeNone, ProviderAuthModeBoundSecret} {
+			merged := ProviderConfig{
+				Command:       "custom-agent --acp",
+				AuthStatusCmd: "custom-agent auth status",
+				AuthLoginCmd:  "custom-agent auth login",
+				AuthACPMethod: "oauth-personal",
+			}
+			applyProviderAuthModeOverride(&merged, ProviderConfig{AuthMode: mode})
+			if merged.AuthACPMethod != "" {
+				t.Fatalf("applyProviderAuthModeOverride(%s) AuthACPMethod = %q, want empty", mode, merged.AuthACPMethod)
+			}
+		}
+	})
+}
+
 func TestRetiredBuiltinProviders(t *testing.T) {
 	t.Parallel()
 

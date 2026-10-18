@@ -34,7 +34,6 @@ const DEFINITION: PaletteViewDefinition = {
 function ProfilesViewHarness({ query = "" }: { query?: string }) {
   const content = useProfilesPaletteView({
     query,
-    lens: { scope: "global" },
     onDismiss: vi.fn(),
   });
   return (
@@ -88,7 +87,7 @@ function renderProfilesView(query = "") {
       work_items: 0,
     },
   ]);
-  queryClient.setQueryData(profileKeys.selection({ scope: "global" }), {
+  queryClient.setQueryData(profileKeys.selection(), {
     scope: "global",
     profile: "default",
   });
@@ -131,9 +130,7 @@ describe("useProfilesPaletteView", () => {
 
     fireEvent.click(screen.getByTestId("os-palette-profile-aggregate"));
 
-    await waitFor(() =>
-      expect(localProfileView({ scope: "global" })).toEqual({ kind: "aggregate" })
-    );
+    await waitFor(() => expect(localProfileView()).toEqual({ kind: "aggregate" }));
     expect(invalidate).not.toHaveBeenCalled();
   });
 });

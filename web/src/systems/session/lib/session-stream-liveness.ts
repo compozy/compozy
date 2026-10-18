@@ -89,7 +89,10 @@ export function rescheduleSessionStreamBackedReads(
       sessionKeys.inputQueue(workspaceId, sessionId),
       sessionKeys.usage(workspaceId, sessionId),
       sessionKeys.usageTurns(workspaceId, sessionId),
-    ].flatMap(queryKey => cache.findAll({ queryKey, exact: true })),
+    ].flatMap(queryKey => {
+      const query = cache.get(queryClient.defaultQueryOptions({ queryKey }).queryHash);
+      return query ? [query] : [];
+    }),
     ...cache.findAll({ queryKey: sessionKeys.byIdRoot(sessionId) }),
   ];
   for (const query of queries) {

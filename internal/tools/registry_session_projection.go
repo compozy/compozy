@@ -107,15 +107,58 @@ func (r *RuntimeRegistry) sessionProjection(
 	if err != nil {
 		return nil, err
 	}
-	views := make([]ToolView, 0, len(entries))
+	batching := slices.ContainsFunc(entries, func(entry *registryEntry) bool {
+		_, ok := entry.provider.(ProjectionAvailabilityProvider)
+		return ok && len(entry.conflicts) == 0
+	})
+	var allowed []sessionProjectionEntry
+	var views []ToolView
+	if batching {
+		allowed = make([]sessionProjectionEntry, 0, len(entries))
+	} else {
+		views = make([]ToolView, 0, len(entries))
+	}
 	for _, entry := range entries {
-		view, err := r.viewFor(ctx, scope, evaluator, entry)
+		decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
 		if err != nil {
 			return nil, err
 		}
-		if view.Decision.VisibleToSession && view.Decision.Callable {
-			views = append(views, view)
+		if !decision.VisibleToSession || !decision.Callable {
+			continue
 		}
+		if batching {
+			allowed = append(allowed, sessionProjectionEntry{entry: entry, decision: decision})
+			continue
+		}
+		views = appendCallableProjectionView(views, entry, decision, r.availabilityFor(ctx, scope, entry))
+	}
+	if !batching {
+		return views, nil
+	}
+	batched := projectionAvailabilities(ctx, scope, allowed)
+	views = make([]ToolView, 0, len(allowed))
+	for _, candidate := range allowed {
+		entry := candidate.entry
+		availability, found := batched[entry.descriptor.ID]
+		if !found {
+			availability = r.availabilityFor(ctx, scope, entry)
+		}
+		views = appendCallableProjectionView(views, entry, candidate.decision, availability)
 	}
 	return views, nil
+}
+
+func appendCallableProjectionView(
+	views []ToolView,
+	entry *registryEntry,
+	decision EffectiveToolDecision,
+	availability Availability,
+) []ToolView {
+	decision = applyAvailabilityDecision(decision, availability)
+	if !decision.VisibleToSession || !decision.Callable {
+		return views
+	}
+	return append(views, ToolView{
+		Descriptor: cloneDescriptor(entry.descriptor), Availability: availability, Decision: decision,
+	})
 }

@@ -47,6 +47,9 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
 		values["auth_login_command"] = strings.TrimSpace(settings.AuthLoginCmd)
 	}
+	if settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "" {
+		values["auth_acp_method"] = strings.TrimSpace(settings.AuthACPMethod)
+	}
 	if len(settings.CredentialSlots) > 0 {
 		values["credential_slots"] = providerCredentialSlotMaps(settings.CredentialSlots)
 	}

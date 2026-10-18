@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+const jsonContentType = "application/json"
+
 // UploadFile supplies an attachment; its Reader remains owned by the caller.
 type UploadFile struct {
 	Name        string
@@ -27,7 +29,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 }
 
 func (c *Client) do(ctx context.Context, method, path string, headers http.Header, body, out any) error {
-	return c.doContent(ctx, method, path, headers, body, out, "application/json", "application/json")
+	return c.doContent(ctx, method, path, headers, body, out, jsonContentType, jsonContentType)
 }
 
 func (c *Client) doContent(
@@ -54,7 +56,8 @@ func (c *Client) doContent(
 	if out == nil || response.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	if responseContentType == "" || responseContentType == "application/json" || strings.HasSuffix(responseContentType, "+json") {
+	if responseContentType == "" || responseContentType == jsonContentType ||
+		strings.HasSuffix(responseContentType, "+json") {
 		err = json.NewDecoder(response.Body).Decode(out)
 	} else {
 		switch target := out.(type) {
@@ -120,7 +123,7 @@ func requestBody(body any, contentType string) (io.Reader, string, error) {
 		}
 		return multipartBody(file)
 	}
-	if contentType != "" && contentType != "application/json" {
+	if contentType != "" && contentType != jsonContentType {
 		switch value := body.(type) {
 		case io.Reader:
 			return value, contentType, nil
@@ -134,7 +137,7 @@ func requestBody(body any, contentType string) (io.Reader, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("compozy client: encode request: %w", err)
 	}
-	return bytes.NewReader(data), "application/json", nil
+	return bytes.NewReader(data), jsonContentType, nil
 }
 
 func multipartBody(file *UploadFile) (io.Reader, string, error) {
@@ -148,7 +151,10 @@ func multipartBody(file *UploadFile) (io.Reader, string, error) {
 	var buffer bytes.Buffer
 	writer := multipart.NewWriter(&buffer)
 	headers := make(textproto.MIMEHeader)
-	headers.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{"name": "file", "filename": file.Name}))
+	headers.Set(
+		"Content-Disposition",
+		mime.FormatMediaType("form-data", map[string]string{"name": "file", "filename": file.Name}),
+	)
 	headers.Set("Content-Type", contentType)
 	if _, err := writer.CreatePart(headers); err != nil {
 		return nil, "", fmt.Errorf("compozy client: create upload: %w", err)
@@ -158,7 +164,11 @@ func multipartBody(file *UploadFile) (io.Reader, string, error) {
 	if err := writer.Close(); err != nil {
 		return nil, "", fmt.Errorf("compozy client: finish upload: %w", err)
 	}
-	return io.MultiReader(bytes.NewReader(prefix), file.Reader, bytes.NewReader(buffer.Bytes())), writer.FormDataContentType(), nil
+	return io.MultiReader(
+		bytes.NewReader(prefix),
+		file.Reader,
+		bytes.NewReader(buffer.Bytes()),
+	), writer.FormDataContentType(), nil
 }
 
 func drainClose(body io.ReadCloser) error {

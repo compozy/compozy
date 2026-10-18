@@ -28,7 +28,7 @@ Use `COMPOZY_URL` if the server needs an explicit daemon address.
 
 ## Add the route
 
-Create `app/api/chat/route.ts`:
+Create your application's `app/chat/route.ts` route:
 
 ```ts
 import { Compozy } from "@compozy/client";
@@ -71,7 +71,7 @@ import { useState } from "react";
 export default function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, status, error } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport: new DefaultChatTransport({ api: "/chat" }),
   });
   return (
     <main>
@@ -102,7 +102,7 @@ export default function Chat() {
 
 Run your application's development server and send a message. Expected result: your user message
 appears, then the agent's text arrives incrementally in the same page. The browser's request goes to
-`/api/chat`; no daemon token is included in the browser bundle.
+`/chat`; no daemon token is included in the browser bundle.
 
 ## Handle accepted work and disconnections
 

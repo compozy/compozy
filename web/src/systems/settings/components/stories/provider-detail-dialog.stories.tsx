@@ -18,6 +18,7 @@ import type { ProviderInspectorState } from "@/systems/settings/hooks/use-settin
 
 const claude = settingsProviderFixtures[0]!;
 const openrouter = settingsProviderFixtures.find(entry => entry.name === "openrouter")!;
+const agy = settingsProviderFixtures.find(entry => entry.name === "agy")!;
 
 /**
  * Vault-bound twin of the OpenRouter fixture: only a `vault:` ref can hold a
@@ -217,6 +218,21 @@ export const EditBoundSecretRotate: Story = {
         mode: "edit",
         entry: openrouterVaultBound,
         draft: providerDraftFromEntry(openrouterVaultBound),
+        cameFrom: "inspect",
+      }}
+    />
+  ),
+};
+
+/** Protocol-owned sign-in: an editable method, safe descriptor, no credential inputs. */
+export const EditNativeACPMethod: Story = {
+  args: {},
+  render: () => (
+    <Harness
+      initialState={{
+        mode: "edit",
+        entry: agy,
+        draft: providerDraftFromEntry(agy),
         cameFrom: "inspect",
       }}
     />

@@ -32,6 +32,12 @@ func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, 
 		store.Int64Clause("sequence", ">", query.AfterSequence),
 		store.Int64Clause("sequence", "<", query.BeforeSequence),
 	)
+	if len(query.Types) > 0 {
+		where = append(where, "type IN ("+strings.TrimSuffix(strings.Repeat("?,", len(query.Types)), ",")+")")
+		for _, kind := range query.Types {
+			args = append(args, strings.TrimSpace(kind))
+		}
+	}
 	switch query.Archive {
 	case store.EventArchiveUnarchived:
 		where = append(where, "archived = ?")

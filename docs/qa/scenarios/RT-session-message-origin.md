@@ -69,15 +69,22 @@ Busy-target policy regression (#760)
    succeeds (separate caps).
 10. An agent `mode: "steer"` to a provider without injection stays queued (no interrupt, active turn
     untouched). An agent `mode: "interrupt"` is delivered as steer and the result reports `steer`.
-    A queued human steer survives a later agent steer.
+    A queued human steer survives a later agent steer. With a human prompt queued on an injecting
+    provider, an agent `steer` is not injected: it reports `interrupt_fallback` with `after_turn`
+    delivery and runs after the human prompt.
 11. Send three status messages with `supersede: true` from A to B: only the latest remains queued and
     `canceled_queued_entries` counts the replaced ones; another sender's and the human's entries stay.
+    A superseding `steer` injected into B also cancels A's older queued messages and reports them in
+    `canceled_queued_entries`; they never run after the turn.
 12. Eight consecutive queued agent messages and reply wakes dispatch as one turn: each keeps its own
     origin event and reply watch; a human entry is never merged.
 13. Promotion: keep B in one turn past `session.messaging.queue_promote_after` (shorten it for the lab).
     A queued agent message is injected as steer with its original message id; with `0s` it keeps
     waiting; with a human entry waiting it is not promoted. As the operator, Steer an agent queue row
     (works) and try to replace it (409 `input_agent_authored`).
+    Fail persistence while a pending injection is rejected: status and Stop remain responsive,
+    the entry stays leased, and restoring storage returns it to after-turn delivery without
+    injecting the guidance again.
 14. Hop and rate: A answering the session that drives its turn, or sending with `in_reply_to`, keeps
     the hop; forwarding to a third session adds one. Exceed `rate_limit_messages` within the window:
     that send returns `message_rate_limited` with `limit`, `window` and `retry_after_seconds`, and both

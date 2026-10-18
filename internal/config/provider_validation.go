@@ -28,6 +28,28 @@ func (m ProviderAuthMode) Validate(path string) error {
 	}
 }
 
+// Validate reports whether the protocol-owned authentication method is usable.
+// Empty selects no protocol login; a non-empty value is an opaque method ID
+// compared byte-for-byte to the advertised ACP method.
+func ValidateACPMethod(method string, path string) error {
+	trimmed := strings.TrimSpace(method)
+	if trimmed == "" {
+		if method != "" {
+			return fmt.Errorf("%s must not be blank", path)
+		}
+		return nil
+	}
+	if method != trimmed {
+		return fmt.Errorf("%s must be trimmed", path)
+	}
+	for _, r := range trimmed {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("%s must not contain control characters", path)
+		}
+	}
+	return nil
+}
+
 // Validate reports whether the provider env policy is supported.
 func (p ProviderEnvPolicy) Validate(path string) error {
 	switch p {

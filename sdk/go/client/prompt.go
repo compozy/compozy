@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+const promptOperationID = "sendSessionPrompt"
+
 // PromptInput sends input to a session, optionally selecting a busy-input mode.
 type PromptInput struct {
 	WorkspaceID, SessionID, Message, Mode, IdempotencyKey, ExpectedTurnID string
@@ -49,7 +51,7 @@ type PromptStream struct {
 var _ io.Closer = (*PromptStream)(nil)
 
 // Prompt submits one turn and never reconnects or resubmits an interrupted stream.
-func (c *Client) Prompt(ctx context.Context, in PromptInput) (*PromptStream, error) {
+func (c *Client) Prompt(ctx context.Context, in PromptInput) (result *PromptStream, err error) {
 	if strings.TrimSpace(in.WorkspaceID) == "" || strings.TrimSpace(in.SessionID) == "" {
 		return nil, errors.New("compozy client: prompt requires workspace and session IDs")
 	}
@@ -66,29 +68,51 @@ func (c *Client) Prompt(ctx context.Context, in PromptInput) (*PromptStream, err
 		IdempotencyKey string `json:"idempotency_key"`
 		ExpectedTurnID string `json:"expected_turn_id,omitempty"`
 	}{in.Message, "msg_" + hex.EncodeToString(digest[:16]), in.Mode, key, in.ExpectedTurnID}
-	path := "/api/workspaces/" + url.PathEscape(in.WorkspaceID) + "/sessions/" + url.PathEscape(in.SessionID) + "/prompt"
-	response, err := c.request(ctx, http.MethodPost, path, http.Header{"Accept": {"text/event-stream, application/json"}}, body, "application/json")
+	path := "/api/workspaces/" + url.PathEscape(
+		in.WorkspaceID,
+	) + "/sessions/" + url.PathEscape(
+		in.SessionID,
+	) + "/prompt"
+	response, err := c.request(
+		ctx,
+		http.MethodPost,
+		path,
+		http.Header{"Accept": {"text/event-stream, application/json"}},
+		body,
+		"application/json",
+	)
 	if err != nil {
-		return nil, &StreamError{Op: "sendSessionPrompt", Err: err}
+		return nil, &StreamError{Op: promptOperationID, Err: err}
 	}
+	defer func() {
+		if result != nil && result.stream != nil {
+			return // The returned stream owns the body until Next reaches EOF or Close runs.
+		}
+		if closeErr := response.Body.Close(); closeErr != nil {
+			result = nil
+			err = errors.Join(err, closeErr)
+		}
+	}()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, errors.Join(responseError(response), drainClose(response.Body))
+		return nil, responseError(response)
 	}
 	if isEventStream(response) {
-		return &PromptStream{stream: &Stream[json.RawMessage]{decoder: newSSEDecoder(ctx, response.Body), op: "sendSessionPrompt"}}, nil
+		return &PromptStream{
+			stream: &Stream[json.RawMessage]{decoder: newSSEDecoder(ctx, response.Body), op: promptOperationID},
+		}, nil
 	}
-	var result struct {
+	var payload struct {
 		Prompt *SendPromptResultPayload `json:"prompt"`
 	}
-	decodeErr := json.NewDecoder(response.Body).Decode(&result)
-	err = errors.Join(decodeErr, drainClose(response.Body))
+	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
+	err = decodeErr
 	if err != nil {
 		return nil, fmt.Errorf("compozy client: decode accepted prompt: %w", err)
 	}
-	if result.Prompt == nil {
+	if payload.Prompt == nil {
 		return nil, errors.New("compozy client: accepted prompt response has no prompt payload")
 	}
-	return &PromptStream{accepted: result.Prompt}, nil
+	return &PromptStream{accepted: payload.Prompt}, nil
 }
 
 // Accepted returns the non-streaming prompt result when input was accepted.
@@ -104,7 +128,7 @@ func (s *PromptStream) Next() (PromptChunk, error) {
 	frame, err := s.stream.Next()
 	if err != nil {
 		if errors.Is(err, io.EOF) && !s.stream.decoder.terminal {
-			return PromptChunk{}, &StreamError{Op: "sendSessionPrompt", Err: io.ErrUnexpectedEOF}
+			return PromptChunk{}, &StreamError{Op: promptOperationID, Err: io.ErrUnexpectedEOF}
 		}
 		return PromptChunk{}, err
 	}
@@ -112,15 +136,18 @@ func (s *PromptStream) Next() (PromptChunk, error) {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(frame.Data, &kind); err != nil {
-		return PromptChunk{}, &StreamError{Op: "sendSessionPrompt", Err: errors.Join(err, s.Close())}
+		return PromptChunk{}, &StreamError{Op: promptOperationID, Err: errors.Join(err, s.Close())}
 	}
 	if kind.Type == "" {
-		return PromptChunk{}, &StreamError{Op: "sendSessionPrompt", Err: errors.Join(errors.New("prompt chunk has no type"), s.Close())}
+		return PromptChunk{}, &StreamError{
+			Op:  promptOperationID,
+			Err: errors.Join(errors.New("prompt chunk has no type"), s.Close()),
+		}
 	}
 	if kind.Type == "finish" || kind.Type == "abort" {
 		s.finished = true
 		if err := s.Close(); err != nil {
-			return PromptChunk{}, &StreamError{Op: "sendSessionPrompt", Err: err}
+			return PromptChunk{}, &StreamError{Op: promptOperationID, Err: err}
 		}
 	}
 	return PromptChunk{Type: kind.Type, Raw: frame.Data}, nil

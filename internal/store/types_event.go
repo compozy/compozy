@@ -113,6 +113,7 @@ type EventQuery struct {
 	Forward        bool
 	ID             string
 	Type           string
+	Types          []string // Types selects a union intersected with Type when both are set.
 	AgentName      string
 	TurnID         string
 	Since          time.Time

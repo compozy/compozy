@@ -2,11 +2,7 @@
 
 package main
 
-import (
-	"errors"
-
-	"github.com/compozy/compozy/internal/codegen/openapits"
-)
+import "errors"
 
 const (
 	golangciLintVersion       = "v2.13.1"
@@ -18,8 +14,6 @@ const (
 	binDir                    = "bin"
 	cliBinary                 = "compozy"
 	versionPackage            = "github.com/compozy/compozy/internal/version"
-	openAPISpecPath           = "openapi/compozy.json"
-	webOpenAPITypePath        = "sdk/client/src/generated/openapi/compozy-openapi.d.ts"
 	webDistDir                = "web/dist"
 	webDistIndex              = "web/dist/index.html"
 	webDistDirEnvVar          = "COMPOZY_WEB_DIST_DIR"
@@ -45,15 +39,7 @@ type mageStep struct {
 	run  func() error
 }
 
-var (
-	Default             = Verify
-	webOpenAPIArtifacts = []openapits.Artifact{
-		{
-			SpecPath:   openAPISpecPath,
-			OutputPath: webOpenAPITypePath,
-		},
-	}
-)
+var Default = Verify
 
 var (
 	errLaneBinaryOverrideDirectory     = errors.New("lane binary override points to directory")

@@ -70,15 +70,18 @@ func TestClientDiscovery(t *testing.T) {
 		}
 	})
 	for _, explicitHost := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should fall back to the TCP record with explicit host %t", explicitHost), func(t *testing.T) {
-			home := t.TempDir()
-			writeDaemonRecord(t, home, identityServer(t, "0.4.5").URL, explicitHost)
-			t.Setenv("COMPOZY_HOME", home)
-			c, err := New(t.Context())
-			if err != nil || c.DaemonVersion() != "0.4.5" {
-				t.Fatalf("New() = %v, %v; want TCP daemon", c, err)
-			}
-		})
+		t.Run(
+			fmt.Sprintf("Should fall back to the TCP record with explicit host %t", explicitHost),
+			func(t *testing.T) {
+				home := t.TempDir()
+				writeDaemonRecord(t, home, identityServer(t, "0.4.5").URL, explicitHost)
+				t.Setenv("COMPOZY_HOME", home)
+				c, err := New(t.Context())
+				if err != nil || c.DaemonVersion() != "0.4.5" {
+					t.Fatalf("New() = %v, %v; want TCP daemon", c, err)
+				}
+			},
+		)
 	}
 	t.Run("Should list both checked paths when no daemon exists", func(t *testing.T) {
 		home := t.TempDir()
@@ -129,15 +132,24 @@ func TestClientRequests(t *testing.T) {
 			if r.URL.EscapedPath() != "/api/workspaces/a%2Fb" || r.URL.Query().Get("name") != "a b" {
 				t.Errorf("request URL = %s", r.URL)
 			}
-			if r.Header.Get("Authorization") != "Bearer app-token" || r.Header.Get("X-Compozy-Client-ID") != "test-app" {
+			if r.Header.Get("Authorization") != "Bearer app-token" ||
+				r.Header.Get("X-Compozy-Client-ID") != "test-app" {
 				t.Errorf("request headers = %v", r.Header)
 			}
 			w.WriteHeader(http.StatusConflict)
 			writeResponse(t, w, `{"error":"busy","code":"session_busy","current_turn_id":"t1","details":{"queue":2}}`)
 		}, WithToken("app-token"), WithClientID("test-app"))
-		err := c.Do(t.Context(), http.MethodPost, "/api/workspaces/a%2Fb?name=a+b", map[string]string{"message": "hello"}, nil)
+		err := c.Do(
+			t.Context(),
+			http.MethodPost,
+			"/api/workspaces/a%2Fb?name=a+b",
+			map[string]string{"message": "hello"},
+			nil,
+		)
 		apiErr, ok := errors.AsType[*APIError](err)
-		if !ok || apiErr.Status != 409 || apiErr.Code != "session_busy" || apiErr.Message != "busy" || apiErr.CurrentTurnID != "t1" || apiErr.Details["queue"] != float64(2) {
+		if !ok || apiErr.Status != 409 || apiErr.Code != "session_busy" || apiErr.Message != "busy" ||
+			apiErr.CurrentTurnID != "t1" ||
+			apiErr.Details["queue"] != float64(2) {
 			t.Fatalf("Do() error = %#v, want preserved API error", err)
 		}
 		if !strings.Contains(apiErr.Error(), "session_busy") {
@@ -175,13 +187,24 @@ func TestClientRequests(t *testing.T) {
 			}
 			data, readErr := io.ReadAll(file)
 			closeErr := file.Close()
-			if readErr != nil || closeErr != nil || header.Filename != "hello.txt" || header.Header.Get("Content-Type") != "text/plain" || string(data) != "hello" {
+			if readErr != nil || closeErr != nil || header.Filename != "hello.txt" ||
+				header.Header.Get("Content-Type") != "text/plain" ||
+				string(data) != "hello" {
 				t.Errorf("upload = %v %q, errors = %v %v", header, data, readErr, closeErr)
 			}
 			writeResponse(t, w, "raw-result")
 		})
 		var out []byte
-		err := c.doContent(t.Context(), http.MethodPost, "/api/test", nil, &UploadFile{Name: "hello.txt", ContentType: "text/plain", Reader: strings.NewReader("hello")}, &out, "multipart/form-data", "*/*")
+		err := c.doContent(
+			t.Context(),
+			http.MethodPost,
+			"/api/test",
+			nil,
+			&UploadFile{Name: "hello.txt", ContentType: "text/plain", Reader: strings.NewReader("hello")},
+			&out,
+			"multipart/form-data",
+			"*/*",
+		)
 		if err != nil || string(out) != "raw-result" {
 			t.Fatalf("upload result = %q, %v", out, err)
 		}
@@ -228,7 +251,10 @@ func TestClientGeneratedOperations(t *testing.T) {
 			}
 			writeResponse(t, w, `{}`)
 		})
-		_, err := c.GetWorktreeExitPlan(t.Context(), GetWorktreeExitPlanParams{WorkspaceID: "work/space%value", WorktreeID: "tree/a%2Fb", Include: &include})
+		_, err := c.GetWorktreeExitPlan(
+			t.Context(),
+			GetWorktreeExitPlanParams{WorkspaceID: "work/space%value", WorktreeID: "tree/a%2Fb", Include: &include},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -239,14 +265,19 @@ func TestClientGeneratedOperations(t *testing.T) {
 			if r.URL.EscapedPath() != "/api/workspaces/ws%2Fa%25/sessions/session%2Fb%25/stream" {
 				t.Errorf("escaped stream path = %s", r.URL.EscapedPath())
 			}
-			if r.Header.Get("Last-Event-ID") != "42" || r.URL.Query().Get("after_sequence") != "0" || r.URL.Query().Get("limit") != "0" {
+			if r.Header.Get("Last-Event-ID") != "42" || r.URL.Query().Get("after_sequence") != "0" ||
+				r.URL.Query().Get("limit") != "0" {
 				t.Errorf("stream cursor headers=%v query=%v", r.Header, r.URL.Query())
 			}
 			w.Header().Set("Content-Type", "text/event-stream")
 			writeResponse(t, w, "id: 43\nevent: session_event\ndata: {\"session_id\":\"session\",\"sequence\":43}\n\n")
 		})
 		s, err := c.StreamSession(t.Context(), StreamSessionParams{
-			WorkspaceID: "ws/a%", SessionID: "session/b%", LastEventID: new("42"), AfterSequence: new(int64(0)), Limit: new(0),
+			WorkspaceID:   "ws/a%",
+			SessionID:     "session/b%",
+			LastEventID:   new("42"),
+			AfterSequence: new(int64(0)),
+			Limit:         new(0),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -268,7 +299,11 @@ func TestClientGeneratedOperations(t *testing.T) {
 			SessionID string `json:"session_id"`
 			Sequence  int64  `json:"sequence"`
 		}
-		if err := json.Unmarshal(data, &payload); err != nil || payload.SessionID != "session" || payload.Sequence != 43 {
+		if err := json.Unmarshal(
+			data,
+			&payload,
+		); err != nil || payload.SessionID != "session" ||
+			payload.Sequence != 43 {
 			t.Fatalf("frame payload = %s, %v", data, err)
 		}
 	})
@@ -284,15 +319,29 @@ func TestClientPrompt(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Errorf("decode prompt: %v", err)
 			}
-			if body["idempotency_key"] != "retry-key" || body["message_id"] == "" || body["message"] != "hello" || body["expected_turn_id"] != "turn-1" {
+			if body["idempotency_key"] != "retry-key" || body["message_id"] == "" || body["message"] != "hello" ||
+				body["expected_turn_id"] != "turn-1" {
 				t.Errorf("prompt body = %v", body)
 			}
 			messageIDs <- body["message_id"]
 			w.WriteHeader(http.StatusAccepted)
-			writeResponse(t, w, `{"prompt":{"status":"queued","mode":"future-mode","delivery":"after_turn","queue_position":1}}`)
+			writeResponse(
+				t,
+				w,
+				`{"prompt":{"status":"queued","mode":"future-mode","delivery":"after_turn","queue_position":1}}`,
+			)
 		})
 		for range 2 {
-			s, err := c.Prompt(t.Context(), PromptInput{WorkspaceID: "ws", SessionID: "session", Message: "hello", IdempotencyKey: "retry-key", ExpectedTurnID: "turn-1"})
+			s, err := c.Prompt(
+				t.Context(),
+				PromptInput{
+					WorkspaceID:    "ws",
+					SessionID:      "session",
+					Message:        "hello",
+					IdempotencyKey: "retry-key",
+					ExpectedTurnID: "turn-1",
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -315,13 +364,19 @@ func TestClientPrompt(t *testing.T) {
 		t.Parallel()
 		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]string
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["idempotency_key"] == "" || body["message_id"] == "" {
+			if err := json.NewDecoder(r.Body).
+				Decode(&body); err != nil || body["idempotency_key"] == "" ||
+				body["message_id"] == "" {
 				t.Errorf("prompt body = %v, %v", body, err)
 			}
 			w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-			writeResponse(t, w, "data: {\"type\":\"start\"}\n\ndata: {\"type\":\"text-delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"text-delta\",\"delta\":\" world\"}\n\ndata: {\"type\":\"finish\"}\n\ndata: [DONE]\n\n")
+			writeResponse(
+				t,
+				w,
+				"data: {\"type\":\"start\"}\n\ndata: {\"type\":\"text-delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"text-delta\",\"delta\":\" world\"}\n\ndata: {\"type\":\"finish\"}\n\ndata: [DONE]\n\n",
+			)
 		})
-		s := testPrompt(t, t.Context(), c)
+		s := testPrompt(t.Context(), t, c)
 		if _, ok := s.Accepted(); ok {
 			t.Fatal("stream unexpectedly accepted")
 		}
@@ -347,7 +402,7 @@ func TestClientPrompt(t *testing.T) {
 		})
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
-		s := testPrompt(t, ctx, c)
+		s := testPrompt(ctx, t, c)
 		if _, err := s.Next(); err != nil {
 			t.Fatal(err)
 		}
@@ -368,7 +423,7 @@ func TestClientPrompt(t *testing.T) {
 				w.Header().Set("Content-Type", "text/event-stream")
 				writeResponse(t, w, test.payload)
 			})
-			s := testPrompt(t, t.Context(), c)
+			s := testPrompt(t.Context(), t, c)
 			_, err := s.Next()
 			if err == nil {
 				_, err = s.Next()
@@ -387,7 +442,11 @@ func TestClientStreams(t *testing.T) {
 		t.Parallel()
 		c := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/event-stream")
-			writeResponse(t, w, "\ufeff: heartbeat\r\nid: 123\revent: update\rdata: {\ndata: \"value\": \"hello\"}\n\ndata: {\"value\":\"again\"}\r\n\r\ndata: [DONE]\n\n")
+			writeResponse(
+				t,
+				w,
+				"\ufeff: heartbeat\r\nid: 123\revent: update\rdata: {\ndata: \"value\": \"hello\"}\n\ndata: {\"value\":\"again\"}\r\n\r\ndata: [DONE]\n\n",
+			)
 		})
 		type payload struct {
 			Value string `json:"value"`
@@ -444,7 +503,8 @@ func TestClientVersions(t *testing.T) {
 			var out bytes.Buffer
 			warnVersionMismatch(slog.New(slog.NewTextHandler(&out, nil)), test.client, test.daemon)
 			if test.warning {
-				if strings.Count(out.String(), "level=WARN") != 1 || !strings.Contains(out.String(), test.client) || !strings.Contains(out.String(), test.daemon) {
+				if strings.Count(out.String(), "level=WARN") != 1 || !strings.Contains(out.String(), test.client) ||
+					!strings.Contains(out.String(), test.daemon) {
 					t.Fatalf("warning = %q", out.String())
 				}
 			} else if out.Len() != 0 {
@@ -464,7 +524,11 @@ func testClient(t *testing.T, handler http.HandlerFunc, opts ...Option) *Client 
 		handler(w, r)
 	}))
 	t.Cleanup(server.Close)
-	options := []Option{WithBaseURL(server.URL), WithToken(""), WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))}
+	options := []Option{
+		WithBaseURL(server.URL),
+		WithToken(""),
+		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	}
 	c, err := New(t.Context(), append(options, opts...)...)
 	if err != nil {
 		t.Fatal(err)
@@ -472,7 +536,7 @@ func testClient(t *testing.T, handler http.HandlerFunc, opts ...Option) *Client 
 	return c
 }
 
-func testPrompt(t *testing.T, ctx context.Context, c *Client) *PromptStream {
+func testPrompt(ctx context.Context, t *testing.T, c *Client) *PromptStream {
 	t.Helper()
 	s, err := c.Prompt(ctx, PromptInput{WorkspaceID: "workspace", SessionID: "session", Message: "hello"})
 	if err != nil {
@@ -504,7 +568,7 @@ func serveUnixIdentity(t *testing.T, path, version string) {
 
 func serveUnixHandler(t *testing.T, path string, handler http.HandlerFunc) {
 	t.Helper()
-	listener, err := net.Listen("unix", path)
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", path)
 	if err != nil {
 		t.Fatal(err)
 	}

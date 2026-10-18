@@ -1291,29 +1291,42 @@ func TestLoadSessionDeriveConfig(t *testing.T) {
 // Invariant: quiet, grace, and idle release are independent nonnegative durations.
 // Owner: config decoder/validator; canonical config suite.
 func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
-	if got := DefaultSessionSupervisionConfig().IdleReleaseAfter; got != 30*time.Minute {
-		t.Fatalf("default idle_release_after = %s, want 30m", got)
-	}
+	t.Parallel()
+
+	t.Run("Should default idle release to 30 minutes", func(t *testing.T) {
+		t.Parallel()
+		if got := DefaultSessionSupervisionConfig().IdleReleaseAfter; got != 30*time.Minute {
+			t.Fatalf("default idle_release_after = %s, want 30m", got)
+		}
+	})
+
 	for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
-		cfg := DefaultSessionSupervisionConfig()
-		cfg.QuietAfter, cfg.StopGrace = 2*time.Minute, value
-		if err := cfg.Validate(); err != nil {
-			t.Fatal(err)
-		}
+		t.Run("Should accept grace and idle release of "+value.String(), func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultSessionSupervisionConfig()
+			cfg.QuietAfter, cfg.StopGrace, cfg.IdleReleaseAfter = 2*time.Minute, value, value
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("Validate(stop_grace=idle_release_after=%s) error = %v", value, err)
+			}
+		})
 	}
+
 	for _, field := range []string{"quiet_after", "stop_grace", "idle_release_after"} {
-		cfg := DefaultSessionSupervisionConfig()
-		switch field {
-		case "quiet_after":
-			cfg.QuietAfter = -time.Second
-		case "stop_grace":
-			cfg.StopGrace = -time.Second
-		default:
-			cfg.IdleReleaseAfter = -time.Second
-		}
-		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
-			t.Fatalf("%s: %v", field, err)
-		}
+		t.Run("Should reject a negative "+field, func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultSessionSupervisionConfig()
+			switch field {
+			case "quiet_after":
+				cfg.QuietAfter = -time.Second
+			case "stop_grace":
+				cfg.StopGrace = -time.Second
+			default:
+				cfg.IdleReleaseAfter = -time.Second
+			}
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
+				t.Fatalf("Validate() error = %v, want %s validation", err, field)
+			}
+		})
 	}
 }
 
@@ -2776,4 +2789,70 @@ func TestSubagentsConfig(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestDaemonLoadConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose background niceness and load admission defaults", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		want := DaemonLoadConfig{AgentNiceness: 10, AdmissionThreshold: 1.5, AdmissionMaxWait: 2 * time.Minute}
+		if got := DefaultWithHome(homePaths).Daemon.Load; got != want {
+			t.Fatalf("DefaultWithHome() Daemon.Load = %#v, want %#v", got, want)
+		}
+	})
+
+	testCases := []struct {
+		name     string
+		cfg      DaemonLoadConfig
+		wantPath string
+	}{
+		{name: "Should allow zero to disable niceness and load admission", cfg: DaemonLoadConfig{}},
+		{
+			name:     "Should reject a negative niceness that would need privileges",
+			cfg:      DaemonLoadConfig{AgentNiceness: -1},
+			wantPath: daemonLoadAgentNicenessPath,
+		},
+		{
+			name:     "Should reject a niceness above the Unix maximum",
+			cfg:      DaemonLoadConfig{AgentNiceness: 20},
+			wantPath: daemonLoadAgentNicenessPath,
+		},
+		{
+			name:     "Should reject a negative admission threshold",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: -0.5, AdmissionMaxWait: time.Minute},
+			wantPath: daemonLoadAdmissionThreshold,
+		},
+		{
+			name:     "Should reject an enabled threshold without a bounded wait",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: 1.5},
+			wantPath: daemonLoadAdmissionMaxWaitPath,
+		},
+		{
+			name:     "Should reject a wait beyond the maximum bound",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: 1.5, AdmissionMaxWait: time.Hour},
+			wantPath: daemonLoadAdmissionMaxWaitPath,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.cfg.Validate()
+			if tc.wantPath == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantPath) {
+				t.Fatalf("Validate() error = %v, want %q", err, tc.wantPath)
+			}
+		})
+	}
 }

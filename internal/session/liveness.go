@@ -93,9 +93,9 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 
 // classifyUnboundMetaForRecovery handles sessions without a subprocess to verify. An
 // accepted logical session has none until its first prompt binds one: nothing crashed,
-// so it survives a daemon restart as it is. A released idle runtime was stopped and
-// verified before the daemon exited: the session ends like a clean shutdown and its
-// next prompt resumes the ACP session.
+// so it survives a daemon restart as it is. A released idle runtime whose process exit
+// is verified ends like a clean shutdown and its next prompt resumes the ACP session; a
+// release interrupted while its recorded process may still run is not classified here.
 func classifyUnboundMetaForRecovery(meta, next *store.SessionMeta) (store.SessionMeta, bool, bool) {
 	if meta.RuntimeStatus == store.SessionRuntimeUnbound && meta.Liveness == nil {
 		return *next, false, true
@@ -112,13 +112,20 @@ func classifyUnboundMetaForRecovery(meta, next *store.SessionMeta) (store.Sessio
 }
 
 // releasedRuntimeMeta identifies the persisted shape of an idle runtime release: an
-// active session with an ACP session id, no runtime transition, and no subprocess.
+// active session with an ACP session id, no runtime transition, and either no
+// subprocess (a completed release) or a recorded subprocess whose exit is verified (a
+// release interrupted after its stop took effect).
 func releasedRuntimeMeta(meta *store.SessionMeta) bool {
-	return State(strings.TrimSpace(meta.State)) == StateActive &&
-		meta.RuntimeStatus == store.SessionRuntimeUnbound &&
-		meta.RuntimeTransition == store.SessionRuntimeTransitionNone &&
-		strings.TrimSpace(derefString(meta.ACPSessionID)) != "" &&
-		meta.Liveness != nil && meta.Liveness.SubprocessPID == 0 && meta.Liveness.SubprocessStartedAt == nil
+	if State(strings.TrimSpace(meta.State)) != StateActive ||
+		meta.RuntimeStatus != store.SessionRuntimeUnbound ||
+		meta.RuntimeTransition != store.SessionRuntimeTransitionNone ||
+		strings.TrimSpace(derefString(meta.ACPSessionID)) == "" || meta.Liveness == nil {
+		return false
+	}
+	if meta.Liveness.SubprocessPID == 0 && meta.Liveness.SubprocessStartedAt == nil {
+		return true
+	}
+	return inactiveProcessExitVerified(meta)
 }
 
 // recoveredMeta returns the classified metadata and whether it differs from the source.

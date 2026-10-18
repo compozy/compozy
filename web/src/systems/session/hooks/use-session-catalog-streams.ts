@@ -237,17 +237,77 @@ function createSubagentListReconciler(queryClient: QueryClient) {
  */
 async function refreshSessionDetail(
   queryClient: QueryClient,
-  payload: SessionCatalogEventPayload
+  payload: SessionCatalogEventPayload,
+  isOpen: () => boolean
 ): Promise<void> {
   const detailKey = sessionKeys.detail(payload.workspace_id, payload.session_id);
-  await queryClient.invalidateQueries({ queryKey: detailKey, exact: true });
-  if (payload.kind !== "upserted") return;
+  await queryClient.invalidateQueries(
+    { queryKey: detailKey, exact: true },
+    { cancelRefetch: false }
+  );
+  if (!isOpen() || payload.kind !== "upserted") return;
   const state = queryClient.getQueryData<SessionPayload>(detailKey)?.state;
   if (state === undefined || isLiveSessionState(state)) return;
   await queryClient.invalidateQueries({
     queryKey: sessionKeys.transcript(payload.workspace_id, payload.session_id),
     exact: true,
   });
+}
+
+/** Let a session read finish, then reconcile any wake that arrived during it. */
+function createSessionReadReconciler(queryClient: QueryClient) {
+  const pending = new Map<string, SessionCatalogEventPayload | undefined>();
+  const running = new Set<string>();
+  let closed = false;
+  const flush = async (sessionId: string) => {
+    try {
+      while (!closed && pending.has(sessionId)) {
+        const payload = pending.get(sessionId);
+        pending.delete(sessionId);
+        const byIdKey = sessionKeys.byIdRoot(sessionId);
+        // A read already in progress can predate this wake. Joining it is safe
+        // only if one trailing read observes the change after that read settles.
+        const cache = queryClient.getQueryCache();
+        const reads = [
+          ...cache.findAll({ queryKey: byIdKey }),
+          ...(payload
+            ? cache.findAll({
+                queryKey: sessionKeys.detail(payload.workspace_id, sessionId),
+                exact: true,
+              })
+            : []),
+        ].flatMap(query =>
+          query.state.fetchStatus === "fetching" && query.promise ? [query.promise] : []
+        );
+        if (reads.length > 0) {
+          pending.set(sessionId, payload);
+          await Promise.allSettled(reads);
+          continue;
+        }
+        await Promise.all([
+          ...(payload ? [refreshSessionDetail(queryClient, payload, () => !closed)] : []),
+          queryClient.invalidateQueries({ queryKey: byIdKey }, { cancelRefetch: false }),
+        ]);
+      }
+    } finally {
+      running.delete(sessionId);
+    }
+  };
+  return {
+    wake(sessionId: string, payload?: SessionCatalogEventPayload) {
+      if (closed) return;
+      // An attention edge shares the by-id read but must not erase a queued
+      // catalog upsert's workspace-detail and stopped-transcript reconciliation.
+      if (payload || !pending.has(sessionId)) pending.set(sessionId, payload);
+      if (running.has(sessionId)) return;
+      running.add(sessionId);
+      void flush(sessionId);
+    },
+    close() {
+      closed = true;
+      pending.clear();
+    },
+  };
 }
 
 function openSessionCatalogStream(
@@ -259,6 +319,7 @@ function openSessionCatalogStream(
 ): () => void {
   const reconciler = createCatalogReconciler(queryClient);
   const subagentLists = createSubagentListReconciler(queryClient);
+  const sessionReads = createSessionReadReconciler(queryClient);
   let staleTimer: ReturnType<typeof setTimeout> | undefined;
   const clearStaleTimer = () => {
     if (staleTimer !== undefined) clearTimeout(staleTimer);
@@ -285,9 +346,7 @@ function openSessionCatalogStream(
     markLive();
     reconciler.wake(payload.workspace_id);
     if (payload.kind === "layout") return;
-    void refreshSessionDetail(queryClient, payload);
-    // Same session, whichever lens is holding it open.
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
+    sessionReads.wake(payload.session_id, payload);
     subagentLists.wake(payload.workspace_id, payload.session_id);
   };
   const handleAttentionEdge: EventListener = event => {
@@ -302,7 +361,7 @@ function openSessionCatalogStream(
     if (!payload) return;
     markLive();
     reconciler.wake(payload.workspace_id);
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
+    sessionReads.wake(payload.session_id);
     handlers.onAttentionEdge?.(payload);
   };
   const handleOperatorNotification: EventListener = event => {
@@ -329,6 +388,7 @@ function openSessionCatalogStream(
     clearStaleTimer();
     reconciler.close();
     subagentLists.close();
+    sessionReads.close();
     for (const [type, listener] of listeners) source.removeEventListener(type, listener);
   };
   handleStreamError();

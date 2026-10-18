@@ -1753,6 +1753,38 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 
 func TestSessionUsageEndpoint(t *testing.T) {
 	t.Parallel()
+	t.Run("Should read context through one snapshot per usage request", func(t *testing.T) {
+		t.Parallel()
+		reads := 0
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
+			ContextEventsFn: func(_ context.Context, id string) (session.ContextEvents, error) {
+				if id != "sess-a" {
+					t.Fatalf("context session=%q", id)
+				}
+				reads++
+				return session.ContextEvents{Usage: []session.UsageEventEnvelope{{
+					Sequence: 7, TurnID: "turn-a", Usage: acp.TokenUsage{ContextUsed: new(int64(42))},
+				}}}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		for _, suffix := range []string{"usage", "usage/turns"} {
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/workspaces/ws-workspace/sessions/sess-a/"+suffix,
+				nil,
+			)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "42") {
+				t.Fatalf("%s status=%d, body=%s", suffix, response.Code, response.Body.String())
+			}
+		}
+		if reads != 2 {
+			t.Fatalf("context snapshot reads=%d, want one per request", reads)
+		}
+	})
 	t.Run(
 		"Should expose freshness cause only until a same-turn occupancy report and optional marker after",
 		func(t *testing.T) {
@@ -5768,8 +5800,10 @@ func TestEventsRejectInvalidComponentsIT014(t *testing.T) {
 // The richer reader preserves the first terminal boundary even when a marker is corrected.
 type usageBoundarySessionManager struct{ testutil.StubSessionManager }
 
-func (usageBoundarySessionManager) CompactionClearBoundary(context.Context, string) (*contextusage.ClearedBy, error) {
-	return &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}, nil
+func (s usageBoundarySessionManager) ContextEvents(ctx context.Context, id string) (session.ContextEvents, error) {
+	snapshot, err := s.StubSessionManager.ContextEvents(ctx, id)
+	snapshot.ClearedBy = &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}
+	return snapshot, err
 }
 
 func TestOpenAPIDocumentRepresentation(t *testing.T) {
@@ -5787,18 +5821,21 @@ func TestOpenAPIDocumentRepresentation(t *testing.T) {
 		router := gin.New()
 		router.GET("/api/openapi.json", handlers.GetOpenAPIDocument)
 		plain := httptest.NewRecorder()
-		router.ServeHTTP(plain, httptest.NewRequest(http.MethodGet, "/api/openapi.json", http.NoBody))
+		router.ServeHTTP(
+			plain,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody),
+		)
 		if plain.Code != 200 || !bytes.Equal(plain.Body.Bytes(), raw) || plain.Header().Get("ETag") == "" {
 			t.Fatalf("plain response = %d %s", plain.Code, plain.Body)
 		}
-		conditional := httptest.NewRequest(http.MethodGet, "/api/openapi.json", http.NoBody)
+		conditional := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody)
 		conditional.Header.Set("If-None-Match", "W/"+plain.Header().Get("ETag"))
 		cached := httptest.NewRecorder()
 		router.ServeHTTP(cached, conditional)
 		if cached.Code != 304 || cached.Body.Len() != 0 {
 			t.Fatalf("conditional response = %d %s", cached.Code, cached.Body)
 		}
-		request := httptest.NewRequest(http.MethodGet, "/api/openapi.json", http.NoBody)
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody)
 		request.Header.Set("Accept-Encoding", "gzip")
 		compressed := httptest.NewRecorder()
 		router.ServeHTTP(compressed, request)
@@ -5837,7 +5874,10 @@ func TestOpenAPIDocumentRepresentation(t *testing.T) {
 		router := gin.New()
 		router.GET("/api/openapi.json", handlers.GetOpenAPIDocument)
 		recorder := httptest.NewRecorder()
-		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/openapi.json", http.NoBody))
+		router.ServeHTTP(
+			recorder,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody),
+		)
 		if recorder.Code != 500 || !strings.Contains(recorder.Body.String(), "error") {
 			t.Fatalf("response = %d %s", recorder.Code, recorder.Body)
 		}

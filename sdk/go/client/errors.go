@@ -16,8 +16,6 @@ type APIError struct {
 	CurrentTurnID string
 }
 
-var _ error = (*APIError)(nil)
-
 // Error returns the daemon's status and error message.
 func (e *APIError) Error() string {
 	if e.Code != "" {
@@ -31,8 +29,6 @@ type StreamError struct {
 	Op  string
 	Err error
 }
-
-var _ error = (*StreamError)(nil)
 
 // Error identifies the operation whose stream failed.
 func (e *StreamError) Error() string { return fmt.Sprintf("compozy stream %s: %v", e.Op, e.Err) }

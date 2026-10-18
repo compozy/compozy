@@ -309,6 +309,7 @@ func (m *Manager) stageAdmittedSteerPrompt(
 		admissionReq,
 		targetTurnID,
 		generation,
+		req.supersede,
 	)
 	if err != nil {
 		return SendPromptResult{}, err

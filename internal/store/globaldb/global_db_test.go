@@ -6200,7 +6200,7 @@ func TestGlobalDBAppTokenMigration(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00140_schema.sql"))
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00141_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

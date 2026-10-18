@@ -169,9 +169,11 @@ export function agentCountLabel(count: number): string {
 export function deriveWorkingStatus(input: SessionWorkingStatusInput): SessionWorkingStatus {
   const { session, running, thinking, lastTurn, nowMs, subagents } = input;
   if (running) {
-    if (thinking) return { kind: "thinking" };
-    const startedAtMs = parseInstant(session.activity?.turn_started_at);
+    // A reported quiet episode outranks "Thinking": a turn hung before its first
+    // token must still say how long it has been quiet.
     const quietSinceMs = parseInstant(session.supervision?.quiet_warning?.quiet_since);
+    if (thinking && quietSinceMs === null) return { kind: "thinking" };
+    const startedAtMs = parseInstant(session.activity?.turn_started_at);
     return {
       kind: "working",
       startedAtMs,

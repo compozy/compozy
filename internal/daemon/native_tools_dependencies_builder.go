@@ -85,6 +85,9 @@ func (d *Daemon) populateNativeExtensionDeps(deps *daemonNativeToolsDeps, state 
 	deps.Clarify = func() toolspkg.ClarifyBroker { return state.clarify }
 	deps.LoopResources = state.loopResources
 	deps.Loops = func() core.LoopService { return state.deps.Loops }
+	if state.toolProjectionEpoch != nil {
+		deps.ProjectionEpoch = state.toolProjectionEpoch.Current
+	}
 	deps.Resources = state.deps.Resources
 	deps.WindowManagers = state.windowManagers
 }

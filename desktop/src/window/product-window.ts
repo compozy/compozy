@@ -96,6 +96,11 @@ export class ProductWindow {
         nodeIntegration: false,
         webviewTag: false,
         devTools: true,
+        // A hidden or occluded window must not burn renderer CPU. Nothing in the
+        // renderer needs full-rate timers in the background: live session streams
+        // close while the document is hidden, SSE delivery is not timer-driven,
+        // and the bell's hidden 30s poll tolerates throttled wake-ups.
+        backgroundThrottling: true,
       },
     });
     this.#window = window;

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -138,6 +139,9 @@ func resolveProfileForWorkspaceWithArchived(
 		return profileResolution{}, err
 	}
 	if remembered, found := rememberedProfile(selections, base.WorkspaceID); found {
+		if remembered.Scope == contract.ProfileSelectionScopeWorkspace {
+			warnLegacyWorkspaceProfile(cmd, cmp.Or(base.WorkspaceName, base.WorkspaceID), remembered.Profile)
+		}
 		selected, exists := byName[remembered.Profile]
 		if exists && selected.State == authoredContextActiveKey &&
 			remembered.Note != profileArchivedRememberedFallback {
@@ -220,17 +224,37 @@ func resolveExplicitProfile(
 	return base, nil
 }
 
-func rememberedProfile(selections []contract.ProfileSelection, workspaceID string) (contract.ProfileSelection, bool) {
-	wantedScope := contract.ProfileSelectionScopeGlobal
-	if workspaceID != "" {
-		wantedScope = contract.ProfileSelectionScopeWorkspace
-	}
+// rememberedProfile reads the remembered choice. Profile selection is one Global choice shared by
+// every workspace; a workspace slot remembered before #792 still wins inside its workspace as a
+// deprecation shim that is removed in v0.5.0. Writing the Global choice clears those slots.
+func rememberedProfile(
+	selections []contract.ProfileSelection,
+	workspaceID string,
+) (contract.ProfileSelection, bool) {
+	var global contract.ProfileSelection
+	foundGlobal := false
 	for _, selection := range selections {
-		if selection.Scope == wantedScope && selection.WorkspaceID == workspaceID {
+		switch {
+		case workspaceID != "" && selection.Scope == contract.ProfileSelectionScopeWorkspace &&
+			selection.WorkspaceID == workspaceID:
 			return selection, true
+		case selection.Scope == contract.ProfileSelectionScopeGlobal:
+			global, foundGlobal = selection, true
 		}
 	}
-	return contract.ProfileSelection{}, false
+	return global, foundGlobal
+}
+
+func warnLegacyWorkspaceProfile(cmd *cobra.Command, workspace, profile string) {
+	if cmd == nil {
+		return
+	}
+	cmd.PrintErrf(
+		"warning: profile %q is remembered only for workspace %q; per-workspace profile choices are "+
+			"deprecated and stop applying in v0.5.0. Run \"compozy profile use <name>\" to set the "+
+			"choice for every workspace\n",
+		profile, workspace,
+	)
 }
 
 func commandProfileFlagIsBlank(cmd *cobra.Command, value string) bool {
@@ -288,11 +312,8 @@ func commandProfileResolution(cmd *cobra.Command) (profileResolution, bool) {
 	return resolution, ok && strings.TrimSpace(resolution.Source) != ""
 }
 
-func profileSelectionLens(resolution workspaceResolution, hasWorkspace bool, name string) contract.ProfileSelection {
-	if !hasWorkspace {
-		return contract.ProfileSelection{Scope: layoutProfileScopeGlobal, Profile: name}
-	}
-	return contract.ProfileSelection{Scope: workspaceSkillSource, WorkspaceID: resolution.ID, Profile: name}
+func profileSelectionLens(name string) contract.ProfileSelection {
+	return contract.ProfileSelection{Scope: contract.ProfileSelectionScopeGlobal, Profile: name}
 }
 
 func resolveProfileWorkspaceLens(

@@ -139,7 +139,9 @@ func (s *service) preserveProviderOptionalFields(
 	name string,
 	settings ProviderSettings,
 ) (ProviderSettings, error) {
-	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") && settings.SteerCapability != "" {
+	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") &&
+		(settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "") &&
+		settings.SteerCapability != "" {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
@@ -152,6 +154,9 @@ func (s *service) preserveProviderOptionalFields(
 	}
 	if !settings.AuthLoginCmdSet && strings.TrimSpace(settings.AuthLoginCmd) == "" {
 		settings.AuthLoginCmd = strings.TrimSpace(provider.AuthLoginCmd)
+	}
+	if !settings.AuthACPMethodSet && strings.TrimSpace(settings.AuthACPMethod) == "" {
+		settings.AuthACPMethod = strings.TrimSpace(provider.AuthACPMethod)
 	}
 	if settings.SteerCapability == "" {
 		settings.SteerCapability = provider.SteerCapability
@@ -226,6 +231,7 @@ func providerConfigFromSettings(settings ProviderSettings) compozyconfig.Provide
 		HomePolicy:      settings.HomePolicy,
 		AuthStatusCmd:   strings.TrimSpace(settings.AuthStatusCmd),
 		AuthLoginCmd:    strings.TrimSpace(settings.AuthLoginCmd),
+		AuthACPMethod:   strings.TrimSpace(settings.AuthACPMethod),
 		CredentialSlots: providerCredentialSlotsFromSettings(settings.CredentialSlots),
 	}
 }

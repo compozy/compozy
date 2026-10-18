@@ -11597,7 +11597,7 @@ export interface components {
         | "inspect"
         | "no_retry";
       /** @enum {string} */
-      source?: "auth_login_command";
+      source?: "auth_login_command" | "auth_acp_method";
     };
     ProviderModelConfigurationPayload: {
       fast?: boolean | null;
@@ -14281,6 +14281,7 @@ export interface components {
       value: string;
     };
     SettingsProviderSettingsPayload: {
+      auth_acp_method?: string;
       auth_mode?: string;
       auth_status_command?: string;
       base_url?: string;
@@ -14297,6 +14298,7 @@ export interface components {
       transport?: string;
     };
     SettingsProviderWritePayload: {
+      auth_acp_method?: string | null;
       auth_login_command?: string | null;
       auth_mode?: string;
       auth_status_command?: string;

@@ -1,17 +1,18 @@
 ---
 title: Select a profile
-description: Resolve one profile for a command, remember a workspace choice, and understand immutable session binding.
+description: Resolve one profile for a command, remember one choice for every workspace, and understand immutable session binding.
 ---
 
 CompozyOS resolves a profile in this order:
 
 1. the root `--profile <name>` flag;
 2. `COMPOZY_PROFILE`;
-3. the remembered choice for the resolved workspace, or the Global lens when no workspace resolves;
+3. the remembered choice, which is one selection shared by every workspace;
 4. `default`.
 
 The flag changes one command and does not persist. The environment variable changes commands in that
-process environment. `compozy profile use <name>` persists the current workspace's choice:
+process environment. `compozy profile use <name>` persists the choice for every workspace, and the
+Web profile switcher reads and writes the same choice:
 
 ```bash
 COMPOZY_WORKSPACE=my-saas compozy profile use marketing
@@ -31,10 +32,38 @@ HTTP and UDS selection reads (`GET /api/profiles/selection`) keep `profile` set 
 `default` and include `note: "archived_remembered_fallback"` in this case. Unarchiving restores the
 remembered choice; reading the fallback does not overwrite it.
 
+### Choices remembered per workspace
+
+Earlier releases remembered one choice per workspace. Upgrading keeps them and seeds the shared choice
+from the one you set most recently, so you keep landing where you left off. Until v0.5.0, a CLI command
+run inside a workspace that still has its own remembered choice uses it and prints a warning:
+
+```text
+warning: profile "marketing" is remembered only for workspace "my-saas"; per-workspace profile choices are deprecated and stop applying in v0.5.0. Run "compozy profile use <name>" to set the choice for every workspace
+```
+
+Choosing a profile with `compozy profile use`, `compozy profile create`, or the Web switcher sets the
+shared choice and clears the per-workspace ones. Scripts that call `PUT /api/profiles/selection` with
+`scope: "workspace"` receive a `Warning` header; send `scope: "global"` before v0.5.0.
+
+## Web selection
+
+The menubar profile switcher holds one selection for the whole Web client. Switching workspaces or
+toggling the Global breadth keeps it, and every profile-scoped surface reads it: sessions, terminals,
+Loops, automations, the dashboard, and extensions. Choosing a profile remembers it for every
+workspace. **All profiles** is a way of looking rather than acting, so it is kept by that browser and
+survives a reload, while the remembered choice underneath stays unchanged.
+
+New work created from the Web lands in the selected profile. While **All profiles** is selected,
+creation dialogs show a destination chip and create in the last profile you selected, which is the
+remembered choice (`default` until you pick one).
+
 ## Session binding
 
 A session stores the resolved profile when it is created. Changing the remembered choice affects later
-sessions and commands; it does not move running or historical sessions. Inside a bound session,
+sessions and commands; it does not move running or historical sessions. A session created by an agent
+session, through `compozy__session_create`, `compozy__session_spawn`, `compozy__subagent_delegate`, or
+`compozy session create` run inside that session, binds the caller session's profile. Inside a bound session,
 `compozy__profile_current` reports `source: "session"`, and `compozy__profile_list` marks that bound profile
 as current.
 

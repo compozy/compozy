@@ -92,7 +92,7 @@ describe("use-agent-mutations", () => {
   )(
     "Should bind $operation requests and completion caches to the starting profile while $phase",
     async ({ operation, phase }) => {
-      setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+      setProfileView({ kind: "profile", profile: "open-design" });
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
       });
@@ -171,7 +171,7 @@ describe("use-agent-mutations", () => {
       } else {
         await waitFor(() => expect(adapter).toHaveBeenCalledOnce());
       }
-      act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+      act(() => setProfileView({ kind: "profile", profile: "default" }));
       await waitFor(() => expect(result.current.profile).toBe("default"));
       act(() => onlineManager.setOnline(true));
       await waitFor(() => expect(adapter).toHaveBeenCalledOnce());

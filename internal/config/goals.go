@@ -10,7 +10,7 @@ const (
 	defaultGoalMaxTurns           = 20
 	defaultGoalContextNudgeRatio  = 0.8
 	defaultGoalOutboxBatchSize    = 50
-	defaultGoalOutboxPollInterval = 100 * time.Millisecond
+	defaultGoalOutboxPollInterval = 2 * time.Second
 	goalMaxTurnsPath              = "goals.max_turns"
 	goalContextNudgeRatioPath     = "goals.context_nudge_ratio"
 	goalOutboxBatchSizePath       = "goals.outbox_batch_size"

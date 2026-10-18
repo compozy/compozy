@@ -31,6 +31,7 @@ CompozyOS archives them on load instead of failing; see
 | ------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.    | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
 | `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider and MCP subsystem applies.                    | providers `5s`, MCP `10s`                                                                             |
+| `[daemon.load]`                      | Agent CPU priority and load-aware admission for background work.                       | niceness `10`, threshold `1.5`, max wait `2m`                                                         |
 | `[http]`                             | HTTP and SSE bind address.                                                             | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
@@ -169,6 +170,16 @@ subprocess_health_escalation_threshold = 3
 providers = "5s"
 # MCP runtime reload budget. Valid range: 1s to 60s.
 mcp = "10s"
+
+[daemon.load]
+# Run agent process trees (and the tests, linters, and builds they launch) at niceness 10.
+# Set to 0 to keep the daemon's priority.
+agent_niceness = 10
+# Delay new background sessions and prompts while the 1-minute load average exceeds
+# 1.5x the logical CPU count. Set to 0 to disable load sampling.
+admission_threshold = 1.5
+# Longest one background admission waits before it proceeds anyway.
+admission_max_wait = "2m"
 
 [http]
 # HTTP/SSE API bind address.
@@ -713,7 +724,7 @@ max_turns = 20
 context_nudge_ratio = 0.8
 # Durable session-event relay controls. Applied when the daemon starts.
 outbox_batch_size = 50
-outbox_poll_interval = "100ms"
+outbox_poll_interval = "2s"
 
 [autonomy]
 # Same-kind re-block count that escalates a task to needs_attention. 0 disables the breaker.
@@ -822,6 +833,32 @@ verdicts do not emit another transition, and a completed, failed, or canceled ru
 An unexpected ACP process exit triggers the same transition immediately when the value is positive.
 Set the field to `0` when you want `compozy status` and `compozy doctor` evidence without task mutation.
 Changing this field is restart-required.
+
+## `[daemon.load]`
+
+These fields keep many concurrent agents from saturating the host and starving the desktop UI.
+
+| Field                 | Type     | Default | Valid values                                                       | Description                                                                                        |
+| --------------------- | -------- | ------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `agent_niceness`      | integer  | `10`    | `0` through `19`. `0` disables.                                    | CPU niceness applied to each agent's process group on macOS and Linux. Ignored on Windows.         |
+| `admission_threshold` | float    | `1.5`   | `0` to disable, or a positive number.                              | Normalized load (1-minute load average divided by logical CPUs) above which background work waits. |
+| `admission_max_wait`  | duration | `2m`    | `1s` through `30m` when the threshold is enabled; otherwise `0s`+. | Longest one background session start or prompt waits for load to drop before it proceeds anyway.   |
+
+CompozyOS starts each agent in its own process group and applies `agent_niceness` to that group right
+after launch, so every tool, test runner, linter, and build the agent starts inherits the lower
+priority. On an idle machine the agent still gets all available CPU; the niceness only matters when
+processes compete. Raising priority back requires root, so the value is fixed for the lifetime of the
+agent process. If the operating system refuses the change, the session still starts and the daemon logs
+one warning.
+
+When `admission_threshold` is above zero, the daemon samples the load average every five seconds.
+While normalized load exceeds the threshold, new sessions and prompts started by scheduled or
+triggered automations, Loops, and scheduler wakes wait until load drops or `admission_max_wait`
+elapses, then proceed. Prompts and sessions you start yourself, and manual automation runs, are never
+delayed. `compozy doctor -o json` reports the current state in the `runtime.load` item: the sampled and
+normalized load, whether background work is waiting, and how many admissions were delayed. Platforms
+without a load average (Windows) report the feature as unavailable and never delay work. Changing any
+field is restart-required.
 
 ## `[http]`
 
@@ -1052,8 +1089,10 @@ fail with `…command: parse command: …`. There is no limit on the number of r
 length.
 
 Fallback chains replace as a whole when a workspace overlay declares them, including `command` on
-every route. A session-backed consumer may advance only before ACP accepts a session; CompozyOS never
-silently reroutes work after acceptance. Immediately before each fallback attempt, CompozyOS emits
+every route. A session-backed consumer may advance before ACP accepts a session. Automatic titles also
+advance when the provider refuses a turn before producing any output, after the refused child stops.
+A turn that produced output stays on its route, and a failed child stop prevents another attempt.
+Immediately before each fallback attempt, CompozyOS emits
 `role.fallback.used` with the role, the fallback's one-based `attempt`, provider, model, and
 `provider_command_fingerprint` (a `sha256:` fingerprint of the route's `command` when it sets one).
 The raw command never appears in events or logs. The event records an attempt, not success.
@@ -2140,7 +2179,7 @@ one relay serves every workspace in the daemon.
 | `max_turns`            | integer  | `20`    | Positive integer.     | Turn limit written into a new synthetic Goal definition.                     |
 | `context_nudge_ratio`  | number   | `0.8`   | `0.0` through `1.0`   | Context threshold pinned to the Run and copied into every Goal checkpoint.   |
 | `outbox_batch_size`    | integer  | `50`    | `1` through `200`     | Global maximum pending projections and cleanup obligations claimed per pass. |
-| `outbox_poll_interval` | duration | `100ms` | Positive Go duration. | Global delay between durable relay passes.                                   |
+| `outbox_poll_interval` | duration | `2s`    | Positive Go duration. | Global fallback sweep; committed enqueues wake the relay immediately.        |
 
 `context_nudge_ratio = 0.0` is explicit and disables context nudging. A config change cannot alter
 the ratio of an existing Run, including after daemon restart or a later generation.

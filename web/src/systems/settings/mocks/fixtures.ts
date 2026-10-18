@@ -686,6 +686,40 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
+  {
+    name: "agy",
+    default: false,
+    command_available: true,
+    settings: {
+      command: "agy_acp_server.par --uid=",
+      display_name: "Google Antigravity",
+      harness: "acp",
+      auth_mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      auth_acp_method: "oauth-personal",
+    },
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      state: "unknown",
+      code: "provider_classification_unknown",
+      message:
+        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
+      login: {
+        configured: true,
+        executable: "agy_acp_server.par",
+        presence: "present",
+        recommended_action: "inspect",
+        source: "auth_acp_method",
+      },
+    },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "user" },
+    },
+  },
 ];
 
 export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [

@@ -96,8 +96,11 @@ func connect(ctx context.Context, o options, baseURL, socket string) (*Client, e
 	if err != nil {
 		return nil, fmt.Errorf("compozy client: parse base URL: %w", err)
 	}
-	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return nil, errors.New("compozy client: base URL must be an HTTP(S) URL without credentials, query, or fragment")
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" ||
+		u.Fragment != "" {
+		return nil, errors.New(
+			"compozy client: base URL must be an HTTP(S) URL without credentials, query, or fragment",
+		)
 	}
 	httpClient, err := transportClient(o.httpClient, socket)
 	if err != nil {

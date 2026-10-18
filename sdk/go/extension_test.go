@@ -1006,7 +1006,15 @@ func TestSDKHasNoDaemonInternalImports(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "go", "list", "-deps", "-f", "{{if not .Standard}}{{.ImportPath}}{{end}}", "./client")
+		cmd := exec.CommandContext(
+			ctx,
+			"go",
+			"list",
+			"-deps",
+			"-f",
+			"{{if not .Standard}}{{.ImportPath}}{{end}}",
+			"./client",
+		)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("list client dependencies: %v\n%s", err, output)

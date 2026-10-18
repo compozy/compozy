@@ -49,11 +49,11 @@ compozy profile current
 ```
 
 ```text
-marketing (remembered choice of workspace my-saas)
+marketing (remembered choice)
 ```
 
 The part in parentheses is the reason, not decoration. CompozyOS resolves a profile in a fixed
-order — `--profile`, then `COMPOZY_PROFILE`, then the choice remembered for the resolved workspace,
+order — `--profile`, then `COMPOZY_PROFILE`, then the remembered choice shared by every workspace,
 then `default` — and reports which link in that chain answered.
 
 Scripts and agents read the same answer as data:
@@ -130,12 +130,12 @@ compozy profile use default
 ```
 
 ```text
-Active profile for workspace my-saas: default.
+Active profile for every workspace: default.
 ```
 
 Run `compozy session list -o json` again. The `marketing` session is gone from the results — not
-deleted, just filed elsewhere. The choice is remembered per workspace, so returning to `my-saas`
-later reopens it in `default` until you switch again.
+deleted, just filed elsewhere. The choice is shared by every workspace, so other projects and the Web
+profile switcher open in `default` too until you switch again.
 
 ## Step 6: Switch from the command palette
 

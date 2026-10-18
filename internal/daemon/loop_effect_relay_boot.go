@@ -6,6 +6,12 @@ import (
 	"fmt"
 )
 
+// loopEffectCommitSignaler lets the store wake the relay after an effect
+// enqueue commits, so the relay does not have to poll for new rows.
+type loopEffectCommitSignaler interface {
+	SetLoopEffectCommitSignal(func())
+}
+
 func (d *Daemon) bootLoopEffectRelay(
 	ctx context.Context,
 	state *bootState,
@@ -29,6 +35,10 @@ func (d *Daemon) bootLoopEffectRelay(
 		state.notifier.AddTaskRunTerminalObserver(relay)
 		state.notifier.AddLoopTerminalObserver(relay)
 	}
+	signaler, hasSignaler := state.registry.(loopEffectCommitSignaler)
+	if hasSignaler {
+		signaler.SetLoopEffectCommitSignal(relay.Nudge)
+	}
 	go func() {
 		defer close(done)
 		relay.Run(relayCtx)
@@ -36,6 +46,9 @@ func (d *Daemon) bootLoopEffectRelay(
 	state.effectRelayCancel = cancel
 	state.effectRelayDone = done
 	cleanup.add(func(cleanupCtx context.Context) error {
+		if hasSignaler {
+			signaler.SetLoopEffectCommitSignal(nil)
+		}
 		return stopLoopEffectRelay(cleanupCtx, cancel, done)
 	})
 	return nil

@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// TargetKind is a daemon API value.
+type TargetKind string
+
 // TaskBlockPayload is a daemon API value.
 type TaskBlockPayload struct {
 	ID          string          `json:"id"`

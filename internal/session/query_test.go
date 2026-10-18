@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -23,7 +24,130 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func TestManagerListForWorkspace(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve workspace results without reading unrelated metadata", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 32, 4)
+		all, err := manager.ListAll(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := slices.DeleteFunc(all, func(info *Info) bool { return info.WorkspaceID != "ws-read-00" })
+		reads := 0
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			meta, err := store.ReadSessionMeta(path)
+			if err == nil && meta.WorkspaceID != "ws-read-00" {
+				t.Fatalf("read unrelated workspace %q", meta.WorkspaceID)
+			}
+			reads++
+			return meta, err
+		}
+		got, err := manager.ListForWorkspace(t.Context(), "ws-read-00")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reads != 8 || !reflect.DeepEqual(got, want) {
+			t.Fatalf("ListForWorkspace() = %#v, reads=%d; want %#v, 8 reads", got, reads, want)
+		}
+	})
+	t.Run("Should preserve active unpublished sessions and skip deleted or unreadable histories", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 4, 2)
+		active := &Session{
+			ID: "unpublished", WorkspaceID: "ws-read-00", State: StateStarting,
+			CreatedAt: benchmarkSessionTime.Add(time.Hour),
+		}
+		manager.sessions[active.ID] = active
+		published := &Session{
+			ID: "sess-read-002", WorkspaceID: "ws-read-00", State: StateActive,
+			CreatedAt: benchmarkSessionTime,
+		}
+		manager.sessions[published.ID] = published
+		if err := os.Remove(
+			store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, "sess-read-000")),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, "sess-read-002")),
+			[]byte("{"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		infos, err := manager.ListForWorkspace(t.Context(), "ws-read-00")
+		if err != nil || len(infos) != 2 || infos[0].ID != published.ID || infos[0].State != StateActive ||
+			infos[1].ID != active.ID || infos[1].State != StateStarting {
+			t.Fatalf("ListForWorkspace() = %#v, %v; want both active sessions", infos, err)
+		}
+	})
+	t.Run("Should reject an absent context workspace or catalog", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{}
+		var nilCtx context.Context
+		for _, query := range []struct {
+			ctx       context.Context
+			workspace string
+		}{{nilCtx, "ws"}, {t.Context(), " "}, {t.Context(), "ws"}} {
+			if _, err := manager.ListForWorkspace(query.ctx, query.workspace); err == nil {
+				t.Fatal("ListForWorkspace() error = nil")
+			}
+		}
+	})
+}
+
+func newWorkspaceSessionReadFixture(t testing.TB, count, workspaceCount int) *Manager {
+	t.Helper()
+	ctx := t.Context()
+	database, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := database.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	manager := &Manager{
+		sessions: make(map[string]*Session), logger: slog.Default(),
+		homePaths:      compozyconfig.HomePaths{SessionsDir: t.TempDir()},
+		sessionCatalog: database, transcriptEpochStore: database, attentionStore: database,
+		now: func() time.Time { return benchmarkSessionTime },
+	}
+	for index := range workspaceCount {
+		id := fmt.Sprintf("ws-read-%02d", index)
+		if err := database.InsertWorkspace(
+			ctx,
+			workspacepkg.Workspace{ID: id, Name: id, RootDir: t.TempDir()},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for index := range count {
+		target := &Session{
+			ID: fmt.Sprintf("sess-read-%03d", index), AgentName: "coder", Provider: "claude",
+			ProfileID: store.DefaultProfileID, WorkspaceID: fmt.Sprintf("ws-read-%02d", index%workspaceCount),
+			State: StateStopped, RuntimeStatus: store.SessionRuntimeReady, stopReason: store.StopCompleted,
+			CreatedAt: benchmarkSessionTime.Add(time.Duration(index) * time.Minute), UpdatedAt: benchmarkSessionTime,
+		}
+		if err := database.RegisterSession(ctx, sessionCatalogInfoFromRuntime(target.Info())); err != nil {
+			t.Fatal(err)
+		}
+		meta := target.Meta()
+		path := filepath.Join(manager.homePaths.SessionsDir, target.ID)
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.WriteSessionMeta(store.SessionMetaFile(path), &meta); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return manager
+}
 
 func TestManagerListAllRequiresContext(t *testing.T) {
 	t.Parallel()
@@ -1875,6 +1999,74 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve event metadata for active and stopped session reads", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		at := time.Date(2026, 10, 17, 0, 0, 0, 0, time.UTC)
+		for _, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, TurnID: "A", Timestamp: at, Text: "message"},
+			{Type: acp.EventTypeUsage, TurnID: "A", Timestamp: at, Usage: &acp.TokenUsage{TotalTokens: new(int64(25))}},
+		} {
+			if err := h.manager.recordEvent(t.Context(), sess, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		assertMetadata := func() {
+			t.Helper()
+			query := store.EventQuery{TurnID: "A", AfterSequence: 1}
+			full, err := h.manager.Events(t.Context(), sess.ID, query)
+			if err != nil || len(full) == 0 {
+				t.Fatalf("Events()=%#v/%v", full, err)
+			}
+			metadata, err := h.manager.EventMetadata(t.Context(), sess.ID, query)
+			if err != nil || len(metadata) != len(full) {
+				t.Fatalf("EventMetadata()=%#v/%v", metadata, err)
+			}
+			for index, event := range full {
+				want := store.EventMetadata{ID: event.ID, SessionID: event.SessionID, Sequence: event.Sequence,
+					TurnID: event.TurnID, Type: event.Type, AgentName: event.AgentName, Timestamp: event.Timestamp}
+				if metadata[index] != want {
+					t.Fatalf("metadata[%d]=%#v, want=%#v", index, metadata[index], want)
+				}
+			}
+		}
+		assertMetadata()
+		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
+			t.Fatal(err)
+		}
+		assertMetadata()
+	})
+
+	t.Run("Should read a settled context snapshot through one stopped recorder", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		for _, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeUsage, TurnID: "usage", Usage: &acp.TokenUsage{ContextUsed: new(int64(42))}},
+			{Type: acp.EventTypeDone, TurnID: "settled"},
+		} {
+			if err := h.manager.recordEvent(t.Context(), sess, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
+			t.Fatal(err)
+		}
+		opens := 0
+		open := h.manager.openQueryStore
+		h.manager.openQueryStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventReadCloser, error) {
+			opens++
+			return open(ctx, owner, path)
+		}
+		snapshot, err := h.manager.ContextEvents(t.Context(), sess.ID)
+		if err != nil || opens != 1 || len(snapshot.Usage) != 1 || snapshot.Settled.TurnID != "settled" ||
+			snapshot.Settled.Sequence <= snapshot.Usage[0].Sequence {
+			t.Fatalf("ContextEvents()=%#v, opens=%d, error=%v", snapshot, opens, err)
+		}
+	})
+
 	for _, freshBeforeNext := range []bool{false, true} {
 		name := "Should leave after absent when the next compaction ends before an occupancy observation"
 		if freshBeforeNext {
@@ -1973,6 +2165,16 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 				boundary, err := h.manager.CompactionBoundary(t.Context(), target.ID)
 				if err != nil || boundary == nil || *boundary != second {
 					t.Fatalf("legacy boundary=%v error=%v", boundary, err)
+				}
+				snapshot, err := h.manager.ContextEvents(t.Context(), target.ID)
+				if err != nil || !reflect.DeepEqual(snapshot.Compactions, markers) ||
+					!reflect.DeepEqual(snapshot.ClearedBy, cause) {
+					t.Fatalf(
+						"snapshot compactions=%#v, boundary=%#v, error=%v",
+						snapshot.Compactions,
+						snapshot.ClearedBy,
+						err,
+					)
 				}
 			}
 			assertRead()
@@ -2095,6 +2297,13 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 				}
 				if len(markers) != 1 || markers[0].Status != "completed" || markers[0].Payload.Trigger != "agent" {
 					t.Fatalf("archived marker=%#v", markers)
+				}
+				snapshot, err := h.manager.ContextEvents(ctx, sess.ID)
+				if err != nil || !reflect.DeepEqual(snapshot.Usage, usage) ||
+					!reflect.DeepEqual(snapshot.Deliveries, deliveries) ||
+					!reflect.DeepEqual(snapshot.Compactions, markers) ||
+					snapshot.Settled != settled {
+					t.Fatalf("ContextEvents()=%#v, error=%v; want existing context projection", snapshot, err)
 				}
 			}
 			assertRead()
@@ -2267,6 +2476,11 @@ func TestCompactionMarkersAcrossConcurrentAppends(t *testing.T) {
 		if after := markers[index].ContextAfter; after != nil {
 			t.Fatalf("compaction a ContextAfter = %#v, want none: usage at 5 follows compaction b", after)
 		}
+		snapshot, err := contextEventsFromRows(history)
+		if err != nil || len(snapshot.Compactions) != 2 || snapshot.Compactions[0].ContextAfter != nil ||
+			snapshot.Compactions[1].ContextAfter == nil || snapshot.Compactions[1].ContextAfter.Sequence != 5 {
+			t.Fatalf("union snapshot borrowed compaction observations: %#v, %v", snapshot.Compactions, err)
+		}
 	})
 }
 
@@ -2338,10 +2552,11 @@ func TestManagerEventsAndHistoryRetryClosedActiveRecorder(t *testing.T) {
 			Content:   "{}",
 		}
 		stub := &queryRecorderStub{
-			events:    []store.SessionEvent{wantEvent},
-			history:   []store.TurnHistory{{TurnID: wantEvent.TurnID, Events: []store.SessionEvent{wantEvent}}},
-			usage:     []store.TokenUsage{{TurnID: wantEvent.TurnID}},
-			queryErrs: []error{store.ErrClosed},
+			events:       []store.SessionEvent{wantEvent},
+			history:      []store.TurnHistory{{TurnID: wantEvent.TurnID, Events: []store.SessionEvent{wantEvent}}},
+			usage:        []store.TokenUsage{{TurnID: wantEvent.TurnID}},
+			queryErrs:    []error{store.ErrClosed},
+			metadataErrs: []error{store.ErrClosed},
 			historyErrs: []error{
 				store.ErrClosed,
 			},
@@ -2363,6 +2578,14 @@ func TestManagerEventsAndHistoryRetryClosedActiveRecorder(t *testing.T) {
 		}
 		if got := len(stub.queryCalls); got != 2 {
 			t.Fatalf("Query() calls = %d, want 2", got)
+		}
+
+		metadata, err := h.manager.EventMetadata(t.Context(), session.ID, store.EventQuery{})
+		if err != nil || len(metadata) != 1 || metadata[0].ID != wantEvent.ID {
+			t.Fatalf("EventMetadata()=%#v/%v", metadata, err)
+		}
+		if len(stub.metadataCalls) != 2 {
+			t.Fatalf("QueryEventMetadata() calls=%d, want 2", len(stub.metadataCalls))
 		}
 
 		history, err := h.manager.History(testutil.Context(t), session.ID, store.EventQuery{})
@@ -3153,21 +3376,23 @@ func createEscapedStoredSession(t *testing.T, h *harness) string {
 }
 
 type queryRecorderStub struct {
-	events      []store.SessionEvent
-	history     []store.TurnHistory
-	usage       []store.TokenUsage
-	queryErr    error
-	queryErrs   []error
-	historyErr  error
-	historyErrs []error
-	usageErrs   []error
-	closeCalls  int
-	queryCalls  []store.EventQuery
-	historyCall []store.EventQuery
-	usageCalls  int
-	appendErrs  []error
-	appendCalls int
-	onAppend    func()
+	events        []store.SessionEvent
+	history       []store.TurnHistory
+	usage         []store.TokenUsage
+	queryErr      error
+	queryErrs     []error
+	metadataErrs  []error
+	metadataCalls []store.EventQuery
+	historyErr    error
+	historyErrs   []error
+	usageErrs     []error
+	closeCalls    int
+	queryCalls    []store.EventQuery
+	historyCall   []store.EventQuery
+	usageCalls    int
+	appendErrs    []error
+	appendCalls   int
+	onAppend      func()
 }
 
 func (s *queryRecorderStub) ListTokenUsage(context.Context) ([]store.TokenUsage, error) {
@@ -3221,6 +3446,41 @@ func (s *queryRecorderStub) Query(_ context.Context, query store.EventQuery) ([]
 		return nil, s.queryErr
 	}
 	return append([]store.SessionEvent(nil), s.events...), nil
+}
+
+func (s *queryRecorderStub) QueryEventMetadata(
+	_ context.Context,
+	query store.EventQuery,
+) ([]store.EventMetadata, error) {
+	s.metadataCalls = append(s.metadataCalls, query)
+	if len(s.metadataErrs) > 0 {
+		err := s.metadataErrs[0]
+		s.metadataErrs = s.metadataErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	metadata := make([]store.EventMetadata, 0, len(s.events))
+	for _, event := range s.events {
+		metadata = append(metadata, store.EventMetadata{
+			ID:        event.ID,
+			SessionID: event.SessionID,
+			Sequence:  event.Sequence,
+			TurnID:    event.TurnID,
+			Type:      event.Type,
+			AgentName: event.AgentName,
+			Timestamp: event.Timestamp,
+		})
+	}
+	return metadata, nil
+}
+
+func (s *queryRecorderStub) MaxEventSequence(context.Context) (int64, error) {
+	var maximum int64
+	for _, event := range s.events {
+		maximum = max(maximum, event.Sequence)
+	}
+	return maximum, nil
 }
 
 func (s *queryRecorderStub) History(_ context.Context, query store.EventQuery) ([]store.TurnHistory, error) {

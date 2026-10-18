@@ -336,8 +336,13 @@ func (r *RuntimeRegistry) viewFor(
 		return ToolView{}, err
 	}
 	decision = applyAvailabilityDecision(decision, availability)
+	descriptor := entry.descriptor
+	if !entry.owned {
+		// Shared native descriptors must not leak mutable fields; index-owned clones already are private.
+		descriptor = cloneDescriptor(descriptor)
+	}
 	return ToolView{
-		Descriptor:   cloneDescriptor(entry.descriptor),
+		Descriptor:   descriptor,
 		Availability: availability,
 		Decision:     decision,
 	}, nil
@@ -369,6 +374,10 @@ func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entr
 		}
 	}
 	availability := handle.Availability(ctx, scope)
+	return validateProjectionAvailability(availability)
+}
+
+func validateProjectionAvailability(availability Availability) Availability {
 	availability.Registered = true
 	if err := availability.Validate(); err != nil {
 		reason, found := ReasonOf(err)

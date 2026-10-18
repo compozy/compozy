@@ -65,3 +65,14 @@ QA 2026-09-12: session-context final feature pass; runtime, focused integration/
 QA impact 2026-10-07 (memory removal): `pressure_threshold` and the replay-span archive fields left the usage payloads, and `compactions[]` now lists only observed agent compactions. New turns never record Memory or Workspace knowledge delivery rows; rows written before the upgrade render by their raw key. Stale verdict reset to untested; historical evidence preserved; no QA session ran.
 
 Marker after fields (S14 / UT-W08): send a fresh occupancy report within the compaction's own turn. Experimental `compactions[].context_after` must carry that first event's used, optional size and exact sequence, with zero retained. Human output shows before → after; JSON carries the object and TOON carries the three after columns. Counter-only events and later status/summary corrections cannot create or replace it. If another compaction terminates before an occupancy report, the earlier marker has no after. Unknown occupancy exposes experimental `context.cleared_by` with the ID and its first terminal sequence; the cause disappears on fresh occupancy. Automated owning query/contextusage/API/CLI checks cover these invariants; no new CLI/browser scenario walk is claimed.
+
+
+QA impact 2026-10-17 (concurrent-session responsiveness): context calculation
+reads the five relevant event types as one ordered ledger snapshot. Transcript
+usage notifications read event metadata, preserving the same all-event cursor
+progress and five emitted kinds without reading unused content blobs. Verify
+active/stopped and read-only pooled sessions, compaction precedence, malformed
+payload errors, closed-handle retry, text-only cursor progress and the existing
+between-snapshot usage race. Focused suite and measurement receipts live in
+[the responsiveness report](../reports/2026-10-17-responsiveness.md); full scenario
+status is unchanged until a new public-surface walk is recorded.

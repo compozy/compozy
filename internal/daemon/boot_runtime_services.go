@@ -14,6 +14,9 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootRuntimeMemoryMonitor(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootHostLoadMonitor(ctx, state, cleanup); err != nil {
+		return err
+	}
 	if err := d.bootProcessRegistry(ctx, state); err != nil {
 		return err
 	}

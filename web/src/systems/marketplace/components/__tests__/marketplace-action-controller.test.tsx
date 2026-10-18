@@ -329,8 +329,7 @@ describe("useMarketplaceActionController", () => {
   it("Should bind acquisition to its destination and discard inputs after a profile switch", async () => {
     const workspaceId = workspaceFixtures[0]!.id;
     setActiveWorkspaceId(workspaceId);
-    const lens = { scope: "workspace" as const, workspaceId };
-    setProfileView(lens, { kind: "profile", profile: "marketing" });
+    setProfileView({ kind: "profile", profile: "marketing" });
     io.preview.mockResolvedValue({
       name: "scoped-kit",
       declared_profiles: [],
@@ -365,7 +364,7 @@ describe("useMarketplaceActionController", () => {
       })
     );
     await user.type(screen.getByLabelText("Access token"), "discard-this-draft");
-    act(() => setProfileView(lens, { kind: "profile", profile: "consulting" }));
+    act(() => setProfileView({ kind: "profile", profile: "consulting" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Run 0" }));
     await screen.findByRole("heading", { name: "Install scoped-kit" });

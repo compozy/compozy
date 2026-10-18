@@ -58,3 +58,23 @@ returned; activating a background tab reread its queue immediately.
 QA impact 2026-10-17 (web performance): Permission and turn-outcome projections now reuse facts from immutable message content; subagent roster readers filter unrelated cache events. Re-walk streamed text, permission resolution, stopped/verified turns, and roster-owner detach/reconnect. No live-provider re-walk is claimed in this change.
 
 Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.
+
+QA impact 2026-10-17 (concurrent-session responsiveness): Keep two visible sessions
+streaming while catalog and attention updates arrive in bursts. Detail and by-ID
+reads must finish, then reread the final authoritative state without a cancellation
+storm. Verify replacement, removal and replay of transcript entries, retaining a
+current view while obsolete historical arrays are released. Disconnect the last
+live stream owner and verify the existing fallback reads re-arm for workspace and
+profile lenses without an immediate unsolicited fetch; reconnect and retain the
+safety cadence. The existing catalog-stream, transcript-query, query-options and
+live-tail suites own these boundaries. Current measurements and execution status
+are recorded in the [responsiveness report](../reports/2026-10-17-responsiveness.md);
+the earlier scenario passes are historical.
+
+
+The 2026-10-17 responsiveness slice also replaces usage-notification event blob
+reads with metadata reads. Usage frames retain their sequence, turn ID, kind and
+absence of a transcript SSE ID; text-only pages still advance the internal usage
+cursor. Check both wake and polling paths, including an event committed between
+usage and transcript snapshots. See the same dated responsiveness report for
+focused evidence and CI/runtime validation limits.

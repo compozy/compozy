@@ -4,6 +4,20 @@ package client
 
 import "time"
 
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
 // SkillExposureRequest is a daemon API value.
 type SkillExposureRequest struct {
 	Targets     []string `json:"targets"`
@@ -432,6 +446,3 @@ type SupportBundleOperationPayload struct {
 type SupportBundleOperationResponse struct {
 	Operation SupportBundleOperationPayload `json:"operation"`
 }
-
-// TargetKind is a daemon API value.
-type TargetKind string

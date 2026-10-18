@@ -1,7 +1,8 @@
 // Suite: session folder layout writes
 // Invariant: a manual reorder patches the served catalog page at once, sends the
 // container's full order to the daemon, and restores the whole envelope when
-// the daemon refuses; a delete clears membership optimistically.
+// the daemon refuses; a delete clears membership optimistically; a failed folder
+// read keeps the list flat and offers a retry that loads the layout.
 // Owning layer: useSessionFolders (query cache + adapter); fetch is the I/O boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -51,13 +52,16 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function setup(writeStatus: number) {
+function setup(writeStatus: number, folderReads: number[] = []) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   queryClient.setQueryData(pageKey, structuredClone(envelope));
   const writes: Request[] = [];
   vi.mocked(globalThis.fetch).mockImplementation(async input => {
     const request = input as Request;
-    if (request.method === "GET") return json({ folders: [folder] });
+    if (request.method === "GET") {
+      const status = folderReads.shift() ?? 200;
+      return status === 200 ? json({ folders: [folder] }) : json({ error: "unavailable" }, status);
+    }
     writes.push(request);
     return writeStatus === 200
       ? json({ folders: [folder] })
@@ -89,15 +93,25 @@ describe("useSessionFolders", () => {
 
   it("Should expose no layout until the folder list loads", async () => {
     const { result } = setup(200);
-    expect(result.current).toBeUndefined();
-    await waitFor(() => expect(result.current?.folders).toHaveLength(1));
+    expect(result.current.layout).toBeUndefined();
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
+  });
+
+  it("Should report a failed folder read and load the layout on retry", async () => {
+    const { result } = setup(200, [503]);
+    await waitFor(() => expect(result.current.loadError).toBeDefined());
+    expect(result.current.layout).toBeUndefined();
+
+    act(() => result.current.loadError?.retry());
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
+    expect(result.current.loadError).toBeUndefined();
   });
 
   it("Should reorder optimistically and restore the full envelope when the daemon refuses", async () => {
     const { result, writes, order } = setup(409);
-    await waitFor(() => expect(result.current?.folders).toHaveLength(1));
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
 
-    act(() => result.current?.reorderSessions(null, ["b", "a"]));
+    act(() => result.current.layout?.reorderSessions(null, ["b", "a"]));
     await waitFor(() => expect(writes).toHaveLength(1));
     const request = writes[0]!;
     expect(new URL(request.url).pathname).toBe("/api/workspaces/ws/session-order/sessions");
@@ -116,9 +130,9 @@ describe("useSessionFolders", () => {
 
   it("Should keep the optimistic order and folder once the daemon accepts", async () => {
     const { result, writes, order } = setup(200);
-    await waitFor(() => expect(result.current?.folders).toHaveLength(1));
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
 
-    act(() => result.current?.reorderSessions("sfold-a", ["a", "c"]));
+    act(() => result.current.layout?.reorderSessions("sfold-a", ["a", "c"]));
     await waitFor(() =>
       expect(order()).toEqual([
         ["a", "sfold-a"],
@@ -136,7 +150,7 @@ describe("useSessionFolders", () => {
 
   it("Should send rapid layout writes one at a time in action order", async () => {
     const { result, writes } = setup(200);
-    await waitFor(() => expect(result.current?.folders).toHaveLength(1));
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
     let releaseFirst: (response: Response) => void = () => undefined;
     const fetchMock = vi.mocked(globalThis.fetch);
     const settled = fetchMock.getMockImplementation()!;
@@ -152,8 +166,8 @@ describe("useSessionFolders", () => {
     });
 
     act(() => {
-      result.current?.reorderFolders(["sfold-a"]);
-      result.current?.reorderSessions(null, ["b", "a"]);
+      result.current.layout?.reorderFolders(["sfold-a"]);
+      result.current.layout?.reorderSessions(null, ["b", "a"]);
     });
     await waitFor(() => expect(writes).toHaveLength(1));
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -167,11 +181,11 @@ describe("useSessionFolders", () => {
 
   it("Should clear membership at once when a folder is deleted", async () => {
     const { result, writes, order } = setup(200);
-    await waitFor(() => expect(result.current?.folders).toHaveLength(1));
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
 
     let pending: Promise<void> | undefined;
     act(() => {
-      pending = result.current?.deleteFolder("sfold-a");
+      pending = result.current.layout?.deleteFolder("sfold-a");
     });
     await waitFor(() =>
       expect(order()).toEqual([

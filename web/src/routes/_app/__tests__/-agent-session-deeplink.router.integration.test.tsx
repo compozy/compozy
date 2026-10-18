@@ -9,8 +9,8 @@
 // active-workspace store, and the shipped confirm dialog.
 // Boundary OUT: HTTP adapters and rendered session transcript, owned by their system suites.
 
-import { QueryClient } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, useInfiniteQuery } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   Link,
   Outlet,
@@ -29,6 +29,7 @@ import {
   SessionWorkspaceSwitchDialog,
   sessionKeys,
   sessionOwnerKeys,
+  sessionTranscriptOptions,
   validateSessionDeepLinkSearch,
   type SessionDeepLinkSearch,
   type SessionOwnerDialogState,
@@ -202,9 +203,11 @@ function stubSiblingProfileSessionBackend(): void {
 function buildSessionDeepLinkRouter({
   initialEntry = `/agents/general/sessions/${BENCH_SESSION_ID}`,
   seedQueries = true,
+  observeTranscript = false,
 }: {
   initialEntry?: string;
   seedQueries?: boolean;
+  observeTranscript?: boolean;
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -338,6 +341,11 @@ function buildSessionDeepLinkRouter({
     return (
       <main>
         <p>Loaded session: {params.id}</p>
+        {observeTranscript ? (
+          <QueryClientProvider client={queryClient}>
+            <SessionTranscriptReadHarness sessionId={params.id} />
+          </QueryClientProvider>
+        ) : null}
         {params.id === BENCH_SESSION_ID ? (
           <Link
             to="/agents/$name/sessions/$id"
@@ -392,6 +400,11 @@ function buildSessionDeepLinkRouter({
   };
 }
 
+function SessionTranscriptReadHarness({ sessionId }: { sessionId: string }) {
+  const transcript = useInfiniteQuery(sessionTranscriptOptions(BENCH_WORKSPACE_ID, sessionId));
+  return <p>Transcript state: {transcript.status}</p>;
+}
+
 function renderRouter(router: ReturnType<typeof buildSessionDeepLinkRouter>["router"]) {
   return render(
     <UIProvider reducedMotion="always">
@@ -410,6 +423,59 @@ describe("cross-workspace session deep-link router integration", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
+
+  it.each([
+    { route: "agent", outcome: "success" },
+    { route: "agent", outcome: "error" },
+    { route: "permalink", outcome: "success" },
+    { route: "permalink", outcome: "error" },
+  ] as const)(
+    "Should open the $route session before its transcript settles as $outcome",
+    async ({ route, outcome }) => {
+      const target = `/agents/general/sessions/${BENCH_SESSION_ID}`;
+      const { queryClient, router } = buildSessionDeepLinkRouter({
+        initialEntry: route === "agent" ? target : `/session/${BENCH_SESSION_ID}`,
+        observeTranscript: true,
+      });
+      const transcriptKey = sessionKeys.transcript(BENCH_WORKSPACE_ID, BENCH_SESSION_ID);
+      queryClient.removeQueries({ queryKey: transcriptKey, exact: true });
+      let finishRead: (value: Response) => void = () => {};
+      const pendingResponse = new Promise<Response>(resolve => {
+        finishRead = resolve;
+      });
+      vi.mocked(globalThis.fetch).mockImplementation(() => pendingResponse);
+      const { unmount } = renderRouter(router);
+      try {
+        await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
+        await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
+        expect(router.state.location.pathname).toBe(target);
+        expect(screen.getByText("Transcript state: pending")).toBeInTheDocument();
+        await act(async () => {
+          finishRead(
+            outcome === "success"
+              ? Response.json({
+                  entries: [],
+                  epoch: 1,
+                  generation: 1,
+                  has_older: false,
+                  limit: 200,
+                  max_sequence: 0,
+                })
+              : Response.json({ message: "Transcript temporarily unavailable" }, { status: 500 })
+          );
+        });
+        await screen.findByText(`Transcript state: ${outcome}`);
+        expect(queryClient.getQueryState(transcriptKey)?.status).toBe(outcome);
+        expect(fetchedPathnames()).toEqual([
+          `/api/workspaces/${BENCH_WORKSPACE_ID}/sessions/${BENCH_SESSION_ID}/transcript`,
+        ]);
+      } finally {
+        finishRead(new Response(null, { status: 500 }));
+        unmount();
+        queryClient.clear();
+      }
+    }
+  );
 
   it("Should resolve a foreign session link through the owner projection alone", async () => {
     stubForeignSessionBackend();

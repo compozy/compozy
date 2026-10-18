@@ -26,6 +26,16 @@ func TestACPHelperProcess(_ *testing.T) {
 		return
 	}
 
+	scenario := os.Getenv(testHelperScenarioKey)
+	if strings.HasPrefix(scenario, "auth_raw_") {
+		runRawAuthHelperProcess(
+			scenario,
+			os.Getenv(testHelperFileKey),
+			strings.TrimSpace(os.Getenv(testHelperCaptureKey)),
+		)
+		return
+	}
+
 	agent := &helperACPAgent{
 		scenario: os.Getenv(testHelperScenarioKey),
 		filePath: os.Getenv(testHelperFileKey),

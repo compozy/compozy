@@ -41,6 +41,7 @@ export function emptyProviderDraft(): ProviderDraft {
     env_policy: "filtered",
     home_policy: "operator",
     auth_status_command: "",
+    auth_acp_method: "",
     credential_slots: [],
     credential_secret_values: [],
   };
@@ -66,6 +67,7 @@ export function providerDraftFromEntry(entry: SettingsProviderEntry): ProviderDr
     env_policy: entry.settings.env_policy ?? "filtered",
     home_policy: entry.settings.home_policy ?? "operator",
     auth_status_command: entry.settings.auth_status_command ?? "",
+    auth_acp_method: entry.settings.auth_acp_method ?? "",
     credential_slots: slots,
     // Presence comes from `entry.credentials`; plaintext never rides a read path.
     credential_secret_values: slots.map(() => ""),
@@ -76,18 +78,27 @@ export function providerDraftFromEntry(entry: SettingsProviderEntry): ProviderDr
  * Auth ownership is a security boundary, not a layout switch: only
  * `bound_secret` may carry credential slots (`internal/CLAUDE.md` § Provider
  * auth boundary), so leaving it drops every slot and its pending plaintext, and
- * entering it seeds the one slot the daemon requires.
+ * entering it seeds the one slot the daemon requires. Leaving `native_cli`
+ * also drops the protocol-owned sign-in method: the daemon rejects it under any
+ * other mode, so the draft must not submit an incompatible value.
  */
 export function withProviderAuthMode(draft: ProviderDraft, mode: ProviderAuthMode): ProviderDraft {
   if (draft.auth_mode === mode) return draft;
   if (mode !== "bound_secret") {
-    return { ...draft, auth_mode: mode, credential_slots: [], credential_secret_values: [] };
+    return {
+      ...draft,
+      auth_mode: mode,
+      auth_acp_method: "",
+      credential_slots: [],
+      credential_secret_values: [],
+    };
   }
   const slots =
     draft.credential_slots.length > 0 ? draft.credential_slots : [newCredentialSlot(0, true)];
   return {
     ...draft,
     auth_mode: mode,
+    auth_acp_method: "",
     credential_slots: slots,
     credential_secret_values: slots.map((_, index) => draft.credential_secret_values[index] ?? ""),
   };
@@ -141,7 +152,10 @@ export function providerCredentialSecretValue(draft: ProviderDraft, index: numbe
   return draft.credential_secret_values[index] ?? "";
 }
 
-export function providerDraftToRequest(draft: ProviderDraft): SettingsProviderRequest {
+export function providerDraftToRequest(
+  draft: ProviderDraft,
+  baselineMethod = ""
+): SettingsProviderRequest {
   const settings: SettingsProviderRequest["settings"] = {};
   assignTrimmed(settings, "command", draft.command);
   assignTrimmed(settings, "display_name", draft.display_name);
@@ -157,6 +171,7 @@ export function providerDraftToRequest(draft: ProviderDraft): SettingsProviderRe
   assignTrimmed(settings, "env_policy", draft.env_policy);
   assignTrimmed(settings, "home_policy", draft.home_policy);
   assignTrimmed(settings, "auth_status_command", draft.auth_status_command);
+  assignACPMethod(settings, draft, baselineMethod);
 
   const credentialSlots = requestCredentialSlots(draft);
   if (credentialSlots.length > 0) settings.credential_slots = credentialSlots;
@@ -260,6 +275,31 @@ function assignTrimmed<K extends keyof NonNullable<SettingsProviderRequest["sett
 ) {
   const trimmed = value.trim();
   if (trimmed) settings[key] = trimmed as NonNullable<SettingsProviderRequest["settings"]>[K];
+}
+
+/**
+ * Protocol-owned sign-in method (`auth_acp_method`). The daemon accepts it only
+ * for native-auth ACP providers, so an inapplicable draft never submits a value
+ * and clearing a previously stored override sends a present-empty removal that
+ * reveals the built-in fallback. An untouched empty field stays omitted so
+ * unrelated saves preserve the stored value.
+ */
+function assignACPMethod(
+  settings: NonNullable<SettingsProviderRequest["settings"]>,
+  draft: ProviderDraft,
+  baselineMethod: string
+) {
+  const applicable = draft.harness === "acp" && draft.auth_mode === "native_cli";
+  const trimmed = draft.auth_acp_method.trim();
+  if (!applicable) {
+    if (baselineMethod.trim()) settings.auth_acp_method = "";
+    return;
+  }
+  if (trimmed) {
+    settings.auth_acp_method = trimmed;
+    return;
+  }
+  if (baselineMethod.trim()) settings.auth_acp_method = "";
 }
 
 function joinCuratedModels(models: SettingsProviderModelRequest[]): string {

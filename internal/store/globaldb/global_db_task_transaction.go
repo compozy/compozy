@@ -10,6 +10,7 @@ import (
 
 type taskTransactionExecutor struct {
 	taskSQLExecutor
+	outboxSignalSet
 	committedEvents []taskpkg.EventRecord
 }
 
@@ -35,18 +36,21 @@ func (g *TaskRepo) withTaskImmediateTransaction(
 	run func(exec taskSQLExecutor) error,
 ) error {
 	var committedEvents []taskpkg.EventRecord
+	var committedSignals outboxSignalKind
 	err := store.ExecuteWriteOperation(ctx, g.db, action, func(_ context.Context, tx *store.WriteTx) error {
 		transaction := &taskTransactionExecutor{taskSQLExecutor: tx}
 		if err := run(transaction); err != nil {
 			return err
 		}
 		committedEvents = append(committedEvents[:0], transaction.committedEvents...)
+		committedSignals = transaction.load()
 		return nil
 	})
 	if err != nil {
 		err = mapTerminalRunCommandGuardError(err)
 		return fmt.Errorf("store: %s transaction: %w", action, err)
 	}
+	g.outboxSignals.fire(committedSignals)
 	g.notifyCommittedTaskEvents(ctx, committedEvents)
 	return nil
 }

@@ -1,52 +1,58 @@
+## Daemon idle-cost and renderer batching — 2026-10-18
+
+Branch `perf/daemon-load-mitigations`. Hosted MCP projection streams wait on a `ProjectionEpoch`
+change channel (3s fallback) instead of a 100ms poll, cache shared immutable snapshots, and Goal tool
+availability uses a cheap per-session check invalidated on Goal/Loop transitions; the hosted MCP wire
+(SSE names, digests) is unchanged. Model-catalog refresh reads owner IDs with `SELECT DISTINCT`, checks
+TTL before ownership, honours TTL for providerless sources, skips row rewrites for unchanged content,
+backs off failed probes, and bounds sweep parallelism; no schema change. Goal outbox and Loop effect
+relays drain on post-commit store nudges; public config `goals.outbox_poll_interval` keeps its key but
+now means the fallback sweep and its default moves 100ms → 2s (explicit values keep their cadence;
+site config reference and official skill updated). Web live tail applies queued frames in one batch per
+animation frame; smooth reveal pauses while hidden; desktop windows set `backgroundThrottling: true`.
+Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile isolation are unchanged.
+
 # Compozy Change Impact
 
-## App SDK — 2026-10-12
+## Role fallback after a provider refuses a title turn — 2026-10-18
 
-Owner: `.compozy/tasks/app-sdk/_spec.md`; implementation recorded 2026-10-17. This is the canonical
-cross-surface audit for the spec and its delivery PR.
+Owner: PR #662. Automatic title generation runs each prompt inside its role-owned fallback
+attempt. Typed authentication or rate-limit refusals before any output advance to the next route
+only after the refused child stops. A turn that produced output remains accepted; failed child
+cleanup retains ownership and ends the chain. Route account commands, ChainOwnerCaller, typed
+start acceptance, cancellation deadlines and role.fallback.used events retain their current owners.
+The retired checkpoint-summary and memory subsystems stay deleted. Existing auto-title and
+role-fallback suites own the rejection, partial-output and cleanup boundaries.
 
-- **Public clients and contracts:** additive `@compozy/client`, Node-only `@compozy/client/node`, and
-  `sdk/go/client` clients; resource methods, named request/response types, prompt streaming, typed SSE,
-  daemon discovery, and version diagnostics. `GET /api/openapi.json` serves the release contract with
-  ETag/gzip over local HTTP and UDS. OpenAPI componentization preserves wire JSON; prompt metadata now
-  describes the existing UI message stream. One codegen path owns the document, TS/Go clients, and
-  `openapi/sdk-samples.json`. Raw WebSocket upgrade clients remain outside the SDK scope.
-- **App authorization and data isolation:** additive global app-token state stores secret hashes,
-  metadata, origin sets, and revocation/last-use timestamps separately from paired devices and
-  profiles. The schema migration preserves existing state. The local listener requires matching
-  origin-scoped bearer authentication only for foreign browser requests and an explicit operation
-  allowlist; management and privileged routes remain denied. Preflight does not authenticate the
-  actual call. Opaque `null` origins are denied. Gateway rejects app tokens without last-use mutation.
-  Existing local tokenless callers and the same-origin Web app retain their access. A token does not
-  expand a session's workspace or tool permissions. Revocation closes token streams; disconnecting a
-  client alone does not cancel an admitted turn.
-- **Native tools:** no new `compozy__*` IDs or catalog shapes. Agents manage app tokens through
-  structured `compozy app-token create|list|update|revoke -o json` or local HTTP/UDS. Existing prompt
-  cancellation tools remain the explicit runtime cancellation path.
-- **Extensibility, hooks, and configuration:** extension SDK packages remain separate from external
-  app clients and keep their existing API. No token mutation hook, config key, or settings editor is
-  added. SDK connection options and `COMPOZY_URL`, `COMPOZY_APP_TOKEN`, `COMPOZY_HOME`, and
-  `COMPOZY_BIN` govern app connection/lifecycle; private Node homes isolate spawned daemons.
-- **Web and Docs:** the Web app consumes `paths` from `@compozy/client`; its duplicate generated type
-  file is removed as an internal hard cut. API reference samples consume the generated manifest with
-  no method-name inference; browser documentation renders allowed operations from `app_access`.
-  `packages/site/content/docs/apps/` covers Node, chat proxy, browser, Go, and token management with
-  observable outcomes. The official skill routes to `references/app-sdk.md`; the glossary defines
-  App token. SDK READMEs and pkg.go.dev link to the same tutorials and generated reference.
-- **Compatibility and release:** SDK facade/resource layout, Node subpath, Go client, app-token
-  CLI/HTTP, and browser-access error codes are experimental for the shipping minor release per
-  ADR-004; all affected docs/help carry the explicit label. Runtime OpenAPI and generated operation
-  types retain route stability. No legacy public surface is removed or shimmed. Release publication
-  co-ships the npm client with the daemon and existing SDK; notes live in
-  `.release-notes/app-sdk-and-browser-tokens-1792286400.md`.
-- **Verification ownership:** SDK tests own transport/discovery/stream contracts; contract/gateway
-  suites own authorization; codegen check owns full operation/sample agreement. The existing site
-  `docs-api-reference.test.ts` owns SDK sample projection and browser allowlist rendering. Living QA
-  journeys `J-build-external-app` and `J-authorize-browser-app` cover the end-to-end app and operator
-  flows. Scenario status remains `untested` until a recorded real walk; authored plans and focused
-  tests are not runtime evidence. Heavy gates and broad runtime/browser suites run in CI for this
-  delivery, as requested.
+Native tools, CLI/HTTP/UDS contracts, hooks, extension SDKs, config keys, workspace/profile data
+isolation and persisted state are unchanged. No migration or compatibility shim is needed. The site
+configuration reference describes the title-specific refusal boundary. Official skill commands and
+Web behavior are unchanged; title generation uses the existing title QA journey.
 
+## Release integration repairs — 2026-10-18
+
+Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
+while preserving the dispatch lease. Logging happens outside the session lock, keeping status and
+Stop responsive during a storage failure. `TestManagerAgentQueueDelivery` owns the regression and
+`RT-session-message-origin` records the recovery walk. Native tool IDs, wire shapes, hooks,
+configuration, official skill instructions, Web/Docs APIs, and workspace/profile isolation remain
+unchanged; no schema migration is needed.
+
+## Agent CPU priority and load-aware admission — 2026-10-17
+
+Branch `perf/daemon-load-mitigations`. Agent ACP process groups now start at a background CPU
+niceness (`setpriority(PRIO_PGRP)` after launch; Windows no-op) so tools they spawn inherit it, and a
+daemon load sampler (1-minute load average / logical CPUs, darwin `vm.loadavg`, linux `sysinfo`)
+makes the admission gate hold new sessions and prompts carrying the background-work context marker
+(scheduled/trigger/extension automation dispatch, Loop action/judge sessions and prompts, scheduler
+wakes) until pressure clears or a bounded wait elapses. User prompts, user-created sessions, subagent
+spawns, and manual automation runs are never delayed. Public surfaces, all additive (SD-013): config
+keys `daemon.load.agent_niceness` (10), `daemon.load.admission_threshold` (1.5, `0` disables),
+`daemon.load.admission_max_wait` (2m), restart-required and agent-mutable through the config tools;
+doctor item `runtime.load` over HTTP/UDS/CLI. Settings DTOs, OpenAPI, Web, native tool IDs, hooks,
+extension SDKs, persisted state, and workspace/profile isolation are unchanged; no migration. Site
+`configuration/config-toml.mdx`, the generated lifecycle matrix, and official skill
+`references/configuration.md` record the keys.
 
 ## Session folders and manual order — 2026-10-17
 
@@ -67,6 +73,22 @@ parent. Deleting a folder cascades only placements; session delete cascades its 
 extension SDKs are unchanged. Official skill `references/runtime-operations.md`, site
 `docs/sessions/index.mdx`, generated CLI docs, and QA scenario
 `ET-web-session-folders-manual-order` record the contract.
+
+## Google Antigravity ACP provider — 2026-10-18
+
+Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
+protocol-owned native login, and discovers exact model/configuration options through ACP. Provider
+configuration and Settings gain the optional `auth_acp_method` field; source DTOs and generated
+OpenAPI/client artifacts co-ship. Native tool IDs, existing CLI verbs, extension SDKs, hooks,
+workspace/profile isolation and persisted database shapes are unchanged; no migration is needed.
+Operator-owned login state follows the existing provider-home policy. Shared provider logos,
+Settings fixtures, official skill provider/auth guidance and site provider/model-catalog docs are
+updated. The long-tail provider removals and their compatibility window remain in effect.
+Existing provider/auth, model-catalog, settings and KindIcon suites own the observable behavior;
+the added provider QA scenarios retain their original journey steps. Authentication probes also verify
+that the launch directory still exists before using it, falling back to the temporary directory
+when the OS returns a stale working-directory path. The existing provider-handler subprocess
+suite owns this regression.
 
 ## Long-tail built-in provider removal — 2026-10-17
 
@@ -119,6 +141,46 @@ are unchanged; no migration or compatibility adapter is needed. Workspace/profil
 unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
 the change. No site documentation changes are needed.
 
+## Concurrent-session responsiveness — 2026-10-17
+
+Owner: branch `perf/responsiveness-audit`; measured evidence, attempted experiments
+and verification limits live in
+`docs/qa/reports/2026-10-17-responsiveness.md`.
+
+Database reads retain task activity/facets, pending terminal approval scope and
+pagination. Workspace detail selects catalog IDs before hydrating their existing
+metadata. Missing-origin Goal outbox rows remain durable and undelivered; they are
+excluded before the delivery batch limit and become eligible if the origin is
+restored. No schema or persisted-state shape changes are involved. Context reads consume
+one ordered union of the five relevant ledger event types; usage notifications
+read event metadata while retaining all-event cursor progression, snapshot
+fences, cancellation and the existing store-owner retry behavior.
+
+Web retains the same server-state keys, envelopes, workspace/profile partitions,
+stream fences and visible-window ownership. Live catalog wakes coalesce canonical
+detail rereads without canceling in-flight work or dropping the final wake. Weak
+transcript-result retention releases obsolete arrays while held consumer views
+remain valid. Exact query lookups preserve custom hashes and all by-ID profile
+lenses when stream fallback timers are re-armed. Direct and permalink routes
+start the canonical transcript prefetch after identity/scope validation without
+blocking route entry on that optional data request.
+
+MCP projection changes are internal: policy-invisible tools avoid backend probes,
+unchanged stream projections avoid schema cloning, and extension availability is
+batched within one projection. Calls retain their policy and backend revalidation;
+no persistent availability cache or longer authorization staleness is introduced.
+Native tool IDs, HTTP/UDS/CLI wire contracts, extension RPC contracts, hooks,
+configuration and official skill behavior remain unchanged. Two paragraphs in
+`skills/compozy/references/native-tools.md` are shortened without removing their
+contracts so the startup manual fits its existing byte budget. No site guide,
+compatibility adapter or migration is required. Generated SQL query code follows
+the existing generator.
+
+Affected QA legs are tracked in the owning workspace, live-session,
+hidden-window, task catalog, attention catalog, usage/context, deep-link, Goal
+lineage and tool-projection scenarios. Historical passes do
+not prove this revision; the report records current checks and outstanding walks.
+
 ## Web runtime performance — 2026-10-17
 
 Owner: branch `perf/web-performance`. Evidence and limits:
@@ -142,6 +204,27 @@ change is needed. QA impact is flagged in `RT-047`,
 `MS-web-workspace-add-directory-browser`, and `ET-web-catalog-navigation`.
 Focused canonical suites and differential probes provide local slice evidence;
 heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
+
+## Profile inheritance and global profile selection — 2026-10-18
+
+Issue #792. `compozy__session_create` now binds the calling session's profile instead of falling
+back to `default` (spawn, delegate and the in-session CLI already inherited it); no profile input was
+added, so agent-native calls keep deriving their immutable session profile. Profile selection is one
+global choice. User state (SD-013 regime 1): append-only migration 00140 seeds an empty Global slot
+from the most recently remembered workspace slot and keeps every workspace row. Public surfaces
+(regime 2, removal in v0.5.0): the CLI still resolves a workspace's legacy slot inside that workspace
+with a stderr deprecation warning, and `PUT /api/profiles/selection` with `scope: "workspace"` returns
+a `Warning` header; route and DTO shapes are unchanged. Writing the Global choice (`profile use`,
+`profile create`, the Web switcher) clears the legacy slots, so an explicit new choice converges every
+surface. Web (regime 3) drops the per-workspace lens: the switcher keeps its selection across
+workspace and breadth changes, All profiles is kept by the browser across reloads, and creation under
+All profiles lands in the remembered profile. Settings' "Where each profile is active" map is removed;
+it only rendered `GET /api/profiles/selection`, which is unchanged. Hooks, extension SDKs and config
+keys are unchanged. Scoped reads still return not found across profiles. Official skill
+(`profiles.md`, `configuration.md`; `native-tools.md` is untouched to stay inside the startup budget), site profile pages, the release note, QA
+scenarios `ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the
+contract. The skills-disabled startup-manual budget overflow is fixed by #793, which this PR depends
+on.
 
 ## Profile-bound session actions — 2026-10-17
 
@@ -216,6 +299,57 @@ retain their contracts. Web benefits from cheaper polling and startup; no UI cha
 needed. No schema or generated contract changes. The affected QA scenarios link the
 report. Heavy local gates are explicitly deferred to CI by the user; CI also runs the
 native Windows filesystem and detached rotation regressions.
+
+## App SDK — 2026-10-12
+
+Owner: `.compozy/tasks/app-sdk/_spec.md`; implementation recorded 2026-10-17. This is the canonical
+cross-surface audit for the spec and its delivery PR.
+
+- **Public clients and contracts:** additive `@compozy/client`, Node-only `@compozy/client/node`, and
+  `sdk/go/client` clients; resource methods, named request/response types, prompt streaming, typed SSE,
+  daemon discovery, and version diagnostics. `GET /api/openapi.json` serves the release contract with
+  ETag/gzip over local HTTP and UDS. OpenAPI componentization preserves wire JSON; prompt metadata now
+  describes the existing UI message stream. One codegen path owns the document, TS/Go clients, and
+  `openapi/sdk-samples.json`. Raw WebSocket upgrade clients remain outside the SDK scope.
+- **App authorization and data isolation:** additive global app-token state stores secret hashes,
+  metadata, origin sets, and revocation/last-use timestamps separately from paired devices and
+  profiles. The schema migration preserves existing state. The local listener requires matching
+  origin-scoped bearer authentication only for foreign browser requests and an explicit operation
+  allowlist; management and privileged routes remain denied. Preflight does not authenticate the
+  actual call. Opaque `null` origins are denied. Gateway rejects app tokens without last-use mutation.
+  Existing local tokenless callers and the same-origin Web app retain their access. A token does not
+  expand a session's workspace or tool permissions. Revocation closes token streams; disconnecting a
+  client alone does not cancel an admitted turn.
+- **Native tools:** no new `compozy__*` IDs or catalog shapes. Agents manage app tokens through
+  structured `compozy app-token create|list|update|revoke -o json` or local HTTP/UDS. Existing prompt
+  cancellation tools remain the explicit runtime cancellation path.
+- **Extensibility, hooks, and configuration:** extension SDK packages remain separate from external
+  app clients and keep their existing API. No token mutation hook, config key, or settings editor is
+  added. SDK connection options and `COMPOZY_URL`, `COMPOZY_APP_TOKEN`, `COMPOZY_HOME`, and
+  `COMPOZY_BIN` govern app connection/lifecycle; private Node homes isolate spawned daemons.
+- **Web and Docs:** the Web app consumes `paths` from `@compozy/client`; its duplicate generated type
+  file is removed as an internal hard cut. API reference samples consume the generated manifest with
+  no method-name inference; browser documentation renders allowed operations from `app_access`.
+  `packages/site/content/docs/apps/` covers Node, chat proxy, browser, Go, and token management with
+  observable outcomes. The official skill routes to `references/app-sdk.md`; the glossary defines
+  App token. SDK READMEs and pkg.go.dev link to the same tutorials and generated reference.
+- **Compatibility and release:** SDK facade/resource layout, Node subpath, Go client, app-token
+  CLI/HTTP, and browser-access error codes are experimental for the shipping minor release per
+  ADR-004; all affected docs/help carry the explicit label. Runtime OpenAPI and generated operation
+  types retain route stability. No legacy public surface is removed or shimmed. Release publication
+  co-ships the npm client with the daemon and existing SDK; notes live in
+  `.release-notes/app-sdk-and-browser-tokens-1792286400.md`.
+- **Verification ownership:** SDK tests own transport/discovery/stream contracts; contract/gateway
+  suites own authorization; codegen check owns full operation/sample agreement. The existing site
+  `docs-api-reference.test.ts` owns SDK sample projection and browser allowlist rendering. Living QA
+  journeys `J-build-external-app` and `J-authorize-browser-app` cover the end-to-end app and operator
+  flows. Scenario status remains `untested` until a recorded real walk; authored plans and focused
+  tests are not runtime evidence. Heavy gates and broad runtime/browser suites run in CI for this
+  delivery, as requested.
+
+
+The pending app-token schema migration is generated as 00141 after the profile-selection seed
+00140. The existing device-row preservation suite verifies the upgrade without changing historical SQL.
 
 ## SQLite performance and contention audit — 2026-10-09
 
@@ -3425,4 +3559,3 @@ Owner: branch `fix/settings-idle-release-control`, stacked on #787; issue #782.
   Web reply links are keyed by peer session plus message id.
 - **QA / validation:** RT-session-message-origin (steps 9–16), RT-session-message-reply (12–13) and
   ET-web-session-message-card.md updated; deterministic regressions run on real SQLite in the owning suites. Heavy gates are CI-owned.
-

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -24,6 +25,117 @@ import (
 
 func TestExtensionToolProviderAvailability(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve individual availability and refresh each batch", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name           string
+			mutate         func(*fakeExtensionToolRuntime)
+			missingRuntime bool
+		}{
+			{name: "Should preserve healthy descriptors"},
+			{
+				name: "Should preserve missing descriptor reasons",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.descriptors = nil
+				},
+			},
+			{
+				name: "Should preserve duplicate descriptor reasons",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.descriptors = append(runtime.descriptors, runtime.descriptors[0])
+				},
+			},
+			{
+				name: "Should preserve unhealthy runtime reasons",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.extension.Status.Healthy = false
+				},
+			},
+			{
+				name: "Should preserve inactive runtime reasons",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.extension.Status.Active = false
+				},
+			},
+			{
+				name: "Should preserve disabled runtime reasons",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.extension.Info.Enabled = false
+				},
+			},
+			{
+				name: "Should preserve missing capability reasons",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.extension.InitializeResult.AcceptedCapabilities.Provides = nil
+				},
+			},
+			{
+				name: "Should preserve runtime descriptor failures",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.provideErr = errors.New("runtime unavailable")
+				},
+			},
+			{
+				name: "Should preserve missing runtime state reasons",
+				mutate: func(runtime *fakeExtensionToolRuntime) {
+					runtime.extension = nil
+				},
+			},
+			{name: "Should preserve absent runtime reasons", missingRuntime: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-batch", true)
+				runtime := newFakeExtensionToolRuntime(t, env.registry, fixture.manifest.Name,
+					[]toolspkg.ExtensionToolRuntimeDescriptor{descriptor.RuntimeDescriptor})
+				var current ExtensionToolRuntime = runtime
+				provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return current })
+				if err != nil {
+					t.Fatalf("NewExtensionToolProvider() error = %v", err)
+				}
+				scope := toolspkg.Scope{Operator: true}
+				ids := []toolspkg.ToolID{descriptor.Tool.ID, "ext__unknown__search"}
+				first := provider.ProjectionAvailability(t.Context(), scope, ids)
+				if !first[descriptor.Tool.ID].Executable {
+					t.Fatalf("initial availability = %#v, want executable", first)
+				}
+				if tc.mutate != nil {
+					tc.mutate(runtime)
+				}
+				if tc.missingRuntime {
+					current = nil
+				}
+				handle, found, err := provider.Resolve(t.Context(), scope, descriptor.Tool.ID)
+				if err != nil || !found {
+					t.Fatalf("Resolve() = %t, %v, want handle", found, err)
+				}
+				want := handle.Availability(t.Context(), scope)
+				if !want.Executable {
+					_, callErr := handle.Call(t.Context(), toolspkg.CallRequest{
+						ToolID: descriptor.Tool.ID, Input: json.RawMessage(`{"query":"alpha"}`),
+					})
+					if !errors.Is(callErr, toolspkg.ErrToolUnavailable) || len(runtime.calls) != 0 {
+						t.Fatalf(
+							"Call() after successful projection = %v, calls %#v, want unavailable without dispatch",
+							callErr,
+							runtime.calls,
+						)
+					}
+				}
+				var batch toolspkg.ProjectionAvailabilityProvider = provider
+				got := batch.ProjectionAvailability(t.Context(), scope, ids)
+				if !reflect.DeepEqual(got[descriptor.Tool.ID], want) {
+					t.Fatalf("batch availability = %#v, want %#v", got[descriptor.Tool.ID], want)
+				}
+				if _, found := got[ids[1]]; found {
+					t.Fatalf("batch availability unexpectedly resolves unknown tool: %#v", got)
+				}
+			})
+		}
+	})
 
 	env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-tool", true)
 
@@ -89,8 +201,67 @@ func TestExtensionToolProviderAvailability(t *testing.T) {
 			if !slices.Contains(view.Availability.ReasonCodes, tc.want) {
 				t.Fatalf("Availability reasons = %#v, want %q", view.Availability.ReasonCodes, tc.want)
 			}
+			provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return runtime })
+			if err != nil {
+				t.Fatalf("NewExtensionToolProvider() error = %v", err)
+			}
+			batch := provider.ProjectionAvailability(t.Context(), toolspkg.Scope{Operator: true},
+				[]toolspkg.ToolID{descriptor.Tool.ID})
+			if !reflect.DeepEqual(batch[descriptor.Tool.ID], view.Availability) {
+				t.Fatalf("batch availability = %#v, want %#v", batch[descriptor.Tool.ID], view.Availability)
+			}
 		})
 	}
+
+	t.Run("Should snapshot each requested extension instance once", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		runtime := &fakeScopedExtensionToolRuntime{
+			fakeExtensionToolRuntime: &fakeExtensionToolRuntime{},
+			extensionsByInstance:     make(map[InstanceKey]*Extension),
+			descriptorsByInstance:    make(map[InstanceKey][]toolspkg.ExtensionToolRuntimeDescriptor),
+		}
+		var ids []toolspkg.ToolID
+		var keys []InstanceKey
+		for _, name := range []string{"ext-batch-alpha", "ext-batch-beta"} {
+			fixture := createExtensionToolTestExtension(t, name, "fake-extension", nil, nil, true)
+			addExtensionToolFixtureTools(t, &fixture, 2)
+			installManagerFixture(t, env.registry, fixture, SourceUser, true)
+			descriptors, err := ResolveManifestToolDescriptors(fixture.manifest)
+			if err != nil {
+				t.Fatalf("ResolveManifestToolDescriptors() error = %v", err)
+			}
+			key := GlobalInstanceKey(name)
+			keys = append(keys, key)
+			for i := range descriptors {
+				descriptor := &descriptors[i]
+				ids = append(ids, descriptor.Tool.ID)
+				runtime.descriptorsByInstance[key] = append(
+					runtime.descriptorsByInstance[key],
+					descriptor.RuntimeDescriptor,
+				)
+			}
+			base := newFakeExtensionToolRuntime(t, env.registry, name, runtime.descriptorsByInstance[key])
+			runtime.extensionsByInstance[key] = base.extension
+		}
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return runtime })
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		got := provider.ProjectionAvailability(t.Context(), toolspkg.Scope{}, ids)
+		if len(got) != len(ids) {
+			t.Fatalf("batch availability count = %d, want %d", len(got), len(ids))
+		}
+		for _, id := range ids {
+			if !got[id].Executable {
+				t.Fatalf("batch availability[%q] = %#v, want executable", id, got[id])
+			}
+		}
+		if !slices.Equal(runtime.providedKeys, keys) {
+			t.Fatalf("runtime request instances = %#v, want %#v", runtime.providedKeys, keys)
+		}
+	})
 }
 
 func TestExtensionToolProviderProjectionGeneration(t *testing.T) {
@@ -1207,6 +1378,20 @@ func TestExtensionToolProviderDispatch(t *testing.T) {
 		if len(runtime.calledKeys) != 1 || runtime.calledKeys[0] != wantKey {
 			t.Fatalf("CallToolForInstance() keys = %#v, want [%#v]", runtime.calledKeys, wantKey)
 		}
+		runtime.providedKeys = nil
+		for _, profileID := range []string{scope.ProfileID, "profile-engineering"} {
+			batchScope := scope
+			batchScope.ProfileID = profileID
+			availability := provider.ProjectionAvailability(t.Context(), batchScope,
+				[]toolspkg.ToolID{descriptor.Tool.ID})
+			if !availability[descriptor.Tool.ID].Executable {
+				t.Fatalf("ProjectionAvailability(%q) = %#v, want executable", profileID, availability)
+			}
+		}
+		wantKeys := []InstanceKey{wantKey, ProfileInstanceKey(fixture.manifest.Name, "profile-engineering", "")}
+		if !slices.Equal(runtime.providedKeys, wantKeys) {
+			t.Fatalf("batch runtime instances = %#v, want %#v", runtime.providedKeys, wantKeys)
+		}
 	})
 
 	t.Run("Should forward daemon authenticated workspace context outside tool input", func(t *testing.T) {
@@ -1281,6 +1466,57 @@ func (fn profileNameResolverFunc) ProfileName(ctx context.Context, profileID str
 }
 
 func TestExtensionToolProviderSubprocessIntegration(t *testing.T) {
+	t.Run("Should reconcile a tool batch with one live subprocess request", func(t *testing.T) {
+		env, fixture, _, manager := startExtensionToolSubprocess(t, "ext-batch-rpc", "tool_provider", true)
+		const toolCount = 32
+		addExtensionToolFixtureTools(t, &fixture, toolCount)
+		runtime := &countedExtensionToolRuntime{Manager: manager}
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return runtime })
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		scope := toolspkg.Scope{SessionID: "batch-session"}
+		descriptors, err := provider.List(t.Context(), scope)
+		if err != nil || len(descriptors) != toolCount {
+			t.Fatalf("List() = %d descriptors, %v, want %d", len(descriptors), err, toolCount)
+		}
+		ids := make([]toolspkg.ToolID, 0, len(descriptors))
+		individual := make(map[toolspkg.ToolID]toolspkg.Availability, len(descriptors))
+		for _, descriptor := range descriptors {
+			ids = append(ids, descriptor.ID)
+			handle, found, resolveErr := provider.Resolve(t.Context(), scope, descriptor.ID)
+			if resolveErr != nil || !found {
+				t.Fatalf("Resolve(%q) = %t, %v, want handle", descriptor.ID, found, resolveErr)
+			}
+			individual[descriptor.ID] = handle.Availability(t.Context(), scope)
+		}
+		if runtime.provideCalls != toolCount || runtime.getCalls != toolCount {
+			t.Fatalf("individual runtime calls = %d provide, %d state, want %d each",
+				runtime.provideCalls, runtime.getCalls, toolCount)
+		}
+		runtime.provideCalls, runtime.getCalls = 0, 0
+		var batch toolspkg.ProjectionAvailabilityProvider = provider
+		if got := batch.ProjectionAvailability(t.Context(), scope, ids); !reflect.DeepEqual(got, individual) {
+			t.Fatalf("batch availability = %#v, want individual availability %#v", got, individual)
+		}
+		if runtime.provideCalls != 1 || runtime.getCalls != 1 {
+			t.Fatalf("batch runtime calls = %d provide, %d state, want 1 each", runtime.provideCalls, runtime.getCalls)
+		}
+		registry := newExtensionToolRegistry(t, env.registry, runtime, extensionToolPolicyAllowAll())
+		runtime.provideCalls, runtime.getCalls = 0, 0
+		views, err := registry.SessionProjection(t.Context(), scope)
+		if err != nil || len(views) != 1 || !views[0].Availability.Executable {
+			t.Fatalf("SessionProjection() = %#v, %v, want one executable tool", views, err)
+		}
+		if runtime.provideCalls != 1 || runtime.getCalls != 1 {
+			t.Fatalf("projection runtime calls = %d provide, %d state, want 1 each",
+				runtime.provideCalls, runtime.getCalls)
+		}
+		t.Log("fixture: 32 manifest tools, 1 valid runtime descriptor and 31 missing runtime descriptors")
+		t.Logf("live subprocess projection: %d -> %d provide_tools RPCs and %d -> %d state snapshots",
+			toolCount, runtime.provideCalls, toolCount, runtime.getCalls)
+	})
+
 	t.Run("Should dispatch a read-only tool through a real subprocess", func(t *testing.T) {
 		env, fixture, descriptor, manager := startExtensionToolSubprocess(t, "ext-tool", "tool_provider", true)
 		registry := newExtensionToolRegistry(t, env.registry, manager, extensionToolPolicyAllowAll())
@@ -1406,6 +1642,28 @@ type fakeExtensionToolRuntime struct {
 	calls       []toolspkg.ExtensionToolCallRequest
 	callResult  toolspkg.ToolResult
 	callErr     error
+	provideErr  error
+}
+
+type countedExtensionToolRuntime struct {
+	*Manager
+	provideCalls int
+	getCalls     int
+}
+
+var _ extensionScopedToolRuntime = (*countedExtensionToolRuntime)(nil)
+
+func (r *countedExtensionToolRuntime) GetForInstance(key InstanceKey) (*Extension, error) {
+	r.getCalls++
+	return r.Manager.GetForInstance(key)
+}
+
+func (r *countedExtensionToolRuntime) ProvideToolsForInstance(
+	ctx context.Context,
+	key InstanceKey,
+) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
+	r.provideCalls++
+	return r.Manager.ProvideToolsForInstance(ctx, key)
 }
 
 type fakeScopedExtensionToolRuntime struct {
@@ -1527,7 +1785,27 @@ func (f *fakeExtensionToolRuntime) ProvideTools(
 	context.Context,
 	string,
 ) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
-	return cloneRuntimeToolDescriptors(f.descriptors), nil
+	return cloneRuntimeToolDescriptors(f.descriptors), f.provideErr
+}
+
+func addExtensionToolFixtureTools(t *testing.T, fixture *managerFixture, count int) {
+	t.Helper()
+
+	for i := 1; i < count; i++ {
+		name := fmt.Sprintf("search_%02d", i)
+		tool := fixture.manifest.Resources.Tools["search"]
+		tool.Backend.Handler = name
+		fixture.manifest.Resources.Tools[name] = tool
+	}
+	encoded, err := json.Marshal(fixture.manifest)
+	if err != nil {
+		t.Fatalf("json.Marshal(manifest) error = %v", err)
+	}
+	writeFile(t, filepath.Join(fixture.dir, manifestJSONFileName), string(encoded))
+	fixture.checksum, err = ComputeDirectoryChecksum(fixture.dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+	}
 }
 
 func (f *fakeExtensionToolRuntime) CallTool(

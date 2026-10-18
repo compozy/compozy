@@ -2,7 +2,8 @@
 // Invariant: durable starting sessions converge quickly while terminal sessions stop polling.
 // Boundary IN: TanStack session detail query options.
 // Boundary OUT: HTTP transport and lifecycle persistence, owned by their adapter/runtime suites.
-import { describe, expect, it } from "vitest";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { describe, expect, it, vi } from "vitest";
 
 import { SessionApiError } from "../../adapters/session-api-errors";
 import type { SessionInteractionRecord, SessionPayload } from "../../types";
@@ -16,7 +17,12 @@ import {
   sessionUsageOptions,
   sessionUsageTurnsOptions,
 } from "../query-options";
-import { retainSessionStreamLiveness } from "../session-stream-liveness";
+import { sessionKeys } from "../query-keys";
+import {
+  rescheduleSessionStreamBackedReads,
+  retainSessionStreamLiveness,
+  sessionStreamBackedRefetchInterval,
+} from "../session-stream-liveness";
 
 function pollingIntervalFor(state: SessionPayload["state"] | undefined): number | false {
   const refetchInterval = sessionDetailOptions("ws_alpha", "sess_1").refetchInterval;
@@ -216,6 +222,65 @@ describe("sessionInputsOptions", () => {
 // Owner: session query policy. A live session stream invalidates these reads as they change,
 // so every stream-backed read drops to the safety cadence while that session's stream is live.
 describe("stream-backed session reads", () => {
+  // Invariant: losing the live edge re-arms every mounted read and profile lens
+  // for that session immediately, without fetching or touching another session.
+  // Owning layer: session query policy; canonical suite: stream-backed reads.
+  it("Should rearm scoped observers with custom hashes when the stream stops", async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: {
+          gcTime: Infinity,
+          staleTime: Infinity,
+          queryKeyHashFn: key => `custom:${JSON.stringify(key)}`,
+        },
+      },
+    });
+    const sessionId = "sess_rearm";
+    const release = retainSessionStreamLiveness(sessionId);
+    const requests = vi.fn(async () => ({ state: "active" }));
+    const targetKeys = [
+      sessionKeys.detail("ws_alpha", sessionId),
+      sessionKeys.inputQueue("ws_alpha", sessionId),
+      sessionKeys.usage("ws_alpha", sessionId),
+      sessionKeys.usageTurns("ws_alpha", sessionId),
+      sessionKeys.byId(sessionId, "profile-a"),
+      sessionKeys.byId(sessionId, "profile-b"),
+    ];
+    const unsubscribes = targetKeys.map(queryKey => {
+      const observer = new QueryObserver(client, {
+        queryKey,
+        queryFn: requests,
+        initialData: { state: "active" },
+        refetchInterval: () => sessionStreamBackedRefetchInterval(sessionId, "active"),
+      });
+      return observer.subscribe(() => undefined);
+    });
+    const unrelated = vi.fn(async () => ({ state: "active" }));
+    const otherObserver = new QueryObserver(client, {
+      queryKey: sessionKeys.detail("ws_alpha", "other-session"),
+      queryFn: unrelated,
+      initialData: { state: "active" },
+      refetchInterval: 30_000,
+    });
+    unsubscribes.push(otherObserver.subscribe(() => undefined));
+    try {
+      release();
+      rescheduleSessionStreamBackedReads(client, "ws_alpha", sessionId);
+      expect(requests).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(requests).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(requests).toHaveBeenCalledTimes(6);
+      expect(unrelated).not.toHaveBeenCalled();
+    } finally {
+      release();
+      for (const unsubscribe of unsubscribes) unsubscribe();
+      client.clear();
+      vi.useRealTimers();
+    }
+  });
+
   function cadences(sessionId: string, state: SessionPayload["state"]) {
     const call = (interval: unknown, query: unknown) => {
       if (interval === false) return false;

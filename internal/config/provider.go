@@ -14,6 +14,7 @@ const (
 const (
 	providerNodeOptionsValue           = "NODE_OPTIONS"
 	providerAnthropicClaudeOpus47Path  = "anthropic/claude-opus-4-7"
+	providerAgyKey                     = "agy"
 	providerClaudeCodeAlias            = "claude-code"
 	providerGeminiKey                  = "gemini"
 	modelClaudeOpus47ID                = "claude-opus-4-7"
@@ -141,6 +142,7 @@ type ProviderConfig struct {
 	NoneSecurity    ProviderNoneSecurity     `toml:"none_security,omitempty"`
 	AuthStatusCmd   string                   `toml:"auth_status_command,omitempty"`
 	AuthLoginCmd    string                   `toml:"auth_login_command,omitempty"`
+	AuthACPMethod   string                   `toml:"auth_acp_method,omitempty"`
 	SessionMCP      *bool                    `toml:"session_mcp,omitempty"`
 	CredentialSlots []ProviderCredentialSlot `toml:"credential_slots,omitempty"`
 	MCPServers      []MCPServer              `toml:"mcp_servers,omitempty"`
@@ -200,6 +202,7 @@ type ResolvedAgent struct {
 	NoneSecurity    ProviderNoneSecurity
 	AuthStatusCmd   string
 	AuthLoginCmd    string
+	AuthACPMethod   string
 	SessionMCP      bool
 	CredentialSlots []ProviderCredentialSlot
 	MCPServers      []MCPServer

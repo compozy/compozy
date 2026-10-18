@@ -10,7 +10,6 @@ import {
   type ProfileRow,
 } from "../lib/profile-rows";
 import { openProfileDialog } from "../stores/profile-dialog-store";
-import type { ProfileLens } from "../types";
 import { useActiveProfileView, useSwitchProfile } from "./use-profile-selection";
 import { useProfiles } from "./use-profiles";
 import { useGatewayAccessTier } from "@/systems/gateway";
@@ -42,7 +41,6 @@ export interface ProfilesPaletteViewContent {
 
 export interface UseProfilesPaletteViewInput {
   query: string;
-  lens: ProfileLens;
   onDismiss(): void;
 }
 
@@ -65,12 +63,11 @@ function rowNode(row: ProfileRow, meta?: string) {
  */
 export function useProfilesPaletteView({
   query,
-  lens,
   onDismiss,
 }: UseProfilesPaletteViewInput): ProfilesPaletteViewContent {
   const profiles = useProfiles();
-  const view = useActiveProfileView(lens);
-  const switchProfile = useSwitchProfile(lens);
+  const view = useActiveProfileView();
+  const switchProfile = useSwitchProfile();
   const tier = useGatewayAccessTier();
 
   const all = profiles.data ?? [];

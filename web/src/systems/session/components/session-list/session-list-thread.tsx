@@ -39,9 +39,10 @@ export interface SessionListThreadProps {
 }
 
 /**
- * One provenance thread: the root session row plus its child sessions nested
- * behind a hairline connector. Collapsing keeps the most urgent child state
- * visible on the toggle so an escalation never hides behind the fold.
+ * One provenance thread: the root session row plus its child sessions, each
+ * hanging off the root's rail by a tree elbow — the connector nested tool calls
+ * use. Collapsing keeps the most urgent child state visible on the toggle so an
+ * escalation never hides behind the fold.
  */
 export function SessionListThread({
   session,
@@ -89,18 +90,24 @@ export function SessionListThread({
   );
   if (childSessions.length === 0) return rootRow;
 
-  const childRow = (child: SessionPayload) => (
-    <SessionListRow
-      key={child.id}
-      session={child}
-      owner={ownerOf?.(child)}
-      current={child.id === currentSessionId}
-      onSelect={() => onSelectSession(child)}
-      selection={selection}
-      sessionActions={sessionActions}
-      testIdPrefix={testIdPrefix}
-    />
-  );
+  const childRow = (child: SessionPayload) => {
+    const childOwner = ownerOf?.(child);
+    return (
+      <div key={child.id} className={CHILD_NODE}>
+        <SessionListRow
+          session={child}
+          parent={session}
+          // A child in its root's profile repeats nothing; only a different owner is tagged.
+          owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}
+          current={child.id === currentSessionId}
+          onSelect={() => onSelectSession(child)}
+          selection={selection}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+        />
+      </div>
+    );
+  };
   const revealed = childSessions.filter(isSubagentSession);
 
   return (
@@ -123,9 +130,16 @@ export function SessionListThread({
   );
 }
 
-/** Child rows indent behind the thread's hairline connector. */
-const CHILD_RAIL =
-  "relative pl-5 before:absolute before:top-0.5 before:bottom-1 before:left-2.75 before:w-px before:bg-line-strong";
+/** Child rows indent past the root's status mark, whose center the rail continues. */
+const CHILD_RAIL = "relative pl-5";
+
+/**
+ * Each child's tree elbow ( |_ ): from the rail under the root's mark into the
+ * child's own mark on its title line. The rail continues past a child only while
+ * a sibling follows, so the last child closes the branch.
+ */
+const CHILD_NODE =
+  "relative before:pointer-events-none before:absolute before:-top-0.5 before:-left-1.75 before:h-4.5 before:w-3 before:rounded-bl-md before:border-b before:border-l before:border-line-strong after:pointer-events-none after:absolute after:top-3.5 after:-bottom-0.5 after:-left-1.75 after:w-px after:bg-line-strong last:after:hidden";
 
 function ThreadToggle({
   sessionId,
@@ -145,7 +159,7 @@ function ThreadToggle({
   return (
     <button
       type="button"
-      className="flex items-center gap-1 rounded-full px-1.5 py-0.5 font-mono text-micro text-faint tabular-nums transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+      className="inline-flex h-5 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-muted tabular-nums transition-colors duration-fast hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
       aria-expanded={!collapsed}
       aria-label={`Toggle ${childCount} child ${childCount === 1 ? "session" : "sessions"}`}
       data-testid={`${testIdPrefix}-thread-toggle-${sessionId}`}

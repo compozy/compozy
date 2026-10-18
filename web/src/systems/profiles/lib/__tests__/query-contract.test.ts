@@ -1,5 +1,5 @@
 // Suite: profile query identity contract
-// Invariant: lens, target, and operation identities are canonical, and request names match their keys.
+// Invariant: selection, target, and operation identities are canonical, and request names match their keys.
 // Owning layer: web/src/systems/profiles/lib/query-keys.ts and query-options.ts.
 // Boundary OUT: adapter decoding and React query lifecycle.
 import { describe, expect, it, vi } from "vitest";
@@ -26,13 +26,9 @@ vi.mock("../../adapters/profiles-api", () => ({
 }));
 
 describe("profile query identities", () => {
-  it("Should keep global and workspace selections in distinct cache slots", () => {
-    expect(profileKeys.selection({ scope: "global" })).toEqual(["profiles", "selection", "global"]);
-    expect(profileKeys.selection({ scope: "workspace", workspaceId: "workspace:alpha" })).toEqual([
-      "profiles",
-      "selection",
-      "workspace:workspace:alpha",
-    ]);
+  it("Should key the single Global selection under the selection family", () => {
+    expect(profileKeys.selection()).toEqual(["profiles", "selection", "global"]);
+    expect(profileKeys.selection().slice(0, 2)).toEqual(profileKeys.selections());
     expect(profileKeys.operations()).toEqual(["profiles", "operations"]);
   });
 

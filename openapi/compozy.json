@@ -17999,7 +17999,8 @@
           },
           "source": {
             "enum": [
-              "auth_login_command"
+              "auth_login_command",
+              "auth_acp_method"
             ],
             "type": "string"
           }
@@ -27250,6 +27251,9 @@
       },
       "SettingsProviderSettingsPayload": {
         "properties": {
+          "auth_acp_method": {
+            "type": "string"
+          },
           "auth_mode": {
             "type": "string"
           },
@@ -27312,6 +27316,10 @@
       },
       "SettingsProviderWritePayload": {
         "properties": {
+          "auth_acp_method": {
+            "nullable": true,
+            "type": "string"
+          },
           "auth_login_command": {
             "nullable": true,
             "type": "string"

@@ -259,7 +259,6 @@ function PaletteLifecycleHandoffStory(args: React.ComponentProps<typeof OsComman
             <OsCommandPalette {...args} open={open} onOpenChange={setOpen} dispatch={dispatch} />
             <ProfileLifecycleDialogs
               profiles={profileFixtures}
-              lens={{ scope: "workspace", workspaceId: storyDefaultWorkspaceId }}
               onSetAutomationEnabled={async () => undefined}
             />
           </DesktopShell>
@@ -393,7 +392,7 @@ export const AllProfilesGlobal: Story = {
   loaders: [
     async () => {
       enableGlobalScope();
-      setProfileView({ scope: "global" }, { kind: "aggregate" });
+      setProfileView({ kind: "aggregate" });
       windowManagerStore.trigger.paletteViewStackSet({ stack: [{ viewId: "sessions" }] });
       return {};
     },

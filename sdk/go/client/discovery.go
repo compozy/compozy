@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -37,7 +38,7 @@ func discover(ctx context.Context, o options) (*Client, error) {
 	if socketErr == nil {
 		return c, nil
 	}
-	baseURL, recordErr := recordURL(record)
+	baseURL, recordErr := recordURL(home)
 	if recordErr == nil {
 		c, recordErr = connect(ctx, o, baseURL, "")
 		if recordErr == nil {
@@ -48,8 +49,13 @@ func discover(ctx context.Context, o options) (*Client, error) {
 		ErrUnavailable, socket, record, errors.Join(socketErr, recordErr))
 }
 
-func recordURL(path string) (string, error) {
-	data, err := os.ReadFile(path)
+func recordURL(home string) (baseURL string, err error) {
+	file, err := os.OpenInRoot(home, "daemon.json")
+	if err != nil {
+		return "", fmt.Errorf("open daemon record: %w", err)
+	}
+	defer func() { err = errors.Join(err, file.Close()) }()
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return "", fmt.Errorf("read daemon record: %w", err)
 	}

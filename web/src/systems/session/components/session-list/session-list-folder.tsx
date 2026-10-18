@@ -11,7 +11,7 @@ import {
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
-import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keyboard";
+import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import type { SessionFolderPayload } from "../../types";

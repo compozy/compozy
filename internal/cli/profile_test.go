@@ -372,8 +372,7 @@ func TestProfileCommandOutputContract(t *testing.T) {
 	t.Run("Should report an archived remembered selection as a default fallback", func(t *testing.T) {
 		t.Parallel()
 		deps := profileTestDeps(t, contract.ProfileSelection{
-			Scope: contract.ProfileSelectionScopeWorkspace, WorkspaceID: "ws-1",
-			Profile: "default", Note: "archived_remembered_fallback",
+			Scope: contract.ProfileSelectionScopeGlobal, Profile: "default", Note: "archived_remembered_fallback",
 		})
 
 		output, _, err := executeRootCommand(t, deps, "profile", "current", "-o", "json")
@@ -389,6 +388,73 @@ func TestProfileCommandOutputContract(t *testing.T) {
 		}
 		if current != want {
 			t.Fatalf("profile current = %#v, want %#v", current, want)
+		}
+	})
+
+	t.Run("Should honor a legacy workspace selection with a deprecation warning", func(t *testing.T) {
+		t.Parallel()
+		deps := profileTestDeps(t,
+			contract.ProfileSelection{
+				Scope: contract.ProfileSelectionScopeWorkspace, WorkspaceID: "ws-1", Profile: "default",
+			},
+			contract.ProfileSelection{Scope: contract.ProfileSelectionScopeGlobal, Profile: "marketing"},
+		)
+
+		output, stderr, err := executeRootCommand(t, deps, "profile", "current", "-o", "json")
+		if err != nil {
+			t.Fatalf("profile current error = %v", err)
+		}
+		var current profileCurrentRecord
+		if err := json.Unmarshal([]byte(output), &current); err != nil {
+			t.Fatalf("json.Unmarshal(profile current) error = %v", err)
+		}
+		want := profileCurrentRecord{Profile: "default", Source: "remembered", Workspace: "my-saas"}
+		if current != want {
+			t.Fatalf("profile current = %#v, want legacy workspace selection %#v", current, want)
+		}
+		if !strings.Contains(stderr, "deprecated and stop applying in v0.5.0") ||
+			!strings.Contains(stderr, "compozy profile use <name>") {
+			t.Fatalf("profile current stderr = %q, want the legacy selection deprecation warning", stderr)
+		}
+	})
+
+	t.Run("Should resolve and remember the global selection without a legacy workspace slot", func(t *testing.T) {
+		t.Parallel()
+		deps := profileTestDeps(t,
+			contract.ProfileSelection{
+				Scope: contract.ProfileSelectionScopeWorkspace, WorkspaceID: "ws-other", Profile: "default",
+			},
+			contract.ProfileSelection{Scope: contract.ProfileSelectionScopeGlobal, Profile: "marketing"},
+		)
+
+		output, stderr, err := executeRootCommand(t, deps, "profile", "current", "-o", "json")
+		if err != nil {
+			t.Fatalf("profile current error = %v", err)
+		}
+		var current profileCurrentRecord
+		if err := json.Unmarshal([]byte(output), &current); err != nil {
+			t.Fatalf("json.Unmarshal(profile current) error = %v", err)
+		}
+		want := profileCurrentRecord{Profile: "marketing", Source: "remembered", Workspace: "my-saas"}
+		if current != want || strings.Contains(stderr, "deprecated") {
+			t.Fatalf(
+				"profile current = %#v stderr %q, want global selection %#v without warning",
+				current,
+				stderr,
+				want,
+			)
+		}
+
+		output, _, err = executeRootCommand(t, deps, "profile", "use", "default", "-o", "json")
+		if err != nil {
+			t.Fatalf("profile use error = %v", err)
+		}
+		var remembered contract.ProfileSelection
+		if err := json.Unmarshal([]byte(output), &remembered); err != nil {
+			t.Fatalf("json.Unmarshal(profile use) error = %v", err)
+		}
+		if remembered.Scope != contract.ProfileSelectionScopeGlobal || remembered.WorkspaceID != "" {
+			t.Fatalf("profile use selection = %#v, want the global slot", remembered)
 		}
 	})
 

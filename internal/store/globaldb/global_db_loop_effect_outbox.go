@@ -86,6 +86,9 @@ func insertLoopEffectIntentsWithExecutor(
 			return fmt.Errorf("store: insert loop effect delivery %q: %w", deliveryID, err)
 		}
 	}
+	if len(intents) > 0 {
+		markOutboxSignal(exec, outboxSignalLoopEffect)
+	}
 	return nil
 }
 

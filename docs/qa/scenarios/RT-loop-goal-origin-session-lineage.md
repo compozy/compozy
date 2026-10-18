@@ -22,6 +22,18 @@ can use its declared tools, delete the origin without deleting or reaping the Go
 cleanup still stops the Goal. A separate missing-origin run must appear as a root. The Web projection
 is settled independently by ET-web-session-sidebar-threads.
 
+Goal outbox deletion boundary: leave a pending projection for an origin session, remove that
+origin, and confirm the relay no longer attempts to append its projection or emit repeated
+`session not found` warnings. A pending event for another retained origin must still be delivered
+when its bound Goal session is missing or stopped, including when an older orphan precedes it
+and the relay batch size is one. The orphan remains durably undelivered; restoring its origin
+catalog row in the same workspace makes it eligible again. The SQLite owning suite is
+`TestGoalSessionOutboxIntegration/Should_retain_orphan_projections_without_starving_deliverable_sessions`.
+2026-10-17 automated boundary re-walk: the real-SQLite race suite passed deletion, reopen,
+batch-size-one fairness, stopped-origin delivery, deleted-bound-session delivery, durable retention,
+and origin restoration. See [the measured results](../reports/2026-10-17-responsiveness.md).
+This verifies the durable eligibility boundary; the installed daemon was observed without mutation.
+
 2026-08-16 targeted re-walk: the provider-backed origin called `compozy__loop_run`, the system Goal
 carried the exact origin parent/root without spawn governance, and the origin was then removed. A
 public child spawn from the still-live Goal succeeded with a five-minute TTL and rebased its new

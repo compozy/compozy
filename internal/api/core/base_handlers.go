@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
@@ -73,6 +74,7 @@ type BaseHandlerConfig struct {
 	OnProviderAuthSuccess       func()
 	ProviderAuthRunner          authproviders.ProviderAuthCommandRunner
 	ProviderAuthCommandResolver authproviders.ProviderAuthCommandResolver
+	ProviderACPProbe            func(context.Context, acp.SessionInspectionRequest) error
 	AgentContextService         AgentContextService
 	SoulAuthoring               SoulAuthoringService
 	SoulHistoryPurger           SoulHistoryPurger
@@ -91,6 +93,7 @@ type BaseHandlerConfig struct {
 	SkillExposureEvents         store.EventSummaryStore
 	TaskActorContextResolver    TaskActorContextResolver
 	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
+	HostLoad                    doctor.HostLoadSnapshotSource
 	DeadEntities                doctor.DeadEntitySource
 	AppTokens                   AppTokenManager
 	OpenAPI                     *OpenAPIDocument
@@ -155,6 +158,7 @@ type BaseHandlers struct {
 	OnProviderAuthSuccess        func()
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	ProviderAuthCommandResolver  authproviders.ProviderAuthCommandResolver
+	ProviderACPProbe             func(context.Context, acp.SessionInspectionRequest) error
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulHistoryPurger            SoulHistoryPurger
@@ -173,6 +177,7 @@ type BaseHandlers struct {
 	SkillExposureEvents          store.EventSummaryStore
 	TaskActorContextResolver     TaskActorContextResolver
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
+	HostLoad                     doctor.HostLoadSnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
 	AppTokens                    AppTokenManager
 	OpenAPI                      *OpenAPIDocument
@@ -265,6 +270,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		OnProviderAuthSuccess:        cfg.OnProviderAuthSuccess,
 		ProviderAuthRunner:           defaults.providerAuthRunner,
 		ProviderAuthCommandResolver:  defaults.providerAuthCommandResolver,
+		ProviderACPProbe:             defaults.providerACPProbe,
 		AgentContextService:          cfg.AgentContextService,
 		SoulHistoryPurger:            cfg.SoulHistoryPurger,
 		HeartbeatHistoryPurger:       cfg.HeartbeatHistoryPurger,
@@ -276,6 +282,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		SkillExposureEvents:          cfg.SkillExposureEvents,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		RuntimeMemory:                cfg.RuntimeMemory,
+		HostLoad:                     cfg.HostLoad,
 		DeadEntities:                 cfg.DeadEntities,
 		AppTokens:                    cfg.AppTokens,
 		OpenAPI:                      cfg.OpenAPI,
@@ -299,6 +306,7 @@ type baseHandlerDefaults struct {
 	pid                         func() int
 	providerAuthRunner          authproviders.ProviderAuthCommandRunner
 	providerAuthCommandResolver authproviders.ProviderAuthCommandResolver
+	providerACPProbe            func(context.Context, acp.SessionInspectionRequest) error
 }
 
 func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
@@ -334,6 +342,10 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	if providerAuthCommandResolver == nil {
 		providerAuthCommandResolver = authproviders.DefaultProviderAuthCommandResolver
 	}
+	providerACPProbe := cfg.ProviderACPProbe
+	if providerACPProbe == nil {
+		providerACPProbe = acp.ProbeAuthentication
+	}
 	if cfg.StreamDone == nil {
 		cfg.StreamDone = make(chan struct{})
 	}
@@ -344,6 +356,7 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 		pid:                         pid,
 		providerAuthRunner:          providerAuthRunner,
 		providerAuthCommandResolver: providerAuthCommandResolver,
+		providerACPProbe:            providerACPProbe,
 	}
 }
 

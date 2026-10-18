@@ -241,6 +241,11 @@ jobs:
           scripts/publish-sdk-package.sh --dry-run sdk/typescript 0.0.0-beta.0 beta
           scripts/publish-sdk-package.sh --dry-run sdk/client 0.0.0-beta.0 beta
 
+      - name: Verify bounded transcript retention
+        run: >-
+          bun scripts/bench-session-retention.mjs
+          web/src/systems/session/lib/session-thread-repository.ts 4000 1 16777216
+
       - name: Upload frontend artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7

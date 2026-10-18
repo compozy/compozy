@@ -31,7 +31,13 @@ func warnVersionMismatch(logger *slog.Logger, clientVersion, daemonVersion strin
 	clientMajorMinor, clientOK := majorMinor(clientVersion)
 	daemonMajorMinor, daemonOK := majorMinor(daemonVersion)
 	if clientOK && daemonOK && clientMajorMinor != daemonMajorMinor {
-		logger.Warn("CompozyOS client and daemon versions differ", "client_version", clientVersion, "daemon_version", daemonVersion)
+		logger.Warn(
+			"CompozyOS client and daemon versions differ",
+			"client_version",
+			clientVersion,
+			"daemon_version",
+			daemonVersion,
+		)
 	}
 }
 

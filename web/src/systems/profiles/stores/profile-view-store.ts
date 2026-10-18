@@ -1,94 +1,79 @@
 import { createStore } from "@xstate/store";
+import { isHydrated, persist, rehydrateStore } from "@xstate/store/persist";
 
-import { profileLensKey } from "../lib/query-keys";
-import type { ProfileLens, ProfileView } from "../types";
+import type { ProfileView } from "../types";
+
+const PROFILE_VIEW_PERSIST_KEY = "compozy:profile-view";
+
+interface ProfileViewContext {
+  view: ProfileView | null;
+}
 
 /**
- * The active view, per lens — what this client is looking through right now.
+ * The one active view this client is looking through, shared by every
+ * workspace and by the Global breadth (issue #792). Switching projects never
+ * moves it; only an explicit operator gesture does.
  *
- * Deliberately ephemeral and deliberately NOT persisted (ADR-014). The
- * remembered choice is daemon state read through the selection routes; this
- * store only records that *this* client has since looked somewhere else, so
- * entering a lens for the first time falls through to the server's answer.
- *
- * Nothing outside an explicit operator gesture writes here. In particular the
- * profile event stream cannot: an external switch refreshes the remembered
- * choice without moving an open client (US-010.EC-4).
+ * A concrete profile stays daemon state: the Global remembered choice is what a
+ * reload resolves, and this store only records that the client has since looked
+ * elsewhere, so an external switch refreshes the remembered choice without
+ * moving an open client. All profiles is the one view the daemon cannot store,
+ * so it is the only answer persisted here — it survives a reload, and the
+ * remembered choice underneath it stays the creation destination.
  */
 export const profileViewStore = createStore({
-  context: {
-    viewByLens: {} as Record<string, ProfileView>,
-  },
+  context: { view: null } as ProfileViewContext,
   on: {
-    viewEntered: (context, event: { lens: string; view: ProfileView }) => {
-      if (event.lens in context.viewByLens) return undefined;
-      return { ...context, viewByLens: { ...context.viewByLens, [event.lens]: event.view } };
+    viewEntered: (context, event: { view: ProfileView }) => {
+      if (context.view !== null) return undefined;
+      return { ...context, view: event.view };
     },
-    viewChanged: (context, event: { lens: string; view: ProfileView }) => {
-      const current = context.viewByLens[event.lens];
-      if (current && sameView(current, event.view)) return undefined;
-      return { ...context, viewByLens: { ...context.viewByLens, [event.lens]: event.view } };
+    viewChanged: (context, event: { view: ProfileView }) => {
+      if (context.view && sameView(context.view, event.view)) return undefined;
+      return { ...context, view: event.view };
     },
-    viewCarried: (context, event: { from: string; to: string }) => {
-      const source = context.viewByLens[event.from];
-      if (!source || sameView(context.viewByLens[event.to], source)) return undefined;
-      return { ...context, viewByLens: { ...context.viewByLens, [event.to]: source } };
-    },
-    viewCleared: (context, event: { lens: string }) => {
-      if (!(event.lens in context.viewByLens)) return undefined;
-      const next = { ...context.viewByLens };
-      delete next[event.lens];
-      return { ...context, viewByLens: next };
-    },
-    /** Drops a deleted or archived profile from every lens it was left in. */
+    viewCleared: context => (context.view === null ? undefined : { ...context, view: null }),
+    /** Drops a deleted or archived profile so the next read resolves a live one. */
     profileSwept: (context, event: { profile: string }) => {
-      const entries = Object.entries(context.viewByLens).filter(
-        ([, view]) => view.kind !== "profile" || view.profile !== event.profile
-      );
-      if (entries.length === Object.keys(context.viewByLens).length) return undefined;
-      return { ...context, viewByLens: Object.fromEntries(entries) };
+      const view = context.view;
+      if (view?.kind !== "profile" || view.profile !== event.profile) return undefined;
+      return { ...context, view: null };
     },
-    reset: context =>
-      Object.keys(context.viewByLens).length === 0 ? undefined : { ...context, viewByLens: {} },
   },
-});
+}).with(
+  persist({
+    name: PROFILE_VIEW_PERSIST_KEY,
+    version: 1,
+    pick: context => ({ view: context.view?.kind === "aggregate" ? context.view : null }),
+  })
+);
 
-function sameView(left: ProfileView | undefined, right: ProfileView): boolean {
-  if (!left) return false;
+function sameView(left: ProfileView, right: ProfileView): boolean {
   if (left.kind === "aggregate") return right.kind === "aggregate";
   return right.kind === "profile" && left.profile === right.profile;
 }
 
-export const profileViewSelectors = {
-  viewByLens: profileViewStore.select(context => context.viewByLens),
-};
-
-/** The view this client has chosen for a lens, or null to defer to the server. */
-export function localProfileView(lens: ProfileLens): ProfileView | null {
-  return profileViewStore.getSnapshot().context.viewByLens[profileLensKey(lens)] ?? null;
+/** The view this client has chosen, or null to defer to the remembered choice. */
+export function localProfileView(): ProfileView | null {
+  return profileViewStore.getSnapshot().context.view;
 }
 
-export function setProfileView(lens: ProfileLens, view: ProfileView): void {
-  profileViewStore.trigger.viewChanged({ lens: profileLensKey(lens), view });
+export function setProfileView(view: ProfileView): void {
+  profileViewStore.trigger.viewChanged({ view });
 }
 
-/** Keeps the acting view stable while this client changes workspace breadth. */
-export function carryProfileView(from: ProfileLens, to: ProfileLens): void {
-  profileViewStore.trigger.viewCarried({ from: profileLensKey(from), to: profileLensKey(to) });
+/** Captures the remembered choice the first time this client resolves one. */
+export function enterProfileView(view: ProfileView): void {
+  profileViewStore.trigger.viewEntered({ view });
 }
 
-/** Captures the remembered default when this client first enters a lens. */
-export function enterProfileView(lens: ProfileLens, view: ProfileView): void {
-  profileViewStore.trigger.viewEntered({ lens: profileLensKey(lens), view });
-}
-
-/** Rolls a lens back after a failed persist, restoring the previous local answer. */
-export function restoreProfileView(lens: ProfileLens, previous: ProfileView | null): void {
+/** Rolls back after a failed persist, restoring the previous local answer. */
+export function restoreProfileView(previous: ProfileView | null): void {
   if (previous === null) {
-    profileViewStore.trigger.viewCleared({ lens: profileLensKey(lens) });
+    profileViewStore.trigger.viewCleared();
     return;
   }
-  profileViewStore.trigger.viewChanged({ lens: profileLensKey(lens), view: previous });
+  profileViewStore.trigger.viewChanged({ view: previous });
 }
 
 export function sweepProfileView(profile: string): void {
@@ -96,5 +81,13 @@ export function sweepProfileView(profile: string): void {
 }
 
 export function resetProfileViews(): void {
-  profileViewStore.trigger.reset();
+  profileViewStore.trigger.viewCleared();
+}
+
+export function isProfileViewStoreHydrated(): boolean {
+  return isHydrated(profileViewStore);
+}
+
+export function rehydrateProfileViewStore(): Promise<void> {
+  return rehydrateStore(profileViewStore);
 }

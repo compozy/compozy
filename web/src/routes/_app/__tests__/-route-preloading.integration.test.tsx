@@ -29,12 +29,7 @@ import {
 } from "@/systems/loops";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
-import {
-  profileSelectionOptions,
-  readProfileLens,
-  resetProfileViews,
-  setProfileView,
-} from "@/systems/profiles";
+import { profileSelectionOptions, resetProfileViews, setProfileView } from "@/systems/profiles";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
 import { statusOptions } from "@/systems/status";
@@ -851,10 +846,7 @@ describe("route query preloading", () => {
     "Should reuse Loop catalog preloads under the %s profile view",
     async profile => {
       const queryClient = createQueryClient();
-      setProfileView(
-        readProfileLens(),
-        profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile }
-      );
+      setProfileView(profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile });
       const scope = profile === "@all" ? { all_profiles: true } : { profile };
       await invokeLoader(LoopsRoute, {
         ...context(queryClient),
@@ -1105,8 +1097,7 @@ describe("route query preloading", () => {
 
   it("Should keep agent discovery and detail in the acting profile across preload and switches", async () => {
     const queryClient = createQueryClient();
-    const lens = { scope: "workspace" as const, workspaceId: workspace.id };
-    setProfileView(lens, { kind: "profile", profile: "open-design" });
+    setProfileView({ kind: "profile", profile: "open-design" });
     adapterMocks.fetchAgents.mockImplementation((_workspace, _signal, profile) =>
       Promise.resolve([{ name: profile === "open-design" ? "open-design-designer" : "general" }])
     );
@@ -1147,7 +1138,7 @@ describe("route query preloading", () => {
       "open-design"
     );
 
-    act(() => setProfileView(lens, { kind: "aggregate" }));
+    act(() => setProfileView({ kind: "aggregate" }));
     await waitFor(() => expect(mounted.result.current.list.data?.[0]?.name).toBe("general"));
     expect(adapterMocks.fetchAgents).toHaveBeenCalledTimes(2);
     expect(adapterMocks.fetchAgents).toHaveBeenLastCalledWith(
@@ -1171,10 +1162,7 @@ describe("route query preloading", () => {
 
   it("Should preload a Loop run within the selected Profile and reuse it on mount", async () => {
     const queryClient = createQueryClient();
-    setProfileView(
-      { scope: "workspace", workspaceId: workspace.id },
-      { kind: "profile", profile: "marketing" }
-    );
+    setProfileView({ kind: "profile", profile: "marketing" });
     await invokeLoader(LoopRunDetailRoute, {
       ...context(queryClient),
       deps: { workspace: workspace.id },
@@ -1192,16 +1180,9 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should preload a cross-workspace run using the destination Profile lens", async () => {
+  it("Should preload a cross-workspace run using the global Profile view", async () => {
     const queryClient = createQueryClient();
-    setProfileView(
-      { scope: "workspace", workspaceId: workspace.id },
-      { kind: "profile", profile: "source" }
-    );
-    setProfileView(
-      { scope: "workspace", workspaceId: "ws-destination" },
-      { kind: "profile", profile: "destination" }
-    );
+    setProfileView({ kind: "profile", profile: "destination" });
     await invokeLoader(LoopRunDetailRoute, {
       ...context(queryClient),
       deps: { workspace: "ws-destination" },
@@ -1219,10 +1200,7 @@ describe("route query preloading", () => {
   it("Should preload the inbox badge and defer the stale inbox request until mount", async () => {
     const queryClient = createQueryClient();
     const scope = { scope: "workspace" as const, workspace: workspace.id };
-    setProfileView(
-      { scope: "workspace", workspaceId: workspace.id },
-      { kind: "profile", profile: "marketing" }
-    );
+    setProfileView({ kind: "profile", profile: "marketing" });
 
     await expect(
       invokeLoader(TasksRoute, {
@@ -1305,10 +1283,7 @@ describe("route query preloading", () => {
     "Should reuse run preloads under the %s profile view",
     async profile => {
       const queryClient = createQueryClient();
-      setProfileView(
-        readProfileLens(),
-        profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile }
-      );
+      setProfileView(profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile });
       const scope = profile === "@all" ? { all_profiles: true } : { profile };
       adapterMocks.getTaskRun.mockResolvedValueOnce({ run: { id: "run-1", status: "completed" } });
       adapterMocks.getTask.mockResolvedValueOnce({
@@ -1340,7 +1315,7 @@ describe("route query preloading", () => {
   );
 
   it.each(["workspace", "global"])(
-    "Should restore the remembered %s profile before cold-entry task and shell reads",
+    "Should restore the remembered profile in %s breadth before cold-entry task and shell reads",
     async scope => {
       const queryClient = createQueryClient();
       if (scope === "global") enableGlobalScope();
@@ -1379,7 +1354,6 @@ describe("route query preloading", () => {
         expect(adapterMocks.fetchAgents).not.toHaveBeenCalled();
       }
       expect(adapterMocks.fetchProfileSelection).toHaveBeenCalledExactlyOnceWith(
-        readProfileLens(),
         expect.any(AbortSignal)
       );
 
@@ -1423,9 +1397,8 @@ describe("route query preloading", () => {
         summary: { active_run: null },
       });
       adapterMocks.listTaskRuns.mockResolvedValue([]);
-      const lens = readProfileLens();
-      const options = profileSelectionOptions(lens);
-      queryClient.setQueryData(options.queryKey, { profile: "default", scope: lens.scope });
+      const options = profileSelectionOptions();
+      queryClient.setQueryData(options.queryKey, { profile: "default", scope: "global" });
       const firstRead = createDeferred<{ profile: string; scope: string }>();
       const replacementRead = createDeferred<{ profile: string; scope: string }>();
       adapterMocks.fetchProfileSelection
@@ -1438,10 +1411,7 @@ describe("route query preloading", () => {
       if (changeWorkspace) {
         const destination = { ...workspace, id: "ws-destination", root_dir: "/destination" };
         adapterMocks.fetchWorkspaces.mockResolvedValue([workspace, destination]);
-        adapterMocks.fetchProfileSelection.mockResolvedValueOnce({
-          profile: "engineering",
-          scope: "workspace",
-        });
+        // Selection is global: entering another workspace must not move the profile.
         setActiveWorkspaceId(destination.id);
       }
       const reconciliation = queryClient.refetchQueries({ queryKey: options.queryKey });
@@ -1453,14 +1423,14 @@ describe("route query preloading", () => {
         expect(adapterMocks.getTaskRun).not.toHaveBeenCalled();
       }
 
-      replacementRead.resolve({ profile: "marketing", scope: lens.scope });
+      replacementRead.resolve({ profile: "marketing", scope: "global" });
       await Promise.all([backgroundRead, reconciliation, entry]);
       await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
       expect(router.state.matches.some(match => match.status === "error")).toBe(false);
       expect(adapterMocks.getTaskRun).toHaveBeenCalledExactlyOnceWith(
         "run-1",
-        { profile: changeWorkspace ? "engineering" : "marketing" },
+        { profile: "marketing" },
         expect.any(AbortSignal)
       );
       queryClient.clear();

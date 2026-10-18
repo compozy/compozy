@@ -14,7 +14,7 @@ import {
   loopRunsOptions,
   loopsCatalogOptions,
 } from "@/systems/loops";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import { readProfileScopeParams } from "@/systems/profiles";
 
 async function withActiveWorkspace(
   queryClient: QueryClient,
@@ -42,7 +42,7 @@ export function preloadLoopsRoute(
     queryClient.ensureInfiniteQueryData(
       loopsCatalogOptions(workspaceId, {
         ...filters,
-        ...readProfileScopeParams(queryClient, readProfileLens()),
+        ...readProfileScopeParams(queryClient),
       })
     ),
   ]);
@@ -55,7 +55,7 @@ export async function preloadLoopDetailRoute(
 ): Promise<void> {
   const workspaceId = await resolveRouteWorkspaceId(queryClient, routeWorkspaceId);
   if (!workspaceId) return;
-  const profileScope = readProfileScopeParams(queryClient, { scope: "workspace", workspaceId });
+  const profileScope = readProfileScopeParams(queryClient);
   await settleRouteQueries([
     queryClient.ensureQueryData(loopDetailOptions(workspaceId, name)),
     queryClient.ensureQueryData(loopConfigOptions(workspaceId, name)),
@@ -94,7 +94,7 @@ export function preloadLoopRunsRoute(
   queryClient: QueryClient,
   filters: LoopRunsFilter
 ): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   return withActiveWorkspace(queryClient, workspaceId => [
     queryClient.ensureQueryData(loopRunsOptions(workspaceId, { ...filters, ...profileScope })),
   ]);
@@ -109,7 +109,7 @@ export async function preloadLoopRunDetailRoute(
   if (!workspaceId) {
     return;
   }
-  const profileScope = readProfileScopeParams(queryClient, { scope: "workspace", workspaceId });
+  const profileScope = readProfileScopeParams(queryClient);
 
   const [result] = await Promise.allSettled([
     queryClient.ensureQueryData(loopRunDetailOptions(workspaceId, runId, true, profileScope)),
@@ -135,7 +135,7 @@ export async function preloadLoopRunDiffRoute(
   if (!workspaceId) {
     return;
   }
-  const profileScope = readProfileScopeParams(queryClient, { scope: "workspace", workspaceId });
+  const profileScope = readProfileScopeParams(queryClient);
   await settleRouteQueries([
     queryClient.ensureQueryData(loopRunDetailOptions(workspaceId, runId, true, profileScope)),
   ]);
