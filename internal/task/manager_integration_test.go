@@ -1526,7 +1526,13 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 						t.Fatalf("CompleteRunLease() error = %v", err)
 					}
 				} else {
-					if _, err := seedNonLeasedClaimedRunIntegration(ctx, manager, db, blockerRun.ID, actor); err != nil {
+					if _, err := seedNonLeasedClaimedRunIntegration(
+						ctx,
+						manager,
+						db,
+						blockerRun.ID,
+						actor,
+					); err != nil {
 						t.Fatalf("seedNonLeasedClaimedRunIntegration() error = %v", err)
 					}
 					if _, err := manager.StartRun(ctx, blockerRun.ID, taskpkg.StartRun{}, actor); err != nil {
@@ -1535,8 +1541,20 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 					if _, err := manager.CompleteRun(ctx, blockerRun.ID, taskpkg.RunResult{}, actor); err != nil {
 						t.Fatalf("CompleteRun() error = %v", err)
 					}
-					manager = newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
-					if _, err := manager.CompleteRun(ctx, blockerRun.ID, taskpkg.RunResult{}, actor); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+					manager = newTaskManagerIntegration(
+						t,
+						db,
+						taskpkg.WithSessionExecutor(&integrationSessionExecutor{}),
+					)
+					if _, err := manager.CompleteRun(
+						ctx,
+						blockerRun.ID,
+						taskpkg.RunResult{},
+						actor,
+					); !errors.Is(
+						err,
+						taskpkg.ErrInvalidStatusTransition,
+					) {
 						t.Fatalf("CompleteRun(replay) error = %v, want ErrInvalidStatusTransition", err)
 					}
 				}
@@ -1563,7 +1581,10 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 		)
 
 		t.Run(
-			fmt.Sprintf("Should enqueue exactly one run when two distinct blockers complete concurrently with leased=%t", leased),
+			fmt.Sprintf(
+				"Should enqueue exactly one run when two distinct blockers complete concurrently with leased=%t",
+				leased,
+			),
 			func(t *testing.T) {
 				t.Parallel()
 
@@ -1578,7 +1599,11 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 
 				blockerA, err := manager.CreateTask(
 					ctx,
-					taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker A"},
+					taskpkg.CreateTask{
+						ProfileID: store.DefaultProfileID,
+						Scope:     taskpkg.ScopeGlobal,
+						Title:     "Blocker A",
+					},
 					actor,
 				)
 				if err != nil {
@@ -1586,7 +1611,11 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 				}
 				blockerB, err := manager.CreateTask(
 					ctx,
-					taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker B"},
+					taskpkg.CreateTask{
+						ProfileID: store.DefaultProfileID,
+						Scope:     taskpkg.ScopeGlobal,
+						Title:     "Blocker B",
+					},
 					actor,
 				)
 				if err != nil {
