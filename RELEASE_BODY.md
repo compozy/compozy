@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-10-16
+## 0.3.0 - 2026-10-18
 
 ### ♻️ Refactoring
 
@@ -12,6 +12,7 @@
 - Quiet the Context rail and sessions row for everyday use (#649)
 - Retire Network, managed Sandbox, and Bridges (#681)
 - Complete Modern Go adoption across module boundaries (#706)
+- Remove 12 long-tail builtin providers behind a one-release compatibility shim (#778)
 
 ### ⚡ Performance Improvements
 
@@ -19,6 +20,9 @@
 - Reduce test and development feedback overhead (#556)
 - Avoid rendering unchanged windows during layout updates
 - Reduce SQLite contention and query costs (#723)
+- Reduce desktop startup and live transcript overhead (#784)
+- Cut daemon idle cost and keep the host responsive under agent load (#797)
+- Reduce concurrent session query and projection overhead (#795)
 
 ### 🎉 Features
 
@@ -93,6 +97,10 @@
 - Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
 - One-click CompozyOS update from the menubar (#733)
 - Show the runtime provider mark on session rows (#758)
+- Add session folders, manual drag order, and session context menus (#786)
+- Give session titles their own line in the session list (#790)
+- Adding antigravity acp (#773)
+- Add app SDKs and browser application tokens (#794)
 
 ### 🐛 Bug Fixes
 
@@ -315,6 +323,21 @@
 - Tolerate transient session stream reconnects (#769)
 - Stop false Goal attention and cut daemon idle cost (#770)
 - Keep background subagents running and show them in the composer (#771)
+- Keep terminals running across workspace switches (#776)
+- Cut idle UI polling and attention bell CPU cost (#779)
+- Preserve profile ownership in session actions and subagent rosters (#785)
+- Stop warning about and stopping idle sessions (#787)
+- Make the idle-session setting drive idle runtime release (#789)
+- Deliver session messages to busy targets with operator-first queue, batching, hop model and explicit replies (#780)
+- Address merge-train leftovers from #787 #789 #780 #786 (#793)
+- Retry pending steer settlement without locking status
+- Advance role fallback when the provider refuses an accepted turn (#662)
+- Inherit the caller profile for agent-created sessions and keep one global profile selection (#796)
+- Align catalog stream test with global profile selection
+- Resolve merged PR review and CI regressions
+- Align codegen boundaries and runtime test contracts
+- Repair release validation and session shutdown races
+- Prevent WAL maintenance from blocking shutdown history
 
 ### 🔧 Miscellaneous Tasks
 
@@ -346,6 +369,8 @@
 - Cover inactive loop routes with automatic approval (#703)
 - Cut duplicated and misplaced tests across the pyramid (#707)
 - Wait for subagent card navigation readiness (#753)
+- Control popover exit animation time
+- Synchronize migration and startup verification
 
 ### Release Notes
 
@@ -516,6 +541,47 @@ stable; production rollouts should pin the version and review each prerelease.
 The repository was already MIT licensed. v0.3 corrects stale BSL-1.1 text in distribution metadata;
 it does not relicense the code.
 
+##### Twelve long-tail providers leave the built-in registry
+
+CompozyOS now ships only the built-in providers people actually use: `claude`, `codex`, `agy` (Google Antigravity), `gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, and the `pi_acp` harness with `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, and `xai`. Twelve providers with no owner and no end-to-end validation leave the registry. With Google Antigravity added, the current catalog contains 15 built-ins. Each still runs as a custom `[providers.<id>]` entry, and existing references keep working for one release. (#761)
+
+- Removed standalone ACP CLIs: `hermes`, `openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`, `openhands`, and `qoder`.
+- Removed `pi_acp` API-key providers: `mistral`, `groq`, and `minimax`.
+- Removed aliases: `blackbox-ai`, `blackboxai`, `cline-cli`, `goose-cli`, `hermes-agent`, `junie-cli`, `open-hands`, `openhands-cli`, `openclaw-cli`, `qoder-cli`, `minimax-ai`, `minimax-cn`, `mistralai`, and `mistral-ai`.
+- Provider lists, provider inspect output, HTTP and UDS provider payloads, the model catalog, Settings, and the provider pickers no longer offer them.
+- Hermes and OpenClaw lose their dedicated behavior. CompozyOS no longer treats them as native readers of `.agents/skills`, so the Agents skill source has no native readers and CompozyOS injects those skills for every provider. It also stops managing `HERMES_HOME` and `OPENCLAW_STATE_DIR` for isolated provider homes, stops running live Hermes model discovery, and stops applying the provider-managed runtime strategy to OpenClaw.
+- Sessions and transcripts recorded with a removed provider stay readable: history, transcript, and inspector.
+
+Migration notes: until v0.5.0, a reference to a removed ID or alias keeps resolving with the former built-in definition. That covers `defaults.provider` in `config.toml`, a partial `[providers.<id>]` override, an agent definition's `provider:`, Loop and automation runtime defaults, and persisted sessions. The daemon logs one `provider.retired_builtin` warning per ID with `removed_in=v0.5.0` and a `replacement` field that holds the former `[providers.<id>]` entry. The warning never echoes operator-written values. Its `action` field says to add the entry, or, when `[providers.<id>]` tables already exist, to merge it into them by adding each missing key and keeping every value already set. An existing `auth_mode` or `credential_slots` choice is respected: the replacement then adds no credentials. Log redaction masks secret references, so for `mistral`, `groq`, and `minimax` the logged entry omits the `secret_ref` line and the warning's `action` field names the value to add back (`env:<TARGET_ENV>`). Declaring `[providers.<id>]` with its own `command` (plus `harness = "pi_acp"` for `mistral`, `groq`, and `minimax`) makes it a plain custom provider and silences the warning. In v0.5.0 the shim is removed, and an undeclared reference fails like any unknown provider (provider unavailable). To keep Hermes:
+
+```toml
+[providers.hermes]
+display_name = "Hermes"
+command = "hermes acp"
+```
+
+To keep Mistral (Groq and MiniMax follow the same shape with `GROQ_API_KEY` / `openai/gpt-oss-120b` and `MINIMAX_API_KEY` / `MiniMax-M2.1`):
+
+```toml
+[providers.mistral]
+display_name = "Mistral"
+command = "npx -y pi-acp@latest"
+harness = "pi_acp"
+runtime_provider = "mistral"
+
+[providers.mistral.models]
+default = "devstral-medium-latest"
+
+[[providers.mistral.credential_slots]]
+name = "api_key"
+target_env = "MISTRAL_API_KEY"
+secret_ref = "env:MISTRAL_API_KEY"
+kind = "api_key"
+required = true
+```
+
+The other former commands are `openclaw acp` (with `session_mcp = false`), `blackbox --experimental-acp`, `npx -y cline@latest --acp`, `goose acp`, `junie --acp true`, `kiro-cli-chat acp`, `openhands acp`, and `npx -y @qoder-ai/qodercli@latest --acp`.
+
 #### Features
 
 ##### Agent Plugins install as extensions
@@ -543,6 +609,40 @@ compozy cmd-palette invoke <destructive-id> -o json   # returns approval_pending
 compozy approvals show <approval-id> -o json          # pending → terminal
 compozy approvals cancel <approval-id>
 ```
+
+##### Build apps on CompozyOS with TypeScript and Go
+
+External applications can now connect to a running CompozyOS daemon with `@compozy/client` or
+`github.com/compozy/compozy/sdk/go/client`, create sessions, call typed operations, and read agent
+replies and live events. The daemon continues to own execution and durable transcripts.
+
+- `Compozy.connect()` discovers the local daemon. Generated resource methods cover JSON operations;
+  `prompt()` handles streamed and accepted replies, `promptResponse()` forwards a UI message stream
+  through your server, and `events()` reads SSE with bounded reconnection. The Node-only
+  `@compozy/client/node` entry can start a private daemon and stops only one it owns.
+- The standard-library-only Go client discovers the Unix socket first and exposes generated typed
+  methods and event streams, plus the prompt stream entry point. Both clients report major/minor
+  version mismatches without blocking the connection.
+- `compozy app-token create|list|update|revoke` and local `/api/app-tokens` routes manage named bearer
+  tokens. Creation reveals the secret once. Exact origin allowlists let browser apps call the
+  explicitly allowed operations; management and privileged operations remain local. Revocation
+  rejects new requests and closes the token's streams. App tokens never authenticate Gateway
+  listeners and remain separate from paired devices.
+- `GET /api/openapi.json` serves the running release's valid OpenAPI 3.0.3 document with named
+  component schemas, ETag caching, and gzip. Prompt responses now describe their actual stream
+  contract. Code generation produces both clients and the SDK samples shown in API reference pages.
+- The Web app uses API types from the public package. The new **Build an app** documentation covers
+  Node, a server-backed chat UI, browser access, Go, and token administration.
+
+Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact
+version. This applies to the client facade/resource layout, Node entry point, Go client, app-token
+CLI/HTTP, and browser-access error codes. Existing daemon operations and the runtime OpenAPI endpoint
+retain their normal compatibility guarantees.
+
+Migration notes: the app-token schema migration is additive and preserves existing devices,
+profiles, sessions, and credentials. Existing local callers and the same-origin CompozyOS Web app
+continue to work without an app token. Aborting a client stream only detaches the reader; explicitly
+cancel a session prompt to stop its turn.
 
 ##### Ask the agent when nothing matches
 
@@ -983,6 +1083,24 @@ Slash commands in the composer are now backed by a single daemon-owned catalog s
 - Injection is bounded at 24 KB per skill and 64 KB per turn, and repeating the same skill activates it once. Invocations persist through admission, queueing, replay, transcript storage, and the UI, and queued ones are revalidated against the exact source before dispatch.
 - Slash activation is limited to human operator input. Agent-authored prompts and `compozy__session_prompt` keep slash-shaped text literal, and hooks can remove an admitted invocation but never add one.
 
+##### Session messaging that holds up in long orchestrations
+
+Messages between agent sessions now reach long-running targets, stay behind the operator, and no longer exhaust a conversation after a few exchanges. (#760)
+
+- Operator input always runs ahead of messages from other sessions, which have their own queue cap, so agents cannot fill the operator's slots. `queue_position` is the real dispatch rank.
+- An agent's `mode: "interrupt"` is delivered as steer, and an agent steer never cancels another session's turn: when the target cannot take an injection, the message waits in the queue.
+- `supersede: true` replaces your own older message still queued for the same target. Consecutive queued messages and reply wakes from other sessions run as one turn (up to 8), each kept as its own message; operator input is never merged.
+- When a target has been in one turn longer than `session.messaging.queue_promote_after` (2 minutes by default), waiting agent messages are injected into the live turn. A failed injection falls back to after-turn delivery; nothing is dropped and nothing is interrupted.
+- Hops count forwarding only: answering the session that started your turn, or replying with `in_reply_to`, keeps the hop, so a back-and-forth stays at hop 1. The flood guard is now a per sender→target rate budget; a send past it returns `message_rate_limited` (HTTP 429) with the limit and retry delay.
+- `in_reply_to` links an answer to the original message. It never releases the sender's reply watch, so the completion wake still arrives.
+- Reply watches now expire after 24 hours by default with a **No reply** outcome, so a forgotten watch no longer keeps its sender awake. Set `reply_watch_ttl = "0s"` to keep the previous never-expire behavior.
+- `compozy session prompt` gains `--from-session auto|<id>`, `--in-reply-to`, and `--supersede`. Origin stamping is opt-in: without `--from-session`, a prompt stays operator input and a hint is printed on stderr. `--in-reply-to` and `--supersede` require a sending session.
+- The operator can Steer (promote) an agent-authored queue row; editing it is still refused.
+- The Web UI shows an **In reply** chip, groups consecutive messages from one sender, and says why a session needs attention.
+- New `[session.messaging]` keys: `rate_limit_messages` (default 30, `-1` disables), `rate_limit_window` (default `10m`), `reply_watch_ttl` (default `24h`), and `queue_promote_after` (default `2m`, `0s` disables).
+
+Migration notes: migration 00138 is applied automatically on daemon start and preserves all queued inputs and reply watches.
+
 ##### Steer a working session and see when Stop has actually finished
 
 Follow-ups now default to steering. Runtimes that advertise live steering receive the guidance inside the active turn; other runtimes report an explicit interrupt-and-replace fallback. The composer shows what happened, restores refused drafts, and Settings lets you choose queueing instead. CLI and native-tool responses expose the send outcome and steering capability.
@@ -1229,6 +1347,15 @@ A cluster of failures where the runtime reported the wrong thing about its own s
 - **A committed result survives a failed publish** (fixes #435). A pre-commit lease failure and a post-commit publication failure looked identical, so an already-settled run could be failed and settled a second time. A claimed run fails only when completion returned no committed run.
 - **A crashed process is reported as crashed** (fixes #436). A non-zero exit code or a signal is now classified as a process failure and maps to the process-exited stop cause. A clean exit with code `0` after a transport failure stays on the transport path and keeps `error`, so `agent_crashed` means the subprocess actually died.
 
+##### Idle sessions no longer warn or stop
+
+A session whose agent had finished and was simply waiting for you used to show a large yellow "This session stops in …" notice after 30 minutes and then turn into a stopped session. Quiet supervision is now a watchdog for turns that hang, the way other agent harnesses handle it: a session waiting for you is never warned about or stopped. (fixes #782)
+
+- `session.supervision.quiet_after` and `stop_grace` now only count silence while a turn is in flight and waiting on the agent. A turn waiting on your answer to a permission or clarify request does not count. A hung turn still warns and then stops with the `inactivity` cause, so task recovery, Loop recovery and reply wakes behave as before.
+- New `session.supervision.idle_release_after` (default `30m`, `0` disables) frees the agent process of a session that has been idle that long, but only when the agent supports ACP `session/load`. The session stays active and idle in every list, and your next message reloads the same conversation. If the agent can no longer load it, CompozyOS starts a fresh agent session and replays the recent transcript.
+- A released runtime records no stop and fires no `session.post_stop` hook. The process-level `agent.stopped` hook still fires, as it does when a runtime is replaced.
+- The quiet-warning notice and its "Stop now" button are gone. A turn that has gone quiet now shows "quiet for 12m" on the working status line, and Stop stays where it was.
+
 ##### Keep skipped Loop branches and unresolved review findings honest
 
 Exclusive routing no longer executes a dominated branch later in the same planning pass. Skipped downstream and fan-out steps settle as Not taken instead of appearing permanently pending after the run ends; work that ran in earlier rounds keeps its history.
@@ -1337,6 +1464,28 @@ Loop action runs now have exactly one daemon-owned worker, cancellation survives
 - Resuming a stopped session discards the stopped ledger projection first and restores it if provider startup or the clear rolls back, so forensic projections stop conflicting and the full history is rematerialized on the next stop.
 - Enablement of a bundled extension is a fresh-home default, not an override: generic local and marketplace installs stay disabled by default, and stored state survives restart and update.
 
+##### One profile choice for every workspace, and agents keep their profile
+
+Profiles are shared by all workspaces, and now the selected profile is too. Switching workspaces in the Web app keeps the profile you picked, and choosing another one in any workspace changes it everywhere. **All profiles** also stays selected when you switch workspaces or reload. While **All profiles** is selected, new work is created in the last profile you picked, which the destination chip shows.
+
+Sessions an agent creates now land in that agent's profile. Before, a session created with `compozy__session_create` from an agent in another profile went to `default` and was only visible under **All profiles**. Child sessions from `compozy__session_spawn`, `compozy__subagent_delegate`, and `compozy session new` run inside a session already stayed in the caller's profile.
+
+- `compozy profile use` and `compozy profile create` set the choice for every workspace. `compozy profile current` reports `remembered choice` without naming a workspace.
+- Settings → Profiles no longer shows **Where each profile is active**, because there is now one choice.
+- Choices remembered per workspace by earlier releases are deprecated. Until v0.5.0, a CLI command run inside such a workspace still uses its choice and prints a warning, and `PUT /api/profiles/selection` with `scope: "workspace"` returns a `Warning` header. Both stop applying in v0.5.0.
+
+Migration notes: upgrading keeps every per-workspace choice and seeds the shared choice from the one you set most recently, so the Web app opens in the profile you used last. Picking a profile with `compozy profile use`, `compozy profile create`, or the Web switcher sets the shared choice and clears the per-workspace ones. Scripts that write `scope: "workspace"` selections should send `scope: "global"` before v0.5.0.
+
+##### The idle-session setting now does what it says
+
+Settings → General had an "End idle sessions after" control that did nothing: it wrote `session.limits.timeout`, which no session enforced, so no session ever ended. The row is now **Pause idle agents after**. It controls the idle runtime release added for #782: when a session has been idle that long, CompozyOS frees its agent process. The session stays open, and your next message picks up where it left off. Agents that can't resume a conversation keep running.
+
+- The choices are Never, 15 minutes, 30 minutes (the default), 1 hour, 4 hours, and 1 day. A different value set in `config.toml` is shown as it is. Changing it requires a daemon restart, like other `session.*` keys.
+- The general settings HTTP/UDS DTO gains `config.idle_release_after`, which maps to `session.supervision.idle_release_after`. Leave it out of an update to keep the current value.
+- `session.limits.timeout` and the DTO field `config.session_timeout` are deprecated and still enforce nothing. Both stay readable and writable in this release, with the same meaning as before. A non-zero `session.limits.timeout` logs a deprecation warning when config loads, and a PATCH that sends a non-zero `session_timeout` returns a `Warning` header naming `idle_release_after`. Both are removed in v0.5.0.
+
+Migration notes: if you set `session.limits.timeout` to limit how long sessions run, it never had an effect. Remove it, and use `session.supervision.idle_release_after` to free idle agents. Scripts that PATCH `/api/settings/general` should send `idle_release_after` before v0.5.0 removes `session_timeout`.
+
 ##### Pi providers receive the secret, not its variable name
 
 CompozyOS wrote a Pi credential slot's target environment name, such as `ZAI_API_KEY`, straight into the session `models.json` `apiKey` field. Pi reads a bare uppercase value as a literal API key, so the provider received the variable name instead of the secret, the upstream request failed, and the session could finish without an assistant message. The Pi runtime now writes `$ZAI_API_KEY`-style references, which Pi resolves from the secret CompozyOS already injects into the provider process. (#404)
@@ -1373,6 +1522,10 @@ Reruns respect immutable generation lineage and allocate fresh Goal binding epoc
 The run page leads with outcomes and action results. It previews a few outputs, keeps Details available, folds quiet control and skipped steps, and shows terminal retry guidance only when the existing planner accepts that recovery.
 
 PRs: [#547](https://github.com/compozy/compozy/pull/547), [#554](https://github.com/compozy/compozy/pull/554).
+
+##### Reliable session stops on slower disks
+
+Stopping or deleting a session now completes reliably when the disk takes longer to save its shutdown history. Shutdown deadlines stay bounded, and real persistence failures remain visible.
 
 ##### Removing the suggested Home folder no longer breaks the desktop
 
@@ -1432,9 +1585,17 @@ Linux AppImages now embed the static runtime, allowing distributions with FUSE 3
 
 PR: [#548](https://github.com/compozy/compozy/pull/548).
 
+##### Keep shutdown history moving during database maintenance
+
+Background database maintenance now yields when a protected database open is busy, allowing queued shutdown history to be saved without waiting for maintenance to finish. Deferred maintenance retries automatically, and real write failures remain visible.
+
 ##### Preserve successful SQLite commits during cancellation
 
 A request or persistence deadline arriving during a successful SQLite commit no longer reports that committed write as failed. This prevents persistence retries from duplicating completed tool events. Cancellation observed before commit still rolls back the write.
+
+##### Keep palette actions open during refresh
+
+The command palette keeps the selected row and its actions open when recent or pinned commands refresh at the same moment you open the action panel.
 
 ##### The daemon owns a managed worker's outcome
 
