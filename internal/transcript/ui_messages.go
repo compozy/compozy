@@ -27,6 +27,7 @@ const (
 	uiToolStateAvailable = "input-available"
 	uiToolStateOutput    = "output-available"
 	uiToolStateError     = "output-error"
+	uiFallbackToolName   = "tool"
 )
 
 var emptyJSONObject = json.RawMessage(`{}`)

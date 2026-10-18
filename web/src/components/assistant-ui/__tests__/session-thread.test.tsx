@@ -831,6 +831,47 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByText("Native compaction observed.")).toBeInTheDocument();
   });
 
+  it("Should render a conversation whose turn carries an unnamed or malformed part", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const transcript = [
+      {
+        id: "goal-turn-1",
+        role: "assistant",
+        parts: [
+          { type: "text", id: "goal-turn-1-text-1", text: "Running the gate.", state: "done" },
+          {
+            // A failed result whose provider never reported the tool: no toolName, no errorText.
+            type: "dynamic-tool",
+            state: "output-error",
+            toolCallId: "exec-orphan",
+            input: {},
+            output: { status: "failed", raw: { raw_output: { exit_code: 2 } } },
+          },
+        ],
+      },
+      {
+        id: "goal-turn-2",
+        role: "assistant",
+        parts: [
+          { type: "reasoning", id: "goal-turn-2-reasoning-1", text: 42, state: "done" },
+          { type: "text", id: "goal-turn-2-text-1", text: "Gate fixed on main.", state: "done" },
+        ],
+      },
+    ] as unknown as SessionMessage[];
+
+    const normalized = await normalizeTranscriptMessages(transcript);
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+    expect(await screen.findByText("Running the gate.")).toBeInTheDocument();
+    expect(screen.getByText("Gate fixed on main.")).toBeInTheDocument();
+    expect(normalized[1]?.parts.map(part => part.type)).toEqual(["text"]);
+    expect(warn).toHaveBeenCalledWith(
+      "Dropped an invalid transcript part",
+      expect.objectContaining({ messageId: "goal-turn-2", partIndex: 0, partType: "reasoning" })
+    );
+    warn.mockRestore();
+  });
+
   it("Should render a retryable transcript error pane and call retry", async () => {
     const user = userEvent.setup();
     const retry = vi.fn();

@@ -91,6 +91,21 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 		}
 	})
 
+	t.Run("Should acknowledge a projection whose session was removed", func(t *testing.T) {
+		t.Parallel()
+		store := &goalSessionOutboxStoreStub{event: goalSessionOutboxEventForTest(1)}
+		appender := &goalSessionEventAppenderStub{
+			err: fmt.Errorf("%w: %s", session.ErrSessionNotFound, "session-origin"),
+		}
+		relay := &goalSessionOutboxRelay{store: store, appender: appender, batchSize: 1}
+		if err := relay.DeliverPending(t.Context()); err != nil {
+			t.Fatalf("DeliverPending() error = %v, want removed session settled", err)
+		}
+		if !store.delivered || store.ackCalls != 1 {
+			t.Fatalf("delivered/ack calls = %t/%d, want true/1", store.delivered, store.ackCalls)
+		}
+	})
+
 	t.Run("Should drain multiple cleanup batches without waiting for another sweep", func(t *testing.T) {
 		t.Parallel()
 		obligations := make([]looppkg.SessionCleanupObligation, 17)

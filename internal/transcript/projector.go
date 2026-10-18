@@ -144,7 +144,7 @@ func (p *Projector) routeExisting(
 		return EntryIdentity{}, false, nil
 	}
 	toolKey := strings.TrimSpace(toolLifecycleKey(decoded.parsed))
-	if decoded.parsed.Type == acp.EventTypeToolResult && toolKey != "" {
+	if toolKey != "" && followsToolRoute(decoded) {
 		identity, ok, err := p.resolveTool(ctx, toolKey)
 		if err != nil || ok {
 			return identity, ok, err
@@ -172,6 +172,25 @@ func (p *Projector) routeExisting(
 		}
 	}
 	return EntryIdentity{}, false, nil
+}
+
+// followsToolRoute reports whether an event belongs to the entry that owns its
+// tool lifecycle. Results always do. A tool_call update that carries no tool
+// identity (no name, title, or input) is a status update for a call announced
+// earlier, possibly in a previous turn, so it must not open an orphan part.
+func followsToolRoute(decoded *decodedStoredEvent) bool {
+	switch decoded.parsed.Type {
+	case acp.EventTypeToolResult:
+		return true
+	case acp.EventTypeToolCall:
+		if strings.TrimSpace(decoded.parsed.ToolName) != "" || strings.TrimSpace(decoded.agent.Title) != "" {
+			return false
+		}
+		_, hasInput := toolInputFromDecoded(decoded)
+		return !hasInput
+	default:
+		return false
+	}
 }
 
 func (p *Projector) newIdentity(decoded *decodedStoredEvent, kind EntryKind) EntryIdentity {

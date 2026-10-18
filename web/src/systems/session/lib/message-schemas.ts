@@ -151,9 +151,13 @@ function isToolPart(part: unknown): part is Record<string, unknown> {
   return isRecord(part) && typeof part.type === "string" && part.type.startsWith("tool-");
 }
 
+function isDynamicToolPart(part: unknown): part is Record<string, unknown> {
+  return isRecord(part) && part.type === "dynamic-tool";
+}
+
 function toolNameForValidation(part: Record<string, unknown>, type: string): string {
-  const toolName = stringField(part, "toolName") ?? type.slice("tool-".length).trim();
-  return toolName || "tool";
+  const typedName = type.startsWith("tool-") ? type.slice("tool-".length).trim() : "";
+  return stringField(part, "toolName") ?? (typedName || "tool");
 }
 
 function toolCallIdForValidation(part: Record<string, unknown>, toolName: string): string {
@@ -166,7 +170,7 @@ function toolCallIdForValidation(part: Record<string, unknown>, toolName: string
 }
 
 function normalizeToolPartForValidation(part: unknown): unknown {
-  if (!isToolPart(part)) {
+  if (!isToolPart(part) && !isDynamicToolPart(part)) {
     return part;
   }
 
@@ -387,11 +391,54 @@ function dataSchemasForMessages(messages: unknown): Record<string, z.ZodType<unk
   return dataSchemas;
 }
 
-export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
-  if (Array.isArray(messages) && messages.length === 0) {
-    return [];
+async function validationFails(message: unknown): Promise<boolean> {
+  try {
+    await validateMessages([message]);
+    return false;
+  } catch {
+    return true;
   }
+}
 
+/**
+ * Drops the parts that still fail validation so one malformed part costs that part,
+ * not the whole conversation. Returns null when nothing can be salvaged by dropping
+ * parts (the message itself is malformed), so the caller rethrows the original error.
+ */
+async function withoutInvalidParts(messages: unknown[]): Promise<unknown[] | null> {
+  let dropped = false;
+  const salvaged: unknown[] = [];
+  for (const message of messages) {
+    if (!(await validationFails(message))) {
+      salvaged.push(message);
+      continue;
+    }
+    if (!isRecord(message) || !Array.isArray(message.parts)) {
+      return null;
+    }
+    const parts: unknown[] = [];
+    for (const [index, part] of message.parts.entries()) {
+      if (await validationFails({ ...message, parts: [part] })) {
+        dropped = true;
+        console.warn("Dropped an invalid transcript part", {
+          messageId: message.id,
+          partIndex: index,
+          partType: isRecord(part) ? part.type : typeof part,
+        });
+        continue;
+      }
+      parts.push(part);
+    }
+    const next = { ...message, parts };
+    if (await validationFails(next)) {
+      return null;
+    }
+    salvaged.push(next);
+  }
+  return dropped ? salvaged : null;
+}
+
+async function validateMessages(messages: unknown): Promise<SessionMessage[]> {
   const capturedMetadata = capturePartMetadata(messages);
   const validationMessages = messagesForValidation(messages);
   const validated = await validateUIMessages<SessionMessage>({
@@ -400,4 +447,20 @@ export async function normalizeTranscriptMessages(messages: unknown): Promise<Se
   });
   const withMetadata = reattachPartMetadata(validated, capturedMetadata);
   return restoreOriginalToolParts(withMetadata, messages);
+}
+
+export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
+  if (Array.isArray(messages) && messages.length === 0) {
+    return [];
+  }
+
+  try {
+    return await validateMessages(messages);
+  } catch (error) {
+    const salvaged = Array.isArray(messages) ? await withoutInvalidParts(messages) : null;
+    if (!salvaged) {
+      throw error;
+    }
+    return validateMessages(salvaged);
+  }
 }

@@ -138,3 +138,10 @@ left-aligned session message card on agent-sent user turns, the "Reply from" car
 `session_reply` wakes, and the "Sent to" card that replaces `compozy__session_prompt` tool rows
 outside work groups and stays visible when a settled turn folds. Re-walk the fold and work-group
 steps with a session message in the turn. Coverage for the new rows: `ET-web-session-message-card`.
+
+QA impact 2026-10-18 (issues #800/#802): a long tool call that crosses a Goal turn now shows its
+failure on the turn that started it, and the transcript still loads. One malformed part is dropped
+and no longer hides the conversation behind "Couldn't load this conversation". A failing
+transcript recovery now backs off 5s → 60s instead of refetching every 5s. Verified against the
+real events of a session that had hit the error (9,797 events reprojected, client normalization
+passes). Needs a fresh live walk.

@@ -174,12 +174,13 @@ export function scheduleSurfaceRefresh(
 export function scheduleQueryRecovery(
   handles: SessionLiveTailHandles,
   trigger: SessionLiveTailTrigger,
-  generation: number
+  generation: number,
+  delayMs: number = TRANSCRIPT_RECOVERY_DELAY_MS
 ): void {
   clearTimer(handles.queryRecoveryTimer);
   handles.queryRecoveryTimer = setTimeout(
     () => trigger.queryRecoveryElapsed({ generation }),
-    TRANSCRIPT_RECOVERY_DELAY_MS
+    delayMs
   );
 }
 

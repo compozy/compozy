@@ -131,7 +131,9 @@ func (b *uiMessageBuilder) ensureToolPart(decoded *decodedStoredEvent) (*UIMessa
 		Title:      strings.TrimSpace(decoded.agent.Title),
 	}
 	if part.Type == uiPartDynamicTool {
-		part.ToolName = strings.TrimSpace(decoded.parsed.ToolName)
+		// The AI SDK requires toolName on dynamic-tool parts; one part without it
+		// fails validation of the whole transcript in the client.
+		part.ToolName = uiFallbackToolName
 	}
 	b.parts = append(b.parts, part)
 	index := len(b.parts) - 1

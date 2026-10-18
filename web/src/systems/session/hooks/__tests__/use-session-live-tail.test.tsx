@@ -306,6 +306,34 @@ describe("useSessionLiveTail", () => {
     );
   });
 
+  it("Should back off a transcript recovery that keeps failing", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionTranscript).mockRejectedValue(new Error("transcript failed validation"));
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+
+    const { result } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.isError).toBe(true));
+    });
+    const settledCalls = vi.mocked(fetchSessionTranscript).mock.calls.length;
+    const callsAfter = async (ms: number) => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+      return vi.mocked(fetchSessionTranscript).mock.calls.length - settledCalls;
+    };
+
+    expect(await callsAfter(5_000)).toBe(1);
+    expect(await callsAfter(5_000)).toBe(1);
+    expect(await callsAfter(5_000)).toBe(2);
+    expect(await callsAfter(20_000)).toBe(3);
+    expect(await callsAfter(40_000)).toBe(4);
+    expect(await callsAfter(60_000)).toBe(5);
+    expect(await callsAfter(60_000)).toBe(6);
+  });
+
   it("Should finish an active transcript recovery before applying a terminal frame", async () => {
     vi.useFakeTimers();
     vi.mocked(fetchSession)

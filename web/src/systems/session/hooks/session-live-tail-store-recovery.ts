@@ -1,3 +1,4 @@
+import { transcriptRecoveryDelayMs } from "./session-live-tail-store-contract";
 import type {
   SessionLiveTailContext,
   SessionLiveTailEnqueue,
@@ -48,6 +49,7 @@ export const sessionLiveTailRecoveryTransitions: RecoveryTransitions = {
         ...context,
         lastTranscriptError: null,
         queryRecoveryPhase: recoveryActive ? "refreshing" : "idle",
+        recoveryAttempt: 0,
       };
     }
     if (Object.is(event.error, context.lastTranscriptError)) return;
@@ -63,7 +65,12 @@ export const sessionLiveTailRecoveryTransitions: RecoveryTransitions = {
         context.transportPhase !== "disabled" &&
         context.transportPhase !== "terminal"
       ) {
-        scheduleQueryRecovery(handles, trigger, context.generation);
+        scheduleQueryRecovery(
+          handles,
+          trigger,
+          context.generation,
+          transcriptRecoveryDelayMs(context.recoveryAttempt)
+        );
       }
     });
     return {
@@ -105,6 +112,7 @@ export const sessionLiveTailRecoveryTransitions: RecoveryTransitions = {
       ...context,
       lastTranscriptError: null,
       queryRecoveryPhase: "idle" as const,
+      recoveryAttempt: 0,
     };
     if (
       context.pendingTerminal &&
@@ -119,15 +127,21 @@ export const sessionLiveTailRecoveryTransitions: RecoveryTransitions = {
     if (event.generation !== context.generation || context.queryRecoveryPhase !== "refreshing") {
       return;
     }
+    const recoveryAttempt = context.recoveryAttempt + 1;
     enqueue.effect(({ trigger }) => {
       const handles = handlesByTrigger.get(trigger);
       if (!handles) return;
       handles.runtime.recordTranscriptFailure(event.error, { recovery: true });
       if (context.transportPhase !== "disabled" && context.transportPhase !== "terminal") {
-        scheduleQueryRecovery(handles, trigger, context.generation);
+        scheduleQueryRecovery(
+          handles,
+          trigger,
+          context.generation,
+          transcriptRecoveryDelayMs(recoveryAttempt)
+        );
       }
     });
-    const recoveredContext = { ...context, queryRecoveryPhase: "idle" as const };
+    const recoveredContext = { ...context, queryRecoveryPhase: "idle" as const, recoveryAttempt };
     if (
       context.pendingTerminal &&
       context.applyPhase === "idle" &&
@@ -148,7 +162,10 @@ export const sessionLiveTailRecoveryTransitions: RecoveryTransitions = {
     if (context.transportPhase === "failed" && context.applyPhase === "idle") {
       // Try again after exhausted retries: reread the transcript, then reopen
       // the stream from the durable cursor with a fresh attempt budget.
-      return scheduleBlockingRepair({ ...context, catchingUp: true, reconnectAttempt: 0 }, enqueue);
+      return scheduleBlockingRepair(
+        { ...context, catchingUp: true, reconnectAttempt: 0, recoveryAttempt: 0 },
+        enqueue
+      );
     }
     enqueue.effect(async ({ trigger }) => {
       const handles = handlesByTrigger.get(trigger);
@@ -161,6 +178,6 @@ export const sessionLiveTailRecoveryTransitions: RecoveryTransitions = {
         trigger.queryRecoveryFailed({ error, generation: context.generation });
       }
     });
-    return { ...context, queryRecoveryPhase: "refreshing" };
+    return { ...context, queryRecoveryPhase: "refreshing", recoveryAttempt: 0 };
   },
 };

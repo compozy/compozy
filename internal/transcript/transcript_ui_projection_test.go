@@ -704,6 +704,103 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 			t.Fatalf("visible part signatures = %#v, want %#v; parts=%#v", got, want, messages[0].Parts)
 		}
 	})
+
+	t.Run("Should keep an identity-less tool update with the turn that announced the call", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 10, 18, 3, 44, 0, 0, time.UTC)
+		rawEvent := func(id string, sequence int64, turnID string, eventType string, content string) store.SessionEvent {
+			return store.SessionEvent{
+				ID:        id,
+				SessionID: "sess-goal",
+				TurnID:    turnID,
+				Sequence:  sequence,
+				Type:      eventType,
+				Content:   content,
+				Timestamp: timestamp.Add(time.Duration(sequence) * time.Second),
+			}
+		}
+		events := []store.SessionEvent{
+			rawEvent("ev-call", 1, "goal-1", acp.EventTypeToolCall, `{"schema":"compozy.session.event.v1",`+
+				`"type":"tool_call","turn_id":"goal-1","status":"in_progress","title":"make gate",`+
+				`"tool_name":"make gate","tool_kind":"execute","tool_call_id":"exec-1",`+
+				`"tool_input":{"command":"make gate"}}`),
+			mustUIAgentSessionEvent(t, "ev-done-1", 2, timestamp.Add(2*time.Second), acp.AgentEvent{
+				Type:             acp.EventTypeDone,
+				SessionID:        "sess-goal",
+				TurnID:           "goal-1",
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
+			}),
+			mustUIAgentSessionEvent(t, "ev-text-2", 3, timestamp.Add(3*time.Second), acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-goal",
+				TurnID:    "goal-2",
+				Text:      "still waiting on the gate",
+			}),
+			rawEvent("ev-call-update", 4, "goal-2", acp.EventTypeToolCall, `{"schema":"compozy.session.event.v1",`+
+				`"type":"tool_call","turn_id":"goal-2","tool_call_id":"exec-1"}`),
+			rawEvent("ev-result", 5, "goal-2", acp.EventTypeToolResult, `{"schema":"compozy.session.event.v1",`+
+				`"type":"tool_result","turn_id":"goal-2","status":"failed","tool_call_id":"exec-1",`+
+				`"tool_result":{"raw_output":{"exit_code":2}},"tool_error":true}`),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 2; got != want {
+			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
+		}
+		gotTurns := [][]string{
+			uiVisiblePartSignatures(messages[0].Parts),
+			uiVisiblePartSignatures(messages[1].Parts),
+		}
+		wantTurns := [][]string{
+			{"tool-make gate:exec-1:output-error"},
+			{"text:goal-2-text-1:still waiting on the gate:streaming"},
+		}
+		if !reflect.DeepEqual(gotTurns, wantTurns) {
+			t.Fatalf("visible part signatures = %#v, want %#v", gotTurns, wantTurns)
+		}
+	})
+
+	t.Run("Should name a dynamic tool part whose provider never reports the tool", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 10, 18, 4, 0, 0, 0, time.UTC)
+		events := []store.SessionEvent{{
+			ID:        "ev-orphan-result",
+			SessionID: "sess-orphan",
+			TurnID:    "turn-orphan",
+			Sequence:  1,
+			Type:      acp.EventTypeToolResult,
+			Content: `{"schema":"compozy.session.event.v1","type":"tool_result","turn_id":"turn-orphan",` +
+				`"status":"failed","tool_call_id":"exec-orphan","tool_result":{"raw_output":{"exit_code":2}},` +
+				`"tool_error":true}`,
+			Timestamp: timestamp,
+		}}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
+		}
+		var tool *UIMessagePart
+		for index := range messages[0].Parts {
+			if messages[0].Parts[index].Type == uiPartDynamicTool {
+				tool = &messages[0].Parts[index]
+			}
+		}
+		if tool == nil {
+			t.Fatalf("parts = %#v, want one dynamic-tool part", messages[0].Parts)
+		}
+		if tool.ToolName != uiFallbackToolName || tool.State != uiToolStateError {
+			t.Fatalf("dynamic tool = %#v, want toolName %q in state %q", tool, uiFallbackToolName, uiToolStateError)
+		}
+	})
 }
 
 // Invariant: snapshots with one compaction ID form one corrected item in the canonical UI projection.
