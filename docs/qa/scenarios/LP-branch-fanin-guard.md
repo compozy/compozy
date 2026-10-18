@@ -4,7 +4,7 @@ area: LP
 title: Merge alternate branch paths and guard required conditions
 persona: Bruno
 journey: J-complete-partial-loop
-expected: A shared join waits for all dependencies to settle and runs when one incoming path is active even if another is branch_skipped; an explicit AND branch with the protected action as its sole dependent skips that action unless every required condition holds.
+expected: A shared join waits for all dependencies to settle and runs when one incoming path is active even if another is branch_skipped; an explicit AND branch that is the protected action's sole predecessor skips that action unless every required condition holds.
 entry_points: compozy loop create|run|status; GET /api/workspaces/:workspace_id/loop-runs/:run_id; /docs/loops/dsl-reference; skills/compozy/references/loops.md
 qa_status: pass
 bug_ids:
