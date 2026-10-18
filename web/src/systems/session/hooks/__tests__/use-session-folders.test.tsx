@@ -134,6 +134,37 @@ describe("useSessionFolders", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it("Should send rapid layout writes one at a time in action order", async () => {
+    const { result, writes } = setup(200);
+    await waitFor(() => expect(result.current?.folders).toHaveLength(1));
+    let releaseFirst: (response: Response) => void = () => undefined;
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const settled = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async input => {
+      const request = input as Request;
+      if (request.method !== "GET" && writes.length === 0) {
+        writes.push(request);
+        return new Promise<Response>(resolve => {
+          releaseFirst = resolve;
+        });
+      }
+      return settled(input);
+    });
+
+    act(() => {
+      result.current?.reorderFolders(["sfold-a"]);
+      result.current?.reorderSessions(null, ["b", "a"]);
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(writes).toHaveLength(1);
+
+    releaseFirst(json({ folders: [folder] }));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(new URL(writes[0]!.url).pathname).toBe("/api/workspaces/ws/session-order/folders");
+    expect(new URL(writes[1]!.url).pathname).toBe("/api/workspaces/ws/session-order/sessions");
+  });
+
   it("Should clear membership at once when a folder is deleted", async () => {
     const { result, writes, order } = setup(200);
     await waitFor(() => expect(result.current?.folders).toHaveLength(1));

@@ -85,6 +85,9 @@ export function useSessionFolders(options: {
   };
 
   const mutation = useMutation({
+    // One scope per workspace and profile runs layout writes one at a time, so
+    // rapid reorders reach the daemon in the order the operator made them.
+    scope: { id: `session-layout:${workspaceId}:${options.profile.trim()}` },
     mutationFn: (run: LayoutWrite) => run.request(),
     onMutate: async (run: LayoutWrite) => {
       await queryClient.cancelQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) });
