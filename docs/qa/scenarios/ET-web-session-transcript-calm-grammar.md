@@ -20,6 +20,14 @@ overlaps: RT-session-message-reload, ET-tool-result-artifact-recovery, ET-web-se
 
 story: As a person supervising agent work I read a calm, text-first transcript where settled work collapses to semantic summaries and only failures and the live tail demand attention.
 
+QA pass 2026-10-18 (issue #791, targeted): a real isolated Claude Goal reproduced
+one-row-per-call rendering. Goal-attributed hidden receipts and usage now preserve
+one `Ran 4 commands` disclosure; clicking it reveals all four original calls while
+the next running call remains separate. Ordinary prompt grouping is the canary;
+860 px settlement was also inspected. This does not revalidate the other historical
+navigation, failure, or typography journeys in this scenario. Evidence and limits:
+[issue #791 report](../reports/2026-10-18-issue-791-claude-tool-grouping.md).
+
 errors:
 
 inventory: Needs QA — introduced by the session transcript redesign (calm-surface vocabulary, 2026-07-29).
