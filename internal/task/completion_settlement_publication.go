@@ -27,16 +27,6 @@ func (m *Service) publishCompletedLeaseSettlement(
 	defer advisoryCancel()
 	m.recordCompletionHallucinationSuspected(advisoryCtx, advisoryEventID, run, actor)
 	m.dispatchTaskRunCompleted(publicationCtx, run, reconciledTask, actor)
-	if !run.IsLoopWorker() {
-		autoCtx, cancel := context.WithTimeout(publicationCtx, autoEnqueueDispatchTimeout)
-		defer cancel()
-		for _, transition := range settlement.StatusTransitions {
-			m.autoEnqueueReadyDependents(autoCtx, transition.Task.ID, autoEnqueueTrigger{
-				Kind: autoEnqueueTriggerDependencyCompletion,
-				Ref:  run.ID,
-			}, actor)
-		}
-	}
 	return &run, publicationErr
 }
 
@@ -84,6 +74,17 @@ func (m *Service) publishCompletedRunSettlement(
 				transition.Task.ID,
 				err,
 			))
+		}
+	}
+
+	if !settlement.Run.IsLoopWorker() {
+		autoCtx, cancel := context.WithTimeout(publicationCtx, autoEnqueueDispatchTimeout)
+		defer cancel()
+		for _, transition := range settlement.StatusTransitions {
+			m.autoEnqueueReadyDependents(autoCtx, transition.Task.ID, autoEnqueueTrigger{
+				Kind: autoEnqueueTriggerDependencyCompletion,
+				Ref:  settlement.Run.ID,
+			}, actor)
 		}
 	}
 
