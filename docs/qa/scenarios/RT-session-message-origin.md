@@ -74,6 +74,8 @@ Busy-target policy regression (#760)
     delivery and runs after the human prompt.
 11. Send three status messages with `supersede: true` from A to B: only the latest remains queued and
     `canceled_queued_entries` counts the replaced ones; another sender's and the human's entries stay.
+    A superseding `steer` injected into B also cancels A's older queued messages and reports them in
+    `canceled_queued_entries`; they never run after the turn.
 12. Eight consecutive queued agent messages and reply wakes dispatch as one turn: each keeps its own
     origin event and reply watch; a human entry is never merged.
 13. Promotion: keep B in one turn past `session.messaging.queue_promote_after` (shorten it for the lab).

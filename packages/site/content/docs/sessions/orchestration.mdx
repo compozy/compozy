@@ -59,7 +59,7 @@ Agents use `compozy__session_prompt` to address another session. Supply `session
 receiver a full turn, so send at milestones instead of streaming status updates.
 For a long-running receiver, prefer `steer` for anything it must see soon; `queue` only waits for the end
 of its current turn, which can be long. Set `supersede: true` on a status update so only your latest one
-stays queued.
+stays queued; a superseding `steer` also cancels your older queued messages.
 
 CompozyOS stamps an immutable `origin` from the calling agent session. Queue and event responses
 include `kind: "session"`, `session_id`, `workspace_id`, `hop`, and optional `agent_name`,

@@ -156,9 +156,14 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 	for _, id := range entry.SupersededIDs {
 		evidence := map[string]any{"queue_entry_id": id, "replacement_entry_id": entry.ID}
 		older, err := m.inputQueue.Get(ctx, session.ID, id)
-		if err != nil {
+		switch {
+		case err != nil:
 			m.sessionLogger(session).Warn("session: read superseded guidance failed", "entry_id", id, "error", err)
-		} else {
+		case older.Mode == store.SessionInputQueueModeQueue:
+			// A superseding steer also replaced the sender's older queued message.
+			m.settleSupersededQueuedInput(ctx, session, entry, &older)
+			continue
+		default:
 			addSteerAuthoredEvidence(evidence, &older)
 		}
 		m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSuperseded,

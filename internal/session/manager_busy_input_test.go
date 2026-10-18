@@ -415,7 +415,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				operation: store.SessionPromptOperationSteer,
 				mode:      store.SessionInputQueueModeSteer,
 				call: func(ctx context.Context, queue *inputqueue.Service, _ string, admission store.SessionPromptAdmissionRequest) error {
-					_, _, _, err := queue.StageAdmittedSteer(ctx, admission, "turn-active", 0)
+					_, _, _, err := queue.StageAdmittedSteer(ctx, admission, "turn-active", 0, false)
 					return err
 				},
 			},
@@ -4881,6 +4881,56 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			t.Fatalf("dropped markers = %d, want one per superseded message", count)
 		}
 		drain(t, f)
+	})
+
+	t.Run("Should replace the sender's queued messages when a superseding steer is delivered", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{})
+		older, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("a1", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		other, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("b1", "sess-b", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		steer := agentOpts("a2", "sess-a", true)
+		steer.Mode = BusyInputModeSteer
+		latest, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer)
+		if err != nil || latest.SteerDelivery != store.SteerDeliveryInjected || latest.CanceledQueuedEntries != 1 {
+			t.Fatalf("superseding steer = %#v, %v; want injected with one replaced message", latest, err)
+		}
+		select {
+		case text := <-f.steered:
+			if !strings.Contains(text, "status a2") {
+				t.Fatalf("injected text = %q", text)
+			}
+		default:
+			t.Fatal("superseding steer was not injected")
+		}
+		replaced, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, older.QueueEntryID)
+		if err != nil || replaced.Status != store.SessionInputQueueStatusCanceled {
+			t.Fatalf("replaced entry = %#v, %v; want canceled by the superseding steer", replaced, err)
+		}
+		kept, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, other.QueueEntryID)
+		if err != nil || kept.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("other sender's entry = %#v, %v; want it kept queued", kept, err)
+		}
+		if count := countTranscriptMarkers(t, f.h.manager, f.sess.ID, transcript.MarkerPromptDropped); count != 1 {
+			t.Fatalf("dropped markers = %d, want one for the replaced message", count)
+		}
+		drain(t, f)
+		waitForCondition(t, "other sender's message dispatched", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, other.QueueEntryID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent
+		})
+		f.h.driver.mu.Lock()
+		defer f.h.driver.mu.Unlock()
+		for _, call := range f.h.driver.promptCalls {
+			if strings.Contains(call.Message, "status a1") {
+				t.Fatalf("replaced message still ran after the turn: %q", call.Message)
+			}
+		}
 	})
 
 	t.Run("Should inject a waiting agent message into a long turn and keep its identity", func(t *testing.T) {

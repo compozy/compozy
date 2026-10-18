@@ -173,7 +173,15 @@ func stageAdmittedSessionSteerInTransaction(
 	if err != nil {
 		return err
 	}
-	inserted, err := insertSessionInputQueueEntry(ctx, exec, bindQueueAdmission(queueReq, claimed))
+	bound := bindQueueAdmission(queueReq, claimed).Normalize()
+	// Supersede is mode-independent: a steer that replaces the sender's status must not leave the older
+	// queued message to run after the turn.
+	canceledQueued, err := cancelSupersededAgentSessionInputs(ctx, exec, bound, admissionReq.Now)
+	if err != nil {
+		return err
+	}
+	superseded = append(superseded, canceledQueued...)
+	inserted, err := insertSessionInputQueueEntry(ctx, exec, bound)
 	if err != nil {
 		return err
 	}
@@ -183,7 +191,7 @@ func stageAdmittedSessionSteerInTransaction(
 		claimed.WorkspaceID,
 		claimed.SessionID,
 		claimed.IdempotencyKey,
-		stagedPromptAdmissionResult(&inserted),
+		stagedPromptAdmissionResult(&inserted, len(canceledQueued)),
 		admissionReq.Now,
 		store.SessionPromptAdmissionReserved,
 	)
@@ -337,13 +345,17 @@ func queuedPromptAdmissionResult(
 	}
 }
 
-func stagedPromptAdmissionResult(entry *store.SessionInputQueueEntry) store.SessionPromptAdmissionResult {
+func stagedPromptAdmissionResult(
+	entry *store.SessionInputQueueEntry,
+	canceled int,
+) store.SessionPromptAdmissionResult {
 	return store.SessionPromptAdmissionResult{
-		Status:          store.SessionPromptResultStatusSteering,
-		Mode:            store.SessionInputQueueModeSteer,
-		QueueEntryID:    entry.ID,
-		QueueGeneration: entry.SessionGeneration,
-		Delivery:        entry.Delivery,
+		Status:                store.SessionPromptResultStatusSteering,
+		Mode:                  store.SessionInputQueueModeSteer,
+		QueueEntryID:          entry.ID,
+		QueueGeneration:       entry.SessionGeneration,
+		Delivery:              entry.Delivery,
+		CanceledQueuedEntries: canceled,
 	}
 }
 
