@@ -857,6 +857,12 @@ describe("SessionThread transcript states", () => {
           { type: "text", id: "goal-turn-2-text-1", text: "Gate fixed on main.", state: "done" },
         ],
       },
+      {
+        // Every part is invalid: the message goes, the conversation stays.
+        id: "user-emptied",
+        role: "user",
+        parts: [{ type: "text", text: 42 }],
+      },
     ] as unknown as SessionMessage[];
 
     const normalized = await normalizeTranscriptMessages(transcript);
@@ -864,6 +870,7 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByText("Running the gate.")).toBeInTheDocument();
     expect(screen.getByText("Gate fixed on main.")).toBeInTheDocument();
+    expect(normalized.map(message => message.id)).toEqual(["goal-turn-1", "goal-turn-2"]);
     expect(normalized[1]?.parts.map(part => part.type)).toEqual(["text"]);
     expect(warn).toHaveBeenCalledWith(
       "Dropped an invalid transcript part",

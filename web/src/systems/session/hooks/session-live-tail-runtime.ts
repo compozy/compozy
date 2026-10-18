@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { buildSessionStreamUrl, fetchSessionTranscript } from "../adapters/session-api";
-import { normalizeTranscriptMessages } from "../lib/message-schemas";
+import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionLiveQueries } from "../lib/session-query-invalidation";
 import {
@@ -62,11 +62,10 @@ interface CreateSessionLiveTailRuntimeOptions {
   workspaceId: string;
 }
 
-async function normalizeEntries(
+function normalizeEntries(
   entries: TranscriptSnapshotPayload["entries"] | TranscriptDeltaPayload["entries"]
 ): Promise<NormalizedSessionTranscriptEntry[]> {
-  const messages = await normalizeTranscriptMessages(entries.map(entry => entry.message));
-  return entries.map((entry, index) => ({ ...entry, message: messages[index]! }));
+  return normalizeTranscriptEntries(entries);
 }
 
 interface NormalizedFrames {
@@ -82,13 +81,17 @@ interface NormalizedFrames {
  */
 async function normalizeFrames(frames: readonly SessionLiveTailFrame[]): Promise<NormalizedFrames> {
   try {
-    const flat = await normalizeEntries(frames.flatMap(frame => frame.payload.entries));
-    let offset = 0;
-    const entries = frames.map(frame => {
-      const slice = flat.slice(offset, offset + frame.payload.entries.length);
-      offset += frame.payload.entries.length;
-      return slice;
-    });
+    // Normalization may leave out an entry whose every part was invalid, so each
+    // entry carries its frame instead of relying on per-frame offsets.
+    const flat = await normalizeTranscriptEntries(
+      frames.flatMap((frame, frameIndex) =>
+        frame.payload.entries.map(entry => ({ entry, frameIndex, message: entry.message }))
+      )
+    );
+    const entries: NormalizedSessionTranscriptEntry[][] = frames.map(() => []);
+    for (const item of flat) {
+      entries[item.frameIndex]!.push({ ...item.entry, message: item.message });
+    }
     return { entries, failure: null };
   } catch {
     const entries: NormalizedSessionTranscriptEntry[][] = [];

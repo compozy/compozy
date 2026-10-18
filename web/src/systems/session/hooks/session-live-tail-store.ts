@@ -258,6 +258,8 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       },
       repairFailed: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "repairing") return;
+        // The first repair ran immediately; its retries start at the base delay.
+        const delayMs = transcriptRecoveryDelayMs(context.recoveryAttempt);
         const recoveryAttempt = context.recoveryAttempt + 1;
         enqueue.effect(({ trigger }) => {
           const handles = handlesByTrigger.get(trigger);
@@ -266,7 +268,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           clearTimer(handles.repairTimer);
           handles.repairTimer = setTimeout(
             () => trigger.repairElapsed({ generation: context.generation }),
-            transcriptRecoveryDelayMs(recoveryAttempt)
+            delayMs
           );
         });
         if (context.pendingTerminal) {

@@ -400,17 +400,25 @@ async function validationFails(message: unknown): Promise<boolean> {
   }
 }
 
+interface SalvagedMessages {
+  messages: unknown[];
+  /** Original index of each salvaged message; a message emptied by dropping its parts is gone. */
+  kept: number[];
+}
+
 /**
  * Drops the parts that still fail validation so one malformed part costs that part,
- * not the whole conversation. Returns null when nothing can be salvaged by dropping
- * parts (the message itself is malformed), so the caller rethrows the original error.
+ * not the whole conversation, and drops a message every part of which was invalid.
+ * Returns null when dropping parts salvages nothing (a malformed message envelope),
+ * so the caller rethrows the original error.
  */
-async function withoutInvalidParts(messages: unknown[]): Promise<unknown[] | null> {
+async function withoutInvalidParts(messages: readonly unknown[]): Promise<SalvagedMessages | null> {
   let dropped = false;
-  const salvaged: unknown[] = [];
-  for (const message of messages) {
+  const salvaged: SalvagedMessages = { messages: [], kept: [] };
+  for (const [messageIndex, message] of messages.entries()) {
     if (!(await validationFails(message))) {
-      salvaged.push(message);
+      salvaged.messages.push(message);
+      salvaged.kept.push(messageIndex);
       continue;
     }
     if (!isRecord(message) || !Array.isArray(message.parts)) {
@@ -429,11 +437,15 @@ async function withoutInvalidParts(messages: unknown[]): Promise<unknown[] | nul
       }
       parts.push(part);
     }
+    if (parts.length === 0 && message.parts.length > 0) {
+      continue;
+    }
     const next = { ...message, parts };
     if (await validationFails(next)) {
       return null;
     }
-    salvaged.push(next);
+    salvaged.messages.push(next);
+    salvaged.kept.push(messageIndex);
   }
   return dropped ? salvaged : null;
 }
@@ -449,18 +461,38 @@ async function validateMessages(messages: unknown): Promise<SessionMessage[]> {
   return restoreOriginalToolParts(withMetadata, messages);
 }
 
-export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
-  if (Array.isArray(messages) && messages.length === 0) {
+/**
+ * Validates the messages of transcript entries. An entry whose every part was invalid
+ * is left out, so the result can be shorter than the input but keeps its order.
+ */
+export async function normalizeTranscriptEntries<T extends { message: unknown }>(
+  entries: readonly T[]
+): Promise<Array<Omit<T, "message"> & { message: SessionMessage }>> {
+  if (entries.length === 0) {
     return [];
   }
 
+  const messages = entries.map(entry => entry.message);
   try {
-    return await validateMessages(messages);
+    const validated = await validateMessages(messages);
+    return entries.map((entry, index) => ({ ...entry, message: validated[index]! }));
   } catch (error) {
-    const salvaged = Array.isArray(messages) ? await withoutInvalidParts(messages) : null;
+    const salvaged = await withoutInvalidParts(messages);
     if (!salvaged) {
       throw error;
     }
-    return validateMessages(salvaged);
+    const validated = await validateMessages(salvaged.messages);
+    return salvaged.kept.map((entryIndex, index) => ({
+      ...entries[entryIndex]!,
+      message: validated[index]!,
+    }));
   }
+}
+
+export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
+  if (!Array.isArray(messages)) {
+    return validateMessages(messages);
+  }
+  const entries = await normalizeTranscriptEntries(messages.map(message => ({ message })));
+  return entries.map(entry => entry.message);
 }
