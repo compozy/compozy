@@ -69,6 +69,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 				acp.WithProcessRegistry(deps.ProcessRegistry),
 				acp.WithTerminalManager(deps.Terminals),
 				acp.WithProviderPreStarter(d.providerPreStarter),
+				acp.WithAgentNiceness(deps.AgentNiceness),
 			))),
 		)
 	}

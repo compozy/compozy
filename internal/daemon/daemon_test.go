@@ -5700,6 +5700,10 @@ func newTestDaemon(t *testing.T, homePaths compozyconfig.HomePaths, cfg *compozy
 	} else if err != nil {
 		t.Fatalf("os.Stat(%q) error = %v", homePaths.DatabaseFile, err)
 	}
+	if cfg != nil {
+		// Host CPU load must not delay background work inside daemon tests.
+		cfg.Daemon.Load.AdmissionThreshold = 0
+	}
 	d, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(cfg),

@@ -71,6 +71,12 @@ func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService,
 			}
 			return state.toolProjectionEpoch.Current()
 		},
+		ProjectionChanges: func() <-chan struct{} {
+			if state == nil {
+				return nil
+			}
+			return state.toolProjectionEpoch.Changes()
+		},
 	})
 }
 

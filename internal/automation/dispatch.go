@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/session"
@@ -380,6 +381,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 	}
 	if err := req.Validate("dispatch"); err != nil {
 		return nil, err
+	}
+	if req.Kind != DispatchKindManual {
+		// Scheduled, trigger, and extension runs yield to host CPU pressure at admission.
+		ctx = admission.WithBackgroundWork(ctx)
 	}
 
 	attempt := 1

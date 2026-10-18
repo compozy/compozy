@@ -33,8 +33,30 @@ export type SessionLiveTailFrame =
       payload: TranscriptSnapshotPayload;
     };
 
-/** `reset` is an applied snapshot that replaced loaded history with another generation. */
-export type SessionLiveTailApplyResult = "applied" | "reset" | "cancelled" | "mismatch";
+/** One frame written by a batch; `reset` replaced loaded history with another generation. */
+export interface SessionLiveTailAppliedFrame {
+  frame: SessionLiveTailFrame;
+  result: "applied" | "reset";
+}
+
+/**
+ * Why a batch stopped before its last frame: aborted before any write, the next
+ * frame no longer fits the cache fences, or its entries failed to normalize.
+ */
+export type SessionLiveTailBatchStop =
+  | "cancelled"
+  | "mismatch"
+  | { error: unknown; frame: SessionLiveTailFrame };
+
+/**
+ * Queued frames apply as one ordered batch with one cache write: `applied` is
+ * the in-order prefix that landed, exactly what sequential application would
+ * have written before `stop`.
+ */
+export interface SessionLiveTailBatchResult {
+  applied: readonly SessionLiveTailAppliedFrame[];
+  stop: SessionLiveTailBatchStop | null;
+}
 
 export interface SessionLiveTailStreamHandlers {
   commandsChanged: () => void;
@@ -47,10 +69,10 @@ export interface SessionLiveTailStreamHandlers {
 }
 
 export interface SessionLiveTailRuntime {
-  applyFrame: (
-    frame: SessionLiveTailFrame,
+  applyFrames: (
+    frames: readonly SessionLiveTailFrame[],
     signal: AbortSignal
-  ) => Promise<SessionLiveTailApplyResult>;
+  ) => Promise<SessionLiveTailBatchResult>;
   applyTerminal: (payload: SessionEventPayload | null, sequence: number) => void;
   invalidateClarifications: () => void;
   invalidateCommands: () => void;
@@ -106,12 +128,7 @@ export interface SessionLiveTailContext {
 }
 
 export type SessionLiveTailEvents = {
-  applyCompleted: {
-    at: number;
-    frame: SessionLiveTailFrame;
-    generation: number;
-    result: SessionLiveTailApplyResult;
-  };
+  applyCompleted: SessionLiveTailBatchResult & { at: number; generation: number };
   applyFailed: { error: unknown; frame: SessionLiveTailFrame; generation: number };
   applyStarted: { generation: number };
   commandsChanged: { generation: number };

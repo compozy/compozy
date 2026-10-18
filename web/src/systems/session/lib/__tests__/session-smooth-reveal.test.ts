@@ -135,7 +135,10 @@ describe("smooth reveal lifecycle", () => {
     vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   function advanceFrame(at: number) {
     const pending = [...frames.values()];
@@ -187,6 +190,42 @@ describe("smooth reveal lifecycle", () => {
     rerender({ text: "replacement with more text and another burst", animate: true });
     // A canceled callback must not take ownership of a newer clock away from cleanup.
     act(() => stale.forEach(callback => callback(10_016)));
+    unmount();
+    expect(frames.size).toBe(0);
+  });
+
+  it("Should stop the clock while the document is hidden and show the final text on return", () => {
+    let visibility: DocumentVisibilityState = "visible";
+    vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibility);
+    const setVisibility = (next: DocumentVisibilityState) => {
+      visibility = next;
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+    };
+    const { result, rerender, unmount } = renderHook(
+      ({ text }) => useSmoothStreamedText(text, true),
+      { initialProps: { text: "" } }
+    );
+    const backlog = "hidden ".repeat(100);
+    rerender({ text: backlog });
+    advanceFrame(1_000);
+    advanceFrame(1_016);
+    expect(result.current.length).toBeLessThan(backlog.length);
+
+    setVisibility("hidden");
+    expect(result.current).toBe(backlog);
+    expect(frames.size).toBe(0);
+    const arrivedWhileHidden = `${backlog}more `;
+    rerender({ text: arrivedWhileHidden });
+    expect(result.current).toBe(arrivedWhileHidden);
+    expect(frames.size).toBe(0);
+
+    setVisibility("visible");
+    expect(result.current).toBe(arrivedWhileHidden);
+    rerender({ text: `${arrivedWhileHidden}${"visible ".repeat(50)}` });
+    expect(result.current).toBe(arrivedWhileHidden);
+    expect(frames.size).toBe(1);
     unmount();
     expect(frames.size).toBe(0);
   });

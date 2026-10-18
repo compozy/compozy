@@ -50,6 +50,7 @@ type RuntimeDeps struct {
 	Registry            Registry
 	Profiles            *profile.Manager
 	RuntimeMemory       doctor.RuntimeMemorySnapshotSource
+	HostLoad            doctor.HostLoadSnapshotSource
 	DeadEntities        doctor.DeadEntitySource
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	WorkspaceService    core.WorkspaceService

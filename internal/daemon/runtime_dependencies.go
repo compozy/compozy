@@ -39,6 +39,7 @@ func (d *Daemon) runtimeDeps(
 		Profiles:              state.profiles,
 		SchemaStreams:         newDaemonSchemaStreamStatusReader(state.registry),
 		RuntimeMemory:         state.runtimeWorkers.runtimeMemory,
+		HostLoad:              hostLoadSnapshotSource(state.runtimeWorkers.hostLoad),
 		DeadEntities:          state.deadEntities,
 		WorkspaceResolver:     state.workspaceResolver,
 		WorkspaceService:      state.workspaceResolver,

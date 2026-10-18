@@ -18,8 +18,10 @@ import (
 )
 
 const (
-	loopEffectRelayBatchSize    = 50
-	loopEffectRelayPollInterval = 250 * time.Millisecond
+	loopEffectRelayBatchSize = 50
+	// loopEffectRelayPollInterval is the fallback sweep; committed effect
+	// enqueues and terminal observers nudge the relay immediately.
+	loopEffectRelayPollInterval = 2 * time.Second
 	loopEffectActorName         = "loop-effect"
 	loopEffectApprovalCode      = "effect_tool_approval_required"
 )

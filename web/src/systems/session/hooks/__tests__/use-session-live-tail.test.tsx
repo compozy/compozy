@@ -1086,6 +1086,8 @@ describe("useSessionLiveTail", () => {
         "9"
       );
     });
+    // One paint applies the queued batch, then the first reconnect delay elapses.
+    await act(async () => vi.advanceTimersByTimeAsync(16));
     await act(async () => vi.advanceTimersByTimeAsync(250));
 
     expect(result.current.messages.map(message => message.id)).toEqual([
@@ -1093,6 +1095,101 @@ describe("useSessionLiveTail", () => {
     ]);
     expect(sources[0]?.closed).toBe(true);
     expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=1&epoch=1&generation=1`);
+  });
+
+  it("Should apply frames queued within one paint as one ordered cache write equal to sequential application", async () => {
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([sessionTranscriptFixture[0]!])
+    );
+    const deltas = [1, 2, 3].map(index => ({
+      cursor: index + 1,
+      entries: [
+        {
+          message: textMessage(`batched-${index}`, `Batched message ${index}`),
+          sequence: index + 1,
+          start_sequence: index + 1,
+        },
+      ],
+      epoch: 1,
+      generation: 1,
+      has_more: false,
+      max_sequence: index + 1,
+      session_id: SESSION_ID,
+    }));
+    const transcriptKey = sessionKeys.transcript(WORKSPACE_ID, SESSION_ID);
+
+    const sequential = renderLiveTail();
+    await waitFor(() => expect(sequential.result.current.messages).toHaveLength(1));
+    for (const [index, delta] of deltas.entries()) {
+      act(() => sequential.sources[0]?.emit("transcript_delta", delta, String(delta.cursor)));
+      await waitFor(() => expect(sequential.result.current.messages).toHaveLength(index + 2));
+    }
+
+    const batched = renderLiveTail();
+    await waitFor(() => expect(batched.result.current.messages).toHaveLength(1));
+    const setQueryData = vi.spyOn(batched.queryClient, "setQueryData");
+    act(() => {
+      for (const delta of deltas) {
+        batched.sources[0]?.emit("transcript_delta", delta, String(delta.cursor));
+      }
+    });
+    await waitFor(() => expect(batched.result.current.messages).toHaveLength(4));
+
+    const transcriptWrites = setQueryData.mock.calls.filter(
+      ([queryKey]) => JSON.stringify(queryKey) === JSON.stringify(transcriptKey)
+    );
+    expect(transcriptWrites).toHaveLength(1);
+    expect(batched.result.current.messages.map(message => message.id)).toEqual([
+      sessionTranscriptFixture[0]?.id,
+      "batched-1",
+      "batched-2",
+      "batched-3",
+    ]);
+    expect(batched.queryClient.getQueryData(transcriptKey)).toEqual(
+      sequential.queryClient.getQueryData(transcriptKey)
+    );
+    expect(batched.result.current.transport.phase).toBe("live");
+  });
+
+  it("Should keep the in-order prefix and reconnect from it when a batched frame breaks the fence", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([sessionTranscriptFixture[0]!])
+    );
+    const { result, sources } = renderLiveTail();
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.messages).toHaveLength(1));
+    });
+    const delta = (sequence: number, generation: number) => ({
+      cursor: sequence,
+      entries: [
+        {
+          message: textMessage(`fenced-${sequence}`, `Fenced message ${sequence}`),
+          sequence,
+          start_sequence: sequence,
+        },
+      ],
+      epoch: 1,
+      generation,
+      has_more: false,
+      max_sequence: sequence,
+      session_id: SESSION_ID,
+    });
+
+    act(() => {
+      sources[0]?.emit("transcript_delta", delta(2, 1), "2");
+      sources[0]?.emit("transcript_delta", delta(9, 2), "9");
+      sources[0]?.emit("transcript_delta", delta(3, 1), "3");
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(16));
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+
+    expect(result.current.messages.map(message => message.id)).toEqual([
+      sessionTranscriptFixture[0]?.id,
+      "fenced-2",
+    ]);
+    expect(sources[0]?.closed).toBe(true);
+    expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=2&epoch=1&generation=1`);
   });
 
   it("Should preserve unchanged ThreadMessage identities across a delta update", async () => {

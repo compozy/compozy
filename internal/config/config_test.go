@@ -2790,3 +2790,69 @@ func TestSubagentsConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestDaemonLoadConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose background niceness and load admission defaults", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		want := DaemonLoadConfig{AgentNiceness: 10, AdmissionThreshold: 1.5, AdmissionMaxWait: 2 * time.Minute}
+		if got := DefaultWithHome(homePaths).Daemon.Load; got != want {
+			t.Fatalf("DefaultWithHome() Daemon.Load = %#v, want %#v", got, want)
+		}
+	})
+
+	testCases := []struct {
+		name     string
+		cfg      DaemonLoadConfig
+		wantPath string
+	}{
+		{name: "Should allow zero to disable niceness and load admission", cfg: DaemonLoadConfig{}},
+		{
+			name:     "Should reject a negative niceness that would need privileges",
+			cfg:      DaemonLoadConfig{AgentNiceness: -1},
+			wantPath: daemonLoadAgentNicenessPath,
+		},
+		{
+			name:     "Should reject a niceness above the Unix maximum",
+			cfg:      DaemonLoadConfig{AgentNiceness: 20},
+			wantPath: daemonLoadAgentNicenessPath,
+		},
+		{
+			name:     "Should reject a negative admission threshold",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: -0.5, AdmissionMaxWait: time.Minute},
+			wantPath: daemonLoadAdmissionThreshold,
+		},
+		{
+			name:     "Should reject an enabled threshold without a bounded wait",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: 1.5},
+			wantPath: daemonLoadAdmissionMaxWaitPath,
+		},
+		{
+			name:     "Should reject a wait beyond the maximum bound",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: 1.5, AdmissionMaxWait: time.Hour},
+			wantPath: daemonLoadAdmissionMaxWaitPath,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.cfg.Validate()
+			if tc.wantPath == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantPath) {
+				t.Fatalf("Validate() error = %v, want %q", err, tc.wantPath)
+			}
+		})
+	}
+}
