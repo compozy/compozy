@@ -1300,16 +1300,16 @@ func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
 		}
 	})
 
-	t.Run("Should accept nonnegative grace and idle release durations", func(t *testing.T) {
-		t.Parallel()
-		for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
+	for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
+		t.Run("Should accept grace and idle release of "+value.String(), func(t *testing.T) {
+			t.Parallel()
 			cfg := DefaultSessionSupervisionConfig()
 			cfg.QuietAfter, cfg.StopGrace, cfg.IdleReleaseAfter = 2*time.Minute, value, value
 			if err := cfg.Validate(); err != nil {
 				t.Fatalf("Validate(stop_grace=idle_release_after=%s) error = %v", value, err)
 			}
-		}
-	})
+		})
+	}
 
 	for _, field := range []string{"quiet_after", "stop_grace", "idle_release_after"} {
 		t.Run("Should reject a negative "+field, func(t *testing.T) {

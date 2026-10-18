@@ -1915,10 +1915,10 @@ func TestUpdateSettingsGeneralIdleReleaseAfter(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject invalid idle_release_after values", func(t *testing.T) {
-		t.Parallel()
+	for _, raw := range []string{"soon", "-1m", "", "   "} {
+		t.Run(fmt.Sprintf("Should reject idle_release_after %q", raw), func(t *testing.T) {
+			t.Parallel()
 
-		for _, raw := range []string{"soon", "-1m", "", "   "} {
 			service := &stubSettingsService{}
 			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 			resp := performRequest(
@@ -1937,8 +1937,8 @@ func TestUpdateSettingsGeneralIdleReleaseAfter(t *testing.T) {
 			if !strings.Contains(payload.Error, "general.config.idle_release_after") {
 				t.Fatalf("payload.Error = %q, want idle_release_after context", payload.Error)
 			}
-		}
-	})
+		})
+	}
 }
 
 func TestUpdateSettingsGeneralRequiresRedactionGatePresence(t *testing.T) {
