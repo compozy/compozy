@@ -111,7 +111,7 @@ const listSessionContainerMembers = `-- name: ListSessionContainerMembers :many
 SELECT session_id FROM session_placements
 WHERE profile_id = ?1 AND workspace_id = ?2
 	AND folder_id IS ?3
-ORDER BY position ASC, session_id ASC
+ORDER BY position ASC, session_id DESC
 `
 
 type ListSessionContainerMembersParams struct {
@@ -241,6 +241,25 @@ func (q *Queries) ListSessionPlacementsByIDs(ctx context.Context, ids any) ([]Li
 		return nil, err
 	}
 	return items, nil
+}
+
+const nextSessionContainerPosition = `-- name: NextSessionContainerPosition :one
+SELECT CAST(COALESCE(MAX(position), -1) + 1 AS INTEGER) AS next_position FROM session_placements
+WHERE profile_id = ?1 AND workspace_id = ?2
+	AND folder_id IS ?3
+`
+
+type NextSessionContainerPositionParams struct {
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID string         `json:"workspace_id"`
+	FolderID    sql.NullString `json:"folder_id"`
+}
+
+func (q *Queries) NextSessionContainerPosition(ctx context.Context, arg NextSessionContainerPositionParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextSessionContainerPosition, arg.ProfileID, arg.WorkspaceID, arg.FolderID)
+	var next_position int64
+	err := row.Scan(&next_position)
+	return next_position, err
 }
 
 const renameSessionFolder = `-- name: RenameSessionFolder :execrows

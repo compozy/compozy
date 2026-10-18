@@ -13551,8 +13551,11 @@ func TestNativeSessionLayoutTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDSessionMove,
 			Input:  json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
 		})
-		if err == nil {
-			t.Fatal("session_move into an unknown workspace succeeded, want denial")
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			t.Fatalf("session_move into an unknown workspace error = %v, want workspace not found", err)
+		}
+		if sessions.scope.WorkspaceID != "ws-1" {
+			t.Fatalf("layout scope after denied move = %#v, want no call outside ws-1", sessions.scope)
 		}
 	})
 }

@@ -231,7 +231,16 @@ func (g *SessionRepo) MoveSession(
 		if slices.Contains(members, sessionID) {
 			return nil
 		}
-		return upsertSessionPlacement(ctx, q, scope, folderID, sessionID, len(members), store.FormatTimestamp(g.now()))
+		// Moves and deletes leave gaps, so append after the highest position
+		// rather than at len(members), which could tie with the last member.
+		next, e := q.NextSessionContainerPosition(ctx, sqlcgen.NextSessionContainerPositionParams{
+			ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID,
+			FolderID: sql.NullString{String: folderID, Valid: true},
+		})
+		if e != nil {
+			return e
+		}
+		return upsertSessionPlacement(ctx, q, scope, folderID, sessionID, int(next), store.FormatTimestamp(g.now()))
 	})
 	return err
 }

@@ -102,8 +102,10 @@ export function useSessionFolders(options: {
   const write = (run: LayoutWrite) => mutation.mutateAsync(run).then(() => undefined);
   const fireAndForget = (run: LayoutWrite) => void write(run).catch(() => undefined);
 
-  if (!enabled) return undefined;
-  const folders = foldersQuery.data ?? [];
+  // Without the folder list, foldered rows would render as root members and a
+  // root reorder would unfile them, so the list stays flat until it loads.
+  if (!enabled || foldersQuery.data === undefined) return undefined;
+  const folders = foldersQuery.data;
 
   const folderOrderWrite = (folderIds: readonly string[]): LayoutWrite => ({
     failure: "Couldn't reorder the folders.",

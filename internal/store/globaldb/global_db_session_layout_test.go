@@ -53,6 +53,10 @@ func TestSessionLayoutFolders(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
 		db, scope := openSessionLayoutTestDB(t, "names")
+		multibyte := strings.Repeat("é", store.MaxSessionFolderNameLength)
+		if _, err := db.CreateSessionFolder(ctx, scope, "sfold-wide", multibyte); err != nil {
+			t.Fatalf("CreateSessionFolder(%d multibyte characters) error = %v", store.MaxSessionFolderNameLength, err)
+		}
 		for _, name := range []string{"   ", strings.Repeat("x", store.MaxSessionFolderNameLength+1)} {
 			if _, err := db.CreateSessionFolder(ctx, scope, "sfold-bad", name); !errors.Is(
 				err,
@@ -142,6 +146,31 @@ func TestSessionLayoutPlacements(t *testing.T) {
 		}
 		if _, ok := readPlacements(ctx, t, db, "sess-a")["sess-a"]; ok {
 			t.Fatal("sess-a placement survived a move to the root")
+		}
+	})
+
+	t.Run("Should append after the last member when earlier moves left gaps", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db, scope := openSessionLayoutTestDB(t, "gaps")
+		for _, id := range []string{"sess-a", "sess-b", "sess-c", "sess-d"} {
+			registerLayoutSession(ctx, t, db, scope.WorkspaceID, id)
+		}
+		createLayoutFolder(ctx, t, db, scope, "sfold-a", "Alpha")
+		for _, id := range []string{"sess-a", "sess-b", "sess-c"} {
+			if err := db.MoveSession(ctx, scope, id, "sfold-a"); err != nil {
+				t.Fatalf("MoveSession(%s) error = %v", id, err)
+			}
+		}
+		if err := db.MoveSession(ctx, scope, "sess-b", ""); err != nil {
+			t.Fatalf("MoveSession(sess-b, root) error = %v", err)
+		}
+		if err := db.MoveSession(ctx, scope, "sess-d", "sfold-a"); err != nil {
+			t.Fatalf("MoveSession(sess-d) error = %v", err)
+		}
+		placements := readPlacements(ctx, t, db, "sess-a", "sess-c", "sess-d")
+		if placements["sess-d"].Position <= placements["sess-c"].Position {
+			t.Fatalf("placements = %#v, want sess-d after sess-c", placements)
 		}
 	})
 

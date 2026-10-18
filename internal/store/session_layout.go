@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
 	// MaxSessionFolders bounds one profile's folders inside one workspace.
 	MaxSessionFolders = 200
-	// MaxSessionFolderNameLength bounds a folder display name in bytes.
+	// MaxSessionFolderNameLength bounds a folder display name in characters,
+	// matching the schema's SQLite length() check and the Web form.
 	MaxSessionFolderNameLength = 120
 	// MaxSessionLayoutOrder bounds one manual reorder request.
 	MaxSessionLayoutOrder = 500
@@ -76,9 +78,9 @@ func NormalizeSessionFolderName(name string) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("%w: folder name is required", ErrSessionLayoutInvalid)
 	}
-	if len(name) > MaxSessionFolderNameLength {
+	if utf8.RuneCountInString(name) > MaxSessionFolderNameLength {
 		return "", fmt.Errorf(
-			"%w: folder name exceeds %d bytes",
+			"%w: folder name exceeds %d characters",
 			ErrSessionLayoutInvalid,
 			MaxSessionFolderNameLength,
 		)

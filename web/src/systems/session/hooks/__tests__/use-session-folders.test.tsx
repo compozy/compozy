@@ -87,6 +87,12 @@ describe("useSessionFolders", () => {
     vi.unstubAllGlobals();
   });
 
+  it("Should expose no layout until the folder list loads", async () => {
+    const { result } = setup(200);
+    expect(result.current).toBeUndefined();
+    await waitFor(() => expect(result.current?.folders).toHaveLength(1));
+  });
+
   it("Should reorder optimistically and restore the full envelope when the daemon refuses", async () => {
     const { result, writes, order } = setup(409);
     await waitFor(() => expect(result.current?.folders).toHaveLength(1));

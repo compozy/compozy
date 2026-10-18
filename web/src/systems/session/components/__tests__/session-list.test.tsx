@@ -917,6 +917,29 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
   });
 
+  it("Should keep manual reorder off on a later catalog page", async () => {
+    const layout = fakeLayout();
+    const catalog: NonNullable<SessionListViewModel["catalog"]> = {
+      sessions: layoutRows,
+      facets: undefined,
+      total: undefined,
+      loading: false,
+      failed: false,
+      next: false,
+      previous: true,
+      paging: false,
+      nextPage: vi.fn(),
+      previousPage: vi.fn(),
+      retry: vi.fn(),
+    };
+    renderList({ sessions: layoutRows, view: { ...view, sort: "manual", layout, catalog } });
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
+  });
+
   it("Should open the row menu from the keyboard and move a session into a folder", async () => {
     // A keyboard-opened menu is driven by keys; the pointer check would only see its guard layer.
     const user = userEvent.setup({ pointerEventsCheck: 0 });

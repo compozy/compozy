@@ -39,7 +39,7 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 SELECT session_id FROM session_placements
 WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id)
 	AND folder_id IS sqlc.narg(folder_id)
-ORDER BY position ASC, session_id ASC;
+ORDER BY position ASC, session_id DESC;
 
 -- name: UpsertSessionPlacement :exec
 INSERT INTO session_placements (session_id, profile_id, workspace_id, folder_id, position, updated_at)
@@ -58,3 +58,8 @@ SELECT p.session_id, p.folder_id, p.position, f.position AS folder_position
 FROM session_placements AS p
 LEFT JOIN session_folders AS f ON f.id = p.folder_id
 WHERE p.session_id IN (SELECT CAST(value AS TEXT) FROM json_each(sqlc.arg(ids)));
+
+-- name: NextSessionContainerPosition :one
+SELECT CAST(COALESCE(MAX(position), -1) + 1 AS INTEGER) AS next_position FROM session_placements
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id)
+	AND folder_id IS sqlc.narg(folder_id);
