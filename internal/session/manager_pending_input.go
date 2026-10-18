@@ -4,9 +4,11 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/session/inputqueue"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -151,6 +153,9 @@ func (m *Manager) PromotePendingInputToSteer(
 		opts.IdempotencyKey,
 		request.skillInvocations,
 	)
+	if errors.Is(err, inputqueue.ErrInputTextRequired) {
+		return SendPromptResult{}, fmt.Errorf("%w: %w", ErrValidation, err)
+	}
 	if err != nil {
 		return SendPromptResult{}, err
 	}

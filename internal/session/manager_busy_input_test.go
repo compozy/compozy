@@ -3583,6 +3583,62 @@ func TestManagerPendingInputPromotionReplay(t *testing.T) {
 			releaseReplacementOnce.Do(func() { close(releaseReplacement) })
 		},
 	)
+
+	t.Run("Should reject a blank promotion without attachments as validation", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		activeEntered := make(chan struct{})
+		releaseActive := make(chan struct{})
+		var releaseActiveOnce sync.Once
+		t.Cleanup(func() {
+			releaseActiveOnce.Do(func() { close(releaseActive) })
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() {
+				defer close(events)
+				if req.Message == "active prompt" {
+					close(activeEntered)
+					<-releaseActive
+				}
+				emitDonePromptEvents(events, sess.ID, req.TurnID)
+			}()
+			return events, nil
+		}
+
+		if _, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{Message: "active prompt"}); err != nil {
+			t.Fatalf("SendPrompt(active) error = %v", err)
+		}
+		<-activeEntered
+		queued, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "queued text", Mode: BusyInputModeQueue,
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(queue) error = %v", err)
+		}
+		_, err = h.manager.PromotePendingInputToSteer(testutil.Context(t), sess.ID, queued.QueueEntryID, PromotePendingInputOpts{
+			Text: "   ", ExpectedTurnID: sess.CurrentTurnID(),
+			MessageID: "message-promote-blank", IdempotencyKey: "idem-promote-blank",
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("PromotePendingInputToSteer(blank) error = %v, want ErrValidation", err)
+		}
+		if got := managerCancelCalls(h); got != 0 {
+			t.Fatalf("driver cancel calls = %d, want none for a rejected promotion", got)
+		}
+		inputs, err := h.manager.ListPendingInputs(testutil.Context(t), sess.ID)
+		if err != nil || len(inputs) != 1 || inputs[0].ID != queued.QueueEntryID {
+			t.Fatalf("pending inputs after rejected promotion = %#v, %v; want the original queued entry", inputs, err)
+		}
+	})
 }
 
 func managerPromptCalls(h *harness) []acp.PromptRequest {
