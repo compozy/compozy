@@ -404,9 +404,8 @@ export {
   buildSessionTree,
   childSessionSignalState,
   collectThreadSessions,
-  visibleSessionOrder,
-  type VisibleSessionOrderOptions,
 } from "./lib/session-hierarchy";
+export { visibleSessionOrder, type VisibleSessionOrderOptions } from "./lib/session-folders";
 export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,

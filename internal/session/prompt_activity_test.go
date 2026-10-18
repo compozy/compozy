@@ -1219,7 +1219,9 @@ func TestSupervisionIgnoresSessionWaitingForOperator(t *testing.T) {
 // and the next prompt reloads the same ACP session, replaying the transcript only when the load fails.
 // Owner: session supervision and runtime binding; canonical activity/supervision suite.
 func TestSupervisionReleasesIdleRuntime(t *testing.T) {
-	idleReleaseHarness := func(t *testing.T, startHook func(acp.StartOpts, int) (*fakeProcess, error)) (
+	idleReleaseHarness := func(
+		t *testing.T, startHook func(acp.StartOpts, int) (*fakeProcess, error), opts ...Option,
+	) (
 		*harness, *Session, func() time.Time, func(time.Duration),
 	) {
 		t.Helper()
@@ -1229,7 +1231,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		advance := func(step time.Duration) { nowMu.Lock(); now = now.Add(step); nowMu.Unlock() }
 		cfg := testSupervisionConfig()
 		cfg.QuietAfter, cfg.StopGrace, cfg.IdleReleaseAfter = time.Second, time.Second, time.Minute
-		h := newHarness(t, WithNow(clock), WithSessionSupervision(cfg))
+		h := newHarness(t, append([]Option{WithNow(clock), WithSessionSupervision(cfg)}, opts...)...)
 		h.driver.startHook = startHook
 		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			return completedSyntheticPromptEvents(req.TurnID), nil
@@ -1252,6 +1254,32 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		h.driver.mu.Lock()
 		defer h.driver.mu.Unlock()
 		return h.driver.stopCalls, slices.Clone(h.driver.startCalls)
+	}
+	setStopHook := func(h *harness, hook func(*fakeProcess) error) {
+		h.driver.mu.Lock()
+		h.driver.stopHook = hook
+		h.driver.mu.Unlock()
+	}
+	// superviseUntilReleaseError ticks the release window and returns its first failure.
+	superviseUntilReleaseError := func(h *harness, clock func() time.Time, advance func(time.Duration)) error {
+		for range 3 {
+			if err := h.manager.Supervise(context.Background(), clock()); err != nil {
+				return err
+			}
+			advance(time.Minute)
+		}
+		return nil
+	}
+	refusedStops := func(refusals int, err error) func(*fakeProcess) error {
+		var remaining atomic.Int32
+		remaining.Store(int32(refusals))
+		return func(proc *fakeProcess) error {
+			if remaining.Add(-1) >= 0 {
+				return err
+			}
+			proc.exit()
+			return nil
+		}
 	}
 
 	t.Run("Should release the runtime without stopping the session", func(t *testing.T) {
@@ -1291,6 +1319,104 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		}
 		if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady || info.ACPSessionID != acpSessionID {
 			t.Fatalf("rebound runtime = %s, ACP session = %q", info.RuntimeStatus, info.ACPSessionID)
+		}
+	})
+	t.Run("Should keep the released process identity durable until its exit is verified", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		pid := readMeta(t, target.MetaPath()).Liveness.SubprocessPID
+		entered, unblock := make(chan struct{}), make(chan struct{})
+		setStopHook(h, func(proc *fakeProcess) error {
+			close(entered)
+			<-unblock
+			proc.exit()
+			return nil
+		})
+		released := make(chan error, 1)
+		go func() { released <- superviseUntilReleaseError(h, clock, advance) }()
+		select {
+		case <-entered:
+		case <-testutil.Context(t).Done():
+			t.Fatal("idle release did not stop the runtime")
+		}
+		meta := readMeta(t, target.MetaPath())
+		if meta.RuntimeStatus != store.SessionRuntimeUnbound || meta.Liveness == nil ||
+			meta.Liveness.SubprocessPID != pid || meta.Liveness.SubprocessStartedAt == nil {
+			t.Fatalf("in-progress release meta = %s/%#v, want the process identity kept", meta.RuntimeStatus, meta.Liveness)
+		}
+		close(unblock)
+		if err := <-released; err != nil {
+			t.Fatalf("Supervise() error = %v", err)
+		}
+		meta = readMeta(t, target.MetaPath())
+		if meta.Liveness == nil || meta.Liveness.SubprocessPID != 0 || meta.Liveness.SubprocessStartedAt != nil {
+			t.Fatalf("completed release liveness = %#v, want no subprocess", meta.Liveness)
+		}
+	})
+	t.Run("Should persist the rollback when the release cannot be recorded", func(t *testing.T) {
+		catalog := newRecordingSessionCatalog()
+		catalogErr := errors.New("catalog unavailable")
+		var failed atomic.Bool
+		catalog.updateHook = func(update store.SessionStateUpdate) error {
+			if update.RuntimeSet && update.RuntimeStatus == store.SessionRuntimeUnbound && failed.CompareAndSwap(false, true) {
+				return catalogErr
+			}
+			return nil
+		}
+		h, target, clock, advance := idleReleaseHarness(t, nil, WithSessionCatalog(catalog))
+		if err := superviseUntilReleaseError(h, clock, advance); !errors.Is(err, catalogErr) {
+			t.Fatalf("Supervise() error = %v, want the catalog failure", err)
+		}
+		if info := target.Info(); info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady {
+			t.Fatalf("rolled back session = %s/%s, want the runtime kept", info.State, info.RuntimeStatus)
+		}
+		if meta := readMeta(t, target.MetaPath()); meta.RuntimeStatus != store.SessionRuntimeReady {
+			t.Fatalf("rolled back meta runtime = %s, want the rollback persisted", meta.RuntimeStatus)
+		}
+		if stops, _ := driverCounts(h); stops != 0 {
+			t.Fatalf("driver stop calls = %d, want the kept runtime untouched", stops)
+		}
+	})
+	t.Run("Should block the rebind until a failed release stop verifies the old process exit", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		acpSessionID := target.Info().ACPSessionID
+		stopErr := errors.New("stop refused")
+		setStopHook(h, refusedStops(2, stopErr))
+		if err := superviseUntilReleaseError(h, clock, advance); !errors.Is(err, stopErr) {
+			t.Fatalf("Supervise() error = %v, want the refused stop", err)
+		}
+		if meta := readMeta(t, target.MetaPath()); meta.Liveness == nil || meta.Liveness.SubprocessPID == 0 {
+			t.Fatalf("failed release liveness = %#v, want the unverified process identity kept", meta.Liveness)
+		}
+		_, before := driverCounts(h)
+		if _, err := h.manager.Prompt(testutil.Context(t), target.ID, "too early"); !errors.Is(err, stopErr) {
+			t.Fatalf("Prompt() while the released process runs error = %v, want the refused stop", err)
+		}
+		if _, starts := driverCounts(h); len(starts) != len(before) {
+			t.Fatalf("start calls = %d, want no rebind while the released process may run", len(starts))
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), target.ID, "next")
+		if err != nil {
+			t.Fatalf("Prompt() after the released process exit error = %v", err)
+		}
+		drainPromptEvents(t, events)
+		_, starts := driverCounts(h)
+		if last := starts[len(starts)-1]; last.ResumeSessionID != acpSessionID {
+			t.Fatalf("rebind ResumeSessionID = %q, want session/load of %q", last.ResumeSessionID, acpSessionID)
+		}
+	})
+	t.Run("Should stop the released process before a session stop verifies exit", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		released := h.driver.lastProcess()
+		stopErr := errors.New("stop refused")
+		setStopHook(h, refusedStops(1, stopErr))
+		if err := superviseUntilReleaseError(h, clock, advance); !errors.Is(err, stopErr) {
+			t.Fatalf("Supervise() error = %v, want the refused stop", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), target.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if !isProcessDone(released.handle) {
+			t.Fatal("session stop finished while the released process still ran")
 		}
 	})
 	t.Run("Should keep the runtime when the agent cannot reload its session", func(t *testing.T) {

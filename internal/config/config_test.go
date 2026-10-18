@@ -1291,29 +1291,42 @@ func TestLoadSessionDeriveConfig(t *testing.T) {
 // Invariant: quiet, grace, and idle release are independent nonnegative durations.
 // Owner: config decoder/validator; canonical config suite.
 func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
-	if got := DefaultSessionSupervisionConfig().IdleReleaseAfter; got != 30*time.Minute {
-		t.Fatalf("default idle_release_after = %s, want 30m", got)
-	}
+	t.Parallel()
+
+	t.Run("Should default idle release to 30 minutes", func(t *testing.T) {
+		t.Parallel()
+		if got := DefaultSessionSupervisionConfig().IdleReleaseAfter; got != 30*time.Minute {
+			t.Fatalf("default idle_release_after = %s, want 30m", got)
+		}
+	})
+
 	for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
-		cfg := DefaultSessionSupervisionConfig()
-		cfg.QuietAfter, cfg.StopGrace = 2*time.Minute, value
-		if err := cfg.Validate(); err != nil {
-			t.Fatal(err)
-		}
+		t.Run("Should accept grace and idle release of "+value.String(), func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultSessionSupervisionConfig()
+			cfg.QuietAfter, cfg.StopGrace, cfg.IdleReleaseAfter = 2*time.Minute, value, value
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("Validate(stop_grace=idle_release_after=%s) error = %v", value, err)
+			}
+		})
 	}
+
 	for _, field := range []string{"quiet_after", "stop_grace", "idle_release_after"} {
-		cfg := DefaultSessionSupervisionConfig()
-		switch field {
-		case "quiet_after":
-			cfg.QuietAfter = -time.Second
-		case "stop_grace":
-			cfg.StopGrace = -time.Second
-		default:
-			cfg.IdleReleaseAfter = -time.Second
-		}
-		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
-			t.Fatalf("%s: %v", field, err)
-		}
+		t.Run("Should reject a negative "+field, func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultSessionSupervisionConfig()
+			switch field {
+			case "quiet_after":
+				cfg.QuietAfter = -time.Second
+			case "stop_grace":
+				cfg.StopGrace = -time.Second
+			default:
+				cfg.IdleReleaseAfter = -time.Second
+			}
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
+				t.Fatalf("Validate() error = %v, want %s validation", err, field)
+			}
+		})
 	}
 }
 

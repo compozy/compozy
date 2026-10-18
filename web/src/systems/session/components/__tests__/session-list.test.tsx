@@ -1012,7 +1012,25 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
   });
 
-  it("Should keep manual reorder off on a later catalog page", async () => {
+  it("Should say the folders failed to load and retry from the list", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderList({
+      sessions: layoutRows,
+      view: { ...view, sort: "manual", layoutError: { retry } },
+    });
+    expect(screen.getByText("Couldn’t load folders.")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-root")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  // A reorder pins the listed rows ahead of every omitted member, so it needs the
+  // whole container on screen.
+  it.each([
+    ["on a later catalog page", { previous: true }, {}],
+    ["while a worktree narrows the list", {}, { worktreeId: "wt-1" }],
+  ])("Should keep manual reorder off %s", async (_case, page, narrowed) => {
     const layout = fakeLayout();
     const catalog: NonNullable<SessionListViewModel["catalog"]> = {
       sessions: layoutRows,
@@ -1021,18 +1039,28 @@ describe("SessionList folders and manual order", () => {
       loading: false,
       failed: false,
       next: false,
-      previous: true,
+      previous: false,
       paging: false,
       nextPage: vi.fn(),
       previousPage: vi.fn(),
       retry: vi.fn(),
+      ...page,
     };
-    renderList({ sessions: layoutRows, view: { ...view, sort: "manual", layout, catalog } });
+    renderList({
+      sessions: layoutRows,
+      view: { ...view, sort: "manual", layout, catalog, ...narrowed },
+    });
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
     expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
     expect(within(menu).queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
+
+    const row = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
+    fireEvent.dragStart(row("r1"));
+    fireEvent.dragOver(row("r2"));
+    fireEvent.drop(row("r2"));
+    expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
 
   it("Should open the row menu from the keyboard and move a session into a folder", async () => {

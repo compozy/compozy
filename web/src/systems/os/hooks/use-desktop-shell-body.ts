@@ -200,7 +200,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const paletteRegistry = usePaletteRegistry();
   const profileLens = useProfileLens();
   const switchProfile = useSwitchProfile(profileLens);
-  const { collapsedThreadIds } = useSessionSidebarState();
+  const { collapsedThreadIds, collapsedFolderIds } = useSessionSidebarState();
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
     const platform = typeof navigator === "undefined" ? "" : navigator.platform;
@@ -276,6 +276,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
           scope: options.sessionListView.scope,
           collapsedThreadIds: new Set(collapsedThreadIds),
           collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
+          folders: options.sessionListView.layout?.folders,
+          collapsedFolderIds: new Set(collapsedFolderIds),
+          archived: options.sessionListView.archived,
+          filtering: (options.sessionListView.search ?? "").trim() !== "",
           workspaceGroups: options.sessionListView.workspaceGroups.map(group => ({
             ...group,
             // Expanded groups own these exact pages. Read their current cursor at

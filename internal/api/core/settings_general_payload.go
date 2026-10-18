@@ -15,6 +15,9 @@ type settingsGeneralUpdateConfigPayload struct {
 	contract.SettingsGeneralConfigPayload
 	Redact   *settingsGeneralUpdateRedactPayload `json:"redact"`
 	Terminal *contract.SettingsTerminalPayload   `json:"terminal"`
+	// IdleReleaseAfter shadows the embedded string so a supplied blank value is
+	// rejected instead of being mistaken for an omitted field.
+	IdleReleaseAfter *string `json:"idle_release_after"`
 }
 
 type settingsGeneralUpdateRedactPayload struct {
@@ -33,6 +36,14 @@ func (p settingsGeneralUpdateConfigPayload) validatedPayload() (contract.Setting
 		)
 	}
 	p.SettingsGeneralConfigPayload.Redact.Enabled = *p.Redact.Enabled
+	if p.IdleReleaseAfter != nil {
+		if strings.TrimSpace(*p.IdleReleaseAfter) == "" {
+			return contract.SettingsGeneralConfigPayload{}, false, NewSettingsValidationError(
+				errors.New("general.config.idle_release_after must be a duration; omit it to keep the current value"),
+			)
+		}
+		p.SettingsGeneralConfigPayload.IdleReleaseAfter = *p.IdleReleaseAfter
+	}
 	if p.Terminal != nil {
 		p.SettingsGeneralConfigPayload.Terminal = *p.Terminal
 	}

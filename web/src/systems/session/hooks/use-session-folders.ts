@@ -41,6 +41,13 @@ export interface SessionListLayout {
   reorderSessions: (folderId: string | null, sessionIds: readonly string[]) => void;
 }
 
+/** The folder layout once loaded, or the failed first read and its retry. */
+export interface SessionFoldersState {
+  layout?: SessionListLayout;
+  /** Set when the folder list could not be read; the list stays flat until a retry loads it. */
+  loadError?: { retry: () => void };
+}
+
 type CatalogEnvelope = InfiniteData<SessionCatalogPageResponse>;
 type Snapshot = { key: QueryKey; data: unknown }[];
 
@@ -53,7 +60,7 @@ export function useSessionFolders(options: {
   workspaceId: string | null;
   profile: string;
   enabled: boolean;
-}): SessionListLayout | undefined {
+}): SessionFoldersState {
   const queryClient = useQueryClient();
   const workspaceId = options.workspaceId ?? "";
   const scope: SessionLayoutScope = { workspaceId, profile: options.profile || undefined };
@@ -107,7 +114,10 @@ export function useSessionFolders(options: {
 
   // Without the folder list, foldered rows would render as root members and a
   // root reorder would unfile them, so the list stays flat until it loads.
-  if (!enabled || foldersQuery.data === undefined) return undefined;
+  if (!enabled) return {};
+  if (foldersQuery.data === undefined) {
+    return foldersQuery.isError ? { loadError: { retry: () => void foldersQuery.refetch() } } : {};
+  }
   const folders = foldersQuery.data;
 
   const folderOrderWrite = (folderIds: readonly string[]): LayoutWrite => ({
@@ -123,7 +133,7 @@ export function useSessionFolders(options: {
       }),
   });
 
-  return {
+  const layout: SessionListLayout = {
     folders,
     createFolder: async name => {
       const folder = await createSessionFolder(scope, name);
@@ -173,6 +183,7 @@ export function useSessionFolders(options: {
           patchSessions(sessions => applySessionOrder(sessions, folderId, sessionIds)),
       }),
   };
+  return { layout };
 }
 
 interface LayoutWrite {
