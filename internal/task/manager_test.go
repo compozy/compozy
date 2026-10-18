@@ -10420,6 +10420,7 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 			Cause:  "contract",
 		},
 	}}
+	var dependentID string
 	completedHookCalls := 0
 	terminalHookCalls := 0
 	postCommitHandler := &recordingCoordinatorPostCommitHandler{}
@@ -10434,6 +10435,12 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 		WithCoordinatorTerminalStatusValidator(testCoordinatorTerminalStatusValidator),
 		WithCoordinatorTerminalHookStatusValidator(testCoordinatorTerminalHookStatusValidator),
 		WithTaskRunHooks(recordingTaskRunHooks{
+			enqueued: func(_ context.Context, payload hookspkg.TaskRunEnqueuedPayload) (hookspkg.TaskRunEnqueuedPayload, error) {
+				if payload.TaskID == dependentID && (completedHookCalls != 1 || terminalHookCalls != 1) {
+					t.Error("dependent enqueue preceded coordinator completion notifications")
+				}
+				return payload, nil
+			},
 			completed: func(
 				_ context.Context,
 				payload hookspkg.TaskRunCompletedPayload,
@@ -10457,6 +10464,21 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	actor, err := DeriveDaemonActorContext("loop", "daemon.loop")
 	if err != nil {
 		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	dependent, err := manager.CreateTask(t.Context(), CreateTask{
+		ProfileID:          storepkg.DefaultProfileID,
+		Scope:              ScopeGlobal,
+		Title:              "Coordinator dependent",
+		AutoEnqueueOnReady: true,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(dependent) error = %v", err)
+	}
+	dependentID = dependent.ID
+	if err := manager.AddDependency(t.Context(), AddDependency{
+		TaskID: dependent.ID, DependsOnTaskID: taskRecord.ID, Kind: DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency(coordinator) error = %v", err)
 	}
 	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
@@ -10513,6 +10535,18 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 		}
 		if got, want := string(payload.Result), string(CoordinatorCompletedRunResult()); got != want {
 			t.Fatalf("completed event result = %s, want %s", payload.Result, CoordinatorCompletedRunResult())
+		}
+	}
+	if publicationErr == nil {
+		runs, err := store.ListTaskRuns(t.Context(), RunQuery{TaskID: dependent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns(dependent) error = %v", err)
+		}
+		if len(runs) != 1 {
+			t.Fatalf("coordinator dependent runs = %d, want 1", len(runs))
+		}
+		if got, want := runs[0].Status, TaskRunStatusQueued; got != want {
+			t.Fatalf("dependent run status = %q, want %q", got, want)
 		}
 	}
 	if sessionExecutor.startCalls != 0 {

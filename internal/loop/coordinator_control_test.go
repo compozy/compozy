@@ -964,6 +964,65 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 		}
 	})
 
+	t.Run("Should require both conditions before enqueuing a guarded action", func(t *testing.T) {
+		t.Parallel()
+
+		def := branchControlDefinition()
+		def.Inputs["approval_ok"] = dsl.Input{Type: dsl.InputTypeBoolean}
+		def.Graph.Nodes[1].Condition = "inputs.route_enabled && inputs.approval_ok"
+		resolved := compileCoordinatorControlDefinition(t, def)
+		for _, tc := range []struct {
+			name       string
+			route      bool
+			approval   bool
+			wantQueued bool
+		}{
+			{name: "Should skip when neither condition holds"},
+			{name: "Should skip when only the route condition holds", route: true},
+			{name: "Should skip when only the approval condition holds", approval: true},
+			{name: "Should enqueue when both conditions hold", route: true, approval: true, wantQueued: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				loopRun := controlLoopRun("looprun-guarded-branch", map[string]any{
+					"route_enabled": tc.route,
+					"approval_ok":   tc.approval,
+				})
+				coordinatorRun := controlCoordinatorRun(loopRun, 1)
+				loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+				runner := newCoordinatorRunnerForControlTest(
+					t, loopRun, coordinatorRun,
+					map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+					coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+						{Generation: 1, NodeID: "load", Status: generationOutputEnqueued, TaskRunID: loadRun.ID},
+						{Generation: 1, NodeID: "should_route", Status: generationOutputPending},
+						{Generation: 1, NodeID: "push", Status: generationOutputPending},
+					}}},
+					resolved,
+				)
+				plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
+				if err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+				if tc.wantQueued {
+					if len(plan.NodeRuns) != 1 || plan.NodeRuns[0].TaskID !=
+						coordinatorNodeTaskID(loopRun.ID, 1, "push", 0) {
+						t.Fatalf("node runs = %#v, want guarded action", plan.NodeRuns)
+					}
+					return
+				}
+				if len(plan.NodeRuns) != 0 {
+					t.Fatalf("node runs = %#v, want no guarded action", plan.NodeRuns)
+				}
+				outputs := outputsByNodeAndItemForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+				if got := outputs["push/0"].OutputRef; got != branchSkippedOutputRef {
+					t.Fatalf("guarded action output_ref = %q, want branch_skipped", got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should not skip a branch descendant that still has a live independent dependency", func(t *testing.T) {
 		t.Parallel()
 

@@ -1441,218 +1441,305 @@ func TestTaskManagerPlainWorkspaceStartIntegration(t *testing.T) {
 
 func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t *testing.T) {
 	t.Parallel()
-	t.Run(
-		"Should auto-enqueue an opted-in dependent and skip an opted-out one on blocker completion",
-		func(t *testing.T) {
-			t.Parallel()
+	for _, leased := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should auto-enqueue an opted-in dependent and skip an opted-out one on blocker completion with leased=%t",
+				leased,
+			),
+			func(t *testing.T) {
+				t.Parallel()
 
-			ctx := testutil.Context(t)
-			db := openTaskManagerGlobalDB(t)
-			manager := newTaskManagerIntegration(t, db)
-
-			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
-			if err != nil {
-				t.Fatalf("DeriveHumanActorContext() error = %v", err)
-			}
-
-			blocker, err := manager.CreateTask(
-				ctx,
-				taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker"},
-				actor,
-			)
-			if err != nil {
-				t.Fatalf("CreateTask(blocker) error = %v", err)
-			}
-			optedIn, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-				ProfileID:          store.DefaultProfileID,
-				Scope:              taskpkg.ScopeGlobal,
-				Title:              "Opted-in dependent",
-				AutoEnqueueOnReady: true,
-			}, actor)
-			if err != nil {
-				t.Fatalf("CreateTask(opted-in) error = %v", err)
-			}
-			optedOut, err := manager.CreateTask(
-				ctx,
-				taskpkg.CreateTask{
-					ProfileID: store.DefaultProfileID,
-					Scope:     taskpkg.ScopeGlobal,
-					Title:     "Opted-out dependent",
-				},
-				actor,
-			)
-			if err != nil {
-				t.Fatalf("CreateTask(opted-out) error = %v", err)
-			}
-			for _, dependentID := range []string{optedIn.ID, optedOut.ID} {
-				if err := manager.AddDependency(ctx, taskpkg.AddDependency{
-					TaskID:          dependentID,
-					DependsOnTaskID: blocker.ID,
-					Kind:            taskpkg.DependencyKindBlocks,
-				}, actor); err != nil {
-					t.Fatalf("AddDependency(%s) error = %v", dependentID, err)
+				ctx := testutil.Context(t)
+				db := openTaskManagerGlobalDB(t)
+				var blockerID string
+				completionNotified := false
+				hooks := integrationTaskRunHooks{
+					completed: func(hookCtx context.Context, payload hookspkg.TaskRunCompletedPayload) (hookspkg.TaskRunCompletedPayload, error) {
+						if payload.TaskID == blockerID {
+							if err := hookCtx.Err(); err != nil {
+								t.Errorf("completion hook context error = %v", err)
+							}
+							completionNotified = true
+						}
+						return payload, nil
+					},
+					enqueued: func(_ context.Context, payload hookspkg.TaskRunEnqueuedPayload) (hookspkg.TaskRunEnqueuedPayload, error) {
+						if leased && payload.TaskID != blockerID && !completionNotified {
+							t.Error("dependent enqueue hook ran before blocker completion notification")
+						}
+						return payload, nil
+					},
 				}
-			}
+				manager := newTaskManagerIntegration(t, db,
+					taskpkg.WithSessionExecutor(&integrationSessionExecutor{}), taskpkg.WithTaskRunHooks(hooks))
 
-			// Complete the blocker through the lease path (the autonomy worker flow that
-			// pool-owned phase workers use: claim_next -> ... -> task_run_complete).
-			blockerRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blocker.ID}, actor)
-			if err != nil {
-				t.Fatalf("EnqueueRun(blocker) error = %v", err)
-			}
-			worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", "ws-test")
-			if err != nil {
-				t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
-			}
-			claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:            taskpkg.ScopeGlobal,
-				ClaimerSessionID: "sess-worker",
-				LeaseDuration:    time.Minute,
-			}, worker)
-			if err != nil {
-				t.Fatalf("ClaimNextRun() error = %v", err)
-			}
-			if got, want := claim.Run.ID, blockerRun.ID; got != want {
-				t.Fatalf("claimed run = %q, want blocker run %q", got, want)
-			}
-			if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-				RunID:      claim.Run.ID,
-				ClaimToken: claim.ClaimToken,
-				Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
-			}, worker); err != nil {
-				t.Fatalf("CompleteRunLease() error = %v", err)
-			}
-
-			optedInRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: optedIn.ID})
-			if err != nil {
-				t.Fatalf("ListTaskRuns(opted-in) error = %v", err)
-			}
-			if len(optedInRuns) != 1 {
-				t.Fatalf("opted-in dependent runs = %d, want 1 auto-enqueued run", len(optedInRuns))
-			}
-			if got, want := optedInRuns[0].Status, taskpkg.TaskRunStatusQueued; got != want {
-				t.Fatalf("auto-enqueued run status = %q, want %q", got, want)
-			}
-
-			optedOutRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: optedOut.ID})
-			if err != nil {
-				t.Fatalf("ListTaskRuns(opted-out) error = %v", err)
-			}
-			if len(optedOutRuns) != 0 {
-				t.Fatalf("opted-out dependent runs = %d, want 0", len(optedOutRuns))
-			}
-		},
-	)
-
-	t.Run(
-		"Should enqueue exactly one run when two distinct blockers of one dependent complete concurrently",
-		func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t)
-			db := openTaskManagerGlobalDB(t)
-			manager := newTaskManagerIntegration(t, db)
-
-			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
-			if err != nil {
-				t.Fatalf("DeriveHumanActorContext() error = %v", err)
-			}
-
-			blockerA, err := manager.CreateTask(
-				ctx,
-				taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker A"},
-				actor,
-			)
-			if err != nil {
-				t.Fatalf("CreateTask(blocker A) error = %v", err)
-			}
-			blockerB, err := manager.CreateTask(
-				ctx,
-				taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker B"},
-				actor,
-			)
-			if err != nil {
-				t.Fatalf("CreateTask(blocker B) error = %v", err)
-			}
-			dependent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-				ProfileID:          store.DefaultProfileID,
-				Scope:              taskpkg.ScopeGlobal,
-				Title:              "Opted-in dependent",
-				AutoEnqueueOnReady: true,
-			}, actor)
-			if err != nil {
-				t.Fatalf("CreateTask(dependent) error = %v", err)
-			}
-			for _, blockerID := range []string{blockerA.ID, blockerB.ID} {
-				if err := manager.AddDependency(ctx, taskpkg.AddDependency{
-					TaskID:          dependent.ID,
-					DependsOnTaskID: blockerID,
-					Kind:            taskpkg.DependencyKindBlocks,
-				}, actor); err != nil {
-					t.Fatalf("AddDependency(%s) error = %v", blockerID, err)
-				}
-			}
-
-			// Claim both blocker runs up front so the two completions can race on the same
-			// ready dependent. Each blocker yields a distinct trigger run id (and idempotency
-			// key), so duplicate-enqueue prevention rests solely on the open-run reservation.
-			type leaseClaim struct {
-				runID string
-				token string
-				actor taskpkg.ActorContext
-			}
-			claims := make([]leaseClaim, 0, 2)
-			for i, blockerID := range []string{blockerA.ID, blockerB.ID} {
-				if _, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blockerID}, actor); err != nil {
-					t.Fatalf("EnqueueRun(%s) error = %v", blockerID, err)
-				}
-				session := "sess-worker-" + strconv.Itoa(i)
-				worker, err := taskpkg.DeriveAgentSessionActorContext(session, "ws-test")
+				actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
 				if err != nil {
-					t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", session, err)
+					t.Fatalf("DeriveHumanActorContext() error = %v", err)
 				}
-				claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-					Scope:            taskpkg.ScopeGlobal,
-					ClaimerSessionID: session,
-					LeaseDuration:    time.Minute,
-				}, worker)
-				if err != nil {
-					t.Fatalf("ClaimNextRun(%s) error = %v", session, err)
-				}
-				claims = append(claims, leaseClaim{runID: claim.Run.ID, token: claim.ClaimToken, actor: worker})
-			}
 
-			var wg sync.WaitGroup
-			errCh := make(chan error, len(claims))
-			for _, c := range claims {
-				wg.Go(func() {
-					if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-						RunID:      c.runID,
-						ClaimToken: c.token,
-						Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
-					}, c.actor); err != nil {
-						errCh <- err
+				blocker, err := manager.CreateTask(
+					ctx,
+					taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker"},
+					actor,
+				)
+				if err != nil {
+					t.Fatalf("CreateTask(blocker) error = %v", err)
+				}
+				blockerID = blocker.ID
+				optedIn, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+					ProfileID:          store.DefaultProfileID,
+					Scope:              taskpkg.ScopeGlobal,
+					Title:              "Opted-in dependent",
+					AutoEnqueueOnReady: true,
+				}, actor)
+				if err != nil {
+					t.Fatalf("CreateTask(opted-in) error = %v", err)
+				}
+				optedOut, err := manager.CreateTask(
+					ctx,
+					taskpkg.CreateTask{
+						ProfileID: store.DefaultProfileID,
+						Scope:     taskpkg.ScopeGlobal,
+						Title:     "Opted-out dependent",
+					},
+					actor,
+				)
+				if err != nil {
+					t.Fatalf("CreateTask(opted-out) error = %v", err)
+				}
+				for _, dependentID := range []string{optedIn.ID, optedOut.ID} {
+					if err := manager.AddDependency(ctx, taskpkg.AddDependency{
+						TaskID:          dependentID,
+						DependsOnTaskID: blocker.ID,
+						Kind:            taskpkg.DependencyKindBlocks,
+					}, actor); err != nil {
+						t.Fatalf("AddDependency(%s) error = %v", dependentID, err)
 					}
-				})
-			}
-			wg.Wait()
-			close(errCh)
-			for err := range errCh {
-				t.Fatalf("concurrent CompleteRunLease() error = %v", err)
-			}
+				}
 
-			dependentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: dependent.ID})
-			if err != nil {
-				t.Fatalf("ListTaskRuns(dependent) error = %v", err)
-			}
-			if len(dependentRuns) != 1 {
-				t.Fatalf("dependent runs = %d, want exactly 1 auto-enqueued run", len(dependentRuns))
-			}
-			if got, want := dependentRuns[0].Status, taskpkg.TaskRunStatusQueued; got != want {
-				t.Fatalf("auto-enqueued run status = %q, want %q", got, want)
-			}
-		},
-	)
+				blockerRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blocker.ID}, actor)
+				if err != nil {
+					t.Fatalf("EnqueueRun(blocker) error = %v", err)
+				}
+				if leased {
+					worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", "ws-test")
+					if err != nil {
+						t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+					}
+					claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+						Scope:            taskpkg.ScopeGlobal,
+						ClaimerSessionID: "sess-worker",
+						LeaseDuration:    time.Minute,
+					}, worker)
+					if err != nil {
+						t.Fatalf("ClaimNextRun() error = %v", err)
+					}
+					if got, want := claim.Run.ID, blockerRun.ID; got != want {
+						t.Fatalf("claimed run = %q, want blocker run %q", got, want)
+					}
+					if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+						RunID:      claim.Run.ID,
+						ClaimToken: claim.ClaimToken,
+						Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+					}, worker); err != nil {
+						t.Fatalf("CompleteRunLease() error = %v", err)
+					}
+				} else {
+					if _, err := seedNonLeasedClaimedRunIntegration(
+						ctx,
+						manager,
+						db,
+						blockerRun.ID,
+						actor,
+					); err != nil {
+						t.Fatalf("seedNonLeasedClaimedRunIntegration() error = %v", err)
+					}
+					if _, err := manager.StartRun(ctx, blockerRun.ID, taskpkg.StartRun{}, actor); err != nil {
+						t.Fatalf("StartRun() error = %v", err)
+					}
+					if _, err := manager.CompleteRun(ctx, blockerRun.ID, taskpkg.RunResult{}, actor); err != nil {
+						t.Fatalf("CompleteRun() error = %v", err)
+					}
+					manager = newTaskManagerIntegration(
+						t,
+						db,
+						taskpkg.WithSessionExecutor(&integrationSessionExecutor{}),
+					)
+					if _, err := manager.CompleteRun(
+						ctx,
+						blockerRun.ID,
+						taskpkg.RunResult{},
+						actor,
+					); !errors.Is(
+						err,
+						taskpkg.ErrInvalidStatusTransition,
+					) {
+						t.Fatalf("CompleteRun(replay) error = %v, want ErrInvalidStatusTransition", err)
+					}
+				}
+
+				if leased && !completionNotified {
+					t.Fatal("blocker completion hook was not delivered")
+				}
+				optedInRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: optedIn.ID})
+				if err != nil {
+					t.Fatalf("ListTaskRuns(opted-in) error = %v", err)
+				}
+				if len(optedInRuns) != 1 {
+					t.Fatalf("opted-in dependent runs = %d, want 1 auto-enqueued run", len(optedInRuns))
+				}
+				if got, want := optedInRuns[0].Status, taskpkg.TaskRunStatusQueued; got != want {
+					t.Fatalf("auto-enqueued run status = %q, want %q", got, want)
+				}
+
+				optedOutRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: optedOut.ID})
+				if err != nil {
+					t.Fatalf("ListTaskRuns(opted-out) error = %v", err)
+				}
+				if len(optedOutRuns) != 0 {
+					t.Fatalf("opted-out dependent runs = %d, want 0", len(optedOutRuns))
+				}
+			},
+		)
+
+		t.Run(
+			fmt.Sprintf(
+				"Should enqueue exactly one run when two distinct blockers complete concurrently with leased=%t",
+				leased,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				db := openTaskManagerGlobalDB(t)
+				manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
+
+				actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
+				if err != nil {
+					t.Fatalf("DeriveHumanActorContext() error = %v", err)
+				}
+
+				blockerA, err := manager.CreateTask(
+					ctx,
+					taskpkg.CreateTask{
+						ProfileID: store.DefaultProfileID,
+						Scope:     taskpkg.ScopeGlobal,
+						Title:     "Blocker A",
+					},
+					actor,
+				)
+				if err != nil {
+					t.Fatalf("CreateTask(blocker A) error = %v", err)
+				}
+				blockerB, err := manager.CreateTask(
+					ctx,
+					taskpkg.CreateTask{
+						ProfileID: store.DefaultProfileID,
+						Scope:     taskpkg.ScopeGlobal,
+						Title:     "Blocker B",
+					},
+					actor,
+				)
+				if err != nil {
+					t.Fatalf("CreateTask(blocker B) error = %v", err)
+				}
+				dependent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+					ProfileID:          store.DefaultProfileID,
+					Scope:              taskpkg.ScopeGlobal,
+					Title:              "Opted-in dependent",
+					AutoEnqueueOnReady: true,
+				}, actor)
+				if err != nil {
+					t.Fatalf("CreateTask(dependent) error = %v", err)
+				}
+				for _, blockerID := range []string{blockerA.ID, blockerB.ID} {
+					if err := manager.AddDependency(ctx, taskpkg.AddDependency{
+						TaskID:          dependent.ID,
+						DependsOnTaskID: blockerID,
+						Kind:            taskpkg.DependencyKindBlocks,
+					}, actor); err != nil {
+						t.Fatalf("AddDependency(%s) error = %v", blockerID, err)
+					}
+				}
+
+				// Distinct trigger IDs exercise the one-open-run reservation.
+				type leaseClaim struct {
+					runID string
+					token string
+					actor taskpkg.ActorContext
+				}
+				claims := make([]leaseClaim, 0, 2)
+				for i, blockerID := range []string{blockerA.ID, blockerB.ID} {
+					run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blockerID}, actor)
+					if err != nil {
+						t.Fatalf("EnqueueRun(%s) error = %v", blockerID, err)
+					}
+					session := "sess-worker-" + strconv.Itoa(i)
+					if !leased {
+						if _, err := seedNonLeasedClaimedRunIntegration(ctx, manager, db, run.ID, actor); err != nil {
+							t.Fatalf("seedNonLeasedClaimedRunIntegration() error = %v", err)
+						}
+						if _, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor); err != nil {
+							t.Fatalf("StartRun() error = %v", err)
+						}
+						claims = append(claims, leaseClaim{runID: run.ID, actor: actor})
+						continue
+					}
+					worker, err := taskpkg.DeriveAgentSessionActorContext(session, "ws-test")
+					if err != nil {
+						t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", session, err)
+					}
+					claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+						Scope:            taskpkg.ScopeGlobal,
+						ClaimerSessionID: session,
+						LeaseDuration:    time.Minute,
+					}, worker)
+					if err != nil {
+						t.Fatalf("ClaimNextRun(%s) error = %v", session, err)
+					}
+					claims = append(claims, leaseClaim{runID: claim.Run.ID, token: claim.ClaimToken, actor: worker})
+				}
+
+				var wg sync.WaitGroup
+				errCh := make(chan error, len(claims))
+				for _, c := range claims {
+					wg.Go(func() {
+						if !leased {
+							if _, err := manager.CompleteRun(ctx, c.runID, taskpkg.RunResult{}, c.actor); err != nil {
+								errCh <- err
+							}
+							return
+						}
+						if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+							RunID:      c.runID,
+							ClaimToken: c.token,
+							Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+						}, c.actor); err != nil {
+							errCh <- err
+						}
+					})
+				}
+				wg.Wait()
+				close(errCh)
+				for err := range errCh {
+					t.Fatalf("concurrent CompleteRunLease() error = %v", err)
+				}
+
+				dependentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: dependent.ID})
+				if err != nil {
+					t.Fatalf("ListTaskRuns(dependent) error = %v", err)
+				}
+				if len(dependentRuns) != 1 {
+					t.Fatalf("dependent runs = %d, want exactly 1 auto-enqueued run", len(dependentRuns))
+				}
+				if got, want := dependentRuns[0].Status, taskpkg.TaskRunStatusQueued; got != want {
+					t.Fatalf("auto-enqueued run status = %q, want %q", got, want)
+				}
+			},
+		)
+	}
 }
 
 func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
