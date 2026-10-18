@@ -306,6 +306,64 @@ describe("useSessionLiveTail", () => {
     );
   });
 
+  it("Should back off a transcript recovery that keeps failing", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionTranscript).mockRejectedValue(new Error("transcript failed validation"));
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+
+    const { result } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.isError).toBe(true));
+    });
+    const settledCalls = vi.mocked(fetchSessionTranscript).mock.calls.length;
+    const callsAfter = async (ms: number) => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+      return vi.mocked(fetchSessionTranscript).mock.calls.length - settledCalls;
+    };
+
+    expect(await callsAfter(5_000)).toBe(1);
+    expect(await callsAfter(5_000)).toBe(1);
+    expect(await callsAfter(5_000)).toBe(2);
+    expect(await callsAfter(20_000)).toBe(3);
+    expect(await callsAfter(40_000)).toBe(4);
+    expect(await callsAfter(60_000)).toBe(5);
+    expect(await callsAfter(60_000)).toBe(6);
+  });
+
+  it("Should start repair retries at the base delay and back off", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await vi.waitFor(() => expect(result.current.isPending).toBe(false));
+    });
+    const repairTimes: number[] = [];
+    vi.mocked(fetchSessionTranscript).mockImplementation(async () => {
+      repairTimes.push(Date.now());
+      throw new Error("transcript failed validation");
+    });
+
+    // A malformed message envelope cannot be salvaged by dropping parts, so the frame
+    // fails to apply and the store repairs from the transcript.
+    const malformed = {
+      ...textMessage("m-bad", "bad"),
+      role: "bogus",
+    } as unknown as SessionMessage;
+    act(() => sources[0]?.emit("transcript_delta", clarifyDeltaFrame(malformed), "2"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40_000);
+    });
+
+    const gaps = repairTimes.slice(1).map((time, index) => time - repairTimes[index]!);
+    expect(gaps).toEqual([5_000, 10_000, 20_000]);
+  });
+
   it("Should finish an active transcript recovery before applying a terminal frame", async () => {
     vi.useFakeTimers();
     vi.mocked(fetchSession)

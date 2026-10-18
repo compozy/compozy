@@ -14,6 +14,22 @@ Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile i
 
 # Compozy Change Impact
 
+## Transcript survives a tool call crossing a Goal turn — 2026-10-18
+
+Owner: issues #800, #801, #802. The transcript projector routes an identity-less `tool_call`
+update (no tool name, title or input) to the entry that owns its tool lifecycle, the way results
+already route. `dynamic-tool` parts always carry a `toolName`. The web client normalizes
+`dynamic-tool` parts like `tool-*` parts, and it drops a part that still fails AI SDK validation
+instead of failing the whole transcript. The live tail's transcript repair and query recovery back
+off 5s → 60s. The Goal session outbox relay acknowledges a projection whose session was removed.
+`ProjectionVersion` is unchanged: existing projections stay as stored, and the client salvages
+their invalid parts.
+
+Native tools, CLI/HTTP/UDS routes and DTOs, hooks, extension SDKs, config keys, workspace/profile
+isolation and the persisted schema are unchanged. No migration is needed. The official skill and site
+docs are unaffected. Web impact: a conversation that showed "Couldn't load this conversation" now
+renders. QA owner: `ET-web-session-transcript-calm-grammar`.
+
 ## Role fallback after a provider refuses a title turn — 2026-10-18
 
 Owner: PR #662. Automatic title generation runs each prompt inside its role-owned fallback

@@ -1,9 +1,6 @@
 import { createStoreLogic } from "@xstate/store";
 
-import {
-  MAX_PENDING_FRAMES,
-  TRANSCRIPT_RECOVERY_DELAY_MS,
-} from "./session-live-tail-store-contract";
+import { MAX_PENDING_FRAMES, transcriptRecoveryDelayMs } from "./session-live-tail-store-contract";
 import type {
   SessionLiveTailContext,
   SessionLiveTailEvents,
@@ -45,6 +42,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       pendingTerminal: null,
       queryRecoveryPhase: "idle",
       reconnectAttempt: 0,
+      recoveryAttempt: 0,
       surfaceRefreshScheduled: false,
       transportPhase: "disabled",
     },
@@ -77,6 +75,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           queryRecoveryPhase:
             event.enabled && context.lastTranscriptError !== null ? "waiting" : "idle",
           reconnectAttempt: 0,
+          recoveryAttempt: 0,
           surfaceRefreshScheduled: false,
           transportPhase: event.enabled ? "connecting" : "disabled",
         };
@@ -102,6 +101,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           pendingTerminal: null,
           queryRecoveryPhase: "idle",
           reconnectAttempt: 0,
+          recoveryAttempt: 0,
           surfaceRefreshScheduled: false,
           transportPhase: "disabled",
         };
@@ -252,11 +252,15 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           lastTranscriptError: null,
           queryRecoveryPhase: "idle",
           reconnectAttempt: 0,
+          recoveryAttempt: 0,
           transportPhase: "connecting",
         };
       },
       repairFailed: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "repairing") return;
+        // The first repair ran immediately; its retries start at the base delay.
+        const delayMs = transcriptRecoveryDelayMs(context.recoveryAttempt);
+        const recoveryAttempt = context.recoveryAttempt + 1;
         enqueue.effect(({ trigger }) => {
           const handles = handlesByTrigger.get(trigger);
           if (!handles) return;
@@ -264,11 +268,13 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           clearTimer(handles.repairTimer);
           handles.repairTimer = setTimeout(
             () => trigger.repairElapsed({ generation: context.generation }),
-            TRANSCRIPT_RECOVERY_DELAY_MS
+            delayMs
           );
         });
-        if (context.pendingTerminal) return completePendingTerminal(context, enqueue);
-        return { ...context, applyPhase: "repair-waiting" };
+        if (context.pendingTerminal) {
+          return completePendingTerminal({ ...context, recoveryAttempt }, enqueue);
+        }
+        return { ...context, applyPhase: "repair-waiting", recoveryAttempt };
       },
       repairElapsed: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "repair-waiting")

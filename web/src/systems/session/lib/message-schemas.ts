@@ -1,6 +1,7 @@
 import { validateUIMessages } from "ai";
 import { z } from "zod";
 
+import { capturePartMetadata, reattachPartMetadata } from "./message-part-metadata";
 import { toolPartErrorText } from "./tool-part-error";
 
 import type { SessionMessage } from "../types";
@@ -123,16 +124,6 @@ const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];
 
-interface PartMetadata {
-  turnId?: string;
-  /** Provider-native subagent attribution (S8); text parts would otherwise join the parent flow. */
-  parentToolCallId?: string;
-  timestamp?: string;
-  bytes?: number;
-  width?: number;
-  height?: number;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -142,18 +133,17 @@ function stringField(record: Record<string, unknown>, key: string): string | und
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function numberField(record: Record<string, unknown>, key: string): number | undefined {
-  const value = record[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
 function isToolPart(part: unknown): part is Record<string, unknown> {
   return isRecord(part) && typeof part.type === "string" && part.type.startsWith("tool-");
 }
 
+function isDynamicToolPart(part: unknown): part is Record<string, unknown> {
+  return isRecord(part) && part.type === "dynamic-tool";
+}
+
 function toolNameForValidation(part: Record<string, unknown>, type: string): string {
-  const toolName = stringField(part, "toolName") ?? type.slice("tool-".length).trim();
-  return toolName || "tool";
+  const typedName = type.startsWith("tool-") ? type.slice("tool-".length).trim() : "";
+  return stringField(part, "toolName") ?? (typedName || "tool");
 }
 
 function toolCallIdForValidation(part: Record<string, unknown>, toolName: string): string {
@@ -166,7 +156,7 @@ function toolCallIdForValidation(part: Record<string, unknown>, toolName: string
 }
 
 function normalizeToolPartForValidation(part: unknown): unknown {
-  if (!isToolPart(part)) {
+  if (!isToolPart(part) && !isDynamicToolPart(part)) {
     return part;
   }
 
@@ -269,93 +259,6 @@ function restoreOriginalToolParts(
   });
 }
 
-// `validateUIMessages` parses every part against the AI SDK's schema, which drops
-// unknown sibling keys — so CompozyOS's custom metadata fields never survive
-// validation. Turn folding and attachment rendering need their turn, time, and
-// attachment metadata, so capture it before validation and re-attach afterward. Validation
-// preserves part order/count (an invalid part fails the whole message and throws),
-// so index alignment is sound; the length guard is purely defensive.
-function capturePartMetadata(messages: unknown): PartMetadata[][] {
-  if (!Array.isArray(messages)) {
-    return [];
-  }
-  return messages.map(message => {
-    if (!isRecord(message) || !Array.isArray(message.parts)) {
-      return [];
-    }
-    return message.parts.map((part): PartMetadata => {
-      if (!isRecord(part)) {
-        return {};
-      }
-      const metadata: PartMetadata = {};
-      const turnId = stringField(part, "turnId") ?? stringField(part, "turn_id");
-      if (turnId) {
-        metadata.turnId = turnId;
-      }
-      const timestamp = stringField(part, "timestamp");
-      if (timestamp) {
-        metadata.timestamp = timestamp;
-      }
-      const parentToolCallId = stringField(part, "parentToolCallId");
-      if (parentToolCallId) {
-        metadata.parentToolCallId = parentToolCallId;
-      }
-      const bytes = numberField(part, "bytes");
-      if (bytes !== undefined) {
-        metadata.bytes = bytes;
-      }
-      const width = numberField(part, "width");
-      if (width !== undefined) {
-        metadata.width = width;
-      }
-      const height = numberField(part, "height");
-      if (height !== undefined) {
-        metadata.height = height;
-      }
-      return metadata;
-    });
-  });
-}
-
-function reattachPartMetadata(
-  validated: SessionMessage[],
-  captured: PartMetadata[][]
-): SessionMessage[] {
-  return validated.map((message, index) => {
-    const parts = message.parts;
-    const metas = captured[index];
-    if (!metas || !Array.isArray(parts) || parts.length !== metas.length) {
-      return message;
-    }
-    let mutated = false;
-    const nextParts = parts.map((part, partIndex) => {
-      const meta = metas[partIndex];
-      if (
-        !meta ||
-        (!meta.turnId &&
-          !meta.timestamp &&
-          !meta.parentToolCallId &&
-          meta.bytes === undefined &&
-          meta.width === undefined &&
-          meta.height === undefined)
-      ) {
-        return part;
-      }
-      mutated = true;
-      return {
-        ...part,
-        ...(meta.turnId ? { turnId: meta.turnId } : {}),
-        ...(meta.timestamp ? { timestamp: meta.timestamp } : {}),
-        ...(meta.parentToolCallId ? { parentToolCallId: meta.parentToolCallId } : {}),
-        ...(meta.bytes !== undefined ? { bytes: meta.bytes } : {}),
-        ...(meta.width !== undefined ? { width: meta.width } : {}),
-        ...(meta.height !== undefined ? { height: meta.height } : {}),
-      } as SessionMessagePart;
-    });
-    return mutated ? ({ ...message, parts: nextParts } as SessionMessage) : message;
-  });
-}
-
 function dataPartName(part: unknown): string | null {
   if (!isRecord(part) || typeof part.type !== "string" || !part.type.startsWith("data-")) {
     return null;
@@ -387,11 +290,74 @@ function dataSchemasForMessages(messages: unknown): Record<string, z.ZodType<unk
   return dataSchemas;
 }
 
-export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
-  if (Array.isArray(messages) && messages.length === 0) {
-    return [];
+async function validationFails(message: unknown): Promise<boolean> {
+  try {
+    await validateMessages([message]);
+    return false;
+  } catch {
+    return true;
   }
+}
 
+const ENVELOPE_PROBE_PART = { type: "text", text: "" };
+
+interface SalvagedMessages {
+  messages: unknown[];
+  /** Original index of each salvaged message; a message emptied by dropping its parts is gone. */
+  kept: number[];
+}
+
+/**
+ * Drops the parts that still fail validation so one malformed part costs that part,
+ * not the whole conversation, and drops a message every part of which was invalid.
+ * Returns null when dropping parts salvages nothing (a malformed message envelope),
+ * so the caller rethrows the original error.
+ */
+async function withoutInvalidParts(messages: readonly unknown[]): Promise<SalvagedMessages | null> {
+  let dropped = false;
+  const salvaged: SalvagedMessages = { messages: [], kept: [] };
+  for (const [messageIndex, message] of messages.entries()) {
+    if (!(await validationFails(message))) {
+      salvaged.messages.push(message);
+      salvaged.kept.push(messageIndex);
+      continue;
+    }
+    // A malformed envelope (role, id) fails every per-part check too; reject it here
+    // rather than mistaking it for a message whose parts were all invalid.
+    if (
+      !isRecord(message) ||
+      !Array.isArray(message.parts) ||
+      (await validationFails({ ...message, parts: [ENVELOPE_PROBE_PART] }))
+    ) {
+      return null;
+    }
+    const parts: unknown[] = [];
+    for (const [index, part] of message.parts.entries()) {
+      if (await validationFails({ ...message, parts: [part] })) {
+        dropped = true;
+        console.warn("Dropped an invalid transcript part", {
+          messageId: message.id,
+          partIndex: index,
+          partType: isRecord(part) ? part.type : typeof part,
+        });
+        continue;
+      }
+      parts.push(part);
+    }
+    if (parts.length === 0 && message.parts.length > 0) {
+      continue;
+    }
+    const next = { ...message, parts };
+    if (await validationFails(next)) {
+      return null;
+    }
+    salvaged.messages.push(next);
+    salvaged.kept.push(messageIndex);
+  }
+  return dropped ? salvaged : null;
+}
+
+async function validateMessages(messages: unknown): Promise<SessionMessage[]> {
   const capturedMetadata = capturePartMetadata(messages);
   const validationMessages = messagesForValidation(messages);
   const validated = await validateUIMessages<SessionMessage>({
@@ -400,4 +366,43 @@ export async function normalizeTranscriptMessages(messages: unknown): Promise<Se
   });
   const withMetadata = reattachPartMetadata(validated, capturedMetadata);
   return restoreOriginalToolParts(withMetadata, messages);
+}
+
+/**
+ * Validates the messages of transcript entries. An entry whose every part was invalid
+ * is left out, so the result can be shorter than the input but keeps its order.
+ */
+export async function normalizeTranscriptEntries<T extends { message: unknown }>(
+  entries: readonly T[]
+): Promise<Array<Omit<T, "message"> & { message: SessionMessage }>> {
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const messages = entries.map(entry => entry.message);
+  try {
+    const validated = await validateMessages(messages);
+    return entries.map((entry, index) => ({ ...entry, message: validated[index]! }));
+  } catch (error) {
+    const salvaged = await withoutInvalidParts(messages);
+    if (!salvaged) {
+      throw error;
+    }
+    if (salvaged.messages.length === 0) {
+      return [];
+    }
+    const validated = await validateMessages(salvaged.messages);
+    return salvaged.kept.map((entryIndex, index) => ({
+      ...entries[entryIndex]!,
+      message: validated[index]!,
+    }));
+  }
+}
+
+export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
+  if (!Array.isArray(messages)) {
+    return validateMessages(messages);
+  }
+  const entries = await normalizeTranscriptEntries(messages.map(message => ({ message })));
+  return entries.map(entry => entry.message);
 }
