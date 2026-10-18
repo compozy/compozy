@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import { isAppendOnlyUpdate } from "../lib/session-smooth-reveal";
 import { smoothStreamedTextLogic } from "./smooth-streamed-text-store";
 
@@ -11,9 +13,12 @@ import { smoothStreamedTextLogic } from "./smooth-streamed-text-store";
  * rewritten. When `animate` is false (stream done, reduced motion, the
  * client-local toggle off, no animation frames available) the real text is
  * returned as-is — presentation only, never a delay of finished content.
+ * A hidden document has nobody to animate for: the clock stops and the text
+ * snaps, so returning to the window shows the final text at once.
  */
 export function useSmoothStreamedText(text: string, animate: boolean): string {
-  const active = animate && typeof requestAnimationFrame === "function";
+  const documentVisible = useDocumentVisible();
+  const active = animate && documentVisible && typeof requestAnimationFrame === "function";
   const store = useStore(smoothStreamedTextLogic, { text });
   const emittedCount = useSelector(store, snapshot => snapshot.context.emittedCount);
   const target = useSelector(store, snapshot => snapshot.context.target);
