@@ -21,6 +21,9 @@ func checkAllCodegenArtifacts(ctx context.Context, paths codegenArtifactPaths) e
 		func() error { return checkTerminalWire(ctx, paths.terminalWire) },
 		func() error { return checkLifecycleMatrix(paths.lifecycleMatrix) },
 		func() error { return checkNativeToolCatalog(paths.nativeToolCatalog) },
+		func() error { return checkSDKClient(sdkClientPathFor(paths.openapi)) },
+		func() error { return checkSDKTypeScript(ctx, paths.openapi) },
+		func() error { return checkSDKSamples(paths.openapi) },
 	}
 	for _, check := range checks {
 		if err := check(); err != nil {

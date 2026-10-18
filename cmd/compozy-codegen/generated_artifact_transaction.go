@@ -9,6 +9,7 @@ import (
 type generatedArtifact struct {
 	path    string
 	content []byte
+	remove  bool
 }
 
 type generatedArtifactSnapshot struct {
@@ -46,7 +47,13 @@ func publishGeneratedArtifactTransaction(
 		}
 	}
 	for index, artifact := range artifacts {
-		if err := publish(artifact.path, artifact.content); err != nil {
+		var publishErr error
+		if artifact.remove {
+			publishErr = removeTemporaryFile(artifact.path)
+		} else {
+			publishErr = publish(artifact.path, artifact.content)
+		}
+		if err := publishErr; err != nil {
 			return rollbackGeneratedArtifactSet(err, snapshots[:index+1])
 		}
 	}

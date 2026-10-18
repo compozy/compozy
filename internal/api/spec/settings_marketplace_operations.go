@@ -6,6 +6,7 @@ func getSettingsMarketplaceOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/marketplace",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsMarketplace",
 		Summary:     "Read global marketplace catalog settings",
 		Tags:        []string{specSettingsKey},
@@ -21,6 +22,7 @@ func updateSettingsMarketplaceOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        "/api/settings/marketplace",
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsMarketplace",
 		Summary:     "Apply global marketplace catalog URL, TTL, and timeout",
 		Tags:        []string{specSettingsKey},

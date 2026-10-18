@@ -1,0 +1,4 @@
+{
+    "title": "App Token",
+    "pages": ["index", "create", "list", "revoke", "update"]
+}

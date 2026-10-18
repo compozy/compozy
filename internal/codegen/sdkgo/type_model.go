@@ -23,6 +23,7 @@ type typeGenerator struct {
 	declarations map[string]reflect.Type
 	preferred    map[reflect.Type]string
 	rendered     map[string]*jen.Statement
+	allNamed     bool
 }
 
 var dedicatedGeneratedTypes = map[string]struct{}{
@@ -95,7 +96,8 @@ func (g *typeGenerator) ensureInternalNamed(value reflect.Type) string {
 	if name, ok := g.preferred[typeValue]; ok {
 		return name
 	}
-	if typeValue.Name() == "" || !strings.HasPrefix(typeValue.PkgPath(), "github.com/compozy/compozy/internal/") {
+	if typeValue.Name() == "" || typeValue.PkgPath() == "" ||
+		(!g.allNamed && !strings.HasPrefix(typeValue.PkgPath(), "github.com/compozy/compozy/internal/")) {
 		return ""
 	}
 	name := typeValue.Name()

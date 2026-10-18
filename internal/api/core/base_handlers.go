@@ -95,6 +95,8 @@ type BaseHandlerConfig struct {
 	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
 	HostLoad                    doctor.HostLoadSnapshotSource
 	DeadEntities                doctor.DeadEntitySource
+	AppTokens                   AppTokenManager
+	OpenAPI                     *OpenAPIDocument
 	Gateway                     GatewayService
 	GatewayPairingSource        string
 	HomePaths                   compozyconfig.HomePaths
@@ -177,6 +179,8 @@ type BaseHandlers struct {
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	HostLoad                     doctor.HostLoadSnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
+	AppTokens                    AppTokenManager
+	OpenAPI                      *OpenAPIDocument
 	Gateway                      GatewayService
 	GatewayPairingSource         string
 	HomePaths                    compozyconfig.HomePaths
@@ -280,6 +284,8 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		RuntimeMemory:                cfg.RuntimeMemory,
 		HostLoad:                     cfg.HostLoad,
 		DeadEntities:                 cfg.DeadEntities,
+		AppTokens:                    cfg.AppTokens,
+		OpenAPI:                      cfg.OpenAPI,
 		Gateway:                      cfg.Gateway,
 		GatewayPairingSource:         strings.TrimSpace(cfg.GatewayPairingSource),
 		HomePaths:                    cfg.HomePaths,

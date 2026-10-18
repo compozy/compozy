@@ -25,7 +25,7 @@ const (
 )
 
 const usage = "usage: compozy-codegen " +
-	"<host-api|openapi|sdk-contracts|sdk-contracts-go|loop-enums|terminal-wire|" +
+	"<host-api|openapi|sdk-contracts|sdk-contracts-go|sdk-client-go|sdk-samples|loop-enums|terminal-wire|" +
 	"lifecycle-matrix|native-tool-catalog|all|check>"
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
@@ -46,7 +46,13 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
-	return runWithPaths(ctx, args, spec.DefaultPath, defaultSDKContractsPath)
+	if err := runWithPaths(ctx, args, spec.DefaultPath, defaultSDKContractsPath); err != nil {
+		return err
+	}
+	if len(args) > 0 && args[0] == subcommandCheck {
+		return checkSDKSampleMethods(".")
+	}
+	return nil
 }
 
 func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkContractsPath string) error {
@@ -67,10 +73,11 @@ func runWithAllPaths(
 	lifecycleMatrixPath := lifecycleMatrixPathFor(openapiPath)
 	nativeToolCatalogPath := nativeToolCatalogPathFor(openapiPath)
 	terminalWirePaths := terminalWirePathsFor(openapiPath)
+	checkOnly := len(args) > 1 && args[1] == "--check"
 
 	switch args[0] {
 	case "host-api":
-		if len(args) > 1 && args[1] == "--check" {
+		if checkOnly {
 			return checkHostAPIContracts()
 		}
 		return writeHostAPIContracts()
@@ -79,10 +86,23 @@ func runWithAllPaths(
 	case "sdk-contracts":
 		return writeSDKContracts(ctx, sdkContractsPath)
 	case "sdk-contracts-go":
-		if len(args) > 1 && args[1] == "--check" {
+		if checkOnly {
 			return checkSDKGoContracts(sdkGoContractsPath)
 		}
 		return writeSDKGoContracts(sdkGoContractsPath)
+	case "sdk-client-go":
+		if checkOnly {
+			return checkSDKClient(sdkClientPathFor(openapiPath))
+		}
+		return writeSDKClient(sdkClientPathFor(openapiPath))
+	case "sdk-samples":
+		if checkOnly {
+			if err := checkSDKSamples(openapiPath); err != nil {
+				return err
+			}
+			return checkSDKSampleMethods(filepath.Dir(filepath.Dir(openapiPath)))
+		}
+		return writeSDKSamples(openapiPath)
 	case "loop-enums", "terminal-wire":
 		return runProtocolCodegenTarget(ctx, args[0], loopEnumsPath, terminalWirePaths)
 	case "lifecycle-matrix":

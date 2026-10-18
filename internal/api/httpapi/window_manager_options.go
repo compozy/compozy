@@ -10,10 +10,15 @@ type httpExtendedServices struct {
 	extensions        ExtensionService
 	windowManager     core.WindowManagerProvider
 	terminal          core.TerminalProvider
+	appTokens         core.AppTokenManager
+	openAPI           *core.OpenAPIDocument
 	gateway           core.GatewayService
 	gatewayAdmission  gateway.AdmissionController
 	gatewayChallenges gateway.ChallengeResolver
 	gatewayTier       gateway.Tier
+	appTokenAuth      gateway.AppTokenAuthenticator
+	appTokenLimiter   *gateway.AuthFailureLimiter
+	appAccess         AppAccessPolicy
 	deviceAuth        gateway.DeviceAuthenticator
 	authLimiter       *gateway.AuthFailureLimiter
 	ingressLimiter    *gateway.IngressRateLimiter

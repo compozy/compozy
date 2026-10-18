@@ -2,7 +2,7 @@ CREATE TABLE gateway_device_sessions (
 	id TEXT PRIMARY KEY,
 	name TEXT NOT NULL CHECK (length(trim(name)) > 0),
 	token_hash TEXT NOT NULL CHECK (length(token_hash) = 64),
-	actor_kind TEXT NOT NULL CHECK (actor_kind IN ('operator_device', 'cli_profile')),
+	actor_kind TEXT NOT NULL CHECK (actor_kind IN ('operator_device', 'cli_profile', 'app_token')),
 	pairing_origin TEXT NOT NULL CHECK (length(trim(pairing_origin)) > 0),
 	revoke_epoch INTEGER NOT NULL DEFAULT 0 CHECK (revoke_epoch >= 0),
 	created_at TEXT NOT NULL,
@@ -12,6 +12,13 @@ CREATE TABLE gateway_device_sessions (
 
 CREATE UNIQUE INDEX gateway_device_sessions_token_hash
 	ON gateway_device_sessions(token_hash);
+
+CREATE TABLE gateway_device_origins (
+	device_id TEXT NOT NULL REFERENCES gateway_device_sessions(id) ON DELETE CASCADE,
+	origin TEXT NOT NULL CHECK (length(origin) BETWEEN 8 AND 2048),
+	created_at TEXT NOT NULL,
+	PRIMARY KEY (device_id, origin)
+);
 
 CREATE TABLE gateway_providers (
 	name TEXT PRIMARY KEY CHECK (length(trim(name)) > 0),

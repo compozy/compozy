@@ -46,6 +46,7 @@ func renameSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specWorkspaceSessionPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "renameSession",
 		Summary:     "Rename one user session",
 		Tags:        []string{specSessionsKey},
@@ -69,6 +70,7 @@ func forkSessionWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
+		AppAccess:   AppAccessDenied,
 		OperationID: "forkSessionToWorktree",
 		Summary:     "Fork a live session into a worktree",
 		Tags:        []string{specSessionsKey},
@@ -97,6 +99,7 @@ func createSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specSessionsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "createSession",
 		Summary:     "Create a session",
 		Tags:        []string{specSessionsKey},
@@ -117,6 +120,7 @@ func getSessionOwnerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/{session_id}/owner",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionOwner",
 		Summary:     "Get a session owner; Global history has an empty workspace id",
 		Tags:        []string{specSessionsKey},
@@ -135,6 +139,7 @@ func getSessionByIDOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/{session_id}",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionByID",
 		Summary:     "Get one session snapshot by id",
 		Tags:        []string{specSessionsKey},
@@ -154,6 +159,7 @@ func getSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specWorkspaceSessionPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSession",
 		Summary:     "Get one session snapshot",
 		Tags:        []string{specSessionsKey},
@@ -174,6 +180,7 @@ func deleteSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specWorkspaceSessionPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "deleteSession",
 		Summary:     "Delete one session and remove it from persisted history",
 		Tags:        []string{specSessionsKey},
@@ -193,6 +200,7 @@ func stopSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "stopSession",
 		Summary:     "Stop a session without deleting persisted history",
 		Tags:        []string{specSessionsKey},
@@ -219,7 +227,9 @@ func sendSessionPromptOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "sendSessionPrompt",
+		Stream:      "ai-sdk-ui-message-stream-v1",
 		Summary:     "Send, queue, interrupt, or steer a session prompt",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
@@ -229,7 +239,7 @@ func sendSessionPromptOperationSpec() OperationSpec {
 		},
 		RequestBody: contract.SendPromptRequest{},
 		Responses: []ResponseSpec{
-			promptSuccessResponse(200, "Prompt accepted or Goal command completed"),
+			promptStreamResponse(),
 			promptSuccessResponse(202, "Prompt queued, steering accepted, or Goal command started"),
 			{Status: 400, Description: "Invalid prompt request", Body: contract.ErrorPayload{}},
 			promptGoalErrorResponse(404, "Session or attachment not found"),
@@ -245,6 +255,7 @@ func steerSessionPromptOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "steerSessionPrompt",
 		Summary:     "Stage steering input for the active session turn",
 		Tags:        []string{specSessionsKey},
@@ -267,6 +278,7 @@ func cancelQueuedSessionPromptOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "cancelQueuedSessionPrompt",
 		Summary:     "Cancel a queued session prompt entry",
 		Tags:        []string{specSessionsKey},
@@ -288,6 +300,7 @@ func listSessionInputsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listSessionInputs",
 		Summary:     "List pending session input",
 		Tags:        []string{specSessionsKey},
@@ -308,6 +321,7 @@ func replaceSessionInputOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "replaceSessionInput",
 		Summary:     "Replace queued session input atomically",
 		Tags:        []string{specSessionsKey},
@@ -331,6 +345,7 @@ func promoteSessionInputOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "promoteSessionInput",
 		Summary:     "Promote queued session input to steering",
 		Tags:        []string{specSessionsKey},
@@ -354,6 +369,7 @@ func getSessionRecapOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionRecap",
 		Summary:     "Get a deterministic session recap",
 		Tags:        []string{specSessionsKey},
@@ -375,6 +391,7 @@ func getSessionUsageOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionUsage",
 		Summary:     "Get aggregated token usage for a session",
 		Tags:        []string{specSessionsKey},
@@ -394,6 +411,7 @@ func getSessionUsageTurnsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionUsageTurns",
 		Summary:     "Get per-turn session usage and native compaction markers",
 		Tags:        []string{specSessionsKey},
@@ -413,6 +431,7 @@ func repairSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
+		AppAccess:   AppAccessDenied,
 		OperationID: "repairSession",
 		Summary:     "Inspect and repair an interrupted session transcript",
 		Tags:        []string{specSessionsKey},
@@ -435,6 +454,7 @@ func approveSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "approveSession",
 		Summary:     "Approve or deny an interactive permission request",
 		Tags:        []string{specSessionsKey},
@@ -451,4 +471,15 @@ func approveSessionOperationSpec() OperationSpec {
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
+}
+
+func promptStreamResponse() ResponseSpec {
+	response := promptSuccessResponse(200,
+		"Prompt accepted or Goal command completed; streams UI message chunks for an active turn",
+	)
+	response.AdditionalContent = map[string]any{specContentTypeEventStream: contract.PromptStreamChunk{}}
+	response.Headers = map[string]ParameterSpec{"x-vercel-ai-ui-message-stream": {
+		Kind: specStringKey, Enum: []string{"v1"}, Description: "Present on the event-stream response",
+	}}
+	return response
 }

@@ -2,7 +2,10 @@ package spec
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +16,9 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	collisionfixture "github.com/compozy/compozy/internal/api/spec/testdata/componentnames/collision/session"
+	sessionfixture "github.com/compozy/compozy/internal/api/spec/testdata/componentnames/session"
+	taskfixture "github.com/compozy/compozy/internal/api/spec/testdata/componentnames/task"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -332,6 +338,7 @@ func TestDocumentDescribesSessionAttachmentContracts(t *testing.T) {
 
 func validRegistryOperation() OperationSpec {
 	return OperationSpec{
+		AppAccess:   AppAccessDenied,
 		Method:      httpMethodGet,
 		Path:        "/api/example",
 		OperationID: "getExample",
@@ -932,8 +939,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertParameterAbsent(t, streamOperation, "replay", openapi3.ParameterInQuery)
 				streamSchema := responseSchema(t, streamOperation, 200, specContentTypeEventStream)
-				propertySchema(t, streamSchema, "raw")
-				snapshotSchema := propertySchema(t, streamSchema, "transcript_snapshot")
+				streamVariantSchema(t, streamSchema, "SessionEventPayload")
+				snapshotSchema := streamVariantSchema(t, streamSchema, "TranscriptSnapshotPayload")
 				assertRequired(
 					t,
 					snapshotSchema,
@@ -945,7 +952,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"has_older",
 					"reset",
 				)
-				deltaSchema := propertySchema(t, streamSchema, "transcript_delta")
+				deltaSchema := streamVariantSchema(t, streamSchema, "TranscriptDeltaPayload")
 				assertRequired(
 					t,
 					deltaSchema,
@@ -957,7 +964,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"max_sequence",
 					"has_more",
 				)
-				propertySchema(t, streamSchema, "session_stopped")
+				streamVariantSchema(t, streamSchema, "SessionEventPayload")
 				assertResponseStatus(t, streamOperation, 503)
 
 				eventsOperation := operationFor(
@@ -2858,12 +2865,13 @@ func jsonRequestSchema(t *testing.T, operation *openapi3.Operation) *openapi3.Sc
 
 func propertySchema(t *testing.T, schema *openapi3.Schema, name string) *openapi3.Schema {
 	t.Helper()
+	schema = resolvedTestSchema(schema)
 
 	propertyRef := schema.Properties[name]
 	if propertyRef == nil || propertyRef.Value == nil {
 		t.Fatalf("missing property %q", name)
 	}
-	return propertyRef.Value
+	return resolvedTestSchema(propertyRef.Value)
 }
 
 func assertAgentNameRequestSchema(t *testing.T, owner string, schema *openapi3.Schema, pattern string) {
@@ -2996,7 +3004,7 @@ func assertEnumValues(t *testing.T, schema *openapi3.Schema, values ...string) {
 func assertSchemaIncludesType(t *testing.T, schema *openapi3.Schema, want string) {
 	t.Helper()
 
-	if schema.Type == nil || !schema.Type.Includes(want) {
+	if !schemaIncludesType(schema, want) {
 		t.Fatalf("expected schema types to include %q, got %#v", want, schema.Type)
 	}
 }
@@ -3041,4 +3049,450 @@ func assertObjectPropertyKeys(t *testing.T, schema *openapi3.Schema, names ...st
 
 func contains(values []string, target string) bool {
 	return slices.Contains(values, target)
+}
+
+func TestDocumentSchemaComponents(t *testing.T) {
+	t.Parallel()
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
+	t.Run("Should publish named components and retain the existing component names", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"SessionPayload", "WorkspacePayload", "SendPromptResultPayload", "SessionCompactRequest", "OptionalStringList"} {
+			if doc.Components.Schemas[name] == nil {
+				t.Errorf("missing component %s", name)
+			}
+		}
+		baseline := readSchemaBaseline(t)
+		for name := range baseline["components"].(map[string]any)["schemas"].(map[string]any) {
+			if doc.Components.Schemas[name] == nil {
+				t.Errorf("removed existing component %s", name)
+			}
+		}
+		for _, target := range []struct{ path, method, status string }{
+			{"/api/sessions", http.MethodPost, "201"},
+			{"/api/workspaces/{workspace_id}/sessions/{session_id}", http.MethodGet, "200"},
+		} {
+			body := operationFor(t, doc, target.path, target.method).Responses.Value(target.status).Value.Content["application/json"].Schema
+			if body.Ref == "" {
+				t.Errorf("%s response must reference its named response component", target.path)
+			}
+			if body.Value.Properties["session"].Ref != "#/components/schemas/SessionPayload" {
+				t.Errorf("%s session payload was inlined", target.path)
+			}
+		}
+	})
+	t.Run("Should pass the OpenAPI and generator compatibility checks", func(t *testing.T) {
+		t.Parallel()
+		if err := doc.Validate(t.Context()); err != nil {
+			t.Fatalf("validate: %v", err)
+		}
+		if err := lintDocumentSchemas(doc); err != nil {
+			t.Fatalf("lint: %v", err)
+		}
+	})
+	t.Run("Should describe both prompt outcomes and experimental app token operations", func(t *testing.T) {
+		t.Parallel()
+		prompt := operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt", http.MethodPost)
+		content := prompt.Responses.Status(200).Value.Content
+		if content["application/json"] == nil || content[specContentTypeEventStream] == nil {
+			t.Fatal("prompt lacks JSON or event-stream media")
+		}
+		header := prompt.Responses.Status(200).Value.Headers["x-vercel-ai-ui-message-stream"]
+		if header == nil || header.Value == nil {
+			t.Fatal("prompt lacks stream version header")
+		}
+		assertEnumValues(t, header.Value.Schema.Value, "v1")
+		if prompt.Extensions["x-compozy-stream"] != "ai-sdk-ui-message-stream-v1" {
+			t.Fatal("prompt lacks stream protocol marker")
+		}
+		for _, operation := range appTokenOperations() {
+			rendered := operationFor(t, doc, operation.Path, operation.Method)
+			if rendered.Extensions["x-stability"] != schemaStabilityExperimental {
+				t.Errorf("%s lacks experimental marker", operation.OperationID)
+			}
+			if !reflect.DeepEqual(
+				rendered.Extensions["x-compozy-transports"],
+				[]Transport{TransportHTTP, TransportUDS},
+			) {
+				t.Errorf("%s transport mismatch", operation.OperationID)
+			}
+		}
+	})
+}
+
+func TestDocumentSchemaLint(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, suffix string
+		schema       *openapi3.Schema
+		named        bool
+	}{
+		{
+			name:   "Should reject an OpenAPI 3.1 type array",
+			suffix: "/type",
+			schema: &openapi3.Schema{Type: &openapi3.Types{"string", "array"}},
+		},
+		{
+			name:   "Should reject integer bounds outside int64",
+			suffix: "/maximum",
+			schema: openapi3.NewIntegerSchema().WithMax(18446744073709551615),
+		},
+		{
+			name:   "Should reject an inline named component",
+			suffix: "named struct SessionPayload",
+			schema: openapi3.NewObjectSchema(),
+			named:  true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			names := make(map[*openapi3.Schema]string)
+			if tc.named {
+				tc.schema.Origin = &openapi3.Origin{Key: &openapi3.Location{Name: "SessionPayload"}}
+			}
+			err := lintSchemaRef(&openapi3.SchemaRef{Value: tc.schema}, "#/fixture/schema", names, false)
+			if err == nil || !strings.Contains(err.Error(), "#/fixture/schema") ||
+				!strings.Contains(err.Error(), tc.suffix) {
+				t.Fatalf("lint error = %v", err)
+			}
+		})
+	}
+}
+
+func TestDocumentPreservesSchemaSemantics(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve every existing request response and component schema", func(t *testing.T) {
+		t.Parallel()
+		baseline := readSchemaBaseline(t)
+		correctLegacySessionStreamSchemas(t, baseline)
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document: %v", err)
+		}
+		data, err := json.Marshal(doc)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var current map[string]any
+		if err := json.Unmarshal(data, &current); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
+		for name, oldSchema := range oldComponents {
+			compareSchemaContract(
+				t,
+				oldSchema,
+				newComponents[name],
+				"#/components/schemas/"+name,
+				oldComponents,
+				newComponents,
+				make(map[string]bool),
+			)
+		}
+	})
+}
+
+func readSchemaBaseline(t *testing.T) map[string]any {
+	t.Helper()
+	compressed, err := os.ReadFile("testdata/openapi-pre-components.json.gz")
+	if err != nil {
+		t.Fatalf("read schema baseline: %v", err)
+	}
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		t.Fatalf("open schema baseline: %v", err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read compressed schema baseline: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close schema baseline: %v", err)
+	}
+	var baseline map[string]any
+	if err := json.Unmarshal(data, &baseline); err != nil {
+		t.Fatalf("decode schema baseline: %v", err)
+	}
+	return baseline
+}
+
+func compareDocumentSchemas(
+	t *testing.T,
+	oldValue, newValue any,
+	pointer string,
+	oldComponents, newComponents map[string]any,
+) {
+	t.Helper()
+	switch old := oldValue.(type) {
+	case map[string]any:
+		next, ok := newValue.(map[string]any)
+		if !ok {
+			t.Fatalf("%s: missing document node", pointer)
+		}
+		for key, value := range old {
+			if key == "schema" {
+				compareSchemaContract(
+					t,
+					value,
+					next[key],
+					pointer+"/schema",
+					oldComponents,
+					newComponents,
+					make(map[string]bool),
+				)
+			} else if key != "example" && key != "examples" {
+				compareDocumentSchemas(
+					t,
+					value,
+					next[key],
+					pointer+"/"+schemaPointerEscape(key),
+					oldComponents,
+					newComponents,
+				)
+			}
+		}
+	case []any:
+		next, ok := newValue.([]any)
+		if !ok || len(next) != len(old) {
+			t.Fatalf("%s: document sequence differs", pointer)
+		}
+		for i, value := range old {
+			compareDocumentSchemas(t, value, next[i], pointer, oldComponents, newComponents)
+		}
+	}
+}
+
+func compareSchemaContract(
+	t *testing.T,
+	oldValue, newValue any,
+	pointer string,
+	oldComponents, newComponents map[string]any,
+	active map[string]bool,
+) {
+	t.Helper()
+	old, oldRef := normalizeSchemaNode(oldValue, oldComponents)
+	next, newRef := normalizeSchemaNode(newValue, newComponents)
+	if oldRef != "" && newRef != "" {
+		key := oldRef + "|" + newRef
+		if active[key] {
+			return
+		}
+		active[key] = true
+		defer delete(active, key)
+	}
+	switch expected := old.(type) {
+	case map[string]any:
+		actual, ok := next.(map[string]any)
+		if !ok {
+			t.Fatalf("%s: expected schema object, got %T", pointer, next)
+		}
+		if len(actual) != len(expected) {
+			t.Fatalf("%s: schema keys differ: old=%v new=%v", pointer, schemaMapKeys(expected), schemaMapKeys(actual))
+		}
+		for key, value := range expected {
+			compareSchemaContract(
+				t,
+				value,
+				actual[key],
+				pointer+"/"+schemaPointerEscape(key),
+				oldComponents,
+				newComponents,
+				active,
+			)
+		}
+	case []any:
+		actual, ok := next.([]any)
+		if !ok || len(actual) != len(expected) {
+			t.Fatalf("%s: schema sequence differs", pointer)
+		}
+		for i, value := range expected {
+			compareSchemaContract(t, value, actual[i], pointer, oldComponents, newComponents, active)
+		}
+	default:
+		if !reflect.DeepEqual(old, next) {
+			t.Fatalf("%s: schema value changed from %v to %v", pointer, old, next)
+		}
+	}
+}
+
+func normalizeSchemaNode(value any, components map[string]any) (any, string) {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return value, ""
+	}
+	reference, _ := object["$ref"].(string)
+	if reference != "" {
+		object = components[strings.TrimPrefix(reference, "#/components/schemas/")].(map[string]any)
+	}
+	normalized := make(map[string]any, len(object))
+	maps.Copy(normalized, object)
+	if alternatives, ok := normalized["oneOf"].([]any); ok && len(alternatives) == 2 {
+		if null, ok := alternatives[1].(map[string]any); ok && reflect.DeepEqual(null["enum"], []any{nil}) {
+			target, ref := normalizeSchemaNode(alternatives[0], components)
+			normalized = target.(map[string]any)
+			normalized["nullable"] = true
+			if reference == "" {
+				reference = ref
+			}
+		}
+	}
+	if types, ok := normalized["type"].([]any); ok && reflect.DeepEqual(types, []any{"array", "string"}) {
+		delete(normalized, "type")
+		delete(normalized, "items")
+		normalized["oneOf"] = []any{
+			map[string]any{"type": "string"},
+			map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		}
+	}
+	if maximum, ok := normalized["maximum"].(float64); ok && maximum == float64(^uint64(0)) {
+		delete(normalized, "maximum")
+		normalized["format"] = "uint64"
+	}
+	return normalized, reference
+}
+
+func schemaMapKeys(value map[string]any) []string {
+	keys := make([]string, 0, len(value))
+	for key := range value {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+func TestSchemaComponentNameCollisions(t *testing.T) {
+	t.Parallel()
+	t.Run("Should prefix colliding type names with their package names", func(t *testing.T) {
+		t.Parallel()
+		fixture := struct {
+			Session sessionfixture.State `json:"session"`
+			Task    taskfixture.State    `json:"task"`
+		}{}
+		names, err := componentNamesForTypes(reflect.TypeOf(fixture))
+		if err != nil {
+			t.Fatalf("component names: %v", err)
+		}
+		schemas := openapi3.Schemas{}
+		root, err := schemaRefForValueWithNames(fixture, schemas, names)
+		if err != nil {
+			t.Fatalf("schema: %v", err)
+		}
+		for property, name := range map[string]string{"session": "SessionState", "task": "TaskState"} {
+			if schemas[name] == nil || root.Value.Properties[property].Ref != "#/components/schemas/"+name {
+				t.Errorf("%s did not reference %s", property, name)
+			}
+		}
+	})
+	t.Run("Should reject a remaining collision after package prefixing", func(t *testing.T) {
+		t.Parallel()
+		_, err := componentNamesForTypes(
+			reflect.TypeFor[sessionfixture.State](),
+			reflect.TypeFor[collisionfixture.State](),
+		)
+		if err == nil || !strings.Contains(err.Error(), "SessionState") {
+			t.Fatalf("collision error = %v", err)
+		}
+	})
+}
+
+func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *openapi3.Schema {
+	t.Helper()
+	for _, variant := range schema.AnyOf {
+		if variant.Ref == "#/components/schemas/"+name {
+			return variant.Value
+		}
+	}
+	t.Fatalf("missing raw stream frame component %s", name)
+	return nil
+}
+
+func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	// The old pseudo-envelope described fields that the SSE writer never puts on the wire.
+	for _, path := range []string{"/api/sessions/{session_id}/stream", "/api/workspaces/{workspace_id}/sessions/{session_id}/stream"} {
+		operation := baseline["paths"].(map[string]any)[path].(map[string]any)["get"].(map[string]any)
+		responses := operation["responses"].(map[string]any)
+		media := responses["200"].(map[string]any)["content"].(map[string]any)[specContentTypeEventStream].(map[string]any)
+		properties := media["schema"].(map[string]any)["properties"].(map[string]any)
+		var variants []any
+		for _, field := range []string{"subagents_snapshot", "subagent_updated", "session_usage_changed", "consumer_degraded", "raw", "transcript_snapshot", "transcript_delta", "goal_snapshot_changed", "session_commands_changed"} {
+			schema := properties[field].(map[string]any)
+			delete(schema, "nullable")
+			variants = append(variants, schema)
+		}
+		failure := responses["500"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"]
+		media["schema"] = map[string]any{"anyOf": append(variants, failure)}
+	}
+}
+
+func TestSessionStreamRawFrameContract(t *testing.T) {
+	t.Parallel()
+	t.Run("Should validate the raw transcript frame emitted by the session stream writer", func(t *testing.T) {
+		t.Parallel()
+		document, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range []string{"/api/sessions/{session_id}/stream", "/api/workspaces/{workspace_id}/sessions/{session_id}/stream"} {
+			schema := responseSchema(
+				t,
+				operationFor(t, document, path, http.MethodGet),
+				200,
+				specContentTypeEventStream,
+			)
+			if len(schema.AnyOf) != 10 {
+				t.Fatalf("%s frame alternatives = %d, want 10", path, len(schema.AnyOf))
+			}
+			snapshot := streamVariantSchema(t, schema, "TranscriptSnapshotPayload")
+			frame := map[string]any{
+				"session_id":   "session-1",
+				"epoch":        float64(1),
+				"generation":   float64(1),
+				"entries":      []any{},
+				"max_sequence": float64(0),
+				"has_older":    false,
+				"reset":        false,
+			}
+			if err := snapshot.VisitJSON(frame); err != nil {
+				t.Fatalf("raw transcript snapshot invalid: %v", err)
+			}
+			if err := schema.VisitJSON(frame); err != nil {
+				t.Fatalf("raw session stream frame invalid: %v", err)
+			}
+			if err := snapshot.VisitJSON(map[string]any{"transcript_snapshot": frame}); err == nil {
+				t.Fatal("pseudo-envelope must not validate as a raw transcript snapshot")
+			}
+		}
+	})
+}
+
+func resolvedTestSchema(schema *openapi3.Schema) *openapi3.Schema {
+	if len(schema.OneOf) == 2 {
+		nullable := schema.OneOf[1].Value
+		if nullable != nil && len(nullable.Enum) == 1 && nullable.Enum[0] == nil && schema.OneOf[0].Value != nil {
+			resolved := *schema.OneOf[0].Value
+			resolved.Nullable = true
+			return &resolved
+		}
+	}
+	return schema
+}
+
+func schemaIncludesType(schema *openapi3.Schema, want string) bool {
+	if schema.Type.Includes(want) {
+		return true
+	}
+	for _, alternatives := range []openapi3.SchemaRefs{schema.OneOf, schema.AnyOf} {
+		for _, alternative := range alternatives {
+			if alternative.Value != nil && schemaIncludesType(alternative.Value, want) {
+				return true
+			}
+		}
+	}
+	return false
 }

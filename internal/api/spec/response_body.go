@@ -41,3 +41,11 @@ func (bodies responseBodies) empty() bool {
 func (bodies responseBodies) clone() responseBodies {
 	return responseBodies{schemaTypes: slices.Clone(bodies.schemaTypes), overlapping: bodies.overlapping}
 }
+
+// BodyTypes returns independent type descriptors for the primary response media type.
+func (response ResponseSpec) BodyTypes() []reflect.Type {
+	if response.Body != nil {
+		return []reflect.Type{reflect.TypeOf(response.Body)}
+	}
+	return slices.Clone(response.Bodies.schemaTypes)
+}

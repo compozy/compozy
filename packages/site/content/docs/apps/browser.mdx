@@ -1,0 +1,134 @@
+---
+title: Call from a browser
+description: Authorize a browser origin and connect directly to your local CompozyOS daemon.
+icon: AppWindow
+---
+
+import { AppAllowedOperations } from "@/components/docs/app-allowed-operations";
+
+> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+
+A browser app can call the local daemon directly when the operator gives it an app token that allows
+its exact origin. This guide uses an existing web app at `http://localhost:3000`. Run the daemon
+locally and complete the [Node quickstart](/docs/apps) first. For a public app whose server owns the
+connection, use the [chat proxy guide](/docs/apps/chat-ui).
+
+## Allow your app's origin
+
+Run this in a local terminal:
+
+```bash
+compozy app-token create "My dashboard" --origin http://localhost:3000 -o json
+```
+
+Expected result: JSON containing `app_token` metadata and a `token` beginning with `cpz_app_`. Copy
+the token now: later list or update calls never return its secret. The metadata's `origins` contains
+`http://localhost:3000`. `localhost`, `127.0.0.1`, different ports, and different schemes are distinct
+origins.
+
+## Connect from the app
+
+Install the package:
+
+```bash
+npm install --save-exact @compozy/client
+```
+
+Add this code to your app, passing the secret through a deliberate user input or your app's credential
+flow. Keep it out of source control and public bundles.
+
+```ts
+import { Compozy } from "@compozy/client";
+
+export async function listSessions(token: string) {
+  const compozy = await Compozy.connect({
+    baseUrl: "http://localhost:2123",
+    token,
+  });
+  return compozy.sessions.listSessions();
+}
+```
+
+Expected result: the browser's preflight succeeds with status `204`, followed by the typed session
+list. `Authorization: Bearer …` travels on each request. The default browser base URL is
+`http://localhost:2123`; set it explicitly when the local listener uses a different address.
+
+Streams use `fetch`, so they carry the same authorization header:
+
+```ts
+const compozy = await Compozy.connect({ baseUrl: "http://localhost:2123", token });
+const controller = new AbortController();
+for await (const frame of compozy.events("streamSession", {
+  path: { workspace_id: workspaceId, session_id: sessionId },
+  signal: controller.signal,
+})) {
+  console.log(frame.event, frame.id, frame.data);
+}
+```
+
+Use the workspace and session IDs from the quickstart. Expected result: a transcript snapshot and
+live transcript changes. Abort the controller to stop viewing; the agent's turn continues.
+
+## Check the access boundary
+
+A preflight only proves that an active token allows that origin. The actual request still needs a
+valid token whose own allowlist contains the origin. A token made without origins works for
+non-browser callers only. Requests with `Origin: null`, including sandboxed iframes and `file:` pages,
+are rejected.
+
+The table below is generated from the same operation registry that enforces browser access. A token
+does not grant browser access to any operation absent from this table.
+
+<AppAllowedOperations />
+
+Privileged surfaces such as Terminal execution, filesystem browsing, settings, Vault, extension
+management, tool invocation, agent kernel, Gateway, and app-token management remain unavailable to
+foreign browser origins. The daemon's own CompozyOS web UI retains its existing same-origin access.
+App tokens work only on the local listener; Gateway listeners reject them with
+`gateway_app_token_local_only`.
+
+## Security
+
+An app token that can prompt sessions lets the allowed origin ask an agent to act with that session's
+permissions. The origin allowlist is not a sandbox for the agent. Use a dedicated workspace and agent
+with the permissions your app needs. Give tokens only to origins you control and trust, and revoke
+them when access is no longer required. A browser must hold the token to send it, so code running on
+that origin can use it; the allowlist does not protect against a compromised allowed app.
+
+CompozyOS stores a hash of the secret. Token IDs, names, origins, and last-use timestamps are visible
+to the local operator. Tokens are separate from paired devices and are not listed by
+`compozy device list`.
+
+## Revoke and recover
+
+In a second terminal, use the ID returned by create:
+
+```bash
+compozy app-token revoke apt_example -o json
+```
+
+Expected result: `changed: true` on the first revoke. The daemon rejects the revoked secret with
+`401 app_token_revoked` and closes its open streams within five seconds. Repeating revoke succeeds
+with `changed: false`.
+
+A browser can read that 401 only while another active token still allows its origin. If the revoked
+token was the last one allowing the origin, the daemon also removes the origin's CORS grant. A new
+preflight is denied, and a response to a request using a cached preflight lacks the CORS allow-origin
+header. JavaScript sees a CORS/network failure instead of the daemon's status or error body.
+`compozy.events()` retries that failure under its existing reconnect policy and throws
+`CompozyStreamError` after 20 consecutive failed attempts unless you abort the reader. The daemon's
+five-second stream closure does not imply that the browser iterator ends within five seconds.
+
+Create a new token allowing the origin to restore access; a revoked token cannot be updated.
+The status codes below describe daemon responses when the client can read them.
+
+| Response                        | Meaning and next step                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| `403 app_origin_not_allowed`    | Add the exact origin to the intended token's allowlist.                               |
+| `401 app_token_required`        | Supply the token in the `Authorization` header.                                       |
+| `401 app_token_unauthenticated` | Replace an unknown or malformed secret.                                               |
+| `401 app_token_revoked`         | Ask the operator for a new token.                                                     |
+| `403 app_token_route_forbidden` | Use the local management surface for that operation.                                  |
+| `429 app_token_rate_limited`    | Ten failed attempts occurred for this origin within 60 seconds; wait before retrying. |
+
+See [Manage app tokens](/docs/apps/app-tokens) to replace an origin set without minting a new secret.

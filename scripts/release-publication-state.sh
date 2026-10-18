@@ -41,6 +41,7 @@ write_decision() {
     printf 'release_state=%s\n' "$2"
     printf 'cli_state=%s\n' "$3"
     printf 'extension_sdk_state=%s\n' "$4"
+    printf 'client_sdk_state=%s\n' "$8"
     printf 'stage_release=%s\n' "$5"
     printf 'desktop_required=%s\n' "$6"
     printf 'release_id=%s\n' "$7"
@@ -105,8 +106,12 @@ done
 work_dir="$(mktemp -d "${RUNNER_TEMP}/release-publication-state.XXXXXX")"
 cli_state="$(package_state "@compozy/cli" "cli")"
 extension_sdk_state="$(package_state "@compozy/extension-sdk" "extension-sdk")"
+client_sdk_state="$(package_state "@compozy/client" "client-sdk")"
 if [[ "$extension_sdk_state" == "published" && "$cli_state" != "published" ]]; then
   fail "@compozy/extension-sdk is published while @compozy/cli is missing"
+fi
+if [[ "$client_sdk_state" == "published" && "$cli_state" != "published" ]]; then
+  fail "@compozy/client is published while @compozy/cli is missing"
 fi
 
 release_pages="$(
@@ -144,9 +149,9 @@ if [[ "$cli_state" == "missing" && "$release_state" != "published" ]]; then
   desktop_required=true
 fi
 
-state="${release_state}_${cli_state}_${extension_sdk_state}"
+state="${release_state}_${cli_state}_${extension_sdk_state}_${client_sdk_state}"
 write_decision \
   "$state" "$release_state" "$cli_state" "$extension_sdk_state" \
-  "$stage_release" "$desktop_required" "$release_id"
+  "$stage_release" "$desktop_required" "$release_id" "$client_sdk_state"
 printf 'Publication state: %s (stage release: %s; desktop required: %s)\n' \
   "$state" "$stage_release" "$desktop_required"

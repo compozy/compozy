@@ -305,8 +305,10 @@ jobs:
           ' "$(npm --version)"
           npm ping --registry=https://registry.npmjs.org --userconfig=/dev/null
 
-      - name: Validate TypeScript extension SDK package
-        run: scripts/publish-extension-sdk.sh --dry-run 0.0.0-beta.0 beta
+      - name: Validate TypeScript SDK packages
+        run: |
+          scripts/publish-sdk-package.sh --dry-run sdk/typescript 0.0.0-beta.0 beta
+          scripts/publish-sdk-package.sh --dry-run sdk/client 0.0.0-beta.0 beta
 
       - name: Validate prospective beta release body
         env:
@@ -915,6 +917,7 @@ jobs:
       release_state: ${{ steps.publication.outputs.release_state }}
       cli_state: ${{ steps.publication.outputs.cli_state }}
       extension_sdk_state: ${{ steps.publication.outputs.extension_sdk_state }}
+      client_sdk_state: ${{ steps.publication.outputs.client_sdk_state }}
       stage_release: ${{ steps.publication.outputs.stage_release }}
       desktop_required: ${{ steps.publication.outputs.desktop_required }}
     steps:
@@ -1047,7 +1050,11 @@ jobs:
             exit 1
           fi
           go run ./cmd/compozy-manifest-check --version "${{ needs.release-plan.outputs.release_version }}"
-          scripts/publish-extension-sdk.sh --dry-run "${{ needs.release-plan.outputs.release_version }}" "${{ needs.release-plan.outputs.npm_tag }}"
+          scripts/publish-sdk-package.sh --dry-run sdk/typescript "${{ needs.release-plan.outputs.release_version }}" "${{ needs.release-plan.outputs.npm_tag }}"
+
+      - name: Validate app SDK release assets
+        if: steps.publication.outputs.client_sdk_state == 'missing'
+        run: scripts/publish-sdk-package.sh --dry-run sdk/client "${{ needs.release-plan.outputs.release_version }}" "${{ needs.release-plan.outputs.npm_tag }}"
 
       - name: Create and push annotated release tag
         if: steps.publication.outputs.stage_release == 'true'
@@ -1680,7 +1687,14 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
-        run: scripts/publish-extension-sdk.sh "${RELEASE_VERSION}" "${NPM_TAG}"
+        run: scripts/publish-sdk-package.sh sdk/typescript "${RELEASE_VERSION}" "${NPM_TAG}"
+
+      - name: Publish TypeScript app SDK
+        if: needs.release.outputs.client_sdk_state == 'missing'
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+        run: scripts/publish-sdk-package.sh sdk/client "${RELEASE_VERSION}" "${NPM_TAG}"
 
       - name: Checkout canonical formula renderer
         if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
@@ -1740,4 +1754,5 @@ jobs:
             "${RELEASE_VERSION}" \
             "${NPM_TAG}" \
             @compozy/cli \
-            @compozy/extension-sdk
+            @compozy/extension-sdk \
+            @compozy/client

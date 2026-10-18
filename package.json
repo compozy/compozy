@@ -9,6 +9,7 @@
         "web",
         "desktop",
         "lint-plugins",
+        "sdk/client",
         "sdk/typescript",
         "sdk/react",
         "sdk/examples/prompt-enhancer",
@@ -40,6 +41,7 @@
     "devDependencies": {
         "@commitlint/cli": "21.2.3",
         "@commitlint/config-conventional": "21.2.3",
+        "@hey-api/openapi-ts": "0.99.0",
         "@octokit/rest": "^22.0.1",
         "@types/node": "26.6.4",
         "@typescript/native": "npm:typescript@7.0.2",

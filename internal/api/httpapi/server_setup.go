@@ -122,6 +122,11 @@ func (s *Server) ensureEngine() {
 	s.engine = ginutil.NewEngine()
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(requestLoggingMiddleware(s.logger))
+	if s.surfaceSet == SurfaceSetLocal {
+		s.engine.Use(s.appTokenAuthMiddleware())
+	} else {
+		s.engine.Use(rejectTierAppTokens())
+	}
 	s.engine.Use(corsMiddlewareWithForwardedTarget(s.host, s.surfaceSet != SurfaceSetLocal))
 	s.engine.Use(requestBodyLimitMiddlewareWithUploadLimit(
 		maxAPIRequestBodyBytes,

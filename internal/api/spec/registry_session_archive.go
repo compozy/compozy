@@ -21,6 +21,7 @@ func sessionArchiveOperationSpec(action string, operationID string, summary stri
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/" + action,
+		AppAccess:   AppAccessAllowed,
 		OperationID: operationID,
 		Summary:     summary,
 		Tags:        []string{specSessionsKey},

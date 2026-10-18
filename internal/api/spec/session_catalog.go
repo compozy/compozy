@@ -24,6 +24,7 @@ func sessionPromptCancelOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "cancelSessionPrompt",
 		Summary:     "Cancel the active session prompt",
 		Tags:        []string{specSessionsKey},
@@ -44,6 +45,7 @@ func sessionWaitOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/wait",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "waitForSession",
 		Summary:     "Wait for a session state",
 		Tags:        []string{specSessionsKey},
@@ -70,6 +72,7 @@ func sessionCatalogListOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specSessionsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listSessions",
 		Summary:     "List sessions",
 		Tags:        []string{specSessionsKey},
@@ -139,6 +142,7 @@ func sessionPresenceOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/presence",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "updateSessionPresence",
 		Summary:     "Update operator session presence",
 		Tags:        []string{specSessionsKey},
@@ -165,6 +169,7 @@ func sessionInteractionsOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listSessionInteractions",
 		Summary:     "List pending session interactions",
 		Tags:        []string{specSessionsKey},
@@ -193,6 +198,7 @@ func sessionAttentionSummaryOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/attention-summary",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionAttentionSummary",
 		Summary:     "Get exact session attention counts",
 		Tags:        []string{specSessionsKey},
@@ -214,6 +220,7 @@ func sessionCatalogStreamOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/catalog-stream",
+		AppAccess:   AppAccessDenied,
 		OperationID: "streamSessionCatalog",
 		Summary:     "Stream session catalog changes across workspaces",
 		Tags:        []string{specSessionsKey},
@@ -251,6 +258,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/facets",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listSessionFacets",
 		Summary:     "Count session catalog facets",
 		Tags:        []string{specSessionsKey},

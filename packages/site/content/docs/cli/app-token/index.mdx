@@ -1,0 +1,48 @@
+---
+title: "compozy app-token"
+description: "Manage app access tokens"
+---
+
+## compozy app-token
+
+Manage app access tokens
+
+### Synopsis
+
+Manage tokens for browser and non-browser apps through the local daemon.
+
+Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+
+### Options
+
+```
+  -h, --help   help for app-token
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                | Description                                         |
+| ------------------------------------------------------ | --------------------------------------------------- |
+| [compozy app-token create](/docs/cli/app-token/create) | Create an app token and show its secret once        |
+| [compozy app-token list](/docs/cli/app-token/list)     | List app tokens without their secrets               |
+| [compozy app-token revoke](/docs/cli/app-token/revoke) | Revoke an app token and close its live streams      |
+| [compozy app-token update](/docs/cli/app-token/update) | Update an app token name or allowed browser origins |

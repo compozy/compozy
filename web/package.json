@@ -36,6 +36,7 @@
         "@assistant-ui/react-ai-sdk": "1.4.14",
         "@assistant-ui/react-lexical": "0.2.15",
         "@base-ui/react": "1.8.0",
+        "@compozy/client": "workspace:*",
         "@compozy/ui": "workspace:*",
         "@dagrejs/dagre": "^3.1.1",
         "@fontsource-variable/geist-mono": "5.3.0",

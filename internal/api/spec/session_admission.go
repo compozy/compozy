@@ -15,6 +15,7 @@ func sessionConversationAdmissionOperations() []OperationSpec {
 		{
 			Method:      httpMethodPost,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/clear",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "clearSessionConversation",
 			Summary:     "Clear conversation history and restart the session context",
 			Tags:        []string{specSessionsKey},
@@ -34,6 +35,7 @@ func sessionConversationAdmissionOperations() []OperationSpec {
 		{
 			Method:      httpMethodPost,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/rewind",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "rewindSessionConversation",
 			Summary:     "Rewind a conversation before one durable user message",
 			Tags:        []string{specSessionsKey},
@@ -67,6 +69,7 @@ func continueSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "continueSession",
 		Summary:     "Continue a session with another agent, runtime, or declared route",
 		Tags:        []string{specSessionsKey},
@@ -105,6 +108,7 @@ func forkSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "forkSession",
 		Summary:     "Fork a session with the same agent, whole or through one user message and its turn",
 		Tags:        []string{specSessionsKey},
@@ -143,6 +147,7 @@ func previewSessionDeriveOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "previewSessionDerive",
 		Summary:     "Preview what a continue or fork of a session would carry",
 		Tags:        []string{specSessionsKey},

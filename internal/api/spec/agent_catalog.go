@@ -7,6 +7,7 @@ func agentCatalogOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/agents/catalog",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "listAgentCatalog",
 			Summary:     "List a filtered agent fleet with exact session metrics",
 			Tags:        []string{specAgentsKey},

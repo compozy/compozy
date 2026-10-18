@@ -10,7 +10,8 @@ func terminalOperation(
 	responses []ResponseSpec,
 ) OperationSpec {
 	return OperationSpec{
-		Method: method, Path: path, OperationID: operationID, Summary: summary,
+		AppAccess: AppAccessDenied,
+		Method:    method, Path: path, OperationID: operationID, Summary: summary,
 		Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: parameters,
 		RequestBody: request, Responses: terminalResponseMatrix(responses),
 	}

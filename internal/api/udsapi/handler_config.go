@@ -72,6 +72,8 @@ type handlerConfig struct {
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	hostLoad              doctor.HostLoadSnapshotSource
 	deadEntities          doctor.DeadEntitySource
+	appTokens             core.AppTokenManager
+	openAPI               *core.OpenAPIDocument
 	gateway               core.GatewayService
 	homePaths             compozyconfig.HomePaths
 	config                compozyconfig.Config

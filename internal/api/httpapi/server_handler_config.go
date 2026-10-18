@@ -73,6 +73,8 @@ func (s *Server) handlerDependencies() handlerConfig {
 		runtimeMemory:         s.runtimeMemory,
 		hostLoad:              s.hostLoad,
 		deadEntities:          s.deadEntities,
+		appTokens:             s.appTokens,
+		openAPI:               s.openAPI,
 		gateway:               s.gateway,
 		gatewayAdmission:      s.gatewayAdmission,
 		deviceAuth:            s.deviceAuth,

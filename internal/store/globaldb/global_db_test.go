@@ -6192,3 +6192,120 @@ func memoryRetirementRows(t *testing.T, db *sql.DB, query string) string {
 	}
 	return string(contents)
 }
+
+// Invariant: widening credential kinds preserves every device column; owner: global migration/open suite.
+func TestGlobalDBAppTokenMigration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve active CLI and revoked device rows through the app token migration", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00141_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Errorf("Close(prior): %v", err)
+			}
+		})
+		type deviceRow struct {
+			id, name, hash, kind, origin, created string
+			epoch                                 int64
+			seen, revoked                         sql.NullString
+		}
+		rows := []deviceRow{
+			{
+				id:      "device-active",
+				name:    "Desktop",
+				hash:    strings.Repeat("a", 64),
+				kind:    "operator_device",
+				origin:  "private",
+				created: "2026-10-01T12:00:00Z",
+				seen:    sql.NullString{String: "2026-10-02T12:00:00Z", Valid: true},
+			},
+			{
+				id:      "cli-active",
+				name:    "CLI",
+				hash:    strings.Repeat("b", 64),
+				kind:    "cli_profile",
+				origin:  "local",
+				created: "2026-10-03T12:00:00Z",
+				epoch:   2,
+			},
+			{
+				id:      "device-revoked",
+				name:    "Retired",
+				hash:    strings.Repeat("c", 64),
+				kind:    "operator_device",
+				origin:  "private",
+				created: "2026-10-04T12:00:00Z",
+				epoch:   4,
+				seen:    sql.NullString{String: "2026-10-05T12:00:00Z", Valid: true},
+				revoked: sql.NullString{String: "2026-10-06T12:00:00Z", Valid: true},
+			},
+		}
+		for _, row := range rows {
+			if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_device_sessions
+				(id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, row.id, row.name, row.hash, row.kind, row.origin, row.epoch, row.created, row.seen, row.revoked); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(upgraded): %v", err)
+			}
+		})
+		for _, want := range rows {
+			var got deviceRow
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT id, name, token_hash, actor_kind, pairing_origin,
+				revoke_epoch, created_at, last_seen_at, revoked_at FROM gateway_device_sessions WHERE id = ?`, want.id).
+				Scan(&got.id, &got.name, &got.hash, &got.kind, &got.origin, &got.epoch, &got.created, &got.seen, &got.revoked); err != nil {
+				t.Fatal(err)
+			}
+			if got != want {
+				t.Fatalf("device row after migration = %#v, want %#v", got, want)
+			}
+		}
+		service := appTokenServiceForTest(t, upgraded)
+		issued, err := service.CreateAppToken(ctx, "Migrated application", []string{"https://app.test"})
+		if err != nil {
+			t.Fatalf("new app token kind rejected after migration: %v", err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened): %v", err)
+			}
+		})
+		restarted := appTokenServiceForTest(t, reopened)
+		persisted, err := restarted.AuthenticateAppToken(ctx, issued.Secret)
+		if err != nil || persisted.Session.ID != issued.Token.Session.ID || len(persisted.Origins) != 1 ||
+			persisted.Origins[0] != "https://app.test" {
+			t.Fatalf("token did not survive reopen: %#v, %v", persisted, err)
+		}
+		devices, err := restarted.ListDevices(ctx)
+		if err != nil || len(devices) != 3 {
+			t.Fatalf("device inventory after reopen: %#v, %v", devices, err)
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
+}

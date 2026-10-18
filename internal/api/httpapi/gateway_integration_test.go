@@ -754,14 +754,18 @@ func TestGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should roll back an in-flight remote mutation when revocation wins [IT-023]", func(t *testing.T) {
 		t.Parallel()
-		exerciseGatewayRevocationFencesInflightMutationIntegration(t)
+		exerciseGatewayRevocationFencesInflightMutationIntegration(t, false)
+	})
+	t.Run("Should roll back an app-token browser mutation when revocation wins", func(t *testing.T) {
+		t.Parallel()
+		exerciseGatewayRevocationFencesInflightMutationIntegration(t, true)
 	})
 }
 
-func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
+func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T, appToken bool) {
 	t.Helper()
 	service := newGatewayIntegrationService(t)
-	issued := issueGatewayIntegrationCredential(t, service, gateway.ActorKindOperatorDevice)
+	issued, middleware, revoke, revokeRoute := gatewayIntegrationRevocableAuth(t, service, appToken)
 	productDB, err := store.OpenSQLiteDatabase(
 		t.Context(),
 		filepath.Join(t.TempDir(), "product.db"),
@@ -779,10 +783,9 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
 		}
 	})
 
-	handlers := newHandlers(&handlerConfig{gateway: service, deviceAuth: service, boundHost: "127.0.0.1"})
 	mutationStarted := make(chan struct{})
 	router := gin.New()
-	router.POST("/mutation", handlers.deviceAuthMiddleware(), func(c *gin.Context) {
+	router.POST("/mutation", middleware, func(c *gin.Context) {
 		detached := context.WithoutCancel(c.Request.Context())
 		err := store.ExecuteWrite(detached, productDB, func(ctx context.Context, tx *store.WriteTx) error {
 			if _, execErr := tx.ExecContext(ctx, `INSERT INTO mutations (id) VALUES ('partial')`); execErr != nil {
@@ -798,11 +801,7 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
 		}
 		c.Status(http.StatusNoContent)
 	})
-	router.DELETE(
-		"/api/gateway/devices/:id",
-		handlers.deviceAuthMiddleware(),
-		handlers.RevokeGatewayDevice,
-	)
+	router.DELETE(revokeRoute, middleware, revoke)
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 
@@ -821,6 +820,9 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
 			return
 		}
 		request.Header.Set("Authorization", "Bearer "+issued.Credential)
+		if appToken {
+			request.Header.Set("Origin", "http://app.test")
+		}
 		response, requestErr := gatewayIntegrationHTTPClient().Do(request)
 		if requestErr != nil {
 			mutationDone <- responseOutcome{err: requestErr}
@@ -833,18 +835,35 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
 			err:    errors.Join(readErr, response.Body.Close()),
 		}
 	}()
-	<-mutationStarted
+	select {
+	case <-mutationStarted:
+	case early := <-mutationDone:
+		t.Fatalf(
+			"mutation ended before entering its write: status=%d body=%s err=%v",
+			early.status,
+			early.body,
+			early.err,
+		)
+	case <-t.Context().Done():
+		t.Fatal("test context ended before mutation admission")
+	}
 
 	revokeRequest, err := http.NewRequestWithContext(
 		t.Context(),
 		http.MethodDelete,
-		server.URL+"/api/gateway/devices/"+issued.Device.ID,
+		server.URL+strings.ReplaceAll(
+			strings.ReplaceAll(revokeRoute, ":app_token_id", issued.Device.ID),
+			":id",
+			issued.Device.ID,
+		),
 		http.NoBody,
 	)
 	if err != nil {
 		t.Fatalf("http.NewRequestWithContext(revoke) error = %v", err)
 	}
-	revokeRequest.Header.Set("Authorization", "Bearer "+issued.Credential)
+	if !appToken {
+		revokeRequest.Header.Set("Authorization", "Bearer "+issued.Credential)
+	}
 	revokeResponse, err := gatewayIntegrationHTTPClient().Do(revokeRequest)
 	if err != nil {
 		t.Fatalf("revoke request error = %v", err)
@@ -862,8 +881,12 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
 	if err := json.Unmarshal(mutation.body, &payload); err != nil {
 		t.Fatalf("json.Unmarshal(mutation error) = %v; body=%s", err, mutation.body)
 	}
-	if mutation.status != http.StatusUnauthorized || payload.Code != "gateway_device_revoked" {
-		t.Fatalf("mutation response = %d/%#v, want 401 gateway_device_revoked", mutation.status, payload)
+	wantCode := "gateway_device_revoked"
+	if appToken {
+		wantCode = "app_token_revoked"
+	}
+	if mutation.status != http.StatusUnauthorized || payload.Code != wantCode {
+		t.Fatalf("mutation response = %d/%#v, want 401 %s", mutation.status, payload, wantCode)
 	}
 	var count int
 	if err := productDB.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM mutations`).Scan(&count); err != nil {
@@ -975,7 +998,7 @@ func newGatewayIntegrationService(t *testing.T) *gatewayIntegrationService {
 			t.Errorf("GlobalDB.Close() error = %v", err)
 		}
 	})
-	devices, err := gateway.NewDeviceService(database)
+	devices, err := gateway.NewDeviceService(database, gateway.WithAppTokenStore(database))
 	if err != nil {
 		t.Fatalf("NewDeviceService() error = %v", err)
 	}
@@ -1284,4 +1307,82 @@ func assertGatewayTicketRejected(t *testing.T, requestURL string) {
 
 func gatewayIntegrationHTTPClient() *http.Client {
 	return &http.Client{Timeout: gatewayIntegrationClientTimeout}
+}
+
+func TestLocalAppTokenIntegration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject app tokens on gateway tiers before updating usage", func(t *testing.T) {
+		t.Parallel()
+		service := newGatewayIntegrationService(t)
+		issued, err := service.CreateAppToken(t.Context(), "Local app", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router := gin.New()
+		router.Use(rejectTierAppTokens())
+		handlers := newHandlers(
+			&handlerConfig{
+				gateway:    service,
+				deviceAuth: service,
+				surfaceSet: SurfaceSetPrivate,
+				boundHost:  "127.0.0.1",
+			},
+		)
+		RegisterSurfaceRoutes(router, handlers, SurfaceSetPrivate)
+		server := httptest.NewServer(router)
+		t.Cleanup(server.Close)
+		response := mustHTTPRequest(
+			t,
+			gatewayIntegrationHTTPClient(),
+			http.MethodGet,
+			server.URL+"/api/status",
+			nil,
+			map[string]string{"Authorization": "Bearer " + issued.Secret},
+		)
+		body := readAndCloseHTTPBody(t, response)
+		if response.StatusCode != 403 || !bytes.Contains(body, []byte("gateway_app_token_local_only")) {
+			t.Fatalf("tier = %d %s", response.StatusCode, body)
+		}
+		tokens, err := service.ListAppTokens(t.Context(), gateway.AppTokenStateActive)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tokens) != 1 || !tokens[0].Session.LastSeenAt.IsZero() {
+			t.Fatalf("token usage = %#v", tokens)
+		}
+		device := issueGatewayIntegrationCredential(t, service, gateway.ActorKindOperatorDevice)
+		for _, path := range []string{"/api/openapi.json", "/api/app-tokens"} {
+			response := mustHTTPRequest(t, gatewayIntegrationHTTPClient(), http.MethodGet, server.URL+path, nil,
+				map[string]string{"Authorization": "Bearer " + device.Credential})
+			body := readAndCloseHTTPBody(t, response)
+			if response.StatusCode != http.StatusNotFound {
+				t.Fatalf("authenticated tier %s = %d %s, want404", path, response.StatusCode, body)
+			}
+		}
+		for _, route := range router.Routes() {
+			if route.Path == "/api/openapi.json" || strings.HasPrefix(route.Path, "/api/app-tokens") {
+				t.Fatalf("local route exposed on tier: %#v", route)
+			}
+		}
+	})
+}
+
+func gatewayIntegrationRevocableAuth(t *testing.T, service *gatewayIntegrationService, appToken bool) (
+	gateway.IssuedCredential, gin.HandlerFunc, gin.HandlerFunc, string,
+) {
+	t.Helper()
+	handlers := newHandlers(&handlerConfig{
+		gateway: service, deviceAuth: service, appTokens: service, boundHost: "127.0.0.1",
+	})
+	if !appToken {
+		issued := issueGatewayIntegrationCredential(t, service, gateway.ActorKindOperatorDevice)
+		return issued, handlers.deviceAuthMiddleware(), handlers.RevokeGatewayDevice, "/api/gateway/devices/:id"
+	}
+	issued, err := service.CreateAppToken(t.Context(), "Browser integration", []string{"http://app.test"})
+	if err != nil {
+		t.Fatalf("CreateAppToken() error = %v", err)
+	}
+	server := &Server{host: "127.0.0.1", appTokenAuth: service, appAccess: func(string, string) bool { return true }}
+	return gateway.IssuedCredential{Device: issued.Token.Session, Credential: issued.Secret},
+		server.appTokenAuthMiddleware(), handlers.RevokeAppToken, "/api/app-tokens/:app_token_id"
 }

@@ -12,8 +12,11 @@ func getSettingsMCPServerOperationSpec() OperationSpec {
 		queryParam("owner", "Select manual or extension:<name>; omitted owner selects manual servers only", false),
 	)
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPISettingsMCPServersNamePath, OperationID: "getSettingsMCPServer",
-		Summary: "Get one owner-qualified MCP server", Tags: []string{specSettingsKey},
+		Method:      httpMethodGet,
+		Path:        specAPISettingsMCPServersNamePath,
+		AppAccess:   AppAccessDenied,
+		OperationID: "getSettingsMCPServer",
+		Summary:     "Get one owner-qualified MCP server", Tags: []string{specSettingsKey},
 		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: parameters,
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsMCPServerResponse{}},

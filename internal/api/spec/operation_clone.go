@@ -47,6 +47,13 @@ func cloneResponseSpecs(specs []ResponseSpec) []ResponseSpec {
 		cloned[index] = spec
 		cloned[index].Body = cloneSpecValue(spec.Body)
 		cloned[index].Bodies = spec.Bodies.clone()
+		cloned[index].AdditionalContent = maps.Clone(spec.AdditionalContent)
+		if spec.Headers != nil {
+			cloned[index].Headers = make(map[string]ParameterSpec, len(spec.Headers))
+			for name, header := range spec.Headers {
+				cloned[index].Headers[name] = cloneParameterSpecs([]ParameterSpec{header})[0]
+			}
+		}
 	}
 	return cloned
 }

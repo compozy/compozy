@@ -1,4 +1,4 @@
-import type { operations } from "@/generated/compozy-openapi";
+import type { operations } from "@compozy/client";
 
 import type { TerminalInfo } from "./lib/terminal-contract-schema";
 

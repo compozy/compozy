@@ -6,6 +6,7 @@ import "github.com/gin-gonic/gin"
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api := router.Group("/api")
 
+	registerAppSDKRoutes(api, handlers)
 	registerStatusRoutes(api, handlers)
 	registerOnboardingRoutes(api, handlers)
 	registerFilesystemRoutes(api, handlers)

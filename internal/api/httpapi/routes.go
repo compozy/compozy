@@ -22,6 +22,7 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
 	}
 
+	registerAppSDKRoutes(api, handlers)
 	registerOperatorRoutes(api, handlers, true)
 	registerAgentKernelRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)

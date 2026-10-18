@@ -7,8 +7,11 @@ import (
 
 func terminalCatalogOperation(transports []Transport, workspace ParameterSpec) OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: terminalPath + "/stream", OperationID: "streamTerminalCatalog",
-		Summary: "Stream one profile-scoped terminal catalog", Tags: []string{specWorkspacesKey},
+		Method:      httpMethodGet,
+		Path:        terminalPath + "/stream",
+		AppAccess:   AppAccessDenied,
+		OperationID: "streamTerminalCatalog",
+		Summary:     "Stream one profile-scoped terminal catalog", Tags: []string{specWorkspacesKey},
 		Transports: transports,
 		Parameters: withProfileSelector(
 			workspace,

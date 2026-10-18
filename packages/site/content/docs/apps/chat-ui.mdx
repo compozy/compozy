@@ -1,0 +1,116 @@
+---
+title: Connect a chat UI
+description: Forward the daemon's UI message stream through your own server to an AI SDK chat UI.
+icon: MessageSquare
+---
+
+> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+
+This guide connects a Next.js server route to a session and renders its reply with the Vercel AI SDK.
+The browser talks to your server; your server connects to CompozyOS. App tokens and daemon CORS are
+not needed for this path when the server is a local process.
+
+First complete the [Node quickstart](/docs/apps). Keep the workspace and session IDs you created.
+Your application must authenticate its users and authorize which session each user can prompt before
+forwarding requests. In this single-session example, those IDs stay on the server.
+
+## Install the clients
+
+In an existing Next.js App Router application:
+
+```bash
+npm install --save-exact @compozy/client ai @ai-sdk/react
+```
+
+Expected result: the CompozyOS and AI SDK dependencies are recorded in your lockfile. Set
+`COMPOZY_WORKSPACE_ID` and `COMPOZY_SESSION_ID` in the server environment to your existing IDs.
+Use `COMPOZY_URL` if the server needs an explicit daemon address.
+
+## Add the route
+
+Create your application's `app/chat/route.ts` route:
+
+```ts
+import { Compozy } from "@compozy/client";
+import type { UIMessage } from "ai";
+
+export async function POST(request: Request) {
+  const workspaceId = process.env.COMPOZY_WORKSPACE_ID;
+  const sessionId = process.env.COMPOZY_SESSION_ID;
+  if (!workspaceId || !sessionId) {
+    return Response.json({ error: "Configure the workspace and session IDs." }, { status: 503 });
+  }
+  const { messages } = (await request.json()) as { messages: UIMessage[] };
+  const latest = messages.at(-1);
+  const message = latest?.parts
+    .filter(part => part.type === "text")
+    .map(part => part.text)
+    .join("\n");
+  if (latest?.role !== "user" || !message) {
+    return Response.json({ error: "Send a user message with text." }, { status: 400 });
+  }
+  const compozy = await Compozy.connect();
+  return compozy.promptResponse({ workspaceId, sessionId, message, signal: request.signal });
+}
+```
+
+`promptResponse()` preserves the daemon's status, body, and stream header
+`x-vercel-ai-ui-message-stream: v1`. It does not wrap or translate UI message chunks.
+
+## Render the messages
+
+Create `app/page.tsx`:
+
+```tsx
+"use client";
+
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { useState } from "react";
+
+export default function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({ api: "/chat" }),
+  });
+  return (
+    <main>
+      {messages.map(message => (
+        <p key={message.id}>
+          {message.parts.map((part, index) =>
+            part.type === "text" ? <span key={index}>{part.text}</span> : null
+          )}
+        </p>
+      ))}
+      {error && <p role="alert">{error.message}</p>}
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          if (!input.trim()) return;
+          void sendMessage({ text: input });
+          setInput("");
+        }}
+      >
+        <label htmlFor="message">Message</label>
+        <input id="message" value={input} onChange={event => setInput(event.target.value)} />
+        <button disabled={status !== "ready"}>Send</button>
+      </form>
+    </main>
+  );
+}
+```
+
+Run your application's development server and send a message. Expected result: your user message
+appears, then the agent's text arrives incrementally in the same page. The browser's request goes to
+`/chat`; no daemon token is included in the browser bundle.
+
+## Handle accepted work and disconnections
+
+A busy session may return JSON with status `202`, containing its accepted/queued result. That response
+is not a UI message stream. If your app deliberately uses `mode: "queue"`, handle this branch in its
+transport and display the queue position instead of feeding the response to a stream parser. A daemon
+error similarly returns its original status and error body.
+
+Closing the page or aborting the route's request stops reading but does not cancel an admitted turn.
+Reopen the durable transcript or use `compozy.events("streamSession", …)` to recover progress. Use
+`sessions.cancelSessionPrompt` when the user explicitly requests cancellation.

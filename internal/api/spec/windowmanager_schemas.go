@@ -2,6 +2,8 @@ package spec
 
 import (
 	"fmt"
+	"maps"
+	"reflect"
 	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -53,23 +55,45 @@ func buildWindowManagerComponentSchemas() []windowManagerComponentSchema {
 }
 
 func registerWindowManagerComponentSchemas(schemas openapi3.Schemas) error {
+	names, err := operationComponentNames()
+	if err != nil {
+		return err
+	}
+	legacy := openapi3.Schemas{}
+	sources := make(map[*openapi3.Schema]reflect.Type)
 	for _, component := range windowManagerComponentSchemas {
-		schemaRef, err := schemaRefForValue(component.value, schemas)
+		schemaRef, reflected, err := reflectSchemaValue(component.value, legacy, names)
 		if err != nil {
 			return fmt.Errorf("build %s: %w", component.name, err)
 		}
-		if generated := schemas[component.name]; generated != nil && generated.Value != nil {
+		maps.Copy(sources, reflected)
+		if generated := legacy[component.name]; generated != nil && generated.Value != nil {
 			continue
 		}
-		schemas[component.name] = schemaRef
+		legacy[component.name] = schemaRef
 	}
 	for _, component := range windowManagerComponentSchemas {
-		schemaRef := schemas[component.name]
+		schemaRef := legacy[component.name]
 		if schemaRef == nil || schemaRef.Value == nil {
 			return fmt.Errorf("component %s did not resolve to a concrete schema", component.name)
 		}
 	}
-	customizeWindowManagerSchemas(schemas)
+	// Apply contextual constraints before sharing schemas so nested wire shapes stay unchanged.
+	customizeWindowManagerSchemas(legacy)
+	maps.Copy(schemas, legacy)
+	for _, component := range windowManagerComponentSchemas {
+		schemaRef := legacy[component.name]
+		if err := componentizeSchema(
+			schemaRef,
+			sources,
+			names,
+			schemas,
+			make(map[*openapi3.Schema]struct{}),
+		); err != nil {
+			return err
+		}
+		schemas[component.name] = &openapi3.SchemaRef{Value: schemaRef.Value}
+	}
 	return nil
 }
 

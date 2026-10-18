@@ -351,6 +351,7 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	now := time.Date(2026, 4, 3, 12, 30, 0, 0, time.UTC)
 	info := Info{
 		PID:       4242,
+		HTTPHost:  "::1",
 		Port:      2123,
 		StartedAt: now,
 	}
@@ -363,7 +364,8 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadInfo() error = %v", err)
 	}
-	if got.PID != info.PID || got.Port != info.Port || !got.StartedAt.Equal(info.StartedAt) {
+	if got.PID != info.PID || got.Port != info.Port || got.HTTPHost != info.HTTPHost ||
+		!got.StartedAt.Equal(info.StartedAt) {
 		t.Fatalf("ReadInfo() = %#v, want %#v", got, info)
 	}
 

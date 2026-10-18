@@ -40,6 +40,12 @@ var ErrRequestBodyTooLarge = errors.New("request body too large")
 
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	if c.Request != nil {
+		if _, ok := AppTokenFromContext(c.Request.Context()); ok && errors.Is(err, gateway.ErrDeviceRevoked) {
+			RespondAppTokenError(c, err, true)
+			return
+		}
+	}
 	if respondProfileAdmissionError(c, err) {
 		return
 	}

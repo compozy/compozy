@@ -12,6 +12,7 @@ func registryRolesOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/roles",
+			AppAccess:   AppAccessDenied,
 			OperationID: "listRoles",
 			Summary:     "List effective background role configuration",
 			Tags:        []string{specRolesKey},
@@ -28,6 +29,7 @@ func registryRolesOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/roles/{role}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getRole",
 			Summary:     "Get effective background role configuration",
 			Tags:        []string{specRolesKey},

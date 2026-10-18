@@ -58,6 +58,8 @@ func (s *Server) handlerConfig() *handlerConfig {
 		runtimeMemory:         s.runtimeMemory,
 		hostLoad:              s.hostLoad,
 		deadEntities:          s.deadEntities,
+		appTokens:             s.appTokens,
+		openAPI:               s.openAPI,
 		gateway:               s.gateway,
 		homePaths:             s.homePaths,
 		config:                s.config,

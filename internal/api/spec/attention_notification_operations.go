@@ -14,9 +14,12 @@ func attentionNotificationOperations() []OperationSpec {
 	)
 	return []OperationSpec{
 		{
-			Method: httpMethodGet, Path: specAPINotificationsAttentionPath, OperationID: "listAttentionNotifications",
-			Summary: "List unread operator notifications across all workspaces and source profiles",
-			Tags:    []string{specNotificationsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+			Method:      httpMethodGet,
+			Path:        specAPINotificationsAttentionPath,
+			AppAccess:   AppAccessAllowed,
+			OperationID: "listAttentionNotifications",
+			Summary:     "List unread operator notifications across all workspaces and source profiles",
+			Tags:        []string{specNotificationsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 			Parameters: parameters,
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Exact counts and first 100 rows; snapshot includes every occurrence",
@@ -30,6 +33,7 @@ func attentionNotificationOperations() []OperationSpec {
 		{
 			Method:      httpMethodPost,
 			Path:        specAPINotificationsAcknowledgePath,
+			AppAccess:   AppAccessAllowed,
 			OperationID: "acknowledgeAttentionNotifications",
 			Summary:     "Acknowledge an exact notification snapshot",
 			Tags:        []string{specNotificationsKey},

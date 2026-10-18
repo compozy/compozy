@@ -1,6 +1,6 @@
 import createClient from "openapi-fetch";
 
-import type { paths as compozyPaths } from "@/generated/compozy-openapi";
+import type { paths as compozyPaths } from "@compozy/client";
 import { createClientId } from "./client-id";
 import { reportGatewayResponse } from "./gateway-access-signal";
 

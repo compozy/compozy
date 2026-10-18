@@ -7,6 +7,7 @@ func sessionNavigationOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "searchSessionTranscript",
 			Summary:     "Search retained transcript messages with bounded literal matches",
 			Tags:        []string{specSessionsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
@@ -18,7 +19,7 @@ func sessionNavigationOperations() []OperationSpec {
 					In:          "query",
 					Description: "Literal case-insensitive text; 1 to 4096 bytes",
 					Required:    true,
-					Kind:        "string",
+					Kind:        specStringKey,
 				},
 				intQueryParam(
 					"limit",
@@ -30,6 +31,7 @@ func sessionNavigationOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getSessionTranscriptOutline",
 			Summary:     "Get the full retained operator-message trail with reply previews",
 			Tags:        []string{specSessionsKey},

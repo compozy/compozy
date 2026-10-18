@@ -1,3 +1,4 @@
+import type { components } from "@compozy/client";
 import type { UIMessage as AIUIMessage } from "ai";
 
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
@@ -65,15 +66,14 @@ export type SessionCommandPayload = SessionCommandsResponse["commands"][number];
 export type SessionTranscriptEntry = SessionTranscriptResponse["entries"][number];
 export type SessionTranscriptQuery = OperationQuery<"getSessionTranscript">;
 export type SessionStreamResponse = OperationResponse<"streamSession", 200>;
-export type TranscriptSnapshotPayload = NonNullable<SessionStreamResponse["transcript_snapshot"]>;
-export type TranscriptDeltaPayload = NonNullable<SessionStreamResponse["transcript_delta"]>;
+export type TranscriptSnapshotPayload = components["schemas"]["TranscriptSnapshotPayload"];
+export type TranscriptDeltaPayload = components["schemas"]["TranscriptDeltaPayload"];
 /** A slow watcher was shed; the server replays `after_sequence..through_sequence` on the same stream. */
-export type SessionConsumerDegradedPayload = NonNullable<
-  SessionStreamResponse["consumer_degraded"]
->;
+export type SessionConsumerDegradedPayload =
+  components["schemas"]["SessionConsumerDegradedPayload"];
 /** Parent-stream roster frames (`_dx.md` Live updates): the snapshot after subscribe, then row changes. */
-export type SubagentsSnapshotPayload = NonNullable<SessionStreamResponse["subagents_snapshot"]>;
-export type SubagentUpdatedPayload = NonNullable<SessionStreamResponse["subagent_updated"]>;
+export type SubagentsSnapshotPayload = components["schemas"]["SubagentsSnapshotEvent"];
+export type SubagentUpdatedPayload = components["schemas"]["SubagentUpdatedEvent"];
 export type SessionBadge = SessionPayload["badge"];
 /** Sanitized pending question / permission projection embedded on session payloads. */
 export type SessionPendingInteraction = SessionPayload["pending_interactions"][number];

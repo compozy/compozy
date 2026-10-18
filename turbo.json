@@ -32,6 +32,10 @@
             "outputs": ["dist/**"],
             "env": ["VITE_COMPOZY_API_URL"]
         },
+        "compozy-web#typecheck": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": []
+        },
         "compozy-web#test": {
             "dependsOn": ["//#codegen-check", "transit"],
             "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/catalog/icons/**"],
@@ -69,7 +73,8 @@
                 "lib/docs-navigation.ts",
                 "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
                 "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
-                "$TURBO_ROOT$/openapi/compozy.json"
+                "$TURBO_ROOT$/openapi/compozy.json",
+                "$TURBO_ROOT$/openapi/sdk-samples.json"
             ],
             "outputs": [
                 "content/docs/api/*.mdx",
@@ -138,7 +143,8 @@
                 "$TURBO_ROOT$/extensions/open-design/loops/*/loop.yaml",
                 "$TURBO_ROOT$/extensions/open-design/agents/*/AGENT.md",
                 "$TURBO_ROOT$/extensions/open-design/skills/*/SKILL.md",
-                "$TURBO_ROOT$/skills/*/SKILL.md"
+                "$TURBO_ROOT$/skills/*/SKILL.md",
+                "$TURBO_ROOT$/openapi/sdk-samples.json"
             ],
             "outputs": []
         },
@@ -181,6 +187,10 @@
         "@compozy/videos#render:all": {
             "cache": false,
             "outputs": ["out/**"]
+        },
+        "@compozy/client#test:package": {
+            "dependsOn": ["build"],
+            "outputs": []
         }
     }
 }

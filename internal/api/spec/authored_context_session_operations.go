@@ -6,6 +6,7 @@ func authoredContextSessionOperations() []OperationSpec {
 	operations := []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/health",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionHealth",
 		Summary:     "Read metadata-only session health and wake eligibility",
 		Tags:        []string{authoredContextSessionsKey},
@@ -28,6 +29,7 @@ func authoredContextSessionOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/status",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getSessionStatus",
 			Summary:     "Read compact session status and wake eligibility",
 			Tags:        []string{authoredContextSessionsKey},
@@ -54,6 +56,7 @@ func authoredContextSessionOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        authoredContextSessionInspectPath,
+			AppAccess:   AppAccessAllowed,
 			OperationID: "inspectSession",
 			Summary:     "Inspect session health, wake audit, and policy correlation metadata",
 			Tags:        []string{authoredContextSessionsKey},

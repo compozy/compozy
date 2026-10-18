@@ -42,6 +42,7 @@ func previewExtensionEnableOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsNamePath + "/preview",
+		AppAccess:   AppAccessDenied,
 		OperationID: "previewExtensionEnable",
 		Summary:     "Preview one extension enablement change",
 		Tags:        []string{specExtensionsKey},
@@ -60,6 +61,7 @@ func previewExtensionInstallOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIExtensionsPreviewInstallPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "previewExtensionInstall",
 		Summary:     "Preview an extension install without changing state",
 		Tags:        []string{specExtensionsKey},
@@ -84,6 +86,7 @@ func listExtensionCommandsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsCommandsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "listExtensionCommands",
 		Summary:     "List active extension-contributed commands",
 		Tags:        []string{specExtensionsKey},
@@ -104,6 +107,7 @@ func devExtensionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIExtensionsDevPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "devExtension",
 		Summary:     "Link an immutable extension generation to the resolved workspace",
 		Tags:        []string{specExtensionsKey},
@@ -125,6 +129,7 @@ func reloadDevExtensionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIExtensionsNameReloadPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "reloadDevExtension",
 		Summary:     "Reload a workspace extension from an immutable generation",
 		Tags:        []string{specExtensionsKey},
@@ -152,6 +157,7 @@ func getExtensionInventoryOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsNameInventoryPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getExtensionInventory",
 		Summary:     "List shipped and live resources for one extension",
 		Tags:        []string{specExtensionsKey},
@@ -173,6 +179,7 @@ func listExtensionSecretsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsNameSecretsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "listExtensionSecrets",
 		Summary:     "List declared and bound extension environment names",
 		Tags:        []string{specExtensionsKey},
@@ -193,6 +200,7 @@ func setExtensionSecretsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPIExtensionsNameSecretsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "setExtensionSecrets",
 		Summary:     "Set or bind extension environment secrets",
 		Tags:        []string{specExtensionsKey},
@@ -219,6 +227,7 @@ func deleteExtensionSecretOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPIExtensionsNameSecretPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteExtensionSecret",
 		Summary:     "Remove one extension environment secret binding",
 		Tags:        []string{specExtensionsKey},
@@ -245,6 +254,7 @@ func getExtensionLogsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsNameLogsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getExtensionLogs",
 		Summary:     "Read or follow redacted extension logs",
 		Tags:        []string{specExtensionsKey},
@@ -270,6 +280,7 @@ func listExtensionsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "listExtensions",
 		Summary:     "List installed extensions",
 		Tags:        []string{specExtensionsKey},
@@ -289,6 +300,7 @@ func installExtensionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIExtensionsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "installExtension",
 		Summary:     "Install a local or marketplace extension",
 		Tags:        []string{specExtensionsKey},
@@ -323,6 +335,7 @@ func getExtensionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getExtension",
 		Summary:     "Get one installed extension",
 		Tags:        []string{specExtensionsKey},
@@ -345,6 +358,7 @@ func listExtensionEnablementOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsNameEnablementPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "listExtensionEnablement",
 		Summary:     "List one extension's effective state for every profile",
 		Tags:        []string{specExtensionsKey},
@@ -362,6 +376,7 @@ func setExtensionEnablementOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPIExtensionsNameEnablementPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "setExtensionEnablement",
 		Summary:     "Set one extension's effective state for a profile",
 		Tags:        []string{specExtensionsKey},
@@ -386,6 +401,7 @@ func updateExtensionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPIExtensionsNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateExtension",
 		Summary:     "Update one marketplace-installed extension",
 		Tags:        []string{specExtensionsKey},
@@ -416,6 +432,7 @@ func removeExtensionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPIExtensionsNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "removeExtension",
 		Summary:     "Remove one managed extension",
 		Tags:        []string{specExtensionsKey},
@@ -438,6 +455,7 @@ func getExtensionProvenanceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIExtensionsNameProvenancePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getExtensionProvenance",
 		Summary:     "Get extension provenance and trust evidence",
 		Tags:        []string{specExtensionsKey},

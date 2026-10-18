@@ -54,6 +54,7 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 			"latency_ms", time.Since(started).Milliseconds(),
 			"client_ip", c.ClientIP(),
 			"client_id", requestClientID(c.GetHeader("X-Compozy-Client-ID")),
+			"app_token_id", c.GetString(appTokenIDKey),
 		)
 	}
 }
@@ -82,16 +83,7 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 	return func(c *gin.Context) {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		headers := c.Writer.Header()
-		headers.Set(
-			"Access-Control-Allow-Headers",
-			"Content-Type, Last-Event-ID, Accept, Authorization, X-Compozy-Client-ID",
-		)
-		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		headers.Set(
-			"Access-Control-Expose-Headers",
-			"Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream, "+gatewayTierHeader,
-		)
-		headers.Set("Vary", "Origin")
+		setBrowserAccessHeaders(headers)
 		if origin != "" {
 			allowedOrigin, ok := resolveAllowedOriginForTarget(
 				origin,
@@ -100,6 +92,9 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 				boundHost,
 				allowForwardedTarget,
 			)
+			if appOrigin := c.GetString(appTokenOriginKey); appOrigin != "" {
+				allowedOrigin, ok = appOrigin, true
+			}
 			if !ok {
 				abortForbiddenRequest(c, errOriginNotAllowed)
 				return
@@ -113,6 +108,19 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 		}
 		c.Next()
 	}
+}
+
+func setBrowserAccessHeaders(headers http.Header) {
+	headers.Set(
+		"Access-Control-Allow-Headers",
+		"Authorization, Content-Type, Last-Event-ID, Accept, X-Compozy-Client-ID",
+	)
+	headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	headers.Set(
+		"Access-Control-Expose-Headers",
+		"Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream, "+gatewayTierHeader,
+	)
+	headers.Set("Vary", "Origin")
 }
 
 func resolveAllowedOrigin(origin string, requestScheme string, requestHost string, boundHost string) (string, bool) {
@@ -171,6 +179,10 @@ func browserRequestProtectionMiddlewareWithForwardedTarget(
 		if hasBrowserRequestMetadata(c.Request) &&
 			!requestTargetAllowedForMode(c.Request, boundHost, allowForwardedTarget) {
 			abortForbiddenRequest(c, errRequestHostNotAllowed)
+			return
+		}
+		if c.GetString(appTokenOriginKey) != "" {
+			c.Next()
 			return
 		}
 		if err := protection.Check(c.Request); err != nil {

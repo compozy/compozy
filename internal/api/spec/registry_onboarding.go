@@ -6,6 +6,7 @@ func registryOnboardingOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        "/api/onboarding",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getOnboardingStatus",
 		Summary:     "Get the first-run onboarding completion status",
 		Tags:        []string{specOnboardingKey},
@@ -18,6 +19,7 @@ func registryOnboardingOperations() []OperationSpec {
 		{
 			Method:      httpMethodPost,
 			Path:        "/api/onboarding/complete",
+			AppAccess:   AppAccessDenied,
 			OperationID: "completeOnboarding",
 			Summary:     "Mark first-run onboarding as completed",
 			Tags:        []string{specOnboardingKey},
@@ -31,6 +33,7 @@ func registryOnboardingOperations() []OperationSpec {
 		{
 			Method:      httpMethodDelete,
 			Path:        "/api/onboarding",
+			AppAccess:   AppAccessDenied,
 			OperationID: "resetOnboarding",
 			Summary:     "Clear the onboarding completion flag",
 			Tags:        []string{specOnboardingKey},

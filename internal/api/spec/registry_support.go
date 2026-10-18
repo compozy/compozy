@@ -6,6 +6,7 @@ func registrySupportOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodPost,
 		Path:        "/api/support/bundles",
+		AppAccess:   AppAccessDenied,
 		OperationID: "createSupportBundle",
 		Summary:     "Create a support bundle",
 		Tags:        []string{specSupportKey},
@@ -25,6 +26,7 @@ func registrySupportOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/support/bundles/{operation_id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getSupportBundle",
 			Summary:     "Get support bundle operation status",
 			Tags:        []string{specSupportKey},
@@ -46,6 +48,7 @@ func registrySupportOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/support/bundles/{operation_id}/download",
+			AppAccess:   AppAccessDenied,
 			OperationID: "downloadSupportBundle",
 			Summary:     "Download a completed support bundle archive",
 			Tags:        []string{specSupportKey},

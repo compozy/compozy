@@ -34,6 +34,7 @@ func startTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/task-runs/{id}/start",
+		AppAccess:   AppAccessDenied,
 		OperationID: "startTaskRun",
 		Summary:     "Start one claimed task run",
 		Tags:        []string{specTasksKey},
@@ -56,6 +57,7 @@ func attachTaskRunSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/task-runs/{id}/attach-session",
+		AppAccess:   AppAccessDenied,
 		OperationID: "attachTaskRunSession",
 		Summary:     "Attach an existing session to one task run",
 		Tags:        []string{specTasksKey},
@@ -78,6 +80,7 @@ func completeTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/task-runs/{id}/complete",
+		AppAccess:   AppAccessDenied,
 		OperationID: "completeTaskRun",
 		Summary:     "Complete one running task run",
 		Tags:        []string{specTasksKey},
@@ -100,6 +103,7 @@ func failTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/task-runs/{id}/fail",
+		AppAccess:   AppAccessDenied,
 		OperationID: "failTaskRun",
 		Summary:     "Fail one task run",
 		Tags:        []string{specTasksKey},
@@ -122,6 +126,7 @@ func cancelTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/task-runs/{id}/cancel",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "cancelTaskRun",
 		Summary:     "Cancel one task run",
 		Tags:        []string{specTasksKey},
@@ -144,6 +149,7 @@ func getTaskTimelineOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/tasks/{id}/timeline",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTaskTimeline",
 		Summary:     "Get one task timeline",
 		Tags:        []string{specTasksKey},
@@ -166,6 +172,7 @@ func streamTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/tasks/{id}/stream",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "streamTask",
 		Summary:     "Stream task-native live events for one task",
 		Tags:        []string{specTasksKey},
@@ -192,6 +199,7 @@ func getTaskTreeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/tasks/{id}/tree",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTaskTree",
 		Summary:     "Get one task tree live view",
 		Tags:        []string{specTasksKey},
@@ -212,6 +220,7 @@ func approveTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/approve",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "approveTask",
 		Summary:     "Approve one approval-gated task and enqueue executable work",
 		Tags:        []string{specTasksKey},
@@ -235,6 +244,7 @@ func rejectTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/reject",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "rejectTask",
 		Summary:     "Reject one approval-gated task",
 		Tags:        []string{specTasksKey},
@@ -256,6 +266,7 @@ func markTaskReadOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/triage/read",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "markTaskRead",
 		Summary:     "Mark one task inbox item as read",
 		Tags:        []string{specTasksKey},
@@ -276,6 +287,7 @@ func archiveTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/triage/archive",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "archiveTask",
 		Summary:     "Archive one task inbox item",
 		Tags:        []string{specTasksKey},
@@ -296,6 +308,7 @@ func dismissTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/triage/dismiss",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "dismissTask",
 		Summary:     "Dismiss one task inbox item",
 		Tags:        []string{specTasksKey},
@@ -316,6 +329,7 @@ func getTaskDashboardOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/observe/tasks/dashboard",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTaskDashboard",
 		Summary:     "Get the observer-backed task dashboard",
 		Tags:        []string{specObserveKey, specTasksKey},
@@ -341,6 +355,7 @@ func getTaskInboxOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/observe/tasks/inbox",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTaskInbox",
 		Summary:     "Get the observer-backed task inbox",
 		Tags:        []string{specObserveKey, specTasksKey},

@@ -5,6 +5,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 func getSettingsCmdPaletteOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodGet, Path: specAPISettingsCmdPalettePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsCmdPalette", Summary: "Read command-palette settings",
 		Tags: []string{specSettingsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: settingsLayeredParameters(),
@@ -20,6 +21,7 @@ func getSettingsCmdPaletteOperationSpec() OperationSpec {
 func updateSettingsCmdPaletteOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPatch, Path: specAPISettingsCmdPalettePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsCmdPalette", Summary: "Update command-palette settings",
 		Tags: []string{specSettingsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters:  settingsLayeredParameters(),

@@ -219,7 +219,8 @@ func profileOperationRetryOperation() OperationSpec {
 
 func profileReadOperation(method, path, id, summary string, body any) OperationSpec {
 	return OperationSpec{
-		Method: method, Path: path, OperationID: id, Summary: summary,
+		AppAccess: AppAccessDenied,
+		Method:    method, Path: path, OperationID: id, Summary: summary,
 		Tags: []string{specProfilesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: body},

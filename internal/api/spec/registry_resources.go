@@ -15,6 +15,7 @@ func listResourcesOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/resources",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listResources",
 		Summary:     "List desired-state resources on the local operator control plane",
 		Tags:        []string{specResourcesKey},
@@ -41,6 +42,7 @@ func listResourcesByKindOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/resources/{kind}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listResourcesByKind",
 		Summary:     "List one desired-state resource kind on the local operator control plane",
 		Tags:        []string{specResourcesKey},
@@ -67,6 +69,7 @@ func getResourceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIResourcesKindIDPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getResource",
 		Summary:     "Read one desired-state resource on the local operator control plane",
 		Tags:        []string{specResourcesKey},
@@ -88,6 +91,7 @@ func putResourceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPIResourcesKindIDPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "putResource",
 		Summary:     "Create or replace one desired-state resource on the local operator control plane",
 		Tags:        []string{specResourcesKey},
@@ -113,6 +117,7 @@ func deleteResourceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPIResourcesKindIDPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteResource",
 		Summary:     "Delete one desired-state resource on the local operator control plane",
 		Tags:        []string{specResourcesKey},

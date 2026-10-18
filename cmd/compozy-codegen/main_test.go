@@ -3,7 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"go/ast"
+	"go/importer"
+	"go/parser"
+	"go/token"
+	"go/types"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +20,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/spec"
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
 )
 
@@ -115,7 +124,7 @@ func TestRunWithPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldWriteAllAndRejectStaleArtifacts", func(t *testing.T) {
+	t.Run("Should write all and reject stale artifacts", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -132,6 +141,22 @@ func TestRunWithPaths(t *testing.T) {
 		}
 		if err := runWithPaths(t.Context(), []string{"check"}, openapiPath, sdkContractsPath); err != nil {
 			t.Fatalf("runWithPaths(check) error = %v", err)
+		}
+
+		typescriptPath := filepath.Join(sdkTypeScriptPathFor(openapiPath), "sdk", "sdk.gen.ts")
+		originalTypeScript, err := os.ReadFile(typescriptPath)
+		if err != nil {
+			t.Fatalf("read TypeScript SDK: %v", err)
+		}
+		if err := os.WriteFile(typescriptPath, []byte("export const stale = true;\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err = runWithPaths(t.Context(), []string{"check"}, openapiPath, sdkContractsPath)
+		if !errors.Is(err, ErrStaleGeneratedFile) {
+			t.Fatalf("global check error = %v, want stale TypeScript SDK", err)
+		}
+		if err := os.WriteFile(typescriptPath, originalTypeScript, 0o600); err != nil {
+			t.Fatal(err)
 		}
 
 		originalOpenAPI, err := os.ReadFile(openapiPath)
@@ -458,6 +483,142 @@ func TestWriteSDKContracts(t *testing.T) {
 func TestWriteAll(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject generated tree symlinks before publishing artifacts", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		document := filepath.Join(dir, "openapi.json")
+		outside := filepath.Join(dir, "outside.go")
+		contracts := filepath.Join(dir, "contracts")
+		originals := map[string][]byte{
+			document: []byte("old-document\n"),
+			outside:  []byte("outside-content\n"),
+		}
+		for path, content := range originals {
+			if err := os.WriteFile(path, content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.Mkdir(contracts, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, filepath.Join(contracts, "types.go")); err != nil {
+			t.Fatal(err)
+		}
+		err := publishAllGeneratedArtifacts(allGeneratedArtifacts{
+			files:   []generatedArtifact{{path: document, content: []byte("new-document\n")}},
+			goFiles: map[string][]byte{"types.go": []byte("new-contracts\n")},
+		}, contracts, publishGeneratedFile, publishGeneratedTree)
+		if err == nil || !strings.Contains(err.Error(), "must be regular") {
+			t.Fatalf("publication error = %v, want rejected generated symlink", err)
+		}
+		assertGeneratedArtifactsEqual(t, originals)
+	})
+
+	t.Run("Should restore generated Go files without touching handwritten client code on failure", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		contracts := filepath.Join(dir, "contracts")
+		client := filepath.Join(dir, "client")
+		oldContracts := map[string][]byte{"types.go": []byte("package contracts\n")}
+		oldClient := map[string][]byte{
+			"client.go":  []byte("package client\n"),
+			"old_gen.go": []byte("package client\n"),
+		}
+		for path, files := range map[string]map[string][]byte{contracts: oldContracts, client: oldClient} {
+			if err := publishGeneratedTree(path, files); err != nil {
+				t.Fatal(err)
+			}
+		}
+		publicationErr := errors.New("client publication failed")
+		err := publishAllGeneratedArtifacts(allGeneratedArtifacts{
+			goFiles:    map[string][]byte{"new.go": []byte("package contracts\n")},
+			clientPath: client, clientFiles: map[string][]byte{"new_gen.go": []byte("package client\n")},
+		}, contracts, func(path string, content []byte) error {
+			if err := publishGeneratedFile(path, content); err != nil {
+				return err
+			}
+			if path == filepath.Join(client, "new_gen.go") {
+				return publicationErr
+			}
+			return nil
+		}, publishGeneratedTree)
+		if !errors.Is(err, publicationErr) {
+			t.Fatalf("publication error = %v", err)
+		}
+		assertGeneratedTreeEqual(t, contracts, oldContracts)
+		assertGeneratedTreeEqual(t, client, oldClient)
+	})
+
+	t.Run(
+		"Should preserve handwritten edits when rolling back TypeScript",
+		func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			document := filepath.Join(dir, "openapi.json")
+			contracts := filepath.Join(dir, "contracts")
+			client := filepath.Join(dir, "go-client")
+			typescript := filepath.Join(dir, "typescript-client")
+			oldDocument := []byte("old-document\n")
+			oldContracts := map[string][]byte{"types.go": []byte("old-contracts\n")}
+			oldClient := map[string][]byte{"client.go": []byte("handwritten\n"), "old_gen.go": []byte("old-client\n")}
+			oldTypeScript := map[string][]byte{
+				"sdk/sdk.gen.ts":               []byte("old-resources\n"),
+				"sse/core/client.gen.ts":       []byte("old-stream-runtime\n"),
+				"openapi/compozy-openapi.d.ts": []byte("old-types\n"),
+			}
+			if err := os.WriteFile(document, oldDocument, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for path, files := range map[string]map[string][]byte{contracts: oldContracts, client: oldClient, typescript: oldTypeScript} {
+				if err := publishGeneratedTree(path, files); err != nil {
+					t.Fatal(err)
+				}
+			}
+			handwritten := filepath.Join(client, "client.go")
+			if err := os.Chmod(handwritten, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			concurrentEdit := []byte("concurrent handwritten edit\n")
+
+			publicationErr := errors.New("TypeScript publication failed")
+			err := publishAllGeneratedArtifacts(allGeneratedArtifacts{
+				files:           []generatedArtifact{{path: document, content: []byte("new-document\n")}},
+				goFiles:         map[string][]byte{"new.go": []byte("new-contracts\n")},
+				clientPath:      client,
+				clientFiles:     map[string][]byte{"new_gen.go": []byte("new-client\n")},
+				typescriptPath:  typescript,
+				typescriptFiles: map[string][]byte{"sdk/new.gen.ts": []byte("new-resources\n")},
+			}, contracts, publishGeneratedFile, func(path string, files map[string][]byte) error {
+				if err := publishGeneratedTree(path, files); err != nil {
+					return err
+				}
+				if path == typescript {
+					if err := os.WriteFile(handwritten, concurrentEdit, 0o644); err != nil {
+						return err
+					}
+					return publicationErr
+				}
+				return nil
+			})
+			if !errors.Is(err, publicationErr) {
+				t.Fatalf("publication error = %v", err)
+			}
+			oldClient["client.go"] = concurrentEdit
+			info, err := os.Stat(handwritten)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != 0o644 {
+				t.Fatalf("handwritten mode = %o, want 644", info.Mode().Perm())
+			}
+
+			assertGeneratedArtifactsEqual(t, map[string][]byte{document: oldDocument})
+			assertGeneratedTreeEqual(t, contracts, oldContracts)
+			assertGeneratedTreeEqual(t, client, oldClient)
+			assertGeneratedTreeEqual(t, typescript, oldTypeScript)
+		},
+	)
+
 	t.Run("Should restore every file when file publication fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -536,6 +697,268 @@ func TestWriteAll(t *testing.T) {
 	})
 }
 
+func TestAppSDKArtifacts(t *testing.T) {
+	t.Parallel()
+	t.Run("Should cover every registry operation with its SDK transport resource and app decision", func(t *testing.T) {
+		t.Parallel()
+		content, err := generateSDKSamples()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var manifest sdkSampleManifest
+		if err := json.Unmarshal(content, &manifest); err != nil {
+			t.Fatal(err)
+		}
+		operations := spec.Operations()
+		if manifest.Version != 1 || len(manifest.Operations) != len(operations) {
+			t.Fatalf(
+				"manifest version/count = %d/%d, registry count %d",
+				manifest.Version,
+				len(manifest.Operations),
+				len(operations),
+			)
+		}
+		for _, operation := range operations {
+			sample, exists := manifest.Operations[operation.OperationID]
+			if !exists || sample.AppAccess != operation.AppAccess || sample.Kind != sdkOperationKind(operation) {
+				t.Fatalf("sample %s disagrees with registry: %#v", operation.OperationID, sample)
+			}
+			if sample.Resource == "" || sample.Resource != sdkResourceName(operation) {
+				t.Fatalf("sample %s resource disagrees with registry: %q", operation.OperationID, sample.Resource)
+			}
+			if sample.Kind != "websocket" &&
+				(!strings.Contains(sample.Go, "client.New(ctx)") || !strings.Contains(sample.TypeScript, "Compozy.connect()")) {
+				t.Fatalf("sample %s omits an SDK call", operation.OperationID)
+			}
+		}
+		for id, snippets := range map[string][]string{
+			"listTasks":               {"compozy.tasks.listTasks({ query", "c.ListTasks(ctx"},
+			"sendSessionPrompt":       {"compozy.prompt(", "c.Prompt("},
+			"streamTask":              {"compozy.events(\"streamTask\"", "Next()"},
+			"createSession":           {"client.CreateSessionRequest{ /* request fields */ }"},
+			"resolveWorkspace":        {"client.ResolveWorkspaceRequest{ /* request fields */ }"},
+			"uploadSessionAttachment": {"&client.UploadFile{ /* name, content type, reader */ }"},
+		} {
+			for _, snippet := range snippets {
+				sample := manifest.Operations[id]
+				if !strings.Contains(sample.TypeScript+sample.Go, snippet) {
+					t.Fatalf("sample %s missing %q", id, snippet)
+				}
+			}
+		}
+		for id, resource := range map[string]string{
+			"listTasks": "tasks", "createAppToken": "appTokens", "sendSessionPrompt": "sessions",
+			"streamTask": "tasks", "streamWindowManager": "workspaces",
+		} {
+			if got := manifest.Operations[id].Resource; got != resource {
+				t.Fatalf("sample %s resource = %q, want %q", id, got, resource)
+			}
+		}
+	})
+	t.Run("Should type check every Go example against the public client signatures", func(t *testing.T) {
+		t.Parallel()
+		generated, err := generateSDKClient()
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries, err := os.ReadDir("../../sdk/go/client")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_gen.go") ||
+				strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			content, err := os.ReadFile(filepath.Join("..", "..", "sdk", "go", "client", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			generated.Files[name] = content
+		}
+		fset := token.NewFileSet()
+		files := make([]*ast.File, 0, len(generated.Files)+1)
+		for name, content := range generated.Files {
+			file, err := parser.ParseFile(fset, name, content, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, declaration := range file.Decls {
+				if function, ok := declaration.(*ast.FuncDecl); ok {
+					function.Body = &ast.BlockStmt{List: []ast.Stmt{
+						&ast.ExprStmt{
+							X: &ast.CallExpr{Fun: ast.NewIdent("panic"), Args: []ast.Expr{ast.NewIdent("nil")}},
+						},
+					}}
+				}
+			}
+			files = append(files, file)
+		}
+		content, err := generateSDKSamples()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var manifest sdkSampleManifest
+		if err := json.Unmarshal(content, &manifest); err != nil {
+			t.Fatal(err)
+		}
+		var source strings.Builder
+		source.WriteString("package client\nimport (\"context\"; \"fmt\"; \"errors\"; \"io\"; \"encoding/json\")\n")
+		for id, sample := range manifest.Operations {
+			if sample.Go != "" {
+				fmt.Fprintf(
+					&source,
+					"func sample_%s(ctx context.Context) error {\n%s\nreturn nil\n}\n",
+					id,
+					strings.ReplaceAll(sample.Go, "client.", ""),
+				)
+			}
+		}
+		file, err := parser.ParseFile(fset, "sdk_samples.go", source.String(), 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, file)
+		config := types.Config{Importer: importer.Default(), DisableUnusedImportCheck: true}
+		if _, err := config.Check("sdk/client", fset, files, nil); err != nil {
+			t.Fatalf("Go SDK samples do not compile against client signatures: %v", err)
+		}
+	})
+	t.Run("Should construct struct bodies conventionally while preserving other request types", func(t *testing.T) {
+		t.Parallel()
+		declarations := `package client
+import "encoding/json"
+type Client struct{}
+type Request struct{ Message string }
+type RequestAlias = Request
+type DefinedRequest Request
+type NamedText string
+type NamedMap map[string]any
+type RawAlias = json.RawMessage
+type UploadFile struct{ Name, ContentType string }
+`
+		source := `package client
+import "encoding/json"
+func (c *Client) Struct(body Request) {}
+func (c *Client) Alias(body RequestAlias) {}
+func (c *Client) Defined(body DefinedRequest) {}
+func (c *Client) Map(body map[string]any) {}
+func (c *Client) NamedMap(body NamedMap) {}
+func (c *Client) Text(body string) {}
+func (c *Client) NamedText(body NamedText) {}
+func (c *Client) Count(body int64) {}
+func (c *Client) Toggle(body bool) {}
+func (c *Client) Raw(body json.RawMessage) {}
+func (c *Client) RawAlias(body RawAlias) {}
+func (c *Client) Pointer(body *Request) {}
+func (c *Client) TextPointer(body *string) {}
+func (c *Client) MapPointer(body *map[string]any) {}
+func (c *Client) DoublePointer(body **Request) {}
+func (c *Client) Upload(body *UploadFile) {}
+`
+		expressions, err := sdkGoRequestExpressions(map[string][]byte{
+			"types.go": []byte(declarations), "requests.go": []byte(source),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for method, expected := range map[string]string{
+			"Struct": "Request", "Alias": "RequestAlias", "Defined": "DefinedRequest",
+			"Map": "map[string]any", "Text": "string", "Count": "int64", "Toggle": "bool",
+			"Raw": "json.RawMessage", "Pointer": "*Request", "Upload": "*UploadFile",
+			"NamedMap": "NamedMap", "NamedText": "NamedText", "RawAlias": "RawAlias",
+			"TextPointer": "*string", "MapPointer": "*map[string]any", "DoublePointer": "**Request",
+		} {
+			expression, exists := expressions[method]
+			if !exists {
+				t.Fatalf("request expression missing for %s", method)
+			}
+			source += fmt.Sprintf("var _ %s = %s\n", expected, strings.ReplaceAll(expression, "client.", ""))
+		}
+		for method, expected := range map[string]string{
+			"Struct":  "client.Request{ /* request fields */ }",
+			"Alias":   "client.RequestAlias{ /* request fields */ }",
+			"Defined": "client.DefinedRequest{ /* request fields */ }",
+			"Pointer": "&client.Request{ /* request fields */ }",
+			"Upload":  "&client.UploadFile{ /* name, content type, reader */ }",
+		} {
+			if got := expressions[method]; got != expected {
+				t.Fatalf("%s body expression = %q, want %q", method, got, expected)
+			}
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, "requests.go", source, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		typesFile, err := parser.ParseFile(fset, "types.go", declarations, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		config := types.Config{Importer: importer.Default()}
+		if _, err := config.Check("sdk/client", fset, []*ast.File{file, typesFile}, nil); err != nil {
+			t.Fatalf("request expressions do not match method signatures: %v", err)
+		}
+	})
+	t.Run("Should identify the operation whose sample is stale", func(t *testing.T) {
+		t.Parallel()
+		content, err := generateSDKSamples()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var manifest sdkSampleManifest
+		if err := json.Unmarshal(content, &manifest); err != nil {
+			t.Fatal(err)
+		}
+		sample := manifest.Operations["cancelLoopRun"]
+		sample.Go = strings.ReplaceAll(sample.Go, "map[string]any", "client.NonexistentRequest")
+		manifest.Operations["cancelLoopRun"] = sample
+		stale, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "sdk-samples.json")
+		if err := os.WriteFile(path, stale, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err = checkSDKSampleManifest(path, content)
+		if !errors.Is(err, ErrStaleGeneratedFile) || !strings.Contains(err.Error(), "cancelLoopRun") {
+			t.Fatalf("stale sample error = %v, want cancelLoopRun and stale identity", err)
+		}
+	})
+
+	t.Run("Should retain every stream variant and encode array query parameters", func(t *testing.T) {
+		t.Parallel()
+		operations, err := sdkClientOperations(spec.Operations())
+		if err != nil {
+			t.Fatal(err)
+		}
+		foundUnion, foundArray := false, false
+		for _, operation := range operations {
+			if operation.ID == "sendSessionPrompt" || operation.ID == "streamWindowManager" {
+				t.Fatalf("unsupported generated method %s", operation.ID)
+			}
+			if operation.ID == "streamSessionCatalog" {
+				foundUnion = true
+				if operation.Kind != sdkgo.ClientOperationSSE || len(operation.ResponseVariants) != 3 {
+					t.Fatalf("catalog variants = %#v", operation)
+				}
+			}
+			if operation.ID == "getWorktreeExitPlan" {
+				for _, param := range operation.Params {
+					if param.Name == "include" {
+						foundArray = param.GoType == "[]string"
+					}
+				}
+			}
+		}
+		if !foundUnion || !foundArray {
+			t.Fatalf("union/array coverage = %t/%t", foundUnion, foundArray)
+		}
+	})
+}
+
 func assertGeneratedArtifactsEqual(t *testing.T, expected map[string][]byte) {
 	t.Helper()
 	for path, want := range expected {
@@ -551,24 +974,35 @@ func assertGeneratedArtifactsEqual(t *testing.T, expected map[string][]byte) {
 
 func assertGeneratedTreeEqual(t *testing.T, path string, expected map[string][]byte) {
 	t.Helper()
-	entries, err := os.ReadDir(path)
+	actual := make(map[string][]byte)
+	err := filepath.WalkDir(path, func(file string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		name, err := filepath.Rel(path, file)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		actual[filepath.ToSlash(name)] = content
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("os.ReadDir(%q) error = %v", path, err)
+		t.Fatalf("read generated tree %q: %v", path, err)
 	}
-	if len(entries) != len(expected) {
-		t.Fatalf("generated tree entries = %d, want %d", len(entries), len(expected))
+	if len(actual) != len(expected) {
+		t.Fatalf("generated tree files = %d, want %d", len(actual), len(expected))
 	}
-	for _, entry := range entries {
-		want, ok := expected[entry.Name()]
-		if !ok {
-			t.Fatalf("unexpected generated tree file %q", entry.Name())
-		}
-		got, readErr := os.ReadFile(filepath.Join(path, entry.Name()))
-		if readErr != nil {
-			t.Fatalf("os.ReadFile(%q) error = %v", entry.Name(), readErr)
-		}
-		if !bytes.Equal(got, want) {
-			t.Fatalf("generated tree file %q = %q, want %q", entry.Name(), got, want)
+	for name, want := range expected {
+		got, exists := actual[name]
+		if !exists || !bytes.Equal(got, want) {
+			t.Fatalf("generated tree file %q = %q, want %q", name, got, want)
 		}
 	}
 }

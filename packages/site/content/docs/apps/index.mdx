@@ -1,0 +1,158 @@
+---
+title: Build an app
+description: Connect a Node app to CompozyOS and stream your first agent reply.
+icon: AppWindow
+---
+
+> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+
+Use `@compozy/client` to build your own app on the CompozyOS daemon. The daemon owns sessions,
+agent execution, approvals, and durable transcripts. Your app calls typed methods and reads streams.
+The client runs in Node 18+, Bun, Deno, browsers, and edge runtimes, with no runtime dependencies.
+
+This tutorial runs an agent in your current workspace and prints its reply. You need a running
+CompozyOS daemon and a configured, authenticated agent named `claude`. Follow
+[Getting started](/docs/getting-started) first if you have not set those up. Substitute your configured
+agent name in the example.
+
+## Install and connect
+
+From the project directory you want the agent to inspect:
+
+```bash
+npm install --save-exact @compozy/client
+```
+
+Expected result: your `package.json` and lockfile contain an exact `@compozy/client` version. Use the
+SDK version matching your daemon release. Save the following as `run.mjs`:
+
+```js
+import { Compozy } from "@compozy/client";
+
+const compozy = await Compozy.connect();
+console.log(`Connected to CompozyOS ${compozy.daemon.version}`);
+const { workspace } = await compozy.workspaces.resolveWorkspace({
+  body: { path: process.cwd() },
+});
+const { session } = await compozy.sessions.createSession({
+  body: { workspace: workspace.id, agent_name: "claude" },
+});
+const reply = await compozy.prompt({
+  workspaceId: workspace.id,
+  sessionId: session.id,
+  message: "List the three largest files in this repo.",
+});
+if (reply.kind === "stream") {
+  for await (const chunk of reply.chunks) {
+    if (chunk.type === "text-delta") process.stdout.write(chunk.delta);
+  }
+} else {
+  console.log(reply.result.status, reply.result.queue_position);
+}
+```
+
+Run it:
+
+```bash
+node run.mjs
+```
+
+Expected result: the first line reports the daemon version, followed by the agent's answer about
+files in your workspace. File names and sizes depend on your project. The session and its transcript
+remain available in CompozyOS after the script exits.
+
+In Node, Bun, and Deno, discovery checks `COMPOZY_URL`, then
+`<COMPOZY_HOME or ~/.compozy>/daemon.json`, then `http://127.0.0.1:2123`. You can select a daemon with
+`Compozy.connect({ baseUrl: "http://127.0.0.1:2123" })` or a home with `Compozy.connect({ home })`.
+A non-browser local process does not need an app token. Set `COMPOZY_APP_TOKEN` or pass `token` when
+you want token attribution. [Browser apps require an allowed origin and token](/docs/apps/browser).
+
+## Call another operation
+
+Methods are grouped by the API tag and retain the operation ID. Each takes typed `path`, `query`,
+`body`, and `signal` options and resolves to the response body:
+
+```ts
+const { tasks } = await compozy.tasks.listTasks({ query: { status: "in_progress" } });
+console.log(tasks);
+```
+
+Expected result: an array of in-progress tasks, possibly empty. The [API reference](/docs/api) supplies
+TypeScript and Go samples for each operation from the same generated contract as the packages.
+
+For your own HTTP client, import `paths`, `operations`, and `components`, or helpers such as
+`OperationResponse<"listTasks", 200>`, from `@compozy/client`. The running daemon also serves its
+release's OpenAPI 3.0.3 document at `GET /api/openapi.json` on local HTTP and UDS; it supports ETag
+conditional requests and gzip and is not exposed on Gateway listeners.
+
+## Follow and resume a transcript
+
+```ts
+const controller = new AbortController();
+for await (const frame of compozy.events("streamSession", {
+  path: { workspace_id: workspace.id, session_id: session.id },
+  signal: controller.signal,
+})) {
+  console.log(frame.event, frame.id, frame.data);
+}
+```
+
+Expected result: a `transcript_snapshot` followed by `transcript_delta` events as the session changes.
+Persist the sequence you have consumed and supply `query: { after_sequence }` on a new subscription.
+The SDK reconnects dropped event streams and 5xx responses with `Last-Event-ID`, starting at 500 ms
+and doubling to 8 seconds. It stops after 20 consecutive failed reconnects; a received frame resets
+that count. A 4xx stops immediately with `CompozyApiError`; malformed event data raises
+`CompozyStreamError`. Abort the signal to end the subscription.
+
+`events()` also reconnects after a clean server close. End the subscription with `controller.abort()`
+when you no longer want updates, including after a `session_stopped` event; otherwise a stopped
+session can be subscribed to again. Go streams instead return `io.EOF` when the server closes them.
+
+A prompt stream does not reconnect. If its connection fails, recover through the transcript before
+submitting another prompt. An `idempotencyKey` protects retries of the same submission. Aborting or
+closing either stream only stops your reader: the agent keeps running. To cancel the turn, call
+`sessions.cancelSessionPrompt({ path: { workspace_id, session_id } })` explicitly.
+
+## Queue work and handle errors
+
+Use `mode: "queue"` when a session may be busy. Check `reply.kind`: an accepted result carries
+`status`, `delivery`, and `queue_position` instead of chunks. `interrupt` and `steer` replace the
+active turn according to the session's admission rules.
+
+```ts
+import { CompozyApiError } from "@compozy/client";
+
+try {
+  await compozy.tasks.listTasks({ query: { status: "in_progress" } });
+} catch (error) {
+  if (error instanceof CompozyApiError) {
+    console.error(error.status, error.code, error.message, error.details);
+  } else {
+    throw error;
+  }
+}
+```
+
+Connection failures raise `CompozyUnavailableError`; invalid discovery configuration raises
+`CompozyConfigError`. A different daemon major/minor version calls `onVersionMismatch` and still
+connects; patch and prerelease differences do not warn. An empty development version does not warn.
+
+## Start a private daemon from Node
+
+Install `@compozy/cli` alongside the client, then use the Node-only entry point:
+
+```ts
+import { Compozy } from "@compozy/client/node";
+
+const compozy = await Compozy.start({ home: "/tmp/my-app-home", timeoutMs: 30000 });
+console.log(compozy.daemon.version);
+await compozy.close({ stopDaemon: true });
+```
+
+Expected result: a daemon is started only when that home has none. `close({ stopDaemon: true })`
+stops only the daemon this client started, and never a replacement daemon with a different PID.
+The binary lookup is `binaryPath`, `COMPOZY_BIN`, installed `@compozy/cli`, then `PATH`.
+`@compozy/client/node` is unavailable to browser bundles.
+
+Continue with a [server-backed chat UI](/docs/apps/chat-ui), a [direct browser app](/docs/apps/browser),
+or the [Go client](/docs/apps/go).

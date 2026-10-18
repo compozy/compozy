@@ -43,6 +43,7 @@ func windowManagerStateOperations(
 	return []OperationSpec{
 		{
 			Method: httpMethodGet, Path: windowManagerPath,
+			AppAccess:   AppAccessDenied,
 			OperationID: "getWindowManagerSnapshot", Summary: "Read one workspace window-manager snapshot",
 			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			Responses: append(
@@ -83,6 +84,7 @@ func windowManagerClientOperations(
 	return []OperationSpec{
 		{
 			Method: httpMethodGet, Path: windowManagerPath + "/clients",
+			AppAccess:   AppAccessDenied,
 			OperationID: "listWindowManagerClients", Summary: "List connected window-manager clients",
 			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			Responses: append(
@@ -92,6 +94,7 @@ func windowManagerClientOperations(
 		},
 		{
 			Method: httpMethodPost, Path: windowManagerPath + "/clients",
+			AppAccess:   AppAccessDenied,
 			OperationID: "registerWindowManagerClient", Summary: "Register a window-manager client view",
 			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			RequestBody: contract.WindowManagerClientRegistration{},
@@ -103,6 +106,7 @@ func windowManagerClientOperations(
 		{
 			Method:      httpMethodDelete,
 			Path:        windowManagerPath + "/clients/{client_id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "unregisterWindowManagerClient",
 			Summary:     "Unregister a window-manager client view",
 			Tags:        []string{specWorkspacesKey},
@@ -125,6 +129,7 @@ func windowManagerLayoutOperations(
 	operations := []OperationSpec{
 		{
 			Method: httpMethodGet, Path: windowManagerPath + "/layout",
+			AppAccess:   AppAccessDenied,
 			OperationID: "exportWindowManagerLayout", Summary: "Export one declarative window layout",
 			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			Responses: append(
@@ -134,6 +139,7 @@ func windowManagerLayoutOperations(
 		},
 		{
 			Method: httpMethodPost, Path: windowManagerPath + "/layout/validate",
+			AppAccess:   AppAccessDenied,
 			OperationID: "validateWindowManagerLayout", Summary: "Validate one declarative window layout",
 			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			RequestBody: contract.WindowManagerLayoutValidationRequest{},
@@ -150,6 +156,7 @@ func windowManagerLayoutOperations(
 		},
 		{
 			Method: httpMethodPut, Path: windowManagerPath + "/layout",
+			AppAccess:   AppAccessDenied,
 			OperationID: "replaceWindowManagerLayout", Summary: "Replace one declarative window layout",
 			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			RequestBody: contract.WindowManagerLayoutReplaceRequest{},
@@ -189,6 +196,7 @@ func listWindowManagerLayoutProfilesOperation(
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        windowManagerPath + "/layout-profiles",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listWindowManagerLayoutProfiles",
 		Summary:     "List layout profiles visible to one workspace",
 		Tags:        []string{specWorkspacesKey},
@@ -222,6 +230,7 @@ func putWindowManagerLayoutProfileOperation(
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        windowManagerPath + "/layout-profiles/{profile_id}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "putWindowManagerLayoutProfile",
 		Summary:     "Create or replace one workspace-visible layout profile",
 		Tags:        []string{specWorkspacesKey},
@@ -263,6 +272,7 @@ func deleteWindowManagerLayoutProfileOperation(
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        windowManagerPath + "/layout-profiles/{profile_id}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteWindowManagerLayoutProfile",
 		Summary:     "Delete one workspace-visible layout profile",
 		Tags:        []string{specWorkspacesKey},
@@ -300,7 +310,8 @@ func windowManagerMutationOperation(
 	errors []ResponseSpec,
 ) OperationSpec {
 	return OperationSpec{
-		Method: method, Path: path, OperationID: operationID, Summary: summary,
+		AppAccess: AppAccessDenied,
+		Method:    method, Path: path, OperationID: operationID, Summary: summary,
 		Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 		RequestBody: contract.WindowManagerCommandRequest{},
 		Responses:   append([]ResponseSpec{{Status: 200, Description: "OK", Body: response}}, errors...),
@@ -319,6 +330,7 @@ func windowManagerStreamOperation(
 	clientID := queryParam("client_id", "Optional connected client bound to presentation updates", false)
 	return OperationSpec{
 		Method: httpMethodGet, Path: windowManagerPath + "/stream",
+		AppAccess:   AppAccessDenied,
 		OperationID: "streamWindowManager", Summary: "Stream a topology and optional client presentation fence",
 		Tags: []string{specWorkspacesKey}, Transports: transports,
 		Parameters: withProfileSelector(workspaceParam, after, clientID),

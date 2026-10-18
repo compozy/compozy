@@ -4,12 +4,12 @@ area: REL
 title: Wait for published npm channels to become observable
 persona: Dora
 journey: J-publish-compozy-beta
-expected: After both npm publishes succeed, production waits at most ten minutes for @compozy/cli and @compozy/extension-sdk to expose the requested dist-tag at the exact release version; stale or absent tags are re-read, while query failures, malformed policy data, or a beta that moves latest stop immediately without republishing.
+expected: After all three npm publishes succeed, production waits at most ten minutes for @compozy/cli, @compozy/extension-sdk, and @compozy/client to expose the requested dist-tag at the exact release version; stale or absent tags are re-read, while query failures, malformed policy data, or a beta that moves latest stop immediately without republishing.
 entry_points: GitHub Actions release.yml Production Release; Verify published channel policy; npm registry dist-tags
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260807-npm-dist-tag-readiness
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: a46b424e; c38ba0fa
 evidence: docs/qa/reports/2026-08-17-electron-shell.md
 last_report: docs/qa/reports/2026-08-17-electron-shell.md
@@ -31,3 +31,11 @@ the next hosted release.
 QA result 2026-08-14: the beta.16 package job published both packages only after GitHub and both
 public CLI installs passed, then the bounded readiness loop observed `beta: 0.3.0-beta.16` for
 `@compozy/cli` and `@compozy/extension-sdk`. The job completed successfully without republishing.
+
+QA impact 2026-10-17: app SDK publication adds `@compozy/client` to the same release version,
+immutable-version recovery, automatic beta allocation, and bounded dist-tag check. The shared SDK
+publisher pins the staged runtime version as well as its manifest. Before the next hosted release,
+complete the external npm setup in [SDK release publishing](../../runbooks/sdk-release-publishing.md).
+Re-walk with all three packages, including retry after the CLI and extension SDK already exist.
+Retain provenance and exact dist-tag observations for the app SDK; earlier two-package release
+evidence does not verify the expanded scenario.

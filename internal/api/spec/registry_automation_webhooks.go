@@ -6,6 +6,7 @@ func deliverGlobalWebhookOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/webhooks/global/{endpoint}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "deliverGlobalWebhook",
 		Summary:     "Deliver one global automation webhook",
 		Tags:        []string{specAutomationKey},
@@ -55,6 +56,7 @@ func deliverWorkspaceWebhookOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/webhooks/workspaces/{workspace_id}/{endpoint}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "deliverWorkspaceWebhook",
 		Summary:     "Deliver one workspace-scoped automation webhook",
 		Tags:        []string{specAutomationKey},

@@ -2,11 +2,16 @@ package globaldb
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -863,4 +868,422 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 			t.Fatalf("stale actor committed target name %q", unchanged.Name)
 		}
 	})
+}
+
+// Invariant: app credentials remain hash-only, isolated, origin-scoped and revocable; owner: gateway with SQLite.
+func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep app token authentication separate from device inventory and last use", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		database := openTestGlobalDB(t)
+		service := appTokenServiceForTest(t, database)
+		pairing, err := service.MintPairing(ctx, gateway.PairingRequest{Source: gateway.PairingSourceLocal})
+		if err != nil {
+			t.Fatal(err)
+		}
+		device, err := service.RedeemPairing(ctx, gateway.RedeemRequest{
+			Artifact: pairing.Artifact,
+			Name:     "Operator",
+			Kind:     gateway.ActorKindOperatorDevice,
+			Source:   gateway.PairingSourceLocal,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		issued, err := service.CreateAppToken(
+			ctx,
+			"  Dashboard  ",
+			[]string{"http://A.test:80", "http://a.test", "https://b.test"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !regexp.MustCompile(`^cpz_app_[A-Za-z0-9_-]{43}$`).MatchString(issued.Secret) ||
+			!strings.HasPrefix(issued.Token.Session.ID, "apt_") || issued.Token.Session.Name != "Dashboard" ||
+			!reflect.DeepEqual(issued.Token.Origins, []string{"http://a.test", "https://b.test"}) {
+			t.Fatalf("unexpected issued token metadata: %#v", issued.Token)
+		}
+		digest := sha256.Sum256([]byte(issued.Secret))
+		var storedHash string
+		if err := database.db.QueryRowContext(ctx, "SELECT token_hash FROM gateway_device_sessions WHERE id = ?", issued.Token.Session.ID).
+			Scan(&storedHash); err != nil {
+			t.Fatal(err)
+		}
+		if storedHash != hex.EncodeToString(digest[:]) || storedHash == issued.Secret {
+			t.Fatal("app token secret was not stored exclusively as its hash")
+		}
+		token, err := service.AuthenticateAppToken(ctx, issued.Secret)
+		if err != nil || !token.Session.LastSeenAt.IsZero() {
+			t.Fatalf("read-only authentication = (%#v, %v)", token, err)
+		}
+		if _, err := service.AuthenticateAppToken(
+			ctx,
+			device.Credential,
+		); !errors.Is(
+			err,
+			gateway.ErrAppTokenUnauthenticated,
+		) {
+			t.Fatalf("device credential authenticated as app token: %v", err)
+		}
+		if _, err := service.Authenticate(ctx, issued.Secret); !errors.Is(err, gateway.ErrDeviceUnauthenticated) {
+			t.Fatalf("app token authenticated as device: %v", err)
+		}
+		for _, mutate := range []func() error{
+			func() error { _, err := service.RenameDevice(ctx, token.Session.ID, "No"); return err },
+			func() error { _, err := service.RevokeDevice(ctx, token.Session.ID); return err },
+		} {
+			if err := mutate(); !errors.Is(err, gateway.ErrDeviceNotFound) {
+				t.Fatalf("device mutation reached app token: %v", err)
+			}
+		}
+		devices, err := service.ListDevices(ctx)
+		if err != nil || len(devices) != 1 || devices[0].ID != device.Device.ID {
+			t.Fatalf("device inventory = (%#v, %v)", devices, err)
+		}
+		snapshot, err := database.Snapshot(ctx)
+		if err != nil || len(snapshot.Devices) != 1 || snapshot.Devices[0].ID != device.Device.ID {
+			t.Fatalf("gateway snapshot = (%#v, %v)", snapshot.Devices, err)
+		}
+		count, err := database.GatewayRepo.queries.CountActiveGatewayDeviceSessions(ctx)
+		if err != nil || count != 1 {
+			t.Fatalf("active device count = %d, %v; want 1", count, err)
+		}
+		activeDevices, err := database.GatewayRepo.queries.ListActiveGatewayDeviceSessions(ctx)
+		if err != nil || len(activeDevices) != 1 || activeDevices[0].ID != device.Device.ID {
+			t.Fatalf("active device inventory = %#v, %v", activeDevices, err)
+		}
+		if err := service.TouchAppTokenLastSeen(ctx, token.Session.ID, token.Session.RevokeEpoch); err != nil {
+			t.Fatal(err)
+		}
+		tokens, err := service.ListAppTokens(ctx, "")
+		if err != nil || len(tokens) != 1 || tokens[0].Session.LastSeenAt.IsZero() {
+			t.Fatalf("last use was not recorded after authorization: (%#v, %v)", tokens, err)
+		}
+	})
+
+	t.Run(
+		"Should rebuild origins on create update revoke and startup while retaining revoked audit rows",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			database := openTestGlobalDB(t)
+			service := appTokenServiceForTest(t, database)
+			issued, err := service.CreateAppToken(ctx, "Dashboard", []string{"http://a.test"})
+			if err != nil || !service.AppTokenOriginAllowed("http://a.test") {
+				t.Fatalf("create origin union: %v", err)
+			}
+			restarted := appTokenServiceForTest(t, database)
+			if !restarted.AppTokenOriginAllowed("http://a.test") {
+				t.Fatal("startup did not load persisted origin union")
+			}
+			origins := []string{"https://b.test"}
+			updated, err := service.UpdateAppToken(
+				ctx,
+				issued.Token.Session.ID,
+				gateway.AppTokenPatch{Name: new("Production"), Origins: &origins},
+			)
+			if err != nil || updated.Session.Name != "Production" || service.AppTokenOriginAllowed("http://a.test") ||
+				!service.AppTokenOriginAllowed("https://b.test") {
+				t.Fatalf("update origin union: (%#v, %v)", updated, err)
+			}
+			updated, err = service.UpdateAppToken(
+				ctx,
+				issued.Token.Session.ID,
+				gateway.AppTokenPatch{Origins: new([]string{})},
+			)
+			if err != nil || len(updated.Origins) != 0 || updated.Session.Name != "Production" ||
+				service.AppTokenOriginAllowed("https://b.test") {
+				t.Fatalf("clear origins = (%#v, %v)", updated, err)
+			}
+			updated, err = service.UpdateAppToken(
+				ctx,
+				issued.Token.Session.ID,
+				gateway.AppTokenPatch{Origins: &origins},
+			)
+			if err != nil || updated.Session.Name != "Production" {
+				t.Fatalf("replace origins = (%#v, %v)", updated, err)
+			}
+			stream, cancel := context.WithCancel(ctx)
+			defer cancel()
+			service.Connections().RegisterWaitable(issued.Token.Session.ID, cancel, stream.Done())
+			revoked, err := service.RevokeAppToken(ctx, issued.Token.Session.ID)
+			if err != nil || !revoked.Changed || revoked.Canceled != 1 || stream.Err() == nil ||
+				service.AppTokenOriginAllowed("https://b.test") {
+				t.Fatalf("revocation = (%#v, %v)", revoked, err)
+			}
+			again, err := service.RevokeAppToken(ctx, issued.Token.Session.ID)
+			if err != nil || again.Changed || again.Canceled != 0 ||
+				again.Token.Session.RevokedAt != revoked.Token.Session.RevokedAt {
+				t.Fatalf("repeat revocation = (%#v, %v)", again, err)
+			}
+			if _, err := service.AuthenticateAppToken(ctx, issued.Secret); !errors.Is(err, gateway.ErrAppTokenRevoked) {
+				t.Fatalf("revoked token authentication: %v", err)
+			}
+			if err := service.TouchAppTokenLastSeen(
+				ctx,
+				issued.Token.Session.ID,
+				0,
+			); !errors.Is(
+				err,
+				gateway.ErrAppTokenRevoked,
+			) {
+				t.Fatalf("revoked token last use: %v", err)
+			}
+			if _, err := service.UpdateAppToken(
+				ctx,
+				issued.Token.Session.ID,
+				gateway.AppTokenPatch{Name: new("No"), Origins: new([]string{})},
+			); !errors.Is(
+				err,
+				gateway.ErrAppTokenRevoked,
+			) {
+				t.Fatalf("revoked token update: %v", err)
+			}
+			for _, state := range []gateway.AppTokenState{gateway.AppTokenStateAll, gateway.AppTokenStateRevoked} {
+				tokens, err := service.ListAppTokens(ctx, state)
+				if err != nil || len(tokens) != 1 || !reflect.DeepEqual(tokens[0], again.Token) {
+					t.Fatalf("retained revoked inventory(%s) = (%#v, %v)", state, tokens, err)
+				}
+			}
+			active, err := service.ListAppTokens(ctx, gateway.AppTokenStateActive)
+			if err != nil || len(active) != 0 {
+				t.Fatalf("active inventory = (%#v, %v)", active, err)
+			}
+			if _, err := service.ListAppTokens(ctx, "expired"); !errors.Is(err, gateway.ErrAppTokenStateInvalid) {
+				t.Fatalf("invalid state filter: %v", err)
+			}
+		},
+	)
+
+	t.Run("Should list active tokens before revoked tokens in newest-first order", func(t *testing.T) {
+		t.Parallel()
+		database := openTestGlobalDB(t)
+		now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+		service, err := gateway.NewDeviceService(
+			database,
+			gateway.WithAppTokenStore(database),
+			gateway.WithDeviceClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make([]string, 3)
+		for index := range ids {
+			issued, err := service.CreateAppToken(t.Context(), fmt.Sprintf("App %d", index), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids[index] = issued.Token.Session.ID
+			now = now.Add(time.Minute)
+		}
+		if _, err := service.RevokeAppToken(t.Context(), ids[1]); err != nil {
+			t.Fatal(err)
+		}
+		tokens, err := service.ListAppTokens(t.Context(), gateway.AppTokenStateAll)
+		if err != nil || len(tokens) != 3 || tokens[0].Session.ID != ids[2] || tokens[1].Session.ID != ids[0] ||
+			tokens[2].Session.ID != ids[1] {
+			t.Fatalf("ordered inventory = %#v, %v", tokens, err)
+		}
+		if _, err := service.RevokeAppToken(t.Context(), "apt_missing"); !errors.Is(err, gateway.ErrAppTokenNotFound) {
+			t.Fatalf("unknown token revoke error = %v", err)
+		}
+	})
+
+	t.Run("Should revoke an attributed local request without waiting on its own lease", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		service := appTokenServiceForTest(t, openTestGlobalDB(t))
+		issued, err := service.CreateAppToken(ctx, "Self", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lease, err := service.AcquireMutation(ctx, issued.Token.Session.ID, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer gateway.ReleaseMutation(lease)
+		fenced := store.ContextWithMutationCommitFence(lease, func(commitCtx context.Context) error {
+			return service.RevalidateForCommit(commitCtx, issued.Token.Session.ID, 0)
+		})
+		result, err := service.RevokeAppToken(fenced, issued.Token.Session.ID)
+		if err != nil || !result.Changed {
+			t.Fatalf("self revoke = %#v, %v", result, err)
+		}
+	})
+
+	t.Run("Should drain app mutation leases before committing revocation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		service := appTokenServiceForTest(t, openTestGlobalDB(t))
+		issued, err := service.CreateAppToken(ctx, "Leased", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lease, err := service.AcquireMutation(ctx, issued.Token.Session.ID, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer gateway.ReleaseMutation(lease)
+		done := make(chan error, 1)
+		go func() {
+			_, err := service.RevokeAppToken(ctx, issued.Token.Session.ID)
+			done <- err
+		}()
+		select {
+		case <-lease.Done():
+		case <-time.After(5 * time.Second):
+			t.Fatal("revocation did not cancel the active mutation")
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("revocation finished before lease drain: %v", err)
+		default:
+		}
+		updateDone := make(chan error, 1)
+		go func() {
+			_, err := service.UpdateAppToken(
+				lease,
+				issued.Token.Session.ID,
+				gateway.AppTokenPatch{Name: new("Canceled")},
+			)
+			updateDone <- err
+		}()
+		select {
+		case err := <-updateDone:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled mutation error = %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("revocation held a lock needed by the draining mutation")
+		}
+		gateway.ReleaseMutation(lease)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.AcquireMutation(
+			ctx,
+			issued.Token.Session.ID,
+			0,
+		); !errors.Is(
+			err,
+			gateway.ErrDeviceRevoked,
+		) {
+			t.Fatalf("revoked token acquired mutation lease: %v", err)
+		}
+	})
+}
+
+// Invariant: limits are enforced at validation and atomically at persistence; owner: gateway/SQLite.
+func TestGlobalDBGatewayAppTokenLimits(t *testing.T) {
+	t.Parallel()
+	t.Run("Should validate names and count only distinct normalized origins", func(t *testing.T) {
+		t.Parallel()
+		service := appTokenServiceForTest(t, openTestGlobalDB(t))
+		for _, name := range []string{"   ", strings.Repeat("a", 65)} {
+			if _, err := service.CreateAppToken(
+				t.Context(),
+				name,
+				nil,
+			); !errors.Is(
+				err,
+				gateway.ErrAppTokenNameInvalid,
+			) {
+				t.Fatalf("invalid token name: %v", err)
+			}
+		}
+		origins := make([]string, 16)
+		for index := range origins {
+			origins[index] = fmt.Sprintf("https://app-%d.test", index)
+		}
+		issued, err := service.CreateAppToken(
+			t.Context(),
+			strings.Repeat("a", 64),
+			append(origins, "https://APP-0.test:443"),
+		)
+		if err != nil || len(issued.Token.Origins) != 16 {
+			t.Fatalf("distinct-origin boundary = (%#v, %v)", issued.Token, err)
+		}
+		if _, err := service.CreateAppToken(
+			t.Context(),
+			"Too many",
+			append(origins, "https://another.test"),
+		); !errors.Is(
+			err,
+			gateway.ErrAppTokenOriginLimit,
+		) {
+			t.Fatalf("origin limit: %v", err)
+		}
+	})
+
+	t.Run(
+		"Should reserve the final active slot across concurrent creators and release it on revoke",
+		func(t *testing.T) {
+			t.Parallel()
+			database := openTestGlobalDB(t)
+			service := appTokenServiceForTest(t, database)
+			var firstID string
+			for index := range 60 {
+				issued, err := service.CreateAppToken(t.Context(), fmt.Sprintf("App %d", index), nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				firstID = issued.Token.Session.ID
+			}
+			start := make(chan struct{})
+			results := make(chan error, 10)
+			var workers sync.WaitGroup
+			for range 10 {
+				creator := appTokenServiceForTest(t, database)
+				workers.Go(func() {
+					<-start
+					_, err := creator.CreateAppToken(t.Context(), "Concurrent", nil)
+					results <- err
+				})
+			}
+			close(start)
+			workers.Wait()
+			close(results)
+			var success, limited int
+			for err := range results {
+				switch {
+				case err == nil:
+					success++
+				case errors.Is(err, gateway.ErrAppTokenLimit):
+					limited++
+				default:
+					t.Fatalf("concurrent create: %v", err)
+				}
+			}
+			if success != 4 || limited != 6 {
+				t.Fatalf("concurrent outcomes = (%d successes, %d limited)", success, limited)
+			}
+			count, err := database.GatewayRepo.queries.CountActiveAppTokens(t.Context())
+			if err != nil || count != 64 {
+				t.Fatalf("active token count = %d, %v; want 64", count, err)
+			}
+			if _, err := service.RevokeAppToken(t.Context(), firstID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.CreateAppToken(t.Context(), "Replacement", nil); err != nil {
+				t.Fatalf("revoked token still occupied an active slot: %v", err)
+			}
+		},
+	)
+}
+
+func appTokenServiceForTest(t *testing.T, database *GlobalDB) *gateway.DeviceService {
+	t.Helper()
+	service, err := gateway.NewDeviceService(database,
+		gateway.WithAppTokenStore(database),
+		gateway.WithDeviceClock(func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.LoadAppTokenOrigins(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return service
 }

@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const gatewayRevokedState = "revoked"
+
 type gatewayProfileRecord struct {
 	Name             string `json:"name"`
 	Scheme           string `json:"scheme"`
@@ -168,7 +170,14 @@ func gatewayDevicesOutput(records []contract.GatewayDevicePayload) outputBundle 
 		"Devices",
 		[]string{"ID", windowManagerNameHeader, cliKindHeader, cliOriginHeader, "LAST SEEN", "REVOKED"},
 		"devices",
-		[]string{"id", automationNameKey, "actor_kind", "pairing_origin", "last_seen_at", "revoked"},
+		[]string{
+			"id",
+			automationNameKey,
+			"actor_kind",
+			"pairing_origin",
+			"last_seen_at",
+			gatewayRevokedState,
+		},
 		func(record contract.GatewayDevicePayload) []string {
 			return []string{
 				record.ID,

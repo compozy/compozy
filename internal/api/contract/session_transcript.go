@@ -64,20 +64,6 @@ type SessionCommandsChangedPayload struct {
 	Revision  string `json:"revision"`
 }
 
-// SessionStreamPayload documents the possible SSE frame payloads.
-type SessionStreamPayload struct {
-	SubagentsSnapshot   *SubagentsSnapshotEvent         `json:"subagents_snapshot,omitzero"`
-	SubagentUpdated     *SubagentUpdatedEvent           `json:"subagent_updated,omitzero"`
-	UsageChanged        *SessionUsageChangedPayload     `json:"session_usage_changed,omitzero"`
-	ConsumerDegraded    *SessionConsumerDegradedPayload `json:"consumer_degraded,omitzero"`
-	Raw                 *SessionEventPayload            `json:"raw,omitempty"`
-	TranscriptSnapshot  *TranscriptSnapshotPayload      `json:"transcript_snapshot,omitzero"`
-	TranscriptDelta     *TranscriptDeltaPayload         `json:"transcript_delta,omitzero"`
-	GoalSnapshotChanged *GoalSnapshotChangedPayload     `json:"goal_snapshot_changed,omitzero"`
-	CommandsChanged     *SessionCommandsChangedPayload  `json:"session_commands_changed,omitzero"`
-	SessionStopped      *SessionEventPayload            `json:"session_stopped,omitempty"`
-}
-
 // SessionConsumerDegradedPayload tells the client to catch up from its last delivered cursor.
 type SessionConsumerDegradedPayload struct {
 	SessionID       string `json:"session_id"`

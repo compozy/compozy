@@ -34,6 +34,7 @@ func listAutomationJobsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAutomationJobsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listAutomationJobs",
 		Summary:     "List automation jobs",
 		Tags:        []string{specAutomationKey},
@@ -72,6 +73,7 @@ func createAutomationJobOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAutomationJobsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "createAutomationJob",
 		Summary:     "Create an automation job",
 		Tags:        []string{specAutomationKey},
@@ -103,6 +105,7 @@ func getAutomationJobOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIAutomationJobsIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getAutomationJob",
 		Summary:     "Get one automation job",
 		Tags:        []string{specAutomationKey},
@@ -134,6 +137,7 @@ func updateAutomationJobOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPIAutomationJobsIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "updateAutomationJob",
 		Summary:     "Update one automation job",
 		Tags:        []string{specAutomationKey},
@@ -172,6 +176,7 @@ func deleteAutomationJobOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPIAutomationJobsIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "deleteAutomationJob",
 		Summary:     "Delete one automation job",
 		Tags:        []string{specAutomationKey},
@@ -208,6 +213,7 @@ func triggerAutomationJobOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/automation/jobs/{id}/trigger",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "triggerAutomationJob",
 		Summary:     "Trigger one automation job immediately",
 		Tags:        []string{specAutomationKey},
@@ -240,6 +246,7 @@ func listAutomationJobRunsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/automation/jobs/{id}/runs",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listAutomationJobRuns",
 		Summary:     "List run history for one automation job",
 		Tags:        []string{specAutomationKey},
@@ -280,6 +287,7 @@ func listAutomationTriggersOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAutomationTriggersPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listAutomationTriggers",
 		Summary:     "List automation triggers",
 		Tags:        []string{specAutomationKey},
@@ -315,6 +323,7 @@ func createAutomationTriggerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAutomationTriggersPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "createAutomationTrigger",
 		Summary:     "Create an automation trigger",
 		Tags:        []string{specAutomationKey},
@@ -350,6 +359,7 @@ func getAutomationTriggerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIAutomationTriggersIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getAutomationTrigger",
 		Summary:     "Get one automation trigger",
 		Tags:        []string{specAutomationKey},
@@ -381,6 +391,7 @@ func updateAutomationTriggerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPIAutomationTriggersIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "updateAutomationTrigger",
 		Summary:     "Update one automation trigger",
 		Tags:        []string{specAutomationKey},
@@ -423,6 +434,7 @@ func deleteAutomationTriggerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPIAutomationTriggersIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "deleteAutomationTrigger",
 		Summary:     "Delete one automation trigger",
 		Tags:        []string{specAutomationKey},
@@ -435,46 +447,6 @@ func deleteAutomationTriggerOperationSpec() OperationSpec {
 			{
 				Status:      400,
 				Description: "Invalid automation trigger delete request",
-				Body:        contract.ErrorPayload{},
-			},
-			{
-				Status:      404,
-				Description: specAutomationTriggerNotFoundDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{
-				Status:      503,
-				Description: specAutomationManagerIsNotConfiguredDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{
-				Status:      500,
-				Description: specInternalServerErrorDescription,
-				Body:        contract.ErrorPayload{},
-			},
-		},
-	}
-}
-func listAutomationTriggerRunsOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        "/api/automation/triggers/{id}/runs",
-		OperationID: "listAutomationTriggerRuns",
-		Summary:     "List run history for one automation trigger",
-		Tags:        []string{specAutomationKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Automation trigger id"),
-			enumQueryParam("status", "Filter by run status", automationRunStatusValues()),
-			dateTimeQueryParam("since", "Only runs started since this timestamp"),
-			dateTimeQueryParam("until", "Only runs started before this timestamp"),
-			intQueryParam("limit", "Maximum number of records to return"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.RunsResponse{}},
-			{
-				Status:      400,
-				Description: specInvalidAutomationRunFilterDescription,
 				Body:        contract.ErrorPayload{},
 			},
 			{

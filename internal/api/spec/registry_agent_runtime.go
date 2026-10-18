@@ -21,6 +21,7 @@ func registryAgentRuntimeOperations() []OperationSpec {
 func notifyOperatorOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: "/api/agent/notify",
+		AppAccess:   AppAccessDenied,
 		OperationID: "notifyOperator", Summary: "Notify live operator clients from the calling agent",
 		Tags: []string{specAgentKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.AgentNotifyRequest{},
@@ -51,6 +52,7 @@ func startAgentTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agent/tasks/{run_id}/start",
+		AppAccess:   AppAccessDenied,
 		OperationID: "startAgentTaskRun",
 		Summary:     "Start a claimed task run under the calling agent's lease",
 		Tags:        []string{specAgentKey, specTasksKey},
@@ -84,6 +86,7 @@ func getAgentMeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/agent/me",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getAgentMe",
 		Summary:     "Resolve the calling agent session",
 		Tags:        []string{specAgentKey},
@@ -110,6 +113,7 @@ func getAgentContextOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/agent/context",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getAgentContext",
 		Summary:     "Return the bounded calling-agent situation context",
 		Tags:        []string{specAgentKey},
@@ -136,6 +140,7 @@ func claimNextAgentTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAgentTaskClaimNextPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "claimNextAgentTask",
 		Summary:     "Atomically claim the next matching task run for the calling agent",
 		Tags:        []string{specAgentKey, specTasksKey},
@@ -165,6 +170,7 @@ func heartbeatAgentTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agent/tasks/{run_id}/heartbeat",
+		AppAccess:   AppAccessDenied,
 		OperationID: "heartbeatAgentTaskRun",
 		Summary:     "Extend a claimed task-run lease for the calling agent",
 		Tags:        []string{specAgentKey, specTasksKey},
@@ -197,6 +203,7 @@ func completeAgentTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agent/tasks/{run_id}/complete",
+		AppAccess:   AppAccessDenied,
 		OperationID: "completeAgentTaskRun",
 		Summary:     "Complete a claimed task run for the calling agent",
 		Tags:        []string{specAgentKey, specTasksKey},
@@ -229,6 +236,7 @@ func failAgentTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agent/tasks/{run_id}/fail",
+		AppAccess:   AppAccessDenied,
 		OperationID: "failAgentTaskRun",
 		Summary:     "Fail a claimed task run for the calling agent",
 		Tags:        []string{specAgentKey, specTasksKey},
@@ -261,6 +269,7 @@ func releaseAgentTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agent/tasks/{run_id}/release",
+		AppAccess:   AppAccessDenied,
 		OperationID: "releaseAgentTaskRun",
 		Summary:     "Release a claimed task run for the calling agent",
 		Tags:        []string{specAgentKey, specTasksKey},
@@ -293,6 +302,7 @@ func spawnAgentSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agent/spawn",
+		AppAccess:   AppAccessDenied,
 		OperationID: "spawnAgentSession",
 		Summary:     "Spawn a narrowed child session for the calling agent",
 		Tags:        []string{specAgentKey, specSessionsKey},
@@ -317,6 +327,7 @@ func getAgentCoordinatorConfigOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/agent/coordinator/config",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getAgentCoordinatorConfig",
 		Summary:     "Read resolved coordinator config for the calling agent workspace",
 		Tags:        []string{specAgentKey},

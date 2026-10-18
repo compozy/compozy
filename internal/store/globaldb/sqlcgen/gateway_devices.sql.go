@@ -13,7 +13,7 @@ import (
 const countActiveGatewayDeviceSessions = `-- name: CountActiveGatewayDeviceSessions :one
 SELECT count(*)
 FROM gateway_device_sessions
-WHERE revoked_at IS NULL
+WHERE revoked_at IS NULL AND actor_kind <> 'app_token'
 `
 
 func (q *Queries) CountActiveGatewayDeviceSessions(ctx context.Context) (int64, error) {
@@ -64,7 +64,7 @@ func (q *Queries) CreateGatewayDevice(ctx context.Context, arg CreateGatewayDevi
 const findActiveGatewayDeviceByTokenHash = `-- name: FindActiveGatewayDeviceByTokenHash :one
 UPDATE gateway_device_sessions
 SET last_seen_at = ?1
-WHERE token_hash = ?2 AND revoked_at IS NULL
+WHERE token_hash = ?2 AND revoked_at IS NULL AND actor_kind <> 'app_token'
 RETURNING id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
 `
 
@@ -115,7 +115,7 @@ func (q *Queries) GatewayDeviceEpochMatches(ctx context.Context, arg GatewayDevi
 const getGatewayDevice = `-- name: GetGatewayDevice :one
 SELECT id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
 FROM gateway_device_sessions
-WHERE id = ?1
+WHERE id = ?1 AND actor_kind <> 'app_token'
 `
 
 func (q *Queries) GetGatewayDevice(ctx context.Context, id string) (GatewayDeviceSession, error) {
@@ -138,7 +138,7 @@ func (q *Queries) GetGatewayDevice(ctx context.Context, id string) (GatewayDevic
 const listActiveGatewayDeviceSessions = `-- name: ListActiveGatewayDeviceSessions :many
 SELECT id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
 FROM gateway_device_sessions
-WHERE revoked_at IS NULL
+WHERE revoked_at IS NULL AND actor_kind <> 'app_token'
 ORDER BY CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END, last_seen_at DESC, created_at DESC, id
 `
 
@@ -178,6 +178,7 @@ func (q *Queries) ListActiveGatewayDeviceSessions(ctx context.Context) ([]Gatewa
 const listGatewayDevices = `-- name: ListGatewayDevices :many
 SELECT id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
 FROM gateway_device_sessions
+WHERE actor_kind <> 'app_token'
 ORDER BY
   CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END,
   CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END,
@@ -222,7 +223,7 @@ func (q *Queries) ListGatewayDevices(ctx context.Context) ([]GatewayDeviceSessio
 const renameGatewayDevice = `-- name: RenameGatewayDevice :one
 UPDATE gateway_device_sessions
 SET name = ?1
-WHERE id = ?2
+WHERE id = ?2 AND actor_kind <> 'app_token'
 RETURNING id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
 `
 
@@ -252,6 +253,7 @@ const renameGatewayDeviceForActor = `-- name: RenameGatewayDeviceForActor :one
 UPDATE gateway_device_sessions
 SET name = ?1
 WHERE gateway_device_sessions.id = ?2
+  AND gateway_device_sessions.actor_kind <> 'app_token'
   AND EXISTS (
     SELECT 1
     FROM gateway_device_sessions AS actor
@@ -294,7 +296,7 @@ func (q *Queries) RenameGatewayDeviceForActor(ctx context.Context, arg RenameGat
 const revokeGatewayDevice = `-- name: RevokeGatewayDevice :one
 UPDATE gateway_device_sessions
 SET revoked_at = ?1, revoke_epoch = revoke_epoch + 1
-WHERE id = ?2 AND revoked_at IS NULL
+WHERE id = ?2 AND revoked_at IS NULL AND actor_kind <> 'app_token'
 RETURNING id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
 `
 
@@ -324,6 +326,7 @@ const revokeGatewayDeviceForActor = `-- name: RevokeGatewayDeviceForActor :one
 UPDATE gateway_device_sessions
 SET revoked_at = ?1, revoke_epoch = revoke_epoch + 1
 WHERE gateway_device_sessions.id = ?2
+  AND gateway_device_sessions.actor_kind <> 'app_token'
   AND gateway_device_sessions.revoked_at IS NULL
   AND EXISTS (
     SELECT 1

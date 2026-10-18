@@ -338,6 +338,7 @@ exit 0
 			{path: ".air.toml", want: "go scopes: ./scripts/devreadiness"},
 			{path: "scripts/dev.sh", want: "go scopes: ./scripts/devreadiness"},
 			{path: "lint-plugins/ui-primitive-reuse.mjs", want: "js filters: ./lint-plugins"},
+			{path: "sdk/client/src/index.ts", want: "js filters: ./sdk/client"},
 			{path: "packages/ui/src/exports/shell.ts", want: "js filters: ./lint-plugins ./packages/ui"},
 			{path: "schema.sql", want: "codegen lane"},
 			{path: "openapi/schema.yaml", want: "codegen lane"},

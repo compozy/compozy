@@ -46,8 +46,21 @@ fi
 
 cd "$repo_root"
 
+# Skip API tokens, never whole lines: adjacent product prose must still fail.
+api_identifiers='(?x:
+  \bCompozy\.(?:connect|start|__registry)\b
+  | \bnew[\t ]+Compozy(?=[\t ]*\()
+  | \bclass[\t ]+Compozy(?=[\t ]+(?:extends|implements)\b|[\t ]*\{)
+  | \b(?:import|export)[\t ]+(?:type[\t ]+)?\{[\w\s,]*?\bCompozy(?=[\t ]*(?:as\b|[,}]))
+  | \b(?:Promise|HeyApiRegistry)<[\t ]*Compozy(?=[\t ]*[>|])
+  | \b(?:let|const|var)[\t ]+[\w\x24]+:[\t ]*Compozy(?=[\t ]*[|;=])
+  | \bOperationStrategy\.single\(\{\s*root:[\t ]*"Compozy"
+  | \bCompozy[\t ]+\w+[\t ]+\x60json:"compozy"\x60
+)'
+pattern="${api_identifiers}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
+
 set +e
-matches="$(rg --line-number --no-heading --pcre2 '(?<!X-)\bCompozy\b(?! Network)' -- "${paths[@]}" 2>&1)"
+matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "$pattern" -- "${paths[@]}" 2>&1)"
 status=$?
 set -e
 
@@ -62,5 +75,5 @@ if ((status != 0)); then
 fi
 
 echo "$matches" >&2
-echo "Retired product-language 'Compozy' found. Use 'CompozyOS'; preserve X-Compozy-* headers." >&2
+echo "Retired product-language 'Compozy' found. Use 'CompozyOS'; preserve public SDK identifiers and X-Compozy-* headers." >&2
 exit 1

@@ -6,6 +6,7 @@ func listSessionEventsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listSessionEvents",
 		Summary:     "List persisted session events",
 		Tags:        []string{specSessionsKey},
@@ -41,6 +42,7 @@ func getSessionHistoryOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionHistory",
 		Summary:     "List grouped session turn history",
 		Tags:        []string{specSessionsKey},

@@ -193,6 +193,17 @@ compozy extension logs <name> --follow
 - [Official CompozyOS skill](skills/compozy/)
 - [Migration guide](MIGRATION_GUIDE.md)
 
+## Build an app
+
+Use `@compozy/client` for TypeScript or `github.com/compozy/compozy/sdk/go/client` for Go to connect
+an external app to your running daemon. Both clients provide typed operations and agent streams;
+app tokens authorize trusted browser origins on the local listener.
+
+Follow the [Build an app tutorials](https://compozy.com/docs/apps) for Node, a server-backed chat UI,
+browser access, Go, and token administration. The [API reference](https://compozy.com/docs/api)
+includes generated SDK calls for each operation. These app SDK surfaces are experimental in 0.4;
+pin the exact version matching your daemon.
+
 ## 🚀 Quick Start
 
 Bootstrap the home, start the daemon, enter the repository you want agents to work in, and create one

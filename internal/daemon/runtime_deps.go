@@ -84,6 +84,7 @@ type RuntimeDeps struct {
 	Resources           core.ResourceService
 	WindowManagers      *windowManagerRegistry
 	Terminals           *terminalpkg.Service
+	AppTokens           *gateway.DeviceService
 	Gateway             *gateway.Service
 	GatewayChallenges   *gateway.ChallengeRegistry
 	GatewayAuthLimiter  *gateway.AuthFailureLimiter

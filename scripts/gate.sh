@@ -150,6 +150,7 @@ classify() {
     skills/*) GO_SCOPES="${GO_SCOPES}./skills/..."$'\n' ;;
     tests/*) GO_SCOPES="${GO_SCOPES}./tests/..."$'\n' ;;
     sdk/go/*) GO_MODULES="${GO_MODULES}sdk/go"$'\n' ;;
+    sdk/client/*) JS_FILTERS="${JS_FILTERS}./sdk/client"$'\n' ;;
     sdk/typescript/*) JS_FILTERS="${JS_FILTERS}./sdk/typescript"$'\n' ;;
     sdk/react/*) JS_FILTERS="${JS_FILTERS}./sdk/react"$'\n' ;;
     sdk/examples/*/*)

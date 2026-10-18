@@ -233,6 +233,13 @@ jobs:
           bun run lint
           bunx turbo run typecheck test --filter='!@compozy/desktop'
           bunx turbo run build --filter=./web
+          bunx turbo run test:package --filter=@compozy/client
+
+      - name: Verify app SDK documentation and package preparation
+        run: |
+          bunx turbo run build --filter=@compozy/site
+          scripts/publish-sdk-package.sh --dry-run sdk/typescript 0.0.0-beta.0 beta
+          scripts/publish-sdk-package.sh --dry-run sdk/client 0.0.0-beta.0 beta
 
       - name: Verify bounded transcript retention
         run: >-
@@ -452,7 +459,10 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Run Go SDK verification once
-        run: go -C sdk/go test -race -parallel=4 ./...
+        run: |
+          go -C sdk/go build ./...
+          go -C sdk/go vet ./...
+          go -C sdk/go test -race -parallel=4 ./...
         env:
           CGO_ENABLED: 1
 
@@ -702,6 +712,9 @@ jobs:
         uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
         with:
           team: ${{ vars.TURBO_TEAM }}
+
+      - name: Build public app SDK for runtime E2E
+        run: bunx turbo run build --filter=@compozy/client
 
       - name: Run runtime E2E lane
         run: make test-e2e-runtime

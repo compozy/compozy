@@ -6,6 +6,7 @@ func registryFilesystemOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        "/api/fs/browse",
+		AppAccess:   AppAccessDenied,
 		OperationID: "browseDirectory",
 		Summary:     "List directory entries and filesystem roots for the workspace folder picker",
 		Tags:        []string{specFilesystemKey},

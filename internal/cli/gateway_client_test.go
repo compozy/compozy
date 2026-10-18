@@ -1318,3 +1318,332 @@ func assertGatewayClientErrorCode(t *testing.T, err error, code string) {
 func testGatewayCredential(character byte) string {
 	return gatewayDeviceCredentialPrefix + base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{character}, 32))
 }
+
+func TestAppTokenCommands(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject invalid options before constructing a client", func(t *testing.T) {
+		t.Parallel()
+		for _, testCase := range []struct {
+			name    string
+			args    []string
+			message string
+		}{
+			{
+				name:    "Should reject conflicting origin flags",
+				args:    []string{"update", "apt_x", "--clear-origins", "--origin", "https://x.test"},
+				message: "--clear-origins cannot be combined with --origin",
+			},
+			{
+				name:    "Should reject unknown list states",
+				args:    []string{"list", "--state", "expired"},
+				message: "--state must be active, revoked, or all",
+			},
+			{
+				name:    "Should reject a missing creation name",
+				args:    []string{"create"},
+				message: "accepts 1 arg(s), received 0",
+			},
+			{
+				name:    "Should reject a blank creation name",
+				args:    []string{"create", " "},
+				message: "cannot be blank",
+			},
+			{
+				name:    "Should reject a missing update identifier",
+				args:    []string{"update", "--name", "Dashboard"},
+				message: "accepts 1 arg(s), received 0",
+			},
+			{
+				name:    "Should reject a missing revoke identifier",
+				args:    []string{"revoke"},
+				message: "accepts 1 arg(s), received 0",
+			},
+			{
+				name:    "Should reject unexpected list arguments",
+				args:    []string{"list", "apt_x"},
+				message: "unknown command",
+			},
+			{
+				name:    "Should reject unknown flags",
+				args:    []string{"create", "Dashboard", "--unknown"},
+				message: "unknown flag",
+			},
+			{
+				name:    "Should reject malformed flag values",
+				args:    []string{"update", "apt_x", "--clear-origins=invalid"},
+				message: "invalid argument",
+			},
+			{
+				name:    "Should reject invalid output before issuing a secret",
+				args:    []string{"create", "Dashboard", "-o", "invalid"},
+				message: "invalid output format",
+			},
+			{
+				name:    "Should reject conflicting output flags before issuing a secret",
+				args:    []string{"create", "Dashboard", "-o", "human", "--json"},
+				message: "--json cannot be combined with a non-json output format",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				deps := newTestDeps(t, &stubClient{})
+				deps.newClient = func(ClientTarget) (DaemonClient, error) {
+					t.Error("invalid options must not construct a client")
+					return nil, errors.New("unexpected client")
+				}
+				code, stdout, stderr := executeRootCommandWithExit(
+					t,
+					deps,
+					append([]string{"app-token"}, testCase.args...)...)
+				if code != 2 || stdout != "" || !strings.Contains(stderr, testCase.message) {
+					t.Fatalf("invalid option result = %d, %q, %q", code, stdout, stderr)
+				}
+			})
+		}
+	})
+
+	t.Run("Should send the requested operation with explicit patch semantics", func(t *testing.T) {
+		t.Parallel()
+		for _, testCase := range []struct {
+			name   string
+			args   []string
+			method string
+			path   string
+			state  string
+			body   map[string]string
+		}{
+			{name: "Should create with trimmed repeated origins", args: []string{
+				"create", "  Dashboard  ", "--origin", " https://a.test ", "--origin", "  ", "--origin", "https://b.test",
+			}, method: http.MethodPost, body: map[string]string{
+				"name": `"Dashboard"`, "origins": `["https://a.test","https://b.test"]`,
+			}},
+			{name: "Should list active tokens by default", args: []string{"list"}, method: http.MethodGet, state: "active"},
+			{name: "Should list revoked tokens", args: []string{"list", "--state", "revoked"}, method: http.MethodGet, state: "revoked"},
+			{name: "Should list every token", args: []string{"list", "--state", "all"}, method: http.MethodGet, state: "all"},
+			{name: "Should preserve origins when renaming", args: []string{"update", "apt_x", "--name", " New name "},
+				method: http.MethodPatch, path: "/apt_x", body: map[string]string{"name": `"New name"`}},
+			{name: "Should pass explicitly blank names for daemon validation", args: []string{"update", "apt_x", "--name", " "},
+				method: http.MethodPatch, path: "/apt_x", body: map[string]string{"name": `""`}},
+			{name: "Should replace the origin allowlist", args: []string{"update", "apt_x", "--origin", " https://x.test "},
+				method: http.MethodPatch, path: "/apt_x", body: map[string]string{"origins": `["https://x.test"]`}},
+			{name: "Should clear origins with an empty array", args: []string{"update", "apt_x", "--clear-origins"},
+				method: http.MethodPatch, path: "/apt_x", body: map[string]string{"origins": `[]`}},
+			{name: "Should preserve origins when clearing is explicitly disabled", args: []string{
+				"update", "apt_x", "--clear-origins=false", "--name", "Dashboard",
+			}, method: http.MethodPatch, path: "/apt_x", body: map[string]string{"name": `"Dashboard"`}},
+			{name: "Should revoke the selected token", args: []string{"revoke", " apt_x "}, method: http.MethodDelete, path: "/apt_x"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				calls := 0
+				deps := newAppTokenCommandTestDeps(t, func(request *http.Request) (*http.Response, error) {
+					calls++
+					if request.Method != testCase.method || request.URL.Path != appTokensPath+testCase.path ||
+						request.URL.Query().Get("state") != testCase.state {
+						t.Fatalf("request = %s %s", request.Method, request.URL)
+					}
+					if testCase.body != nil {
+						var body map[string]json.RawMessage
+						if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+							t.Fatalf("Decode(request) = %v", err)
+						}
+						if len(body) != len(testCase.body) {
+							t.Fatalf("request fields = %v, want %v", body, testCase.body)
+						}
+						for key, want := range testCase.body {
+							if compactJSON(body[key]) != want {
+								t.Fatalf("request %s = %s, want %s", key, body[key], want)
+							}
+						}
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"app_token":{"id":"apt_x","name":"Dashboard","origins":[]},"app_tokens":[]}`,
+					), nil
+				})
+				args := append([]string{"app-token"}, testCase.args...)
+				code, _, stderr := executeRootCommandWithExit(t, deps, append(args, "-o", "json")...)
+				if code != 0 || stderr != "" || calls != 1 {
+					t.Fatalf("command result = exit %d, stderr %q, calls %d", code, stderr, calls)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve not-found errors and their exit code", func(t *testing.T) {
+		t.Parallel()
+		for _, format := range []string{"human", "json"} {
+			t.Run("Should render not-found errors as "+format, func(t *testing.T) {
+				t.Parallel()
+				deps := newAppTokenCommandTestDeps(t, func(request *http.Request) (*http.Response, error) {
+					if request.Method != http.MethodDelete || request.URL.Path != appTokensPath+"/apt_missing" {
+						t.Fatalf("request = %s %s", request.Method, request.URL)
+					}
+					return newHTTPResponse(
+						http.StatusNotFound,
+						`{"error":"app token apt_missing not found","code":"app_token_not_found"}`,
+					), nil
+				})
+				code, stdout, stderr := executeRootCommandWithExit(
+					t,
+					deps,
+					"app-token",
+					"revoke",
+					"apt_missing",
+					"-o",
+					format,
+				)
+				if code != 69 || stdout != "" {
+					t.Fatalf("not-found result = %d, stdout %q, stderr %q", code, stdout, stderr)
+				}
+				if format == "human" {
+					if !strings.Contains(stderr, "app token apt_missing not found (app_token_not_found)") {
+						t.Fatalf("human error lost message or code: %q", stderr)
+					}
+					return
+				}
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+					t.Fatalf("Decode(error) = %v, stderr = %q", err, stderr)
+				}
+				if payload.Code != "app_token_not_found" || payload.Error != "app token apt_missing not found" {
+					t.Fatalf("not-found payload = %#v", payload)
+				}
+			})
+		}
+	})
+
+	t.Run("Should display daemon validation codes in human errors", func(t *testing.T) {
+		t.Parallel()
+		deps := newAppTokenCommandTestDeps(t, func(*http.Request) (*http.Response, error) {
+			return newHTTPResponse(
+				http.StatusBadRequest,
+				`{"error":"origin is invalid: use scheme://host[:port] with no path","code":"app_token_origin_invalid"}`,
+			), nil
+		})
+		code, stdout, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"app-token",
+			"create",
+			"Dashboard",
+			"--origin",
+			"https://x.test/path",
+		)
+		if code != 65 || stdout != "" || !strings.Contains(stderr, "(app_token_origin_invalid)") {
+			t.Fatalf("invalid origin result = %d, %q, %q", code, stdout, stderr)
+		}
+	})
+
+	t.Run("Should render list and mutation receipts without secrets", func(t *testing.T) {
+		t.Parallel()
+		token := contract.AppTokenPayload{
+			ID: "apt_x", Name: "Dashboard", Origins: []string{}, CreatedAt: fixedTestNow,
+			LastUsedAt: new(fixedTestNow.Add(-2 * time.Minute)), RevokedAt: new(fixedTestNow),
+		}
+		for _, testCase := range []struct {
+			name   string
+			args   []string
+			result any
+			human  string
+		}{
+			{name: "list", args: []string{"list", "--state", "all"},
+				result: contract.AppTokensResponse{AppTokens: []contract.AppTokenPayload{token}}, human: "revoked"},
+			{name: "update", args: []string{"update", "apt_x", "--clear-origins"},
+				result: contract.AppTokenResponse{AppToken: token}, human: "none (non-browser use only)"},
+			{name: "revoke", args: []string{"revoke", "apt_x"},
+				result: contract.AppTokenRevokeResponse{AppToken: token, Changed: false, Canceled: 0}, human: "Closed 0 open streams."},
+		} {
+			for _, format := range []string{"human", "json", "jsonl", "toon"} {
+				t.Run("Should render "+testCase.name+" as "+format, func(t *testing.T) {
+					t.Parallel()
+					deps := newAppTokenCommandTestDeps(t, func(*http.Request) (*http.Response, error) {
+						return newHTTPResponse(http.StatusOK, string(mustJSON(t, testCase.result))), nil
+					})
+					args := append([]string{"app-token"}, testCase.args...)
+					code, stdout, stderr := executeRootCommandWithExit(t, deps, append(args, "-o", format)...)
+					if code != 0 || stderr != "" || !strings.Contains(stdout, token.ID) ||
+						strings.Contains(stdout, `"token":`) {
+						t.Fatalf("receipt = %d, %q, %q", code, stdout, stderr)
+					}
+					if format == "human" && !strings.Contains(stdout, testCase.human) {
+						t.Fatalf("human receipt = %q, want %q", stdout, testCase.human)
+					}
+					if format == "json" || format == "jsonl" {
+						var body map[string]json.RawMessage
+						if err := json.Unmarshal([]byte(stdout), &body); err != nil {
+							t.Fatalf("receipt is not JSON: %v", err)
+						}
+						if testCase.name == "revoke" &&
+							(string(body["changed"]) != "false" || string(body["canceled"]) != "0") {
+							t.Fatalf("idempotent revoke receipt = %s", stdout)
+						}
+					}
+				})
+			}
+		}
+	})
+
+	t.Run("Should emit creation secrets once with human security guidance", func(t *testing.T) {
+		t.Parallel()
+		for _, format := range []string{"human", "json", "jsonl", "toon"} {
+			t.Run("Should render creation as "+format, func(t *testing.T) {
+				t.Parallel()
+				result := contract.AppTokenIssuedResponse{
+					AppToken: contract.AppTokenPayload{
+						ID:        "apt_x",
+						Name:      "Dashboard",
+						Origins:   []string{},
+						CreatedAt: fixedTestNow,
+					},
+					Token: "cpz_app_once",
+				}
+				deps := newAppTokenCommandTestDeps(t, func(*http.Request) (*http.Response, error) {
+					return newHTTPResponse(http.StatusCreated, string(mustJSON(t, result))), nil
+				})
+				code, stdout, stderr := executeRootCommandWithExit(
+					t,
+					deps,
+					"app-token",
+					"create",
+					"Dashboard",
+					"-o",
+					format,
+				)
+				if code != 0 || stderr != "" || strings.Count(stdout, result.Token) != 1 ||
+					!strings.Contains(stdout, "apt_x") {
+					t.Fatalf("create %s = %d, %q, %q", format, code, stdout, stderr)
+				}
+				switch format {
+				case "human":
+					if !strings.Contains(stdout, "none (non-browser use only)") ||
+						!strings.Contains(stdout, "prompting agents that act on this") ||
+						!strings.Contains(stdout, "https://compozy.com/docs/apps/browser#security") {
+						t.Fatalf("human creation lacks capability/security context: %q", stdout)
+					}
+				case "json", "jsonl":
+					var output contract.AppTokenIssuedResponse
+					if err := json.Unmarshal(
+						[]byte(stdout),
+						&output,
+					); err != nil || output.Token != result.Token ||
+						output.AppToken.ID != "apt_x" {
+						t.Fatalf("structured creation = %#v, err = %v", output, err)
+					}
+				}
+			})
+		}
+	})
+}
+
+func newAppTokenCommandTestDeps(t *testing.T, roundTrip roundTripperFunc) commandDeps {
+	t.Helper()
+	client := &daemonClient{httpClient: &http.Client{Transport: roundTrip, Timeout: time.Second}}
+	deps := newTestDeps(t, client)
+	deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+		client.target = target
+		return client, nil
+	}
+	return deps
+}

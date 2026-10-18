@@ -42,6 +42,9 @@ func validateOperationRegistryEntry(
 		return fmt.Errorf("duplicate operation ID %q", operationID)
 	}
 	operationIDs[operationID] = struct{}{}
+	if operation.AppAccess != AppAccessAllowed && operation.AppAccess != AppAccessDenied {
+		return fmt.Errorf("operation %s has missing or invalid app access %q", operationID, operation.AppAccess)
+	}
 
 	routeKey := operation.Method + " " + operation.Path
 	if _, exists := routeKeys[routeKey]; exists {

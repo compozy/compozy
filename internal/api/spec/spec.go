@@ -153,6 +153,7 @@ const (
 	specExtensionsKey  = "extensions"
 	specHooksKey       = "hooks"
 	specIntegerKey     = "integer"
+	specStringKey      = "string"
 	specLogsKey        = "logs"
 	specMarketplaceKey = "marketplace"
 
@@ -210,12 +211,14 @@ type ParameterSpec struct {
 
 // ResponseSpec describes one OpenAPI response.
 type ResponseSpec struct {
-	Status      int
-	Default     bool
-	Description string
-	Body        any
-	Bodies      responseBodies
-	ContentType string
+	Status            int
+	Default           bool
+	Description       string
+	Body              any
+	Bodies            responseBodies
+	ContentType       string
+	AdditionalContent map[string]any
+	Headers           map[string]ParameterSpec
 }
 
 // OperationAuth identifies the transport-owned trust boundary for an operation.
@@ -227,8 +230,18 @@ const (
 	OperationAuthPrivatePreAuth OperationAuth = "private_pre_auth"
 )
 
+// AppAccess is an explicit local-browser authorization decision.
+type AppAccess string
+
+const (
+	AppAccessAllowed AppAccess = "allowed"
+	AppAccessDenied  AppAccess = "denied"
+)
+
 // OperationSpec describes one canonical REST operation.
 type OperationSpec struct {
+	AppAccess   AppAccess
+	Stream      string
 	Stability   string
 	Method      string
 	Path        string
@@ -264,6 +277,7 @@ func Document() (*openapi3.T, error) {
 		Paths: openapi3.NewPaths(),
 		Tags: openapi3.Tags{
 			{Name: specAgentKey},
+			{Name: specAppTokensKey},
 			{Name: specAgentsKey},
 			{Name: specAutomationKey},
 			{Name: specDiagnosticsKey},
@@ -314,6 +328,9 @@ func Document() (*openapi3.T, error) {
 		doc.AddOperation(opSpec.Path, opSpec.Method, operation)
 	}
 	resolveComponentSchemaReferences(doc.Components.Schemas)
+	if err := lintDocumentSchemas(doc); err != nil {
+		return nil, fmt.Errorf("lint openapi: %w", err)
+	}
 
 	if err := doc.Validate(context.Background()); err != nil {
 		return nil, fmt.Errorf("validate openapi: %w", err)

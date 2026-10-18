@@ -6,6 +6,7 @@ func getSettingsWindowManagerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsWindowManagerPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsWindowManager",
 		Summary:     "Read the window-manager settings section",
 		Tags:        []string{specSettingsKey},
@@ -28,6 +29,7 @@ func updateSettingsWindowManagerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsWindowManagerPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsWindowManager",
 		Summary:     "Update the window-manager settings section",
 		Tags:        []string{specSettingsKey},

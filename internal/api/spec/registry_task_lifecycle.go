@@ -30,6 +30,7 @@ func publishTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/publish",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "publishTask",
 		Summary:     "Publish one draft task and enqueue executable work",
 		Tags:        []string{specTasksKey},
@@ -52,6 +53,7 @@ func startTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/start",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "startTask",
 		Summary:     "Start one task by enqueueing executable work",
 		Tags:        []string{specTasksKey},
@@ -74,6 +76,7 @@ func cancelTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/cancel",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "cancelTask",
 		Summary:     "Cancel one task tree",
 		Tags:        []string{specTasksKey},
@@ -96,6 +99,7 @@ func pauseTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksIDPausePath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "pauseTask",
 		Summary:     "Pause one task for future scheduler claims",
 		Tags:        []string{specTasksKey},
@@ -120,6 +124,7 @@ func resumeTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksIDResumePath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "resumeTask",
 		Summary:     "Resume one paused task for future scheduler claims",
 		Tags:        []string{specTasksKey},
@@ -145,6 +150,7 @@ func createChildTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/children",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "createChildTask",
 		Summary:     "Create one child task",
 		Tags:        []string{specTasksKey},
@@ -168,6 +174,7 @@ func addTaskDependencyOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/dependencies",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "addTaskDependency",
 		Summary:     "Add one task dependency",
 		Tags:        []string{specTasksKey},
@@ -190,6 +197,7 @@ func removeTaskDependencyOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        "/api/tasks/{id}/dependencies/{depends_on_id}",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "removeTaskDependency",
 		Summary:     "Remove one task dependency",
 		Tags:        []string{specTasksKey},
@@ -211,6 +219,7 @@ func listTaskRunsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITasksIDRunsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listTaskRuns",
 		Summary:     "List runs for one task",
 		Tags:        []string{specTasksKey},
@@ -234,6 +243,7 @@ func enqueueTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksIDRunsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "enqueueTaskRun",
 		Summary:     "Enqueue one task run",
 		Tags:        []string{specTasksKey},
@@ -256,6 +266,7 @@ func getTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/task-runs/{id}",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTaskRun",
 		Summary:     "Get one task run detail",
 		Tags:        []string{specTasksKey},
@@ -277,6 +288,7 @@ func readTaskRunResultOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITaskRunsIDResultPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "readTaskRunResult",
 		Summary:     "Read one exact byte page from a task-run result",
 		Tags:        []string{specTasksKey},

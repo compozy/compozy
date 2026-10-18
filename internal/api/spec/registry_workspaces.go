@@ -16,6 +16,7 @@ func listWorkspacesOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listWorkspaces",
 		Summary:     "List registered workspaces",
 		Tags:        []string{specWorkspacesKey},
@@ -30,6 +31,7 @@ func createWorkspaceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces",
+		AppAccess:   AppAccessDenied,
 		OperationID: "createWorkspace",
 		Summary:     "Register a workspace",
 		Tags:        []string{specWorkspacesKey},
@@ -47,6 +49,7 @@ func getWorkspaceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIWorkspacesIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getWorkspace",
 		Summary:     "Get one resolved workspace with related data",
 		Tags:        []string{specWorkspacesKey},
@@ -65,6 +68,7 @@ func updateWorkspaceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPIWorkspacesIDPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateWorkspace",
 		Summary:     "Update a registered workspace",
 		Tags:        []string{specWorkspacesKey},
@@ -85,6 +89,7 @@ func deleteWorkspaceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPIWorkspacesIDPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteWorkspace",
 		Summary:     "Delete a registered workspace",
 		Tags:        []string{specWorkspacesKey},
@@ -103,6 +108,7 @@ func resolveWorkspaceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/resolve",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "resolveWorkspace",
 		Summary:     "Resolve or register a workspace from a path",
 		Tags:        []string{specWorkspacesKey},

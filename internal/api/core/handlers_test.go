@@ -2,12 +2,15 @@ package core_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -5801,4 +5804,82 @@ func (s usageBoundarySessionManager) ContextEvents(ctx context.Context, id strin
 	snapshot, err := s.StubSessionManager.ContextEvents(ctx, id)
 	snapshot.ClearedBy = &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}
 	return snapshot, err
+}
+
+func TestOpenAPIDocumentRepresentation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should cache release bytes and negotiate conditional gzip responses", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte("{\"openapi\":\"3.0.3\"}\n")
+		var calls atomic.Int32
+		handlers := core.NewBaseHandlers(
+			&core.BaseHandlerConfig{OpenAPI: core.NewOpenAPIDocument(func() ([]byte, error) {
+				calls.Add(1)
+				return raw, nil
+			})},
+		)
+		router := gin.New()
+		router.GET("/api/openapi.json", handlers.GetOpenAPIDocument)
+		plain := httptest.NewRecorder()
+		router.ServeHTTP(
+			plain,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody),
+		)
+		if plain.Code != 200 || !bytes.Equal(plain.Body.Bytes(), raw) || plain.Header().Get("ETag") == "" {
+			t.Fatalf("plain response = %d %s", plain.Code, plain.Body)
+		}
+		conditional := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody)
+		conditional.Header.Set("If-None-Match", "W/"+plain.Header().Get("ETag"))
+		cached := httptest.NewRecorder()
+		router.ServeHTTP(cached, conditional)
+		if cached.Code != 304 || cached.Body.Len() != 0 {
+			t.Fatalf("conditional response = %d %s", cached.Code, cached.Body)
+		}
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody)
+		request.Header.Set("Accept-Encoding", "gzip")
+		compressed := httptest.NewRecorder()
+		router.ServeHTTP(compressed, request)
+		if compressed.Code != 200 || compressed.Header().Get("Content-Encoding") != "gzip" {
+			t.Fatalf("gzip response = %d %v", compressed.Code, compressed.Header())
+		}
+		reader, err := gzip.NewReader(compressed.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(decoded, raw) || calls.Load() != 1 {
+			t.Fatalf("decoded = %s, renders = %d", decoded, calls.Load())
+		}
+		request.Header.Set("Accept-Encoding", "gzip;q=0")
+		uncompressed := httptest.NewRecorder()
+		router.ServeHTTP(uncompressed, request)
+		if uncompressed.Code != 200 || uncompressed.Header().Get("Content-Encoding") != "" ||
+			!bytes.Equal(uncompressed.Body.Bytes(), raw) {
+			t.Fatalf("disabled gzip response = %d %s", uncompressed.Code, uncompressed.Body)
+		}
+	})
+	t.Run("Should return a server error when rendering fails", func(t *testing.T) {
+		t.Parallel()
+		handlers := core.NewBaseHandlers(
+			&core.BaseHandlerConfig{
+				OpenAPI: core.NewOpenAPIDocument(func() ([]byte, error) { return nil, errors.New("render failed") }),
+			},
+		)
+		router := gin.New()
+		router.GET("/api/openapi.json", handlers.GetOpenAPIDocument)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(
+			recorder,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/openapi.json", http.NoBody),
+		)
+		if recorder.Code != 500 || !strings.Contains(recorder.Body.String(), "error") {
+			t.Fatalf("response = %d %s", recorder.Code, recorder.Body)
+		}
+	})
 }

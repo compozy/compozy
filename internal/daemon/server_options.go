@@ -6,7 +6,7 @@ import (
 )
 
 func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
-	return []httpapi.Option{
+	options := []httpapi.Option{
 		httpapi.WithHomePaths(deps.HomePaths),
 		httpapi.WithConfig(&deps.Config),
 		httpapi.WithLogger(deps.Logger),
@@ -67,13 +67,21 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithHostLoadSnapshotSource(deps.HostLoad),
 		httpapi.WithDeadEntitySource(deps.DeadEntities),
 		httpapi.WithExtensionService(deps.Extensions),
+		httpapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
 		httpapi.WithGatewayService(deps.Gateway),
 		httpapi.WithDeviceAuth(deps.Gateway),
 	}
+	if deps.AppTokens != nil {
+		options = append(options,
+			httpapi.WithAppTokenManager(deps.AppTokens),
+			httpapi.WithAppTokenAuth(deps.AppTokens, appAccessPolicy()),
+		)
+	}
+	return options
 }
 
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
-	return []udsapi.Option{
+	options := []udsapi.Option{
 		udsapi.WithHomePaths(deps.HomePaths),
 		udsapi.WithConfig(&deps.Config),
 		udsapi.WithLogger(deps.Logger),
@@ -136,6 +144,11 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithExtensionService(deps.Extensions),
 		udsapi.WithHostedMCP(deps.HostedMCP),
 		udsapi.WithMCPHostAPI(deps.MCPHostAPI),
+		udsapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
 		udsapi.WithGatewayService(deps.Gateway),
 	}
+	if deps.AppTokens != nil {
+		options = append(options, udsapi.WithAppTokenManager(deps.AppTokens))
+	}
+	return options
 }
