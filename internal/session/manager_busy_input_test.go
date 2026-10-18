@@ -4970,7 +4970,7 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		drain(t, f)
 	})
 
-	t.Run("Should never requeue a promoted message the provider received when its resolution fails", func(t *testing.T) {
+	t.Run("Should never requeue a delivered promotion whose resolution fails", func(t *testing.T) {
 		t.Parallel()
 		failing := &steerResolveFailureStore{}
 		failing.armed.Store(true)
