@@ -54,3 +54,8 @@ Greptile finding `discussion_r4307465873` identified a shared-deadline regressio
 
 
 The reviewed binary passed the fresh CLI/HTTP re-walk: one queued dependent run, opt-out zero runs, failed blocker still blocked with zero runs, and unchanged single-run identity after restart/replay. The focused auto-enqueue, completion/rollup, terminal-session and hook suites passed with race (13.942s); integration-tag lint reported zero new findings. Both lab passes retain their strict audit and clean teardown receipts in scratch evidence. PR readiness still awaits the final head's CI and reviewer coverage.
+
+
+## Coordinator completion follow-up
+
+Greptile finding `discussion_r4307497709` identified the separate coordinator completion publisher. Coordinator completion now calls the same dependent dispatcher after both task completion and Loop terminal notifications, retaining the Loop-worker exclusion. The existing coordinator suite was extended with an opted-in dependent and asserts one queued run plus notification-before-enqueue ordering. It failed with zero runs before this fix. Focused coordinator, SQLite auto-enqueue/rollup and hook suites passed with race (11.050s). The earlier public CLI/HTTP evidence remains applicable to the unchanged direct/leased implementation; a live Loop execution was not part of the targeted public walk.
