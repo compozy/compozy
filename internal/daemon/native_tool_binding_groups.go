@@ -70,13 +70,34 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionRename,
 			availability: catalogAvailability,
 		},
-		toolspkg.ToolIDSessionFolderList:    {call: n.sessionLayoutTool(sessionFolderList), availability: catalogAvailability},
-		toolspkg.ToolIDSessionFolderCreate:  {call: n.sessionLayoutTool(sessionFolderCreate), availability: catalogAvailability},
-		toolspkg.ToolIDSessionFolderRename:  {call: n.sessionLayoutTool(sessionFolderRename), availability: catalogAvailability},
-		toolspkg.ToolIDSessionFolderDelete:  {call: n.sessionLayoutTool(sessionFolderDelete), availability: catalogAvailability},
-		toolspkg.ToolIDSessionFolderReorder: {call: n.sessionLayoutTool(sessionFolderReorder), availability: catalogAvailability},
-		toolspkg.ToolIDSessionMove:          {call: n.sessionLayoutTool(sessionMove), availability: catalogAvailability},
-		toolspkg.ToolIDSessionReorder:       {call: n.sessionLayoutTool(sessionReorder), availability: catalogAvailability},
+		toolspkg.ToolIDSessionFolderList: {
+			call:         n.sessionLayoutTool(sessionFolderList),
+			availability: catalogAvailability,
+		},
+		toolspkg.ToolIDSessionFolderCreate: {
+			call:         n.sessionLayoutTool(sessionFolderCreate),
+			availability: catalogAvailability,
+		},
+		toolspkg.ToolIDSessionFolderRename: {
+			call:         n.sessionLayoutTool(sessionFolderRename),
+			availability: catalogAvailability,
+		},
+		toolspkg.ToolIDSessionFolderDelete: {
+			call:         n.sessionLayoutTool(sessionFolderDelete),
+			availability: catalogAvailability,
+		},
+		toolspkg.ToolIDSessionFolderReorder: {
+			call:         n.sessionLayoutTool(sessionFolderReorder),
+			availability: catalogAvailability,
+		},
+		toolspkg.ToolIDSessionMove: {
+			call:         n.sessionLayoutTool(sessionMove),
+			availability: catalogAvailability,
+		},
+		toolspkg.ToolIDSessionReorder: {
+			call:         n.sessionLayoutTool(sessionReorder),
+			availability: catalogAvailability,
+		},
 		toolspkg.ToolIDSessionCreate: {
 			call:         n.sessionCreate,
 			availability: n.sessionCreateAvailability(),

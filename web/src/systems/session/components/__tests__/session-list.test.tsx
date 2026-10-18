@@ -925,9 +925,15 @@ describe("SessionList folders and manual order", () => {
     await user.keyboard("{Shift>}{F10}{/Shift}");
     const menu = await screen.findByRole("menu");
     expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
-    await user.click(within(menu).getByRole("menuitem", { name: "Move to folder" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Beta" }));
-    expect(layout.moveSession).toHaveBeenCalledWith("r2", "fb");
+    within(menu).getByRole("menuitem", { name: "Move to folder" }).focus();
+    await user.keyboard("{ArrowRight}");
+    const beta = await screen.findByRole("menuitem", { name: "Beta" });
+    await waitFor(() =>
+      expect(beta.closest('[role="menu"]')).toContainElement(document.activeElement as HTMLElement)
+    );
+    beta.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(layout.moveSession).toHaveBeenCalledWith("r2", "fb"));
   });
 
   it("Should rename and delete a folder from its header menu", async () => {

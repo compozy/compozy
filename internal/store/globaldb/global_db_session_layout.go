@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -62,12 +63,12 @@ func (g *SessionRepo) CreateSessionFolder(
 		if count >= store.MaxSessionFolders {
 			return store.ErrSessionFolderLimit
 		}
-		if e = q.ShiftSessionFolders(ctx, sqlcgen.ShiftSessionFoldersParams{
+		if e := q.ShiftSessionFolders(ctx, sqlcgen.ShiftSessionFoldersParams{
 			ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID,
 		}); e != nil {
 			return e
 		}
-		if e = q.InsertSessionFolder(ctx, sqlcgen.InsertSessionFolderParams{
+		if e := q.InsertSessionFolder(ctx, sqlcgen.InsertSessionFolderParams{
 			ID: id, ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID,
 			Name: name, Now: store.FormatTimestamp(g.now()),
 		}); e != nil {
@@ -177,7 +178,7 @@ func (g *SessionRepo) ReorderSessionFolders(
 		}
 		now := store.FormatTimestamp(g.now())
 		for position, id := range ids {
-			if e = q.SetSessionFolderPosition(ctx, sqlcgen.SetSessionFolderPositionParams{
+			if e := q.SetSessionFolderPosition(ctx, sqlcgen.SetSessionFolderPositionParams{
 				Position: int64(position), Now: now,
 				ID: id, ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID,
 			}); e != nil {
@@ -227,10 +228,8 @@ func (g *SessionRepo) MoveSession(
 		if e != nil {
 			return e
 		}
-		for _, member := range members {
-			if member == sessionID {
-				return nil
-			}
+		if slices.Contains(members, sessionID) {
+			return nil
 		}
 		return upsertSessionPlacement(ctx, q, scope, folderID, sessionID, len(members), store.FormatTimestamp(g.now()))
 	})
@@ -288,7 +287,7 @@ func (g *SessionRepo) ReorderSessions(
 		}
 		now := store.FormatTimestamp(g.now())
 		for position, sessionID := range order {
-			if e = upsertSessionPlacement(ctx, q, scope, folderID, sessionID, position, now); e != nil {
+			if e := upsertSessionPlacement(ctx, q, scope, folderID, sessionID, position, now); e != nil {
 				return e
 			}
 		}

@@ -105,6 +105,19 @@ export function useSessionFolders(options: {
   if (!enabled) return undefined;
   const folders = foldersQuery.data ?? [];
 
+  const folderOrderWrite = (folderIds: readonly string[]): LayoutWrite => ({
+    failure: "Couldn't reorder the folders.",
+    request: () => reorderSessionFolders(scope, folderIds),
+    optimistic: () =>
+      patchFolders(current => {
+        const byId = new Map(current.map(folder => [folder.id, folder]));
+        return folderIds.flatMap((id, position) => {
+          const folder = byId.get(id);
+          return folder ? [{ ...folder, position }] : [];
+        });
+      }),
+  });
+
   return {
     folders,
     createFolder: async name => {
@@ -155,21 +168,6 @@ export function useSessionFolders(options: {
           patchSessions(sessions => applySessionOrder(sessions, folderId, sessionIds)),
       }),
   };
-
-  function folderOrderWrite(folderIds: readonly string[]): LayoutWrite {
-    return {
-      failure: "Couldn't reorder the folders.",
-      request: () => reorderSessionFolders(scope, folderIds),
-      optimistic: () =>
-        patchFolders(current => {
-          const byId = new Map(current.map(folder => [folder.id, folder]));
-          return folderIds.flatMap((id, position) => {
-            const folder = byId.get(id);
-            return folder ? [{ ...folder, position }] : [];
-          });
-        }),
-    };
-  }
 }
 
 interface LayoutWrite {

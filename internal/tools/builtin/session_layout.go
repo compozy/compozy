@@ -56,7 +56,8 @@ func sessionFolderReorderDescriptor() toolspkg.Descriptor {
 func sessionMoveDescriptor() toolspkg.Descriptor {
 	return sessionLayoutDescriptor(
 		toolspkg.ToolIDSessionMove, "session_move", "Session Move",
-		"Move one root session to the end of a session folder, or back to the workspace root when folder_id is omitted.",
+		"Move one root session to the end of a session folder, "+
+			"or back to the workspace root when folder_id is omitted.",
 		sessionMoveInputSchema, toolspkg.RiskMutating, false,
 		[]string{"move session to folder", "remove session from folder"},
 	)

@@ -73,11 +73,14 @@ export function useSessionListView(
     setDraftValue: setSearch,
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
   const [archived, setArchived] = useState(false);
+  const enabled = options.enabled ?? true;
+  const workspaceScoped = enabled && preferences.scope === "workspace";
+  const searchSettled = search === remoteSearch;
   const workspaceGroups = useWorkspaceSessionGroups({
     workspaces,
     sort: preferences.sort,
     archived,
-    enabled: (options.enabled ?? true) && preferences.scope === "all-workspaces",
+    enabled: enabled && preferences.scope === "all-workspaces",
     search: remoteSearch,
   });
 
@@ -94,24 +97,22 @@ export function useSessionListView(
       worktree: options.worktreeId,
       ...(archived ? { archive: "only" as const } : {}),
     },
-    (options.enabled ?? true) &&
-      preferences.scope === "workspace" &&
-      (scope === "global" || workspaceId !== null)
+    workspaceScoped && (scope === "global" || workspaceId !== null)
   );
 
   const layout = useSessionFolders({
     workspaceId,
     profile: profile.destination,
-    enabled: (options.enabled ?? true) && preferences.scope === "workspace" && !profile.aggregate,
+    enabled: workspaceScoped && !profile.aggregate,
   });
 
   return {
     layout,
     catalog: {
       ...catalog,
-      paging: catalog.paging || search !== remoteSearch,
-      next: search === remoteSearch && catalog.next,
-      previous: search === remoteSearch && catalog.previous,
+      paging: catalog.paging || !searchSettled,
+      next: searchSettled && catalog.next,
+      previous: searchSettled && catalog.previous,
     },
     search,
     setSearch,

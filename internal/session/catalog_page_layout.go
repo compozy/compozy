@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -32,9 +33,7 @@ func (m *Manager) sessionCatalogPlacements(
 		if err != nil {
 			return nil, fmt.Errorf("session: read catalog placements: %w", err)
 		}
-		for id, placement := range chunk {
-			placements[id] = placement
-		}
+		maps.Copy(placements, chunk)
 	}
 	return placements, nil
 }

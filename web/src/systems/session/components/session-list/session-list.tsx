@@ -88,7 +88,7 @@ export function SessionList({
   const collapsedThreads = new Set(collapsedThreadIds);
   const filtering = normalizedFilter !== "";
   const folders = useSessionListFolderLayout(view, threads, filtering);
-  const { layout, sections, dnd } = folders;
+  const { layout, sections } = folders;
   const bulk = useSessionListBulkSelection({
     scope: view.scope,
     archived: view.archived,
@@ -130,34 +130,21 @@ export function SessionList({
         </Alert>
       ) : null}
       {sections && layout ? (
-        <div
-          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
-          data-scope={view.scope}
-          aria-busy={view.catalog?.paging || undefined}
-        >
-          <SessionListSections
-            sections={sections}
-            layout={layout}
-            dnd={bulk.active ? undefined : dnd}
-            orderable={view.sort === "manual" && !filtering}
-            filtering={filtering}
-            collapsedThreads={collapsedThreads}
-            collapsedFolders={folders.collapsedFolders}
-            currentSessionId={currentSessionId}
-            onToggleThread={onToggleThread}
-            onToggleFolder={folders.toggleFolder}
-            onSelectSession={session => {
-              if (!view.catalog?.paging) onSelectSession(session);
-            }}
-            onNewSessionInFolder={folderId => onNewSession({ folderId })}
-            onFolderDialog={folders.setDialog}
-            selection={bulk.rowSelection}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-            emptyMessage={emptySessionListMessage(filtering, view)}
-          />
-          {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
-        </div>
+        <SessionListFolderBody
+          sections={sections}
+          layout={layout}
+          folders={folders}
+          view={view}
+          bulk={bulk}
+          filtering={filtering}
+          collapsedThreads={collapsedThreads}
+          currentSessionId={currentSessionId}
+          onToggleThread={onToggleThread}
+          onSelectSession={onSelectSession}
+          onNewSession={onNewSession}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+        />
       ) : (
         <SessionListBody
           view={view}
@@ -181,6 +168,71 @@ export function SessionList({
           onDelete={layout.deleteFolder}
         />
       ) : null}
+    </div>
+  );
+}
+
+type SessionListFolderLayoutModel = ReturnType<typeof useSessionListFolderLayout>;
+
+/** The workspace list grouped into folders, with drag and folder verbs wired in. */
+function SessionListFolderBody({
+  sections,
+  layout,
+  folders,
+  view,
+  bulk,
+  filtering,
+  collapsedThreads,
+  currentSessionId,
+  onToggleThread,
+  onSelectSession,
+  onNewSession,
+  sessionActions,
+  testIdPrefix,
+}: {
+  sections: NonNullable<SessionListFolderLayoutModel["sections"]>;
+  layout: NonNullable<SessionListFolderLayoutModel["layout"]>;
+  folders: SessionListFolderLayoutModel;
+  view: SessionListViewModel;
+  bulk: ReturnType<typeof useSessionListBulkSelection>;
+  filtering: boolean;
+  collapsedThreads: ReadonlySet<string>;
+  currentSessionId: SessionListProps["currentSessionId"];
+  onToggleThread: SessionListProps["onToggleThread"];
+  onSelectSession: SessionListProps["onSelectSession"];
+  onNewSession: SessionListProps["onNewSession"];
+  sessionActions: SessionListProps["sessionActions"];
+  testIdPrefix: string;
+}) {
+  const { dnd } = folders;
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+      data-scope={view.scope}
+      aria-busy={view.catalog?.paging || undefined}
+    >
+      <SessionListSections
+        sections={sections}
+        layout={layout}
+        dnd={bulk.active ? undefined : dnd}
+        orderable={view.sort === "manual" && !filtering}
+        filtering={filtering}
+        collapsedThreads={collapsedThreads}
+        collapsedFolders={folders.collapsedFolders}
+        currentSessionId={currentSessionId}
+        onToggleThread={onToggleThread}
+        onToggleFolder={folders.toggleFolder}
+        onSelectSession={session => {
+          if (!view.catalog?.paging) onSelectSession(session);
+        }}
+        onNewSessionInFolder={folderId => onNewSession({ folderId })}
+        onFolderDialog={folders.setDialog}
+        selection={bulk.rowSelection}
+        sessionActions={sessionActions}
+        testIdPrefix={testIdPrefix}
+        emptyMessage={emptySessionListMessage(filtering, view)}
+      />
+      {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
     </div>
   );
 }

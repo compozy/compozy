@@ -88,9 +88,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_folder_list`,
-`compozy__session_folder_create`, `compozy__session_folder_rename`, `compozy__session_folder_delete`,
-`compozy__session_folder_reorder`, `compozy__session_move`, `compozy__session_reorder`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
 
@@ -337,18 +335,6 @@ remove their scoped attachment trees.
 `compozy__session_rename` changes the durable display name of a user session without changing its
 runtime or transcript identity. Pass `session_id` and a non-empty `name` of at most 64 characters;
 the CLI fallback is `compozy session rename <id> <name>`.
-
-Session folders and manual order belong to the caller's profile inside one workspace and are shared
-by every client. `compozy__session_folder_list` returns folders in manual order with unarchived
-session counts; `compozy__session_folder_create` adds one at the top; `_rename` and `_reorder` (every
-folder id exactly once) edit them; `compozy__session_folder_delete` returns its sessions to the
-workspace root and never deletes or archives a session. `compozy__session_move` moves one root
-session to the end of a folder, or back to the root when `folder_id` is omitted.
-`compozy__session_reorder` pins the listed sessions, in order, at the head of a folder or of the root;
-members not listed keep their order after them. Subagent sessions follow their parent and are
-rejected. `compozy__session_list` with `sort: "manual"` returns this order (folders first, then the
-root) and each catalog row carries `folder_id`. CLI fallbacks: `compozy session folder
-list|create|rename|delete|reorder`, `compozy session move`, and `compozy session reorder`.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 

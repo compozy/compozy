@@ -9,7 +9,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const sessionFolderFlagName = "folder"
+const (
+	sessionFolderFlagName      = "folder"
+	sessionFolderSessionsLabel = "Sessions"
+	sessionFolderPositionLabel = "Position"
+)
 
 func newSessionFolderCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -234,15 +238,15 @@ func sessionFolderBundle(folder contract.SessionFolderPayload) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Session Folder", []keyValue{
 				{Label: "ID", Value: stringOrDash(folder.ID)},
-				{Label: "Name", Value: stringOrDash(folder.Name)},
-				{Label: "Position", Value: strconv.Itoa(folder.Position)},
-				{Label: "Sessions", Value: strconv.Itoa(folder.SessionCount)},
+				{Label: automationNameValue, Value: stringOrDash(folder.Name)},
+				{Label: sessionFolderPositionLabel, Value: strconv.Itoa(folder.Position)},
+				{Label: sessionFolderSessionsLabel, Value: strconv.Itoa(folder.SessionCount)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"session_folder",
-				[]string{"id", "name", "position", "session_count"},
+				[]string{"id", automationNameKey, "position", "session_count"},
 				[]string{folder.ID, folder.Name, strconv.Itoa(folder.Position), strconv.Itoa(folder.SessionCount)},
 			), nil
 		},
@@ -260,9 +264,9 @@ func sessionFoldersBundle(folders []contract.SessionFolderPayload) outputBundle 
 		contract.SessionFoldersResponse{Folders: folders},
 		folders,
 		"Session Folders",
-		[]string{"ID", "Name", "Position", "Sessions"},
+		[]string{"ID", automationNameValue, sessionFolderPositionLabel, sessionFolderSessionsLabel},
 		"session_folders",
-		[]string{"id", "name", "position", "session_count"},
+		[]string{"id", automationNameKey, "position", "session_count"},
 		row,
 		row,
 	)
