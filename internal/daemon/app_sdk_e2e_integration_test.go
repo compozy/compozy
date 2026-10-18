@@ -106,7 +106,8 @@ func appSDKFixture(t *testing.T) string {
 	turns := make([]acpmock.TurnFixture, 0, 7)
 	for _, message := range []string{"noop", "sdk golden", "sdk queued", "sdk replay", "sdk busy", "sdk proxy", "sdk cancel"} {
 		steps := []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: appSDKReply}}
-		if message == "sdk busy" || message == "sdk proxy" || message == "sdk cancel" {
+		switch message {
+		case "sdk busy", "sdk proxy":
 			steps = []acpmock.Step{
 				{Kind: acpmock.StepKindAssistant, Text: "started "},
 				{
@@ -114,6 +115,14 @@ func appSDKFixture(t *testing.T) string {
 					DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDelay, DelayMS: 1500},
 				},
 				{Kind: acpmock.StepKindAssistant, Text: appSDKReply},
+			}
+		case "sdk cancel":
+			steps = []acpmock.Step{
+				{Kind: acpmock.StepKindAssistant, Text: "started "},
+				{
+					Kind:          acpmock.StepKindDriverControl,
+					DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
+				},
 			}
 		}
 		turns = append(
