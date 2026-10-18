@@ -5,15 +5,18 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -22,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -320,6 +324,61 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("Handle(status after clear) error = %v", err)
 		}
 		assertGoalCommandOutcome(t, missing, session.GoalOutcomeError, session.GoalReasonNotActive)
+	})
+
+	// Invariant: Goal commands that create or clear a Goal advance the tool projection epoch, so
+	// epoch-cached goal_get availability flips at the transition and is reused between them.
+	// Owner: daemon Goal command dispatcher; canonical session Goal command suite.
+	t.Run("Should flip cached goal_get availability as set and clear advance the epoch", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		ctx := testutil.Context(t)
+		caller := session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"}
+		epoch := mcppkg.NewProjectionEpoch()
+		fixture.service.goalToolsChanged = func() { epoch.Advance() }
+		native := &daemonNativeTools{
+			deps:             &daemonNativeToolsDeps{Loops: func() core.LoopService { return fixture.service }},
+			goalAvailability: newNativeGoalAvailabilityCache(epoch.Current, nil),
+		}
+		scope := toolspkg.Scope{WorkspaceID: fixture.workspaceID, SessionID: fixture.sessionID}
+		requireGoalGet := func(label string, wantAvailable bool) {
+			t.Helper()
+			availability := native.goalGetAvailability(ctx, scope)
+			if availability.Available != wantAvailable {
+				t.Fatalf("goal_get availability %s = %#v, want available=%v", label, availability, wantAvailable)
+			}
+			if !wantAvailable && !slices.Contains(availability.ReasonCodes, toolspkg.ReasonGoalNotActive) {
+				t.Fatalf("goal_get availability %s reasons = %v, want goal_not_active", label, availability.ReasonCodes)
+			}
+		}
+		handle := func(verb string, objective string) session.GoalDispatchDecision {
+			t.Helper()
+			command := session.GoalCommand{Verb: verb, Objective: objective}
+			decision, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID, caller, command)
+			if err != nil {
+				t.Fatalf("Handle(%s) error = %v", verb, err)
+			}
+			return decision
+		}
+
+		requireGoalGet("before set", false)
+		beforeSet := epoch.Current()
+		assertGoalCommandOutcome(t, handle("set", "Ship the release"), session.GoalOutcomeStarted, "")
+		if epoch.Current() == beforeSet {
+			t.Fatal("Handle(set) did not advance the tool projection epoch")
+		}
+		requireGoalGet("after set", true)
+
+		beforeStatus := epoch.Current()
+		assertGoalCommandOutcome(t, handle("status", ""), session.GoalOutcomeStatus, "")
+		if epoch.Current() != beforeStatus {
+			t.Fatal("Handle(status) advanced the tool projection epoch for a read-only command")
+		}
+		requireGoalGet("after status", true)
+
+		assertGoalCommandOutcome(t, handle("clear", ""), session.GoalOutcomeCleared, "")
+		requireGoalGet("after clear", false)
 	})
 
 	t.Run("Should pin the reconciled active model for a provider-native default session", func(t *testing.T) {

@@ -43,7 +43,7 @@ func newBootLoopActionRegistry(
 		}}),
 	}
 	if goalStore, ok := store.(loopGoalProductionStore); ok && state.sessions != nil {
-		goalRuntime := newLoopGoalProductionRuntime(
+		goalRuntime := withGoalToolProjection(newLoopGoalProductionRuntime(
 			goalStore,
 			state.sessions,
 			globalWorkspacePath,
@@ -51,7 +51,8 @@ func newBootLoopActionRegistry(
 			time.Now,
 			state.logger,
 			worktrees,
-		)
+		), goalToolProjectionInvalidator(state))
+		installGoalToolProjectionObserver(state)
 		actionOptions[1] = looppkg.WithActionSessionBinder(goalRuntime)
 		goalOption, err := composeLoopGoalExecutor(
 			goalStore,

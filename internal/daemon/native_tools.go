@@ -44,6 +44,8 @@ const (
 
 type daemonNativeTools struct {
 	deps *daemonNativeToolsDeps
+	// goalAvailability is nil when no projection epoch is wired, which keeps Goal availability live.
+	goalAvailability *nativeGoalAvailabilityCache
 }
 
 type nativeToolBinding struct {
@@ -57,7 +59,10 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 	if deps == nil {
 		return nil, errors.New("daemon: native tool dependencies are required")
 	}
-	adapter := &daemonNativeTools{deps: deps}
+	adapter := &daemonNativeTools{
+		deps:             deps,
+		goalAvailability: newNativeGoalAvailabilityCache(deps.ProjectionEpoch, nil),
+	}
 	bindings := adapter.bindings()
 	descriptors := builtintools.NativeDescriptors()
 	if err := validateNativeToolBindings(descriptors, bindings); err != nil {

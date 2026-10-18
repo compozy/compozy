@@ -111,6 +111,9 @@ type daemonNativeToolsDeps struct {
 	WindowManagers        windowManagerProvider
 	Terminals             func() terminalpkg.Manager
 	TerminalExecApprover  terminalExecApprover
+
+	// ProjectionEpoch reports the daemon tool projection epoch that invalidates cached Goal availability.
+	ProjectionEpoch func() uint64
 }
 
 func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {
