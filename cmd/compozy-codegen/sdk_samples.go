@@ -12,10 +12,13 @@ import (
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
 )
 
+const sdkSampleTrue = "true"
+
 type sdkSample struct {
 	TypeScript string         `json:"typescript"`
 	Go         string         `json:"go"`
 	Kind       string         `json:"kind"`
+	Resource   string         `json:"resource"`
 	AppAccess  spec.AppAccess `json:"app_access"`
 }
 
@@ -40,10 +43,15 @@ func generateSDKSamples() ([]byte, error) {
 	manifest := sdkSampleManifest{Version: 1, Operations: make(map[string]sdkSample)}
 	for _, operation := range spec.Operations() {
 		kind := sdkOperationKind(operation)
-		sample := sdkSample{Kind: kind, AppAccess: operation.AppAccess}
-		if kind != "websocket" {
-			sample.TypeScript = "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\n" + sdkTypeScriptSample(operation, kind)
-			sample.Go = "c, err := client.New(ctx)\nif err != nil { return err }\n\n" + sdkGoSample(operation, kind, bodies[sdkgo.ClientMethodName(operation.OperationID)])
+		sample := sdkSample{Kind: kind, Resource: sdkResourceName(operation), AppAccess: operation.AppAccess}
+		if kind != sdkKindWebSocket {
+			sample.TypeScript = "import { Compozy } from \"@compozy/client\";\n\n" +
+				"const compozy = await Compozy.connect();\n" + sdkTypeScriptSample(operation, kind)
+			sample.Go = "c, err := client.New(ctx)\nif err != nil { return err }\n\n" + sdkGoSample(
+				operation,
+				kind,
+				bodies[sdkgo.ClientMethodName(operation.OperationID)],
+			)
 		}
 		manifest.Operations[operation.OperationID] = sample
 	}
@@ -55,17 +63,29 @@ func generateSDKSamples() ([]byte, error) {
 }
 
 func sdkTypeScriptSample(operation spec.OperationSpec, kind string) string {
-	if kind == "prompt" {
-		return "const reply = await compozy.prompt({\n  workspaceId: \"workspace-id\",\n  sessionId: \"session-id\",\n  message: \"Hello\",\n});\nif (reply.kind === \"stream\") {\n  for await (const chunk of reply.chunks) console.log(chunk);\n}"
+	if kind == sdkKindPrompt {
+		return "const reply = await compozy.prompt({\n  workspaceId: \"workspace-id\",\n" +
+			"  sessionId: \"session-id\",\n  message: \"Hello\",\n});\n" +
+			"if (reply.kind === \"stream\") {\n" +
+			"  for await (const chunk of reply.chunks) console.log(chunk);\n}"
 	}
 	options := sdkTypeScriptOptions(operation)
-	if kind == "sse" {
-		return fmt.Sprintf("for await (const frame of compozy.events(%q, %s)) {\n  console.log(frame);\n}", operation.OperationID, options)
+	if kind == sdkKindSSE {
+		return fmt.Sprintf(
+			"for await (const frame of compozy.events(%q, %s)) {\n  console.log(frame);\n}",
+			operation.OperationID,
+			options,
+		)
 	}
 	if options == "{}" {
 		options = ""
 	}
-	return fmt.Sprintf("const result = await compozy.%s.%s(%s);", sdkResourceName(operation), operation.OperationID, options)
+	return fmt.Sprintf(
+		"const result = await compozy.%s.%s(%s);",
+		sdkResourceName(operation),
+		operation.OperationID,
+		options,
+	)
 }
 
 func sdkTypeScriptOptions(operation spec.OperationSpec) string {
@@ -77,12 +97,13 @@ func sdkTypeScriptOptions(operation spec.OperationSpec) string {
 				continue
 			}
 			value := fmt.Sprintf("%q", parameter.Name)
-			if len(parameter.Enum) > 0 {
+			switch {
+			case len(parameter.Enum) > 0:
 				value = fmt.Sprintf("%q", parameter.Enum[0])
-			} else if parameter.Kind == "integer" {
+			case parameter.Kind == sdkParamInteger:
 				value = "1"
-			} else if parameter.Kind == "boolean" {
-				value = "true"
+			case parameter.Kind == sdkParamBoolean:
+				value = sdkSampleTrue
 			}
 			params = append(params, fmt.Sprintf("%q: %s", parameter.Name, value))
 		}
@@ -106,8 +127,12 @@ func sdkTypeScriptOptions(operation spec.OperationSpec) string {
 }
 
 func sdkGoSample(operation spec.OperationSpec, kind, body string) string {
-	if kind == "prompt" {
-		return "stream, err := c.Prompt(ctx, client.PromptInput{WorkspaceID: \"workspace-id\", SessionID: \"session-id\", Message: \"Hello\"})\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  chunk, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Print(chunk.TextDelta())\n}"
+	if kind == sdkKindPrompt {
+		return "stream, err := c.Prompt(ctx, client.PromptInput{WorkspaceID: " +
+			"\"workspace-id\", SessionID: \"session-id\", Message: \"Hello\"})\n" +
+			"if err != nil { return err }\ndefer stream.Close()\nfor {\n" +
+			"  chunk, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n" +
+			"  if err != nil { return err }\n  fmt.Print(chunk.TextDelta())\n}"
 	}
 	method := sdkgo.ClientMethodName(operation.OperationID)
 	arguments := []string{"ctx"}
@@ -118,12 +143,13 @@ func sdkGoSample(operation spec.OperationSpec, kind, body string) string {
 				continue
 			}
 			value := fmt.Sprintf("%q", parameter.Name)
-			if len(parameter.Enum) > 0 {
+			switch {
+			case len(parameter.Enum) > 0:
 				value = fmt.Sprintf("%q", parameter.Enum[0])
-			} else if parameter.Kind == "integer" {
+			case parameter.Kind == sdkParamInteger:
 				value = "1"
-			} else if parameter.Kind == "boolean" {
-				value = "true"
+			case parameter.Kind == sdkParamBoolean:
+				value = sdkSampleTrue
 			}
 			fields = append(fields, sdkgo.ClientParameterName(parameter.Name)+": "+value)
 		}
@@ -133,8 +159,10 @@ func sdkGoSample(operation spec.OperationSpec, kind, body string) string {
 		arguments = append(arguments, body)
 	}
 	call := fmt.Sprintf("c.%s(%s)", method, strings.Join(arguments, ", "))
-	if kind == "sse" {
-		return "stream, err := " + call + "\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}"
+	if kind == sdkKindSSE {
+		return "stream, err := " + call + "\nif err != nil { return err }\ndefer stream.Close()\nfor {\n" +
+			"  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n" +
+			"  if err != nil { return err }\n  fmt.Println(frame.Data)\n}"
 	}
 	for _, response := range operation.Responses {
 		if response.Status >= 200 && response.Status < 300 {
@@ -175,15 +203,15 @@ func checkSDKSamples(openapiPath string) error {
 }
 
 func checkSDKSampleMethods(root string) error {
-	ts, err := os.ReadFile(filepath.Join(root, "sdk/client/src/generated/sdk/sdk.gen.ts"))
+	ts, err := os.ReadFile(filepath.Join(root, defaultSDKTypeScriptPath, sdkDirectory, "sdk.gen.ts"))
 	if err != nil {
 		return fmt.Errorf("read TypeScript SDK for sample validation: %w", err)
 	}
-	sse, err := os.ReadFile(filepath.Join(root, "sdk/client/src/generated/sse/sdk.gen.ts"))
+	sse, err := os.ReadFile(filepath.Join(root, defaultSDKTypeScriptPath, sdkKindSSE, "sdk.gen.ts"))
 	if err != nil {
 		return fmt.Errorf("read stream SDK for sample validation: %w", err)
 	}
-	goFiles, err := filepath.Glob(filepath.Join(root, "sdk/go/client/*_gen.go"))
+	goFiles, err := filepath.Glob(filepath.Join(root, sdkDirectory, "go", sdkClientPackage, "*_gen.go"))
 	if err != nil {
 		return err
 	}
@@ -197,7 +225,7 @@ func checkSDKSampleMethods(root string) error {
 	}
 	for _, operation := range spec.Operations() {
 		kind := sdkOperationKind(operation)
-		if kind == "prompt" || kind == "websocket" {
+		if kind == sdkKindPrompt || kind == sdkKindWebSocket {
 			continue
 		}
 		resource := sdkResourceName(operation)
@@ -207,7 +235,7 @@ func checkSDKSampleMethods(root string) error {
 			!strings.Contains(class, operation.OperationID+"("))) {
 			return fmt.Errorf("SDK sample %s: TypeScript method is missing", operation.OperationID)
 		}
-		if kind == "sse" && !strings.Contains(string(sse), "export const "+operation.OperationID+" =") {
+		if kind == sdkKindSSE && !strings.Contains(string(sse), "export const "+operation.OperationID+" =") {
 			return fmt.Errorf("SDK sample %s: TypeScript stream binding is missing", operation.OperationID)
 		}
 		if !strings.Contains(goSource.String(), "func (c *Client) "+sdkgo.ClientMethodName(operation.OperationID)+"(") {

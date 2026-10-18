@@ -6215,9 +6215,35 @@ func TestGlobalDBAppTokenMigration(t *testing.T) {
 			seen, revoked                         sql.NullString
 		}
 		rows := []deviceRow{
-			{id: "device-active", name: "Desktop", hash: strings.Repeat("a", 64), kind: "operator_device", origin: "private", created: "2026-10-01T12:00:00Z", seen: sql.NullString{String: "2026-10-02T12:00:00Z", Valid: true}},
-			{id: "cli-active", name: "CLI", hash: strings.Repeat("b", 64), kind: "cli_profile", origin: "local", created: "2026-10-03T12:00:00Z", epoch: 2},
-			{id: "device-revoked", name: "Retired", hash: strings.Repeat("c", 64), kind: "operator_device", origin: "private", created: "2026-10-04T12:00:00Z", epoch: 4, seen: sql.NullString{String: "2026-10-05T12:00:00Z", Valid: true}, revoked: sql.NullString{String: "2026-10-06T12:00:00Z", Valid: true}},
+			{
+				id:      "device-active",
+				name:    "Desktop",
+				hash:    strings.Repeat("a", 64),
+				kind:    "operator_device",
+				origin:  "private",
+				created: "2026-10-01T12:00:00Z",
+				seen:    sql.NullString{String: "2026-10-02T12:00:00Z", Valid: true},
+			},
+			{
+				id:      "cli-active",
+				name:    "CLI",
+				hash:    strings.Repeat("b", 64),
+				kind:    "cli_profile",
+				origin:  "local",
+				created: "2026-10-03T12:00:00Z",
+				epoch:   2,
+			},
+			{
+				id:      "device-revoked",
+				name:    "Retired",
+				hash:    strings.Repeat("c", 64),
+				kind:    "operator_device",
+				origin:  "private",
+				created: "2026-10-04T12:00:00Z",
+				epoch:   4,
+				seen:    sql.NullString{String: "2026-10-05T12:00:00Z", Valid: true},
+				revoked: sql.NullString{String: "2026-10-06T12:00:00Z", Valid: true},
+			},
 		}
 		for _, row := range rows {
 			if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_device_sessions
@@ -6268,7 +6294,8 @@ func TestGlobalDBAppTokenMigration(t *testing.T) {
 		})
 		restarted := appTokenServiceForTest(t, reopened)
 		persisted, err := restarted.AuthenticateAppToken(ctx, issued.Secret)
-		if err != nil || persisted.Session.ID != issued.Token.Session.ID || len(persisted.Origins) != 1 || persisted.Origins[0] != "https://app.test" {
+		if err != nil || persisted.Session.ID != issued.Token.Session.ID || len(persisted.Origins) != 1 ||
+			persisted.Origins[0] != "https://app.test" {
 			t.Fatalf("token did not survive reopen: %#v, %v", persisted, err)
 		}
 		devices, err := restarted.ListDevices(ctx)

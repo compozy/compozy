@@ -1344,6 +1344,65 @@ func TestAppTokenAuthenticationFailureWindows(t *testing.T) {
 
 func TestAppTokenRequestLogging(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		secret string
+		err    error
+		reason string
+	}{
+		{
+			name:   "Should warn when a browser omits the required app token",
+			reason: "app_token_required",
+		},
+		{
+			name:   "Should warn about invalid credentials without exposing the secret",
+			secret: "cpz_app_log_invalid_secret",
+			err:    gateway.ErrAppTokenUnauthenticated,
+			reason: "app_token_unauthenticated",
+		},
+		{
+			name:   "Should warn about revoked credentials without exposing the secret",
+			secret: "cpz_app_log_revoked_secret",
+			err:    gateway.ErrAppTokenRevoked,
+			reason: "app_token_revoked",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			auth := appTokenHTTPAuthenticatorStub{
+				origin: func(string) bool { return true },
+				authenticate: func(context.Context, string) (gateway.AppToken, error) {
+					return gateway.AppToken{}, fmt.Errorf("authentication denied: %w", tc.err)
+				},
+			}
+			server := &Server{host: "127.0.0.1:2123", appTokenAuth: auth,
+				logger: slog.New(slog.NewJSONHandler(&logs, nil))}
+			router := gin.New()
+			router.Use(server.appTokenAuthMiddleware())
+			router.GET("/api/sessions", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"admitted": true}) })
+			request := appTokenTestRequest(t, http.MethodGet, "/api/sessions", "HTTP://APP.TEST:80/", tc.secret)
+			request.RemoteAddr = "127.0.0.1:4000"
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			assertAppTokenHTTPResponse(t, response, http.StatusUnauthorized, tc.reason)
+			var entry map[string]any
+			if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+				t.Fatalf("decode authentication warning: %v", err)
+			}
+			for key, want := range map[string]string{
+				"level": "WARN", "msg": "app_token.auth_failed", "origin": "http://app.test",
+				"remote": request.RemoteAddr, "reason": tc.reason,
+			} {
+				if entry[key] != want {
+					t.Errorf("warning %s = %v, want %q", key, entry[key], want)
+				}
+			}
+			if strings.Contains(logs.String(), "cpz_app_") || strings.Contains(logs.String(), "authentication denied") {
+				t.Fatalf("authentication warning exposed credential details: %s", logs.String())
+			}
+		})
+	}
 	t.Run("Should record the token identity without exposing its secret", func(t *testing.T) {
 		t.Parallel()
 		var logs bytes.Buffer

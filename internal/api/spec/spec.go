@@ -153,6 +153,7 @@ const (
 	specExtensionsKey  = "extensions"
 	specHooksKey       = "hooks"
 	specIntegerKey     = "integer"
+	specStringKey      = "string"
 	specLogsKey        = "logs"
 	specMarketplaceKey = "marketplace"
 

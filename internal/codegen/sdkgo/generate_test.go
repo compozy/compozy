@@ -167,10 +167,29 @@ func TestGenerateClient(t *testing.T) {
 	t.Run("Should preserve every stream variant and support binary text and multipart operations", func(t *testing.T) {
 		t.Parallel()
 		result, err := GenerateClient([]ClientOperation{
-			{ID: "readBytes", Method: "GET", Path: "/bytes", Kind: ClientOperationJSON, ResponseContentType: "application/octet-stream"},
+			{
+				ID:                  "readBytes",
+				Method:              "GET",
+				Path:                "/bytes",
+				Kind:                ClientOperationJSON,
+				ResponseContentType: "application/octet-stream",
+			},
 			{ID: "readHTML", Method: "GET", Path: "/html", Kind: ClientOperationJSON, ResponseContentType: "text/html"},
-			{ID: "uploadSessionAttachment", Method: "POST", Path: "/files", Kind: ClientOperationJSON, RequestContentType: "multipart/form-data", Response: SessionResponse{}},
-			{ID: "streamCatalog", Method: "GET", Path: "/events", Kind: ClientOperationSSE, ResponseVariants: []any{SessionResponse{}, SessionStreamFrame{}}},
+			{
+				ID:                 "uploadSessionAttachment",
+				Method:             "POST",
+				Path:               "/files",
+				Kind:               ClientOperationJSON,
+				RequestContentType: "multipart/form-data",
+				Response:           SessionResponse{},
+			},
+			{
+				ID:               "streamCatalog",
+				Method:           "GET",
+				Path:             "/events",
+				Kind:             ClientOperationSSE,
+				ResponseVariants: []any{SessionResponse{}, SessionStreamFrame{}},
+			},
 		}, ClientOptions{})
 		if err != nil {
 			t.Fatal(err)
@@ -212,8 +231,12 @@ func clientFixtureOperations(t *testing.T) []ClientOperation {
 			},
 		},
 		{
-			ID: "streamSession", Method: "GET", Path: "/api/workspaces/{workspace_id}/sessions/{session_id}/stream", Kind: ClientOperationSSE,
-			Summary: "streams a session.", Response: SessionStreamFrame{},
+			ID:       "streamSession",
+			Method:   "GET",
+			Path:     "/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
+			Kind:     ClientOperationSSE,
+			Summary:  "streams a session.",
+			Response: SessionStreamFrame{},
 			Params: []ClientParam{
 				{Name: "workspace_id", In: "path", GoType: "string", Required: true},
 				{Name: "session_id", In: "path", GoType: "string", Required: true},

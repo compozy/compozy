@@ -11,8 +11,20 @@ import (
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
 )
 
+const (
+	sdkDirectory      = "sdk"
+	sdkClientPackage  = "client"
+	sdkKindWebSocket  = "websocket"
+	sdkKindPrompt     = "prompt"
+	sdkKindSSE        = "sse"
+	sdkParamString    = "string"
+	sdkParamInteger   = "integer"
+	sdkParamBoolean   = "boolean"
+	sdkContentTypeSSE = "text/event-stream"
+)
+
 func sdkClientPathFor(openapiPath string) string {
-	return filepath.Join(filepath.Dir(filepath.Dir(openapiPath)), "sdk", "go", "client")
+	return filepath.Join(filepath.Dir(filepath.Dir(openapiPath)), sdkDirectory, "go", sdkClientPackage)
 }
 
 func generateSDKClient() (sdkgo.Result, error) {
@@ -21,7 +33,7 @@ func generateSDKClient() (sdkgo.Result, error) {
 		return sdkgo.Result{}, err
 	}
 	return sdkgo.GenerateClient(ops, sdkgo.ClientOptions{
-		PackageName: "client",
+		PackageName: sdkClientPackage,
 		Types:       []sdkgo.ClientType{{Name: "SendPromptResultPayload", Value: contract.SendPromptResultPayload{}}},
 	})
 }
@@ -29,7 +41,7 @@ func generateSDKClient() (sdkgo.Result, error) {
 func sdkClientOperations(registry []spec.OperationSpec) ([]sdkgo.ClientOperation, error) {
 	ops := make([]sdkgo.ClientOperation, 0, len(registry))
 	for _, source := range registry {
-		if source.OperationID == "sendSessionPrompt" || sdkOperationKind(source) == "websocket" {
+		if source.OperationID == "sendSessionPrompt" || sdkOperationKind(source) == sdkKindWebSocket {
 			continue
 		}
 		op := sdkgo.ClientOperation{
@@ -58,7 +70,7 @@ func sdkClientOperations(registry []spec.OperationSpec) ([]sdkgo.ClientOperation
 				continue
 			}
 			op.ResponseContentType = response.ContentType
-			if response.ContentType == "text/event-stream" {
+			if response.ContentType == sdkContentTypeSSE {
 				op.Kind = sdkgo.ClientOperationSSE
 			}
 			// Reflection only adapts compile-time DTO types during code generation.
@@ -71,7 +83,7 @@ func sdkClientOperations(registry []spec.OperationSpec) ([]sdkgo.ClientOperation
 				op.ResponseVariants = nil
 			}
 			if response.ContentType != "" && response.ContentType != "application/json" &&
-				response.ContentType != "text/event-stream" {
+				response.ContentType != sdkContentTypeSSE {
 				op.Response = []byte{}
 				op.ResponseVariants = nil
 			}
@@ -84,13 +96,13 @@ func sdkClientOperations(registry []spec.OperationSpec) ([]sdkgo.ClientOperation
 
 func sdkParameterType(parameter spec.ParameterSpec) (string, error) {
 	switch parameter.Kind {
-	case "", "string":
-		return "string", nil
+	case "", sdkParamString:
+		return sdkParamString, nil
 	case "array":
 		return "[]string", nil
-	case "boolean":
+	case sdkParamBoolean:
 		return "bool", nil
-	case "integer":
+	case sdkParamInteger:
 		if parameter.Format == "int64" {
 			return "int64", nil
 		}
@@ -102,22 +114,22 @@ func sdkParameterType(parameter spec.ParameterSpec) (string, error) {
 
 func sdkOperationKind(operation spec.OperationSpec) string {
 	if operation.OperationID == "sendSessionPrompt" {
-		return "prompt"
+		return sdkKindPrompt
 	}
 	upgrade := false
 	for _, response := range operation.Responses {
-		if response.ContentType == "text/event-stream" {
-			return "sse"
+		if response.ContentType == sdkContentTypeSSE {
+			return sdkKindSSE
 		}
 		if response.Status == 101 {
 			upgrade = true
 		}
 	}
-	if strings.Contains(operation.Stream, "sse") {
-		return "sse"
+	if strings.Contains(operation.Stream, sdkKindSSE) {
+		return sdkKindSSE
 	}
 	if upgrade {
-		return "websocket"
+		return sdkKindWebSocket
 	}
 	return "json"
 }

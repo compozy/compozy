@@ -1392,7 +1392,10 @@ func TestAppTokenCommands(t *testing.T) {
 					t.Error("invalid options must not construct a client")
 					return nil, errors.New("unexpected client")
 				}
-				code, stdout, stderr := executeRootCommandWithExit(t, deps, append([]string{"app-token"}, testCase.args...)...)
+				code, stdout, stderr := executeRootCommandWithExit(
+					t,
+					deps,
+					append([]string{"app-token"}, testCase.args...)...)
 				if code != 2 || stdout != "" || !strings.Contains(stderr, testCase.message) {
 					t.Fatalf("invalid option result = %d, %q, %q", code, stdout, stderr)
 				}
@@ -1454,7 +1457,10 @@ func TestAppTokenCommands(t *testing.T) {
 							}
 						}
 					}
-					return newHTTPResponse(http.StatusOK, `{"app_token":{"id":"apt_x","name":"Dashboard","origins":[]},"app_tokens":[]}`), nil
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"app_token":{"id":"apt_x","name":"Dashboard","origins":[]},"app_tokens":[]}`,
+					), nil
 				})
 				args := append([]string{"app-token"}, testCase.args...)
 				code, _, stderr := executeRootCommandWithExit(t, deps, append(args, "-o", "json")...)
@@ -1474,9 +1480,20 @@ func TestAppTokenCommands(t *testing.T) {
 					if request.Method != http.MethodDelete || request.URL.Path != appTokensPath+"/apt_missing" {
 						t.Fatalf("request = %s %s", request.Method, request.URL)
 					}
-					return newHTTPResponse(http.StatusNotFound, `{"error":"app token apt_missing not found","code":"app_token_not_found"}`), nil
+					return newHTTPResponse(
+						http.StatusNotFound,
+						`{"error":"app token apt_missing not found","code":"app_token_not_found"}`,
+					), nil
 				})
-				code, stdout, stderr := executeRootCommandWithExit(t, deps, "app-token", "revoke", "apt_missing", "-o", format)
+				code, stdout, stderr := executeRootCommandWithExit(
+					t,
+					deps,
+					"app-token",
+					"revoke",
+					"apt_missing",
+					"-o",
+					format,
+				)
 				if code != 69 || stdout != "" {
 					t.Fatalf("not-found result = %d, stdout %q, stderr %q", code, stdout, stderr)
 				}
@@ -1500,10 +1517,20 @@ func TestAppTokenCommands(t *testing.T) {
 	t.Run("Should display daemon validation codes in human errors", func(t *testing.T) {
 		t.Parallel()
 		deps := newAppTokenCommandTestDeps(t, func(*http.Request) (*http.Response, error) {
-			return newHTTPResponse(http.StatusBadRequest,
-				`{"error":"origin is invalid: use scheme://host[:port] with no path","code":"app_token_origin_invalid"}`), nil
+			return newHTTPResponse(
+				http.StatusBadRequest,
+				`{"error":"origin is invalid: use scheme://host[:port] with no path","code":"app_token_origin_invalid"}`,
+			), nil
 		})
-		code, stdout, stderr := executeRootCommandWithExit(t, deps, "app-token", "create", "Dashboard", "--origin", "https://x.test/path")
+		code, stdout, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"app-token",
+			"create",
+			"Dashboard",
+			"--origin",
+			"https://x.test/path",
+		)
 		if code != 65 || stdout != "" || !strings.Contains(stderr, "(app_token_origin_invalid)") {
 			t.Fatalf("invalid origin result = %d, %q, %q", code, stdout, stderr)
 		}
@@ -1536,7 +1563,8 @@ func TestAppTokenCommands(t *testing.T) {
 					})
 					args := append([]string{"app-token"}, testCase.args...)
 					code, stdout, stderr := executeRootCommandWithExit(t, deps, append(args, "-o", format)...)
-					if code != 0 || stderr != "" || !strings.Contains(stdout, token.ID) || strings.Contains(stdout, `"token":`) {
+					if code != 0 || stderr != "" || !strings.Contains(stdout, token.ID) ||
+						strings.Contains(stdout, `"token":`) {
 						t.Fatalf("receipt = %d, %q, %q", code, stdout, stderr)
 					}
 					if format == "human" && !strings.Contains(stdout, testCase.human) {
@@ -1547,7 +1575,8 @@ func TestAppTokenCommands(t *testing.T) {
 						if err := json.Unmarshal([]byte(stdout), &body); err != nil {
 							t.Fatalf("receipt is not JSON: %v", err)
 						}
-						if testCase.name == "revoke" && (string(body["changed"]) != "false" || string(body["canceled"]) != "0") {
+						if testCase.name == "revoke" &&
+							(string(body["changed"]) != "false" || string(body["canceled"]) != "0") {
 							t.Fatalf("idempotent revoke receipt = %s", stdout)
 						}
 					}
@@ -1562,25 +1591,44 @@ func TestAppTokenCommands(t *testing.T) {
 			t.Run("Should render creation as "+format, func(t *testing.T) {
 				t.Parallel()
 				result := contract.AppTokenIssuedResponse{
-					AppToken: contract.AppTokenPayload{ID: "apt_x", Name: "Dashboard", Origins: []string{}, CreatedAt: fixedTestNow},
-					Token:    "cpz_app_once",
+					AppToken: contract.AppTokenPayload{
+						ID:        "apt_x",
+						Name:      "Dashboard",
+						Origins:   []string{},
+						CreatedAt: fixedTestNow,
+					},
+					Token: "cpz_app_once",
 				}
 				deps := newAppTokenCommandTestDeps(t, func(*http.Request) (*http.Response, error) {
 					return newHTTPResponse(http.StatusCreated, string(mustJSON(t, result))), nil
 				})
-				code, stdout, stderr := executeRootCommandWithExit(t, deps, "app-token", "create", "Dashboard", "-o", format)
-				if code != 0 || stderr != "" || strings.Count(stdout, result.Token) != 1 || !strings.Contains(stdout, "apt_x") {
+				code, stdout, stderr := executeRootCommandWithExit(
+					t,
+					deps,
+					"app-token",
+					"create",
+					"Dashboard",
+					"-o",
+					format,
+				)
+				if code != 0 || stderr != "" || strings.Count(stdout, result.Token) != 1 ||
+					!strings.Contains(stdout, "apt_x") {
 					t.Fatalf("create %s = %d, %q, %q", format, code, stdout, stderr)
 				}
-				if format == "human" {
+				switch format {
+				case "human":
 					if !strings.Contains(stdout, "none (non-browser use only)") ||
 						!strings.Contains(stdout, "prompting agents that act on this") ||
 						!strings.Contains(stdout, "https://compozy.com/docs/apps/browser#security") {
 						t.Fatalf("human creation lacks capability/security context: %q", stdout)
 					}
-				} else if format == "json" || format == "jsonl" {
+				case "json", "jsonl":
 					var output contract.AppTokenIssuedResponse
-					if err := json.Unmarshal([]byte(stdout), &output); err != nil || output.Token != result.Token || output.AppToken.ID != "apt_x" {
+					if err := json.Unmarshal(
+						[]byte(stdout),
+						&output,
+					); err != nil || output.Token != result.Token ||
+						output.AppToken.ID != "apt_x" {
 						t.Fatalf("structured creation = %#v, err = %v", output, err)
 					}
 				}

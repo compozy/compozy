@@ -17,7 +17,7 @@ func NormalizeAppOrigin(raw string) (string, error) {
 		return "", err
 	}
 	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
+	if scheme != endpointSchemeHTTP && scheme != endpointSchemeHTTPS {
 		return "", ErrAppTokenOriginInvalid
 	}
 	host := strings.ToLower(parsed.Hostname())
@@ -67,7 +67,7 @@ func normalizeAppOriginPort(scheme, port string) (string, error) {
 	if err != nil || number < 1 || number > 65535 {
 		return "", ErrAppTokenOriginInvalid
 	}
-	if scheme == "http" && number == 80 || scheme == "https" && number == 443 {
+	if scheme == endpointSchemeHTTP && number == 80 || scheme == endpointSchemeHTTPS && number == 443 {
 		return "", nil
 	}
 	return strconv.Itoa(number), nil
@@ -92,7 +92,8 @@ func normalizeAppTokenOrigins(origins []string) ([]string, error) {
 
 func normalizeAppTokenName(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if !utf8.ValidString(name) || utf8.RuneCountInString(name) == 0 || utf8.RuneCountInString(name) > AppTokenNameLimit {
+	if !utf8.ValidString(name) || utf8.RuneCountInString(name) == 0 ||
+		utf8.RuneCountInString(name) > AppTokenNameLimit {
 		return "", ErrAppTokenNameInvalid
 	}
 	return name, nil

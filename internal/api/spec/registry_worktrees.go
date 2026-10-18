@@ -92,9 +92,13 @@ func inspectWorktreeOperationSpec() OperationSpec {
 
 func worktreeStatusOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreeStatusPath, AppAccess: AppAccessDenied, OperationID: "getWorktreeStatus",
-		Summary: "Read or refresh worktree status", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS},
+		Method:      httpMethodGet,
+		Path:        specAPIWorktreeStatusPath,
+		AppAccess:   AppAccessDenied,
+		OperationID: "getWorktreeStatus",
+		Summary:     "Read or refresh worktree status",
+		Tags:        []string{specWorktreesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: append(worktreeRouteParams(),
 			boolQueryParam("refresh", "Refresh local Git status"),
 			boolQueryParam("forge", "Refresh the serving forge provider"),
@@ -232,9 +236,13 @@ func dismissWorktreeOperationSpec() OperationSpec {
 
 func streamWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreeStreamPath, AppAccess: AppAccessDenied, OperationID: "streamWorktree",
-		Summary: "Stream durable worktree lifecycle events", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS},
+		Method:      httpMethodGet,
+		Path:        specAPIWorktreeStreamPath,
+		AppAccess:   AppAccessDenied,
+		OperationID: "streamWorktree",
+		Summary:     "Stream durable worktree lifecycle events",
+		Tags:        []string{specWorktreesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: append(worktreeRouteParams(),
 			afterSequenceQueryParam("Replay events after this durable sequence"),
 			optionalLastEventIDHeaderParam("Resume after this durable sequence"),

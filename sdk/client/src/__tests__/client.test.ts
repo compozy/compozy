@@ -61,6 +61,7 @@ async function connected(handler: (request: Request) => Response | Promise<Respo
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("connect and generated resources", () => {
@@ -199,6 +200,8 @@ describe("connect and generated resources", () => {
 });
 
 describe("prompt", () => {
+  // Invariant: both prompt helpers supply complete command identity, stable for a caller's key.
+  // Owner: SDK request encoding; canonical suite: this prompt boundary suite.
   it("unwraps accepted JSON and preserves mode, idempotency and turn fence", async () => {
     const { client, requests } = await connected(() =>
       Response.json({ prompt: accepted }, { status: 202 })
@@ -213,6 +216,7 @@ describe("prompt", () => {
     ).toEqual({ kind: "accepted", result: accepted });
     expect(await requests[0]!.json()).toEqual({
       message: "hello",
+      message_id: "id-1",
       mode: "queue",
       idempotency_key: "id-1",
       expected_turn_id: "turn-1",
@@ -220,6 +224,56 @@ describe("prompt", () => {
     expect(requests[0]!.headers.get("Authorization")).toBe("Bearer cpz_app_test");
     expect(requests[0]!.headers.get("X-Compozy-Client-ID")).toBe("my-app");
   });
+
+  it("preserves one message identity across retries and both prompt helpers", async () => {
+    vi.stubGlobal("crypto", undefined);
+    const { client, requests } = await connected(() =>
+      Response.json({ prompt: accepted }, { status: 202 })
+    );
+    const input = { ...promptInput, idempotencyKey: "retry/ação key" };
+    await client.prompt(input);
+    await client.prompt(input);
+    await client.promptResponse(input);
+    const bodies = await Promise.all(requests.map(request => request.json()));
+    expect(bodies).toEqual([
+      { message: "hello", message_id: input.idempotencyKey, idempotency_key: input.idempotencyKey },
+      { message: "hello", message_id: input.idempotencyKey, idempotency_key: input.idempotencyKey },
+      { message: "hello", message_id: input.idempotencyKey, idempotency_key: input.idempotencyKey },
+    ]);
+  });
+
+  it("generates separate prompt identities on HTTP origins without subtle or randomUUID", async () => {
+    const cryptoApi = globalThis.crypto;
+    vi.stubGlobal("crypto", { getRandomValues: cryptoApi.getRandomValues.bind(cryptoApi) });
+    const { client, requests } = await connected(() =>
+      Response.json({ prompt: accepted }, { status: 202 })
+    );
+    await client.prompt(promptInput);
+    await client.promptResponse(promptInput);
+    const bodies = await Promise.all(requests.map(request => request.json()));
+    for (const body of bodies) {
+      expect(body.idempotency_key).toEqual(expect.any(String));
+      expect(body.idempotency_key.length).toBeGreaterThan(0);
+      expect(body.message_id).toBe(body.idempotency_key);
+    }
+    expect(bodies[0].idempotency_key).not.toBe(bodies[1].idempotency_key);
+  });
+
+  it.each(["", "   "])(
+    "preserves an explicitly invalid key %j for daemon validation",
+    async key => {
+      vi.stubGlobal("crypto", undefined);
+      const { client, requests } = await connected(() =>
+        Response.json({ error: "idempotency_key is required" }, { status: 400 })
+      );
+      const input = { ...promptInput, idempotencyKey: key };
+      await expect(client.prompt(input)).rejects.toMatchObject({ status: 400 });
+      expect((await client.promptResponse(input)).status).toBe(400);
+      for (const request of requests) {
+        expect(await request.json()).toMatchObject({ message_id: key, idempotency_key: key });
+      }
+    }
+  );
 
   it.each(["[DONE]", ""])("yields UI chunks in order and ends at %s", async ending => {
     const chunks = [

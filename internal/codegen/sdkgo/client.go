@@ -16,6 +16,12 @@ const (
 	ClientOperationSSE  ClientOperationKind = "sse"
 )
 
+const (
+	clientParamInPath   = "path"
+	clientParamInQuery  = "query"
+	clientParamInHeader = "header"
+)
+
 // ClientParam describes a scalar HTTP parameter without depending on the API registry.
 type ClientParam struct {
 	Name     string
@@ -102,7 +108,10 @@ func GenerateClient(operations []ClientOperation, opts ClientOptions) (Result, e
 			roots = append(roots, ClientType{Name: exportIdentifier(op.ID) + "Response", Value: op.Response})
 		}
 		for index, variant := range op.ResponseVariants {
-			roots = append(roots, ClientType{Name: fmt.Sprintf("%sVariant%d", exportIdentifier(op.ID), index+1), Value: variant})
+			roots = append(
+				roots,
+				ClientType{Name: fmt.Sprintf("%sVariant%d", exportIdentifier(op.ID), index+1), Value: variant},
+			)
 		}
 		for _, root := range roots {
 			if err := g.addClientRoot(root.Value, root.Name); err != nil {
@@ -159,20 +168,24 @@ func validateClientParams(op ClientOperation) error {
 		switch param.GoType {
 		case "string", "bool", "int", "int64":
 		case "[]string":
-			if param.In != "query" {
-				return fmt.Errorf("operation %s parameter %s only supports string arrays in query parameters", op.ID, param.Name)
+			if param.In != clientParamInQuery {
+				return fmt.Errorf(
+					"operation %s parameter %s only supports string arrays in query parameters",
+					op.ID,
+					param.Name,
+				)
 			}
 		default:
 			return fmt.Errorf("operation %s parameter %s has unsupported Go type %q", op.ID, param.Name, param.GoType)
 		}
 		switch param.In {
-		case "path":
+		case clientParamInPath:
 			placeholder := "{" + param.Name + "}"
 			if !strings.Contains(path, placeholder) {
 				return fmt.Errorf("operation %s path has no parameter %s", op.ID, param.Name)
 			}
 			path = strings.ReplaceAll(path, placeholder, "")
-		case "query", "header":
+		case clientParamInQuery, clientParamInHeader:
 		default:
 			return fmt.Errorf("operation %s parameter %s has unsupported location %q", op.ID, param.Name, param.In)
 		}

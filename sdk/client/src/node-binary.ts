@@ -19,13 +19,22 @@ export async function resolveBinary(binaryPath?: string): Promise<string> {
     if (candidate && (await executable(candidate))) return resolve(candidate);
   }
   const name = process.platform === "win32" ? "compozy.exe" : "compozy";
-  try {
-    const require = createRequire(join(process.cwd(), "package.json"));
-    const packagePath = require.resolve("@compozy/cli/package.json");
-    const candidate = join(dirname(packagePath), "bin", name);
-    if (await executable(candidate)) return candidate;
-  } catch {
-    // The CLI package is optional; PATH is the final discovery source.
+  // Node anchors argv[1] to the application entry point even when the caller
+  // launches it from another directory. REPL/eval callers fall back to cwd.
+  const appEntry = process.argv[1];
+  const lookupPaths = [
+    ...(appEntry ? [resolve(appEntry)] : []),
+    join(process.cwd(), "package.json"),
+  ];
+  for (const lookupPath of lookupPaths) {
+    try {
+      const require = createRequire(lookupPath);
+      const packagePath = require.resolve("@compozy/cli/package.json");
+      const candidate = join(dirname(packagePath), "bin", name);
+      if (await executable(candidate)) return candidate;
+    } catch {
+      // The CLI package is optional; PATH is the final discovery source.
+    }
   }
   for (const directory of (process.env.PATH ?? "").split(delimiter)) {
     if (!directory) continue;

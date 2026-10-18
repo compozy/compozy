@@ -99,6 +99,14 @@ then its TCP record. Select TCP with `client.WithBaseURL("http://127.0.0.1:2123"
 `WithLogger`, and `WithClientID` customize authentication and transport. `c.DaemonVersion()` returns
 the connected version. A major/minor mismatch logs a warning but still connects.
 
+Some generated methods belong to HTTP-only routes: `MintGatewayStreamTicket`,
+`CompleteMCPAuthCallback`, `ListOpenAIModels`, `DeliverGlobalWebhook`, and
+`DeliverWorkspaceWebhook`. Create a client with `client.WithBaseURL("http://127.0.0.1:2123")`
+using your daemon's actual address before calling them. They are not registered on UDS and return
+404 when called through the default socket connection. The OpenAPI operation's
+`x-compozy-transports` lists its supported transports. Selecting HTTP does not change the route's
+authentication or app-access policy.
+
 ## Handle queued work and events
 
 When prompting a busy session with `Mode: "queue"`, check `stream.Accepted()` before reading. It

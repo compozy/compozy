@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"sync"
 )
 
@@ -94,7 +93,6 @@ func (s *DeviceService) CreateAppToken(ctx context.Context, name string, origins
 		return AppTokenIssued{}, fmt.Errorf("gateway: create app token: %w", err)
 	}
 	s.appTokens.setOrigins(union)
-	slog.InfoContext(ctx, "app_token.created", "app_token_id", token.Session.ID, "name", token.Session.Name)
 	return AppTokenIssued{Token: token, Secret: secret}, nil
 }
 
@@ -140,7 +138,6 @@ func (s *DeviceService) UpdateAppToken(ctx context.Context, id string, patch App
 		return AppToken{}, fmt.Errorf("gateway: update app token: %w", err)
 	}
 	s.appTokens.setOrigins(union)
-	slog.InfoContext(ctx, "app_token.updated", "app_token_id", id, "name", token.Session.Name)
 	return token, nil
 }
 
@@ -160,11 +157,6 @@ func (s *DeviceService) RevokeAppToken(ctx context.Context, id string) (AppToken
 		s.appTokens.setOrigins(union)
 		return token.Session, changed, nil
 	})
-	if err == nil {
-		slog.InfoContext(ctx, "app_token.revoked",
-			"app_token_id", id, "name", token.Session.Name, "canceled", result.Canceled,
-		)
-	}
 	return AppTokenRevokeResult{Token: token, Changed: result.Changed, Canceled: result.Canceled}, err
 }
 

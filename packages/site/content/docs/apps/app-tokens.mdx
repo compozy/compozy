@@ -85,16 +85,20 @@ streams closed. The next request rejects the secret; open streams close within f
 Repeating revoke is safe and reports `changed: false`. A revoked token cannot be updated; create a
 new token if the app needs access again.
 
+Revoking the last token that allows a browser origin also removes that origin's CORS grant. Browser
+JavaScript may therefore see a CORS/network failure instead of `401 app_token_revoked`; see
+[browser revocation and recovery](/docs/apps/browser#revoke-and-recover).
+
 ## Automate through HTTP or UDS
 
 The same management contract is available at:
 
-| Method and route | Result |
-| --- | --- |
-| `POST /api/app-tokens` with `{name, origins}` | `201` with `app_token` and the one-time `token` |
-| `GET /api/app-tokens?state=active` | `200` with `app_tokens` |
-| `PATCH /api/app-tokens/{app_token_id}` with optional `{name, origins}` | `200` with `app_token` |
-| `DELETE /api/app-tokens/{app_token_id}` | `200` with `app_token`, `changed`, and `canceled` |
+| Method and route                                                       | Result                                            |
+| ---------------------------------------------------------------------- | ------------------------------------------------- |
+| `POST /api/app-tokens` with `{name, origins}`                          | `201` with `app_token` and the one-time `token`   |
+| `GET /api/app-tokens?state=active`                                     | `200` with `app_tokens`                           |
+| `PATCH /api/app-tokens/{app_token_id}` with optional `{name, origins}` | `200` with `app_token`                            |
+| `DELETE /api/app-tokens/{app_token_id}`                                | `200` with `app_token`, `changed`, and `canceled` |
 
 Use local HTTP without a foreign `Origin`, or the daemon's Unix socket. App-token management is not
 exposed on Gateway listeners. The [API reference](/docs/api) supplies TypeScript and Go SDK calls.
@@ -103,15 +107,15 @@ structured CLI or local HTTP/UDS surfaces.
 
 ## Resolve errors
 
-| Code | Meaning |
-| --- | --- |
-| `app_token_name_invalid` | Name is blank or longer than 64 characters. |
-| `app_token_origin_invalid` | An origin has an unsupported shape. |
-| `app_token_origin_limit` | More than 16 origins were supplied. |
-| `app_token_limit` | Revoke an active token before creating another. |
-| `app_token_not_found` | The ID is unknown; CLI exits with `69`. |
-| `app_token_revoked` | Updating a revoked token is not allowed (`409`). |
-| `app_token_state_invalid` | HTTP `state` must be `active`, `revoked`, or `all` (`400`). |
+| Code                       | Meaning                                                     |
+| -------------------------- | ----------------------------------------------------------- |
+| `app_token_name_invalid`   | Name is blank or longer than 64 characters.                 |
+| `app_token_origin_invalid` | An origin has an unsupported shape.                         |
+| `app_token_origin_limit`   | More than 16 origins were supplied.                         |
+| `app_token_limit`          | Revoke an active token before creating another.             |
+| `app_token_not_found`      | The ID is unknown; CLI exits with `69`.                     |
+| `app_token_revoked`        | Updating a revoked token is not allowed (`409`).            |
+| `app_token_state_invalid`  | HTTP `state` must be `active`, `revoked`, or `all` (`400`). |
 
 The CLI rejects invalid `--state` and conflicting flags before sending a request, with exit code `2`.
 HTTP error bodies retain `error`, `code`, and optional `details` so automation can branch on the code.

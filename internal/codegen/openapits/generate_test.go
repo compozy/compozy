@@ -462,11 +462,11 @@ func TestSDKGeneration(t *testing.T) {
 		if !ok {
 			t.Fatal("runtime.Caller() failed")
 		}
-		root := filepath.Clean(filepath.Join(filepath.Dir(source), "../../.."))
+		root := filepath.Clean(filepath.Join(filepath.Dir(source), "..", "..", ".."))
 		dir := t.TempDir()
 		artifact := SDKArtifact{
 			SpecPath:   filepath.Join(dir, "spec.json"),
-			ConfigPath: filepath.Join(root, "sdk/client/openapi-ts.config.ts"),
+			ConfigPath: filepath.Join(root, "sdk", "client", "openapi-ts.config.ts"),
 			OutputPath: filepath.Join(dir, "generated"),
 		}
 		writeSDKTestSpec(t, artifact.SpecPath)
@@ -503,6 +503,68 @@ func TestSDKGeneration(t *testing.T) {
 		}
 		if err := CheckSDK(t.Context(), artifact); !errors.Is(err, ErrStaleGeneratedFile) {
 			t.Fatalf("CheckSDK() error = %v, want ErrStaleGeneratedFile", err)
+		}
+	})
+
+	t.Run("Should accept SDK file symlinks within their output roots", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		for _, job := range []string{"generated", "committed"} {
+			root := filepath.Join(dir, job)
+			if err := os.Mkdir(root, 0o755); err != nil {
+				t.Fatalf("create SDK root: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "target.ts"), []byte("export {};\n"), 0o600); err != nil {
+				t.Fatalf("write SDK file: %v", err)
+			}
+			if err := os.Symlink("target.ts", filepath.Join(root, "sdk.gen.ts")); err != nil {
+				t.Fatalf("create contained SDK file symlink: %v", err)
+			}
+		}
+		if err := checkSDKDirectory(filepath.Join(dir, "committed"), filepath.Join(dir, "generated")); err != nil {
+			t.Fatalf("checkSDKDirectory() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject SDK file symlinks that escape their output root", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name string
+			job  string
+		}{
+			{name: "Should reject an escaping generated file", job: "generated"},
+			{name: "Should reject an escaping committed file", job: "committed"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				outside := filepath.Join(dir, "outside.ts")
+				content := []byte("export {};\n")
+				if err := os.WriteFile(outside, content, 0o600); err != nil {
+					t.Fatalf("write outside file: %v", err)
+				}
+				for _, job := range []string{"generated", "committed"} {
+					root := filepath.Join(dir, job)
+					if err := os.Mkdir(root, 0o755); err != nil {
+						t.Fatalf("create SDK root: %v", err)
+					}
+					file := filepath.Join(root, "sdk.gen.ts")
+					if job == tc.job {
+						if err := os.Symlink(outside, file); err != nil {
+							t.Fatalf("create escaping SDK file: %v", err)
+						}
+					} else if err := os.WriteFile(file, content, 0o600); err != nil {
+						t.Fatalf("write SDK file: %v", err)
+					}
+				}
+				err := checkSDKDirectory(filepath.Join(dir, "committed"), filepath.Join(dir, "generated"))
+				if err == nil {
+					t.Fatal("checkSDKDirectory() error = nil, want escaped root error")
+				}
+			})
 		}
 	})
 

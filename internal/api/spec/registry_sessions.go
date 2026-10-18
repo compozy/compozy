@@ -479,7 +479,7 @@ func promptStreamResponse() ResponseSpec {
 	)
 	response.AdditionalContent = map[string]any{specContentTypeEventStream: contract.PromptStreamChunk{}}
 	response.Headers = map[string]ParameterSpec{"x-vercel-ai-ui-message-stream": {
-		Kind: "string", Enum: []string{"v1"}, Description: "Present on the event-stream response",
+		Kind: specStringKey, Enum: []string{"v1"}, Description: "Present on the event-stream response",
 	}}
 	return response
 }

@@ -83,12 +83,14 @@ export default function Chat() {
         </p>
       ))}
       {error && <p role="alert">{error.message}</p>}
-      <form onSubmit={event => {
-        event.preventDefault();
-        if (!input.trim()) return;
-        void sendMessage({ text: input });
-        setInput("");
-      }}>
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          if (!input.trim()) return;
+          void sendMessage({ text: input });
+          setInput("");
+        }}
+      >
         <label htmlFor="message">Message</label>
         <input id="message" value={input} onChange={event => setInput(event.target.value)} />
         <button disabled={status !== "ready"}>Send</button>

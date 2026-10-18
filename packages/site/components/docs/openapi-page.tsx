@@ -6,14 +6,12 @@ import { createCodeUsageGeneratorRegistry } from "fumadocs-openapi/requests/gene
 import { curl } from "fumadocs-openapi/requests/generators/curl";
 import { python } from "fumadocs-openapi/requests/generators/python";
 import { createOpenAPIPage } from "fumadocs-openapi/ui";
-import samples from "../../../../openapi/sdk-samples.json";
-import { generateSDKCodeSamples, type SDKSampleManifest } from "@/lib/sdk-samples";
 
 export type { OpenAPIPageProps_Preloaded } from "fumadocs-openapi/ui";
 
 const codeUsages = createCodeUsageGeneratorRegistry();
 codeUsages.add("curl", curl);
-// Reserve SDK positions between curl and Python; the operation hook replaces or removes them.
+// Per-operation x-codeSamples from the server replace or remove these reserved positions.
 codeUsages.add("sdk-typescript", { lang: "ts", label: "TypeScript SDK", generate: () => "" });
 codeUsages.add("sdk-go", { lang: "go", label: "Go SDK", generate: () => "" });
 codeUsages.add("python", python);
@@ -25,8 +23,6 @@ export const OpenAPIPage = createOpenAPIPage({
   },
   playground: { enabled: false },
   codeUsages,
-  generateCodeSamples: ({ operation }) =>
-    generateSDKCodeSamples(samples as SDKSampleManifest, operation.operationId),
   content: {
     // Site-owned wrappers so global.css can control rhythm, dividers, and the
     // two-column split without depending on fumadocs' internal DOM.

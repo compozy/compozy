@@ -55,7 +55,7 @@ export async function connect(
     } catch (cause) {
       if (init?.signal?.aborted || (input instanceof Request && input.signal.aborted)) throw cause;
       throw new CompozyUnavailableError(
-        "Compozy daemon is unavailable. Run `compozy daemon start`.",
+        "CompozyOS daemon is unavailable. Run `compozy daemon start`.",
         { cause }
       );
     }
@@ -74,7 +74,7 @@ export async function connect(
   } catch (cause) {
     if (cause instanceof CompozyApiError || cause instanceof CompozyConfigError) throw cause;
     throw new CompozyUnavailableError(
-      "Compozy daemon is unavailable. Run `compozy daemon start`.",
+      "CompozyOS daemon is unavailable. Run `compozy daemon start`.",
       { cause }
     );
   } finally {
@@ -127,6 +127,6 @@ export function checkVersion(
   (
     onMismatch ??
     (versions =>
-      console.warn(`Compozy client ${versions.client} differs from daemon ${versions.daemon}.`))
+      console.warn(`CompozyOS client ${versions.client} differs from daemon ${versions.daemon}.`))
   )({ client, daemon });
 }

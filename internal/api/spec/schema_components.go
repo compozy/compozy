@@ -13,6 +13,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+const schemaTimePackage = "time"
+
 var operationComponentNames = sync.OnceValues(func() (map[reflect.Type]string, error) {
 	var roots []reflect.Type
 	for _, operation := range Operations() {
@@ -80,7 +82,7 @@ func collectSchemaTypes(typeOf reflect.Type, seen map[reflect.Type]struct{}) {
 	case reflect.Array, reflect.Slice, reflect.Map:
 		collectSchemaTypes(typeOf.Elem(), seen)
 	case reflect.Struct:
-		if typeOf.PkgPath() == "time" {
+		if typeOf.PkgPath() == schemaTimePackage {
 			return
 		}
 		for field := range typeOf.Fields() {
@@ -96,7 +98,7 @@ func collectSchemaTypes(typeOf reflect.Type, seen map[reflect.Type]struct{}) {
 }
 
 func isComponentType(typeOf reflect.Type) bool {
-	return typeOf.Kind() == reflect.Struct && typeOf.Name() != "" && typeOf.PkgPath() != "time"
+	return typeOf.Kind() == reflect.Struct && typeOf.Name() != "" && typeOf.PkgPath() != schemaTimePackage
 }
 
 func pascalPackageName(packagePath string) string {

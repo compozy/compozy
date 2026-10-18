@@ -90,7 +90,6 @@ func renderClientChunks(files map[string][]byte, prefix string, blocks []*jen.St
 		if strings.Count(string(next), "\n") > 450 && len(current) > 0 {
 			files[fmt.Sprintf("%s_%03d_gen.go", prefix, fileNumber)] = content
 			fileNumber++
-			current = nil
 			candidate = []*jen.Statement{block}
 			next, err = render(candidate)
 			if err != nil {
@@ -110,14 +109,18 @@ func renderClientParams(op ClientOperation) *jen.Statement {
 	fields := make([]jen.Code, 0, len(op.Params))
 	for _, param := range op.Params {
 		field := jen.Id(clientParameterField(param))
-		if !param.Required && param.In != "path" {
+		if !param.Required && param.In != clientParamInPath {
 			field.Op("*")
 		}
 		field.Id(param.GoType).Tag(map[string]string{"url": param.Name})
 		fields = append(fields, field)
 	}
 	name := exportIdentifier(op.ID) + "Params"
-	return jen.Comment(name + " carries the path, query, and header parameters.").Line().Type().Id(name).Struct(fields...)
+	return jen.Comment(name + " carries the path, query, and header parameters.").
+		Line().
+		Type().
+		Id(name).
+		Struct(fields...)
 }
 
 func renderClientMethod(g *typeGenerator, op ClientOperation) (*jen.Statement, error) {
@@ -163,8 +166,10 @@ func renderClientMethod(g *typeGenerator, op ClientOperation) (*jen.Statement, e
 		if responseType == nil {
 			statements = append(statements, jen.Return(call))
 		} else {
-			statements = append(statements,
-				jen.If(jen.Id("err").Op(":=").Add(call), jen.Id("err").Op("!=").Nil()).Block(jen.Return(jen.Nil(), jen.Id("err"))),
+			statements = append(
+				statements,
+				jen.If(jen.Id("err").Op(":=").Add(call), jen.Id("err").Op("!=").Nil()).
+					Block(jen.Return(jen.Nil(), jen.Id("err"))),
 				jen.Return(output, jen.Nil()),
 			)
 		}
@@ -214,29 +219,29 @@ func renderClientRequest(op ClientOperation) ([]jen.Code, *jen.Statement) {
 	query := false
 	hasHeaders := false
 	for _, param := range op.Params {
-		if param.In == "header" && !hasHeaders {
+		if param.In == clientParamInHeader && !hasHeaders {
 			statements = append(statements, jen.Id("headers").Op(":=").Qual("net/http", "Header").Values())
 			headers = jen.Id("headers")
 			hasHeaders = true
 		}
-		if param.In == "query" && !query {
+		if param.In == clientParamInQuery && !query {
 			statements = append(statements, jen.Id("query").Op(":=").Qual("net/url", "Values").Values())
 			query = true
 		}
 		field := func() *jen.Statement { return jen.Id("params").Dot(clientParameterField(param)) }
 		value := field()
-		optional := !param.Required && param.In != "path"
+		optional := !param.Required && param.In != clientParamInPath
 		if optional {
 			value = jen.Op("*").Add(value)
 		}
 		encoded := renderClientParamValue(param.GoType, value)
 		var encode *jen.Statement
 		switch param.In {
-		case "path":
+		case clientParamInPath:
 			encode = jen.Id("path").Op("=").Qual("strings", "ReplaceAll").Call(
 				jen.Id("path"), jen.Lit("{"+param.Name+"}"), jen.Qual("net/url", "PathEscape").Call(encoded),
 			)
-		case "query":
+		case clientParamInQuery:
 			if param.GoType == "[]string" {
 				encode = jen.For(jen.List(jen.Id("_"), jen.Id("value")).Op(":=").Range().Add(value)).Block(
 					jen.Id("query").Dot("Add").Call(jen.Lit(param.Name), jen.Id("value")),
@@ -244,7 +249,7 @@ func renderClientRequest(op ClientOperation) ([]jen.Code, *jen.Statement) {
 			} else {
 				encode = jen.Id("query").Dot("Set").Call(jen.Lit(param.Name), encoded)
 			}
-		case "header":
+		case clientParamInHeader:
 			encode = headers.Clone().Dot("Set").Call(jen.Lit(param.Name), encoded)
 		}
 		if optional {

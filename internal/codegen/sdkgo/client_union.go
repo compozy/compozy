@@ -15,7 +15,8 @@ func renderClientUnion(g *typeGenerator, op ClientOperation) ([]*jen.Statement, 
 		jen.Var().Id("_").Qual("encoding/json", "Unmarshaler").Op("=").Parens(jen.Op("*").Id(name)).Call(jen.Nil()),
 		jen.Var().Id("_").Qual("encoding/json", "Marshaler").Op("=").Id(name).Values(),
 		jen.Comment("UnmarshalJSON retains the complete event payload.").Line().Func().
-			Params(jen.Id("f").Op("*").Id(name)).Id("UnmarshalJSON").Params(jen.Id("data").Index().Byte()).Error().Block(
+			Params(jen.Id("f").Op("*").Id(name)).
+			Id("UnmarshalJSON").Params(jen.Id("data").Index().Byte()).Error().Block(
 			jen.Return(jen.Qual("encoding/json", "Unmarshal").Call(jen.Id("data"), jen.Op("&").Id("f").Dot("Raw"))),
 		),
 		jen.Comment("MarshalJSON returns the original event payload.").Line().Func().
@@ -49,9 +50,11 @@ func renderClientUnion(g *typeGenerator, op ClientOperation) ([]*jen.Statement, 
 			Params(jen.Id("f").Id(name)).Id(methodName).Params().Params(jen.Op("*").Add(code), jen.Error()).Block(
 			jen.Var().Id("out").Add(code),
 			jen.If(jen.Id("err").Op(":=").Qual("encoding/json", "Unmarshal").Call(jen.Id("f").Dot("Raw"), jen.Op("&").Id("out")),
-				jen.Id("err").Op("!=").Nil()).Block(jen.Return(jen.Nil(), jen.Id("err"))),
+				jen.Id("err").Op("!=").Nil()).
+				Block(jen.Return(jen.Nil(), jen.Id("err"))),
 			jen.Return(jen.Op("&").Id("out"), jen.Nil()),
-		))
+		),
+		)
 	}
 	return blocks, nil
 }

@@ -2,6 +2,7 @@ package spec
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 
@@ -65,9 +66,7 @@ func registerWindowManagerComponentSchemas(schemas openapi3.Schemas) error {
 		if err != nil {
 			return fmt.Errorf("build %s: %w", component.name, err)
 		}
-		for schema, source := range reflected {
-			sources[schema] = source
-		}
+		maps.Copy(sources, reflected)
 		if generated := legacy[component.name]; generated != nil && generated.Value != nil {
 			continue
 		}
@@ -81,12 +80,16 @@ func registerWindowManagerComponentSchemas(schemas openapi3.Schemas) error {
 	}
 	// Apply contextual constraints before sharing schemas so nested wire shapes stay unchanged.
 	customizeWindowManagerSchemas(legacy)
-	for name, schema := range legacy {
-		schemas[name] = schema
-	}
+	maps.Copy(schemas, legacy)
 	for _, component := range windowManagerComponentSchemas {
 		schemaRef := legacy[component.name]
-		if err := componentizeSchema(schemaRef, sources, names, schemas, make(map[*openapi3.Schema]struct{})); err != nil {
+		if err := componentizeSchema(
+			schemaRef,
+			sources,
+			names,
+			schemas,
+			make(map[*openapi3.Schema]struct{}),
+		); err != nil {
 			return err
 		}
 		schemas[component.name] = &openapi3.SchemaRef{Value: schemaRef.Value}

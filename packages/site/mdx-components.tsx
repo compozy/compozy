@@ -1,4 +1,6 @@
 import defaultMdxComponents from "fumadocs-ui/mdx";
+import samples from "../../openapi/sdk-samples.json";
+import { withSDKCodeSamples, type SDKSampleManifest } from "@/lib/sdk-samples";
 import {
   GuideCard,
   GuideGrid,
@@ -25,7 +27,14 @@ function createPreloadedOpenAPIPage(openapiPreload: OpenAPIPagePreload | undefin
     if (!openapiPreload) {
       throw new Error("OpenAPIPage rendered without preloaded OpenAPI documents.");
     }
-    return <OpenAPIPageClient {...props} preloaded={openapiPreload.preloaded} />;
+    return (
+      <OpenAPIPageClient
+        {...withSDKCodeSamples(
+          { ...props, preloaded: openapiPreload.preloaded },
+          samples as SDKSampleManifest
+        )}
+      />
+    );
   }
 
   return OpenAPIPage;

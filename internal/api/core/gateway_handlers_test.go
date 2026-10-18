@@ -644,7 +644,10 @@ func TestAppTokenErrorContract(t *testing.T) {
 				RespondAppTokenError(c, test.err, test.authentication)
 			})
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/failure", http.NoBody))
+			router.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/failure", http.NoBody),
+			)
 			var payload contract.ErrorPayload
 			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 				t.Fatalf("decode app-token error: %v; body=%s", err, response.Body.String())

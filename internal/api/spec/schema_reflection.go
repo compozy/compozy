@@ -56,16 +56,18 @@ func reflectSchemaValue(
 			}
 			return t.Name()
 		}),
-		openapi3gen.SchemaCustomizer(func(name string, t reflect.Type, tag reflect.StructTag, schema *openapi3.Schema) error {
-			sources[schema] = t
-			if err := schemaCustomizer(name, t, tag, schema); err != nil {
-				return err
-			}
-			if isComponentSchema(t) {
-				schema.Origin = &openapi3.Origin{Key: &openapi3.Location{File: t.PkgPath(), Name: t.Name()}}
-			}
-			return nil
-		}),
+		openapi3gen.SchemaCustomizer(
+			func(name string, t reflect.Type, tag reflect.StructTag, schema *openapi3.Schema) error {
+				sources[schema] = t
+				if err := schemaCustomizer(name, t, tag, schema); err != nil {
+					return err
+				}
+				if isComponentSchema(t) {
+					schema.Origin = &openapi3.Origin{Key: &openapi3.Location{File: t.PkgPath(), Name: t.Name()}}
+				}
+				return nil
+			},
+		),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -245,7 +247,7 @@ func applyStructRequirements(
 	if schema == nil || t.Kind() != reflect.Struct {
 		return
 	}
-	if t.PkgPath() == "time" && t.Name() == "Time" {
+	if t.PkgPath() == schemaTimePackage && t.Name() == "Time" {
 		return
 	}
 	if schema.Properties == nil {

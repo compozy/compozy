@@ -73,10 +73,11 @@ func runWithAllPaths(
 	lifecycleMatrixPath := lifecycleMatrixPathFor(openapiPath)
 	nativeToolCatalogPath := nativeToolCatalogPathFor(openapiPath)
 	terminalWirePaths := terminalWirePathsFor(openapiPath)
+	checkOnly := len(args) > 1 && args[1] == "--check"
 
 	switch args[0] {
 	case "host-api":
-		if len(args) > 1 && args[1] == "--check" {
+		if checkOnly {
 			return checkHostAPIContracts()
 		}
 		return writeHostAPIContracts()
@@ -85,17 +86,17 @@ func runWithAllPaths(
 	case "sdk-contracts":
 		return writeSDKContracts(ctx, sdkContractsPath)
 	case "sdk-contracts-go":
-		if len(args) > 1 && args[1] == "--check" {
+		if checkOnly {
 			return checkSDKGoContracts(sdkGoContractsPath)
 		}
 		return writeSDKGoContracts(sdkGoContractsPath)
 	case "sdk-client-go":
-		if len(args) > 1 && args[1] == "--check" {
+		if checkOnly {
 			return checkSDKClient(sdkClientPathFor(openapiPath))
 		}
 		return writeSDKClient(sdkClientPathFor(openapiPath))
 	case "sdk-samples":
-		if len(args) > 1 && args[1] == "--check" {
+		if checkOnly {
 			if err := checkSDKSamples(openapiPath); err != nil {
 				return err
 			}

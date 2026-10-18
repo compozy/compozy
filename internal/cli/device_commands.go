@@ -75,7 +75,7 @@ func newDeviceRevokeCommand(deps commandDeps) *cobra.Command {
 			}
 			status := gatewayDeviceStatusUnchanged
 			if result.Changed {
-				status = "revoked"
+				status = gatewayRevokedState
 			}
 			return writeCommandOutput(
 				cmd,

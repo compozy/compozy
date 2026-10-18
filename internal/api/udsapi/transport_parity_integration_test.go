@@ -3760,6 +3760,10 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 			}
 			path := "/api/app-tokens/" + issued.AppToken.ID
 			listed := request(false, http.MethodGet, "/api/app-tokens", "", nil, http.StatusOK)
+			udsListed := request(true, http.MethodGet, "/api/app-tokens", "", nil, http.StatusOK)
+			if !jsonEqual(listed, udsListed) {
+				t.Fatalf("app token lists differ: HTTP=%s UDS=%s", listed, udsListed)
+			}
 			var tokens compozycontract.AppTokensResponse
 			if err := json.Unmarshal(listed, &tokens); err != nil {
 				t.Fatalf("decode listed tokens: %v", err)
@@ -3885,6 +3889,15 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 			}
 			decodeError(request(false, http.MethodPost, "/api/app-tokens",
 				`{"name":"Forbidden"}`, browserHeaders, http.StatusForbidden), "app_token_route_forbidden")
+			var udsUpdate compozycontract.AppTokenResponse
+			if err := json.Unmarshal(request(true, http.MethodPatch, path,
+				`{"name":"UDS browser"}`, nil, http.StatusOK), &udsUpdate); err != nil {
+				t.Fatal(err)
+			}
+			if udsUpdate.AppToken.Name != "UDS browser" ||
+				!slices.Equal(udsUpdate.AppToken.Origins, []string{"http://localhost:3000"}) {
+				t.Fatalf("UDS app-token patch = %#v, want renamed token and preserved origins", udsUpdate.AppToken)
+			}
 			updated := request(false, http.MethodPatch, path,
 				`{"name":"Updated browser","origins":["https://dash.example.com"]}`, nil, http.StatusOK)
 			var update compozycontract.AppTokenResponse
@@ -3973,7 +3986,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 			var localOnly compozycontract.AppTokenIssuedResponse
 			if err := json.Unmarshal(
 				request(
-					true,
+					false,
 					http.MethodPost,
 					"/api/app-tokens",
 					`{"name":"Local attribution"}`,

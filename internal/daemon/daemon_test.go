@@ -364,7 +364,8 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadInfo() error = %v", err)
 	}
-	if got.PID != info.PID || got.Port != info.Port || got.HTTPHost != info.HTTPHost || !got.StartedAt.Equal(info.StartedAt) {
+	if got.PID != info.PID || got.Port != info.Port || got.HTTPHost != info.HTTPHost ||
+		!got.StartedAt.Equal(info.StartedAt) {
 		t.Fatalf("ReadInfo() = %#v, want %#v", got, info)
 	}
 

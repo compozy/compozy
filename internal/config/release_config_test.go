@@ -697,7 +697,11 @@ esac
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
-				cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"))
+				cmd := exec.CommandContext(
+					t.Context(),
+					"bash",
+					filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"),
+				)
 				cmd.Dir = repo
 				cmd.Env = append(os.Environ(), "FAKE_CLIENT_REGISTRY_STATE="+testCase.state,
 					"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -1636,7 +1640,12 @@ func TestSDKPublisher(t *testing.T) {
 			assertEqualString(t, "published version", stringAt(t, manifest, "version"), "0.4.0-beta.7")
 			original := readYAMLMap(t, source, "package.json")
 			assertEqualString(t, "source version", stringAt(t, original, "version"), "0.0.0")
-			assertEqualString(t, "published README", readTextFile(t, published, "README.md"), "SDK package documentation\n")
+			assertEqualString(
+				t,
+				"published README",
+				readTextFile(t, published, "README.md"),
+				"SDK package documentation\n",
+			)
 			publishArgs := readTextFile(t, filepath.Dir(argsPath), filepath.Base(argsPath))
 			for _, want := range []string{"--access\npublic\n", "--tag\nbeta\n", "--provenance\n"} {
 				assertContainsText(t, "npm publish arguments", publishArgs, want)
@@ -1649,13 +1658,23 @@ import { pathToFileURL } from "node:url";
 const require = createRequire(import.meta.url);
 console.log(require(process.argv[1]).CLIENT_VERSION);
 console.log((await import(pathToFileURL(process.argv[2]))).CLIENT_VERSION);
-`, filepath.Join(published, "dist/cjs/version.js"), filepath.Join(published, "dist/esm/version.js"))
+`, filepath.Join(published, "dist", "cjs", "version.js"), filepath.Join(published, "dist", "esm", "version.js"))
 				versions, err := versionCheck.CombinedOutput()
 				if err != nil || string(versions) != "0.4.0-beta.7\n0.4.0-beta.7\n" {
 					t.Fatalf("published runtime versions = %q, err = %v", versions, err)
 				}
-				assertContainsText(t, "published declaration", readTextFile(t, published, "dist/types/version.d.ts"), `"0.4.0-beta.7"`)
-				assertContainsText(t, "source runtime version", readTextFile(t, source, "src/version.ts"), `"0.0.0-dev"`)
+				assertContainsText(
+					t,
+					"published declaration",
+					readTextFile(t, published, "dist/types/version.d.ts"),
+					`"0.4.0-beta.7"`,
+				)
+				assertContainsText(
+					t,
+					"source runtime version",
+					readTextFile(t, source, "src/version.ts"),
+					`"0.0.0-dev"`,
+				)
 			}
 		})
 	}
@@ -1666,7 +1685,12 @@ console.log((await import(pathToFileURL(process.argv[2]))).CLIENT_VERSION);
 		if output, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("SDK publisher dry run = %v, output: %s", err, output)
 		}
-		assertContainsText(t, "npm dry run arguments", readTextFile(t, filepath.Dir(argsPath), filepath.Base(argsPath)), "--dry-run\n")
+		assertContainsText(
+			t,
+			"npm dry run arguments",
+			readTextFile(t, filepath.Dir(argsPath), filepath.Base(argsPath)),
+			"--dry-run\n",
+		)
 	})
 
 	for _, testCase := range []struct {
@@ -1698,7 +1722,7 @@ console.log((await import(pathToFileURL(process.argv[2]))).CLIENT_VERSION);
 	t.Run("Should stop publication when a runtime version artifact is missing", func(t *testing.T) {
 		t.Parallel()
 		cmd, source, _, argsPath := newSDKPublisherFixture(t, "@compozy/client", "missing", false)
-		if err := os.Remove(filepath.Join(source, "dist/cjs/version.js")); err != nil {
+		if err := os.Remove(filepath.Join(source, "dist", "cjs", "version.js")); err != nil {
 			t.Fatalf("remove fixture artifact: %v", err)
 		}
 		if output, err := cmd.CombinedOutput(); err == nil {
@@ -1710,7 +1734,11 @@ console.log((await import(pathToFileURL(process.argv[2]))).CLIENT_VERSION);
 	})
 }
 
-func newSDKPublisherFixture(t *testing.T, packageName, registryState string, dryRun bool) (*exec.Cmd, string, string, string) {
+func newSDKPublisherFixture(
+	t *testing.T,
+	packageName, registryState string,
+	dryRun bool,
+) (*exec.Cmd, string, string, string) {
 	t.Helper()
 	root := findRepoRootForReleaseConfigTest(t)
 	fixture := t.TempDir()
@@ -1719,7 +1747,10 @@ func newSDKPublisherFixture(t *testing.T, packageName, registryState string, dry
 	bin := filepath.Join(fixture, "bin")
 	argsPath := filepath.Join(fixture, "publish-args")
 	files := map[string]string{
-		"sdk/package.json":      fmt.Sprintf(`{"name":%q,"private":false,"version":"0.0.0","license":"MIT"}`, packageName),
+		"sdk/package.json": fmt.Sprintf(
+			`{"name":%q,"private":false,"version":"0.0.0","license":"MIT"}`,
+			packageName,
+		),
 		"sdk/LICENSE":           "MIT\n",
 		"sdk/README.md":         "SDK package documentation\n",
 		"sdk/dist/cjs/index.js": "module.exports = {};\n",
@@ -1765,7 +1796,7 @@ esac
 			t.Fatalf("write publisher fixture: %v", err)
 		}
 	}
-	args := []string{filepath.Join(root, "scripts/publish-sdk-package.sh")}
+	args := []string{filepath.Join(root, "scripts", "publish-sdk-package.sh")}
 	if dryRun {
 		args = append(args, "--dry-run")
 	}

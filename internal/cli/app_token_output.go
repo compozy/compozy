@@ -71,7 +71,7 @@ func appTokensOutput(result contract.AppTokensResponse, now func() time.Time) ou
 			}
 			state := "active"
 			if token.RevokedAt != nil {
-				state = "revoked"
+				state = gatewayRevokedState
 			}
 			return []string{token.ID, token.Name, origins, lastUsed, state}
 		}, appTokenValues)

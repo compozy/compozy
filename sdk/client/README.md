@@ -34,6 +34,9 @@ other SSE operations through `events(operationId, options)`, which reconnects wi
 after network or server failures. Client errors stop immediately; 20 consecutive failures stop the
 stream. Aborting a prompt stops reading without canceling the daemon's turn.
 
+Prompt helpers generate a command identity when `idempotencyKey` is omitted. Supply the same key
+when retrying the same input to preserve its message identity and replay the daemon's receipt.
+
 The Node-only `@compozy/client/node` entry adds `Compozy.start({ home })` and
 `close({ stopDaemon: true })`. It only stops the daemon this instance started while the same home
 still names the owned process. The main browser entry contains no Node modules.

@@ -1,6 +1,7 @@
 package openapits
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 // SDKArtifact describes the two generated SDK jobs and their shared source.
@@ -31,7 +33,10 @@ func GenerateSDK(ctx context.Context, artifact SDKArtifact) error {
 func CheckSDK(ctx context.Context, artifact SDKArtifact) error {
 	return withSDKOutput(ctx, artifact, func(generated string) error {
 		for _, job := range []string{"sdk", "sse"} {
-			if err := checkSDKDirectory(filepath.Join(artifact.OutputPath, job), filepath.Join(generated, job)); err != nil {
+			if err := checkSDKDirectory(
+				filepath.Join(artifact.OutputPath, job),
+				filepath.Join(generated, job),
+			); err != nil {
 				return err
 			}
 		}
@@ -56,7 +61,16 @@ func withSDKOutput(ctx context.Context, artifact SDKArtifact, use func(string) e
 			err = errors.Join(err, fmt.Errorf("remove temporary SDK output: %w", removeErr))
 		}
 	}()
-	if err := runCommand(ctx, "bun", "--eval", sdkGenerator, "--", artifact.SpecPath, artifact.ConfigPath, dir); err != nil {
+	if err := runCommand(
+		ctx,
+		"bun",
+		"--eval",
+		sdkGenerator,
+		"--",
+		artifact.SpecPath,
+		artifact.ConfigPath,
+		dir,
+	); err != nil {
 		return fmt.Errorf("generate TypeScript SDK: %w", err)
 	}
 	if err := (execRunner{}).Run(ctx, "oxfmt", dir); err != nil {
@@ -75,41 +89,65 @@ func (artifact SDKArtifact) validate() error {
 	return nil
 }
 
-func checkSDKDirectory(committed, generated string) error {
+func checkSDKDirectory(committed, generated string) (err error) {
+	generatedRoot, err := os.OpenRoot(generated)
+	if err != nil {
+		return fmt.Errorf("open generated SDK output: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, generatedRoot.Close())
+	}()
+	committedRoot, err := os.OpenRoot(committed)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%s: %w; run codegen", committed, ErrMissingGeneratedFile)
+		}
+		return fmt.Errorf("open committed SDK output: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, committedRoot.Close())
+	}()
+	generatedFS, committedFS := generatedRoot.FS(), committedRoot.FS()
 	files := make(map[string]bool)
-	if err := filepath.WalkDir(generated, func(path string, entry fs.DirEntry, walkErr error) error {
+	if err := fs.WalkDir(generatedFS, ".", func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return fmt.Errorf("walk generated SDK output: %w", walkErr)
 		}
 		if entry.IsDir() {
 			return nil
 		}
-		relative, err := filepath.Rel(generated, path)
-		if err != nil {
-			return fmt.Errorf("resolve generated SDK file: %w", err)
-		}
-		want, err := os.ReadFile(path)
+		want, err := fs.ReadFile(generatedFS, path)
 		if err != nil {
 			return fmt.Errorf("read generated SDK file: %w", err)
 		}
-		files[relative] = true
-		return checkGeneratedFile(filepath.Join(committed, relative), want)
+		got, err := fs.ReadFile(committedFS, path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("%s: %w; run codegen", filepath.Join(committed, path), ErrMissingGeneratedFile)
+			}
+			return fmt.Errorf("read committed SDK file: %w", err)
+		}
+		if !bytes.Equal(got, want) {
+			return fmt.Errorf("%s: %w; run codegen", filepath.Join(committed, path), ErrStaleGeneratedFile)
+		}
+		files[path] = true
+		return nil
 	}); err != nil {
 		return err
 	}
-	return filepath.WalkDir(committed, func(path string, entry fs.DirEntry, walkErr error) error {
+	return fs.WalkDir(committedFS, ".", func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return fmt.Errorf("walk committed SDK output: %w", walkErr)
 		}
 		if entry.IsDir() {
 			return nil
 		}
-		relative, err := filepath.Rel(committed, path)
-		if err != nil {
-			return fmt.Errorf("resolve committed SDK file: %w", err)
-		}
-		if !files[relative] {
-			return fmt.Errorf("%s: %w; obsolete SDK file, run codegen", path, ErrStaleGeneratedFile)
+		if !files[path] {
+			return fmt.Errorf(
+				"%s: %w; obsolete SDK file, run codegen",
+				filepath.Join(committed, path),
+				ErrStaleGeneratedFile,
+			)
 		}
 		return nil
 	})
@@ -133,7 +171,10 @@ func publishSDKOutput(generated, output string, rename func(string, string) erro
 	defer func() {
 		if err != nil {
 			if rollbackErr := rollbackSDKPublication(output, backup, jobs); rollbackErr != nil {
-				err = errors.Join(err, fmt.Errorf("SDK rollback failed; backups retained at %s: %w", backup, rollbackErr))
+				err = errors.Join(
+					err,
+					fmt.Errorf("SDK rollback failed; backups retained at %s: %w", backup, rollbackErr),
+				)
 				return
 			}
 		}
@@ -164,8 +205,7 @@ func publishSDKOutput(generated, output string, rename func(string, string) erro
 }
 
 func rollbackSDKPublication(output, backup string, jobs []sdkPublication) (err error) {
-	for index := len(jobs) - 1; index >= 0; index-- {
-		job := jobs[index]
+	for _, job := range slices.Backward(jobs) {
 		destination := filepath.Join(output, job.job)
 		if job.published {
 			if removeErr := os.RemoveAll(destination); removeErr != nil {

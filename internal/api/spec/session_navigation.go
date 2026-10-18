@@ -19,7 +19,7 @@ func sessionNavigationOperations() []OperationSpec {
 					In:          "query",
 					Description: "Literal case-insensitive text; 1 to 4096 bytes",
 					Required:    true,
-					Kind:        "string",
+					Kind:        specStringKey,
 				},
 				intQueryParam(
 					"limit",

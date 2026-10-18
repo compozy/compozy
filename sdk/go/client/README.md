@@ -26,6 +26,11 @@ default home is `~/.compozy`. Use `WithToken` to attach an app token. Every meth
 accepts a context, and streams expose `Next` and `Close`. `Prompt` handles both
 streamed replies and accepted input; inspect `Accepted` before reading chunks.
 
+Generated methods retain each operation's transport constraints. HTTP-only operations require
+`WithBaseURL` pointing to the daemon's HTTP address; the default socket connection returns 404 for
+those routes. See the [Go tutorial's transport guidance](https://compozy.com/docs/apps/go#create-a-session-and-prompt-it)
+for the methods and the OpenAPI `x-compozy-transports` metadata.
+
 Follow the [Go app tutorial](https://compozy.com/docs/apps/go) for installation,
 session creation, prompts, and stream handling. See the generated
 [package reference](https://pkg.go.dev/github.com/compozy/compozy/sdk/go/client)

@@ -40,7 +40,11 @@ func lintDocumentSchemas(doc *openapi3.T) error {
 			}
 			for status, response := range operation.Responses.Map() {
 				if response.Value != nil {
-					if err := lintContentSchemas(response.Value.Content, pointer+"/responses/"+status+"/content", named); err != nil {
+					if err := lintContentSchemas(
+						response.Value.Content,
+						pointer+"/responses/"+status+"/content",
+						named,
+					); err != nil {
 						return err
 					}
 				}

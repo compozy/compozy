@@ -32,6 +32,10 @@
             "outputs": ["dist/**"],
             "env": ["VITE_COMPOZY_API_URL"]
         },
+        "compozy-web#typecheck": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": []
+        },
         "compozy-web#test": {
             "dependsOn": ["//#codegen-check", "transit"],
             "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/catalog/icons/**"],

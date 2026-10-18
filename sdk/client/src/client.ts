@@ -16,13 +16,20 @@ import {
 } from "./events.js";
 import { createClient } from "./generated/sdk/client/index.js";
 import { Compozy as GeneratedCompozy } from "./generated/sdk/sdk.gen.js";
-import { prompt, promptResponse, type PromptInput, type PromptReply } from "./prompt.js";
+import {
+  createPromptId,
+  prompt,
+  promptResponse,
+  type PromptInput,
+  type PromptReply,
+} from "./prompt.js";
 
 export type { ConnectOptions, DaemonIdentity } from "./connect.js";
 
 /** Public application client. Construct a connected instance with Compozy.connect(). */
 export class Compozy extends GeneratedCompozy {
   protected static discovery: Discovery = discover;
+  protected createPromptId = createPromptId;
   readonly daemon: DaemonIdentity;
   protected readonly state: ConnectedState;
 
@@ -52,11 +59,11 @@ export class Compozy extends GeneratedCompozy {
   }
 
   prompt(input: PromptInput): Promise<PromptReply> {
-    return prompt(this.state, input);
+    return prompt(this.state, input, this.createPromptId);
   }
 
   promptResponse(input: PromptInput): Promise<Response> {
-    return promptResponse(this.state, input);
+    return promptResponse(this.state, input, this.createPromptId);
   }
 
   events<Id extends SseOperationId>(

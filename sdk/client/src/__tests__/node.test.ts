@@ -10,6 +10,7 @@ import {
   CompozyConfigError,
   CompozyUnavailableError,
 } from "../errors.js";
+import { Compozy as NodeClient } from "../index-node.js";
 import { resolveBinary } from "../node-binary.js";
 import { discover } from "../node-discovery.js";
 import { Compozy } from "../node.js";
@@ -76,6 +77,7 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   for (const home of homes) {
     try {
       const { pid } = JSON.parse(await readFile(join(home, "started.json"), "utf8")) as {
@@ -121,6 +123,35 @@ async function started(directory: string): Promise<{ pid: number; args: string[]
 }
 
 describe("Node binary lookup", () => {
+  // Invariant: installed CLI discovery follows the application, independently
+  // of its caller's working directory. Owner and canonical suite: Node lookup.
+  it("resolves the application's installed CLI when launched from another directory", async () => {
+    const name = process.platform === "win32" ? "compozy.exe" : "compozy";
+    const app = join(root, "app");
+    const elsewhere = join(root, "elsewhere");
+    const installed = await binary(join(app, "node_modules", "@compozy", "cli", "bin", name));
+    const cwdInstalled = await binary(
+      join(elsewhere, "node_modules", "@compozy", "cli", "bin", name)
+    );
+    for (const directory of [app, elsewhere]) {
+      await writeFile(
+        join(directory, "node_modules", "@compozy", "cli", "package.json"),
+        '{"name":"@compozy/cli","version":"0.0.0"}'
+      );
+    }
+    vi.spyOn(process, "cwd").mockReturnValue(elsewhere);
+    vi.stubEnv("PATH", "");
+    const argv = process.argv;
+    try {
+      process.argv = [process.execPath, join(app, "run.mjs")];
+      expect(await resolveBinary()).toBe(installed);
+      process.argv = [process.execPath];
+      expect(await resolveBinary()).toBe(cwdInstalled);
+    } finally {
+      process.argv = argv;
+    }
+  });
+
   it("uses the explicit binary, environment, installed CLI, then PATH", async () => {
     const explicit = await binary(join(root, "explicit"));
     const environment = await binary(join(root, "environment"));
@@ -144,6 +175,37 @@ describe("Node binary lookup", () => {
     const error = await resolveBinary().catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(CompozyBinaryNotFoundError);
     expect((error as Error).message).toMatch(/binaryPath option, COMPOZY_BIN, @compozy\/cli, PATH/);
+  });
+});
+
+describe("Node runtime support", () => {
+  // Invariant: both public prompt methods generate independent wire IDs without
+  // browser globals. Owner: Node entry point; canonical suite: this file.
+  it("generates prompt IDs without a global crypto implementation", async () => {
+    vi.stubGlobal("crypto", undefined);
+    const requests: Array<{ message_id: unknown; idempotency_key: unknown }> = [];
+    const transport: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      if (request.url.endsWith("/api/status/identity")) {
+        return Response.json({
+          daemon: { pid: 101, version: "0.0.0-dev", http_host: "127.0.0.1", http_port: 2123 },
+        });
+      }
+      const body = (await request.json()) as { message_id: unknown; idempotency_key: unknown };
+      requests.push(body);
+      return Response.json({ prompt: { ...body, status: "queued" } }, { status: 202 });
+    };
+    const client = await NodeClient.connect({ baseUrl: "http://127.0.0.1:2123", fetch: transport });
+    const input = { workspaceId: "workspace", sessionId: "session", message: "hello" };
+    expect((await client.prompt(input)).kind).toBe("accepted");
+    expect((await client.promptResponse(input)).status).toBe(202);
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request.idempotency_key).toEqual(expect.any(String));
+      expect(request.idempotency_key).not.toBe("");
+      expect(request.message_id).toBe(request.idempotency_key);
+    }
+    expect(requests[0]!.idempotency_key).not.toBe(requests[1]!.idempotency_key);
   });
 });
 

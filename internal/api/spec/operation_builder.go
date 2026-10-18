@@ -11,7 +11,10 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 	operation.OperationID = spec.OperationID
 	operation.Summary = spec.Summary
 	operation.Tags = append([]string(nil), spec.Tags...)
-	operation.Extensions = map[string]any{"x-compozy-transports": spec.Transports, "x-compozy-app-access": spec.AppAccess}
+	operation.Extensions = map[string]any{
+		"x-compozy-transports": spec.Transports,
+		"x-compozy-app-access": spec.AppAccess,
+	}
 	if spec.Stream != "" {
 		operation.Extensions["x-compozy-stream"] = spec.Stream
 	}
@@ -99,10 +102,10 @@ func buildResponse(schemas openapi3.Schemas, response ResponseSpec) (*openapi3.R
 	if len(response.Headers) > 0 {
 		result.Headers = make(openapi3.Headers, len(response.Headers))
 		for name, header := range response.Headers {
-			result.Headers[name] = &openapi3.HeaderRef{Value: &openapi3.Header{Parameter: openapi3.Parameter{
+			result.Headers[name] = &openapi3.HeaderRef{Value: &openapi3.Header{
 				Description: header.Description,
 				Schema:      schemaRefForParameter(header),
-			}}}
+			}}
 		}
 	}
 	if response.Body == nil && response.Bodies.empty() {

@@ -24,6 +24,11 @@ clients default to `http://localhost:2123`. Use explicit addresses from the curr
 isolated QA; defaults are not a substitute for the manifest. A major/minor mismatch warns without
 blocking the connection; compare the actual connected version before diagnosing missing fields.
 
+Go methods for HTTP-only operations require `client.WithBaseURL` with the daemon's HTTP address:
+`MintGatewayStreamTicket`, `CompleteMCPAuthCallback`, `ListOpenAIModels`, `DeliverGlobalWebhook`, and
+`DeliverWorkspaceWebhook`. Their routes are absent on UDS, so a socket client gets 404. Read
+`x-compozy-transports` in OpenAPI; transport selection does not change authorization.
+
 ## Prompts, events, and cancellation
 
 Resolve the workspace with `workspaces.resolveWorkspace({ body: { path } })`, create a session with
@@ -41,6 +46,10 @@ Read other SSE operations through `compozy.events(operationId, { path, query, si
 Go stream methods. Event frames retain event name, event ID, and decoded payload. Persist the last
 consumed sequence for reattach. TypeScript event streams reconnect network failures and 5xx with
 `Last-Event-ID` using bounded backoff; 4xx ends them. Prompt streams never reconnect or resubmit.
+
+TypeScript `events()` also reconnects after clean server EOF. Abort its signal when monitoring is
+finished, including after `session_stopped`; that event alone does not stop resubscription. Go streams
+return `io.EOF` on server closure instead.
 
 Disconnecting, aborting a reader, or closing a browser page does not cancel an admitted agent turn.
 Recover through the durable transcript before retrying work; reuse an explicit idempotency key for
@@ -84,8 +93,13 @@ management remain forbidden. See the generated operation table at
 https://compozy.com/docs/apps/browser. `Origin: null` is always denied. A prompt-capable app can ask
 agents to act with their session permissions: the origin allowlist does not sandbox the allowed app.
 
-Revocation rejects the next request with `app_token_revoked` and closes its open streams within five
-seconds. Requests without `Origin` remain tokenless locally; if a token is supplied, it is validated.
+Revocation rejects authentication with `app_token_revoked` and closes its open streams within five
+seconds. A foreign browser can read that 401 only while another active token still allows its origin.
+If revocation removes the last grant, preflight is denied and responses lack the CORS grant; browser
+JavaScript sees a CORS/network failure. `events()` then follows its existing reconnect budget and can
+end with `CompozyStreamError` after 20 consecutive failures, rather than a readable 401. Abort the
+reader when the app should stop waiting. Requests without `Origin` remain tokenless locally; if a
+token is supplied, it is validated.
 Gateway listeners reject app tokens with `gateway_app_token_local_only` and do not update last use.
 
 ## Contract and stability

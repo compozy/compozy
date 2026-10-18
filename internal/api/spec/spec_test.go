@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -3111,7 +3112,10 @@ func TestDocumentSchemaComponents(t *testing.T) {
 			if rendered.Extensions["x-stability"] != schemaStabilityExperimental {
 				t.Errorf("%s lacks experimental marker", operation.OperationID)
 			}
-			if !reflect.DeepEqual(rendered.Extensions["x-compozy-transports"], []Transport{TransportHTTP, TransportUDS}) {
+			if !reflect.DeepEqual(
+				rendered.Extensions["x-compozy-transports"],
+				[]Transport{TransportHTTP, TransportUDS},
+			) {
 				t.Errorf("%s transport mismatch", operation.OperationID)
 			}
 		}
@@ -3125,9 +3129,22 @@ func TestDocumentSchemaLint(t *testing.T) {
 		schema       *openapi3.Schema
 		named        bool
 	}{
-		{name: "Should reject an OpenAPI 3.1 type array", suffix: "/type", schema: &openapi3.Schema{Type: &openapi3.Types{"string", "array"}}},
-		{name: "Should reject integer bounds outside int64", suffix: "/maximum", schema: openapi3.NewIntegerSchema().WithMax(18446744073709551615)},
-		{name: "Should reject an inline named component", suffix: "named struct SessionPayload", schema: openapi3.NewObjectSchema(), named: true},
+		{
+			name:   "Should reject an OpenAPI 3.1 type array",
+			suffix: "/type",
+			schema: &openapi3.Schema{Type: &openapi3.Types{"string", "array"}},
+		},
+		{
+			name:   "Should reject integer bounds outside int64",
+			suffix: "/maximum",
+			schema: openapi3.NewIntegerSchema().WithMax(18446744073709551615),
+		},
+		{
+			name:   "Should reject an inline named component",
+			suffix: "named struct SessionPayload",
+			schema: openapi3.NewObjectSchema(),
+			named:  true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3137,7 +3154,8 @@ func TestDocumentSchemaLint(t *testing.T) {
 				tc.schema.Origin = &openapi3.Origin{Key: &openapi3.Location{Name: "SessionPayload"}}
 			}
 			err := lintSchemaRef(&openapi3.SchemaRef{Value: tc.schema}, "#/fixture/schema", names, false)
-			if err == nil || !strings.Contains(err.Error(), "#/fixture/schema") || !strings.Contains(err.Error(), tc.suffix) {
+			if err == nil || !strings.Contains(err.Error(), "#/fixture/schema") ||
+				!strings.Contains(err.Error(), tc.suffix) {
 				t.Fatalf("lint error = %v", err)
 			}
 		})
@@ -3166,7 +3184,15 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
-			compareSchemaContract(t, oldSchema, newComponents[name], "#/components/schemas/"+name, oldComponents, newComponents, make(map[string]bool))
+			compareSchemaContract(
+				t,
+				oldSchema,
+				newComponents[name],
+				"#/components/schemas/"+name,
+				oldComponents,
+				newComponents,
+				make(map[string]bool),
+			)
 		}
 	})
 }
@@ -3195,7 +3221,12 @@ func readSchemaBaseline(t *testing.T) map[string]any {
 	return baseline
 }
 
-func compareDocumentSchemas(t *testing.T, oldValue, newValue any, pointer string, oldComponents, newComponents map[string]any) {
+func compareDocumentSchemas(
+	t *testing.T,
+	oldValue, newValue any,
+	pointer string,
+	oldComponents, newComponents map[string]any,
+) {
 	t.Helper()
 	switch old := oldValue.(type) {
 	case map[string]any:
@@ -3205,9 +3236,24 @@ func compareDocumentSchemas(t *testing.T, oldValue, newValue any, pointer string
 		}
 		for key, value := range old {
 			if key == "schema" {
-				compareSchemaContract(t, value, next[key], pointer+"/schema", oldComponents, newComponents, make(map[string]bool))
+				compareSchemaContract(
+					t,
+					value,
+					next[key],
+					pointer+"/schema",
+					oldComponents,
+					newComponents,
+					make(map[string]bool),
+				)
 			} else if key != "example" && key != "examples" {
-				compareDocumentSchemas(t, value, next[key], pointer+"/"+schemaPointerEscape(key), oldComponents, newComponents)
+				compareDocumentSchemas(
+					t,
+					value,
+					next[key],
+					pointer+"/"+schemaPointerEscape(key),
+					oldComponents,
+					newComponents,
+				)
 			}
 		}
 	case []any:
@@ -3221,7 +3267,13 @@ func compareDocumentSchemas(t *testing.T, oldValue, newValue any, pointer string
 	}
 }
 
-func compareSchemaContract(t *testing.T, oldValue, newValue any, pointer string, oldComponents, newComponents map[string]any, active map[string]bool) {
+func compareSchemaContract(
+	t *testing.T,
+	oldValue, newValue any,
+	pointer string,
+	oldComponents, newComponents map[string]any,
+	active map[string]bool,
+) {
 	t.Helper()
 	old, oldRef := normalizeSchemaNode(oldValue, oldComponents)
 	next, newRef := normalizeSchemaNode(newValue, newComponents)
@@ -3243,7 +3295,15 @@ func compareSchemaContract(t *testing.T, oldValue, newValue any, pointer string,
 			t.Fatalf("%s: schema keys differ: old=%v new=%v", pointer, schemaMapKeys(expected), schemaMapKeys(actual))
 		}
 		for key, value := range expected {
-			compareSchemaContract(t, value, actual[key], pointer+"/"+schemaPointerEscape(key), oldComponents, newComponents, active)
+			compareSchemaContract(
+				t,
+				value,
+				actual[key],
+				pointer+"/"+schemaPointerEscape(key),
+				oldComponents,
+				newComponents,
+				active,
+			)
 		}
 	case []any:
 		actual, ok := next.([]any)
@@ -3270,9 +3330,7 @@ func normalizeSchemaNode(value any, components map[string]any) (any, string) {
 		object = components[strings.TrimPrefix(reference, "#/components/schemas/")].(map[string]any)
 	}
 	normalized := make(map[string]any, len(object))
-	for key, value := range object {
-		normalized[key] = value
-	}
+	maps.Copy(normalized, object)
 	if alternatives, ok := normalized["oneOf"].([]any); ok && len(alternatives) == 2 {
 		if null, ok := alternatives[1].(map[string]any); ok && reflect.DeepEqual(null["enum"], []any{nil}) {
 			target, ref := normalizeSchemaNode(alternatives[0], components)
@@ -3286,7 +3344,10 @@ func normalizeSchemaNode(value any, components map[string]any) (any, string) {
 	if types, ok := normalized["type"].([]any); ok && reflect.DeepEqual(types, []any{"array", "string"}) {
 		delete(normalized, "type")
 		delete(normalized, "items")
-		normalized["oneOf"] = []any{map[string]any{"type": "string"}, map[string]any{"type": "array", "items": map[string]any{"type": "string"}}}
+		normalized["oneOf"] = []any{
+			map[string]any{"type": "string"},
+			map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		}
 	}
 	if maximum, ok := normalized["maximum"].(float64); ok && maximum == float64(^uint64(0)) {
 		delete(normalized, "maximum")
@@ -3329,7 +3390,10 @@ func TestSchemaComponentNameCollisions(t *testing.T) {
 	})
 	t.Run("Should reject a remaining collision after package prefixing", func(t *testing.T) {
 		t.Parallel()
-		_, err := componentNamesForTypes(reflect.TypeFor[sessionfixture.State](), reflect.TypeFor[collisionfixture.State]())
+		_, err := componentNamesForTypes(
+			reflect.TypeFor[sessionfixture.State](),
+			reflect.TypeFor[collisionfixture.State](),
+		)
 		if err == nil || !strings.Contains(err.Error(), "SessionState") {
 			t.Fatalf("collision error = %v", err)
 		}
@@ -3375,12 +3439,25 @@ func TestSessionStreamRawFrameContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, path := range []string{"/api/sessions/{session_id}/stream", "/api/workspaces/{workspace_id}/sessions/{session_id}/stream"} {
-			schema := responseSchema(t, operationFor(t, document, path, http.MethodGet), 200, specContentTypeEventStream)
+			schema := responseSchema(
+				t,
+				operationFor(t, document, path, http.MethodGet),
+				200,
+				specContentTypeEventStream,
+			)
 			if len(schema.AnyOf) != 10 {
 				t.Fatalf("%s frame alternatives = %d, want 10", path, len(schema.AnyOf))
 			}
 			snapshot := streamVariantSchema(t, schema, "TranscriptSnapshotPayload")
-			frame := map[string]any{"session_id": "session-1", "epoch": float64(1), "generation": float64(1), "entries": []any{}, "max_sequence": float64(0), "has_older": false, "reset": false}
+			frame := map[string]any{
+				"session_id":   "session-1",
+				"epoch":        float64(1),
+				"generation":   float64(1),
+				"entries":      []any{},
+				"max_sequence": float64(0),
+				"has_older":    false,
+				"reset":        false,
+			}
 			if err := snapshot.VisitJSON(frame); err != nil {
 				t.Fatalf("raw transcript snapshot invalid: %v", err)
 			}

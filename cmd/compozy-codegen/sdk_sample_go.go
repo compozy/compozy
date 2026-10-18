@@ -9,13 +9,31 @@ import (
 	"strings"
 )
 
+const sdkGoRequestFields = "{ /* request fields */ }"
+
 func sdkGoRequestExpressions(files map[string][]byte) (map[string]string, error) {
-	result := make(map[string]string)
+	parsed := make([]*ast.File, 0, len(files))
+	declarations := make(map[string]ast.Expr)
 	for name, content := range files {
 		file, err := parser.ParseFile(token.NewFileSet(), name, content, 0)
 		if err != nil {
 			return nil, fmt.Errorf("parse generated Go SDK %s: %w", name, err)
 		}
+		parsed = append(parsed, file)
+		for _, declaration := range file.Decls {
+			group, ok := declaration.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, entry := range group.Specs {
+				if named, ok := entry.(*ast.TypeSpec); ok {
+					declarations[named.Name.Name] = named.Type
+				}
+			}
+		}
+	}
+	result := make(map[string]string)
+	for _, file := range parsed {
 		for _, declaration := range file.Decls {
 			method, ok := declaration.(*ast.FuncDecl)
 			if !ok || method.Recv == nil {
@@ -26,7 +44,7 @@ func sdkGoRequestExpressions(files map[string][]byte) (map[string]string, error)
 					if name.Name != "body" {
 						continue
 					}
-					expression, err := sdkGoRequestExpression(parameter.Type)
+					expression, err := sdkGoRequestExpression(parameter.Type, declarations)
 					if err != nil {
 						return nil, fmt.Errorf("SDK sample %s request: %w", method.Name.Name, err)
 					}
@@ -38,7 +56,7 @@ func sdkGoRequestExpressions(files map[string][]byte) (map[string]string, error)
 	return result, nil
 }
 
-func sdkGoRequestExpression(expression ast.Expr) (string, error) {
+func sdkGoRequestExpression(expression ast.Expr, declarations map[string]ast.Expr) (string, error) {
 	typeName, err := sdkGoSampleType(expression)
 	if err != nil {
 		return "", err
@@ -49,15 +67,24 @@ func sdkGoRequestExpression(expression ast.Expr) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		if named, ok := value.X.(*ast.Ident); ok && named.Name == "UploadFile" {
+			return "&" + element + "{ /* name, content type, reader */ }", nil
+		}
+		if sdkGoStructType(value.X, declarations) {
+			return "&" + element + sdkGoRequestFields, nil
+		}
 		return "new(" + element + ")", nil
 	case *ast.MapType, *ast.ArrayType:
-		return typeName + "{ /* request fields */ }", nil
+		return typeName + sdkGoRequestFields, nil
 	case *ast.Ident:
+		if sdkGoStructType(value, declarations) {
+			return typeName + sdkGoRequestFields, nil
+		}
 		switch value.Name {
-		case "string":
+		case sdkParamString:
 			return `"value"`, nil
 		case "bool":
-			return "true", nil
+			return sdkSampleTrue, nil
 		case "any":
 			return "nil", nil
 		}
@@ -71,6 +98,24 @@ func sdkGoRequestExpression(expression ast.Expr) (string, error) {
 		}
 	}
 	return "*new(" + typeName + ")", nil
+}
+
+func sdkGoStructType(expression ast.Expr, declarations map[string]ast.Expr) bool {
+	visited := make(map[string]bool)
+	for {
+		switch value := expression.(type) {
+		case *ast.StructType:
+			return true
+		case *ast.Ident:
+			if visited[value.Name] {
+				return false
+			}
+			visited[value.Name] = true
+			expression = declarations[value.Name]
+		default:
+			return false
+		}
+	}
 }
 
 func sdkGoSampleType(expression ast.Expr) (string, error) {

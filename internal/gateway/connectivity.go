@@ -28,6 +28,7 @@ type EndpointSchemePolicy string
 const (
 	EndpointStable      EndpointStability = "stable"
 	EndpointEphemeral   EndpointStability = "ephemeral"
+	endpointSchemeHTTP                    = "http"
 	endpointSchemeHTTPS                   = "https"
 	// EndpointSchemePolicyTailnetInternal allows a private-tier URI scheme over verified TLS.
 	EndpointSchemePolicyTailnetInternal EndpointSchemePolicy = "tailnet_internal"
@@ -72,7 +73,7 @@ func (e AdvertisedEndpoint) Validate() error {
 	policy := EndpointSchemePolicy(strings.ToLower(strings.TrimSpace(string(e.SchemePolicy))))
 	switch {
 	case scheme == endpointSchemeHTTPS && policy == "":
-	case scheme != endpointSchemeHTTPS && scheme != "http" && policy == EndpointSchemePolicyTailnetInternal:
+	case scheme != endpointSchemeHTTPS && scheme != endpointSchemeHTTP && policy == EndpointSchemePolicyTailnetInternal:
 	default:
 		return errors.New("gateway: endpoint scheme is not allowed by policy")
 	}

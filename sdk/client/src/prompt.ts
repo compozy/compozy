@@ -1,7 +1,7 @@
 import type { ConnectedState } from "./connect.js";
 import { CompozyStreamError, responseError } from "./errors.js";
 import { createSseClient } from "./generated/sdk/core/serverSentEvents.gen.js";
-import type { OperationResponse } from "./operation-types.js";
+import type { OperationRequestBody, OperationResponse } from "./operation-types.js";
 
 export interface PromptInput {
   workspaceId: string;
@@ -108,15 +108,23 @@ export type PromptReply =
       toReadableStream(): ReadableStream<UIMessageChunk>;
     };
 
-export async function promptResponse(state: ConnectedState, input: PromptInput): Promise<Response> {
-  const response = await sendPrompt(state, input);
+export async function promptResponse(
+  state: ConnectedState,
+  input: PromptInput,
+  createId = createPromptId
+): Promise<Response> {
+  const response = await sendPrompt(state, input, createId);
   if (!response.ok || isStream(response) || response.status === 202) return response;
   // Queued, steered, and goal-command results all use the accepted proxy shape.
   return new Response(response.body, { status: 202, headers: response.headers });
 }
 
-export async function prompt(state: ConnectedState, input: PromptInput): Promise<PromptReply> {
-  const response = await sendPrompt(state, input);
+export async function prompt(
+  state: ConnectedState,
+  input: PromptInput,
+  createId = createPromptId
+): Promise<PromptReply> {
+  const response = await sendPrompt(state, input, createId);
   if (!response.ok) throw await responseError(response);
   if (!isStream(response)) {
     const body: unknown = await response.json();
@@ -135,7 +143,20 @@ export async function prompt(state: ConnectedState, input: PromptInput): Promise
   return { kind: "stream", chunks, toReadableStream: () => readable(chunks) };
 }
 
-function sendPrompt(state: ConnectedState, input: PromptInput): Promise<Response> {
+function sendPrompt(
+  state: ConnectedState,
+  input: PromptInput,
+  createId: () => string
+): Promise<Response> {
+  const key = input.idempotencyKey ?? createId();
+  // Reusing a caller's key must preserve the message identity as well as the receipt key.
+  const body: OperationRequestBody<"sendSessionPrompt"> = {
+    message: input.message,
+    message_id: key,
+    mode: input.mode,
+    idempotency_key: key,
+    expected_turn_id: input.expectedTurnId,
+  };
   const headers = new Headers(state.headers);
   headers.set("Content-Type", "application/json");
   headers.set("Accept", "text/event-stream, application/json");
@@ -145,14 +166,23 @@ function sendPrompt(state: ConnectedState, input: PromptInput): Promise<Response
       method: "POST",
       headers,
       signal: input.signal,
-      body: JSON.stringify({
-        message: input.message,
-        mode: input.mode,
-        idempotency_key: input.idempotencyKey,
-        expected_turn_id: input.expectedTurnId,
-      }),
+      body: JSON.stringify(body),
     }
   );
+}
+
+// Use the same UUID fallback as the Web client: getRandomValues also works on HTTP origins.
+export function createPromptId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID();
+  if (typeof cryptoApi?.getRandomValues !== "function") {
+    throw new Error("Cryptography is required to create a prompt identifier.");
+  }
+  const bytes = cryptoApi.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function isStream(response: Response): boolean {

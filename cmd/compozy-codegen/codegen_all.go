@@ -160,15 +160,20 @@ type generatedTreeArtifact struct {
 	files map[string][]byte
 }
 
-func snapshotGeneratedTree(path string) (generatedTreeSnapshot, error) {
-	if _, err := os.Stat(path); err != nil {
+func snapshotGeneratedTree(path string) (snapshot generatedTreeSnapshot, err error) {
+	root, err := os.OpenRoot(path)
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return generatedTreeSnapshot{}, nil
 		}
 		return generatedTreeSnapshot{}, fmt.Errorf("snapshot generated tree %q: %w", path, err)
 	}
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
+	rootFS := root.FS()
 	files := make(map[string][]byte)
-	if err := filepath.WalkDir(path, func(file string, entry fs.DirEntry, walkErr error) error {
+	if err := fs.WalkDir(rootFS, ".", func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -176,17 +181,13 @@ func snapshotGeneratedTree(path string) (generatedTreeSnapshot, error) {
 			return nil
 		}
 		if !entry.Type().IsRegular() {
-			return fmt.Errorf("generated tree file %q must be regular", file)
+			return fmt.Errorf("generated tree file %q must be regular", name)
 		}
-		name, err := filepath.Rel(path, file)
+		content, err := fs.ReadFile(rootFS, name)
 		if err != nil {
 			return err
 		}
-		content, err := os.ReadFile(file)
-		if err != nil {
-			return err
-		}
-		files[filepath.ToSlash(name)] = content
+		files[name] = content
 		return nil
 	}); err != nil {
 		return generatedTreeSnapshot{}, fmt.Errorf("snapshot generated tree %q: %w", path, err)

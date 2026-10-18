@@ -111,9 +111,15 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 }
 
 func setBrowserAccessHeaders(headers http.Header) {
-	headers.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Last-Event-ID, Accept, X-Compozy-Client-ID")
+	headers.Set(
+		"Access-Control-Allow-Headers",
+		"Authorization, Content-Type, Last-Event-ID, Accept, X-Compozy-Client-ID",
+	)
 	headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-	headers.Set("Access-Control-Expose-Headers", "Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream, "+gatewayTierHeader)
+	headers.Set(
+		"Access-Control-Expose-Headers",
+		"Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream, "+gatewayTierHeader,
+	)
 	headers.Set("Vary", "Origin")
 }
 

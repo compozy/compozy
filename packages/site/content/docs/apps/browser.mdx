@@ -107,17 +107,28 @@ In a second terminal, use the ID returned by create:
 compozy app-token revoke apt_example -o json
 ```
 
-Expected result: `changed: true` on the first revoke. The next authenticated request fails with
-`401 app_token_revoked`, and open token streams close within five seconds. Repeating revoke succeeds
-with `changed: false`. Create a new token to restore access; a revoked token cannot be updated.
+Expected result: `changed: true` on the first revoke. The daemon rejects the revoked secret with
+`401 app_token_revoked` and closes its open streams within five seconds. Repeating revoke succeeds
+with `changed: false`.
 
-| Response | Meaning and next step |
-| --- | --- |
-| `403 app_origin_not_allowed` | Add the exact origin to the intended token's allowlist. |
-| `401 app_token_required` | Supply the token in the `Authorization` header. |
-| `401 app_token_unauthenticated` | Replace an unknown or malformed secret. |
-| `401 app_token_revoked` | Ask the operator for a new token. |
-| `403 app_token_route_forbidden` | Use the local management surface for that operation. |
-| `429 app_token_rate_limited` | Ten failed attempts occurred for this origin within 60 seconds; wait before retrying. |
+A browser can read that 401 only while another active token still allows its origin. If the revoked
+token was the last one allowing the origin, the daemon also removes the origin's CORS grant. A new
+preflight is denied, and a response to a request using a cached preflight lacks the CORS allow-origin
+header. JavaScript sees a CORS/network failure instead of the daemon's status or error body.
+`compozy.events()` retries that failure under its existing reconnect policy and throws
+`CompozyStreamError` after 20 consecutive failed attempts unless you abort the reader. The daemon's
+five-second stream closure does not imply that the browser iterator ends within five seconds.
+
+Create a new token allowing the origin to restore access; a revoked token cannot be updated.
+The status codes below describe daemon responses when the client can read them.
+
+| Response                        | Meaning and next step                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| `403 app_origin_not_allowed`    | Add the exact origin to the intended token's allowlist.                               |
+| `401 app_token_required`        | Supply the token in the `Authorization` header.                                       |
+| `401 app_token_unauthenticated` | Replace an unknown or malformed secret.                                               |
+| `401 app_token_revoked`         | Ask the operator for a new token.                                                     |
+| `403 app_token_route_forbidden` | Use the local management surface for that operation.                                  |
+| `429 app_token_rate_limited`    | Ten failed attempts occurred for this origin within 60 seconds; wait before retrying. |
 
 See [Manage app tokens](/docs/apps/app-tokens) to replace an origin set without minting a new secret.

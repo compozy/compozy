@@ -78,7 +78,7 @@ func sdkTypeScriptConfigPath() (string, error) {
 		return "", fmt.Errorf("locate SDK generator: %w", err)
 	}
 	for {
-		config := filepath.Join(directory, "sdk", "client", "openapi-ts.config.ts")
+		config := filepath.Join(directory, sdkDirectory, sdkClientPackage, "openapi-ts.config.ts")
 		if info, statErr := os.Stat(config); statErr == nil && info.Mode().IsRegular() {
 			return config, nil
 		} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {

@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
+// #nosec G101 -- this is a public API route, not credential material.
 const appTokensPath = "/api/app-tokens"
 
 type appTokenClientAPI interface {

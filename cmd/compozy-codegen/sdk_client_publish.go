@@ -16,7 +16,7 @@ func sdkClientArtifacts(path string, generated map[string][]byte) ([]generatedAr
 	artifacts := make([]generatedArtifact, 0, len(generated))
 	for _, name := range slices.Sorted(maps.Keys(generated)) {
 		if filepath.Base(name) != name || !strings.HasSuffix(name, "_gen.go") {
-			return nil, fmt.Errorf("Go app client generated file %q must be a *_gen.go base name", name)
+			return nil, fmt.Errorf("go app client generated file %q must be a *_gen.go base name", name)
 		}
 		artifacts = append(artifacts, generatedArtifact{path: filepath.Join(path, name), content: generated[name]})
 	}

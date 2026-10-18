@@ -501,13 +501,25 @@ func TestNormalizeAppOrigin(t *testing.T) {
 		want  string
 	}{
 		{name: "Should lowercase the host", input: "http://LOCALHOST:3000", want: "http://localhost:3000"},
-		{name: "Should remove default HTTPS port", input: "https://dash.example.com:443", want: "https://dash.example.com"},
+		{
+			name:  "Should remove default HTTPS port",
+			input: "https://dash.example.com:443",
+			want:  "https://dash.example.com",
+		},
 		{name: "Should remove default HTTP port", input: "http://example.com:80", want: "http://example.com"},
 		{name: "Should preserve bracketed IPv6", input: "http://[::1]:3000", want: "http://[::1]:3000"},
-		{name: "Should accept the maximum origin length", input: "https://" + strings.Repeat("a", 2040), want: "https://" + strings.Repeat("a", 2040)},
+		{
+			name:  "Should accept the maximum origin length",
+			input: "https://" + strings.Repeat("a", 2040),
+			want:  "https://" + strings.Repeat("a", 2040),
+		},
 		{name: "Should reject an oversized origin", input: "https://" + strings.Repeat("a", 2041)},
 		{name: "Should reject a path", input: "http://localhost:3000/app"},
-		{name: "Should canonicalize a root slash and uppercase scheme", input: "HTTP://LocalHost:3000/", want: "http://localhost:3000"},
+		{
+			name:  "Should canonicalize a root slash and uppercase scheme",
+			input: "HTTP://LocalHost:3000/",
+			want:  "http://localhost:3000",
+		},
 		{name: "Should reject a query", input: "http://x.test?a=1"},
 		{name: "Should reject an empty fragment", input: "http://x.test#"},
 		{name: "Should reject null", input: "null"},

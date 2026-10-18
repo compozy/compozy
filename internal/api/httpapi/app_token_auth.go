@@ -15,7 +15,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// #nosec G101 -- this is a Gin request-context key, not credential material.
 const appTokenOriginKey = "compozy.app_token_origin"
+
+// #nosec G101 -- this is a Gin request-context key, not credential material.
 const appTokenIDKey = "compozy.app_token_id"
 
 // AppAccessPolicy resolves a physical route to its canonical operation decisions.
@@ -116,17 +119,22 @@ func (s *Server) authenticateAppToken(
 	}()
 	if secret == "" {
 		failed = true
+		s.warnAppTokenAuthFailure(c, source, gateway.ErrAppTokenRequired)
 		core.RespondAppTokenError(c, gateway.ErrAppTokenRequired, true)
 		return gateway.AppToken{}, false
 	}
 	if s.appTokenAuth == nil {
 		failed = true
+		s.warnAppTokenAuthFailure(c, source, gateway.ErrAppTokenUnauthenticated)
 		core.RespondAppTokenError(c, gateway.ErrAppTokenUnauthenticated, true)
 		return gateway.AppToken{}, false
 	}
 	token, err := s.appTokenAuth.AuthenticateAppToken(c.Request.Context(), secret)
 	if err != nil {
 		failed = errors.Is(err, gateway.ErrAppTokenUnauthenticated) || errors.Is(err, gateway.ErrAppTokenRevoked)
+		if failed {
+			s.warnAppTokenAuthFailure(c, source, err)
+		}
 		core.RespondAppTokenError(c, err, true)
 		return gateway.AppToken{}, false
 	}
@@ -218,6 +226,16 @@ func (s *Server) warnAppTokenAccess(c *gin.Context, event, origin, tokenID strin
 	logger.WarnContext(c.Request.Context(), event,
 		"origin", origin, "remote", c.Request.RemoteAddr,
 		"app_token_id", tokenID, "route", c.FullPath())
+}
+
+func (s *Server) warnAppTokenAuthFailure(c *gin.Context, origin string, err error) {
+	logger := s.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	_, reason := core.AppTokenErrorStatus(err, true)
+	logger.WarnContext(c.Request.Context(), "app_token.auth_failed",
+		"origin", origin, "remote", c.Request.RemoteAddr, "reason", reason)
 }
 
 func abortAppTokenAccess(c *gin.Context, status int, code, message string) {

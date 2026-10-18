@@ -1,4 +1,5 @@
 import type { InlineCodeUsageGenerator } from "fumadocs-openapi/requests/generators";
+import type { OpenAPIPageProps_Preloaded } from "fumadocs-openapi/ui";
 
 export interface SDKSampleManifest {
   version: number;
@@ -9,6 +10,7 @@ export interface SDKSampleManifest {
       go?: string;
       kind: "json" | "sse" | "prompt" | "websocket";
       app_access: "allowed" | "denied";
+      resource: string;
     }
   >;
 }
@@ -30,10 +32,44 @@ export function generateSDKCodeSamples(
   ];
 }
 
-export function appAllowedOperations(manifest: SDKSampleManifest): string[] {
-  const allowed: string[] = [];
-  for (const [operationId, operation] of Object.entries(manifest.operations)) {
-    if (operation.app_access === "allowed") allowed.push(operationId);
+/** Add only the rendered page's samples without changing the shared preloaded document. */
+export function withSDKCodeSamples(
+  props: OpenAPIPageProps_Preloaded,
+  manifest: SDKSampleManifest
+): OpenAPIPageProps_Preloaded {
+  const document = props.preloaded.docs[props.document];
+  if (!document) return props;
+
+  const paths = { ...document.paths };
+  for (const { path, method } of props.operations ?? []) {
+    const item = paths[path];
+    const operation = item?.[method];
+    if (!operation) continue;
+    paths[path] = {
+      ...item,
+      [method]: {
+        ...operation,
+        "x-codeSamples": generateSDKCodeSamples(manifest, operation.operationId),
+      },
+    };
   }
-  return allowed.sort();
+  return {
+    ...props,
+    preloaded: {
+      ...props.preloaded,
+      docs: { ...props.preloaded.docs, [props.document]: { ...document, paths } },
+    },
+  };
+}
+
+export function appAllowedOperations(manifest: SDKSampleManifest): [string, string[]][] {
+  const allowed = new Map<string, string[]>();
+  for (const [operationId, operation] of Object.entries(manifest.operations)) {
+    if (operation.app_access !== "allowed") continue;
+    const operations = allowed.get(operation.resource) ?? [];
+    operations.push(operationId);
+    allowed.set(operation.resource, operations);
+  }
+  for (const operations of allowed.values()) operations.sort();
+  return [...allowed].sort(([left], [right]) => left.localeCompare(right));
 }

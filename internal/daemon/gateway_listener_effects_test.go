@@ -83,7 +83,7 @@ func TestAppAccessPolicy(t *testing.T) {
 						break
 					}
 					if index >= len(canonical) || (segment != canonical[index] &&
-						!(strings.HasPrefix(segment, ":") && strings.HasPrefix(canonical[index], "{"))) {
+						(!strings.HasPrefix(segment, ":") || !strings.HasPrefix(canonical[index], "{"))) {
 						matches = false
 						break
 					}
@@ -97,7 +97,6 @@ func TestAppAccessPolicy(t *testing.T) {
 				t.Errorf("app access %s %s = %v, want %v", route.Method, route.Path, got, want)
 			}
 		}
-
 	})
 }
 

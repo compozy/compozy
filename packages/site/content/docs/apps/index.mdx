@@ -104,6 +104,10 @@ and doubling to 8 seconds. It stops after 20 consecutive failed reconnects; a re
 that count. A 4xx stops immediately with `CompozyApiError`; malformed event data raises
 `CompozyStreamError`. Abort the signal to end the subscription.
 
+`events()` also reconnects after a clean server close. End the subscription with `controller.abort()`
+when you no longer want updates, including after a `session_stopped` event; otherwise a stopped
+session can be subscribed to again. Go streams instead return `io.EOF` when the server closes them.
+
 A prompt stream does not reconnect. If its connection fails, recover through the transcript before
 submitting another prompt. An `idempotencyKey` protects retries of the same submission. Aborting or
 closing either stream only stops your reader: the agent keeps running. To cancel the turn, call

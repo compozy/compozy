@@ -22,17 +22,23 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 const appSDKAgent = "sdk-client"
 const appSDKReply = "app sdk golden reply"
+const appSDKQuickstartPrompt = "List the three largest files in this repo."
+const appSDKQuickstartReply = "largest.txt (4096 bytes), middle.txt (3072 bytes), smallest.txt (2048 bytes)."
 
 func TestDaemonE2EAppSDK(t *testing.T) {
 	t.Parallel()
 	acpmock.RequireDriver(t)
 	fixture := appSDKFixture(t)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		MockAgents: []e2etest.MockAgentSpec{{FixturePath: fixture, FixtureAgent: appSDKAgent, AgentName: appSDKAgent}},
+		MockAgents: []e2etest.MockAgentSpec{
+			{FixturePath: fixture, FixtureAgent: appSDKAgent, AgentName: appSDKAgent},
+			{FixturePath: fixture, FixtureAgent: appSDKAgent, AgentName: "claude"},
+		},
 	})
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -72,6 +78,10 @@ func TestDaemonE2EAppSDK(t *testing.T) {
 			"-count=1",
 		)
 	})
+	t.Run("Should execute the published Node quickstart and persist its reply [US-017.AC-4]", func(t *testing.T) {
+		t.Parallel()
+		appSDKRunQuickstart(t, root, harness, environment)
+	})
 	t.Run("Should grant browser access through CLI and revoke its live session stream", func(t *testing.T) {
 		t.Parallel()
 		appSDKOperatorJourney(t, harness)
@@ -103,7 +113,7 @@ func TestDaemonE2EAppSDK(t *testing.T) {
 
 func appSDKFixture(t *testing.T) string {
 	t.Helper()
-	turns := make([]acpmock.TurnFixture, 0, 7)
+	turns := make([]acpmock.TurnFixture, 0, 8)
 	for _, message := range []string{"noop", "sdk golden", "sdk queued", "sdk replay", "sdk busy", "sdk proxy", "sdk cancel"} {
 		steps := []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: appSDKReply}}
 		switch message {
@@ -134,6 +144,10 @@ func appSDKFixture(t *testing.T) string {
 			},
 		)
 	}
+	turns = append(turns, acpmock.TurnFixture{
+		Name: "documented quickstart", Match: acpmock.TurnMatch{TurnSource: "user", UserText: appSDKQuickstartPrompt},
+		Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: appSDKQuickstartReply}},
+	})
 	fixture := acpmock.Fixture{Version: acpmock.FixtureVersion, Agents: []acpmock.AgentFixture{
 		{
 			Name:        appSDKAgent,
@@ -157,7 +171,13 @@ func appSDKFixture(t *testing.T) string {
 	return path
 }
 
-func appSDKRunCommand(t *testing.T, root string, environment map[string]string, executable string, args ...string) {
+func appSDKRunCommand(
+	t *testing.T,
+	root string,
+	environment map[string]string,
+	executable string,
+	args ...string,
+) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
@@ -172,6 +192,7 @@ func appSDKRunCommand(t *testing.T, root string, environment map[string]string, 
 		t.Fatalf("%s %s: %v\n%s", executable, strings.Join(args, " "), err, output)
 	}
 	t.Logf("%s: %s", executable, output)
+	return string(output)
 }
 
 func appSDKEnvironment(overrides map[string]string) []string {
@@ -257,12 +278,32 @@ func appSDKOperatorJourney(t *testing.T, harness *e2etest.RuntimeHarness) {
 	}
 	session := createBoundFixtureBackedSession(t, ctx, harness, appSDKAgent, "Browser stream")
 	path := "/api/workspaces/" + session.WorkspaceID + "/sessions/" + session.ID + "/stream"
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.Header.Set("Origin", origin)
 	request.Header.Set("Authorization", "Bearer "+issued.Token)
+	listRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL("/api/sessions"), http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listRequest.Header = request.Header.Clone()
+	listed, err := harness.HTTPClient.Do(listRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listBody, readErr := io.ReadAll(listed.Body)
+	if err := errors.Join(readErr, listed.Body.Close()); err != nil {
+		t.Fatal(err)
+	}
+	if listed.StatusCode != http.StatusOK || listed.Header.Get("Access-Control-Allow-Origin") != origin {
+		t.Fatalf("browser sessions = %d %s headers=%v", listed.StatusCode, listBody, listed.Header)
+	}
+	var sessions contract.SessionsResponse
+	if err := json.Unmarshal(listBody, &sessions); err != nil {
+		t.Fatal(err)
+	}
 	response, err := harness.HTTPClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -313,21 +354,23 @@ func appSDKOperatorJourney(t *testing.T, harness *e2etest.RuntimeHarness) {
 	case <-revokeCtx.Done():
 		t.Fatal("revocation did not close browser stream within five seconds")
 	}
-	rejected, err := harness.HTTPClient.Do(request.Clone(ctx))
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, readErr := io.ReadAll(rejected.Body)
-	closeErr := rejected.Body.Close()
-	if err := errors.Join(readErr, closeErr); err != nil {
-		t.Fatal(err)
-	}
-	var payload contract.ErrorPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if rejected.StatusCode != http.StatusUnauthorized || payload.Code != "app_token_revoked" {
-		t.Fatalf("revoked credential = %d %s", rejected.StatusCode, body)
+	for _, revokedRequest := range []*http.Request{listRequest, request} {
+		rejected, err := harness.HTTPClient.Do(revokedRequest.Clone(ctx))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(rejected.Body)
+		closeErr := rejected.Body.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if rejected.StatusCode != http.StatusUnauthorized || payload.Code != "app_token_revoked" {
+			t.Fatalf("revoked credential = %d %s", rejected.StatusCode, body)
+		}
 	}
 }
 
@@ -339,4 +382,80 @@ func appSDKAwaitEvent(t *testing.T, scanner *bufio.Scanner, event string) {
 		}
 	}
 	t.Fatalf("stream ended before %s: %v", event, scanner.Err())
+}
+
+func appSDKRunQuickstart(t *testing.T, root string, harness *e2etest.RuntimeHarness, environment map[string]string) {
+	t.Helper()
+	page, err := os.ReadFile(filepath.Join(root, "packages", "site", "content", "docs", "apps", "index.mdx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, remaining, found := strings.Cut(string(page), "```js\n")
+	script, _, closed := strings.Cut(remaining, "\n```")
+	if !found || !closed {
+		t.Fatal("published quickstart has no complete JavaScript program")
+	}
+	if err := os.WriteFile(filepath.Join(harness.WorkspaceRoot, "run.mjs"), []byte(script+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range []struct {
+		name string
+		size int
+	}{
+		{"largest.txt", 4096}, {"middle.txt", 3072}, {"smallest.txt", 2048},
+	} {
+		if err := os.WriteFile(
+			filepath.Join(harness.WorkspaceRoot, file.name),
+			[]byte(strings.Repeat("x", file.size)),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	packageScope := filepath.Join(harness.WorkspaceRoot, "node_modules", "@compozy")
+	if err := os.MkdirAll(packageScope, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "sdk", "client"), filepath.Join(packageScope, "client")); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("Quickstart uses the built current-checkout package; registry installation remains release verification.")
+	output := appSDKRunCommand(t, harness.WorkspaceRoot, environment, "node", "run.mjs")
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	var identity contract.RuntimeIdentityPayload
+	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/status/identity", nil, &identity); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output, "Connected to CompozyOS "+identity.Daemon.Version+"\n") ||
+		!strings.Contains(output, appSDKQuickstartReply) {
+		t.Fatalf("published quickstart did not print the daemon version and workspace reply: %q", output)
+	}
+	var sessions contract.SessionsResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/sessions?workspace_id="+harness.WorkspaceID,
+		nil,
+		&sessions,
+	); err != nil {
+		t.Fatal(err)
+	}
+	var matches []contract.SessionPayload
+	for _, session := range sessions.Sessions {
+		if session.AgentName == "claude" && session.WorkspaceID == harness.WorkspaceID {
+			matches = append(matches, session)
+		}
+	}
+	if len(matches) != 1 {
+		t.Fatalf("quickstart persisted %d claude sessions in its workspace, want one", len(matches))
+	}
+	pageResponse, err := harness.SessionTranscript(ctx, matches[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := transcript.JoinUIMessageText(transcript.MessagesFromEntries(pageResponse.Entries))
+	if !strings.Contains(text, appSDKQuickstartPrompt) || !strings.Contains(text, appSDKQuickstartReply) {
+		t.Fatalf("quickstart transcript omitted its persisted prompt or reply: %q", text)
+	}
 }
