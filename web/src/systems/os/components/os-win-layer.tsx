@@ -1,16 +1,21 @@
 import { MonitorX } from "lucide-react";
-import type { CSSProperties } from "react";
+import { lazy, Suspense, type CSSProperties } from "react";
 
-import { Empty } from "@compozy/ui";
+import { Button, Empty } from "@compozy/ui";
 
 import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
-import { OsEmptyDesktop } from "./os-empty-desktop";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
+import { OsWindowErrorBoundary } from "./os-window-error-boundary";
+
+// A restored desktop with windows does not need the session composer/runtime.
+const OsEmptyDesktop = lazy(() =>
+  import("./os-empty-desktop").then(module => ({ default: module.OsEmptyDesktop }))
+);
 
 /** Keeps frame-rate gesture updates from re-rendering the desktop and its windows. */
 function LiveSnapOverlay() {
@@ -85,6 +90,7 @@ function desktopLayerView(input: {
 
 function DesktopLayer({
   model,
+  showEmptyDesktop,
   compact,
   reducedMotion,
   viewportReady,
@@ -101,6 +107,7 @@ function DesktopLayer({
   onPickProject,
 }: {
   model: DesktopLayerModel;
+  showEmptyDesktop: boolean;
   compact: boolean;
   reducedMotion: boolean;
   viewportReady: boolean;
@@ -133,13 +140,36 @@ function DesktopLayer({
       }}
       style={style}
     >
-      {interactive && !model.anyVisible ? (
-        <OsEmptyDesktop
-          desktopName={model.desktop.name}
-          paletteShortcutLabel={paletteShortcutLabel}
-          hasProject={hasProject}
-          onPickProject={onPickProject}
-        />
+      {interactive && !model.anyVisible && showEmptyDesktop ? (
+        <OsWindowErrorBoundary
+          title={model.desktop.name}
+          fallback={
+            <div role="alert" className="absolute inset-0 flex items-center justify-center p-6">
+              <Empty
+                title="The launcher couldn't open"
+                description="Reload CompozyOS to try again."
+                action={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => window.location.reload()}
+                  >
+                    Reload
+                  </Button>
+                }
+              />
+            </div>
+          }
+        >
+          <Suspense fallback={null}>
+            <OsEmptyDesktop
+              desktopName={model.desktop.name}
+              paletteShortcutLabel={paletteShortcutLabel}
+              hasProject={hasProject}
+              onPickProject={onPickProject}
+            />
+          </Suspense>
+        </OsWindowErrorBoundary>
       ) : null}
       {model.frames.map(frame => (
         <OsWindow key={frame.id} frame={frame} />
@@ -164,6 +194,7 @@ function DesktopLayer({
 /** Every desktop tree remains mounted; only the client-active tree is interactive. */
 export function OsWinLayer({
   model,
+  showEmptyDesktop = true,
   reducedMotion,
   transition,
   onTransitionComplete,
@@ -177,6 +208,7 @@ export function OsWinLayer({
   onPickProject,
 }: {
   model: OsWinLayerModel;
+  showEmptyDesktop?: boolean;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
@@ -198,6 +230,7 @@ export function OsWinLayer({
         <DesktopLayer
           key={desktop.desktop.id}
           model={desktop}
+          showEmptyDesktop={showEmptyDesktop}
           compact={presentation === "compact"}
           reducedMotion={reducedMotion}
           viewportReady={viewportState === "ready"}

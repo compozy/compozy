@@ -27,21 +27,37 @@ interface MessageLike {
   content?: unknown;
 }
 
+// Runtime and durable messages are immutable snapshots. Retain only their
+// permission parts so an ordinary text chunk does not rescan every old tool.
+const permissionPartsByContent = new WeakMap<
+  readonly unknown[],
+  readonly CompozyPermissionData[]
+>();
+
+function permissionParts(content: readonly unknown[]): readonly CompozyPermissionData[] {
+  const cached = permissionPartsByContent.get(content);
+  if (cached) return cached;
+  const permissions: CompozyPermissionData[] = [];
+  for (const part of content) {
+    if (!isRecord(part)) continue;
+    const isPermissionPart =
+      part.type === "data-compozy-permission" ||
+      (part.type === "data" && part.name === "compozy-permission");
+    if (isPermissionPart && isPermissionData(part.data)) permissions.push(part.data);
+  }
+  permissionPartsByContent.set(content, permissions);
+  return permissions;
+}
+
 /** The latest permission part per `request_id`, in first-seen order. */
 function latestPermissionParts(
   messages: readonly MessageLike[]
 ): ReadonlyMap<string, CompozyPermissionData> {
   const byRequest = new Map<string, CompozyPermissionData>();
   for (const message of messages) {
-    const content = Array.isArray(message.content) ? message.content : [];
-    for (const part of content) {
-      if (!isRecord(part)) continue;
-      const isPermissionPart =
-        part.type === "data-compozy-permission" ||
-        (part.type === "data" && part.name === "compozy-permission");
-      if (!isPermissionPart) continue;
-      if (!isPermissionData(part.data)) continue;
-      byRequest.set(part.data.request_id, part.data);
+    if (!Array.isArray(message.content)) continue;
+    for (const data of permissionParts(message.content)) {
+      byRequest.set(data.request_id, data);
     }
   }
   return byRequest;

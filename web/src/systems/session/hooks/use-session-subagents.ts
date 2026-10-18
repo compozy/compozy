@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { hashKey, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { cancelSubagent } from "../adapters/subagent-api";
@@ -7,6 +7,10 @@ import { sessionKeys } from "../lib/query-keys";
 import { subagentViewFromPayload } from "../lib/subagent-payload";
 import { SUBAGENT_LIST_PAGE_SIZE, sessionSubagentsOptions } from "../lib/subagent-query-options";
 import type { SubagentRoster } from "../lib/subagent-roster";
+
+function subscribeIdle(): () => void {
+  return () => undefined;
+}
 
 export interface SessionSubagentsModel {
   subagents: readonly SubagentView[];
@@ -53,20 +57,20 @@ function useLiveSubagentRoster(
   enabled: boolean
 ): SubagentRoster | null {
   const cache = useQueryClient().getQueryCache();
-  // Stable per cache: a new subscribe identity would resubscribe on every chip render.
-  const subscribe = useCallback((notify: () => void) => cache.subscribe(notify), [cache]);
-  const find = useCallback(
-    () =>
-      cache.find<SubagentRoster>({
-        queryKey: sessionKeys.subagentRoster(workspaceId, sessionId),
-        exact: true,
+  const queryHash = hashKey(sessionKeys.subagentRoster(workspaceId, sessionId));
+  // Other sessions and background queries must not wake every roster reader.
+  const subscribe = useCallback(
+    (notify: () => void) =>
+      cache.subscribe(event => {
+        if (event.query.queryHash === queryHash) notify();
       }),
-    [cache, workspaceId, sessionId]
+    [cache, queryHash]
   );
+  const find = useCallback(() => cache.get<SubagentRoster>(queryHash), [cache, queryHash]);
   const readData = useCallback(() => find()?.state.data, [find]);
   const readObservers = useCallback(() => find()?.getObserversCount() ?? 0, [find]);
-  const data = useSyncExternalStore(subscribe, readData);
-  const observers = useSyncExternalStore(subscribe, readObservers);
+  const data = useSyncExternalStore(enabled ? subscribe : subscribeIdle, readData);
+  const observers = useSyncExternalStore(enabled ? subscribe : subscribeIdle, readObservers);
   if (!enabled || !data || observers === 0 || data.staleIds.size > 0) return null;
   return data.rows.length >= SUBAGENT_LIST_PAGE_SIZE ? null : data;
 }

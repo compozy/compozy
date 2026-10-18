@@ -42,3 +42,8 @@ per-workspace fan-out, with identical notification identities. Walked in an isol
 (7 workspaces, 5 active mock sessions): the attention payload matched the pre-change build byte for
 byte apart from the snapshot token, and a hidden headless tab issued 2 bell reads/min. The hidden
 transition used synthetic `visibilitychange`, not a real Electron hide.
+
+
+QA impact 2026-10-17 (web performance): Removed the shell pending-approval page and Loop-node probes whose outputs were unused. The title/notification source and exact task/Loop aggregate owners remain unchanged. Re-walk nonzero/zero and route transitions in CI; initial empty-shell browser observation is not a populated-count revalidation.
+
+Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.

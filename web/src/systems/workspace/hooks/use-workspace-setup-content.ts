@@ -7,6 +7,7 @@ import { useDirectoryBrowser } from "@/systems/onboarding";
 type SubmissionMode = "create" | null;
 
 interface UseWorkspaceSetupContentOptions {
+  enabled?: boolean;
   onSuccessClose?: () => void;
   onWorkspaceResolved: (workspaceId: string) => void;
 }
@@ -38,6 +39,7 @@ function workspaceNameFromPath(path: string): string {
 }
 
 export function useWorkspaceSetupContent({
+  enabled = true,
   onWorkspaceResolved,
   onSuccessClose,
 }: UseWorkspaceSetupContentOptions) {
@@ -46,7 +48,7 @@ export function useWorkspaceSetupContent({
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const browse = useDirectoryBrowser({ dirsOnly: true });
+  const browse = useDirectoryBrowser({ dirsOnly: true }, enabled);
   const browseData = browse.data;
 
   /**

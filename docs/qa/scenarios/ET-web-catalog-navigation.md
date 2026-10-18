@@ -31,3 +31,10 @@ report's session matrix in a future QA cycle.
 QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.
 
 QA impact 2026-10-07 (memory removal): the Knowledge app and `/knowledge` were removed from the registry, so the dock, Go menu, and palette list one fewer launcher; `/knowledge` renders the standard not-found route and no Knowledge palette hit or descriptor remains. Stale skipped verdict reset to untested; the 2026-10-05 skip was specific to that cycle; no QA session ran.
+
+
+QA impact 2026-10-17 (web performance): The empty desktop/composer and worktree dialog boundaries now load on demand. A cold app deep link must open the intended window without briefly mounting the empty composer; returning to an empty desktop must still show the launcher. Re-walk worktree dialogs on first open and existing reload/window lifecycle. Initial Tasks exploration used the first split build, so the final-source result remains assigned to CI.
+
+Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.
+
+Recovery follow-up: block the deferred launcher/dialog JavaScript request and confirm a contained recovery surface. Closing the unavailable dialog keeps the desktop reachable; Reload fetches the feature again and preserves the ordinary window/launcher journey. The existing OS-shell/worktree E2E journeys own these network-failure legs in CI.

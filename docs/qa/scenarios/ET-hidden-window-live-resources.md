@@ -25,3 +25,8 @@ Walk each listed public entry point, then reload and read the stored result inde
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+
+QA impact 2026-10-17 (web performance): Subagent roster readers no longer subscribe while disabled and ignore unrelated query changes while enabled. Window visibility/resource ownership is unchanged. Re-walk hide/restore and verify the last stream observer still restores the authoritative list; the existing session-list integration suite covers the latter boundary.
+
+Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.

@@ -24,7 +24,10 @@ import {
   answerSessionClarification,
   fetchSessionClarifications,
 } from "../../adapters/session-clarification-api";
-import { derivePendingPermissions } from "../../lib/pending-permissions";
+import {
+  deriveDecidedPermissionRequestIds,
+  derivePendingPermissions,
+} from "../../lib/pending-permissions";
 import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import { SessionTranscriptThreadProvider } from "../../lib/session-transcript-thread-context";
 import type { ClarificationPending, SessionInteractionRecord } from "../../types";
@@ -124,6 +127,28 @@ function renderDock({
 }
 
 describe("SessionDecisionDock", () => {
+  // Invariant: latest permission facts follow transcript order and immutable
+  // replacement, and disappear when their message leaves the current thread.
+  // Owning layer: permission derivation; canonical suite: this dock suite.
+  it("Should reconcile replaced and reordered permission messages without retaining removed asks", () => {
+    const pending = permissionMessage("req-1");
+    const decided = permissionMessage("req-1", { decision: "allow-once" });
+    const other = permissionMessage("req-2");
+    expect(derivePendingPermissions([pending, other]).map(item => item.requestId)).toEqual([
+      "req-1",
+      "req-2",
+    ]);
+    expect(derivePendingPermissions([decided, other]).map(item => item.requestId)).toEqual([
+      "req-2",
+    ]);
+    expect([...deriveDecidedPermissionRequestIds([pending, decided])]).toEqual(["req-1"]);
+    expect(derivePendingPermissions([decided, pending]).map(item => item.requestId)).toEqual([
+      "req-1",
+    ]);
+    expect(derivePendingPermissions([])).toEqual([]);
+    expect(deriveDecidedPermissionRequestIds([other]).size).toBe(0);
+  });
+
   beforeEach(() => {
     // Clear call HISTORY too — module-mock vi.fn instances keep their recorded
     // calls across tests otherwise, chaining one test's calls into the next.

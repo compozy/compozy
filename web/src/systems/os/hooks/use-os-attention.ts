@@ -1,7 +1,7 @@
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useQuery } from "@tanstack/react-query";
 
-import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
+import { useLoopRequestAttention } from "@/systems/loops";
 import { useProfileReadScope } from "@/systems/profiles";
 import {
   deriveAttentionBadges,
@@ -17,7 +17,7 @@ import {
   useSessionCatalog,
   sessionFacetsOptions,
 } from "@/systems/session";
-import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
+import { taskScopeForActiveWorkspace, useTaskDashboard } from "@/systems/tasks";
 import {
   projectTerminalBadge,
   terminalInputRequestsQuery,
@@ -79,7 +79,7 @@ export function useOsAttention(
     modalEnabled,
   });
   const tasks = useTaskAttentionSources({ activeWorkspaceId, documentVisible, scope });
-  const loops = useLoopAttentionSources({ documentVisible, workspaceId, workspaces });
+  const loops = useLoopRequestAttention(workspaces, true, documentVisible);
   const terminal = useTerminalAttentionSources({
     documentVisible,
     sessionCatalogStreamStatus,
@@ -92,7 +92,7 @@ export function useOsAttention(
     summaryStale: sessions.summary.stale,
     dashboard: tasks.dashboard,
     tasksStale: tasks.disconnected,
-    loopsPending: loops.requests.pendingCount,
+    loopsPending: loops.pendingCount,
   });
   const badges = {
     ...baseBadges,
@@ -177,18 +177,6 @@ function useTaskAttentionSources({
     enabled,
     refetchIntervalMs: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
   });
-  const tasksQuery = useTasks(
-    {
-      ...taskScope,
-      approval_state: "pending",
-      limit: 100,
-      sort: "recent",
-    },
-    {
-      enabled,
-      refetchIntervalMs: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
-    }
-  );
   const dashboard = dashboardQuery.data ?? null;
   const disconnected =
     !enabled ||
@@ -198,27 +186,6 @@ function useTaskAttentionSources({
   return {
     dashboard,
     disconnected,
-    loading: enabled && (dashboardQuery.isLoading || tasksQuery.isLoading),
-    rows: tasksQuery.data ?? [],
-    rowsDisconnected: disconnected || tasksQuery.isError || tasksQuery.data === undefined,
-  };
-}
-
-function useLoopAttentionSources({
-  documentVisible,
-  workspaceId,
-  workspaces,
-}: {
-  documentVisible: boolean;
-  workspaceId: string | null;
-  workspaces: WorkspacePayload[];
-}) {
-  const enabled = workspaceId !== null;
-  const loopWorkspaceId = workspaceId ?? "";
-  return {
-    waitingPresent: useLoopNodeExists(loopWorkspaceId, "waiting", enabled),
-    attentionPresent: useLoopNodeExists(loopWorkspaceId, "attention", enabled),
-    requests: useLoopRequestAttention(workspaces, true, documentVisible),
   };
 }
 
