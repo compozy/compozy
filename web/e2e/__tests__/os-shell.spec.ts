@@ -872,6 +872,7 @@ test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their 
 
   // ⌘B toggles the sessions sidebar.
   const sidebar = appPage.getByTestId("session-sidebar");
+  await expect(sidebar).toBeVisible();
   const sidebarVisible = await sidebar.isVisible();
   await appPage.keyboard.press("ControlOrMeta+B");
   await expect(sidebar).toBeVisible({ visible: !sidebarVisible });

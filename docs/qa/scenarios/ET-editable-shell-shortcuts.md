@@ -27,3 +27,7 @@ action panel with the palette chord again. When recent or pinned commands reorde
 the selected command and its action panel must remain available. Removing the selected command
 may select its nearest remaining neighbor. The existing Herdr E2E-016 journey owns the real
 keyboard flow; the palette hook suite covers asynchronous catalog and ranking arrival.
+
+QA impact 2026-10-18: the same continuity must hold when opening the action panel and refreshing
+ranking share one update. Select the row at the operator's action, before the new ordering can
+move the automatic highlight; retain normal automatic selection when no action was taken.

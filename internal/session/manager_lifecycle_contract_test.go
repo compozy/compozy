@@ -830,6 +830,98 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 }
 
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariants: persistence shares the termination phase budget; actual write failures remain visible.
+	// Owner: termination ladder; canonical suite: shared session stop operations.
+	for _, observation := range []struct {
+		name     string
+		delay    time.Duration
+		fail     bool
+		deadline bool
+	}{
+		{"Should keep escalation persistence in the existing phase budget", 2 * time.Second, false, false},
+		{"Should retain actual escalation persistence failures", 0, true, false},
+		{"Should terminate while escalation persistence exhausts the phase budget", 2 * stopForcedGrace, false, true},
+	} {
+		t.Run(observation.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				manager := &Manager{
+					now:          time.Now,
+					promptDrains: make(map[chan struct{}]struct{}),
+					stopConfig:   compozyconfig.SessionStopConfig{CooperativeGrace: time.Second},
+				}
+				done := make(chan struct{})
+				proc := NewAgentProcess(AgentProcessOptions{PID: 123, Done: done})
+				exit := sync.OnceFunc(func() { close(done) })
+				failure := errors.New("escalation persistence failed")
+				var persisted atomic.Bool
+				var observationDeadline atomic.Int64
+				result, err := manager.runTerminationLadder(t.Context(), proc, terminationTarget{
+					cooperative: func(context.Context, *AgentProcess) error { return nil },
+					forced: func(ctx context.Context, _ *AgentProcess) error {
+						deadline, ok := ctx.Deadline()
+						if !ok || deadline.UnixNano() != observationDeadline.Load() || time.Until(deadline) <= 0 ||
+							time.Until(deadline) > stopForcedGrace {
+							t.Error("persistence and termination did not share the original live phase deadline")
+						}
+						exit()
+						return nil
+					},
+					kill:       func(context.Context, *AgentProcess) error { exit(); return nil },
+					verifyExit: func(*AgentProcess) (bool, error) { return signalClosed(done), nil },
+					beforeAction: func(ctx context.Context, phase StopPhase, _ time.Duration) error {
+						if phase != StopPhaseForced {
+							return errors.New("unexpected escalation")
+						}
+						deadline, ok := ctx.Deadline()
+						if !ok {
+							return errors.New("escalation persistence has no deadline")
+						}
+						observationDeadline.Store(deadline.UnixNano())
+						timer := time.NewTimer(observation.delay)
+						defer timer.Stop()
+						select {
+						case <-timer.C:
+						case <-ctx.Done():
+							return ctx.Err()
+						}
+						if observation.fail {
+							return failure
+						}
+						persisted.Store(true)
+						return nil
+					},
+				})
+				if err != nil || !result.Verified || result.Phase != StopPhaseForced {
+					t.Fatalf("termination = %#v, %v", result, err)
+				}
+				switch {
+				case observation.deadline:
+					if !errors.Is(result.observationErr, context.DeadlineExceeded) || persisted.Load() ||
+						result.Elapsed > stopForcedGrace {
+						t.Fatalf(
+							"unsettled persistence lost its bounded failure: %#v persisted=%t",
+							result,
+							persisted.Load(),
+						)
+					}
+				case observation.fail:
+					if !errors.Is(result.observationErr, failure) {
+						t.Fatalf("persistence error = %v, want %v", result.observationErr, failure)
+					}
+				case result.observationErr != nil || !persisted.Load():
+					t.Fatalf(
+						"verified stop lost its escalation receipt: persisted=%t error=%v",
+						persisted.Load(),
+						result.observationErr,
+					)
+				}
+				if err := manager.WaitForPromptDrains(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			})
+		})
+	}
 	t.Run("Should replay supervised work recovery from the same verified stop receipt", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

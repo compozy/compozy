@@ -220,3 +220,11 @@ pending-interaction guard. The supervision branch was also not walked. These are
 owning `internal/session` suites (`TestSupervisionReleasesIdleRuntime`,
 `TestSupervisionIgnoresSessionWaitingForOperator`) and the daemon integration test
 `TestReplyWatchLongWaitIntegration`, so `qa_status` stays `untested` until a full re-walk.
+
+QA impact 2026-10-18: delay escalation-history persistence beyond the initial one-second
+observation wait while keeping it within the existing termination phase. The process must still
+receive its stop signal promptly, the durable escalation receipt must settle before Stop returns,
+and a repeated stop or subsequent deletion must preserve the same terminal winner. An actual
+write failure or phase deadline remains an error; blocked persistence must not block termination.
+The canonical shared-stop suite uses deterministic time, with the existing real ACP subprocess
+and SQLite integration journeys retaining process-exit, recovery, and stop-reason coverage.

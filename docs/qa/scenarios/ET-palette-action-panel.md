@@ -46,3 +46,10 @@ capture-phase dispatch check.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-18: open the action panel with the palette chord while recent or pinned
+commands reorder the results in the same browser update. The panel must keep the row the
+operator acted on; the ordinary removal-of-target behavior above still applies. The canonical
+palette root/surface suite owns simultaneous ranking coverage, and Herdr E2E-016 owns the
+real keyboard activation and Escape ladder. This focused regression does not replace the
+remaining full scenario walk recorded above.

@@ -1597,6 +1597,7 @@ describe("useOsPaletteExecution keyboard dispatch [UT-129]", () => {
         pins: [],
         selected,
         contentRef,
+        onPanelOpen: vi.fn(),
         runAction,
         runCommand,
       })

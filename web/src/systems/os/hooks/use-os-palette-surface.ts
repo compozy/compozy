@@ -103,15 +103,14 @@ export function useOsPaletteSurface({
     pins: root.pins,
     selected: resolvePaletteRowSubject(root.rowSources, selected),
     contentRef,
+    // Commit the operator's choice in the event, before a batched ranking update
+    // can move the automatic highlight away from the panel's target.
+    onPanelOpen: () => {
+      setSelection({ previous: values, value: selected, chosen: true, open, query: root.query });
+    },
     runAction: root.runRowAction,
     runCommand: (command, options) => void dispatch.run(command, options),
   });
-
-  // Acting on a row pins the highlight to it: the action panel must keep
-  // pointing at the row it was opened for.
-  if (execution.panel.open && !chosen) {
-    setSelection({ previous: values, value: selected, chosen: true, open, query: root.query });
-  }
 
   return {
     root,

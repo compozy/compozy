@@ -3648,3 +3648,39 @@ Transport-parity follow-through: browser rate-limit probes use the app-access id
 endpoint. The existing real HTTP/UDS credential journey explicitly retains diagnostic-route
 denial, local-process privileges, origin isolation, and revocation. No production policy is relaxed;
 ET-app-token-browser-access carries the previously documented status/identity distinction.
+
+
+## 2026-10-18 stop escalation persistence and termination share a phase deadline
+
+- Native session stop, CLI, HTTP, and UDS retain their existing IDs, DTOs, caller scope, and
+  cancellation policy. Slow history writes no longer create a false stop failure after exit proof.
+- Escalation persistence retains the existing termination-phase context. Its initial one-second
+  observation wait still reserves time for the physical stop action; the receipt settles under
+  that same phase deadline before finalization. Cooperative, forced, and kill budgets are unchanged.
+  Real persistence failures and exhausted phase deadlines remain visible.
+- Hooks, extensibility, config, and workspace/profile isolation are unchanged. Event and metadata
+  ownership stay scoped to the same session; no schema or migration is needed.
+- Web controls and the official skill's phase timings remain unchanged. The source release note
+  explains the corrected stop/delete behavior; RT-session-native-stop owns the delayed-history
+  and blocked-persistence QA boundaries. Existing lifecycle and real ACP/SQLite suites verify them.
+
+The prompt-event observer also snapshots the mutable session type under the session lock before
+adding recovery guidance. Pre-stop hook context updates can now overlap a queued turn's final
+events without a data race; recovery actions, event payloads, and public contracts are unchanged.
+The existing origin-delivery and lifecycle suites own concurrent stop/prompt coverage. The
+daemon receipt-fence test intercepts the current idempotent append boundary, the full integration
+job builds the app SDK before running the published Node quickstart, and the browser shortcut
+journey awaits the reopened sidebar before checking its toggle. These validation repairs preserve
+the existing hop-limit, public-package, and keyboard behavior assertions.
+
+
+## 2026-10-18 palette action selection during ranking refresh
+
+- Web: opening an action panel commits the current row selection in the keyboard/pointer event.
+  A simultaneous recents or pins update can reorder the catalog without dismissing that panel.
+  Untouched highlights still follow the top result, and removing the selected target still closes
+  its panel. Existing palette surface tests own both separate and simultaneous updates.
+- Native tools, hooks/extensions/config, persisted data, workspace/profile scope, and official
+  skills have no contract change. No migrations or generated clients are affected.
+- ET-palette-action-panel and ET-editable-shell-shortcuts carry the focused QA impact. The real
+  Herdr E2E-016 journey verifies editable activation, the sidebar chord, and the Escape ladder.

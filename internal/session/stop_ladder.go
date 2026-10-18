@@ -139,12 +139,20 @@ func (m *Manager) runTerminationLadder(
 				return outcome, nil
 			}
 		}
+		var observation <-chan error
 		if target.beforeAction != nil && phase.phase != StopPhaseCooperative {
+			completed := m.startStopAction(phaseCtx, proc, func(ctx context.Context, _ *AgentProcess) error {
+				return target.beforeAction(ctx, phase.phase, m.now().Sub(started))
+			})
+			// Reserve time to signal the process without canceling a write that can
+			// still settle inside the same bounded termination phase.
 			observeCtx, cancelObserve := context.WithTimeout(phaseCtx, time.Second)
-			outcome.observationErr = errors.Join(outcome.observationErr, m.runStopAction(observeCtx, proc,
-				func(ctx context.Context, _ *AgentProcess) error {
-					return target.beforeAction(ctx, phase.phase, m.now().Sub(started))
-				}))
+			select {
+			case observeErr := <-completed:
+				outcome.observationErr = errors.Join(outcome.observationErr, observeErr)
+			case <-observeCtx.Done():
+				observation = completed
+			}
 			cancelObserve()
 		}
 		actionErr := m.runStopAction(phaseCtx, proc, phase.action)
@@ -153,6 +161,7 @@ func (m *Manager) runTerminationLadder(
 			waitStopPhase(phaseCtx, proc, target.promptDone, phase.phase)
 			verified, exited, verifyErr = m.verifyTerminationTarget(phaseCtx, proc, target, phase.phase)
 		}
+		outcome.observationErr = errors.Join(outcome.observationErr, waitStopObservation(phaseCtx, observation))
 		cancel()
 		outcome.Elapsed = m.now().Sub(started)
 		if verified && verifyErr == nil {
@@ -223,10 +232,29 @@ func (m *Manager) runStopAction(
 	proc *AgentProcess,
 	action func(context.Context, *AgentProcess) error,
 ) error {
-	completed := make(chan error, 1)
-	m.startTrackedPromptTask(func() { completed <- action(ctx, proc) })
+	completed := m.startStopAction(ctx, proc, action)
 	select {
 	case err := <-completed:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (m *Manager) startStopAction(
+	ctx context.Context, proc *AgentProcess, action func(context.Context, *AgentProcess) error,
+) <-chan error {
+	completed := make(chan error, 1)
+	m.startTrackedPromptTask(func() { completed <- action(ctx, proc) })
+	return completed
+}
+
+func waitStopObservation(ctx context.Context, observation <-chan error) error {
+	if observation == nil {
+		return nil
+	}
+	select {
+	case err := <-observation:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()

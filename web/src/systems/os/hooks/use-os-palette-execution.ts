@@ -74,6 +74,8 @@ export interface UseOsPaletteExecutionOptions {
   readonly selected: PaletteRowSubject | null;
   /** The palette's content element; the panel anchors to the selected row inside it. */
   readonly contentRef: RefObject<HTMLElement | null>;
+  /** Commits the current row before an action-panel update can share a ranking refresh. */
+  onPanelOpen(): void;
   /** Runs one panel action; the shell owns what each intent can touch. */
   runAction(action: PaletteRowAction): void;
   /** Runs a command with collected arguments and a cleared confirmation. */
@@ -108,6 +110,7 @@ export function useOsPaletteExecution({
   pins,
   selected,
   contentRef,
+  onPanelOpen,
   runAction,
   runCommand,
 }: UseOsPaletteExecutionOptions): OsPaletteExecutionModel {
@@ -186,6 +189,7 @@ export function useOsPaletteExecution({
 
   const openPanel = () => {
     if (model === null) return;
+    onPanelOpen();
     setAnchor(anchorFor(contentRef, model.key));
     setPanelKey(model.key);
     setPanelFilter("");

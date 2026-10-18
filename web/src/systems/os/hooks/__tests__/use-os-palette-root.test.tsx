@@ -1999,30 +1999,39 @@ describe("palette execution surfaces", () => {
     }
   });
 
-  it("Should retain an automatically selected row and its actions when async ranking arrives", () => {
-    let registry: PaletteRegistry = { ...EXECUTION_REGISTRY, commands: [], byId: new Map() };
-    const { result, rerender } = renderHook(
-      () => useOsPaletteSurface({ open: true, onOpenChange: vi.fn(), dispatch: paletteDispatch }),
-      {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <CmdPaletteRegistryProvider registry={registry}>{children}</CmdPaletteRegistryProvider>
-        ),
-      }
-    );
-    expect(result.current.selected).toBe("");
-    registry = EXECUTION_REGISTRY;
-    rerender();
-    const selected = result.current.selected;
-    expect(selected).not.toBe("");
-    expect(selected).not.toBe("settings.layouts");
-    act(() => result.current.execution.setPanelOpen(true));
-    expect(result.current.execution.panel.open).toBe(true);
-    paletteMocks.rankSignals = { ...TEST_RANK_SIGNALS, pins: ["settings.layouts"] };
-    rerender();
-    expect(result.current.values[0]).toBe("settings.layouts");
-    expect(result.current.selected).toBe(selected);
-    expect(result.current.execution.panel.open).toBe(true);
-  });
+  it.each([false, true])(
+    "Should retain a row and its actions when ranking arrives in the same batch %s",
+    batchRanking => {
+      let registry: PaletteRegistry = { ...EXECUTION_REGISTRY, commands: [], byId: new Map() };
+      const { result, rerender } = renderHook(
+        () => useOsPaletteSurface({ open: true, onOpenChange: vi.fn(), dispatch: paletteDispatch }),
+        {
+          wrapper: ({ children }: { children: ReactNode }) => (
+            <CmdPaletteRegistryProvider registry={registry}>{children}</CmdPaletteRegistryProvider>
+          ),
+        }
+      );
+      expect(result.current.selected).toBe("");
+      registry = EXECUTION_REGISTRY;
+      rerender();
+      const selected = result.current.selected;
+      expect(selected).not.toBe("");
+      expect(selected).not.toBe("settings.layouts");
+      act(() => {
+        result.current.execution.setPanelOpen(true);
+        if (batchRanking) {
+          paletteMocks.rankSignals = { ...TEST_RANK_SIGNALS, pins: ["settings.layouts"] };
+          rerender();
+        }
+      });
+      expect(result.current.execution.panel.open).toBe(true);
+      paletteMocks.rankSignals = { ...TEST_RANK_SIGNALS, pins: ["settings.layouts"] };
+      rerender();
+      expect(result.current.values[0]).toBe("settings.layouts");
+      expect(result.current.selected).toBe(selected);
+      expect(result.current.execution.panel.open).toBe(true);
+    }
+  );
 
   it("Should keep an untouched highlight on the top row while ranking arrives", () => {
     const { result, rerender } = renderHook(

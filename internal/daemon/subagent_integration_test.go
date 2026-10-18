@@ -3989,21 +3989,38 @@ func (b *originReceiptBarrier) RecordPersisted(
 	ctx context.Context,
 	event store.SessionEvent,
 ) (store.SessionEvent, error) {
+	if err := b.waitBeforeReceipt(ctx, event); err != nil {
+		return store.SessionEvent{}, err
+	}
+	return b.SessionDB.RecordPersisted(ctx, event)
+}
+
+func (b *originReceiptBarrier) AppendEventIfAbsent(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, bool, error) {
+	if err := b.waitBeforeReceipt(ctx, event); err != nil {
+		return store.SessionEvent{}, false, err
+	}
+	return b.SessionDB.AppendEventIfAbsent(ctx, event)
+}
+
+func (b *originReceiptBarrier) waitBeforeReceipt(ctx context.Context, event store.SessionEvent) error {
 	if event.Type == acp.EventTypeUserMessage {
 		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 		if err != nil {
-			return store.SessionEvent{}, err
+			return err
 		}
 		if decoded.MessageIDValue() == "receipt-held" {
 			close(b.reached)
 			select {
 			case <-b.release:
 			case <-ctx.Done():
-				return store.SessionEvent{}, ctx.Err()
+				return ctx.Err()
 			}
 		}
 	}
-	return b.SessionDB.RecordPersisted(ctx, event)
+	return nil
 }
 
 // Invariant: an orchestrator waiting on a reply is not stopped for inactivity while its target works, and a
