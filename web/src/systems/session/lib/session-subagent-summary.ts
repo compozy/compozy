@@ -2,6 +2,9 @@ import type { SessionPayload } from "../types";
 import { sessionBadgeSignal } from "./session-badge";
 import { isSessionRunning } from "./session-running";
 
+/** COPY.md: the lineage label once a subagent's parent session is gone. */
+export const SUBAGENT_OF_DELETED_SESSION = "Subagent of a deleted session";
+
 /** Chip counts, structurally the subagent components' `SubagentCounts`. */
 export interface SessionSubagentCounts {
   live: number;

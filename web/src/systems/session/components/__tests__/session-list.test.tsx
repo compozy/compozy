@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { formatAbsoluteTime } from "@compozy/ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
@@ -161,6 +162,17 @@ function renderList(
 }
 
 describe("SessionList selection", () => {
+  // Invariant: hovering a row swaps its compact time for the actions, so the row
+  // target itself still reveals the full timestamp to mouse users.
+  it("keeps the full timestamp on the row target while hover hides the compact time", () => {
+    renderList();
+    const running = sessions.find(session => session.id === "running")!;
+    expect(screen.getByTestId("session-sidebar-session-running")).toHaveAttribute(
+      "title",
+      formatAbsoluteTime(running.updated_at)
+    );
+  });
+
   it("Should offer all five sort choices and send the selected stable order", async () => {
     const user = userEvent.setup();
     const setSort = vi.fn();

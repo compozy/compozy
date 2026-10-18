@@ -1,4 +1,4 @@
-import { Checkbox, Time } from "@compozy/ui";
+import { Checkbox, Time, formatAbsoluteTime } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
 import { cn } from "@/lib/utils";
@@ -198,8 +198,11 @@ function SessionRowTarget({
         emphasized && "font-medium"
       )}
       data-slot="session-row-target"
-      // The meta line sits under the target, so the attention detail rides on the row.
-      title={meta.reason?.detail}
+      // The end slot swaps the time for actions on hover, and the meta line sits
+      // under the target, so the full timestamp and attention detail ride on the row.
+      title={[formatAbsoluteTime(session.updated_at), meta.reason?.detail]
+        .filter(Boolean)
+        .join("\n")}
       data-status={session.badge}
       data-testid={testId}
       aria-current={current ? "true" : undefined}

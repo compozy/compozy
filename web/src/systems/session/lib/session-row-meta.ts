@@ -3,11 +3,11 @@
 
 import type { ProfileOwner } from "@/systems/profiles";
 
-import { SUBAGENT_OF_DELETED_SESSION } from "../components/subagents/subagent-format";
 import type { sessionBadgeSignal } from "./session-badge";
 import { maskedAttentionNote } from "./session-pending-interactions";
 import { sessionAttentionReason, type SessionAttentionReason } from "./session-attention-reason";
 import type { SessionPayload } from "../types";
+import { SUBAGENT_OF_DELETED_SESSION } from "./session-subagent-summary";
 
 export interface RowMeta {
   /** Same agent, provider, and model as the thread root: the child drops its who line. */
