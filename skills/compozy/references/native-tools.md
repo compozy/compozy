@@ -105,6 +105,7 @@ accept or send a prompt or runtime. A named Worktree must be ready; new creation
 session persistence.
 The calling session is recorded automatically as `lineage.parent_session_id` (provenance only, no
 governance) when the new session lands in the caller's workspace; the link is not a tool input.
+The new session binds the caller's profile, like spawn and delegate children.
 
 ### Session message origin
 

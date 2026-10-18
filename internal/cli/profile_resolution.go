@@ -137,7 +137,7 @@ func resolveProfileForWorkspaceWithArchived(
 	if err != nil {
 		return profileResolution{}, err
 	}
-	if remembered, found := rememberedProfile(selections, base.WorkspaceID); found {
+	if remembered, found := rememberedProfile(selections); found {
 		selected, exists := byName[remembered.Profile]
 		if exists && selected.State == authoredContextActiveKey &&
 			remembered.Note != profileArchivedRememberedFallback {
@@ -220,13 +220,12 @@ func resolveExplicitProfile(
 	return base, nil
 }
 
-func rememberedProfile(selections []contract.ProfileSelection, workspaceID string) (contract.ProfileSelection, bool) {
-	wantedScope := contract.ProfileSelectionScopeGlobal
-	if workspaceID != "" {
-		wantedScope = contract.ProfileSelectionScopeWorkspace
-	}
+// rememberedProfile reads the single Global selection. Profile selection is one
+// machine-wide choice shared by every workspace; legacy per-workspace slots are
+// retained in storage but no longer drive resolution.
+func rememberedProfile(selections []contract.ProfileSelection) (contract.ProfileSelection, bool) {
 	for _, selection := range selections {
-		if selection.Scope == wantedScope && selection.WorkspaceID == workspaceID {
+		if selection.Scope == contract.ProfileSelectionScopeGlobal {
 			return selection, true
 		}
 	}
@@ -288,11 +287,8 @@ func commandProfileResolution(cmd *cobra.Command) (profileResolution, bool) {
 	return resolution, ok && strings.TrimSpace(resolution.Source) != ""
 }
 
-func profileSelectionLens(resolution workspaceResolution, hasWorkspace bool, name string) contract.ProfileSelection {
-	if !hasWorkspace {
-		return contract.ProfileSelection{Scope: layoutProfileScopeGlobal, Profile: name}
-	}
-	return contract.ProfileSelection{Scope: workspaceSkillSource, WorkspaceID: resolution.ID, Profile: name}
+func profileSelectionLens(name string) contract.ProfileSelection {
+	return contract.ProfileSelection{Scope: contract.ProfileSelectionScopeGlobal, Profile: name}
 }
 
 func resolveProfileWorkspaceLens(

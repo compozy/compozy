@@ -61,21 +61,17 @@ func newProfileUseCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use: "use <name>", Short: "Remember the active profile", Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			profiles, client, err := profileClientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			workspace, hasWorkspace, err := resolveProfileWorkspaceLens(cmd.Context(), cmd, deps, client)
+			profiles, _, err := profileClientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 			selection, err := profiles.PutProfileSelection(
-				cmd.Context(), profileSelectionLens(workspace, hasWorkspace, strings.TrimSpace(args[0])),
+				cmd.Context(), profileSelectionLens(strings.TrimSpace(args[0])),
 			)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, profileUseBundle(selection, workspace, hasWorkspace))
+			return writeCommandOutput(cmd, profileUseBundle(selection))
 		},
 	}
 }
@@ -89,12 +85,12 @@ func newProfileCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, hasWorkspace, err := resolveProfileWorkspaceLens(cmd.Context(), cmd, deps, client)
+			workspace, _, err := resolveProfileWorkspaceLens(cmd.Context(), cmd, deps, client)
 			if err != nil {
 				return err
 			}
 			name := strings.TrimSpace(args[0])
-			selection := profileSelectionLens(workspace, hasWorkspace, name)
+			selection := profileSelectionLens(name)
 			created, err := profiles.CreateProfile(cmd.Context(), contract.CreateProfileRequest{
 				Name: name, Color: strings.TrimSpace(color), Icon: strings.TrimSpace(icon),
 				Emoji: strings.TrimSpace(emoji), Activate: &selection,

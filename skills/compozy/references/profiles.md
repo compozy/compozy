@@ -3,25 +3,26 @@
 ## Operating Rule
 
 A profile partitions operator work on one CompozyOS installation. `default` is permanent. Profiles are
-global identities; workspace and Global lenses only remember a selection. A session binds the resolved
-profile at creation, and later selection changes never move that session.
+global identities, and the remembered selection is one choice shared by every workspace. A session binds
+the resolved profile at creation, and later selection changes never move that session.
 
-An open Web client keeps its current view when another client changes the remembered selection.
-Entering a different project restores that project's remembered profile; reloading also resolves
-the remembered choice. All profiles is temporary and is never remembered as a selection.
-Toggling the Global breadth preserves the current viewing profile without rewriting either slot.
+Web keeps one selection for the whole client: switching workspaces or the Global breadth never changes
+it, and every profile-scoped surface reads it. An open Web client keeps its current view when another
+client changes the remembered selection; reloading resolves the remembered choice. All profiles is never
+remembered by the daemon; the browser keeps it across reloads, and Web creation under it lands in the
+remembered profile (`default` until one is chosen), shown by the destination chip.
 
 ## Resolve And Inspect
 
-Resolution order is root `--profile`, `COMPOZY_PROFILE`, the resolved workspace's remembered choice
-(or the Global lens), then `default`. An archived remembered choice falls back to `default` with the
-`archived_remembered_fallback` note. `daemon`, `doctor`, and `update` ignore profile selection.
+Resolution order is root `--profile`, `COMPOZY_PROFILE`, the remembered choice (the Global slot, shared
+by every workspace), then `default`. Legacy per-workspace slots stay stored but no longer resolve. An
+archived remembered choice falls back to `default` with the `archived_remembered_fallback` note. `daemon`, `doctor`, and `update` ignore profile selection.
 
 `GET /api/profiles/selection` returns the effective `profile` for each remembered lens. When the
 remembered profile is archived, `profile` is `default` and optional `note` is
 `archived_remembered_fallback`. The stored choice remains intact and returns after unarchive.
 
-Use structured profile commands. `list` and `current` are reads; `use` persists the selected workspace or Global lens:
+Use structured profile commands. `list` and `current` are reads; `use` persists the shared choice:
 
 ```bash
 compozy profile list -o json
@@ -42,7 +43,9 @@ choices conflict. Aggregate rows include `profile_name`, and JSONL output starts
 A scoped detail read of work owned by another profile returns not found. An aggregate detail read may
 return it with its owner label. Session catalog initial state, replay, and live events follow the same
 scope. Agent-native calls derive their immutable session profile and cannot accept a caller-supplied
-replacement.
+replacement. Sessions an agent creates through `compozy__session_create`, `compozy__session_spawn`,
+`compozy__subagent_delegate`, or the in-session `compozy session create` bind the caller session's
+profile.
 
 Worktrees are intentionally visible across profiles because they represent workspace filesystem state;
 their rows still identify the owner.

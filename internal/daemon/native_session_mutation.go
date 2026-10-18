@@ -82,7 +82,11 @@ func (n *daemonNativeTools) sessionCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	// The effective scope carries the caller session's bound profile (or the
+	// operator's resolved profile), so agent-created sessions stay in the
+	// caller's profile instead of falling back to default.
 	opts := session.CreateOpts{
+		ProfileID: scope.ProfileID,
 		AgentName: agent,
 		Name:      strings.TrimSpace(input.Name),
 		Workspace: workspaceID,
