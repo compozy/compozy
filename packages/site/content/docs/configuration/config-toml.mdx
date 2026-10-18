@@ -190,7 +190,7 @@ port = 2123
 # Check for desktop app and app-owned runtime updates.
 update_check = true
 # Check cadence. Valid range: 15m to 168h.
-update_check_interval = "6h"
+update_check_interval = "15m"
 
 [attention]
 toasts = true
@@ -876,7 +876,19 @@ update operation when an app apply is staged.
 | Field                   | Type     | Default | Valid values    | Description                                  |
 | ----------------------- | -------- | ------- | --------------- | -------------------------------------------- |
 | `update_check`          | boolean  | `true`  | `true`, `false` | Enables daemon-scheduled host update checks. |
-| `update_check_interval` | duration | `6h`    | `15m` to `168h` | Time between daemon-scheduled checks.        |
+| `update_check_interval` | duration | `15m`   | `15m` to `168h` | Time between daemon-scheduled checks.        |
+
+With automatic checks enabled, a running daemon checks the active release channel at startup and
+every 15 minutes by default. Settings and the menubar read the shared snapshot every minute when
+idle, so a successful discovery appears within about 16 minutes of publication. Explicit interval
+settings are preserved; network failures and GitHub rate limits can delay discovery.
+
+Settings → General → Updates shows the last successful check time. **Check for updates** calls
+`POST /api/settings/update/check` over HTTP or UDS, bypassing the normal release cache without
+installing anything. All Settings clients share a one-minute minimum between upstream attempts,
+including failed attempts. GitHub `Retry-After` and rate-limit reset deadlines extend that wait.
+`GET /api/settings/update` remains the cached status read; `runtime.checked_at` is optional until a
+check succeeds. Manual checks remain available when automatic checks are disabled.
 
 ## `[attention]`
 

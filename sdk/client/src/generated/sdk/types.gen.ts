@@ -7998,6 +7998,7 @@ export type SettingsUpdateResponse = {
 };
 
 export type SettingsUpdateRuntimePayload = {
+  checked_at?: string | null;
   current_version: string;
   daemon_restarted: boolean;
   install_method:
@@ -22999,6 +23000,40 @@ export type CancelSettingsUpdateResponses = {
 
 export type CancelSettingsUpdateResponse =
   CancelSettingsUpdateResponses[keyof CancelSettingsUpdateResponses];
+
+export type CheckSettingsUpdateData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/settings/update/check";
+};
+
+export type CheckSettingsUpdateErrors = {
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Update surface unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CheckSettingsUpdateError = CheckSettingsUpdateErrors[keyof CheckSettingsUpdateErrors];
+
+export type CheckSettingsUpdateResponses = {
+  /**
+   * Current status with last successful check time
+   */
+  200: SettingsUpdateResponse;
+};
+
+export type CheckSettingsUpdateResponse =
+  CheckSettingsUpdateResponses[keyof CheckSettingsUpdateResponses];
 
 export type GetSettingsWindowManagerData = {
   body?: never;

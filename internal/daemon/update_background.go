@@ -117,7 +117,7 @@ func (r *backgroundUpdateRuntime) run(ctx context.Context, done chan<- struct{})
 
 func (r *backgroundUpdateRuntime) check(ctx context.Context) {
 	if _, _, err := r.manager.CheckAll(ctx, compozyupdate.CheckOptions{
-		ForceRefresh: true, AllowCachedOnFailure: true,
+		ForceRefresh: true, AllowCachedOnFailure: true, MinimumRefreshInterval: time.Minute,
 	}); err != nil {
 		r.logger.Warn("daemon: background update check failed", "error", err)
 	}

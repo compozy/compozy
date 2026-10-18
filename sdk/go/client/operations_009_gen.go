@@ -4,12 +4,46 @@ package client
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// GetHookRuns List hook run history for one session
+func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/hooks/runs"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	query.Set("session", params.Session)
+	if params.Event != nil {
+		query.Set("event", *params.Event)
+	}
+	if params.Outcome != nil {
+		query.Set("outcome", *params.Outcome)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Last != nil {
+		query.Set("last", strconv.Itoa(*params.Last))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopParams carries the path, query, and header parameters.
+type GetLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
 
 // GetLoop Inspect one Loop definition
 func (c *Client) GetLoop(ctx context.Context, params GetLoopParams) (*LoopResponse, error) {
@@ -406,39 +440,6 @@ func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOvervi
 	}
 	var out ObserveOverviewResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetOnboardingStatus Get the first-run onboarding completion status
-func (c *Client) GetOnboardingStatus(ctx context.Context) (*OnboardingStatusResponse, error) {
-	path := "/api/onboarding"
-	var out OnboardingStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetOpenAPIDocumentParams carries the path, query, and header parameters.
-type GetOpenAPIDocumentParams struct {
-	IfNoneMatch    *string `url:"If-None-Match"`
-	AcceptEncoding *string `url:"Accept-Encoding"`
-}
-
-// GetOpenAPIDocument Get the running daemon's OpenAPI document
-func (c *Client) GetOpenAPIDocument(ctx context.Context, params GetOpenAPIDocumentParams) (*json.RawMessage, error) {
-	path := "/api/openapi.json"
-	headers := http.Header{}
-	if params.IfNoneMatch != nil {
-		headers.Set("If-None-Match", *params.IfNoneMatch)
-	}
-	if params.AcceptEncoding != nil {
-		headers.Set("Accept-Encoding", *params.AcceptEncoding)
-	}
-	var out json.RawMessage
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

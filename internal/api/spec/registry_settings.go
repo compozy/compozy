@@ -14,6 +14,7 @@ func registrySettingsOperations() []OperationSpec {
 		reloadSettingsOperationSpec(),
 		getSettingsRestartStatusOperationSpec(),
 		getSettingsUpdateOperationSpec(),
+		checkSettingsUpdateOperationSpec(),
 		applySettingsUpdateOperationSpec(),
 		cancelSettingsUpdateOperationSpec(),
 		triggerSettingsRestartOperationSpec(),
@@ -104,6 +105,28 @@ func getSettingsUpdateOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsUpdateResponse{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func checkSettingsUpdateOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/settings/update/check",
+		AppAccess:   AppAccessDenied,
+		OperationID: "checkSettingsUpdate",
+		Summary:     "Refresh update discovery, limited to one upstream check per minute",
+		Tags:        []string{specSettingsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Current status with last successful check time",
+				Body:        contract.SettingsUpdateResponse{},
+			},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
 		},

@@ -15,10 +15,10 @@ const RUNTIME_OPERATION_PHASE_VALUES = [
   "pending",
   "downloading",
   "verifying",
-  "installing",
+  "swapping",
   "restarting",
-  "ready-check",
-  "completed",
+  "health-checking",
+  "finalized",
   "rolled-back",
   "failed",
 ] as const;

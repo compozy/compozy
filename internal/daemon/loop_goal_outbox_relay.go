@@ -133,7 +133,10 @@ func (r *goalSessionOutboxRelay) deliverPendingProjections(ctx context.Context) 
 				deliveryErrs = append(deliveryErrs, err)
 				continue
 			}
-			if err := r.appender.AppendSessionEventIfAbsent(ctx, projection); err != nil {
+			// A removed session has nothing left to project into; settling the row
+			// keeps it from failing every later claim, as the cleanup lane does.
+			if err := r.appender.AppendSessionEventIfAbsent(ctx, projection); err != nil &&
+				!errors.Is(err, session.ErrSessionNotFound) {
 				deliveryErrs = append(deliveryErrs, fmt.Errorf("append Goal session event %q: %w", event.EventID, err))
 				continue
 			}

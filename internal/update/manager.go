@@ -168,6 +168,11 @@ func resolveExecutablePath(
 
 // Check returns the current update state and the latest release metadata when available.
 func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release, error) {
+	m.checkMu.Lock()
+	defer m.checkMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return State{}, nil, err
+	}
 	install, err := m.detectInstall(ctx)
 	if err != nil {
 		return State{}, nil, err
@@ -191,18 +196,22 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 	if !needRefresh && checkedAt != nil {
 		needRefresh = m.now().UTC().Sub(checkedAt.UTC()) >= cacheTTL
 	}
+	needRefresh = needRefresh && !m.refreshThrottled(checkedAt, opts.MinimumRefreshInterval)
 
 	if needRefresh {
+		attemptedAt := m.now().UTC()
 		freshRelease, err := m.fetchLatestRelease(ctx)
+		// Caller cancellation is transient; an exhausted check budget is a shared failed attempt.
+		if ctxErr := ctx.Err(); errors.Is(ctxErr, context.Canceled) && errors.Is(err, ctxErr) {
+			return State{}, nil, ctxErr
+		}
+		m.lastCheckAttempt = attemptedAt
+		m.lastCheckError = err
+		if limited, ok := errors.AsType[*releaseRateLimitError](err); ok {
+			m.checkBackoffUntil = limited.retryAt
+		}
 		if err != nil {
-			state := m.composeState(install, latest, checkedAt)
-			state.LastError = err.Error()
-			state.Message = "Failed to check for a newer CompozyOS release on the active channel."
-			if latest != nil && opts.AllowCachedOnFailure {
-				return state, latest, nil
-			}
-			state.Status = StatusFailed
-			return state, nil, err
+			return m.checkResult(install, latest, checkedAt, opts)
 		}
 
 		latest = freshRelease
@@ -217,7 +226,40 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 		}
 	}
 
-	return m.composeState(install, latest, checkedAt), latest, nil
+	return m.checkResult(install, latest, checkedAt, opts)
+}
+
+func (m *Manager) checkResult(
+	install installInfo,
+	latest *Release,
+	checkedAt *time.Time,
+	opts CheckOptions,
+) (State, *Release, error) {
+	state := m.composeState(install, latest, checkedAt)
+	if m.lastCheckError != nil {
+		state.LastError = m.lastCheckError.Error()
+		state.Message = "Failed to check for a newer CompozyOS release on the active channel."
+		if latest == nil || !opts.AllowCachedOnFailure {
+			state.Status = StatusFailed
+			return state, nil, m.lastCheckError
+		}
+	}
+	return state, latest, nil
+}
+
+// refreshThrottled always honors upstream backoff, then applies the interval to the latest attempt or success.
+func (m *Manager) refreshThrottled(checkedAt *time.Time, interval time.Duration) bool {
+	if m.now().Before(m.checkBackoffUntil) {
+		return true
+	}
+	if interval <= 0 {
+		return false
+	}
+	lastAttempt := m.lastCheckAttempt
+	if checkedAt != nil && checkedAt.After(lastAttempt) {
+		lastAttempt = *checkedAt
+	}
+	return !lastAttempt.IsZero() && m.now().Sub(lastAttempt) < interval
 }
 
 // RuntimeTargetPath returns the concrete executable path owned by this manager.

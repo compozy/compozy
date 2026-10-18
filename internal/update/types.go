@@ -133,8 +133,9 @@ type AppliedBinary struct {
 
 // CheckOptions customize one update status query.
 type CheckOptions struct {
-	ForceRefresh         bool
-	AllowCachedOnFailure bool
+	ForceRefresh           bool
+	AllowCachedOnFailure   bool
+	MinimumRefreshInterval time.Duration
 }
 
 // BundleVerifier verifies the signed checksum catalog before the archive checksum is trusted.
@@ -182,24 +183,28 @@ type installInfo struct {
 
 // Manager owns the CompozyOS self-update flow for the current runtime.
 type Manager struct {
-	homePaths      compozyconfig.HomePaths
-	currentVersion string
-	executablePath string
-	getenv         func(string) string
-	now            func() time.Time
-	httpClient     *http.Client
-	runtimeOS      string
-	runtimeArch    string
-	lookPath       func(string) (string, error)
-	runCommand     func(context.Context, string, ...string) (string, error)
-	bundleVerifier BundleVerifier
-	binaryApplier  BinaryApplier
-	artifactPolicy ArtifactPolicy
-	releaseTrack   releaseTrack
-	installMu      sync.Mutex
-	installFlight  chan struct{}
-	install        *installInfo
-	operationStore *OperationStore
+	homePaths         compozyconfig.HomePaths
+	currentVersion    string
+	executablePath    string
+	getenv            func(string) string
+	now               func() time.Time
+	httpClient        *http.Client
+	runtimeOS         string
+	runtimeArch       string
+	lookPath          func(string) (string, error)
+	runCommand        func(context.Context, string, ...string) (string, error)
+	bundleVerifier    BundleVerifier
+	binaryApplier     BinaryApplier
+	artifactPolicy    ArtifactPolicy
+	releaseTrack      releaseTrack
+	installMu         sync.Mutex
+	installFlight     chan struct{}
+	install           *installInfo
+	operationStore    *OperationStore
+	checkMu           sync.Mutex
+	lastCheckAttempt  time.Time
+	lastCheckError    error
+	checkBackoffUntil time.Time
 }
 
 func (m *Manager) cachePath() string {

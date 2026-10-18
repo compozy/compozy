@@ -67,10 +67,10 @@ function operationPhase(operation: UpdateOperation): AppUpdateState["phase"] {
   if (!phase) return undefined;
   if (phase === "downloading") return "download";
   if (phase === "verifying") return "verify";
-  if (phase === "installing") return "install";
+  if (phase === "swapping") return "install";
   if (phase === "restarting") return "start";
-  if (phase === "ready-check") return "ready-check";
-  if (phase === "completed") return "ready";
+  if (phase === "health-checking") return "ready-check";
+  if (phase === "finalized") return "ready";
   if (phase === "applying") return operation.percent >= 100 ? "verify" : "download";
   if (phase === "installer-handoff") return "install";
   if (phase === "restarted") return "start";

@@ -18,6 +18,18 @@ export const RECONNECT_MAX_DELAY_MS = 4_000;
 export const MAX_RECONNECT_ATTEMPTS = 6;
 export const SURFACE_REFRESH_DELAY_MS = 120;
 export const TRANSCRIPT_RECOVERY_DELAY_MS = 5_000;
+export const TRANSCRIPT_RECOVERY_MAX_DELAY_MS = 60_000;
+
+/**
+ * Each consecutive failed transcript recovery doubles the wait up to the cap: a
+ * deterministic failure must not refetch the whole transcript every few seconds forever.
+ */
+export function transcriptRecoveryDelayMs(failedAttempts: number): number {
+  return Math.min(
+    TRANSCRIPT_RECOVERY_DELAY_MS * 2 ** Math.max(0, failedAttempts),
+    TRANSCRIPT_RECOVERY_MAX_DELAY_MS
+  );
+}
 
 export type SessionLiveTailFrame =
   | {
@@ -123,6 +135,8 @@ export interface SessionLiveTailContext {
   } | null;
   queryRecoveryPhase: QueryRecoveryPhase;
   reconnectAttempt: number;
+  /** Consecutive failed transcript recoveries (repair or query); sets the next recovery delay. */
+  recoveryAttempt: number;
   surfaceRefreshScheduled: boolean;
   transportPhase: TransportPhase;
 }

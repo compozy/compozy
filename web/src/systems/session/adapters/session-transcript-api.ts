@@ -1,6 +1,6 @@
 import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
-import { normalizeTranscriptMessages } from "../lib/message-schemas";
+import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import type { NormalizedSessionTranscriptResponse, SessionTranscriptQuery } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
 
@@ -57,12 +57,5 @@ export async function fetchSessionTranscript(
   }
 
   const payload = requireResponseData(data, response, `Failed to fetch session transcript "${id}"`);
-  const messages = await normalizeTranscriptMessages(payload.entries.map(entry => entry.message));
-  return {
-    ...payload,
-    entries: payload.entries.map((entry, index) => ({
-      ...entry,
-      message: messages[index]!,
-    })),
-  };
+  return { ...payload, entries: await normalizeTranscriptEntries(payload.entries) };
 }

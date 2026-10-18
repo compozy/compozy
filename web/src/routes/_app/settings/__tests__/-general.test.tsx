@@ -44,6 +44,9 @@ type RestartBanner = {
 type UpdateStatus = SettingsUpdateStatus;
 
 type UpdateActions = {
+  check: ReturnType<typeof vi.fn>;
+  isChecking: boolean;
+  checkError: string | null;
   apply: ReturnType<typeof vi.fn>;
   cancel: ReturnType<typeof vi.fn>;
   isApplying: boolean;
@@ -233,6 +236,9 @@ beforeEach(() => {
       refetch: vi.fn(),
     },
     updateActions: {
+      check: vi.fn(),
+      isChecking: false,
+      checkError: null,
       apply: vi.fn(),
       cancel: vi.fn(),
       isApplying: false,
@@ -485,7 +491,7 @@ describe("GeneralSettingsPage", () => {
     );
     expect(screen.queryByTestId("settings-page-general-update-last-error")).toBeNull();
     fireEvent.click(screen.getByTestId("settings-page-general-update-retry"));
-    expect(pageState.update.refetch).toHaveBeenCalledTimes(1);
+    expect(pageState.updateActions.check).toHaveBeenCalledTimes(1);
   });
 
   it("exposes the restart action button and triggers the restart mutation on click", () => {
@@ -534,6 +540,25 @@ describe("GeneralSettingsPage", () => {
 describe("GeneralSettingsPage — Updates section", () => {
   const row = () => screen.getByTestId("settings-page-general-update-status");
   const apply = () => screen.queryByTestId("settings-page-general-update-apply");
+
+  it("Should show the last successful check and request a manual daemon refresh", () => {
+    render(<GeneralSettingsPage />);
+    const checked = screen.getByTestId("settings-page-general-updates").querySelector("time");
+    expect(checked).toHaveAttribute("datetime", "2026-10-18T14:00:00Z");
+    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    expect(pageState.updateActions.check).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should avoid claiming an unchecked installation is up to date", () => {
+    pageState.update.data = {
+      ...settingsUpdateStatusFixture,
+      runtime: { ...settingsUpdateStatusFixture.runtime, checked_at: undefined },
+    };
+    render(<GeneralSettingsPage />);
+    expect(row()).toHaveTextContent("Not checked");
+    expect(screen.getByText("No successful update check yet.")).toBeInTheDocument();
+    expect(within(row()).queryByText("Up to date")).toBeNull();
+  });
 
   it("UT-040: Should render one product row with one version, status, and release link", () => {
     render(<GeneralSettingsPage />);
@@ -651,14 +676,14 @@ describe("GeneralSettingsPage — Updates section", () => {
     render(<GeneralSettingsPage />);
 
     expect(screen.getByTestId("settings-page-general-updates")).toHaveTextContent(
-      "Showing the last known status. Refresh failed: daemon unreachable"
+      "Showing the last known status. Check failed: daemon unreachable"
     );
     expect(screen.getByText("Refresh failed")).toBeInTheDocument();
     expect(row()).toHaveTextContent("0.5.1");
     expect(apply()).toBeNull();
 
-    fireEvent.click(screen.getByTestId("settings-page-general-update-retry"));
-    expect(pageState.update.refetch).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    expect(pageState.updateActions.check).toHaveBeenCalledTimes(1);
   });
 
   it("UT-047: Should surface a blocked apply with its holder and claim no success", () => {

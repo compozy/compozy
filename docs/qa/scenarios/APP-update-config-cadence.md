@@ -19,3 +19,18 @@ overlaps: APP-app-auto-update; APP-web-update-two-track
 Added 2026-08-16 for the Electron cutover config lifecycle. The walk must prove that the shell does
 not read or shadow either key, invalid intervals name the exact key, and sequential writes against
 one isolated home converge across CLI, HTTP, UDS, native-tool, file, and live daemon read paths.
+
+
+Update discovery regression (2026-10-18, issue #804):
+
+- With no explicit interval, confirm automatic checks default to 15 minutes and discover a release
+  while the same daemon remains running. With the idle 60-second UI poll, the normal visibility
+  bound is about 16 minutes after publication, assuming successful upstream requests.
+- Preserve explicit interval overrides and `update_check=false`. Manual checks stay available.
+- In Settings, select **Check for updates** and confirm POST `/api/settings/update/check` reaches
+  the daemon, returns the new shared snapshot, and updates `runtime.checked_at` only on success.
+- Repeat the action from multiple clients within a minute: no additional upstream request. On
+  upstream failure, retain the previous successful timestamp and show the failure. Honor GitHub
+  `Retry-After` / `X-RateLimit-Reset` before retrying, including background checks.
+- Reload Settings and confirm the same checked-at timestamp. An unchecked host must say
+  **Not checked**, rather than **Up to date**.

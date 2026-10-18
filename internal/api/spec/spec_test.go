@@ -3412,9 +3412,27 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 	return nil
 }
 
-// #788: optional additive field; no required/type/removal change.
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #804: optional additive field; no required/type/removal change.
+	// The pre-components fixture inlines SettingsUpdateRuntimePayload in the GET response.
+	properties := baseline
+	for _, key := range []string{
+		"paths", "/api/settings/update", "get", "responses", "200", "content", "application/json",
+		"schema", "properties", "runtime", "properties",
+	} {
+		next, ok := properties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved update schema addition: missing object %q", key)
+		}
+		properties = next
+	}
+	if _, exists := properties["checked_at"]; exists {
+		t.Fatal("approved update schema addition: checked_at already exists in the historical baseline")
+	}
+	properties["checked_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+
+	// #788: optional additive field; no required/type/removal change.
 	paths := baseline["paths"].(map[string]any)
 	prefix := "/api/workspaces/{workspace_id}/sessions/{session_id}"
 	prompt := paths[prefix+"/prompt"].(map[string]any)["post"].(map[string]any)

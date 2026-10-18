@@ -432,6 +432,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/tools/search",
 		"POST /api/settings/actions/restart",
 		"POST /api/settings/reload",
+		"POST /api/settings/update/check",
 		"POST /api/settings/update/apply",
 		"POST /api/settings/update/cancel",
 		"POST /api/support/bundles",
@@ -1247,6 +1248,7 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 
 		{method: http.MethodPut, path: "/api/settings/hooks/capture", body: []byte(`{}`)},
 		{method: http.MethodDelete, path: "/api/settings/hooks/capture"},
+		{method: http.MethodPost, path: "/api/settings/update/check"},
 		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
 		{

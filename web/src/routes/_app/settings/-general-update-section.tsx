@@ -19,6 +19,9 @@ import type {
 } from "@/systems/settings";
 
 export interface GeneralUpdateActions {
+  check: () => void;
+  isChecking: boolean;
+  checkError: string | null;
   /** Updates every part of CompozyOS this surface may update, in one operation. */
   apply: () => void;
   cancel: () => void;
@@ -35,9 +38,7 @@ interface GeneralUpdateSectionProps {
   data?: SettingsUpdateStatus;
   error: unknown;
   isError: boolean;
-  isFetching: boolean;
   isLoading: boolean;
-  onRetry: () => void;
   actions: GeneralUpdateActions;
 }
 
@@ -81,6 +82,7 @@ function UpdatesGroup({
 }) {
   return (
     <SettingsGroup
+      className="@container/updates"
       action={action}
       data-testid="settings-page-general-updates"
       description={description}
@@ -214,11 +216,12 @@ function ProductUpdateRow({
   const updating = product.updating || actions.isApplying;
   return (
     <SettingRow
+      className="@max-xl/updates:flex-col @max-xl/updates:items-start [&>div:last-child]:max-w-full"
       data-testid="settings-page-general-update-status"
       description={productDescription(product)}
       label="CompozyOS"
       control={
-        <>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <ProductVersion product={product} />
           {updating ? (
             <ProductProgress product={product} />
@@ -270,7 +273,7 @@ function ProductUpdateRow({
               <ExternalLink aria-hidden="true" className="text-subtle" />
             </Button>
           ) : null}
-        </>
+        </div>
       }
     />
   );
@@ -319,21 +322,22 @@ function UpdateCancelResultRow({ result }: { result: SettingsUpdateCancelResult 
  * identically in the desktop app and in a plain browser.
  */
 export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
-  const { actions, isFetching, onRetry } = props;
+  const { actions } = props;
   const view = settingsUpdateView(props);
   if (view.kind === "checking") return <UpdateCheckingGroup />;
   if (view.kind !== "snapshot") {
     return (
       <UpdateFailureGroup
         failed={view.kind === "error"}
-        isFetching={isFetching}
+        isFetching={actions.isChecking}
         message={view.message}
-        onRetry={onRetry}
+        onRetry={actions.check}
       />
     );
   }
 
-  const { refreshError } = view;
+  const refreshError = actions.checkError ?? view.refreshError;
+  const checkedAt = view.snapshot.runtime.checked_at;
   const product = settingsProductUpdate(view.snapshot);
 
   return (
@@ -341,24 +345,52 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
       // A failed refresh is one event for the whole section, so it lives once in
       // the header while the row keeps its last known truth.
       description={
-        refreshError ? `Showing the last known status. Refresh failed: ${refreshError}` : undefined
+        <>
+          {checkedAt ? (
+            <span>
+              Last checked <time dateTime={checkedAt}>{new Date(checkedAt).toLocaleString()}</time>.
+            </span>
+          ) : (
+            <span>No successful update check yet.</span>
+          )}
+          {refreshError ? (
+            <span> Showing the last known status. Check failed: {refreshError}</span>
+          ) : null}
+        </>
       }
       action={
-        refreshError ? (
-          <>
+        <>
+          {refreshError ? (
             <Pill form="plain" tone="danger">
               <Pill.Dot />
               Refresh failed
             </Pill>
-            <RetryButton isFetching={isFetching} onRetry={onRetry} />
-          </>
-        ) : null
+          ) : null}
+          <Button
+            disabled={actions.isChecking}
+            onClick={actions.check}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {actions.isChecking ? (
+              <Spinner aria-hidden="true" className="size-3.5" />
+            ) : (
+              <RefreshCw aria-hidden="true" />
+            )}
+            {actions.isChecking ? "Checking…" : "Check for updates"}
+          </Button>
+        </>
       }
     >
       <ProductUpdateRow
         actions={actions}
         canApply={!refreshError && product.targets !== null}
-        product={product}
+        product={
+          !checkedAt && product.status === "up-to-date"
+            ? { ...product, statusLabel: "Not checked", tone: "neutral" }
+            : product
+        }
       />
       <UpdateBlockedRow result={actions.result} />
       <UpdateCancelResultRow result={actions.cancelResult} />
