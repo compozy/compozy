@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-16
+## 0.3.0 - 2026-10-18
 
 ### ♻️ Refactoring
 
@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quiet the Context rail and sessions row for everyday use (#649)
 - Retire Network, managed Sandbox, and Bridges (#681)
 - Complete Modern Go adoption across module boundaries (#706)
+- Remove 12 long-tail builtin providers behind a one-release compatibility shim (#778)
 
 ### ⚡ Performance Improvements
 
@@ -26,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduce test and development feedback overhead (#556)
 - Avoid rendering unchanged windows during layout updates
 - Reduce SQLite contention and query costs (#723)
+- Reduce desktop startup and live transcript overhead (#784)
+- Cut daemon idle cost and keep the host responsive under agent load (#797)
+- Reduce concurrent session query and projection overhead (#795)
 
 ### 🎉 Features
 
@@ -100,6 +104,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
 - One-click CompozyOS update from the menubar (#733)
 - Show the runtime provider mark on session rows (#758)
+- Add session folders, manual drag order, and session context menus (#786)
+- Give session titles their own line in the session list (#790)
+- Adding antigravity acp (#773)
+- Add app SDKs and browser application tokens (#794)
 
 ### 🐛 Bug Fixes
 
@@ -322,6 +330,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tolerate transient session stream reconnects (#769)
 - Stop false Goal attention and cut daemon idle cost (#770)
 - Keep background subagents running and show them in the composer (#771)
+- Keep terminals running across workspace switches (#776)
+- Cut idle UI polling and attention bell CPU cost (#779)
+- Preserve profile ownership in session actions and subagent rosters (#785)
+- Stop warning about and stopping idle sessions (#787)
+- Make the idle-session setting drive idle runtime release (#789)
+- Deliver session messages to busy targets with operator-first queue, batching, hop model and explicit replies (#780)
+- Address merge-train leftovers from #787 #789 #780 #786 (#793)
+- Retry pending steer settlement without locking status
+- Advance role fallback when the provider refuses an accepted turn (#662)
+- Inherit the caller profile for agent-created sessions and keep one global profile selection (#796)
+- Align catalog stream test with global profile selection
+- Resolve merged PR review and CI regressions
+- Align codegen boundaries and runtime test contracts
+- Repair release validation and session shutdown races
+- Prevent WAL maintenance from blocking shutdown history
 
 ### 🔧 Miscellaneous Tasks
 
@@ -353,6 +376,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cover inactive loop routes with automatic approval (#703)
 - Cut duplicated and misplaced tests across the pyramid (#707)
 - Wait for subagent card navigation readiness (#753)
+- Control popover exit animation time
+- Synchronize migration and startup verification
 
 ## 0.2.15 - 2026-07-17
 

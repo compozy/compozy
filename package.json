@@ -79,7 +79,7 @@
     },
     "packageManager": "bun@1.4.0",
     "patchedDependencies": {
-        "swr@2.5.1": "patches/swr@2.5.1.patch",
-        "@hey-api/openapi-ts@0.99.0": "patches/@hey-api%2Fopenapi-ts@0.99.0.patch"
+        "@hey-api/openapi-ts@0.99.0": "patches/@hey-api%2Fopenapi-ts@0.99.0.patch",
+        "swr@2.5.1": "patches/swr@2.5.1.patch"
     }
 }
