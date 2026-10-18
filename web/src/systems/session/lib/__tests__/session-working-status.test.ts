@@ -90,6 +90,33 @@ describe("working status", () => {
     });
   });
 
+  it("Should show the quiet span instead of Thinking when a turn hangs before any content", () => {
+    expect(
+      deriveWorkingStatus({
+        session: session({
+          supervision: {
+            quiet_warning: {
+              quiet_since: "2026-09-06T12:00:30Z",
+              warned_at: "2026-09-06T12:02:00Z",
+              stop_at: null,
+            },
+            sources: [],
+            work_signals: [],
+          },
+        }),
+        running: true,
+        thinking: true,
+        lastTurn: null,
+        nowMs: NOW,
+      })
+    ).toMatchObject({
+      kind: "working",
+      elapsed: "2m 14s",
+      quietSinceMs: Date.parse("2026-09-06T12:00:30Z"),
+      quietFor: "1m",
+    });
+  });
+
   it("Should leave parallel tools to the live row and surface a pending decision", () => {
     const parallel = session({
       supervision: {
