@@ -92,18 +92,9 @@ func (m *Manager) activateSteeringInputText(
 		}
 	}
 	entry.SteerDelivery = delivery
-	var resolved store.SessionInputQueueEntry
-	if delivery == store.SteerDeliveryInterruptFallback {
-		resolved, err = m.inputQueue.ResolveSteer(m.fallbackLifecycleContext(), session.ID, entry.ID, delivery)
-		if err != nil {
-			return err
-		}
-	} else if resolved, err = m.persistAcceptedSteer(session, entry); err != nil {
-		if delivery == store.SteerDeliveryPendingInjection && completion != nil {
-			// The provider still owes the outcome: a later rejection must restore after-turn delivery.
-			m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, true)
-		}
-		return errors.Join(errSteerDeliveredUnresolved, err)
+	resolved, err := m.persistSteerDelivery(session, entry, completion)
+	if err != nil {
+		return err
 	}
 	*entry = resolved
 	entry.SupersededIDs = superseded
@@ -205,17 +196,28 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 	m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSteered, message, evidence)
 }
 
-// persistAcceptedSteer saves the durable records of guidance the provider accepted: its input event
-// first, then its resolution. The entry is never marked sent before its input event is durable, so the
-// guidance cannot vanish from history; on failure it stays leased instead of returning to the queue.
-func (m *Manager) persistAcceptedSteer(
-	session *Session, entry *store.SessionInputQueueEntry,
+// persistSteerDelivery records the selected delivery. Accepted guidance keeps its input event
+// durable before resolution; failures remain leased so guidance cannot disappear or dispatch twice.
+func (m *Manager) persistSteerDelivery(
+	session *Session, entry *store.SessionInputQueueEntry, completion <-chan error,
 ) (store.SessionInputQueueEntry, error) {
 	ctx := m.fallbackLifecycleContext()
-	if err := m.recordAcceptedSteerInput(ctx, session, entry); err != nil {
-		return store.SessionInputQueueEntry{}, err
+	if entry.SteerDelivery == store.SteerDeliveryInterruptFallback {
+		return m.inputQueue.ResolveSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
 	}
-	return m.resolveAcceptedSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
+	var resolved store.SessionInputQueueEntry
+	err := m.recordAcceptedSteerInput(ctx, session, entry)
+	if err == nil {
+		resolved, err = m.resolveAcceptedSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
+	}
+	if err != nil {
+		if entry.SteerDelivery == store.SteerDeliveryPendingInjection && completion != nil {
+			// The provider still owes the outcome: a later rejection must restore after-turn delivery.
+			m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, true)
+		}
+		return store.SessionInputQueueEntry{}, errors.Join(errSteerDeliveredUnresolved, err)
+	}
+	return resolved, nil
 }
 
 // recordAcceptedSteerInput retries the input event of delivered guidance a bounded number of times. Every
