@@ -93,5 +93,11 @@ docs/qa/evidence/**
 docs/tweets/**
 # <<< skeeper ignored specs <<<
 
+# graphify knowledge-graph output (generated, not source)
+graphify-out/
+
+# gitnexus knowledge-graph index (generated, not source)
+.gitnexus/
+
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
