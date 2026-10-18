@@ -42,7 +42,7 @@ describe("useSessionListPreferences", () => {
   it("Should default an unset sort to Created while retaining explicit previous choices", () => {
     const { result, rerender } = renderHook(() => useSessionListPreferences(), { wrapper });
     expect(result.current.sort).toBe("created");
-    for (const sort of ["created", "name", "last_activity", "attention"] as const) {
+    for (const sort of ["created", "name", "last_activity", "attention", "manual"] as const) {
       query.data.config.sessions.sort = sort;
       rerender();
       expect(result.current.sort).toBe(sort);

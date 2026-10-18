@@ -27,6 +27,9 @@ export const sessionKeys = {
   /** Exact cross-workspace attention counts — operator scope, no workspace segment. */
   attentionSummary: () => [...sessionKeys.all, "attention-summary"] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
+  /** One profile's session folders in a workspace; under the list family so catalog wakes reread it. */
+  folders: (workspace: string, profile: string) =>
+    [...sessionKeys.workspaceLists(workspace), "folders", profile.trim()] as const,
   workspaceActivity: (workspace: string) =>
     [...sessionKeys.workspaceLists(workspace), "activity"] as const,
   list: (filters: SessionListFilters = {}) => {

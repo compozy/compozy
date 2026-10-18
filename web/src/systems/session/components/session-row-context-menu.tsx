@@ -1,0 +1,149 @@
+import { ArrowDown, ArrowUp, Check, Folder, FolderInput, FolderOutput } from "lucide-react";
+import type * as React from "react";
+
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@compozy/ui";
+
+import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keyboard";
+
+import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
+import { useSessionRowMenuItems } from "../hooks/use-session-row-menu-items";
+import type { SessionFolderPayload, SessionPayload } from "../types";
+
+/** Folder and manual-order verbs a root session row adds to its context menu. */
+export interface SessionRowLayoutMenu {
+  folders: readonly SessionFolderPayload[];
+  /** The folder holding the session, or null in the workspace root. */
+  folderId: string | null;
+  onMove: (folderId: string | null) => void;
+  /** Present only under the Manual sort and when the row can move that way. */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+}
+
+export interface SessionRowContextMenuProps {
+  session: SessionPayload;
+  actions: SessionLifecycleActionHandlers;
+  layout?: SessionRowLayoutMenu;
+  /** The row element; it becomes the right-click and Shift+F10 target. */
+  render: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
+}
+
+/**
+ * Right-click menu for one session row: the same lifecycle verbs as the row's
+ * `…` menu, plus folder moves and the keyboard alternative to dragging.
+ */
+export function SessionRowContextMenu({
+  session,
+  actions,
+  layout,
+  render,
+}: SessionRowContextMenuProps) {
+  const items = useSessionRowMenuItems(session, actions);
+  const disabled = actions.pendingAction !== null;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger
+        data-testid={`session-row-menu-${session.id}`}
+        render={render}
+        onKeyDown={openContextMenuFromKeyboard}
+      />
+      <ContextMenuContent className="min-w-56">
+        {items.map(item => (
+          <ContextMenuItem
+            key={item.id}
+            data-testid={`session-row-menu-${item.id}-${session.id}`}
+            disabled={disabled}
+            onClick={item.onSelect}
+            variant={item.destructive ? "destructive" : undefined}
+          >
+            <item.icon aria-hidden="true" className="size-3" />
+            {item.label}
+          </ContextMenuItem>
+        ))}
+        {layout ? <SessionRowLayoutItems session={session} layout={layout} /> : null}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+function SessionRowLayoutItems({
+  session,
+  layout,
+}: {
+  session: SessionPayload;
+  layout: SessionRowLayoutMenu;
+}) {
+  const hasOrder = layout.onMoveUp !== undefined || layout.onMoveDown !== undefined;
+  if (layout.folders.length === 0 && layout.folderId === null && !hasOrder) return null;
+  return (
+    <>
+      <ContextMenuSeparator />
+      {layout.folders.length > 0 ? (
+        <ContextMenuSub>
+          <ContextMenuSubTrigger data-testid={`session-row-menu-move-${session.id}`}>
+            <FolderInput aria-hidden="true" className="size-3" />
+            Move to folder
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="min-w-44">
+            {layout.folders.map(folder => {
+              const current = folder.id === layout.folderId;
+              return (
+                <ContextMenuItem
+                  key={folder.id}
+                  data-testid={`session-row-menu-move-${session.id}-${folder.id}`}
+                  disabled={current}
+                  onClick={() => layout.onMove(folder.id)}
+                >
+                  {current ? (
+                    <Check aria-hidden="true" className="size-3" />
+                  ) : (
+                    <Folder aria-hidden="true" className="size-3" />
+                  )}
+                  <span className="min-w-0 truncate">{folder.name}</span>
+                </ContextMenuItem>
+              );
+            })}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+      ) : null}
+      {layout.folderId !== null ? (
+        <ContextMenuItem
+          data-testid={`session-row-menu-unfolder-${session.id}`}
+          onClick={() => layout.onMove(null)}
+        >
+          <FolderOutput aria-hidden="true" className="size-3" />
+          Remove from folder
+        </ContextMenuItem>
+      ) : null}
+      {hasOrder ? (
+        <>
+          <ContextMenuItem
+            data-testid={`session-row-menu-up-${session.id}`}
+            disabled={layout.onMoveUp === undefined}
+            onClick={layout.onMoveUp}
+          >
+            <ArrowUp aria-hidden="true" className="size-3" />
+            Move up
+          </ContextMenuItem>
+          <ContextMenuItem
+            data-testid={`session-row-menu-down-${session.id}`}
+            disabled={layout.onMoveDown === undefined}
+            onClick={layout.onMoveDown}
+          >
+            <ArrowDown aria-hidden="true" className="size-3" />
+            Move down
+          </ContextMenuItem>
+        </>
+      ) : null}
+    </>
+  );
+}

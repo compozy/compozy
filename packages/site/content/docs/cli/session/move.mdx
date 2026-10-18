@@ -1,0 +1,54 @@
+---
+title: "compozy session move"
+description: "Move a session into a folder, or back to the workspace root"
+---
+
+## compozy session move
+
+Move a session into a folder, or back to the workspace root
+
+```
+compozy session move <id> [flags]
+```
+
+### Examples
+
+```
+  # Move a session into a folder
+  compozy session move sess_1234 --folder sfold-1234
+
+  # Return a session to the workspace root
+  compozy session move sess_1234
+```
+
+### Options
+
+```
+      --folder string   Target folder ID (omit for the workspace root)
+  -h, --help            help for move
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session move <id> -o json
+```

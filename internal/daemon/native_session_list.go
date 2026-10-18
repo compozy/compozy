@@ -92,6 +92,7 @@ func (n *daemonNativeTools) sessionList(
 			return toolspkg.ToolResult{}, err
 		}
 	}
+	core.ApplySessionPlacements(payload, page.Placements)
 	response := contract.SessionCatalogResponse{
 		Sessions: payload,
 		Page: contract.SessionCatalogPagePayload{

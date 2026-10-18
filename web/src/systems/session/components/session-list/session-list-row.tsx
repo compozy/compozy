@@ -15,6 +15,8 @@ import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
+import { SessionRowContextMenu, type SessionRowLayoutMenu } from "../session-row-context-menu";
+import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import { SUBAGENT_OF_DELETED_SESSION } from "../subagents/subagent-format";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SessionListSubagentChip } from "./session-list-subagent-chip";
@@ -37,10 +39,41 @@ export interface SessionListRowProps {
   /** Trailing controls rendered beside the row actions (e.g. a thread toggle). */
   trailing?: React.ReactNode;
   selection?: SessionRowSelection;
+  /** Folder moves and manual-order verbs for a root row in the workspace list. */
+  layoutMenu?: SessionRowLayoutMenu;
+  /** Drag source/target wiring for a root row in the workspace list. */
+  drag?: SessionDragHandlers;
+  /** The pending drop lands on this edge of the row. */
+  dropEdge?: SessionDropPosition | null;
+  /** This row is the one being dragged. */
+  dragging?: boolean;
 }
 
 /** Share the navigation row with selection gestures without nesting interactive controls. */
-export function SessionListRow({
+export function SessionListRow(props: SessionListRowProps) {
+  const { session, sessionActions, showActions = true, layoutMenu } = props;
+  const row = (
+    <SessionRowDragFrame
+      drag={props.drag}
+      dropEdge={props.dropEdge ?? null}
+      dragging={props.dragging ?? false}
+      dropTestId={`${props.testIdPrefix}-drop-${props.dropEdge}-${session.id}`}
+    >
+      <SessionListRowBody {...props} />
+    </SessionRowDragFrame>
+  );
+  if (!showActions) return row;
+  return (
+    <SessionRowContextMenu
+      session={session}
+      actions={sessionActions}
+      layout={layoutMenu}
+      render={row}
+    />
+  );
+}
+
+function SessionListRowBody({
   session,
   owner,
   current = false,
@@ -59,7 +92,7 @@ export function SessionListRow({
   const focusCount = useRef(0);
   const [keyboardFocus, setKeyboardFocus] = useState<number | null>(null);
   return (
-    <div className="group/session-row relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
+    <>
       <button
         type="button"
         className={cn(
@@ -73,12 +106,7 @@ export function SessionListRow({
         // so the row reads as a toggle button; otherwise it only navigates.
         aria-pressed={selection?.mode ? selected : undefined}
         data-selected={selected || undefined}
-        onClick={event => {
-          if (selection && event.shiftKey) selection.toggleRange(session.id);
-          else if (selection && (selection.mode || event.metaKey || event.ctrlKey))
-            selection.toggle(session.id);
-          else onSelect();
-        }}
+        onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
         onFocus={event => {
           focusCount.current += 1;
           setKeyboardFocus(
@@ -109,32 +137,132 @@ export function SessionListRow({
         </span>
       </button>
       {selection ? (
-        <Checkbox
-          aria-label={`Select ${title}`}
-          checked={selected}
-          className={cn(
-            "absolute top-2 left-1 z-10 transition-opacity duration-fast motion-reduce:transition-none after:inset-0",
-            selection.mode
-              ? "opacity-100"
-              : "pointer-events-none opacity-0 group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto group-focus-within/session-row:opacity-100"
-          )}
-          onCheckedChange={(_checked, details) => {
-            if ("shiftKey" in details.event && details.event.shiftKey)
-              selection.toggleRange(session.id);
-            else selection.toggle(session.id);
-          }}
+        <SessionRowCheckbox
+          title={title}
+          sessionId={session.id}
+          selected={selected}
+          selection={selection}
         />
       ) : null}
-      <div className="flex items-center gap-0.5 pt-1">
-        {subagentCounts !== null ? (
-          <SessionListSubagentChip session={session} counts={subagentCounts} onSelect={onSelect} />
-        ) : null}
-        {trailing}
-        {showActions && !selection?.mode ? (
-          <SessionRowActions session={session} actions={sessionActions} />
-        ) : null}
-      </div>
+      <SessionRowTrailing
+        session={session}
+        subagentCounts={subagentCounts}
+        trailing={trailing}
+        actions={showActions && !selection?.mode ? sessionActions : null}
+        onSelect={onSelect}
+      />
+    </>
+  );
+}
+
+function activateSessionRow(
+  event: React.MouseEvent<HTMLButtonElement>,
+  sessionId: string,
+  selection: SessionRowSelection | undefined,
+  onSelect: () => void
+) {
+  if (selection && event.shiftKey) selection.toggleRange(sessionId);
+  else if (selection && (selection.mode || event.metaKey || event.ctrlKey))
+    selection.toggle(sessionId);
+  else onSelect();
+}
+
+function SessionRowCheckbox({
+  title,
+  sessionId,
+  selected,
+  selection,
+}: {
+  title: string;
+  sessionId: string;
+  selected: boolean;
+  selection: SessionRowSelection;
+}) {
+  return (
+    <Checkbox
+      aria-label={`Select ${title}`}
+      checked={selected}
+      className={cn(
+        "absolute top-2 left-1 z-10 transition-opacity duration-fast motion-reduce:transition-none after:inset-0",
+        selection.mode
+          ? "opacity-100"
+          : "pointer-events-none opacity-0 group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto group-focus-within/session-row:opacity-100"
+      )}
+      onCheckedChange={(_checked, details) => {
+        if ("shiftKey" in details.event && details.event.shiftKey) selection.toggleRange(sessionId);
+        else selection.toggle(sessionId);
+      }}
+    />
+  );
+}
+
+function SessionRowTrailing({
+  session,
+  subagentCounts,
+  trailing,
+  actions,
+  onSelect,
+}: {
+  session: SessionPayload;
+  subagentCounts: ReturnType<typeof sessionSubagentCounts>;
+  trailing: React.ReactNode;
+  actions: SessionListRowProps["sessionActions"] | null;
+  onSelect: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 pt-1">
+      {subagentCounts !== null ? (
+        <SessionListSubagentChip session={session} counts={subagentCounts} onSelect={onSelect} />
+      ) : null}
+      {trailing}
+      {actions !== null ? <SessionRowActions session={session} actions={actions} /> : null}
     </div>
+  );
+}
+
+/** The drag source/target frame; it draws the drop line on the pending edge. */
+function SessionRowDragFrame({
+  drag,
+  dropEdge,
+  dragging,
+  dropTestId,
+  children,
+  className,
+  ...rest
+}: React.ComponentProps<"div"> & {
+  drag: SessionDragHandlers | undefined;
+  dropEdge: SessionDropPosition | null;
+  dragging: boolean;
+  dropTestId: string;
+}) {
+  return (
+    <div
+      {...rest}
+      {...drag}
+      data-dragging={dragging || undefined}
+      className={cn(
+        "group/session-row relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1",
+        dragging && "opacity-50",
+        className
+      )}
+    >
+      {dropEdge !== null ? <SessionRowDropLine edge={dropEdge} testId={dropTestId} /> : null}
+      {children}
+    </div>
+  );
+}
+
+/** The drop indicator on the edge where a dragged session will land. */
+function SessionRowDropLine({ edge, testId }: { edge: SessionDropPosition; testId: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid={testId}
+      className={cn(
+        "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-accent",
+        edge === "before" ? "-top-px" : "-bottom-px"
+      )}
+    />
   );
 }
 

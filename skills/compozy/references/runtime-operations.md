@@ -291,6 +291,20 @@ selected intent alone is not evidence that the provider applied it.
 
 Use structured output when agents need to inspect or route results.
 
+### Session Folders And Manual Order
+
+Session folders and manual order belong to the caller's profile inside one workspace and are shared
+by every client. `compozy__session_folder_list` returns folders in manual order with unarchived
+session counts; `compozy__session_folder_create` adds one at the top; `_rename` and `_reorder` (every
+folder id exactly once) edit them; `compozy__session_folder_delete` returns its sessions to the
+workspace root and never deletes or archives a session. `compozy__session_move` moves one root
+session to the end of a folder, or back to the root when `folder_id` is omitted.
+`compozy__session_reorder` pins the listed sessions, in order, at the head of a folder or of the root;
+members not listed keep their order after them. Subagent sessions follow their parent and are
+rejected. `compozy__session_list` with `sort: "manual"` returns this order (folders first, then the
+root) and each catalog row carries `folder_id`. CLI fallbacks: `compozy session folder
+list|create|rename|delete|reorder`, `compozy session move`, and `compozy session reorder`.
+
 Workspace-scoped commands use one context chain: positional workspace ref, `--workspace`,
 `COMPOZY_WORKSPACE`, validated session identity, then cwd discovery. `--workspace` is an override,
 not a prerequisite, and accepts an ID, name, or path. Inside a workspace-bound session, omit the

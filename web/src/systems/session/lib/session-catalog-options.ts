@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../adapters/session-catalog-api";
+import { fetchSessionFolders, type SessionLayoutScope } from "../adapters/session-folders-api";
 import type { SessionListFilters } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters } from "./session-list-query";
@@ -50,6 +51,17 @@ export function sessionFacetsOptions(filters: SessionListFilters = {}) {
   return queryOptions({
     queryKey: [...sessionKeys.workspaceLists(scope.workspace_id ?? ""), "facets", scope],
     queryFn: ({ signal }) => fetchSessionFacets(scope, signal),
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** One profile's folders in one workspace, in the operator's manual order. */
+export function sessionFoldersOptions(scope: SessionLayoutScope) {
+  return queryOptions({
+    queryKey: sessionKeys.folders(scope.workspaceId, scope.profile ?? ""),
+    queryFn: ({ signal }) => fetchSessionFolders(scope, signal),
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,

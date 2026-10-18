@@ -36,7 +36,7 @@ export interface SessionWindowSidebarModel {
   onSelectSession: (session: SessionPayload) => void;
   /** Drill-in by id (subagent rows): this window, or a split with `newWindow`. */
   openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
-  onNewSession: () => void;
+  onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
   rowDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
   rowRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
@@ -130,7 +130,7 @@ export function useSessionWindowSidebar({
     onToggleThread: sidebar.toggleThread,
     onSelectSession,
     openSession,
-    onNewSession: () => openForAgent(""),
+    onNewSession: options => openForAgent("", options),
     sessionActions: lifecycle.actions,
     rowDeleteDialog: lifecycle.deleteDialog,
     rowRenameDialog: lifecycle.renameDialog,

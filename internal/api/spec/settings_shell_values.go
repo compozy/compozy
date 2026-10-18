@@ -8,6 +8,7 @@ func settingsShellSessionSortValues() []string {
 		string(contract.SettingsShellSessionSortName),
 		string(contract.SettingsShellSessionSortLastActivity),
 		string(contract.SettingsShellSessionSortAttention),
+		string(contract.SettingsShellSessionSortManual),
 	}
 }
 

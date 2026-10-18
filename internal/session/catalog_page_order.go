@@ -70,6 +70,10 @@ func sessionCatalogAttentionRank(info *store.SessionInfo) store.SessionCatalogAt
 }
 
 func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if left.ManualFolderRank != nil && right.ManualFolderRank != nil &&
+		left.ManualPosition != nil && right.ManualPosition != nil {
+		return compareSessionCatalogManualPosition(left, right)
+	}
 	if left.Name != nil && right.Name != nil {
 		if order := strings.Compare(*left.Name, *right.Name); order != 0 {
 			return order
@@ -108,5 +112,9 @@ func compareSessionCatalogPosition(left store.SessionCatalogPosition, right stor
 		}
 		return 1
 	}
-	return strings.Compare(strings.TrimSpace(right.ID), strings.TrimSpace(left.ID))
+	return compareStringsDescending(left.ID, right.ID)
+}
+
+func compareStringsDescending(left string, right string) int {
+	return strings.Compare(strings.TrimSpace(right), strings.TrimSpace(left))
 }

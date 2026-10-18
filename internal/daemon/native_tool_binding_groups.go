@@ -369,3 +369,38 @@ func (n *daemonNativeTools) hookToolBindings(
 		},
 	}
 }
+
+func (n *daemonNativeTools) sessionLayoutToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDSessionFolderList: {
+			call:         n.sessionLayoutTool(sessionFolderList),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderCreate: {
+			call:         n.sessionLayoutTool(sessionFolderCreate),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderRename: {
+			call:         n.sessionLayoutTool(sessionFolderRename),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderDelete: {
+			call:         n.sessionLayoutTool(sessionFolderDelete),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderReorder: {
+			call:         n.sessionLayoutTool(sessionFolderReorder),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionMove: {
+			call:         n.sessionLayoutTool(sessionMove),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionReorder: {
+			call:         n.sessionLayoutTool(sessionReorder),
+			availability: availability,
+		},
+	}
+}

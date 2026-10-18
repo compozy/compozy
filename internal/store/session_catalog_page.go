@@ -16,15 +16,27 @@ const (
 	SessionCatalogAttentionRankNone
 )
 
+// SessionManualRootRank is the manual-sort folder rank of sessions outside
+// any folder; it orders the workspace root after every folder.
+const SessionManualRootRank = 1_000_000_000
+
+// SessionManualUnplacedPosition is the manual-sort position of a session
+// without a placement; unplaced sessions lead their container.
+const SessionManualUnplacedPosition = -1
+
 // SessionCatalogPosition is the stable keyset anchor used by bounded catalog reads.
 type SessionCatalogPosition struct {
-	Name          *string                     `json:"name,omitzero"`
-	NavigatorBand *int                        `json:"navigator_band,omitzero"`
-	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
-	PrimaryAt     time.Time                   `json:"primary_at"`
-	SecondaryAt   time.Time                   `json:"secondary_at"`
-	CreatedAt     time.Time                   `json:"created_at"`
-	ID            string                      `json:"id"`
+	Name          *string `json:"name,omitzero"`
+	NavigatorBand *int    `json:"navigator_band,omitzero"`
+	// ManualFolderRank and ManualPosition anchor the manual sort; see
+	// SessionManualRootRank for sessions outside any folder.
+	ManualFolderRank *int                        `json:"manual_folder_rank,omitzero"`
+	ManualPosition   *int                        `json:"manual_position,omitzero"`
+	AttentionRank    SessionCatalogAttentionRank `json:"attention_rank"`
+	PrimaryAt        time.Time                   `json:"primary_at"`
+	SecondaryAt      time.Time                   `json:"secondary_at"`
+	CreatedAt        time.Time                   `json:"created_at"`
+	ID               string                      `json:"id"`
 }
 
 // Validate ensures the keyset anchor is complete.
@@ -99,6 +111,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 	}
 	if q.After != nil && q.Sort == "navigator" && q.After.NavigatorBand == nil {
 		return fmt.Errorf("store: navigator cursor band is required")
+	}
+	if q.After != nil && q.Sort == "manual" && (q.After.ManualFolderRank == nil || q.After.ManualPosition == nil) {
+		return fmt.Errorf("store: manual cursor keys are required")
 	}
 	if q.After != nil {
 		if err := q.After.Validate(); err != nil {

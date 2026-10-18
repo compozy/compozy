@@ -108,6 +108,7 @@ function seedRuntimeCatalog(queryClient: QueryClient) {
 }
 function renderList(
   overrides: {
+    onNewSession?: (options?: { folderId?: string }) => void;
     sessions?: SessionPayload[];
     revealedSession?: SessionPayload | null;
     currentSessionId?: string;
@@ -139,7 +140,7 @@ function renderList(
     view: overrides.view ?? view,
     onToggleThread: vi.fn(),
     onSelectSession: onSelect,
-    onNewSession: vi.fn(),
+    onNewSession: overrides.onNewSession ?? vi.fn(),
     sessionActions: actions,
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -160,7 +161,7 @@ function renderList(
 }
 
 describe("SessionList selection", () => {
-  it("Should offer all four sort choices and send the selected stable order", async () => {
+  it("Should offer all five sort choices and send the selected stable order", async () => {
     const user = userEvent.setup();
     const setSort = vi.fn();
     renderList({ view: { ...view, sort: "created", setSort } });
@@ -171,6 +172,7 @@ describe("SessionList selection", () => {
       "Name",
       "Last activity",
       "Attention first",
+      "Manual",
     ]);
     expect(screen.getByRole("menuitemradio", { name: "Created" })).toHaveAttribute(
       "aria-checked",
@@ -809,5 +811,230 @@ describe("SessionList provider marks", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("checkbox", { name: "Select Session keyed" })
     );
+  });
+});
+
+describe("SessionList folders and manual order", () => {
+  // Invariant: in a workspace list, folders group root sessions, the (+) menu and
+  // context menus reach every layout verb, and drags resolve to the same verbs.
+  const folderA = {
+    id: "fa",
+    name: "Alpha",
+    workspace_id: "ws",
+    profile_id: "default",
+    position: 0,
+    session_count: 1,
+    created_at: "2026-10-17T00:00:00Z",
+    updated_at: "2026-10-17T00:00:00Z",
+  };
+  const folderB = { ...folderA, id: "fb", name: "Beta", position: 1, session_count: 0 };
+  const layoutRows = [
+    { ...sessions[0]!, id: "r1", name: "Root one" },
+    { ...sessions[1]!, id: "f1", name: "Filed one", folder_id: "fa" },
+    { ...sessions[2]!, id: "r2", name: "Root two" },
+  ];
+  function fakeLayout(overrides: Partial<NonNullable<SessionListViewModel["layout"]>> = {}) {
+    return {
+      folders: [folderA, folderB],
+      createFolder: vi.fn(async () => folderA),
+      renameFolder: vi.fn(async () => undefined),
+      deleteFolder: vi.fn(async () => undefined),
+      moveFolder: vi.fn(),
+      reorderFolders: vi.fn(),
+      moveSession: vi.fn(),
+      reorderSessions: vi.fn(),
+      ...overrides,
+    };
+  }
+  function renderLayout(sort: SessionListViewModel["sort"] = "manual") {
+    const layout = fakeLayout();
+    const onNewSession = vi.fn();
+    renderList({ sessions: layoutRows, view: { ...view, sort, layout }, onNewSession });
+    return { layout, onNewSession };
+  }
+
+  it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
+    const user = userEvent.setup();
+    const { layout, onNewSession } = renderLayout();
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map(item => item.textContent)).toEqual(["New session", "New folder"]);
+    await user.click(screen.getByRole("menuitem", { name: "New session" }));
+    expect(onNewSession).toHaveBeenCalledWith();
+
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    await user.click(await screen.findByRole("menuitem", { name: "New folder" }));
+    await user.type(await screen.findByTestId("session-folder-name"), "  Research  ");
+    await user.click(screen.getByTestId("session-folder-name-confirm"));
+    expect(layout.createFolder).toHaveBeenCalledWith("Research");
+  });
+
+  it("Should group foldered sessions, count them, collapse, and start a session inside", async () => {
+    const user = userEvent.setup();
+    const { onNewSession } = renderLayout("created");
+    const alpha = screen.getByTestId("session-sidebar-folder-fa");
+    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-folder-fa-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("session-sidebar-folder-fb-count")).toHaveTextContent("0");
+    const root = screen.getByTestId("session-sidebar-root");
+    expect(
+      within(root)
+        .getAllByTestId(/^session-sidebar-session-/)
+        .map(row => row.dataset.testid)
+    ).toEqual(["session-sidebar-session-r1", "session-sidebar-session-r2"]);
+
+    await user.click(screen.getByTestId("session-sidebar-folder-fb-new-session"));
+    expect(onNewSession).toHaveBeenCalledWith({ folderId: "fb" });
+
+    await user.click(screen.getByTestId("session-sidebar-folder-fa-toggle"));
+    expect(screen.queryByTestId("session-sidebar-session-f1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-folder-fa-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    await user.click(screen.getByTestId("session-sidebar-folder-fa-toggle"));
+    expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+  });
+
+  it("Should offer the row actions plus folder moves and Move up/down on right-click", async () => {
+    const user = userEvent.setup();
+    const { layout } = renderLayout();
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Delete session" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Remove from folder" }));
+    expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
+    const rootMenu = await screen.findByRole("menu");
+    expect(within(rootMenu).getByRole("menuitem", { name: "Move up" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    await user.click(within(rootMenu).getByRole("menuitem", { name: "Move down" }));
+    expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
+  });
+
+  it("Should keep manual reorder off on a later catalog page", async () => {
+    const layout = fakeLayout();
+    const catalog: NonNullable<SessionListViewModel["catalog"]> = {
+      sessions: layoutRows,
+      facets: undefined,
+      total: undefined,
+      loading: false,
+      failed: false,
+      next: false,
+      previous: true,
+      paging: false,
+      nextPage: vi.fn(),
+      previousPage: vi.fn(),
+      retry: vi.fn(),
+    };
+    renderList({ sessions: layoutRows, view: { ...view, sort: "manual", layout, catalog } });
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
+  });
+
+  it("Should open the row menu from the keyboard and move a session into a folder", async () => {
+    // A keyboard-opened menu is driven by keys; the pointer check would only see its guard layer.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const { layout } = renderLayout("created");
+    screen.getByTestId("session-sidebar-session-r2").focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
+    within(menu).getByRole("menuitem", { name: "Move to folder" }).focus();
+    await user.keyboard("{ArrowRight}");
+    const beta = await screen.findByRole("menuitem", { name: "Beta" });
+    await waitFor(() =>
+      expect(beta.closest('[role="menu"]')).toContainElement(document.activeElement as HTMLElement)
+    );
+    beta.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(layout.moveSession).toHaveBeenCalledWith("r2", "fb"));
+  });
+
+  it("Should rename and delete a folder from its header menu", async () => {
+    const user = userEvent.setup();
+    const { layout } = renderLayout();
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-folder-fa-toggle"));
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent)
+    ).toEqual([
+      "New session in folder",
+      "Rename folder…",
+      "Move folder up",
+      "Move folder down",
+      "Delete folder…",
+    ]);
+    await user.click(within(menu).getByRole("menuitem", { name: "Delete folder…" }));
+    expect(await screen.findByText("Delete folder?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Sessions in this folder move back to the list. No sessions are deleted.")
+    ).toBeInTheDocument();
+    await user.click(screen.getByTestId("session-folder-delete-confirm"));
+    expect(layout.deleteFolder).toHaveBeenCalledWith("fa");
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-folder-fb-toggle"));
+    await user.click(await screen.findByRole("menuitem", { name: "Rename folder…" }));
+    const input = await screen.findByTestId("session-folder-name");
+    await user.clear(input);
+    await user.type(input, "Gamma");
+    await user.click(screen.getByTestId("session-folder-name-confirm"));
+    expect(layout.renameFolder).toHaveBeenCalledWith("fb", "Gamma");
+  });
+
+  function rowContainer(id: string) {
+    return screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
+  }
+
+  // jsdom reports zero-size boxes, so every pointer lands on the target's lower half ("after").
+  it("Should reorder root rows by drag in Manual sort with a drop indicator", () => {
+    const { layout } = renderLayout();
+    fireEvent.dragStart(rowContainer("r1"));
+    expect(rowContainer("r1")).toHaveAttribute("data-dragging", "true");
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(screen.getByTestId("session-sidebar-drop-after-r2")).toBeInTheDocument();
+    fireEvent.drop(rowContainer("r2"));
+    expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
+    expect(screen.queryByTestId("session-sidebar-drop-after-r2")).not.toBeInTheDocument();
+  });
+
+  it("Should move by drag into a folder and back out under any sort, but not reorder", () => {
+    const { layout } = renderLayout("created");
+    fireEvent.dragStart(rowContainer("r1"));
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(screen.queryByTestId("session-sidebar-drop-after-r2")).not.toBeInTheDocument();
+    const header = screen.getByTestId("session-sidebar-folder-fb-header");
+    fireEvent.dragOver(header);
+    expect(header).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(header);
+    expect(layout.moveSession).toHaveBeenCalledWith("r1", "fb");
+
+    fireEvent.dragStart(rowContainer("f1"));
+    fireEvent.dragOver(screen.getByTestId("session-sidebar-root"));
+    fireEvent.drop(screen.getByTestId("session-sidebar-root"));
+    expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
+    expect(layout.reorderSessions).not.toHaveBeenCalled();
+  });
+
+  it("Should reorder folders by dragging one header onto another", () => {
+    const { layout } = renderLayout("created");
+    fireEvent.dragStart(screen.getByTestId("session-sidebar-folder-fa-header"));
+    fireEvent.dragOver(screen.getByTestId("session-sidebar-folder-fb-header"));
+    expect(screen.getByTestId("session-sidebar-folder-fb-header")).toHaveAttribute(
+      "data-drop",
+      "after"
+    );
+    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
+    expect(layout.reorderFolders).toHaveBeenCalledWith(["fb", "fa"]);
   });
 });

@@ -2192,3 +2192,86 @@ func TestGlobalDBSubagentArchive(t *testing.T) {
 		},
 	)
 }
+
+func TestPageSessionsManualOrder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should order folders, then unplaced and pinned root sessions across keyset pages", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db, scope := openSessionLayoutTestDB(t, "manual-page")
+		base := time.Date(2026, 10, 17, 8, 0, 0, 0, time.UTC)
+		for index, id := range []string{"old", "pinned-a", "pinned-b", "in-x", "in-y", "new"} {
+			info := sessionInfoForWorkspaceStateIndexTest(id, scope.WorkspaceID, globalDBSessionStateStopped,
+				base.Add(time.Duration(index)*time.Minute))
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		createLayoutFolder(ctx, t, db, scope, "sfold-y", "Y")
+		createLayoutFolder(ctx, t, db, scope, "sfold-x", "X")
+		if err := db.MoveSession(ctx, scope, "in-x", "sfold-x"); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.MoveSession(ctx, scope, "in-y", "sfold-y"); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ReorderSessions(ctx, scope, "", []string{"pinned-b", "pinned-a"}); err != nil {
+			t.Fatal(err)
+		}
+
+		want := []string{"in-x", "in-y", "new", "old", "pinned-b", "pinned-a"}
+		full := pageManual(ctx, t, db, scope.WorkspaceID, nil)
+		if got := sessionIDsFromInfos(full.Sessions); !slices.Equal(got, want) {
+			t.Fatalf("manual order = %v, want %v", got, want)
+		}
+
+		var walked []string
+		var after *store.SessionCatalogPosition
+		for range len(want) {
+			page, err := db.PageSessions(ctx, store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: scope.WorkspaceID,
+				Archive:     store.SessionArchiveInclude,
+				Sort:        "manual",
+				Limit:       1,
+				After:       after,
+			})
+			if err != nil {
+				t.Fatalf("PageSessions(manual, limit 1) error = %v", err)
+			}
+			if len(page.Sessions) == 0 {
+				break
+			}
+			last := page.Sessions[0]
+			walked = append(walked, last.ID)
+			placements := readPlacements(ctx, t, db, last.ID)
+			rank, position := store.SessionManualRootRank, store.SessionManualUnplacedPosition
+			if placement, ok := placements[last.ID]; ok {
+				position = placement.Position
+				if placement.FolderID != "" {
+					rank = placement.FolderPosition
+				}
+			}
+			after = &store.SessionCatalogPosition{
+				ManualFolderRank: &rank,
+				ManualPosition:   &position,
+				PrimaryAt:        last.CreatedAt,
+				SecondaryAt:      last.CreatedAt,
+				CreatedAt:        last.CreatedAt,
+				ID:               last.ID,
+			}
+		}
+		if !slices.Equal(walked, want) {
+			t.Fatalf("keyset walk = %v, want %v", walked, want)
+		}
+	})
+}
+
+func sessionIDsFromInfos(infos []store.SessionInfo) []string {
+	ids := make([]string, 0, len(infos))
+	for index := range infos {
+		ids = append(ids, infos[index].ID)
+	}
+	return ids
+}

@@ -30,6 +30,9 @@ type CreateSessionRequest struct {
 	// LineageKind names the relation to ParentSessionID: "provenance" (default)
 	// or "recovery". It is accepted only together with parent_session_id.
 	LineageKind string `json:"lineage_kind,omitempty"`
+	// FolderID places the new session at the end of one of the caller's
+	// session folders in the target workspace.
+	FolderID string `json:"folder_id,omitempty"`
 }
 
 // RenameSessionRequest changes the durable display name of one user session.
@@ -108,9 +111,12 @@ type SessionPayload struct {
 	Activity          *RuntimeActivityPayload      `json:"activity,omitzero"`
 	Lineage           *SessionLineagePayload       `json:"lineage,omitzero"`
 	Derivation        *SessionDerivationPayload    `json:"derivation,omitzero"`
-	Health            *SessionHealthPayload        `json:"health,omitzero"`
-	CreatedAt         time.Time                    `json:"created_at"`
-	UpdatedAt         time.Time                    `json:"updated_at"`
+	// FolderID is the session folder holding this session in catalog list
+	// responses; it is omitted for sessions in the workspace root.
+	FolderID  string                `json:"folder_id,omitempty"`
+	Health    *SessionHealthPayload `json:"health,omitzero"`
+	CreatedAt time.Time             `json:"created_at"`
+	UpdatedAt time.Time             `json:"updated_at"`
 }
 
 // SessionRuntimePayload reports the current ACP binding and its effective runtime.

@@ -15,6 +15,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 
 	api.GET("/workspaces/:workspace_id/subagents/:subagent_id", handlers.GetSubagent)
 	api.POST("/workspaces/:workspace_id/subagents/:subagent_id/cancel", handlers.CancelSubagent)
+	registerSessionLayoutRoutes(api, handlers)
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
 	workspaceSessions.GET("", handlers.ListSessions)
 	workspaceSessions.GET("/:session_id/subagents", handlers.ListSessionSubagents)
@@ -33,6 +34,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.POST("/:session_id/stop", handlers.StopSession)
 	workspaceSessions.POST("/:session_id/archive", handlers.ArchiveSession)
 	workspaceSessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
+	workspaceSessions.POST("/:session_id/move", handlers.MoveSession)
 	workspaceSessions.POST("/:session_id/attach", handlers.AttachSession)
 	workspaceSessions.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
 	workspaceSessions.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)
@@ -72,4 +74,15 @@ func registerSessionReadRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.GET("/:session_id/transcript", handlers.SessionTranscript)
 	sessions.GET("/:session_id/transcript/search", handlers.SessionTranscriptSearch)
 	sessions.GET("/:session_id/transcript/outline", handlers.SessionTranscriptOutline)
+}
+
+func registerSessionLayoutRoutes(api gin.IRouter, handlers *Handlers) {
+	folders := api.Group("/workspaces/:workspace_id/session-folders")
+	folders.GET("", handlers.ListSessionFolders)
+	folders.POST("", handlers.CreateSessionFolder)
+	folders.PATCH("/:folder_id", handlers.RenameSessionFolder)
+	folders.DELETE("/:folder_id", handlers.DeleteSessionFolder)
+	order := api.Group("/workspaces/:workspace_id/session-order")
+	order.PUT("/folders", handlers.ReorderSessionFolders)
+	order.PUT("/sessions", handlers.ReorderSessions)
 }

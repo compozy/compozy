@@ -36,6 +36,20 @@ const (
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
 	// ToolIDSessionRename changes one user session's durable display name.
 	ToolIDSessionRename ToolID = "compozy__session_rename"
+	// ToolIDSessionFolderList lists one workspace's session folders.
+	ToolIDSessionFolderList ToolID = "compozy__session_folder_list"
+	// ToolIDSessionFolderCreate creates one session folder.
+	ToolIDSessionFolderCreate ToolID = "compozy__session_folder_create"
+	// ToolIDSessionFolderRename renames one session folder.
+	ToolIDSessionFolderRename ToolID = "compozy__session_folder_rename"
+	// ToolIDSessionFolderDelete deletes one session folder without deleting its sessions.
+	ToolIDSessionFolderDelete ToolID = "compozy__session_folder_delete"
+	// ToolIDSessionFolderReorder sets the complete session folder order.
+	ToolIDSessionFolderReorder ToolID = "compozy__session_folder_reorder"
+	// ToolIDSessionMove moves one session into a folder or back to the workspace root.
+	ToolIDSessionMove ToolID = "compozy__session_move"
+	// ToolIDSessionReorder sets the manual session order in a folder or the workspace root.
+	ToolIDSessionReorder ToolID = "compozy__session_reorder"
 	// ToolIDSessionCreate accepts one unbound logical user session.
 	ToolIDSessionCreate ToolID = "compozy__session_create"
 	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.

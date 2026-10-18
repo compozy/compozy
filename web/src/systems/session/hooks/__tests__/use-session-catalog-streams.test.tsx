@@ -327,6 +327,34 @@ describe("useSessionCatalogStreams", () => {
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
   });
 
+  it("Should reconcile the workspace lists on a layout change without touching a session", () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    renderHook(() => useSessionCatalogStreams({ eventSourceFactory: factory }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    act(() => {
+      source.emit("session_catalog_changed", {
+        kind: "layout",
+        profile_id: "default",
+        profile_name: "default",
+        workspace_id: "ws_alpha",
+        session_id: "",
+      });
+    });
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      { cancelRefetch: false }
+    );
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: sessionKeys.byIdRoot("") });
+  });
+
   it("Should bound catalog reads under continuous lifecycle activity and stop pending wakes on unmount", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
