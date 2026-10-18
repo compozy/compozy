@@ -345,6 +345,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Align codegen boundaries and runtime test contracts
 - Repair release validation and session shutdown races
 - Prevent WAL maintenance from blocking shutdown history
+- Group completed tool calls during live Goal turns (#807)
+- Auto-enqueue dependents after direct run completion (#806)
+- Keep transcripts loadable when a tool call crosses a Goal turn (#803)
+- Discover releases promptly and expose manual update checks (#808)
+- Allow steering active sessions with attachments (#809)
+- Reject blank queued-input promotion as a client error
 
 ### 🔧 Miscellaneous Tasks
 
@@ -378,6 +384,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wait for subagent card navigation readiness (#753)
 - Control popover exit animation time
 - Synchronize migration and startup verification
+- Apply formatter to blank promotion regression
 
 ## 0.2.15 - 2026-07-17
 
