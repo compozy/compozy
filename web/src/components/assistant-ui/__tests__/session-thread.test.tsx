@@ -5089,7 +5089,11 @@ describe("SessionThread composer running semantics", () => {
   it("Should steer an image on Enter and clear the acknowledged draft", async () => {
     const onSteerPrompt = vi.fn(() => Promise.resolve());
     const onQueuePrompt = vi.fn(() => Promise.resolve());
-    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "files.png" } }));
+    const attachmentIdentity = nextAttachmentUploadIdentity();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({ attachmentUpload: { ...attachmentIdentity, name: "files.png" } })
+    );
     renderComposer({
       isSessionRunning: true,
       allowBusyInput: true,
@@ -5114,7 +5118,7 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() =>
       expect(onSteerPrompt).toHaveBeenCalledWith({
         message: "review this image",
-        attachments: [expect.objectContaining({ name: "files.png" })],
+        attachments: [expect.objectContaining({ id: attachmentIdentity.id, name: "files.png" })],
       })
     );
     expect(onQueuePrompt).not.toHaveBeenCalled();
