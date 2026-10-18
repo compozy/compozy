@@ -49,6 +49,8 @@ export interface SessionListViewModel {
    * the widest scope and under the profile aggregate, where rows stay flat.
    */
   layout?: SessionListLayout;
+  /** The worktree the catalog is narrowed to; other worktrees' sessions are hidden. */
+  worktreeId?: string;
   /** The folder list failed to load; rows stay flat and unorderable until a retry loads it. */
   layoutError?: { retry: () => void };
 }
@@ -111,6 +113,7 @@ export function useSessionListView(
   return {
     layout: folders.layout,
     layoutError: folders.loadError,
+    worktreeId: options.worktreeId,
     catalog: {
       ...catalog,
       paging: catalog.paging || !searchSettled,

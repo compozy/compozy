@@ -226,12 +226,7 @@ function SessionListFolderBody({
         sections={sections}
         layout={layout}
         dnd={bulk.active ? undefined : dnd}
-        // A later catalog page holds the middle of a container's order; pinning
-        // only its rows would jump them ahead of unseen sessions, so manual
-        // reorder stays on the first, settled page.
-        orderable={
-          view.sort === "manual" && !filtering && !view.catalog?.previous && !view.catalog?.paging
-        }
+        orderable={folders.orderable}
         filtering={filtering}
         collapsedThreads={collapsedThreads}
         collapsedFolders={folders.collapsedFolders}
