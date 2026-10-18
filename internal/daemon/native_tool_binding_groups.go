@@ -70,34 +70,6 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionRename,
 			availability: catalogAvailability,
 		},
-		toolspkg.ToolIDSessionFolderList: {
-			call:         n.sessionLayoutTool(sessionFolderList),
-			availability: catalogAvailability,
-		},
-		toolspkg.ToolIDSessionFolderCreate: {
-			call:         n.sessionLayoutTool(sessionFolderCreate),
-			availability: catalogAvailability,
-		},
-		toolspkg.ToolIDSessionFolderRename: {
-			call:         n.sessionLayoutTool(sessionFolderRename),
-			availability: catalogAvailability,
-		},
-		toolspkg.ToolIDSessionFolderDelete: {
-			call:         n.sessionLayoutTool(sessionFolderDelete),
-			availability: catalogAvailability,
-		},
-		toolspkg.ToolIDSessionFolderReorder: {
-			call:         n.sessionLayoutTool(sessionFolderReorder),
-			availability: catalogAvailability,
-		},
-		toolspkg.ToolIDSessionMove: {
-			call:         n.sessionLayoutTool(sessionMove),
-			availability: catalogAvailability,
-		},
-		toolspkg.ToolIDSessionReorder: {
-			call:         n.sessionLayoutTool(sessionReorder),
-			availability: catalogAvailability,
-		},
 		toolspkg.ToolIDSessionCreate: {
 			call:         n.sessionCreate,
 			availability: n.sessionCreateAvailability(),
@@ -394,6 +366,41 @@ func (n *daemonNativeTools) hookToolBindings(
 		toolspkg.ToolIDHooksDisable: {
 			call:         n.hooksDisable,
 			availability: mutationAvailability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) sessionLayoutToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDSessionFolderList: {
+			call:         n.sessionLayoutTool(sessionFolderList),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderCreate: {
+			call:         n.sessionLayoutTool(sessionFolderCreate),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderRename: {
+			call:         n.sessionLayoutTool(sessionFolderRename),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderDelete: {
+			call:         n.sessionLayoutTool(sessionFolderDelete),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionFolderReorder: {
+			call:         n.sessionLayoutTool(sessionFolderReorder),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionMove: {
+			call:         n.sessionLayoutTool(sessionMove),
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionReorder: {
+			call:         n.sessionLayoutTool(sessionReorder),
+			availability: availability,
 		},
 	}
 }
