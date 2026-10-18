@@ -10,6 +10,10 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// errSteerDeliveredUnresolved marks a steer the provider already accepted whose durable resolution
+// failed. Its reservation stays leased: requeueing it would deliver the same guidance twice.
+var errSteerDeliveredUnresolved = errors.New("session: delivered steer could not be resolved")
+
 func (m *Manager) activateSteeringInput(
 	ctx context.Context,
 	session *Session,
@@ -73,11 +77,17 @@ func (m *Manager) activateSteeringInputText(
 		}
 	}
 	entry.SteerDelivery = delivery
+	// Once the provider accepted the guidance, a persistence failure must not abort the remaining
+	// saves: the reservation would otherwise stay unresolved and could be delivered a second time.
 	if err := m.recordInjectedSteerInput(m.fallbackLifecycleContext(), session, entry); err != nil {
-		return err
+		m.sessionLogger(session).
+			Error("session: persist injected guidance failed", "entry_id", entry.ID, "error", err)
 	}
 	resolved, err := m.inputQueue.ResolveSteer(m.fallbackLifecycleContext(), session.ID, entry.ID, delivery)
 	if err != nil {
+		if delivery != store.SteerDeliveryInterruptFallback {
+			return errors.Join(errSteerDeliveredUnresolved, err)
+		}
 		return err
 	}
 	*entry = resolved

@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -103,6 +104,12 @@ func (m *Manager) promoteQueuedInput(
 		session.promotedSteers.Delete(entryID)
 	}
 	if err == nil && staged.SteerDelivery != store.SteerDeliveryInterruptFallback {
+		return staged.SteerDelivery, true
+	}
+	if errors.Is(err, errSteerDeliveredUnresolved) {
+		// The provider already holds the message: returning it to the queue would deliver it twice.
+		m.sessionLogger(session).Error("session: promoted queued input delivered but not resolved",
+			"entry_id", entryID, "error", err, "steer_delivery", staged.SteerDelivery)
 		return staged.SteerDelivery, true
 	}
 	// Never drop, cancel, or interrupt with the message: a failed or fallen-back injection returns it to

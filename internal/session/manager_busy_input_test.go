@@ -3659,6 +3659,21 @@ func (s *queueSentFailureStore) MarkSessionInputSentInTurn(
 	return s.GlobalDB.MarkSessionInputSentInTurn(ctx, sessionID, entryID, turnID, now)
 }
 
+// steerResolveFailureStore fails steer resolution while armed, after the provider accepted the guidance.
+type steerResolveFailureStore struct {
+	*globaldb.GlobalDB
+	armed atomic.Bool
+}
+
+func (s *steerResolveFailureStore) ResolveSessionSteer(
+	ctx context.Context, sessionID, entryID string, delivery store.SteerDeliveryMode, now time.Time,
+) (store.SessionInputQueueEntry, error) {
+	if s.armed.Load() {
+		return store.SessionInputQueueEntry{}, errors.New("steer resolution unavailable")
+	}
+	return s.GlobalDB.ResolveSessionSteer(ctx, sessionID, entryID, delivery, now)
+}
+
 // queuePeekDisagreementStore peeks an entry that claim never returns for its first disagreements peeks.
 type queuePeekDisagreementStore struct {
 	*globaldb.GlobalDB
@@ -4903,6 +4918,49 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			t.Fatal("promoted message has no input event in the live turn")
 		}
 		drain(t, f)
+	})
+
+	t.Run("Should never requeue a promoted message the provider received when its resolution fails", func(t *testing.T) {
+		t.Parallel()
+		failing := &steerResolveFailureStore{}
+		failing.armed.Store(true)
+		wrap := func(manager *Manager) {
+			failing.GlobalDB = manager.inputQueueStore.(*globaldb.GlobalDB)
+			manager.inputQueueStore = failing
+		}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, []Option{wrap})
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-f.steered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("long-turn agent message was not injected")
+		}
+		waitForCondition(t, "promotion pass settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			t.Fatalf("a delivered promotion was injected again: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Mode != store.SessionInputQueueModeSteer ||
+			entry.Status != store.SessionInputQueueStatusDispatching || entry.Dispatchable {
+			t.Fatalf("entry = %#v, %v; want the delivered promotion kept leased, never requeued", entry, err)
+		}
+		failing.armed.Store(false)
+		drain(t, f)
+		f.h.driver.mu.Lock()
+		defer f.h.driver.mu.Unlock()
+		for _, call := range f.h.driver.promptCalls {
+			if call.TurnID != turnID && strings.Contains(call.Message, "status late") {
+				t.Fatalf("delivered promotion dispatched again as turn %s: %q", call.TurnID, call.Message)
+			}
+		}
 	})
 
 	t.Run("Should return a fallen-back promoted message to plain after-turn delivery", func(t *testing.T) {
