@@ -1918,7 +1918,7 @@ func TestUpdateSettingsGeneralIdleReleaseAfter(t *testing.T) {
 	t.Run("Should reject invalid idle_release_after values", func(t *testing.T) {
 		t.Parallel()
 
-		for _, raw := range []string{"soon", "-1m"} {
+		for _, raw := range []string{"soon", "-1m", "", "   "} {
 			service := &stubSettingsService{}
 			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 			resp := performRequest(
