@@ -609,6 +609,58 @@ An exact template reference keeps its JSON type through materialization.
       runtime_rules: "{{ .nodes.routing.output.runtime_rules }}"
 ```
 
+### Branch fan-in and required conditions
+
+A node with multiple incoming edges waits for **every predecessor to settle successfully**.
+Skipped paths satisfy that dependency barrier: a false `branch` marks its exclusive descendants
+`branch_skipped`, and a `route` marks its non-selected paths `route_not_taken`. The skip propagates
+only while every incoming path is skipped; a shared join remains runnable when another path is
+active. Fan-in merges alternative paths. It does **not** require every branch condition to be true,
+and it does not start as soon as the first predecessor finishes.
+
+For example, if `true_path` succeeds and `false_path` is `branch_skipped`, their shared `join` runs
+after both settle. A skipped node may have `status: succeeded` with a skip marker in `output_ref`;
+that status alone does not prove its action executed. Unhandled failures still block ordinary
+success dependencies; only explicit error routing or `allow_fail` absorbs them.
+
+To require multiple conditions before a write or approval, combine them in one `branch` and make
+it the protected node's **sole predecessor**. This complete example skips `publish` unless both
+inputs are true:
+
+```yaml
+apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: guarded-delivery }
+start: [{ kind: cli }, { kind: uds }]
+inputs:
+  security_ok: { type: boolean, required: true }
+  approval_ok: { type: boolean, required: true }
+contract:
+  goal: Publish only after both checks pass
+  definition_of_done: Delivery decision settled
+  iteration_cap: 1
+  stop_when: "generation >= 1"
+graph:
+  nodes:
+    - id: all_required
+      class: control
+      kind: branch
+      condition: "inputs.security_ok && inputs.approval_ok"
+    - id: publish
+      class: action
+      kind: transform
+      params: { map: { published: { value: true } } }
+      produces: { published: boolean }
+  edges:
+    - { from: all_required, to: publish }
+```
+
+Run with `--input security_ok=true --input approval_ok=false` to see `publish` skipped; set both
+inputs to `true` to execute it. Replace the illustrative transform with your write action or gate.
+Keep required checks on the guarded path; an additional incoming edge can make the protected node
+live again. For conditions derived from earlier work, use explicit typed result fields in the AND
+predicate instead of checking only `nodes.<id>.status`.
+
 ### Metric Criteria
 
 One `command`, `agent-judge`, or `extension` criterion per definition may declare
