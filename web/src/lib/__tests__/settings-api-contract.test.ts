@@ -212,6 +212,9 @@ describe("settings openapi contract", () => {
       ListSettingsProvidersResponse["providers"][number]["settings"]["auth_status_command"]
     >().toEqualTypeOf<string | undefined>();
     expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_acp_method"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
       keyof ListSettingsProvidersResponse["providers"][number]["settings"]
     >().not.toMatchTypeOf<"auth_login_command">();
     expectTypeOf<ListSettingsProvidersResponse["providers"][number]["auth_status"]>().toEqualTypeOf<
@@ -230,7 +233,7 @@ describe("settings openapi contract", () => {
               | "retry"
               | "inspect"
               | "no_retry";
-            source?: "auth_login_command";
+            source?: "auth_login_command" | "auth_acp_method";
           };
           message?: string;
           mode: string;
@@ -250,6 +253,9 @@ describe("settings openapi contract", () => {
       string | undefined
     >();
     expectTypeOf<PutSettingsProviderBody["settings"]["auth_login_command"]>().toEqualTypeOf<
+      string | null | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["auth_acp_method"]>().toEqualTypeOf<
       string | null | undefined
     >();
 

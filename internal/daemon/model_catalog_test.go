@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
@@ -969,6 +970,224 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
+	t.Run("Should publish exact Agy models with context isolation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("agy")
+		if err != nil {
+			t.Fatalf("ResolveProvider(agy) error = %v", err)
+		}
+		if strings.TrimSpace(provider.Command) == "" ||
+			!strings.Contains(provider.Command, "agy_acp_server") {
+			t.Fatalf("agy discovery command = %q, want the effective server command", provider.Command)
+		}
+		if provider.EffectiveHomePolicy() != compozyconfig.ProviderHomePolicyOperator {
+			t.Fatalf("agy home policy = %q, want operator", provider.EffectiveHomePolicy())
+		}
+		probe := &recordingAgyACPProbe{options: []acp.SessionConfigOption{{
+			ID:   "model",
+			Kind: acp.SessionConfigOptionKindSelect,
+			// Synthetic six-ID input seeded from the superseded 1.3.0 shape;
+			// live 1.4.0 advertises 2 bare IDs + thinking_level. Logic unchanged.
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "gemini-4-argon-medium", Label: "Argon Medium"},
+				{Value: "gemini-4-argon-high", Label: "Argon High"},
+				{Value: "gemini-4-argon-low", Label: "Argon Low"},
+				{Value: "gemini-3.8-flash-high", Label: "Flash High"},
+				{Value: "gemini-3.8-flash-medium", Label: "Flash Medium"},
+				{Value: "gemini-3.8-flash-low", Label: "Flash Low"},
+			},
+		}}}
+		workingDir := t.TempDir()
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"agy",
+			provider,
+			&modelcatalog.LiveProviderSourcesConfig{
+				HomePaths: homePaths,
+				BaseEnv: []string{
+					"PATH=/bin",
+					"HOME=/tmp/agy-operator",
+					"OPENAI_API_KEY=ambient-secret",
+				},
+				ACPProbe:       probe,
+				WorkingDir:     workingDir,
+				DefaultTimeout: 5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource(agy) error = %v", err)
+		}
+		if !liveSource.BootstrapOnList() {
+			t.Fatal("agy BootstrapOnList() = false, want Hermes-style bootstrap on list")
+		}
+		configSource := modelcatalog.NewConfigSource(cfg.Providers)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := db.Close(context.Background()); closeErr != nil {
+				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+			}
+		})
+		service, err := modelcatalog.NewService(
+			db,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		executionContext := modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: store.DefaultProfileID,
+		}
+		refresh := modelcatalog.RefreshOptions{
+			ProviderID:       "agy",
+			SourceID:         modelcatalog.SourceKindProviderLiveID("agy"),
+			ExecutionContext: executionContext,
+			Force:            true,
+		}
+		statuses, err := service.Refresh(ctx, refresh)
+		if err != nil {
+			t.Fatalf("Refresh(agy live) error = %v", err)
+		}
+		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("agy"))
+		if !ok || status.RefreshState != modelcatalog.RefreshStateSucceeded || status.RowCount != 6 {
+			t.Fatalf("agy live status = %#v, want 6 succeeded rows", status)
+		}
+		// The discovery seam carries only command/cwd/env/timeout: inspection
+		// sends no prompt, authenticate, tool, or MCP message through this path.
+		req := probe.singleRequest(t)
+		if req.ProviderID != "agy" || req.Command != strings.TrimSpace(provider.Command) ||
+			req.Cwd != workingDir {
+			t.Fatalf("agy discovery invocation = %#v, want final command and working dir", req)
+		}
+		if envValue(req.Env, "COMPOZY_PROVIDER") != "agy" ||
+			envValue(req.Env, "OPENAI_API_KEY") != "" ||
+			envValue(req.Env, "HOME") != "/tmp/agy-operator" {
+			t.Fatalf("agy discovery env leaks or drops operator home: %#v", req.Env)
+		}
+		models, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "agy",
+			View:               modelcatalog.CatalogViewAll,
+			ExecutionContext:   executionContext,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(agy) error = %v", err)
+		}
+		if got, want := catalogModelIDs(models, "agy"), []string{
+			"gemini-3.8-flash-high",
+			"gemini-3.8-flash-low",
+			"gemini-3.8-flash-medium",
+			"gemini-4-argon-high",
+			"gemini-4-argon-low",
+			"gemini-4-argon-medium",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("agy models = %#v, want exact advertised %#v", got, want)
+		}
+
+		probe.setErr(errors.New(
+			"model catalog: inspect agy ACP model options: authentication required, run compozy provider auth login agy",
+		))
+		failedStatuses, refreshErr := service.Refresh(ctx, refresh)
+		if refreshErr == nil {
+			t.Fatal("Refresh(agy logged out) error = nil, want stale fallback failure")
+		}
+		failedStatus, ok := findSourceStatus(failedStatuses, modelcatalog.SourceKindProviderLiveID("agy"))
+		if !ok || failedStatus.RefreshState != modelcatalog.RefreshStateFailed ||
+			failedStatus.FailureReason() != "auth_required" {
+			t.Fatalf("logged-out agy status = %#v, want failed auth_required", failedStatus)
+		}
+		staleModels, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "agy",
+			View:               modelcatalog.CatalogViewAll,
+			ExecutionContext:   executionContext,
+			IncludeStale:       true,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(agy stale) error = %v", err)
+		}
+		if got := catalogModelIDs(staleModels, "agy"); len(got) != 6 {
+			t.Fatalf("stale agy models = %#v, want same-context prior rows", got)
+		}
+		for _, model := range staleModels {
+			if model.ProviderID != "agy" || !model.Stale {
+				t.Fatalf("stale agy model = %#v, want same-context stale row", model)
+			}
+		}
+		otherContext := modelcatalog.CatalogExecutionContext{
+			Scope:       modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: "unrelated-workspace",
+		}
+		isolated, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "agy",
+			View:               modelcatalog.CatalogViewAll,
+			ExecutionContext:   otherContext,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(agy isolated) error = %v", err)
+		}
+		if got := catalogModelIDs(isolated, "agy"); len(got) != 0 {
+			t.Fatalf("isolated agy models = %#v, want no cross-context rows", got)
+		}
+
+		callsBeforeDisable := probe.callCount()
+		disabledHome := testHomePaths(t)
+		disabledProvider := provider
+		disabledProvider.Models.Discovery.Enabled = new(false)
+		disabledSource, err := modelcatalog.NewLiveProviderSource(
+			"agy",
+			disabledProvider,
+			&modelcatalog.LiveProviderSourcesConfig{HomePaths: disabledHome, ACPProbe: probe},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource(disabled agy) error = %v", err)
+		}
+		disabledDB, err := openDaemonTestGlobalDBAtPath(ctx, disabledHome.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(disabled) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := disabledDB.Close(context.Background()); closeErr != nil {
+				t.Fatalf("CloseGlobalDB(disabled) error = %v", closeErr)
+			}
+		})
+		disabledService, err := modelcatalog.NewService(
+			disabledDB,
+			[]modelcatalog.Source{disabledSource},
+			modelcatalog.MergeOptions{},
+		)
+		if err != nil {
+			t.Fatalf("NewService(disabled) error = %v", err)
+		}
+		disabledStatuses, err := disabledService.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID:       "agy",
+			ExecutionContext: executionContext,
+			Force:            true,
+		})
+		if err != nil {
+			t.Fatalf("Refresh(disabled agy) error = %v", err)
+		}
+		disabledStatus, ok := findSourceStatus(
+			disabledStatuses,
+			modelcatalog.SourceKindProviderLiveID("agy"),
+		)
+		if !ok || disabledStatus.RefreshState != modelcatalog.RefreshStateDisabled {
+			t.Fatalf("disabled agy status = %#v, want disabled", disabledStatus)
+		}
+		if got := probe.callCount(); got != callsBeforeDisable {
+			t.Fatalf("agy probe calls = %d, want %d with no peer call while disabled", got, callsBeforeDisable)
+		}
+	})
+
 	t.Run("Should cancel and join refresh work on shutdown", func(t *testing.T) {
 		t.Parallel()
 
@@ -1744,6 +1963,62 @@ func containsCatalogModel(models []modelcatalog.Model, providerID string, modelI
 		}
 	}
 	return false
+}
+
+func catalogModelIDs(models []modelcatalog.Model, providerID string) []string {
+	ids := make([]string, 0, len(models))
+	for _, model := range models {
+		if model.ProviderID == providerID {
+			ids = append(ids, model.ModelID)
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// recordingAgyACPProbe isolates the ACP discovery I/O boundary: the catalog may
+// only call InspectModels, which selects models to read options and never sends
+// a prompt, authenticate, tool, or MCP message.
+type recordingAgyACPProbe struct {
+	mu       sync.Mutex
+	options  []acp.SessionConfigOption
+	err      error
+	requests []modelcatalog.ACPModelProbeRequest
+}
+
+func (p *recordingAgyACPProbe) InspectModels(
+	_ context.Context,
+	req modelcatalog.ACPModelProbeRequest,
+) (acp.SessionModelInspection, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.requests = append(p.requests, req)
+	if p.err != nil {
+		return acp.SessionModelInspection{}, p.err
+	}
+	return acp.SessionModelInspection{Options: acp.CloneSessionConfigOptions(p.options)}, nil
+}
+
+func (p *recordingAgyACPProbe) setErr(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.err = err
+}
+
+func (p *recordingAgyACPProbe) callCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.requests)
+}
+
+func (p *recordingAgyACPProbe) singleRequest(t *testing.T) modelcatalog.ACPModelProbeRequest {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.requests) != 1 {
+		t.Fatalf("agy discovery requests = %d, want 1", len(p.requests))
+	}
+	return p.requests[0]
 }
 
 func findCatalogModel(models []modelcatalog.Model, modelID string) (modelcatalog.Model, bool) {

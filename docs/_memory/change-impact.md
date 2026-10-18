@@ -74,6 +74,22 @@ extension SDKs are unchanged. Official skill `references/runtime-operations.md`,
 `docs/sessions/index.mdx`, generated CLI docs, and QA scenario
 `ET-web-session-folders-manual-order` record the contract.
 
+## Google Antigravity ACP provider — 2026-10-18
+
+Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
+protocol-owned native login, and discovers exact model/configuration options through ACP. Provider
+configuration and Settings gain the optional `auth_acp_method` field; source DTOs and generated
+OpenAPI/client artifacts co-ship. Native tool IDs, existing CLI verbs, extension SDKs, hooks,
+workspace/profile isolation and persisted database shapes are unchanged; no migration is needed.
+Operator-owned login state follows the existing provider-home policy. Shared provider logos,
+Settings fixtures, official skill provider/auth guidance and site provider/model-catalog docs are
+updated. The long-tail provider removals and their compatibility window remain in effect.
+Existing provider/auth, model-catalog, settings and KindIcon suites own the observable behavior;
+the added provider QA scenarios retain their original journey steps. Authentication probes also verify
+that the launch directory still exists before using it, falling back to the temporary directory
+when the OS returns a stale working-directory path. The existing provider-handler subprocess
+suite owns this regression.
+
 ## Long-tail built-in provider removal — 2026-10-17
 
 Owner: branch `fix/issue-761-remove-longtail-providers`; issue #761.
@@ -3492,4 +3508,3 @@ Owner: branch `fix/settings-idle-release-control`, stacked on #787; issue #782.
   Web reply links are keyed by peer session plus message id.
 - **QA / validation:** RT-session-message-origin (steps 9–16), RT-session-message-reply (12–13) and
   ET-web-session-message-card.md updated; deterministic regressions run on real SQLite in the owning suites. Heavy gates are CI-owned.
-

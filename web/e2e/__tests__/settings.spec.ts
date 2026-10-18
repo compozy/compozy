@@ -687,6 +687,98 @@ test("browser operator updates CompozyOS in one click and reads progress and ter
   await expect(settingsUI.general.updateLastError).toContainText("health check failed after swap");
 });
 
+test("operator can inspect and edit the Antigravity sign-in method without credential controls", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  await ensureProjectWorkspace(appPage, runtime);
+  await completeOnboardingIfPrompted(sessionUI);
+
+  const seeded = await seedBrowserSettingsFixtures(runtime, {
+    providers: [
+      {
+        name: "agy",
+        settings: { command: "/bin/true", auth_acp_method: "oauth-personal" },
+      },
+    ],
+  });
+
+  try {
+    await appPage.goto(runtime.url("/settings/providers"), { waitUntil: "domcontentloaded" });
+    const settingsWin = appWindow(appPage, "settings");
+    await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+    const settingsUI = settingsOperatorSelectors(settingsWin);
+    await expect(settingsUI.providers.page).toBeVisible();
+
+    const agyCard = settingsWin.getByTestId("settings-page-providers-card-agy");
+    await expect(agyCard).toBeVisible();
+    await expect(agyCard.getByTestId("settings-page-providers-card-agy-name")).toContainText(
+      "Google Antigravity"
+    );
+    // Presence is not readiness: the cheap declared read stays unverified, never Ready.
+    await expect(agyCard.getByTestId("settings-page-providers-card-agy-status")).toContainText(
+      "Sign-in unverified"
+    );
+    await browserArtifacts.captureScreenshot("agy-settings-card-unverified", appPage);
+
+    // Keyboard path: the card is a native button, so Enter opens the inspector.
+    await agyCard.focus();
+    await appPage.keyboard.press("Enter");
+    const detail = settingsWin.getByTestId("provider-detail-dialog");
+    await expect(detail).toBeVisible();
+    await detail.getByTestId("provider-detail-edit").click();
+    await expect(
+      detail.getByTestId("settings-providers-editor-auth-acp-method-input")
+    ).toBeVisible();
+
+    const methodInput = detail.getByTestId("settings-providers-editor-auth-acp-method-input");
+    await expect(methodInput).toHaveValue("oauth-personal");
+    await expect(detail.getByLabel(/Sign-in method/)).toBeVisible();
+    // Native auth mounts no secret, key, ref, or rotation controls.
+    await expect(
+      detail.getByTestId("settings-providers-editor-auth-login-descriptor")
+    ).toContainText("true");
+    await expect(
+      detail.getByTestId("settings-providers-editor-auth-login-descriptor")
+    ).not.toContainText("write-only config");
+    await expect(
+      detail.locator('[data-testid^="settings-providers-editor-credential-slot"]')
+    ).toHaveCount(0);
+    await expect(detail.getByLabel("Credential value")).toHaveCount(0);
+
+    // An unrelated edit preserves the stored method across save and reopen.
+    await detail.getByTestId("settings-providers-editor-display-name-input").fill("AGY Renamed");
+    await detail.getByTestId("provider-detail-save").click();
+    await expect(detail).toBeHidden();
+    await expect(settingsUI.providers.actionResult).toContainText('Saved provider "agy"');
+    // Focus returns to the card that opened the dialog.
+    await expect(agyCard).toBeFocused();
+
+    await agyCard.click();
+    await expect(detail).toBeVisible();
+    await detail.getByTestId("provider-detail-edit").click();
+    await expect(detail.getByTestId("settings-providers-editor-auth-acp-method-input")).toHaveValue(
+      "oauth-personal"
+    );
+    await browserArtifacts.captureScreenshot("agy-settings-method-preserved", appPage);
+
+    // Narrow viewport: the editor keeps every control reachable without clipping.
+    await appPage.setViewportSize({ width: 375, height: 820 });
+    const narrowMethodInput = detail.getByTestId("settings-providers-editor-auth-acp-method-input");
+    await narrowMethodInput.scrollIntoViewIfNeeded();
+    await expect(narrowMethodInput).toBeVisible();
+    const overflow = await detail
+      .getByTestId("provider-detail-body")
+      .evaluate(element => element.scrollWidth - element.clientWidth <= 1);
+    expect(overflow).toBe(true);
+    await browserArtifacts.captureScreenshot("agy-settings-method-narrow", appPage);
+  } finally {
+    await cleanupBrowserSettingsFixtures(runtime, seeded);
+  }
+});
+
 function normalizeTexts(values: string[]): string[] {
   return values.map(value => value.trim()).filter(value => value !== "");
 }

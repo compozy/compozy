@@ -9,22 +9,24 @@ import (
 
 // ProviderSettings is the editable provider overlay payload.
 type ProviderSettings struct {
-	SteerCapability compozyconfig.SteerCapability
-	Command         string
-	DisplayName     string
-	Models          compozyconfig.ProviderModelsConfig
-	ModelsSet       bool
-	Harness         compozyconfig.ProviderHarness
-	RuntimeProvider string
-	Transport       string
-	BaseURL         string
-	AuthMode        compozyconfig.ProviderAuthMode
-	EnvPolicy       compozyconfig.ProviderEnvPolicy
-	HomePolicy      compozyconfig.ProviderHomePolicy
-	AuthStatusCmd   string
-	AuthLoginCmd    string
-	AuthLoginCmdSet bool
-	CredentialSlots []compozyconfig.ProviderCredentialSlot
+	SteerCapability  compozyconfig.SteerCapability
+	Command          string
+	DisplayName      string
+	Models           compozyconfig.ProviderModelsConfig
+	ModelsSet        bool
+	Harness          compozyconfig.ProviderHarness
+	RuntimeProvider  string
+	Transport        string
+	BaseURL          string
+	AuthMode         compozyconfig.ProviderAuthMode
+	EnvPolicy        compozyconfig.ProviderEnvPolicy
+	HomePolicy       compozyconfig.ProviderHomePolicy
+	AuthStatusCmd    string
+	AuthLoginCmd     string
+	AuthLoginCmdSet  bool
+	AuthACPMethod    string
+	AuthACPMethodSet bool
+	CredentialSlots  []compozyconfig.ProviderCredentialSlot
 }
 
 // ProviderCredentialStatus is a redacted launch credential status.

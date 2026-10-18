@@ -16,6 +16,7 @@ func providerConfigFromResolvedAgent(resolved compozyconfig.ResolvedAgent) compo
 		NoneSecurity:    resolved.NoneSecurity,
 		AuthStatusCmd:   resolved.AuthStatusCmd,
 		AuthLoginCmd:    resolved.AuthLoginCmd,
+		AuthACPMethod:   resolved.AuthACPMethod,
 		Models: compozyconfig.ProviderModelsConfig{
 			Reasoning: resolved.Reasoning,
 		},

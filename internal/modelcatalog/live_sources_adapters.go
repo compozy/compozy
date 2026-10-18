@@ -131,6 +131,10 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		parseCommandRows: parseCursorModelRows,
 		commandOnly:      true,
 	},
+	liveSourcesAgyKey: {
+		defaultKind:     liveDiscoveryACP,
+		bootstrapOnList: true,
+	},
 	"pi": {
 		defaultKind: liveDiscoveryNone,
 	},

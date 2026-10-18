@@ -5195,3 +5195,120 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		t.Fatalf("hook declaration still present after delete:\n%s", configPayload)
 	}
 }
+
+func TestProviderACPMethodMutationSemantics(t *testing.T) {
+	t.Parallel()
+
+	const seed = `
+[providers.acp-custom]
+command = "acp-custom --acp"
+display_name = "ACP Custom"
+harness = "acp"
+auth_mode = "native_cli"
+env_policy = "filtered"
+home_policy = "operator"
+auth_acp_method = "oauth-personal"
+`
+
+	put := func(t *testing.T, service Service, ctx context.Context, settings ProviderSettings) error {
+		t.Helper()
+		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			Collection: CollectionProviders,
+			Name:       "acp-custom",
+			Provider:   &settings,
+		})
+		return err
+	}
+
+	t.Run("Should preserve the method on unrelated writes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+seed)
+		service := testService(t, homePaths, Dependencies{})
+
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		settings := mustFindProviderItem(t, envelope.Providers, "acp-custom").Settings
+		if got := settings.AuthACPMethod; got != "oauth-personal" {
+			t.Fatalf("provider settings AuthACPMethod = %q, want %q", got, "oauth-personal")
+		}
+		if settings.AuthACPMethodSet {
+			t.Fatalf("read projection AuthACPMethodSet = true, want presence-unset read")
+		}
+
+		settings.DisplayName = "ACP Custom Updated"
+		if err := put(t, service, ctx, settings); err != nil {
+			t.Fatalf("PutCollectionItem(unrelated edit) error = %v", err)
+		}
+
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after unrelated edit) error = %v", err)
+		}
+		if got := cfg.Providers["acp-custom"].AuthACPMethod; got != "oauth-personal" {
+			t.Fatalf("stored auth_acp_method = %q, want preserved value", got)
+		}
+	})
+
+	t.Run("Should persist an explicit empty method on a present empty write", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+seed)
+		service := testService(t, homePaths, Dependencies{})
+
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		settings := mustFindProviderItem(t, envelope.Providers, "acp-custom").Settings
+		settings.AuthACPMethod = ""
+		settings.AuthACPMethodSet = true
+		if err := put(t, service, ctx, settings); err != nil {
+			t.Fatalf("PutCollectionItem(clear method) error = %v", err)
+		}
+
+		stored := readFile(t, homePaths.ConfigFile)
+		if !strings.Contains(stored, `auth_acp_method = ""`) {
+			t.Fatalf("stored config missing explicit empty auth_acp_method:\n%s", stored)
+		}
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after clear) error = %v", err)
+		}
+		if got := cfg.Providers["acp-custom"].AuthACPMethod; got != "" {
+			t.Fatalf("stored auth_acp_method = %q, want empty method", got)
+		}
+	})
+
+	t.Run("Should write nothing for an invalid method and auth combination", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+seed)
+		service := testService(t, homePaths, Dependencies{})
+		before := readFile(t, homePaths.ConfigFile)
+
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		settings := mustFindProviderItem(t, envelope.Providers, "acp-custom").Settings
+		settings.AuthMode = compozyconfig.ProviderAuthModeNone
+		settings.AuthACPMethod = "oauth-personal"
+		settings.AuthACPMethodSet = true
+		if err := put(t, service, ctx, settings); err == nil {
+			t.Fatal("PutCollectionItem(invalid combination) error = nil, want validation error")
+		}
+
+		if got := readFile(t, homePaths.ConfigFile); got != before {
+			t.Fatalf("stored config changed on invalid write:\n%s", got)
+		}
+	})
+}

@@ -65,6 +65,13 @@ func providerAuthProbeEnv(
 	if err != nil {
 		return authproviders.ProbeEnv{}, err
 	}
+	// The disposable ACP probe launches the provider server through session
+	// base validation: carry the operator working directory so the request
+	// reaches the server instead of failing with cwd-required.
+	commandDir, err := currentWorkingDirectory(deps)
+	if err != nil {
+		return authproviders.ProbeEnv{}, err
+	}
 	return authproviders.ProbeEnv{
 		ProviderName:   providerName,
 		HomePaths:      homePaths,
@@ -75,6 +82,7 @@ func providerAuthProbeEnv(
 		},
 		Vault:      cliProviderVaultMetadataResolver{homePaths: homePaths, getenv: deps.getenv},
 		CommandEnv: commandEnv,
+		CommandDir: commandDir,
 		RunCommand: deps.runProviderAuthCommand,
 	}, nil
 }

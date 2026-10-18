@@ -261,6 +261,7 @@ func resolvedAgentFromProvider(
 		NoneSecurity:    provider.EffectiveNoneSecurity(),
 		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
 		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
+		AuthACPMethod:   provider.EffectiveACPMethod(),
 		SessionMCP:      provider.SessionMCPEnabled(),
 		CredentialSlots: provider.EffectiveCredentialSlots(),
 		MCPServers:      mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),
@@ -299,6 +300,8 @@ func applyProviderFullAccessPreference(
 		mode = "agent-full-access"
 	case "claude":
 		mode = "bypassPermissions"
+	case providerAgyKey:
+		mode = "yolo"
 	default:
 		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
 	}

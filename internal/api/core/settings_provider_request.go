@@ -36,22 +36,24 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
 	settings := settingspkg.ProviderSettings{
-		Command:         strings.TrimSpace(body.Settings.Command),
-		DisplayName:     strings.TrimSpace(body.Settings.DisplayName),
-		Models:          providerModelsFromPayload(body.Settings.Models),
-		ModelsSet:       body.Settings.Models != nil,
-		Harness:         compozyconfig.ProviderHarness(strings.TrimSpace(body.Settings.Harness)),
-		RuntimeProvider: strings.TrimSpace(body.Settings.RuntimeProvider),
-		Transport:       strings.TrimSpace(body.Settings.Transport),
-		BaseURL:         strings.TrimSpace(body.Settings.BaseURL),
-		AuthMode:        compozyconfig.ProviderAuthMode(strings.TrimSpace(body.Settings.AuthMode)),
-		EnvPolicy:       compozyconfig.ProviderEnvPolicy(strings.TrimSpace(body.Settings.EnvPolicy)),
-		HomePolicy:      compozyconfig.ProviderHomePolicy(strings.TrimSpace(body.Settings.HomePolicy)),
-		SteerCapability: body.Settings.SteerCapability,
-		AuthStatusCmd:   strings.TrimSpace(body.Settings.AuthStatusCmd),
-		AuthLoginCmd:    trimmedOptionalString(body.Settings.AuthLoginCmd),
-		AuthLoginCmdSet: body.Settings.AuthLoginCmd != nil,
-		CredentialSlots: providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
+		Command:          strings.TrimSpace(body.Settings.Command),
+		DisplayName:      strings.TrimSpace(body.Settings.DisplayName),
+		Models:           providerModelsFromPayload(body.Settings.Models),
+		ModelsSet:        body.Settings.Models != nil,
+		Harness:          compozyconfig.ProviderHarness(strings.TrimSpace(body.Settings.Harness)),
+		RuntimeProvider:  strings.TrimSpace(body.Settings.RuntimeProvider),
+		Transport:        strings.TrimSpace(body.Settings.Transport),
+		BaseURL:          strings.TrimSpace(body.Settings.BaseURL),
+		AuthMode:         compozyconfig.ProviderAuthMode(strings.TrimSpace(body.Settings.AuthMode)),
+		EnvPolicy:        compozyconfig.ProviderEnvPolicy(strings.TrimSpace(body.Settings.EnvPolicy)),
+		HomePolicy:       compozyconfig.ProviderHomePolicy(strings.TrimSpace(body.Settings.HomePolicy)),
+		SteerCapability:  body.Settings.SteerCapability,
+		AuthStatusCmd:    strings.TrimSpace(body.Settings.AuthStatusCmd),
+		AuthLoginCmd:     trimmedOptionalString(body.Settings.AuthLoginCmd),
+		AuthLoginCmdSet:  body.Settings.AuthLoginCmd != nil,
+		AuthACPMethod:    trimmedOptionalString(body.Settings.AuthACPMethod),
+		AuthACPMethodSet: body.Settings.AuthACPMethod != nil,
+		CredentialSlots:  providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
 	}
 	return settingspkg.CollectionItemPutRequest{
 		CollectionRequest:     req,
@@ -107,6 +109,7 @@ func providerSettingsPayloadEmpty(payload contract.SettingsProviderWritePayload)
 		strings.TrimSpace(payload.HomePolicy) == "" &&
 		strings.TrimSpace(payload.AuthStatusCmd) == "" &&
 		payload.AuthLoginCmd == nil &&
+		payload.AuthACPMethod == nil &&
 		len(payload.CredentialSlots) == 0
 }
 

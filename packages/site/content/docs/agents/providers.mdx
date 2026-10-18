@@ -29,22 +29,23 @@ provider = "claude"
 
 The built-in registry lives in `internal/config/provider.go`.
 
-| Provider ID         | Harness  | Runtime provider    | Command                                                          | `models.default`            | Auth mode      | Credential target    |
-| ------------------- | -------- | ------------------- | ---------------------------------------------------------------- | --------------------------- | -------------- | -------------------- |
-| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`            | `claude-sonnet-5`           | `native_cli`   | provider login       |
-| `codex`             | `acp`    | `codex`             | `npx -y @agentclientprotocol/codex-acp@latest`                   | `gpt-5.6-sol`               | `native_cli`   | provider login       |
-| `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                   | `gemini-3.1-pro-preview`    | `native_cli`   | provider login       |
-| `opencode`          | `acp`    | `opencode`          | `npx -y opencode-ai@latest acp`                                  | none                        | `native_cli`   | provider login       |
-| `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                          | none                        | `native_cli`   | provider login       |
-| `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                               | none                        | `native_cli`   | provider login       |
-| `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                       | none                        | `native_cli`   | provider login       |
-| `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills` | `qwen3.6-plus`              | `native_cli`   | provider login       |
-| `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                           | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
-| `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                           | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
-| `zai`               | `pi_acp` | `zai`               | `npx -y pi-acp@latest`                                           | `glm-4.6`                   | `bound_secret` | `ZAI_API_KEY`        |
-| `moonshot`          | `pi_acp` | `kimi-coding`       | `npx -y pi-acp@latest`                                           | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
-| `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `npx -y pi-acp@latest`                                           | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
-| `xai`               | `pi_acp` | `xai`               | `npx -y pi-acp@latest`                                           | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
+| Provider ID         | Harness  | Runtime provider    | Command                                                                                           | `models.default`            | Auth mode      | Credential target    |
+| ------------------- | -------- | ------------------- | ------------------------------------------------------------------------------------------------- | --------------------------- | -------------- | -------------------- |
+| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`                                             | `claude-sonnet-5`           | `native_cli`   | provider login       |
+| `codex`             | `acp`    | `codex`             | `npx -y @agentclientprotocol/codex-acp@latest`                                                    | `gpt-5.6-sol`               | `native_cli`   | provider login       |
+| `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                                                    | `gemini-3.1-pro-preview`    | `native_cli`   | provider login       |
+| `opencode`          | `acp`    | `opencode`          | `npx -y opencode-ai@latest acp`                                                                   | none                        | `native_cli`   | provider login       |
+| `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                                                           | none                        | `native_cli`   | provider login       |
+| `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                                                                | none                        | `native_cli`   | provider login       |
+| `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                                                        | none                        | `native_cli`   | provider login       |
+| `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills`                                  | `qwen3.6-plus`              | `native_cli`   | provider login       |
+| `agy`               | `acp`    | `agy`               | `agy_acp_server.par --uid=` (Linux), `agy_acp_server.par` (macOS), `agy_acp_server.exe` (Windows) | none                        | `native_cli`   | protocol login       |
+| `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                                                            | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
+| `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                                                            | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
+| `zai`               | `pi_acp` | `zai`               | `npx -y pi-acp@latest`                                                                            | `glm-4.6`                   | `bound_secret` | `ZAI_API_KEY`        |
+| `moonshot`          | `pi_acp` | `kimi-coding`       | `npx -y pi-acp@latest`                                                                            | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
+| `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `npx -y pi-acp@latest`                                                                            | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
+| `xai`               | `pi_acp` | `xai`               | `npx -y pi-acp@latest`                                                                            | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
 
 <OperatorNote>
   `pi` is the direct Pi provider and owns authentication through Pi `/login` and Pi's auth file.
@@ -78,23 +79,24 @@ silently overriding a provider's own login state.
 
 Provider overrides and custom providers are configured in `config.toml`.
 
-| Field                 | Type   | Required                 | Runtime behavior                                                                                                                              |
-| --------------------- | ------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `command`             | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                                                 |
-| `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                                                 |
-| `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".                                    |
-| `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`.                                 |
-| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the CompozyOS provider id.                                                   |
-| `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                                                              |
-| `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                                                      |
-| `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                                                           |
-| `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.                                      |
-| `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.                                              |
-| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                                                 |
-| `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                                                      |
-| `auth_login_command`  | string | no                       | Write-only native CLI login command used by `compozy provider auth login`; read surfaces return its safe login descriptor, never the command. |
-| `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                                                    |
-| `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                                                             |
+| Field                 | Type   | Required                 | Runtime behavior                                                                                                                                                                                                                                                                  |
+| --------------------- | ------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`             | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                                                                                                                                                                                     |
+| `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                                                                                                                                                                                     |
+| `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".                                                                                                                                                                        |
+| `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`.                                                                                                                                                                     |
+| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the CompozyOS provider id.                                                                                                                                                                                       |
+| `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                                                                                                                                                                                                  |
+| `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                                                                                                                                                                                          |
+| `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                                                                                                                                                                                               |
+| `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.                                                                                                                                                                          |
+| `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.                                                                                                                                                                                  |
+| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                                                                                                                                                                                     |
+| `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                                                                                                                                                                                          |
+| `auth_login_command`  | string | no                       | Write-only native CLI login command used by `compozy provider auth login`; read surfaces return its safe login descriptor, never the command.                                                                                                                                     |
+| `auth_acp_method`     | string | no                       | Protocol-owned login method id (for example `oauth-personal` on `agy`). Used by `compozy provider auth login` and remote probes when no native login/status command is configured; read surfaces expose only `source: auth_acp_method` with the executable basename and presence. |
+| `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                                                                                                                                                                                        |
+| `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                                                                                                                                                                                                 |
 
 `auth_mode = "none"` is an explicit `No auth required` contract, not an authenticated state. Set
 `none_security` to describe why the provider is safe without credentials: `local_transport` for
@@ -105,6 +107,10 @@ at config load time.
 
 CompozyOS overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
+
+`auth_acp_method` requires `harness = "acp"` and `auth_mode = "native_cli"`. When switching a built-in
+provider to `pi_acp`, an empty or omitted method no longer inherits the built-in ACP method. An
+explicit nonempty method is still rejected with `pi_acp`; switching harnesses does not change auth ownership.
 
 ### Configure and inspect native login
 
@@ -124,6 +130,31 @@ Those read surfaces expose a `login` descriptor instead. It contains only `confi
 `unknown`), and a recovery `recommended_action`: `install_cli`, `login`, `bind_secret`, `retry`,
 `inspect`, or `no_retry`. Use that action and the provider auth state to decide what to do next; do
 not treat the descriptor as a command you can copy or execute.
+
+### Protocol-owned login (Google Antigravity)
+
+The `agy` built-in needs no `[providers.agy]` block. Install the official `agy_acp_server`
+executable for your OS on `PATH` (the interactive `agy` CLI is a different binary and is not
+substituted), then sign in explicitly and verify readiness:
+
+```bash
+compozy provider auth login agy --timeout 5m -o json
+compozy provider auth status agy --remote -o json
+```
+
+Login runs the exact advertised `oauth-personal` agent method and verifies readiness with a
+promptless session; the remote probe never sends `authenticate` and never launches a browser.
+There is no automatic login on failure: a logged-out probe reports `needs_login`, a missing
+server reports `missing_cli` with an `install_cli` recommendation naming only the executable
+basename, and sessions keep the server-default model. Operator-home login state is shared across
+profiles by design; a different home or context must authenticate separately.
+
+In Settings → Providers, `Google Antigravity` reports `Sign-in unverified` (never `Ready`) until
+a live probe succeeds — an installed executable is not evidence of an authenticated account. Its
+native-auth editor offers an optional `Sign-in method` field and no key, secret, or rotation
+controls: leaving the field empty uses the built-in `oauth-personal` default, and clearing a
+custom value removes the local override to reveal that default. Editing any other field preserves
+the stored method.
 
 Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
 `claude-code`, `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen`
@@ -190,8 +221,8 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
 change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
-Discovery uses the resolved provider auth, env, and home policy. Claude and Codex inspect a
-short-lived ACP session. Cursor runs `cursor-agent models`, converts the returned transport aliases into
+Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Agy inspect a
+short-lived ACP session. Agy publishes the exact advertised model IDs with unobserved pricing, context, reasoning, and speed; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
 logical model IDs, and keeps the alias bindings private. At launch, CompozyOS resolves the selected
 logical model plus Reasoning, Fast, and Thinking back to one alias and starts
 `cursor-agent --model <alias> acp`. When discovery fails, the catalog records source status and keeps the
@@ -632,6 +663,7 @@ Use the provider that already owns your credentials and preferred operating path
 | Cursor Agent                | `cursor`            |
 | Kimi CLI                    | `kimi-cli`          |
 | Qwen Code                   | `qwen-code`         |
+| Google Antigravity          | `agy`               |
 | Pi                          | `pi`                |
 | OpenRouter                  | `openrouter`        |
 | z.ai / GLM                  | `zai`               |

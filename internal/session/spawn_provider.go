@@ -111,7 +111,7 @@ func compatibleSpawnProviderRoute(parent, child compozyconfig.ResolvedAgent) boo
 		parent.EnvPolicy == child.EnvPolicy && parent.Harness == child.Harness &&
 		parent.RuntimeProvider == child.RuntimeProvider && parent.Transport == child.Transport &&
 		parent.BaseURL == child.BaseURL && parent.AuthStatusCmd == child.AuthStatusCmd &&
-		parent.AuthLoginCmd == child.AuthLoginCmd
+		parent.AuthLoginCmd == child.AuthLoginCmd && parent.AuthACPMethod == child.AuthACPMethod
 }
 
 // providerRoutingSnapshot preserves launch-time routing despite later configuration changes.

@@ -19,6 +19,9 @@ const (
 	NativeCLISourceAuthStatus = "auth_status_command"
 	// NativeCLISourceAuthLogin reports that the probe binary came from auth_login_command.
 	NativeCLISourceAuthLogin = "auth_login_command"
+	// NativeCLISourceAuthACPMethod reports that readiness is owned by the
+	// configured protocol auth method; the probe binary is the provider launch command.
+	NativeCLISourceAuthACPMethod = "auth_acp_method"
 	// NativeCLISourceCommand reports that the probe binary came from the provider launch command.
 	NativeCLISourceCommand = "provider_command"
 )

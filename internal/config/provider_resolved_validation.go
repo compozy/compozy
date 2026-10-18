@@ -31,6 +31,21 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if err := provider.EffectiveNoneSecurity().Validate(fmt.Sprintf("providers.%s.none_security", name)); err != nil {
 		return err
 	}
+	if err := ValidateACPMethod(provider.AuthACPMethod, fmt.Sprintf("providers.%s.auth_acp_method", name)); err != nil {
+		return err
+	}
+	if provider.EffectiveACPMethod() != "" {
+		if provider.EffectiveHarness() != ProviderHarnessACP {
+			return fmt.Errorf("providers.%s.auth_acp_method requires harness = %q", name, ProviderHarnessACP)
+		}
+		if provider.EffectiveAuthMode() != ProviderAuthModeNativeCLI {
+			return fmt.Errorf(
+				"providers.%s.auth_acp_method requires auth_mode = %q",
+				name,
+				ProviderAuthModeNativeCLI,
+			)
+		}
+	}
 	if provider.EffectiveHarness() == ProviderHarnessPiACP &&
 		strings.TrimSpace(provider.RuntimeProviderName(name)) == "" {
 		return fmt.Errorf("providers.%s.runtime_provider is required for pi_acp providers", name)
@@ -86,6 +101,9 @@ func validateProviderAuthSlots(name string, provider ProviderConfig) ([]Provider
 		}
 		if strings.TrimSpace(provider.AuthLoginCmd) != "" {
 			return nil, fmt.Errorf("providers.%s.auth_login_command cannot be set when auth_mode is none", name)
+		}
+		if provider.EffectiveACPMethod() != "" {
+			return nil, fmt.Errorf("providers.%s.auth_acp_method cannot be set when auth_mode is none", name)
 		}
 	}
 	return slots, nil

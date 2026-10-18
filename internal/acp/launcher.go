@@ -19,7 +19,11 @@ var (
 type localLauncher struct {
 	logger      *slog.Logger
 	stopTimeout time.Duration
-	niceness    int
+	// stderrSink receives live subprocess stderr. It stays nil for normal
+	// sessions; authentication flows set it to the operator's local writer so
+	// live login progress never enters persisted diagnostics.
+	stderrSink io.Writer
+	niceness   int
 }
 
 type localProcessHandle struct {
@@ -65,6 +69,7 @@ func (l *localLauncher) Launch(
 		Dir:              prepared.Cwd,
 		Env:              append([]string(nil), prepared.Env...),
 		Logger:           l.logger,
+		StderrSink:       l.stderrSink,
 		DisableTransport: true,
 		ShutdownTimeout:  l.stopTimeout,
 		Niceness:         l.niceness,

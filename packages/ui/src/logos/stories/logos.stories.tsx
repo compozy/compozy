@@ -2,6 +2,7 @@ import type { ComponentType, SVGProps } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import {
+  AntigravityLogo,
   ClaudeLogo,
   CursorLogo,
   DiscordLogo,
@@ -33,6 +34,7 @@ interface LogoGalleryProps {
 }
 
 const AGENT_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
+  { label: "Antigravity", Logo: AntigravityLogo },
   { label: "Claude", Logo: ClaudeLogo },
   { label: "Cursor", Logo: CursorLogo },
   { label: "Gemini", Logo: GeminiLogo },

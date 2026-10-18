@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -172,22 +173,24 @@ func TestClarifyBootWiring(t *testing.T) {
 	t.Run("Should expire a finite booted wait once with pings then silence", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := loadClarifyBootConfig(t, "")
-		cfg.Tools.Clarify.Timeout = 25 * time.Millisecond
-		sessions := &fakeSessionManager{}
-		bridge := bootClarifyBroker(t, &cfg, sessions)
-		result := askClarification(
-			t,
-			bridge,
-			testClarifyScope(),
-			toolspkg.ClarifyQuestion{Question: "Continue?"},
-		)
-		got := awaitClarifyResult(t, result)
-		if got.err != nil || !got.answer.Fallback {
-			t.Fatalf("Ask() result = %#v, want one fallback resolution", got)
-		}
-		if settled := sessions.agentExtensionCallCount(); settled != 1 {
-			t.Fatalf("session extension calls = %d, want only the immediate first ping", settled)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			cfg := loadClarifyBootConfig(t, "")
+			cfg.Tools.Clarify.Timeout = 25 * time.Millisecond
+			sessions := &fakeSessionManager{}
+			bridge := bootClarifyBroker(t, &cfg, sessions)
+			result := askClarification(
+				t,
+				bridge,
+				testClarifyScope(),
+				toolspkg.ClarifyQuestion{Question: "Continue?"},
+			)
+			got := awaitClarifyResult(t, result)
+			if got.err != nil || !got.answer.Fallback {
+				t.Fatalf("Ask() result = %#v, want one fallback resolution", got)
+			}
+			if settled := sessions.agentExtensionCallCount(); settled != 1 {
+				t.Fatalf("session extension calls = %d, want only the immediate first ping", settled)
+			}
+		})
 	})
 }

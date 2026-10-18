@@ -224,8 +224,8 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 			if command != "status-helper" {
 				t.Fatalf("resolver command = %q, want status-helper", command)
 			}
-			if dir != "" {
-				t.Fatalf("resolver dir = %q, want empty", dir)
+			if dir != "/workspace/project" {
+				t.Fatalf("resolver dir = %q, want the operator working directory", dir)
 			}
 			resolvedEnv = append([]string(nil), env...)
 			if resolveCalls > 1 {
@@ -243,8 +243,8 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 			if !slices.Equal(spec.Args, []string{"auth", "status"}) {
 				t.Fatalf("Args = %#v, want auth status", spec.Args)
 			}
-			if spec.Dir != "" {
-				t.Fatalf("Dir = %q, want empty", spec.Dir)
+			if spec.Dir != "/workspace/project" {
+				t.Fatalf("Dir = %q, want the operator working directory", spec.Dir)
 			}
 			if !slices.Equal(spec.Env, resolvedEnv) {
 				t.Fatalf("Env = %#v, want resolver env %#v", spec.Env, resolvedEnv)

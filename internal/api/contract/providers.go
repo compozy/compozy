@@ -19,6 +19,7 @@ type ProviderLoginSource string
 
 const (
 	ProviderLoginSourceAuthLoginCommand ProviderLoginSource = "auth_login_command"
+	ProviderLoginSourceAuthACPMethod    ProviderLoginSource = "auth_acp_method"
 )
 
 // ProviderLoginPresence reports only the availability truth established by the current probe.
