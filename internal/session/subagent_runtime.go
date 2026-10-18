@@ -311,7 +311,7 @@ func (r managerSubagentRuntime) Steer(ctx context.Context, parent, turn, id, tex
 	}
 	steerCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
 	defer cancel()
-	result, err := driver.Steer(steerCtx, child.processHandle(), turn, text)
+	result, err := driver.Steer(steerCtx, child.processHandle(), turn, text, nil)
 	if err == nil &&
 		(result.Attempt == acp.SteerAttemptInjected || result.Attempt == acp.SteerAttemptPendingInjection) {
 		r.m.emitTranscriptMarker(

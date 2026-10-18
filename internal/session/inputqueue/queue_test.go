@@ -74,15 +74,15 @@ func TestServiceNewInsertAttachments(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject every steer insert that carries attachments", func(t *testing.T) {
+	t.Run("Should accept steer inserts that carry attachments", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
 			name string
 			text string
 		}{
-			{name: "Should reject attachment-only steer input", text: ""},
-			{name: "Should reject text and attachment steer input", text: "steer with text"},
+			{name: "Should accept attachment-only steer input", text: ""},
+			{name: "Should accept text and attachment steer input", text: "steer with text"},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
@@ -97,8 +97,8 @@ func TestServiceNewInsertAttachments(t *testing.T) {
 					text:         test.text,
 					attachments:  []store.SessionInputAttachment{testQueueAttachment()},
 				})
-				if !errors.Is(err, store.ErrSessionInputSteerTextOnly) {
-					t.Fatalf("newInsert(%q) error = %v, want ErrSessionInputSteerTextOnly", test.text, err)
+				if err != nil {
+					t.Fatalf("newInsert(%q) error = %v", test.text, err)
 				}
 			})
 		}
@@ -146,7 +146,7 @@ func TestServiceMutateAttachments(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse promoting attachment-bearing input to steer", func(t *testing.T) {
+	t.Run("Should preserve attachments when promoting queued input to steer", func(t *testing.T) {
 		t.Parallel()
 
 		source := store.SessionInputQueueEntry{
@@ -170,11 +170,12 @@ func TestServiceMutateAttachments(t *testing.T) {
 			"idem-promote",
 			nil,
 		)
-		if !errors.Is(err, store.ErrSessionInputSteerTextOnly) {
-			t.Fatalf("PromoteToSteer() error = %v, want ErrSessionInputSteerTextOnly", err)
+		if err != nil {
+			t.Fatalf("PromoteToSteer() error = %v", err)
 		}
-		if queueStore.promoted {
-			t.Fatal("PromoteSessionInputToSteer must not run for attachment-bearing input")
+		if !queueStore.promoted || queueStore.replaced == nil || len(queueStore.replaced.Attachments) != 1 ||
+			queueStore.replaced.Attachments[0] != source.Attachments[0] {
+			t.Fatal("PromoteSessionInputToSteer did not preserve attachments")
 		}
 	})
 }
@@ -228,6 +229,7 @@ func (s *mutationQueueStore) PromoteSessionInputToSteer(
 	replacement store.SessionInputQueueInsert,
 ) (store.SessionInputQueueEntry, bool, error) {
 	s.promoted = true
+	s.replaced = &replacement
 	return store.SessionInputQueueEntry{ID: replacement.ID}, true, nil
 }
 

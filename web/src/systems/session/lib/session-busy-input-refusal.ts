@@ -115,7 +115,7 @@ export function describeSessionBusyInputRefusal(refusal: SessionBusyInputRefusal
     case "steer_attachments_unsupported": {
       const files =
         refusal.attachmentCount === 1 ? "the file" : `the ${refusal.attachmentCount} files`;
-      return `Not sent — steer can't carry files on this agent. Queue it, or remove ${files}.`;
+      return `Not sent — this server doesn't support files in steer. Queue it, or remove ${files}.`;
     }
     case "queue_full":
       return refusal.queueCap

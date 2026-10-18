@@ -138,7 +138,7 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 			"and batch updates instead of streaming status. While the target is busy, mode chooses queue "+
 			"(after its current turn), steer (into the active turn), or interrupt; omitting mode uses "+
 			"session.busy_input.default_mode (steer by default). An agent never cancels another session's "+
-			"turn: its interrupt is delivered as steer, or queued when it has attachments, and the result "+
+			"turn: its interrupt is delivered as steer, including attachments, and the result "+
 			"reports the mode used. Queued messages from other sessions are answered together in one turn, "+
 			"and are injected into a turn that runs past session.messaging.queue_promote_after when the "+
 			"target supports steering. Set supersede to replace your own older queued message to the same "+
@@ -279,7 +279,7 @@ const sessionPromptInputSchema = `{
 		"mode":{"type":"string","enum":["queue","interrupt","steer"],
  "description":"How to deliver while the target is busy: queue waits for its current turn to end, ` +
 	`steer joins the active turn, interrupt cancels it. An agent session's interrupt never cancels the ` +
-	`target's turn: it is delivered as steer, or queued when the message has attachments. ` +
+	`target's turn: it is delivered as steer, including attachments. Without live injection it waits for the turn to end. ` +
 	`Omitted means session.busy_input.default_mode (steer by default)."},
 		"expected_turn_id":{"type":"string","minLength":1},
 		"notify_on_complete":{"type":"boolean","default":false,

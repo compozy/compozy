@@ -153,11 +153,9 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 		return errors.New("store: session prompt admission fingerprint version is required")
 	case normalized.RequestFingerprint == "":
 		return errors.New("store: session prompt admission request fingerprint is required")
-	case normalized.Operation == SessionPromptOperationSteer && len(normalized.Attachments) > 0:
-		return ErrSessionInputSteerTextOnly
 	case normalized.AuthoredText == "" &&
 		(normalized.Operation != SessionPromptOperationPrompt || normalized.Mode != SessionInputQueueModeInterrupt) &&
-		(normalized.Operation == SessionPromptOperationSteer || len(normalized.Attachments) == 0):
+		len(normalized.Attachments) == 0:
 		return errors.New("store: session prompt admission authored text is required")
 	case normalized.TurnID == "":
 		return errors.New("store: session prompt admission turn id is required")

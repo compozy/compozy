@@ -1,7 +1,6 @@
 package store
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -54,8 +53,8 @@ func TestSessionInputQueueInsertAttachments(t *testing.T) {
 		name string
 		text string
 	}{
-		{name: "Should reject steer attachments with empty text", text: ""},
-		{name: "Should reject steer attachments with non-empty text", text: "redirect with context"},
+		{name: "Should accept steer attachments with empty text", text: ""},
+		{name: "Should accept steer attachments with non-empty text", text: "redirect with context"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -66,8 +65,8 @@ func TestSessionInputQueueInsertAttachments(t *testing.T) {
 			req.TargetTurnID = "turn-active"
 			req.Text = tc.text
 			req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
-			if err := req.Validate(); !errors.Is(err, ErrSessionInputSteerTextOnly) {
-				t.Fatalf("Validate() error = %v, want %v", err, ErrSessionInputSteerTextOnly)
+			if err := req.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v", err)
 			}
 		})
 	}

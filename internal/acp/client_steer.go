@@ -30,15 +30,15 @@ type wireSteerResponse struct {
 	Reason  string `json:"reason,omitempty"`
 }
 
-func (d *Driver) Steer(ctx context.Context, proc *AgentProcess, turnID, text string) (SteerResult, error) {
+func (d *Driver) Steer(ctx context.Context, proc *AgentProcess, turnID, text string, attachments []PromptAttachment) (SteerResult, error) {
 	if ctx == nil {
 		return SteerResult{Attempt: SteerAttemptUnsupported}, errors.New("acp: steer context is required")
 	}
 	if proc == nil || proc.conn == nil {
 		return SteerResult{Attempt: SteerAttemptUnsupported}, errProcessConnectionUninitialized
 	}
-	if strings.TrimSpace(text) == "" {
-		return SteerResult{Attempt: SteerAttemptUnsupported}, errors.New("acp: steer text is required")
+	if strings.TrimSpace(text) == "" && len(attachments) == 0 {
+		return SteerResult{Attempt: SteerAttemptUnsupported}, errors.New("acp: steer text or attachments are required")
 	}
 	active := proc.currentPrompt()
 	if active == nil {
@@ -53,9 +53,16 @@ func (d *Driver) Steer(ctx context.Context, proc *AgentProcess, turnID, text str
 	if capability != config.SteerCapabilityExtension && capability != config.SteerCapabilityConcurrentPrompt {
 		return SteerResult{Attempt: SteerAttemptUnsupported}, nil
 	}
+	blocks, err := attachmentContentBlocks(attachments, proc.CapsSnapshot())
+	if err != nil {
+		return SteerResult{Attempt: SteerAttemptUnsupported}, err
+	}
+	if strings.TrimSpace(text) != "" {
+		blocks = append([]acpsdk.ContentBlock{acpsdk.TextBlock(text)}, blocks...)
+	}
 	request := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(proc.SessionID),
-		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(text)},
+		Prompt:    blocks,
 	}
 	if capability == config.SteerCapabilityConcurrentPrompt {
 		return d.steerConcurrentPrompt(proc, active, request)

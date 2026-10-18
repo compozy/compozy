@@ -254,7 +254,6 @@ function SessionComposerControls() {
           : { kind: "send" },
       }}
       busyInputSteerDelivery={meta.busyInputSteerDelivery}
-      composerAttachmentCount={state.composerAttachmentCount}
       environmentControl={meta.environmentControl}
       contextControl={meta.contextControl}
       subagentControl={meta.subagentControl}

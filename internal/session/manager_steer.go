@@ -34,6 +34,12 @@ func (m *Manager) activateSteeringInputText(
 	providerText string,
 ) error {
 	defer m.replyWatchSteerResolved(context.WithoutCancel(ctx), session.ID)
+	proc := session.processHandle()
+	attachments, err := m.resolvePromptAttachments(ctx, session.WorkspaceID, session.ID,
+		attachmentMetaFromStore(entry.Attachments), proc.CapsSnapshot())
+	if err != nil {
+		return err
+	}
 	superseded := entry.SupersededIDs
 	reserved, claimed, err := m.inputQueue.ReserveSteer(ctx, session.ID, entry.ID)
 	if err != nil {
@@ -51,7 +57,6 @@ func (m *Manager) activateSteeringInputText(
 	}
 	delivery := store.SteerDeliveryInterruptFallback
 	var completion <-chan error
-	proc := session.processHandle()
 	if steerer, ok := m.injectedSteerer(proc); ok && session.CurrentTurnID() == entry.TargetTurnID &&
 		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
@@ -65,7 +70,7 @@ func (m *Manager) activateSteeringInputText(
 		if providerText != "" {
 			text = providerText
 		}
-		attempt, steerErr := steerer.Steer(steerCtx, proc, entry.TargetTurnID, promptOriginMessage(origin, text))
+		attempt, steerErr := steerer.Steer(steerCtx, proc, entry.TargetTurnID, promptOriginMessage(origin, text), attachments)
 		cancel()
 		if steerErr == nil {
 			completion = attempt.Completion
@@ -259,7 +264,7 @@ func (m *Manager) injectedSteerInputRequest(
 		message: entry.Text, authoredMessage: entry.Text,
 		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
-		inputIdempotent: true,
+		inputIdempotent: true, attachments: attachmentMetaFromStore(entry.Attachments),
 	}, nil
 }
 

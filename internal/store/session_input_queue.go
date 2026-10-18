@@ -52,8 +52,6 @@ var (
 	ErrSessionInputQueueEntryNotQueued = errors.New("store: session input queue entry is not queued")
 	// ErrSessionInputMutationConflict reports reuse of a mutation identity with different input.
 	ErrSessionInputMutationConflict = errors.New("store: session input mutation identity conflict")
-	// ErrSessionInputSteerTextOnly reports that steer input cannot include attachments.
-	ErrSessionInputSteerTextOnly = errors.New("store: steer input cannot include attachments")
 )
 
 // SessionInputRuntime is the immutable runtime selection captured when busy
@@ -237,10 +235,7 @@ func (r SessionInputQueueInsert) Validate() error {
 		return errors.New("store: session input queue id is required")
 	case normalized.SessionID == "":
 		return errors.New("store: session input queue session id is required")
-	case normalized.Mode == SessionInputQueueModeSteer && len(normalized.Attachments) > 0:
-		return ErrSessionInputSteerTextOnly
-	case normalized.Text == "" &&
-		(normalized.Mode == SessionInputQueueModeSteer || len(normalized.Attachments) == 0):
+	case normalized.Text == "" && len(normalized.Attachments) == 0:
 		return errors.New("store: session input queue text is required")
 	case normalized.QueueCap <= 0:
 		return fmt.Errorf("store: session input queue cap must be positive: %d", normalized.QueueCap)

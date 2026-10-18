@@ -316,6 +316,7 @@ cannot be validated fail closed.
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
     compozy session prompt <session-id> "Inspect the failing build." --provider cursor --model grok-4.6 --reasoning-effort high --speed fast
     compozy session attachments upload <session-id> ./diagram.png -o json
+    compozy session prompt <session-id> "Use this screenshot." --steer --attachment ./diagram.png
     compozy session list --all -o json
     compozy session list --all --type system -o json
     compozy session list --type user --state active --sort last_activity -o json
@@ -522,6 +523,13 @@ An omitted prompt fence resolves the live turn at admission; an explicit `expect
 rejects a stale target with `active_turn_mismatch` and `current_turn_id`. Native
 `compozy__session_prompt` defaults to `wait:false`; request `wait:true` for terminal completion.
 Transcript markers are history rather than another action-result channel.
+
+Steer accepts image and file attachments, including attachment-only input. Injection sends the same
+content blocks as a normal prompt when the live runtime supports them. Otherwise operator steering
+uses interrupt-then-prompt with the attachments intact. Negotiated image/embedded-context capability
+errors identify runtimes that cannot accept the corresponding input at all; text files retain the
+normal inline-text fallback. Queued input promotion preserves its attachment snapshot. Exact retries
+keep the attachment identities as part of the admission fingerprint.
 
 HTTP and UDS expose the same daemon-owned queue at
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue`. Replace one item with

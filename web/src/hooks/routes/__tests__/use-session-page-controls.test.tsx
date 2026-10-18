@@ -684,6 +684,44 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
   });
 
+  it("Should submit steer attachments with the active turn fence", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    const attachments = [
+      {
+        bytes: 4,
+        height: 10,
+        id: `att_${"b".repeat(64)}`,
+        kind: "image" as const,
+        mime_type: "image/png",
+        name: "steer.png",
+        sha256: "b".repeat(64),
+        width: 10,
+      },
+    ];
+    routeHookMocks.sendPromptMutation.mutateAsync.mockResolvedValue({
+      delivery: "interrupt_then_prompt",
+      disposition: "steering",
+      status: "steering",
+      steer_delivery: "interrupt_fallback",
+      message_id: "msg-file",
+      idempotency_key: "idem-file",
+      replayed: false,
+      turn_id: "turn-live",
+    });
+    const { result } = renderControls(makeSession("active", "turn-live"));
+    await act(async () => {
+      await result.current.handleSteerPrompt({ message: "review this", attachments });
+    });
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments,
+        expectedTurnId: "turn-live",
+        message: "review this",
+        mode: "steer",
+      })
+    );
+  });
+
   it("Should expose the daemon follow-up default and steer delivery from the session resource", () => {
     const { result } = renderControls({
       ...makeSession("active", "turn-live"),
@@ -711,25 +749,6 @@ describe("useSessionPageControls", () => {
     ).rejects.toMatchObject({ refusal: { code: "session_not_promptable" } });
 
     const { result } = renderControls(makeSession("active", "turn-live"));
-    await expect(
-      result.current.handleSteerPrompt({
-        message: "steer with a file",
-        attachments: [
-          {
-            bytes: 4,
-            height: 10,
-            id: `att_${"b".repeat(64)}`,
-            kind: "image",
-            mime_type: "image/png",
-            name: "steer.png",
-            sha256: "b".repeat(64),
-            width: 10,
-          },
-        ],
-      })
-    ).rejects.toMatchObject({
-      refusal: { attachmentCount: 1, code: "steer_attachments_unsupported" },
-    });
 
     const admission = createDeferredPromise<unknown>();
     routeHookMocks.sendPromptMutation.mutateAsync.mockReturnValue(admission.promise);
@@ -852,10 +871,11 @@ describe("useSessionPageControls", () => {
     });
   });
 
-  it("Should promote a durable queue entry with one atomic request", () => {
+  it("Should promote an attachment-bearing durable queue entry with one atomic request", () => {
     const { result } = renderControls(makeSession("active", "turn-live"));
     act(() =>
       result.current.handleSteerQueuedPrompt({
+        attachments: { fileCount: 0, imageCount: 1 },
         id: "inq-1",
         owner: null,
         position: 1,

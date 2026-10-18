@@ -111,6 +111,7 @@ type SendPromptResult struct {
 
 // SteerPromptOpts carries one explicitly identified steering command.
 type SteerPromptOpts struct {
+	Attachments    []AttachmentMeta
 	Message        string
 	MessageID      string
 	IdempotencyKey string

@@ -313,6 +313,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 				now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
 				entry, err := db.StageSessionSteer(ctx, store.SessionInputQueueInsert{
 					ID: "steer-delivery", SessionID: sessionID, TargetTurnID: "active-turn", Text: "change direction",
+					Attachments:   []store.SessionInputAttachment{testSessionInputAttachment()},
 					SteerDelivery: delivery, QueueCap: 10, Now: now,
 				})
 				if err != nil {
@@ -325,7 +326,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 				if err != nil || !ok {
 					t.Fatalf("ClaimNextSessionInput() = %v, %v", ok, err)
 				}
-				if claimed.SteerDelivery != delivery {
+				if claimed.SteerDelivery != delivery || !slices.Equal(claimed.Attachments, entry.Attachments) {
 					t.Fatalf("claimed delivery = %q, want %q", claimed.SteerDelivery, delivery)
 				}
 			})
@@ -2626,6 +2627,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		sessionID := registerInputQueueSession(t, globalDB)
 		now := time.Date(2026, 7, 31, 12, 10, 0, 0, time.UTC)
 		firstAdmission := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "steer-a", now)
+		firstAdmission.Attachments = []store.SessionInputAttachment{testSessionInputAttachment()}
 		firstAdmission.Mode = store.SessionInputQueueModeSteer
 		firstQueue := store.SessionInputQueueInsert{
 			ID: "steer-admitted-a", SessionID: sessionID, Text: "first steer",
@@ -2666,7 +2668,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StageAdmittedSessionSteer(replay) error = %v", err)
 		}
-		if created ||
+		if !slices.Equal(replayedEntry.Attachments, firstAdmission.Attachments) || created ||
 			replayedEntry.ID != firstEntry.ID ||
 			replayedEntry.Status != store.SessionInputQueueStatusCanceled {
 			t.Fatalf("replayed entry = %#v, created=%v", replayedEntry, created)

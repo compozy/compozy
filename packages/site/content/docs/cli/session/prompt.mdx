@@ -27,6 +27,9 @@ compozy session prompt <id> <message> [flags]
   # Replace the fenced active turn with steering guidance
   compozy session prompt sess_1234 "Prefer the smaller patch." --steer --expected-turn turn_1234
 
+  # Steer with a screenshot while the session works
+  compozy session prompt sess_1234 "Use this screenshot." --steer --attachment ./screen.png
+
   # Interrupt the fenced active turn before sending a replacement
   compozy session prompt sess_1234 "Use this direction instead." --interrupt --expected-turn turn_1234
 
@@ -48,6 +51,7 @@ compozy session prompt <id> <message> [flags]
 ```
       --acp-option stringArray    ACP select override as id=value (repeatable)
       --acp-toggle stringArray    ACP boolean override as id=true|false (repeatable)
+      --attachment stringArray    Attach a file path (repeatable)
       --expected-turn string      Optional strict active turn fence
       --from-session string       Send as an agent session so the receiver sees who wrote it and can reply: a session id, or "auto" for the managed session this runs in (COMPOZY_SESSION_ID). Omitted or "none" sends as operator input
   -h, --help                      help for prompt

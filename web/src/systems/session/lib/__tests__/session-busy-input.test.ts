@@ -212,7 +212,9 @@ describe("session busy-input read models", () => {
         message: null,
         queueCap: null,
       })
-    ).toBe("Not sent — steer can't carry files on this agent. Queue it, or remove the 2 files.");
+    ).toBe(
+      "Not sent — this server doesn't support files in steer. Queue it, or remove the 2 files."
+    );
     expect(
       describeSessionBusyInputRefusal({
         attachmentCount: 0,

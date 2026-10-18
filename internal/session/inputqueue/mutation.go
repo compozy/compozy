@@ -106,18 +106,7 @@ func (s *Service) mutate(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
-	if spec.mode == store.SessionInputQueueModeSteer && len(existing.Attachments) > 0 {
-		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
-			"%w: input %s",
-			store.ErrSessionInputSteerTextOnly,
-			targetEntryID,
-		)
-	}
-	attachments := []store.SessionInputAttachment(nil)
-	if spec.mode == store.SessionInputQueueModeQueue {
-		// A replace keeps the source entry's attachment snapshot.
-		attachments = append([]store.SessionInputAttachment(nil), existing.Attachments...)
-	}
+	attachments := append([]store.SessionInputAttachment(nil), existing.Attachments...)
 	replacement, err := s.newInsert(insertSpec{
 		sessionID:        targetSessionID,
 		text:             spec.text,

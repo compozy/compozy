@@ -147,11 +147,6 @@ export function useSessionBusyInputControls({
     if (text.length === 0 && attachmentCount === 0) {
       return Promise.resolve();
     }
-    if (action === "steer" && attachmentCount > 0) {
-      return Promise.reject(
-        new SessionBusyInputRefusalError({ attachmentCount, code: "steer_attachments_unsupported" })
-      );
-    }
     return dispatchEnvelope({
       action,
       attachments: draft.attachments,
@@ -217,7 +212,7 @@ export function useSessionBusyInputControls({
     handleRetryUnconfirmedSend,
     handleSteerPrompt,
     handleSteerQueuedPrompt: (prompt: QueuedPrompt) => {
-      if (!promptControlsAvailable || pending || prompt.attachments) {
+      if (!promptControlsAvailable || pending) {
         return;
       }
       promoteInput.mutate(

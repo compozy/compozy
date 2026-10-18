@@ -4127,8 +4127,9 @@ func (l *recordingManagedInputLifecycle) waitAmbiguous(t *testing.T) ManagedInpu
 
 type steeringTestDriver struct {
 	*fakeDriver
-	steer      func(context.Context, *AgentProcess, string, string) (acp.SteerAttempt, error)
-	completion <-chan error
+	steer       func(context.Context, *AgentProcess, string, string) (acp.SteerAttempt, error)
+	completion  <-chan error
+	attachments []acp.PromptAttachment
 }
 
 var _ AgentSteerer = (*steeringTestDriver)(nil)
@@ -4137,7 +4138,9 @@ func (d *steeringTestDriver) Steer(
 	ctx context.Context,
 	proc *AgentProcess,
 	turnID, text string,
+	attachments []acp.PromptAttachment,
 ) (acp.SteerResult, error) {
+	d.attachments = attachments
 	attempt, err := d.steer(ctx, proc, turnID, text)
 	return acp.SteerResult{Attempt: attempt, Completion: d.completion}, err
 }
@@ -4252,10 +4255,19 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			queueStore := openManagerInputQueueStore(t)
-			h := newHarness(t, WithSessionInputQueueStore(queueStore))
+			attachmentID := "att_" + strings.Repeat("e", 64)
+			data := []byte("steer image bytes")
+			opener := &promptAttachmentOpenerStub{
+				data: map[string][]byte{attachmentID: data},
+				refs: map[string]attachmentspkg.AttachmentRef{attachmentID: storedPromptAttachmentRef(
+					t, attachmentID, "steer.png", "image/png", data,
+				)},
+			}
+			h := newHarness(t, WithSessionInputQueueStore(queueStore), WithAttachmentOpener(opener))
 			registerManagerInputQueueWorkspace(t, queueStore, h)
 			h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
 				proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence))
+				proc.handle.caps.PromptImage = true
 				proc.handle.caps.SteerCapability = compozyconfig.SteerCapabilityExtension
 				return proc, nil
 			}
@@ -4319,17 +4331,6 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 			}
 			<-entered
 			turnID := sess.CurrentTurnID()
-			_, refusedErr := h.manager.stageSteerPrompt(t.Context(), sess, promptRequest{
-				message: "keep the draft", attachments: []AttachmentMeta{{ID: "attachment-not-injectable"}},
-			})
-			if !errors.Is(refusedErr, store.ErrSessionInputSteerTextOnly) || steerCalls != 0 ||
-				managerCancelCalls(h) != 0 {
-				t.Fatalf("attachment refusal=%v, steerCalls=%d", refusedErr, steerCalls)
-			}
-			pendingBefore, listErr := h.manager.inputQueue.List(t.Context(), sess.ID)
-			if listErr != nil || len(pendingBefore) != 0 {
-				t.Fatalf("refusal persisted input=%#v, error=%v", pendingBefore, listErr)
-			}
 
 			older, err := h.manager.inputQueue.StageSteer(t.Context(), inputqueue.InputRequest{
 				SessionID: sess.ID, Text: "older undelivered guidance", TargetTurnID: turnID,
@@ -4339,6 +4340,7 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 			}
 
 			opts := SendPromptOpts{
+				Attachments:    []AttachmentMeta{promptAttachmentMeta(t, attachmentID, "steer.png", "image/png", data)},
 				Message:        "change direction",
 				MessageID:      "steer-message",
 				IdempotencyKey: "steer-once",
@@ -4353,6 +4355,13 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 			entry, err := h.manager.inputQueue.Get(t.Context(), sess.ID, result.QueueEntryID)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if len(entry.Attachments) != 1 || entry.Attachments[0].ID != attachmentID {
+				t.Fatalf("steer lost durable attachments: %#v", entry.Attachments)
+			}
+			steerer := h.manager.driver.(*steeringTestDriver)
+			if len(steerer.attachments) != 1 || string(steerer.attachments[0].Data) != string(data) {
+				t.Fatalf("injection attachments = %#v", steerer.attachments)
 			}
 			if entry.SteerDelivery != tc.delivery {
 				t.Fatalf("persisted delivery = %q", entry.SteerDelivery)
@@ -4429,6 +4438,11 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 			if !replayed.Replayed || replayed.SteerDelivery != tc.delivery || steerCalls != 1 {
 				t.Fatalf("replayed = %#v, injection calls = %d", replayed, steerCalls)
 			}
+			changed := opts
+			changed.Attachments = nil
+			if _, err := h.manager.SendPrompt(t.Context(), sess.ID, changed); !errors.Is(err, store.ErrSessionPromptIdempotencyConflict) {
+				t.Fatalf("changed attachment identity error = %v", err)
+			}
 			if tc.delivery != store.SteerDeliveryInterruptFallback && !tc.lateFailure {
 				if err := h.manager.SetBusyInputDefaultMode("queue"); err != nil {
 					t.Fatal(err)
@@ -4445,6 +4459,12 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 			defer cancel()
 			if err := h.manager.WaitForPromptDrains(waitCtx); err != nil {
 				t.Fatal(err)
+			}
+			if tc.delivery == store.SteerDeliveryInterruptFallback || tc.lateFailure {
+				calls := managerPromptCalls(h)
+				if len(calls) < 2 || len(calls[1].Attachments) != 1 || string(calls[1].Attachments[0].Data) != string(data) {
+					t.Fatalf("fallback attachments were not delivered: %#v", calls)
+				}
 			}
 			if tc.delivery == store.SteerDeliveryInjected || tc.confirmPending || tc.lateFailure ||
 				tc.delivery == store.SteerDeliveryInterruptFallback {
@@ -4619,7 +4639,15 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 		t.Run("Should preserve origin through "+string(mode)+" delivery", func(t *testing.T) {
 			t.Parallel()
 			db := openManagerInputQueueStore(t)
-			h := newHarness(t, WithSessionInputQueueStore(db))
+			attachmentID := "att_" + strings.Repeat("d", 64)
+			data := []byte("sender context")
+			opener := &promptAttachmentOpenerStub{
+				data: map[string][]byte{attachmentID: data},
+				refs: map[string]attachmentspkg.AttachmentRef{attachmentID: storedPromptAttachmentRef(
+					t, attachmentID, "notes.txt", "text/plain", data,
+				)},
+			}
+			h := newHarness(t, WithSessionInputQueueStore(db), WithAttachmentOpener(opener))
 			registerManagerInputQueueWorkspace(t, db, h)
 			sess := createSession(t, h)
 			registerManagerInputQueueSession(t, db, h, sess)
@@ -4670,6 +4698,7 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 				t.Context(),
 				sess.ID,
 				SendPromptOpts{
+					Attachments:      []AttachmentMeta{promptAttachmentMeta(t, attachmentID, "notes.txt", "text/plain", data)},
 					Message:          "Q?",
 					MessageID:        "msg-origin",
 					IdempotencyKey:   "key-origin",
@@ -4714,6 +4743,9 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 			}
 			select {
 			case req := <-sent:
+				if len(req.Attachments) != 1 || string(req.Attachments[0].Data) != string(data) || managerCancelCalls(h) != 0 {
+					t.Fatalf("agent message attachments/cancellation = %#v/%d", req.Attachments, managerCancelCalls(h))
+				}
 				reply := `To reply, call compozy__session_prompt with session_id "sender".`
 				if origin.NotifyOnComplete {
 					reply = "Your final answer in this turn is sent back to it automatically."

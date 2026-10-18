@@ -25,7 +25,6 @@ interface SessionComposerActionRowProps {
   /** `false` leaves out the attach button for hosts that carry text only. */
   attachments?: boolean;
   busyInputSteerDelivery: SessionSteerDelivery | null;
-  composerAttachmentCount: number;
   hasStagedQuote?: boolean;
   sessionId: string;
   /** Present while the live stream is down: Send answers with the guard note instead of a request. */
@@ -119,13 +118,7 @@ function SessionComposerStopControl({
 }
 
 /** What a steer would do on this agent, answered by the session resource before any send. */
-function steerCapabilityTitle(
-  delivery: SessionSteerDelivery | null,
-  attachmentCount: number
-): string | undefined {
-  if (attachmentCount > 0) {
-    return "Steer can't carry files on this agent — queue it instead";
-  }
+function steerCapabilityTitle(delivery: SessionSteerDelivery | null): string | undefined {
   switch (delivery) {
     case "injected":
       return "Delivered into the live turn";
@@ -221,7 +214,6 @@ function SessionComposerSteerButton({
 function SessionComposerBusyActions({
   busyInputSteerDelivery,
   canSubmitBusyInput,
-  composerAttachmentCount,
   handleInterruptAction,
   handleQueueAction,
   handleSteerAction,
@@ -233,7 +225,6 @@ function SessionComposerBusyActions({
 }: Pick<
   SessionComposerActionRowProps,
   | "busyInputSteerDelivery"
-  | "composerAttachmentCount"
   | "handleInterruptAction"
   | "handleQueueAction"
   | "handleSteerAction"
@@ -259,9 +250,9 @@ function SessionComposerBusyActions({
       ) : null}
       {onSteerPrompt ? (
         <SessionComposerSteerButton
-          capability={steerCapabilityTitle(busyInputSteerDelivery, composerAttachmentCount)}
+          capability={steerCapabilityTitle(busyInputSteerDelivery)}
           delivery={busyInputSteerDelivery}
-          disabled={!canSubmitBusyInput || composerAttachmentCount > 0}
+          disabled={!canSubmitBusyInput}
           onClick={handleSteerAction}
         />
       ) : null}
@@ -287,7 +278,6 @@ export function SessionComposerActionRow({
   actionState,
   attachments = true,
   busyInputSteerDelivery,
-  composerAttachmentCount,
   hasStagedQuote = false,
   sessionId,
   handleDisconnectedSend,
@@ -330,7 +320,6 @@ export function SessionComposerActionRow({
         <SessionComposerBusyActions
           busyInputSteerDelivery={busyInputSteerDelivery}
           canSubmitBusyInput={busyControls.submission === "enabled"}
-          composerAttachmentCount={composerAttachmentCount}
           handleInterruptAction={handleInterruptAction}
           handleQueueAction={handleQueueAction}
           handleSteerAction={handleSteerAction}

@@ -89,7 +89,7 @@ func promptUIMessageText(message PromptUIMessage) string {
 
 // Validate checks the required identity and authored text for steering input.
 func (r SteerPromptRequest) Validate() error {
-	if strings.TrimSpace(r.Text) == "" {
+	if strings.TrimSpace(r.Text) == "" && len(r.Attachments) == 0 {
 		return errors.New("text is required")
 	}
 	if strings.TrimSpace(r.MessageID) == "" {

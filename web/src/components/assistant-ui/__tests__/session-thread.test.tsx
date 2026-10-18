@@ -4883,7 +4883,7 @@ describe("SessionThread composer running semantics", () => {
     );
   });
 
-  it("Should queue ready attachment refs and keep steer text-only", async () => {
+  it("Should queue ready attachment refs while also offering steer", async () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => Promise.resolve());
     const onSteerPrompt = vi.fn(() => Promise.resolve());
@@ -4905,7 +4905,7 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() =>
       expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
     );
-    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
+    expect(screen.getByTestId("composer-steer-button")).toBeEnabled();
     await user.click(screen.getByTestId("composer-queue-button"));
 
     await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
@@ -5035,7 +5035,7 @@ describe("SessionThread composer running semantics", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("Should refuse a steer-on-Enter that carries files inline, without a toast", async () => {
+  it("Should steer an image on Enter and clear the acknowledged draft", async () => {
     const onSteerPrompt = vi.fn(() => Promise.resolve());
     const onQueuePrompt = vi.fn(() => Promise.resolve());
     vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "files.png" } }));
@@ -5055,28 +5055,20 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() =>
       expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
     );
-    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
-    // The steer gate lives in the route hook; here the handler stands in for it.
-    onSteerPrompt.mockImplementationOnce(() =>
-      Promise.reject(
-        new SessionBusyInputRefusalError({
-          attachmentCount: 1,
-          code: "steer_attachments_unsupported",
-        })
-      )
-    );
+    expect(screen.getByTestId("composer-steer-button")).toBeEnabled();
     await act(async () => {
       fireEvent.keyDown(editable, { key: "Enter" });
     });
 
     await waitFor(() =>
-      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
-        "Not sent — steer can't carry files on this agent. Queue it, or remove the file."
-      )
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "review this image",
+        attachments: [expect.objectContaining({ name: "files.png" })],
+      })
     );
     expect(onQueuePrompt).not.toHaveBeenCalled();
-    expect(composerText()).toBe("review this image");
-    expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
+    await waitFor(() => expect(composerText()).toBe(""));
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
   });
 

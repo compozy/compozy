@@ -2685,7 +2685,7 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
 			[]byte(
-				`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live"}`,
+				`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer","expected_turn_id":"turn-live","attachments":[{"id":"att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","name":"screen.png","kind":"image","mime_type":"image/png"}]}`,
 			),
 		)
 		if recorder.Code != http.StatusAccepted {
@@ -2694,6 +2694,9 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 		if gotOpts.Message != "focus on the race" || gotOpts.MessageID != "msg-steer" ||
 			gotOpts.IdempotencyKey != "idem-steer" || gotOpts.ExpectedTurnID != "turn-live" {
 			t.Fatalf("SteerPrompt() opts = %#v, want canonical identity", gotOpts)
+		}
+		if len(gotOpts.Attachments) != 1 || gotOpts.Attachments[0].Name != "screen.png" {
+			t.Fatalf("steer attachment metadata = %#v", gotOpts.Attachments)
 		}
 		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {

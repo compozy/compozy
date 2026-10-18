@@ -8408,6 +8408,7 @@ export type StatusPayload = {
 };
 
 export type SteerPromptRequest = {
+  attachments?: Array<PromptAttachmentRef>;
   expected_turn_id?: string;
   idempotency_key: string;
   message_id: string;
