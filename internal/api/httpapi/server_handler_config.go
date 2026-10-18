@@ -71,6 +71,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		skillsRegistry:        s.skillsRegistry,
 		skillResources:        s.skillResources,
 		runtimeMemory:         s.runtimeMemory,
+		hostLoad:              s.hostLoad,
 		deadEntities:          s.deadEntities,
 		gateway:               s.gateway,
 		gatewayAdmission:      s.gatewayAdmission,

@@ -157,7 +157,8 @@ func TestApplyConfigOverlayFileAppliesDaemonRuntimeHealthSettings(t *testing.T) 
 		writeFile(
 			t,
 			overlayPath,
-			"[daemon]\nmemory_report_interval = \"0s\"\nsubprocess_health_escalation_threshold = 7\n",
+			"[daemon]\nmemory_report_interval = \"0s\"\nsubprocess_health_escalation_threshold = 7\n"+
+				"[daemon.load]\nagent_niceness = 0\nadmission_threshold = 2.5\nadmission_max_wait = \"45s\"\n",
 		)
 		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
@@ -167,6 +168,10 @@ func TestApplyConfigOverlayFileAppliesDaemonRuntimeHealthSettings(t *testing.T) 
 		}
 		if got, want := cfg.Daemon.SubprocessHealthEscalationThreshold, 7; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() threshold = %d, want %d", got, want)
+		}
+		wantLoad := DaemonLoadConfig{AgentNiceness: 0, AdmissionThreshold: 2.5, AdmissionMaxWait: 45 * time.Second}
+		if got := cfg.Daemon.Load; got != wantLoad {
+			t.Fatalf("ApplyConfigOverlayFile() Daemon.Load = %#v, want %#v", got, wantLoad)
 		}
 	})
 }

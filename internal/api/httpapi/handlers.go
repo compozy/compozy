@@ -78,6 +78,7 @@ type handlerConfig struct {
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
+	hostLoad              doctor.HostLoadSnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	gateway               core.GatewayService
 	gatewayAdmission      gateway.AdmissionController
@@ -248,6 +249,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SkillsRegistry:         cfg.skillsRegistry,
 		SkillResources:         cfg.skillResources,
 		RuntimeMemory:          cfg.runtimeMemory,
+		HostLoad:               cfg.hostLoad,
 		DeadEntities:           cfg.deadEntities,
 		Gateway:                cfg.gateway,
 		HomePaths:              cfg.homePaths,

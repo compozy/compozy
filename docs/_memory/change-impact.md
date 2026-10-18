@@ -1,4 +1,34 @@
+## Daemon idle-cost and renderer batching — 2026-10-18
+
+Branch `perf/daemon-load-mitigations`. Hosted MCP projection streams wait on a `ProjectionEpoch`
+change channel (3s fallback) instead of a 100ms poll, cache shared immutable snapshots, and Goal tool
+availability uses a cheap per-session check invalidated on Goal/Loop transitions; the hosted MCP wire
+(SSE names, digests) is unchanged. Model-catalog refresh reads owner IDs with `SELECT DISTINCT`, checks
+TTL before ownership, honours TTL for providerless sources, skips row rewrites for unchanged content,
+backs off failed probes, and bounds sweep parallelism; no schema change. Goal outbox and Loop effect
+relays drain on post-commit store nudges; public config `goals.outbox_poll_interval` keeps its key but
+now means the fallback sweep and its default moves 100ms → 2s (explicit values keep their cadence;
+site config reference and official skill updated). Web live tail applies queued frames in one batch per
+animation frame; smooth reveal pauses while hidden; desktop windows set `backgroundThrottling: true`.
+Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile isolation are unchanged.
+
 # Compozy Change Impact
+
+## Agent CPU priority and load-aware admission — 2026-10-17
+
+Branch `perf/daemon-load-mitigations`. Agent ACP process groups now start at a background CPU
+niceness (`setpriority(PRIO_PGRP)` after launch; Windows no-op) so tools they spawn inherit it, and a
+daemon load sampler (1-minute load average / logical CPUs, darwin `vm.loadavg`, linux `sysinfo`)
+makes the admission gate hold new sessions and prompts carrying the background-work context marker
+(scheduled/trigger/extension automation dispatch, Loop action/judge sessions and prompts, scheduler
+wakes) until pressure clears or a bounded wait elapses. User prompts, user-created sessions, subagent
+spawns, and manual automation runs are never delayed. Public surfaces, all additive (SD-013): config
+keys `daemon.load.agent_niceness` (10), `daemon.load.admission_threshold` (1.5, `0` disables),
+`daemon.load.admission_max_wait` (2m), restart-required and agent-mutable through the config tools;
+doctor item `runtime.load` over HTTP/UDS/CLI. Settings DTOs, OpenAPI, Web, native tool IDs, hooks,
+extension SDKs, persisted state, and workspace/profile isolation are unchanged; no migration. Site
+`configuration/config-toml.mdx`, the generated lifecycle matrix, and official skill
+`references/configuration.md` record the keys.
 
 ## Session folders and manual order — 2026-10-17
 
