@@ -55,7 +55,7 @@ export class RoutingCoordinator {
    */
   private nextUserIntentToken = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
-  private createdSessionIntent: string | null = null;
+  private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
 
   constructor(manager: RoutingManager, router: OsRouterPort) {
     this.manager = manager;
@@ -182,11 +182,13 @@ export class RoutingCoordinator {
 
   /**
    * The New session dialog names its session before navigating, so the reconciliation that
-   * lands it prefers an existing Session window (#825). One-shot like `noteNavigateMode`, it
-   * survives a workspace switch: the held deep link reconciles after hydration.
+   * lands it prefers an existing Session window (#825). Only that route or a newer
+   * reconciliation consumes the hint; it survives a workspace switch (held deep link).
    */
   noteCreatedSession(sessionId: string): void {
-    this.createdSessionIntent = sessionId.trim() || null;
+    const instanceKey = sessionId.trim();
+    const afterToken = this.nextReconciliationToken;
+    this.createdSessionIntent = instanceKey ? { instanceKey, afterToken } : null;
   }
 
   /**
@@ -448,9 +450,9 @@ export class RoutingCoordinator {
       return;
     }
     const intent = this.createdSessionIntent;
-    this.createdSessionIntent = null;
-    const createdSession =
-      pending.createdSession === true || (intent !== null && intent === resolved.instanceKey);
+    const matches = intent?.instanceKey === resolved.instanceKey;
+    if (matches || (intent && pending.token > intent.afterToken)) this.createdSessionIntent = null;
+    const createdSession = pending.createdSession === true || matches;
     const tracked = createdSession ? { ...pending, createdSession } : pending;
     const intentToken = this.nextUserIntentToken;
     const outcome = decideRouteReconciliation(this.manager, {

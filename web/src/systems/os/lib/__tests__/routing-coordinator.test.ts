@@ -1284,6 +1284,27 @@ describe("RoutingCoordinator", () => {
       expect(store.spies.openOrFocus).not.toHaveBeenCalled();
     });
 
+    it("Should keep the created-session intent from an older pending reconciliation", async () => {
+      const session = sessionWindow("sess-a");
+      const { coordinator, store } = createCoordinator([session]);
+      coordinator.completeHydration();
+      store.setHydration("pending");
+      coordinator.reportRouteMatch(route("/tasks"));
+
+      coordinator.noteCreatedSession(created.instanceKey);
+      // The older route reconciles first, once commands become available.
+      store.setHydration("live");
+      coordinator.reportAuthoritativeState();
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe("w-tasks"));
+      coordinator.reportRouteMatch(created.route);
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe(session.id));
+
+      expect(store.getState().windows[session.id]?.instanceKey).toBe(created.instanceKey);
+      expect(store.spies.openOrFocus).not.toHaveBeenCalledWith(
+        expect.objectContaining({ instanceKey: created.instanceKey })
+      );
+    });
+
     it("Should keep opening a deep link to an unopened session in its own window", () => {
       const session = sessionWindow("sess-a");
       const { coordinator, store } = createCoordinator([session]);
