@@ -92,6 +92,19 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
 
+Session reads are paged. `compozy__session_events` returns the newest 50 events and
+`compozy__session_history` the newest 10 turns when `limit` is omitted or 0; an explicit `limit` is
+honored. Every page returns `page` with `limit`, `has_more`, and a continuation cursor: pass
+`page.next_before_sequence` as `before_sequence` to read older rows, or start a forward walk with
+`after_sequence` (for example `0`) and continue with `page.next_after_sequence`; forward history pages
+hold the oldest turns that start after the cursor. The forward history cursor is the first
+event sequence of the last returned turn, so interleaved turns are not skipped. Forward reads
+scan bounded event chunks and hydrate only the returned turns. Backward history also selects
+turns by their first sequence and returns their complete matching events, including later events
+interleaved beyond the cursor. `before_sequence`
+cannot be combined with `after_sequence`. `compozy__session_describe` applies the same defaults and
+returns `events_page` and `history_page`; page further through the dedicated tools.
+
 `compozy__notify` sends one operator notification from the bound session and workspace. Pass a
 required `title` of at most 80 characters and an optional `body` of at most 240 characters. The
 daemon sanitizes and redacts both fields before delivery, then returns exactly one provable outcome:

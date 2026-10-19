@@ -1833,7 +1833,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "58dd75b44288aefd6e4f8c342239fb4909d722ca996757011d7a0b4e0f30b570",
+    "input_schema_digest": "02ee5a5ed83502efbf70a25b5f3af77317a981bdf671f4e19637ccc9da4125af",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1846,8 +1846,8 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "58dd75b44288aefd6e4f8c342239fb4909d722ca996757011d7a0b4e0f30b570",
-    "output_schema_digest": "772c3e0c1875a21af024e134c5a96ecce8afce1d4634ff6fba55b3dc43a47367"
+    "input_schema_digest": "02ee5a5ed83502efbf70a25b5f3af77317a981bdf671f4e19637ccc9da4125af",
+    "output_schema_digest": "9a57b5777f4cc31f659982ab0d71b9ea52b8f6b5962e475f38c361f23e529802"
   },
   {
     "tool_id": "compozy__session_folder_create",
@@ -1951,7 +1951,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "58dd75b44288aefd6e4f8c342239fb4909d722ca996757011d7a0b4e0f30b570",
+    "input_schema_digest": "02ee5a5ed83502efbf70a25b5f3af77317a981bdf671f4e19637ccc9da4125af",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

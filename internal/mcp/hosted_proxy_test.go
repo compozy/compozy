@@ -21,13 +21,17 @@ import (
 func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve provided input and output schemas", func(t *testing.T) {
+	t.Run("Should preserve input schemas and widen output schemas with hosted result envelopes", func(t *testing.T) {
 		t.Parallel()
 
 		inputSchema := json.RawMessage(
 			`{"type":"object","required":["message"],"properties":{"message":{"type":"string"}}}`,
 		)
-		outputSchema := json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`)
+		outputSchema := json.RawMessage(`{"type":"object","required":["grants"],` +
+			`"properties":{"grants":{"type":"array","items":{"$ref":"#/$defs/grant"}}},` +
+			`"additionalProperties":false,` +
+			`"$defs":{"grant":{"type":"object","required":["id"],"properties":{"id":{"type":"string"}},` +
+			`"additionalProperties":false}}}`)
 		view := hostedToolView("compozy__hosted_echo")
 		view.Descriptor.InputSchema = inputSchema
 		view.Descriptor.OutputSchema = outputSchema
@@ -47,12 +51,117 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 		if !equalJSON(t, gotInput, inputSchema) {
 			t.Fatalf("InputSchema = %s, want schema-equivalent %s", gotInput, inputSchema)
 		}
-		gotOutput, err := json.Marshal(tool.OutputSchema)
+		advertised := compileHostedOutputSchema(t, tool)
+		for _, testCase := range []struct {
+			name    string
+			payload string
+			valid   bool
+		}{
+			{name: "accept a declared payload", payload: `{"grants":[{"id":"grant-1"}]}`, valid: true},
+			{name: "reject a payload violating a referenced definition", payload: `{"grants":[{"id":7}]}`},
+			{name: "reject a payload with an undeclared field", payload: `{"grants":[],"extra":true}`},
+			{
+				name: "accept the result continuation",
+				payload: `{"truncated":true,"truncated_from_bytes":530000,"preview":"{\"grants\":[",` +
+					`"artifacts":[{"uri":"compozy://tool-artifacts/art_1","bytes":530000}],` +
+					`"read_tool":"compozy__tool_artifact_read"}`,
+				valid: true,
+			},
+			{
+				name:    "accept a typed tool error",
+				payload: `{"error":{"code":"tool_denied","message":"denied"}}`,
+				valid:   true,
+			},
+			{name: "reject an untyped error object", payload: `{"error":{}}`},
+		} {
+			t.Run("Should "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.payload))
+				if testCase.valid && err != nil {
+					t.Fatalf("advertised output schema rejected %s: %v", testCase.payload, err)
+				}
+				if !testCase.valid && err == nil {
+					t.Fatalf("advertised output schema accepted %s", testCase.payload)
+				}
+			})
+		}
+		declaration, err := json.Marshal(tool.OutputSchema)
 		if err != nil {
 			t.Fatalf("json.Marshal(OutputSchema) error = %v", err)
 		}
-		if !equalJSON(t, gotOutput, outputSchema) {
-			t.Fatalf("OutputSchema = %s, want schema-equivalent %s", gotOutput, outputSchema)
+		var root map[string]any
+		if err := json.Unmarshal(declaration, &root); err != nil {
+			t.Fatalf("json.Unmarshal(OutputSchema) error = %v", err)
+		}
+		if root["type"] != "object" {
+			t.Fatalf("OutputSchema root type = %#v, want object as MCP requires", root["type"])
+		}
+	})
+
+	t.Run("Should keep declared local references resolvable inside the widened output schema", func(t *testing.T) {
+		t.Parallel()
+
+		propertyRef := `"properties":{"value":{"type":"string"},"copy":{"$ref":"#/properties/value"}},` +
+			`"additionalProperties":false`
+		for _, testCase := range []struct {
+			name    string
+			schema  string
+			valid   string
+			invalid string
+		}{
+			{
+				name:    "a property pointer",
+				schema:  `{"type":"object",` + propertyRef + `}`,
+				valid:   `{"value":"a","copy":"b"}`,
+				invalid: `{"copy":7}`,
+			},
+			{
+				name: "a recursive root reference",
+				schema: `{"type":"object","required":["name"],"properties":{"name":{"type":"string"},` +
+					`"children":{"type":"array","items":{"$ref":"#"}}},"additionalProperties":false}`,
+				valid:   `{"name":"root","children":[{"name":"leaf","children":[]}]}`,
+				invalid: `{"name":"root","children":[{"children":[]}]}`,
+			},
+			{
+				name: "a nested embedded schema resource",
+				schema: `{"type":"object","required":["nested"],"properties":{"nested":` +
+					`{"$id":"https://compozy.test/nested.json","type":"object",` + propertyRef + `}}}`,
+				valid:   `{"nested":{"value":"a","copy":"b"}}`,
+				invalid: `{"nested":{"copy":7}}`,
+			},
+			{
+				name:    "an embedded schema resource",
+				schema:  `{"$id":"https://compozy.test/output.json","type":"object",` + propertyRef + `}`,
+				valid:   `{"value":"a","copy":"b"}`,
+				invalid: `{"copy":7}`,
+			},
+		} {
+			t.Run("Should resolve "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				view := hostedToolView("compozy__hosted_echo")
+				view.Descriptor.OutputSchema = json.RawMessage(testCase.schema)
+				tool := hostedMCPTool(view.Descriptor)
+				advertised := compileHostedOutputSchema(t, &tool)
+				if err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.valid)); err != nil {
+					t.Fatalf("advertised output schema rejected declared payload %s: %v", testCase.valid, err)
+				}
+				if err := validateHostedStructuredContent(
+					t,
+					advertised,
+					json.RawMessage(testCase.invalid),
+				); err == nil {
+					t.Fatalf("advertised output schema accepted invalid payload %s", testCase.invalid)
+				}
+				if err := validateHostedStructuredContent(
+					t,
+					advertised,
+					json.RawMessage(`{"truncated":true,"read_tool":"compozy__tool_artifact_read"}`),
+				); err != nil {
+					t.Fatalf("advertised output schema rejected the result continuation: %v", err)
+				}
+			})
 		}
 	})
 
@@ -680,6 +789,20 @@ func equalJSON(t *testing.T, left, right []byte) bool {
 
 func listHostedProxyTools(t *testing.T, server *sdkmcp.Server) map[string]*sdkmcp.Tool {
 	t.Helper()
+	clientSession := connectHostedProxyClient(t, server)
+	listed, err := clientSession.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("clientSession.ListTools() error = %v", err)
+	}
+	result := make(map[string]*sdkmcp.Tool, len(listed.Tools))
+	for _, tool := range listed.Tools {
+		result[tool.Name] = tool
+	}
+	return result
+}
+
+func connectHostedProxyClient(t *testing.T, server *sdkmcp.Server) *sdkmcp.ClientSession {
+	t.Helper()
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(t.Context(), serverTransport, nil)
 	if err != nil {
@@ -703,15 +826,7 @@ func listHostedProxyTools(t *testing.T, server *sdkmcp.Server) map[string]*sdkmc
 			t.Errorf("clientSession.Close() error = %v", closeErr)
 		}
 	})
-	listed, err := clientSession.ListTools(t.Context(), nil)
-	if err != nil {
-		t.Fatalf("clientSession.ListTools() error = %v", err)
-	}
-	result := make(map[string]*sdkmcp.Tool, len(listed.Tools))
-	for _, tool := range listed.Tools {
-		result[tool.Name] = tool
-	}
-	return result
+	return clientSession
 }
 
 func sdkToolNames(tools []*sdkmcp.Tool) []string {

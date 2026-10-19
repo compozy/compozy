@@ -68,6 +68,14 @@ A truncated tool result can carry a bounded `preview` and an opaque
 resolve canonical `compozy__tool_artifact_read` and page the exact retained result with the returned
 tool reference. Pass the artifact URI unchanged; continue from `next_offset` until `eof`.
 
+Over hosted MCP, a truncated result still returns `structuredContent`: instead of the declared payload
+it carries the continuation envelope `{"truncated":true,"truncated_from_bytes":N,"preview":"...",
+"artifacts":[{"uri":"compozy://tool-artifacts/..."}],"read_tool":"compozy__tool_artifact_read"}`.
+Every hosted tool's advertised output schema accepts that envelope and the typed `{"error":{...}}`
+payload alongside its declared shape. Check `truncated` before reading declared fields. When your
+harness caps tool output size (Claude Code saves MCP results above its token cap to a file), request
+smaller artifact pages, for example `limit: 32768`, so each base64 page stays inline.
+
 The artifact is readable only from its owning workspace. Missing, expired, and foreign-workspace
 references share the same not-found result, so do not infer whether another workspace owns one.
 Operator fallback is `compozy tool artifact read <artifact-uri> --workspace <workspace> [--offset N]

@@ -51,15 +51,16 @@ type sessionIDInput struct {
 }
 
 type sessionEventQueryInput struct {
-	WorkspaceID   string `json:"workspace"`
-	SessionID     string `json:"session_id"`
-	Type          string `json:"type,omitempty"`
-	AgentName     string `json:"agent_name,omitempty"`
-	TurnID        string `json:"turn_id,omitempty"`
-	AfterSequence *int64 `json:"after_sequence,omitzero"`
-	Limit         int    `json:"limit,omitzero"`
-	Since         string `json:"since,omitempty"`
-	Archive       string `json:"archive,omitempty"`
+	WorkspaceID    string `json:"workspace"`
+	SessionID      string `json:"session_id"`
+	Type           string `json:"type,omitempty"`
+	AgentName      string `json:"agent_name,omitempty"`
+	TurnID         string `json:"turn_id,omitempty"`
+	AfterSequence  *int64 `json:"after_sequence,omitzero"`
+	BeforeSequence int64  `json:"before_sequence,omitzero"`
+	Limit          int    `json:"limit,omitzero"`
+	Since          string `json:"since,omitempty"`
+	Archive        string `json:"archive,omitempty"`
 }
 
 type agentHeartbeatStatusInput struct {
@@ -90,12 +91,13 @@ func (i sessionEventQueryInput) eventQuery(id toolspkg.ToolID) (store.EventQuery
 		return store.EventQuery{}, nativeInputError(id, errors.New("archive must be active, archived, or all"))
 	}
 	query := store.EventQuery{
-		Type:      strings.TrimSpace(i.Type),
-		AgentName: strings.TrimSpace(i.AgentName),
-		TurnID:    strings.TrimSpace(i.TurnID),
-		Forward:   i.AfterSequence != nil,
-		Limit:     i.Limit,
-		Archive:   archive,
+		Type:           strings.TrimSpace(i.Type),
+		AgentName:      strings.TrimSpace(i.AgentName),
+		TurnID:         strings.TrimSpace(i.TurnID),
+		Forward:        i.AfterSequence != nil,
+		Limit:          i.Limit,
+		BeforeSequence: i.BeforeSequence,
+		Archive:        archive,
 	}
 	if i.AfterSequence != nil {
 		query.AfterSequence = *i.AfterSequence

@@ -28,6 +28,26 @@ then inject one persistence failure and require a typed error with the bounded p
 fabricated durable URI. Confirm the Web card preserves the preview through loading, not-found, and
 retry states.
 
+Through hosted MCP, call an oversized native tool (for example `compozy__session_events` with
+`limit: 1000` on a session above the budget) from a real MCP client that validates output schemas
+(Claude Code). Require a successful call whose `structuredContent` is the continuation envelope
+(`truncated: true`, `truncated_from_bytes`, `preview`, `artifacts[].uri`, `read_tool`), then page
+the artifact with `compozy__tool_artifact_read` to `eof` and match the retained bytes to the URI
+digest. Confirm `compozy__session_events` and `compozy__session_history` without `limit` return
+bounded pages with `page.has_more` and a continuation cursor.
+
+QA impact 2026-10-19 (issue #816): hosted MCP results now always carry schema-valid
+`structuredContent`, and native session reads page by default. Walked in an isolated lab with
+Claude Code (`claude-sonnet-5-5`) through the hosted MCP server at the default 256 KiB budget:
+`session_events` with `limit: 1000` and without `limit` returned the envelope (53 events,
+`truncated_from_bytes` 327472) instead of the previous client-side "has an output schema but did
+not return structured content" failure; ten 32 KiB `tool_artifact_read` pages reached `eof` with
+327477 bytes whose SHA-256 matches the artifact URI; `session_history` with `limit: 1` returned
+`page {"has_more":true,"limit":1,"next_before_sequence":52}`. Claude Code saves MCP output above its
+token cap to a file, so a 64 KiB artifact page (about 88k base64 characters) does not stay inline;
+32 KiB pages do. In the same lab the operator `compozy tool artifact read` returned
+`tool_not_found` for these session-produced artifacts; that CLI leg remains unverified here.
+
 QA impact 2026-07-19: new oversized tool-result retention, paging, management surfaces, and Web
 viewer. Planning flag only; no QA session ran in this implementation slice.
 
@@ -43,3 +63,14 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
   fabricated durable URI.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-002-oversized-tool-results
+
+2026-10-19 merge-train review follow-up: page forward through interleaved turns (one turn's
+last event occurs after the next turn starts). Each page must include complete returned turns;
+the next cursor must continue by turn start without skipping the overlapping turn. A real-SQLite
+regression in `TestDaemonNativeTools` passes with bounded event reads and excludes late events
+from turns that started before the cursor. Hosted-schema validation also covers a nested `$id`
+resource with local references. Current-head CI owns the remaining integration gate.
+
+The same complete-turn invariant applies when walking backward with `next_before_sequence`:
+late events of the selected turn must remain present even if they occur beyond that turn-start
+cursor. The real-SQLite regression follows both cursor directions and checks the full old turn.
