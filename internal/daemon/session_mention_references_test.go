@@ -31,10 +31,16 @@ type mentionTestFixture struct {
 	infos      map[string]*session.Info
 	events     map[string][]store.SessionEvent
 	eventReads int
+	// sessionReads counts event reads per session id.
+	sessionReads map[string]int
 }
 
 func newMentionTestFixture() *mentionTestFixture {
-	return &mentionTestFixture{infos: map[string]*session.Info{}, events: map[string][]store.SessionEvent{}}
+	return &mentionTestFixture{
+		infos:        map[string]*session.Info{},
+		events:       map[string][]store.SessionEvent{},
+		sessionReads: map[string]int{},
+	}
 }
 
 func (f *mentionTestFixture) addSession(id, title, workspaceID, profileID string) *session.Info {
@@ -81,6 +87,7 @@ func (f *mentionTestFixture) manager() apitest.StubSessionManager {
 		EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
 			f.mu.Lock()
 			f.eventReads++
+			f.sessionReads[id]++
 			f.mu.Unlock()
 			matched := make([]store.SessionEvent, 0)
 			for _, event := range f.events[id] {
@@ -381,6 +388,31 @@ func TestMentionReferenceRenderer(t *testing.T) {
 			}
 		})
 
+	t.Run("Should inline an empty-history marker for a session with no user or assistant text",
+		func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newMentionTestFixture()
+			fixture.addSession("sess-a", "Fix login bug", mentionTestWorkspace, mentionTestProfile)
+			fixture.events["sess-a"] = []store.SessionEvent{{
+				ID: "sess-a-t1", TurnID: "turn-1", Sequence: 1, Type: acp.EventTypeToolCall,
+			}}
+
+			got := fixture.render(t, toolsDisabledPolicyInputs(), sessionMentions("sess-a"), true)
+
+			want := mentionReferencesOpenTag + "\n" + mentionInlinePreamble + "\n" +
+				"- @session:sess-a · title \"Fix login bug\" · agent general (claude) · state stopped · " +
+				"updated 2026-10-18T00:04:11Z\n" +
+				"  <recent_history>\n  " + mentionHistoryEmpty + "\n  </recent_history>\n" +
+				"</compozy_session_references>"
+			if got.Text != want || got.Form != session.MentionReferenceFormInline || got.Sessions != 1 {
+				t.Fatalf("Render() = %#v\nwant text:\n%s", got, want)
+			}
+			if !strings.Contains(got.Text, "\n  no recent messages\n") {
+				t.Fatalf("inline block = %s, want the literal empty-history line", got.Text)
+			}
+		})
+
 	t.Run("Should truncate long messages and omit history once the block budget is spent", func(t *testing.T) {
 		t.Parallel()
 
@@ -417,11 +449,66 @@ func TestMentionReferenceRenderer(t *testing.T) {
 			strings.Contains(sections[3], "\n  [") {
 			t.Fatalf("third session section = %s, want budget reached", sections[3])
 		}
+		if reads := fixture.sessionReads["sess-c"]; reads != 0 {
+			t.Fatalf("session past the spent block budget had %d history reads, want 0", reads)
+		}
 		if !strings.Contains(
 			sections[1],
 			"\n  [assistant] "+strings.Repeat("a", 1500)+mentionHistoryTruncatedSuffix+"\n",
 		) {
 			t.Fatalf("first section lacks a 1500-char truncated message:\n%s", sections[1])
+		}
+	})
+
+	t.Run("Should read inline history newest first within bounded event pages", func(t *testing.T) {
+		t.Parallel()
+
+		const filler = 10_000
+		fixture := newMentionTestFixture()
+		// sess-a: 10k non-message events, then 10 turns of messages; sess-b: one user message
+		// buried under 10k non-message events.
+		for _, id := range []string{"sess-a", "sess-b"} {
+			fixture.addSession(id, id, mentionTestWorkspace, mentionTestProfile)
+		}
+		fixture.events["sess-b"] = append(fixture.events["sess-b"], store.SessionEvent{
+			ID: "sess-b-u0", TurnID: "turn-0", Sequence: 1, Type: acp.EventTypeUserMessage, Content: "buried",
+		})
+		for _, id := range []string{"sess-a", "sess-b"} {
+			for index := range filler {
+				fixture.events[id] = append(fixture.events[id], store.SessionEvent{
+					ID: fmt.Sprintf("%s-f%d", id, index), TurnID: "turn-0", Sequence: int64(index + 2),
+					Type: acp.EventTypeUsage,
+				})
+			}
+		}
+		for turn := 1; turn <= 10; turn++ {
+			for offset, role := range []string{acp.EventTypeUserMessage, acp.EventTypeAgentMessage} {
+				fixture.events["sess-a"] = append(fixture.events["sess-a"], store.SessionEvent{
+					ID:       fmt.Sprintf("sess-a-m%d-%d", turn, offset),
+					TurnID:   fmt.Sprintf("turn-%d", turn),
+					Sequence: int64(filler + 2*turn + offset),
+					Type:     role,
+					Content:  fmt.Sprintf("%s %02d", role, turn),
+				})
+			}
+		}
+
+		got := fixture.render(t, toolsDisabledPolicyInputs(), sessionMentions("sess-a", "sess-b"), true)
+
+		sections := strings.Split(got.Text, "- @session:")
+		if len(sections) != 3 || strings.Count(sections[1], "\n  [") != 20 ||
+			!strings.Contains(sections[1], "  [user] user_message 01\n") ||
+			!strings.Contains(sections[1], "  [assistant] agent_message 10\n") {
+			t.Fatalf("Render() text = %s, want all 20 messages of sess-a", got.Text)
+		}
+		if reads := fixture.sessionReads["sess-a"]; reads != 1 {
+			t.Fatalf("sess-a history reads = %d, want 1 page once 20 messages are read", reads)
+		}
+		if reads := fixture.sessionReads["sess-b"]; reads > 5 {
+			t.Fatalf("sess-b history reads = %d, want the scan bounded to at most 5 pages", reads)
+		}
+		if !strings.Contains(sections[2], "  "+mentionHistoryEmpty+"\n") {
+			t.Fatalf("sess-b section = %s, want no recent messages within the scan bound", sections[2])
 		}
 	})
 }

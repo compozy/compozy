@@ -30,7 +30,9 @@ func (idx *index) collect(ctx context.Context, root string) (*snapshot, string, 
 		}
 		gitErr = err
 		if !errors.Is(err, errNotRepository) {
-			idx.logger.Warn("workspacefiles.git_fallback", "root_hash", rootHash(root), "error", err)
+			idx.logger.Warn(
+				"workspacefiles.git_fallback", "root_hash", rootHash(root), "error", redactRoot(root, err),
+			)
 		}
 	}
 	files, truncated, err := idx.walkFiles(ctx, root)
@@ -42,10 +44,27 @@ func (idx *index) collect(ctx context.Context, root string) (*snapshot, string, 
 
 // walkFiles lists regular files and classified symlinks under root without
 // following symlinked directories, skipping .git and node_modules directories.
+// The walk stops and reports truncation at the file cap, after visiting
+// maxWalkEntries directory entries (folders count), or at the build deadline.
 func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, error) {
 	files := make([]string, 0, 256)
 	truncated := false
+	visited := 0
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if path != root {
+			visited++
+			if visited > idx.maxWalkEntries {
+				truncated = true
+				return fs.SkipAll
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				truncated = true
+				return fs.SkipAll
+			}
+			return err
+		}
 		if walkErr != nil {
 			if path == root {
 				return walkErr
@@ -54,9 +73,6 @@ func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, e
 				return fs.SkipDir
 			}
 			return nil
-		}
-		if err := ctx.Err(); err != nil {
-			return err
 		}
 		if entry.IsDir() {
 			if _, skip := skippedWalkDirs[entry.Name()]; skip && path != root {
@@ -95,10 +111,14 @@ func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, e
 	return files, truncated, nil
 }
 
-// classifyListed applies the symlink rule to one git-listed path. Paths that
-// are not symlinks, or cannot be inspected, are kept as listed.
+// classifyListed applies the symlink rule to one git-listed path. A path that
+// no longer exists (a deleted tracked file) is skipped; paths that are not
+// symlinks, or cannot otherwise be inspected, are kept as listed.
 func classifyListed(root string, rel string) (string, bool) {
 	info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(rel)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", false
+	}
 	if err != nil || info.Mode()&fs.ModeSymlink == 0 {
 		return rel, true
 	}

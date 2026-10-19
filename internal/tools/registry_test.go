@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
+	"sync/atomic"
 	"testing"
 )
 
@@ -831,6 +833,71 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 			t.Fatalf("Get() = %q, want %q", got.Descriptor.ID, skillView.ID)
 		}
 	})
+
+	t.Run("Should point-evaluate DiagnosticGet with the projection row's conflicts and denials", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		allowed := validDescriptor()
+		denied := validDescriptor()
+		denied.ID = "compozy__task_read"
+		conflicted := validDescriptor()
+		conflicted.ID = "compozy__task_update"
+		builtin := SourceRef{Kind: SourceBuiltin, Owner: "daemon"}
+		first := providerWithDescriptors(builtin, allowed, denied, conflicted)
+		second := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "other"}, conflicted)
+		evaluator := &countingPolicyEvaluator{deny: denied.ID}
+		registry, err := NewRegistry(WithProviders(first, second), WithPolicyEvaluator(evaluator))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		projection, err := registry.DiagnosticProjection(ctx, Scope{})
+		if err != nil {
+			t.Fatalf("DiagnosticProjection() error = %v", err)
+		}
+		for i := range projection {
+			want := projection[i]
+			before := evaluator.calls.Load()
+			got, err := registry.DiagnosticGet(ctx, Scope{}, want.Descriptor.ID)
+			if err != nil {
+				t.Fatalf("DiagnosticGet(%s) error = %v", want.Descriptor.ID, err)
+			}
+			if calls := evaluator.calls.Load() - before; calls != 1 {
+				t.Fatalf("DiagnosticGet(%s) policy evaluations = %d, want 1", want.Descriptor.ID, calls)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("DiagnosticGet(%s) = %#v, want projection row %#v", want.Descriptor.ID, got, want)
+			}
+		}
+		requireViewReason(t, projection, denied.ID, ReasonPolicyDenied)
+		conflictView, err := registry.DiagnosticGet(ctx, Scope{}, conflicted.ID)
+		if err != nil || !conflictView.Availability.Conflicted {
+			t.Fatalf("DiagnosticGet(conflicted) = %#v, %v; want conflicted availability", conflictView, err)
+		}
+		_, err = registry.DiagnosticGet(ctx, Scope{}, "compozy__missing")
+		requireReason(t, err, ReasonToolUnknown)
+	})
+}
+
+type countingPolicyEvaluator struct {
+	deny  ToolID
+	calls atomic.Int64
+}
+
+func (e *countingPolicyEvaluator) Evaluate(_ context.Context, _ Scope, d Descriptor) (EffectiveToolDecision, error) {
+	e.calls.Add(1)
+	if d.ID == e.deny {
+		return EffectiveToolDecision{
+			VisibleToOperator: true,
+			ReasonCodes:       []ReasonCode{ReasonPolicyDenied},
+		}, nil
+	}
+	return EffectiveToolDecision{
+		VisibleToOperator:    true,
+		VisibleToSession:     true,
+		Callable:             true,
+		SystemPermissionMode: string(PermissionModeApproveAll),
+	}, nil
 }
 
 func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {

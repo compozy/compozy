@@ -2,10 +2,13 @@ package workspacefiles
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"slices"
@@ -105,6 +108,86 @@ func TestSnapshotRank(t *testing.T) {
 	})
 }
 
+func TestSnapshotRankMatchesFullSort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the same entries as sorting every match", func(t *testing.T) {
+		t.Parallel()
+		snap := newSnapshot(rankFixtureFiles(3_000), false)
+		for _, query := range []string{"", "a", "main", "go", "pkg/", "\\Seg", "zz", "x9", "notfound"} {
+			for _, limit := range []int{1, 7, 50, 10_000} {
+				got := snap.rank(query, limit)
+				want := fullSortRank(snap, query, limit)
+				if !slices.Equal(got, want) {
+					t.Fatalf("rank(%q, %d) = %v, want full-sort order %v", query, limit, got, want)
+				}
+			}
+		}
+	})
+}
+
+// fullSortRank is the reference ranking: every match sorted by tier, depth, path length (non-empty
+// queries only), then path.
+func fullSortRank(snap *snapshot, query string, limit int) []Entry {
+	normalized := strings.TrimSpace(strings.ToLower(strings.ReplaceAll(query, "\\", "/")))
+	nameQuery := strings.TrimSuffix(normalized, "/")
+	ranked := make([]rankedEntry, 0)
+	for i := range snap.entries {
+		tier := tierExactName
+		if normalized != "" {
+			tier = matchTier(&snap.entries[i], normalized, nameQuery)
+		}
+		if tier != tierNoMatch {
+			ranked = append(ranked, rankedEntry{item: &snap.entries[i], tier: tier})
+		}
+	}
+	slices.SortFunc(ranked, func(a, b rankedEntry) int {
+		order := cmp.Or(cmp.Compare(a.tier, b.tier), cmp.Compare(a.item.depth, b.item.depth))
+		if order == 0 && normalized != "" {
+			order = cmp.Compare(len(a.item.entry.Path), len(b.item.entry.Path))
+		}
+		return cmp.Or(order, cmp.Compare(a.item.entry.Path, b.item.entry.Path))
+	})
+	entries := make([]Entry, 0, min(limit, len(ranked)))
+	for _, candidate := range ranked[:min(limit, len(ranked))] {
+		entries = append(entries, candidate.item.entry)
+	}
+	return entries
+}
+
+// rankFixtureFiles builds a deterministic tree with mixed depths, shared basenames, and prefixes.
+func rankFixtureFiles(count int) []string {
+	random := rand.New(rand.NewPCG(1, 2))
+	segments := []string{"pkg", "internal", "main", "web", "a", "x9", "Seg", "zz", "docs"}
+	files := make([]string, 0, count)
+	seen := make(map[string]bool, count)
+	for len(files) < count {
+		parts := make([]string, 0, 4)
+		for range random.IntN(4) {
+			parts = append(parts, segments[random.IntN(len(segments))])
+		}
+		name := fmt.Sprintf("%s_%d.go", segments[random.IntN(len(segments))], random.IntN(500))
+		file := strings.Join(append(parts, name), "/")
+		if !seen[file] {
+			seen[file] = true
+			files = append(files, file)
+		}
+	}
+	return files
+}
+
+func BenchmarkSnapshotRankBroadQuery(b *testing.B) {
+	snap := newSnapshot(rankFixtureFiles(DefaultMaxFiles), false)
+	for _, query := range []string{"", "go", "main"} {
+		b.Run("query="+query, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				snap.rank(query, 50)
+			}
+		})
+	}
+}
+
 func TestIndexSearchGitRepository(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +226,42 @@ func TestIndexSearchGitRepository(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(root, ".git", "index.lock")); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("index.lock stat error = %v, want not exist", err)
+		}
+	})
+
+	t.Run("Should log the index build with its counts and source but no root path", func(t *testing.T) {
+		t.Parallel()
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatalf("resolve temp dir: %v", err)
+		}
+		logs := &lockedBuffer{}
+		logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		runner := &fakeGitRunner{files: []string{"a.go", "pkg/b.go"}}
+		createListedFiles(t, root, runner.files)
+
+		result, err := New(runner, WithLogger(logger)).Search(t.Context(), root, "", 100)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		record := requireLogRecord(t, logs.String(), "workspacefiles.index_built")
+		want := map[string]any{
+			"level":     "DEBUG",
+			"root_hash": rootHash(root),
+			"entries":   float64(len(result.Entries)),
+			"truncated": false,
+			"source":    sourceGit,
+		}
+		for key, value := range want {
+			if record[key] != value {
+				t.Fatalf("index_built %s = %#v, want %#v in %v", key, record[key], value, record)
+			}
+		}
+		if _, ok := record["duration_ms"].(float64); !ok || len(result.Entries) != 3 {
+			t.Fatalf("index_built = %v for %d entries, want duration_ms over 3 entries", record, len(result.Entries))
+		}
+		if strings.Contains(logs.String(), root) {
+			t.Fatalf("logs = %s, want no root path", logs.String())
 		}
 	})
 
@@ -223,6 +342,22 @@ func assertSymlinkEntries(t *testing.T, entries []Entry) {
 	}
 }
 
+// requireLogRecord decodes JSON log lines and returns the first record with msg.
+func requireLogRecord(t *testing.T, output string, msg string) map[string]any {
+	t.Helper()
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode log line %q: %v", line, err)
+		}
+		if record["msg"] == msg {
+			return record
+		}
+	}
+	t.Fatalf("logs = %s, want a %s record", output, msg)
+	return nil
+}
+
 // lockedBuffer is a concurrency-safe log sink.
 type lockedBuffer struct {
 	mu  sync.Mutex
@@ -269,6 +404,47 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop the walk at the visited-entry cap counting directories", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for i := range 30 {
+			if err := os.Mkdir(filepath.Join(root, fmt.Sprintf("d%02d", i)), 0o755); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+		}
+		writeFiles(t, root, map[string]string{"z.go": "x"})
+
+		result, err := New(nil, WithMaxWalkEntries(10)).Search(t.Context(), root, "", 100)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(result.Entries) != 0 || !result.Truncated {
+			t.Fatalf("Search() = %v truncated=%v, want no entries and truncated after 10 directories",
+				entryPaths(result.Entries), result.Truncated)
+		}
+	})
+
+	t.Run("Should end the shared build at its deadline with a truncated index", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeFiles(t, root, map[string]string{"a.go": "x"})
+		runner := &fakeGitRunner{blockUntilDone: true}
+		idx := New(runner, WithGitTimeout(time.Hour), WithBuildTimeout(50*time.Millisecond))
+
+		started := time.Now()
+		result, err := idx.Search(t.Context(), root, "", 10)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if !result.Truncated || len(result.Entries) != 0 {
+			t.Fatalf("Search() = %v truncated=%v, want an empty truncated index", entryPaths(result.Entries),
+				result.Truncated)
+		}
+		if elapsed := time.Since(started); elapsed > 5*time.Second {
+			t.Fatalf("Search() took %v, want it bounded by the build deadline", elapsed)
+		}
+	})
+
 	t.Run("Should cap the index and report truncation", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -292,7 +468,9 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		runner := &fakeGitRunner{files: files}
 
 		idx := New(runner)
-		result, err := idx.Search(t.Context(), t.TempDir(), "", DefaultMaxFiles+10)
+		root := t.TempDir()
+		createListedFiles(t, root, files)
+		result, err := idx.Search(t.Context(), root, "", DefaultMaxFiles+10)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
@@ -342,6 +520,9 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 			if !strings.Contains(output, `"source":"walk"`) {
 				t.Fatalf("logs = %s, want the index built from the walk", output)
 			}
+			if strings.Contains(output, root) {
+				t.Fatalf("logs = %s, want no root path", output)
+			}
 		})
 	}
 
@@ -371,6 +552,39 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "gone")
 		if _, err := New(nil).Search(t.Context(), missing, "", 10); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Search(missing) error = %v, want os.ErrNotExist", err)
+		}
+	})
+
+	t.Run("Should log index_failed when both git and the walk fail", func(t *testing.T) {
+		t.Parallel()
+		if os.Geteuid() == 0 {
+			t.Skip("root reads unreadable directories")
+		}
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatalf("resolve temp dir: %v", err)
+		}
+		if err := os.Chmod(root, 0o000); err != nil {
+			t.Fatalf("chmod root: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(root, 0o700) })
+		logs := &lockedBuffer{}
+		logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+		runner := &fakeGitRunner{err: errors.New("git exploded")}
+		if _, err := New(runner, WithLogger(logger)).Search(t.Context(), root, "", 10); err == nil {
+			t.Fatal("Search(unreadable root) error = nil, want the index failure")
+		}
+		record := requireLogRecord(t, logs.String(), "workspacefiles.index_failed")
+		if record["level"] != "ERROR" || record["root_hash"] != rootHash(root) {
+			t.Fatalf("index_failed = %v, want an ERROR record with root_hash %s", record, rootHash(root))
+		}
+		if message, ok := record["error"].(string); !ok || !strings.Contains(message, "git exploded") {
+			t.Fatalf("index_failed error = %#v, want both source failures", record["error"])
+		}
+		if message, _ := record["error"].(string); strings.Contains(logs.String(), root) ||
+			!strings.Contains(message, "<root>") {
+			t.Fatalf("logs = %s, want the walk error with the root path redacted", logs.String())
 		}
 	})
 }
@@ -404,6 +618,47 @@ func TestIndexSearchCache(t *testing.T) {
 		}
 		if calls := runner.listCalls.Load(); calls != 1 {
 			t.Fatalf("git ls-files builds = %d, want 1", calls)
+		}
+	})
+
+	t.Run("Should let a canceled first caller stop waiting while the build serves others", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		createListedFiles(t, root, []string{"a.go"})
+		release := make(chan struct{})
+		runner := &fakeGitRunner{files: []string{"a.go"}, release: release}
+		idx := New(runner)
+
+		firstCtx, cancelFirst := context.WithCancel(t.Context())
+		firstErr := make(chan error, 1)
+		go func() {
+			_, err := idx.Search(firstCtx, root, "a", 10)
+			firstErr <- err
+		}()
+		waitFor(t, func() bool { return runner.listCalls.Load() == 1 })
+		second := make(chan Result, 1)
+		go func() {
+			result, err := idx.Search(t.Context(), root, "a", 10)
+			if err != nil {
+				t.Errorf("second Search() error = %v", err)
+			}
+			second <- result
+		}()
+		cancelFirst()
+		select {
+		case err := <-firstErr:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("first Search() error = %v, want context.Canceled", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("first Search() kept waiting for the build after its context was canceled")
+		}
+		close(release)
+		if got := entryPaths((<-second).Entries); !slices.Equal(got, []string{"a.go"}) {
+			t.Fatalf("second Search() = %v, want [a.go] from the shared build", got)
+		}
+		if calls := runner.listCalls.Load(); calls != 1 {
+			t.Fatalf("git ls-files builds = %d, want 1 shared build", calls)
 		}
 	})
 
@@ -444,7 +699,9 @@ func TestIndexSearchStreamingGit(t *testing.T) {
 			t.Fatalf("listing = %d bytes, want more than 1 MiB", runner.listingBytes)
 		}
 
-		result, err := New(runner).Search(t.Context(), t.TempDir(), runner.files[len(runner.files)-1], 5)
+		root := t.TempDir()
+		createListedFiles(t, root, runner.files)
+		result, err := New(runner).Search(t.Context(), root, runner.files[len(runner.files)-1], 5)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
@@ -464,7 +721,9 @@ func TestIndexSearchStreamingGit(t *testing.T) {
 		t.Parallel()
 		runner := newFakeStreamingRunner(6_000)
 
-		result, err := New(runner, WithMaxFiles(100)).Search(t.Context(), t.TempDir(), "", 200)
+		root := t.TempDir()
+		createListedFiles(t, root, runner.files)
+		result, err := New(runner, WithMaxFiles(100)).Search(t.Context(), root, "", 200)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
@@ -508,11 +767,8 @@ func (f *fakeStreamingRunner) RunStreaming(
 	ctx context.Context,
 	_ string,
 	onStdout func([]byte),
-	args ...string,
+	_ ...string,
 ) ([]byte, error) {
-	if slices.Contains(args, "--deleted") {
-		return nil, nil
-	}
 	var listing strings.Builder
 	for _, file := range f.files {
 		listing.WriteString(file)
@@ -540,10 +796,7 @@ type fakeGitRunner struct {
 	listCalls      atomic.Int32
 }
 
-func (f *fakeGitRunner) Run(ctx context.Context, _ string, args ...string) ([]byte, []byte, error) {
-	if slices.Contains(args, "--deleted") {
-		return nil, nil, nil
-	}
+func (f *fakeGitRunner) Run(ctx context.Context, _ string, _ ...string) ([]byte, []byte, error) {
 	f.listCalls.Add(1)
 	if f.release != nil {
 		<-f.release
@@ -625,6 +878,21 @@ func initGitRepo(t *testing.T, runner GitRunner, files map[string]string) string
 		}
 	}
 	return root
+}
+
+// createListedFiles creates the empty files a fake git listing names, because listed
+// paths that do not exist are dropped as deleted.
+func createListedFiles(t *testing.T, root string, files []string) {
+	t.Helper()
+	for _, name := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", name, err)
+		}
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
 }
 
 func writeFiles(t *testing.T, root string, files map[string]string) {

@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
@@ -11,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/worktree"
@@ -100,6 +103,69 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 		}
 		if len(payload.Entries) == 0 || payload.Entries[0].Path != "cmd/main.go" {
 			t.Fatalf("entries = %#v, want committed cmd/main.go from the worktree first", payload.Entries)
+		}
+	})
+}
+
+// IT-010: a session whose creation profile pins CWD to pkg/ (the loop-created shape; the public
+// create route takes no cwd, so the in-process manager creates it) searches and resolves
+// mentions against pkg/ through the booted daemon's real UDS route.
+func TestDaemonSearchSessionFilesCreationProfileCWDIT010(t *testing.T) {
+	acpmock.RequireDriver(t)
+	h := newMentionIntegrationDaemon(t, true)
+	for name, body := range map[string]string{"root.txt": "root\n", "pkg/main.go": "package pkg\n"} {
+		writeDaemonFile(t, filepath.Join(h.root, filepath.FromSlash(name)), body)
+	}
+	created, err := h.manager.Create(t.Context(), session.CreateOpts{
+		AgentName: mentionIntegrationAgent, Workspace: h.workspace, Name: "pkg session", CWD: "pkg",
+	})
+	if err != nil {
+		t.Fatalf("Create(cwd pkg) error = %v", err)
+	}
+	client := gatewayDaemonUDSClient(h.daemon.homePaths.DaemonSocket)
+
+	t.Run("Should report the creation-profile directory as the working directory", func(t *testing.T) {
+		workingDir, err := h.manager.WorkingDir(t.Context(), created.ID)
+		if err != nil || filepath.Base(workingDir) != "pkg" {
+			t.Fatalf("WorkingDir() = %q, %v; want the pkg creation cwd", workingDir, err)
+		}
+	})
+
+	t.Run("Should list only the creation-profile directory over UDS", func(t *testing.T) {
+		response := gatewayDaemonRequest(t, client, http.MethodGet,
+			"http://unix/api/workspaces/"+url.PathEscape(h.workspace)+"/sessions/"+
+				url.PathEscape(created.ID)+"/files?limit=50", "", nil)
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("searchSessionFiles status = %d, want 200", response.StatusCode)
+		}
+		var payload compozycontract.SessionFilesResponse
+		if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode searchSessionFiles: %v", err)
+		}
+		want := compozycontract.SessionFileEntryPayload{
+			Path: "main.go", Name: "main.go", Kind: compozycontract.SessionFileKindFile,
+		}
+		if len(payload.Entries) != 1 || payload.Entries[0] != want {
+			t.Fatalf("entries = %#v, want only pkg's %#v", payload.Entries, want)
+		}
+	})
+
+	t.Run("Should resolve @main.go against pkg and leave the root file as text", func(t *testing.T) {
+		h.send(t, created.ID, "Read @main.go and @root.txt", humanMentionCaller(), "")
+
+		mentions, _ := h.lastDelivery(t, created.ID, 1)
+		if mentions == nil || mentions.Links != 1 {
+			t.Fatalf("manifest mentions = %#v, want one link", mentions)
+		}
+		var links []string
+		for _, block := range mentions.Blocks {
+			if block.Kind == acp.DeliveredMentionBlockResourceLink {
+				links = append(links, block.Name)
+			}
+		}
+		if len(links) != 1 || links[0] != "main.go" {
+			t.Fatalf("delivered links = %v, want only pkg's main.go", links)
 		}
 	})
 }

@@ -214,8 +214,9 @@ test("E2E-003: the sender sees Sent to, Waiting for reply, then the Reply from c
   await expect(sender.window.getByText("The reviewer answered: per job.")).toBeVisible();
 });
 
-// Composer mentions (`.compozy/tasks/composer-mentions/_tests.md` E2E-001…E2E-003): the `@`
-// picker reads the real `searchSessionFiles` route and session catalog, the daemon resolves
+// Composer mentions (`.compozy/tasks/composer-mentions/_tests.md` E2E-001…E2E-003, titled
+// CM-E2E-001…CM-E2E-003 so they stay distinct from the agent-collaboration journeys above): the
+// `@` picker reads the real `searchSessionFiles` route and session catalog, the daemon resolves
 // the sent tokens, and the transcript renders only what it verified. The daemon persists
 // no absolute path and no references text — the prompt delivery manifest records what each
 // turn delivered (`mentions.links`, `mentions.sessions`, `mentions.references_form`).
@@ -291,7 +292,7 @@ test.describe("composer mentions", () => {
     return prepare(appPage, runtime);
   }
 
-  test("E2E-001: picking a file from the @ picker sends its token and the transcript keeps the chip", async ({
+  test("CM-E2E-001: picking a file from the @ picker sends its token and the transcript keeps the chip", async ({
     appPage,
     runtime,
   }) => {
@@ -338,7 +339,7 @@ test.describe("composer mentions", () => {
       .toContain(1);
   });
 
-  test("E2E-002: a session picked from the @ picker renders as its title, opens that session, and reaches the agent as a reference", async ({
+  test("CM-E2E-002: a session picked from the @ picker renders as its title, opens that session, and reaches the agent as a reference", async ({
     appPage,
     runtime,
   }) => {
@@ -384,7 +385,7 @@ test.describe("composer mentions", () => {
     await expect(sessionWindow(appPage, referencedId)).toBeVisible();
   });
 
-  test("E2E-003: a typed token without the picker still resolves to a verified chip", async ({
+  test("CM-E2E-003: a typed token without the picker still resolves to a verified chip", async ({
     appPage,
     runtime,
   }) => {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -6125,11 +6126,11 @@ func TestManagerPromptMentions(t *testing.T) {
 			// A fresh manager over the same home and store: only durable state carries over.
 			restarted := newManagerWithHarness(t, h, WithSessionInputQueueStore(database),
 				WithSessionCatalog(database), WithMentionReferenceRenderer(renderer.render))
-			resumed, err := restarted.Prompt(t.Context(), sess.ID, "after restart")
-			if err != nil {
-				t.Fatalf("Prompt(after restart) error = %v", err)
+			// Resume dispatches the durable queue head; a direct Prompt would race it and
+			// report the session busy.
+			if _, err := restarted.Resume(t.Context(), sess.ID); err != nil {
+				t.Fatalf("Resume(after restart) error = %v", err)
 			}
-			collectEvents(t, resumed)
 			t.Cleanup(func() {
 				if err := restarted.Stop(testutil.Context(t), sess.ID); err != nil {
 					t.Errorf("Stop(restarted) error = %v", err)
@@ -6182,7 +6183,12 @@ func TestManagerPromptMentions(t *testing.T) {
 	t.Run("Should resolve only sessions of the target workspace that still exist", func(t *testing.T) {
 		t.Parallel()
 		renderer := &recordingMentionRenderer{}
-		h, database := newMentionHarness(t, WithMentionReferenceRenderer(renderer.render))
+		logs := &mentionLogSink{}
+		h, database := newMentionHarness(
+			t,
+			WithMentionReferenceRenderer(renderer.render),
+			WithLogger(slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+		)
 		sess := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
 		registerMentionCatalogSession(t, database, "sess-same", h.workspaceID)
@@ -6223,6 +6229,26 @@ func TestManagerPromptMentions(t *testing.T) {
 			!slices.Equal(delivery.MentionDelivery.SessionIDs, []string{"sess-same"}) ||
 			delivery.MentionDelivery.ReferencesForm != string(MentionReferenceFormReference) {
 			t.Fatalf("references = %q delivery = %#v", delivery.SessionReferences, delivery.MentionDelivery)
+		}
+		// US-006.AC-4: the references block reaches the agent only; the persisted user event
+		// keeps the authored message.
+		if text := storedInputEvent(t, sess).Text; text != message || strings.Contains(text, "<refs/>") {
+			t.Fatalf("persisted user text = %q, want the authored message %q", text, message)
+		}
+		// One debug record per admitted prompt carries counts only: no titles, no paths.
+		record := logs.record(t, "mention.resolved")
+		want := map[string]any{
+			"level": "DEBUG", "session_id": sess.ID, "files": float64(0), "folders": float64(0),
+			"sessions": float64(1), "candidates_skipped": float64(0), "unresolved": float64(4),
+			"dropped": float64(0),
+		}
+		for key, value := range want {
+			if record[key] != value {
+				t.Fatalf("mention.resolved %s = %#v, want %#v in %v", key, record[key], value, record)
+			}
+		}
+		if output := logs.String(); strings.Contains(output, "Mention sess-same") {
+			t.Fatalf("logs = %s, want no session titles", output)
 		}
 	})
 
@@ -6406,6 +6432,43 @@ func holdMentionActiveTurn(t *testing.T, h *harness) func() {
 		return events, nil
 	}
 	return releaseFn
+}
+
+// mentionLogSink is a concurrency-safe JSON log sink for mention log assertions.
+type mentionLogSink struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *mentionLogSink) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *mentionLogSink) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+// record returns the only JSON log record with msg, failing on none or several.
+func (s *mentionLogSink) record(t *testing.T, msg string) map[string]any {
+	t.Helper()
+	var found []map[string]any
+	for line := range strings.SplitSeq(strings.TrimSpace(s.String()), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode log line %q: %v", line, err)
+		}
+		if record["msg"] == msg {
+			found = append(found, record)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("%s records = %v, want exactly one", msg, found)
+	}
+	return found[0]
 }
 
 func storedInputEvent(t *testing.T, sess *Session) acp.AgentEvent {

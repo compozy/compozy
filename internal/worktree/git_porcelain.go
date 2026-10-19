@@ -152,9 +152,6 @@ func ParseStatusV2(output []byte) (GitStatus, error) {
 	if err := parseStatusRecords(&result, remaining); err != nil {
 		return GitStatus{}, err
 	}
-	if result.HasUpstream && (result.Ahead == nil || result.Behind == nil) {
-		return GitStatus{}, &ParseError{Format: statusV2Format, Record: "upstream without branch.ab"}
-	}
 	return result, nil
 }
 

@@ -11,7 +11,14 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { $getRoot, $isTextNode, getNearestEditorFromDOMNode, type ElementNode } from "lexical";
+import {
+  $getRoot,
+  $getSelection,
+  $isTextNode,
+  $setSelection,
+  getNearestEditorFromDOMNode,
+  type ElementNode,
+} from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { OverlayContainerContext } from "@compozy/ui";
@@ -55,6 +62,7 @@ import {
 import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
 import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
+import { readCursorSnapshot } from "../session-composer-cursor-snapshot";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { SessionThinkingRow } from "@/systems/session/components/session-thinking-row";
 import {
@@ -78,6 +86,12 @@ vi.mock("sonner", () => ({
     warning: vi.fn(),
   },
 }));
+
+// Spied so the composer suites can count document walks per editor update.
+vi.mock("../session-composer-cursor-snapshot", async importOriginal => {
+  const actual = await importOriginal<typeof import("../session-composer-cursor-snapshot")>();
+  return { ...actual, readCursorSnapshot: vi.fn(actual.readCursorSnapshot) };
+});
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -2689,6 +2703,63 @@ describe("SessionThread transcript states", () => {
         expect(writeText).toHaveBeenCalledWith("Flatten both.");
       });
       expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Message copied");
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
+  });
+
+  // US-008.AC-3: copying a message with mention chips copies the raw token text, not the
+  // chip labels. Owner: user message actions.
+  it("Should copy the raw token text of a message rendered with mention chips", async () => {
+    const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const text = "Compare @internal/acp/client_prompt.go with @session:sess-a";
+    const transcript = [
+      {
+        id: "user-copy-with-mentions",
+        role: "user",
+        content: text,
+        metadata: {
+          mentions: [
+            {
+              kind: "file",
+              token: "@internal/acp/client_prompt.go",
+              target: "internal/acp/client_prompt.go",
+              label: "client_prompt.go",
+              start: 8,
+              end: 38,
+            },
+            {
+              kind: "session",
+              token: "@session:sess-a",
+              target: "sess-a",
+              label: "Fix login bug",
+              start: 44,
+              end: 59,
+            },
+          ],
+        },
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    try {
+      renderThreadState({
+        status: "success",
+        messages: toReadonlyThreadMessages(transcript),
+        subagentNavigation: { openSession: vi.fn() },
+      });
+
+      expect(await screen.findAllByTestId("session-mention-chip")).toHaveLength(2);
+      fireEvent.click(await screen.findByTestId("user-message-actions-copy"));
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(text);
+      });
     } finally {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
@@ -7235,6 +7306,50 @@ describe("SessionThread composer mentions", () => {
     expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
   });
 
+  // US-001.AC-5: ArrowUp/ArrowDown move the highlight and wrap at both ends.
+  it("Should move the highlight with the arrow keys and wrap at both ends", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [
+          { path: "README.md", name: "README.md", kind: "file" },
+          { path: "docs/readme-notes.md", name: "readme-notes.md", kind: "file" },
+          { path: "docs/readme-old.md", name: "readme-old.md", kind: "file" },
+        ],
+        sessions: [],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("@read");
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    const rows = [
+      await within(menu).findByRole("option", { name: /README\.md/ }),
+      await within(menu).findByRole("option", { name: /readme-notes\.md/ }),
+      await within(menu).findByRole("option", { name: /readme-old\.md/ }),
+    ];
+    const highlighted = () => rows.findIndex(row => row.hasAttribute("data-highlighted"));
+    const press = async (key: "ArrowDown" | "ArrowUp") => {
+      await act(async () => {
+        fireEvent.keyDown(editable, { key });
+      });
+    };
+    expect(highlighted()).toBe(0);
+
+    await press("ArrowDown");
+    await waitFor(() => expect(highlighted()).toBe(1));
+    await press("ArrowUp");
+    await waitFor(() => expect(highlighted()).toBe(0));
+    // Wrap at the top: ArrowUp from the first row lands on the last.
+    await press("ArrowUp");
+    await waitFor(() => expect(highlighted()).toBe(2));
+    // Wrap at the bottom: ArrowDown from the last row lands on the first.
+    await press("ArrowDown");
+    await waitFor(() => expect(highlighted()).toBe(0));
+    expect(composerText()).toBe("@read");
+  });
+
   // VC-04 / US-004.AC-3: the first load has nothing to pick, so the listbox
   // stays closed — the loading row shows in status mode and Enter sends.
   it("Should send on Enter while the first file search is still loading", async () => {
@@ -7443,5 +7558,96 @@ describe("SessionThread composer mentions", () => {
 
     await waitFor(() => expect(composerText()).toBe("Review "));
     expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+  });
+
+  // Invariant: the `/` scope and `@` trigger detectors share one text/caret
+  // walk per committed editor update, and an update that changes neither the
+  // text nor the selection walks nothing — while both triggers keep working.
+  it("Should read the composer text once per update for both / and @ detectors", async () => {
+    const fileQueries: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock(
+        { files: [{ path: "Override.java", name: "Override.java", kind: "file" }] },
+        fileQueries
+      )
+    );
+    renderComposer({
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal", lane: "builtin" as const }],
+          },
+        ],
+        inlineSkills: [
+          {
+            id: "frontend-qa",
+            token: "/frontend-qa",
+            label: "Frontend QA",
+            lane: "skill" as const,
+          },
+        ],
+      },
+    });
+
+    const editable = await findComposerEditable();
+    const editor = getNearestEditorFromDOMNode(editable);
+    if (!editor) throw new Error("composer editor is not mounted");
+    const reads = vi.mocked(readCursorSnapshot);
+    // Registered after the composer plugins, so it runs after both detectors and
+    // attributes the walks of each committed update to that update's tag.
+    const readsByTag = new Map<string, number>();
+    const walksPerUpdate: number[] = [];
+    let readsSeen = reads.mock.calls.length;
+    const unregister = editor.registerUpdateListener(({ tags }) => {
+      const walks = reads.mock.calls.length - readsSeen;
+      readsSeen = reads.mock.calls.length;
+      walksPerUpdate.push(walks);
+      for (const tag of tags) readsByTag.set(tag, walks);
+    });
+    const commit = async (tag: string, fn: () => void) => {
+      await act(async () => {
+        editor.update(fn, { discrete: true, tag });
+      });
+      return readsByTag.get(tag);
+    };
+
+    await setComposerText("@Ov");
+    expect(await screen.findByRole("listbox", { name: "Mentions" })).toBeInTheDocument();
+
+    // One text edit: one walk serves both detectors and the picker follows it.
+    const edited = await commit("test-edit", () => {
+      const paragraph = $getRoot().getFirstChildOrThrow<ElementNode>();
+      const text = paragraph.getLastChild();
+      if ($isTextNode(text)) text.setTextContent("@Over");
+      paragraph.selectEnd();
+    });
+    expect(edited).toBe(1);
+    await waitFor(() => expect(fileQueries.at(-1)?.get("q")).toBe("Over"));
+
+    // Re-selecting the caret exactly where it is changes nothing: no walk.
+    const unchanged = await commit("test-noop", () => {
+      const selection = $getSelection();
+      if (selection) $setSelection(selection.clone());
+    });
+    expect(unchanged).toBe(0);
+
+    // A selection-only move re-detects with one walk: the picker searches "O".
+    const moved = await commit("test-move", () => {
+      const text = $getRoot().getFirstChildOrThrow<ElementNode>().getFirstChild();
+      if ($isTextNode(text)) text.select(2, 2);
+    });
+    expect(moved).toBe(1);
+    await waitFor(() => expect(fileQueries.at(-1)?.get("q")).toBe("O"));
+
+    // The `/` detector still scopes from the shared walk: mid-text is inline-only.
+    await setComposerText("@Over /");
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(within(menu).getByRole("option", { name: /Frontend QA/i })).toBeInTheDocument();
+    expect(within(menu).queryByRole("option", { name: /Goal/i })).not.toBeInTheDocument();
+    unregister();
+    expect(Math.max(...walksPerUpdate)).toBe(1);
   });
 });

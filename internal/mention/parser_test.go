@@ -174,6 +174,28 @@ func TestParse(t *testing.T) {
 			t.Fatalf("ParseCounted(one token) = %#v, %d skipped", tokens, skipped)
 		}
 	})
+
+	t.Run("Should count 100k candidates while returning only the capped tokens", func(t *testing.T) {
+		t.Parallel()
+		text := strings.Repeat("@x ", 100_000)
+		got, skipped := mention.ParseCounted(text)
+		if len(got) != mention.MaxCandidateTokens || skipped != 100_000-mention.MaxCandidateTokens {
+			t.Fatalf("ParseCounted() = %d tokens, %d skipped", len(got), skipped)
+		}
+		last := got[len(got)-1]
+		wantStart := 3 * (mention.MaxCandidateTokens - 1)
+		if last.Start != wantStart || last.End != wantStart+2 {
+			t.Fatalf("last token offsets = [%d,%d), want [%d,%d)", last.Start, last.End, wantStart, wantStart+2)
+		}
+	})
+}
+
+func BenchmarkParseCountedManyCandidates(b *testing.B) {
+	text := strings.Repeat("@x ", 100_000)
+	b.ReportAllocs()
+	for b.Loop() {
+		mention.ParseCounted(text)
+	}
 }
 
 func TestReconcile(t *testing.T) {
