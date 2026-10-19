@@ -1333,6 +1333,55 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("reappeared outcome = %#v, want kept checkout_present", outcome)
 		}
 
+		replaced := create("Branch Replaced", "")
+		if err := os.RemoveAll(replaced.Path); err != nil {
+			t.Fatalf("RemoveAll(replaced) error = %v", err)
+		}
+		if _, err := fixture.service.List(t.Context(), fixture.workspace.ID, true); err != nil {
+			t.Fatalf("List(replaced) error = %v", err)
+		}
+		if err := fixture.service.Dismiss(t.Context(), fixture.workspace.ID, replaced.ID); err != nil {
+			t.Fatalf("Dismiss(replaced) error = %v", err)
+		}
+		fixture.git(root, "worktree", "remove", replaced.Path)
+		fixture.git(root, "worktree", "add", "-b", "replacement-branch", replaced.Path, "main")
+		if err := os.RemoveAll(replaced.Path); err != nil {
+			t.Fatalf("RemoveAll(replacement) error = %v", err)
+		}
+		beforeReplacement := fixture.git(root, "worktree", "list", "--porcelain")
+		if outcome := deleteBranch(
+			replaced,
+			true,
+		); outcome.Deleted ||
+			outcome.Reason != BranchKeptRegistrationPresent ||
+			!branchExists(replaced.Branch) {
+			t.Fatalf("replacement outcome = %#v, want preserved branch and registration", outcome)
+		}
+		if after := fixture.git(root, "worktree", "list", "--porcelain"); after != beforeReplacement {
+			t.Fatalf("replacement registration changed: before=%s after=%s", beforeReplacement, after)
+		}
+
+		readFailure := create("Branch Read Failure", "")
+		remove(readFailure, false)
+		for _, failure := range []error{context.Canceled, context.DeadlineExceeded, errors.New("Git read failed")} {
+			fixture.service.runner = &interceptingGitRunner{inner: fixture.runner,
+				intercept: func(_ string, args []string) ([]byte, []byte, error, bool) {
+					if len(args) > 0 && args[0] == "show-ref" {
+						return nil, nil, failure, true
+					}
+					return nil, nil, nil, false
+				},
+			}
+			outcome, err := fixture.service.DeleteLocalBranch(t.Context(), fixture.workspace.ID, readFailure.ID, true)
+			if !errors.Is(err, failure) || outcome.Reason == BranchKeptAbsent || !branchExists(readFailure.Branch) {
+				t.Fatalf("failed branch read = %#v, %v; want the original failure and preserved branch", outcome, err)
+			}
+		}
+		fixture.service.runner = fixture.runner
+		if outcome := deleteBranch(readFailure, false); !outcome.Deleted {
+			t.Fatalf("retry after read failure = %#v, want deletion with released locks", outcome)
+		}
+
 		rooted := create("Branch Rooted", "")
 		remove(rooted, false)
 		fixture.git(root, "checkout", "--quiet", rooted.Branch)
@@ -1342,10 +1391,16 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		fixture.git(root, "checkout", "--quiet", "main")
 
 		fixture.git(root, "branch", "trunk")
-		fixture.git(root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
-		fixture.git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
 		trunk := create("Branch Trunk", "trunk")
 		remove(trunk, false)
+		fixture.git(root, "remote", "add", "origin", "https://example.invalid/repo.git")
+		unknown, err := fixture.service.DeleteLocalBranch(t.Context(), fixture.workspace.ID, trunk.ID, true)
+		if err == nil || !strings.Contains(err.Error(), "remote default branch is unknown") || unknown.Deleted ||
+			!branchExists("trunk") {
+			t.Fatalf("unknown remote default = %#v, %v; want preserved trunk", unknown, err)
+		}
+		fixture.git(root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+		fixture.git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
 		if outcome := deleteBranch(trunk, true); outcome.Deleted || outcome.Reason != BranchKeptDefaultBranch ||
 			!branchExists("trunk") {
 			t.Fatalf("default branch outcome = %#v, want kept default_branch", outcome)

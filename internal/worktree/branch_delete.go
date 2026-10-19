@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -114,14 +115,17 @@ func (s *Service) branchDeletionRefusal(
 		return "", "", fmt.Errorf("worktree: inspect branch deletion path: %w", err)
 	}
 	branch := strings.TrimSpace(item.Branch)
-	if reason := s.protectedBranchReason(ctx, root, branch); reason != "" {
-		return reason, "", nil
+	if reason, err := s.protectedBranchReason(ctx, root, branch); err != nil || reason != "" {
+		return reason, "", err
 	}
 	ref := "refs/heads/" + branch
 	if _, _, err := s.runner.Run(ctx, root, "show-ref", "--verify", "--quiet", ref); err != nil {
-		return BranchKeptAbsent, "", nil
+		if gitExitedWithCode(err, 1) {
+			return BranchKeptAbsent, "", nil
+		}
+		return "", "", fmt.Errorf("worktree: verify local branch: %w", err)
 	}
-	reason, detail, err := s.releaseStaleRegistration(ctx, root, commonDir, item.Path, ref)
+	reason, detail, err := s.releaseStaleRegistration(ctx, root, commonDir, item, branch)
 	if err != nil || reason != "" {
 		return reason, detail, err
 	}
@@ -133,23 +137,44 @@ func (s *Service) branchDeletionRefusal(
 
 // protectedBranchReason keeps branches whose deletion would strand the repository:
 // the root checkout's HEAD and the remote default (or the conventional default).
-func (s *Service) protectedBranchReason(ctx context.Context, root, branch string) string {
+func (s *Service) protectedBranchReason(ctx context.Context, root, branch string) (string, error) {
 	stdout, _, err := s.runner.Run(ctx, root, "symbolic-ref", "--quiet", "--short", "HEAD")
 	if err == nil && strings.TrimSpace(string(stdout)) == branch {
-		return BranchKeptRootCheckout
+		return BranchKeptRootCheckout, nil
+	}
+	if err != nil && !gitExitedWithCode(err, 1) {
+		return "", fmt.Errorf("worktree: inspect root branch: %w", err)
 	}
 	defaultBranch := defaultBaseBranch
 	stdout, _, err = s.runner.Run(ctx, root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
-	if value := strings.TrimSpace(string(stdout)); err == nil && value != "" {
-		defaultBranch = value
-		if _, name, found := strings.Cut(value, "/"); found {
-			defaultBranch = name
+	if err != nil {
+		if !gitExitedWithCode(err, 1) {
+			return "", fmt.Errorf("worktree: inspect remote default branch: %w", err)
 		}
+		remotes, _, remoteErr := s.runner.Run(ctx, root, "remote")
+		if remoteErr != nil {
+			return "", fmt.Errorf("worktree: inspect remotes: %w", remoteErr)
+		}
+		if strings.TrimSpace(string(remotes)) != "" {
+			return "", errors.New(
+				"worktree: remote default branch is unknown; refresh origin/HEAD before deleting a local branch",
+			)
+		}
+	} else if value := strings.TrimSpace(string(stdout)); value != "" {
+		defaultBranch = strings.TrimPrefix(value, "origin/")
 	}
 	if branch == defaultBranch {
-		return BranchKeptDefaultBranch
+		return BranchKeptDefaultBranch, nil
 	}
-	return ""
+	return "", nil
+}
+
+func gitExitedWithCode(err error, code int) bool {
+	exit, ok := errors.AsType[interface {
+		error
+		ExitCode() int
+	}](err)
+	return ok && exit.ExitCode() == code
 }
 
 // releaseStaleRegistration clears Git's administrative entry for this record's
@@ -159,13 +184,15 @@ func (s *Service) protectedBranchReason(ctx context.Context, root, branch string
 // released, or another checkout still has the branch.
 func (s *Service) releaseStaleRegistration(
 	ctx context.Context,
-	root, commonDir, path, ref string,
+	root, commonDir string,
+	item Worktree,
+	branch string,
 ) (string, string, error) {
 	entries, err := s.readWorktreeList(ctx, root, commonDir)
 	if err != nil {
 		return "", "", err
 	}
-	target, err := fileutil.CanonicalPathWithExistingPrefix(path)
+	target, err := fileutil.CanonicalPathWithExistingPrefix(item.Path)
 	if err != nil {
 		return "", "", fmt.Errorf("worktree: canonicalize branch deletion path: %w", err)
 	}
@@ -177,7 +204,7 @@ func (s *Service) releaseStaleRegistration(
 			stale = entry
 			continue
 		}
-		if entry.Branch == ref {
+		if entry.Branch == branch {
 			return BranchKeptCheckedOutElsewhere, "", nil
 		}
 	}
@@ -186,6 +213,25 @@ func (s *Service) releaseStaleRegistration(
 	}
 	if stale.Locked {
 		return BranchKeptRegistrationPresent, "the worktree registration is locked", nil
+	}
+	if stale.Branch != branch {
+		return BranchKeptRegistrationPresent, "the worktree path belongs to another branch", nil
+	}
+	admin, err := validateAdoptionAdminPath(item.GitDir, commonDir)
+	if err != nil {
+		return BranchKeptRegistrationPresent, "the saved Git identity cannot be confirmed", nil
+	}
+	backlink, err := os.ReadFile(filepath.Join(admin, "gitdir"))
+	if err != nil {
+		return "", "", fmt.Errorf("worktree: read saved registration backlink: %w", err)
+	}
+	backlinkPath := strings.TrimSpace(string(backlink))
+	if !filepath.IsAbs(backlinkPath) {
+		backlinkPath = filepath.Join(admin, backlinkPath)
+	}
+	registeredPath, err := fileutil.CanonicalPathWithExistingPrefix(backlinkPath)
+	if err != nil || registeredPath != filepath.Join(target, ".git") {
+		return BranchKeptRegistrationPresent, "the worktree registration no longer matches the saved Git identity", nil
 	}
 	_, stderr, err := s.runner.Run(
 		ctx, root, "--git-dir", commonDir, worktreeDescriptorName, exitRemoveAction, stale.Path,

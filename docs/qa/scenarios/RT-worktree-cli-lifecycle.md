@@ -36,3 +36,10 @@ Git branch, producing a distinct ready row while the dismissed predecessor remai
 calls are unchanged. Isolated-lab walk on 2026-10-19 verified a plain removal receipt without
 `branch`, a `root_checkout_branch` refusal, a branch-only retry on the already-removed record, and a
 `not_fully_merged` refusal followed by `--force` deletion. Evidence is in the PR description.
+
+2026-10-19 merge-train branch-safety follow-up: force must keep branches when a remote exists
+without a known `origin/HEAD`; a replacement registration at a dismissed record's old path must
+remain unchanged, with the old branch kept. Git read failure/cancellation must preserve the
+original error instead of claiming `branch_absent`, and a subsequent valid retry must acquire the
+released usage/repository locks. The existing real-Git lifecycle integration suite passes these
+cases with race detection, including default `trunk`, replacement branch and failed-read retries.

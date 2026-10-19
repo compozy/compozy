@@ -115,6 +115,10 @@ reviewed.
 
 For a missing record, `dismiss --delete-branch` first releases Git's stale registration for that
 record's path only, then deletes the branch. Other prunable worktrees stay registered.
+The registration must still match the saved branch and Git identity; a replacement registration
+is kept. When a remote exists but `origin/HEAD` is unknown, branch deletion is refused with
+`delete_failed` and diagnostic detail until the default is known. A failed Git read is reported as
+a failure, never as proof that the branch is already absent.
 
 HTTP and UDS clients pass `delete_branch=true` (plus `force=true` for unmerged branches) on
 `DELETE /api/workspaces/{workspace_id}/worktrees/{worktree_id}` or

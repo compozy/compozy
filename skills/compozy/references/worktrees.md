@@ -95,12 +95,15 @@ Local branch deletion is an explicit opt-in: `compozy worktree remove <ref> --de
 missing record, `compozy worktree dismiss <ref> --delete-branch` (HTTP/UDS `delete_branch=true`;
 native `compozy__worktree_remove` input `delete_branch`). It runs only after the checkout removal or
 dismissal succeeds and uses Git's merged-only delete; `--force` also deletes unmerged commits. The
-root checkout's HEAD branch and the default branch (`origin/HEAD`, else `main`) are always kept. The
+root checkout's HEAD branch and the default branch (`origin/HEAD`, or `main` without a remote) are always kept.
+If a remote exists but its default branch is unknown, deletion is refused with `delete_failed`
+and diagnostic detail until `origin/HEAD` is available. The
 receipt's `branch` object reports `deleted: true` or a kept `reason` (`root_checkout_branch`,
 `default_branch`, `not_fully_merged`, `checked_out_elsewhere`, `checkout_present`,
 `registration_present`, `branch_absent`, `no_branch`, `delete_failed`) — a kept branch is not a
 failed cleanup. Re-running the same command on the removed or dismissed record retries only the
-branch step. Dismissal with the opt-in releases Git's stale registration for that record's path only;
+branch step. Dismissal with the opt-in releases Git's stale registration only when the path,
+branch and saved Git administrative identity match the record;
 it never prunes other worktrees. Without the opt-in, callers keep the established `204` behavior.
 
 ## Configuration And Errors
