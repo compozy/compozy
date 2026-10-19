@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -741,20 +742,23 @@ func TestLiveProviderSources(t *testing.T) {
 	t.Run("Should parse OpenCode model command output and apply effective env home policy", func(t *testing.T) {
 		t.Parallel()
 
-		executor := &fakeDiscoveryExecutor{
-			result: DiscoveryCommandResult{Stdout: "anthropic/claude-sonnet-4-6\nopenai/gpt-5.4\n"},
+		executor := &fakeDiscoveryExecutor{}
+		executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+			if slices.Equal(req.Args, []string{"--version"}) {
+				return DiscoveryCommandResult{Stdout: "opencode v1.18.33\n"}, nil
+			}
+			return DiscoveryCommandResult{Stdout: "anthropic/claude-sonnet-4-6\nopenai/gpt-5.4\n"}, nil
 		}
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		provider := compozyconfig.ProviderConfig{
-			EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
-			HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
-		}
+		provider := compozyconfig.BuiltinProviders()["opencode"]
+		provider.EnvPolicy = compozyconfig.ProviderEnvPolicyIsolated
+		provider.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
 		source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
 			HomePaths:       homePaths,
-			BaseEnv:         []string{"PATH=/bin", "HOME=/Users/operator", "OPENAI_API_KEY=ambient-secret"},
+			BaseEnv:         append(openCodeFixtureEnv(t), "OPENAI_API_KEY=ambient-secret"),
 			CommandExecutor: executor,
 		})
 
@@ -773,7 +777,28 @@ func TestLiveProviderSources(t *testing.T) {
 		) {
 			t.Fatalf("row ids = %#v, want %#v", got, want)
 		}
-		req := executor.singleRequest(t)
+		reqs := executor.allRequests(t)
+		if len(reqs) != 2 {
+			t.Fatalf("len(requests) = %d, want version then listing", len(reqs))
+		}
+		if !slices.Equal(reqs[0].Args, []string{"--version"}) {
+			t.Fatalf("version args = %#v, want [--version]", reqs[0].Args)
+		}
+		if !slices.Equal(reqs[1].Args, []string{"models", "--verbose"}) {
+			t.Fatalf("listing args = %#v, want [models --verbose]", reqs[1].Args)
+		}
+		for _, req := range reqs {
+			if req.Command != reqs[0].Command || !filepath.IsAbs(req.Command) {
+				t.Fatalf("request command = %#v, want shared absolute invocation", req.Command)
+			}
+			if req.Dir != source.workingDir {
+				t.Fatalf("request dir = %q, want %q", req.Dir, source.workingDir)
+			}
+			if !slices.Equal(req.Env, reqs[0].Env) {
+				t.Fatalf("request env differs between version and listing stages")
+			}
+		}
+		req := reqs[1]
 		if envValue(req.Env, "OPENAI_API_KEY") != "" {
 			t.Fatalf("OPENAI_API_KEY = %q, want filtered", envValue(req.Env, "OPENAI_API_KEY"))
 		}
@@ -785,26 +810,73 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply authored env assignments to both OpenCode discovery stages", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{}
+		executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+			if slices.Equal(req.Args, []string{"--version"}) {
+				return DiscoveryCommandResult{Stdout: "opencode v1.18.33\n"}, nil
+			}
+			return DiscoveryCommandResult{Stdout: "anthropic/claude-sonnet-4-6\n"}, nil
+		}
+		provider := compozyconfig.BuiltinProviders()["opencode"]
+		provider.Command = "OPENCODE_PRIVATE_MARKER=marker opencode acp"
+		provider.CommandIsBuiltin = false
+		source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
+			BaseEnv:         openCodeFixtureEnv(t),
+			CommandExecutor: executor,
+		})
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "opencode", Now: testTime(0)})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got, want := rowModelIDs(rows), []string{"anthropic/claude-sonnet-4-6"}; !slices.Equal(got, want) {
+			t.Fatalf("row ids = %#v, want %#v", got, want)
+		}
+		reqs := executor.allRequests(t)
+		if len(reqs) != 2 {
+			t.Fatalf("len(requests) = %d, want version then listing", len(reqs))
+		}
+		for index, req := range reqs {
+			if got := envValue(req.Env, "OPENCODE_PRIVATE_MARKER"); got != "marker" {
+				t.Fatalf("requests[%d] OPENCODE_PRIVATE_MARKER = %q, want authored assignment applied", index, got)
+			}
+		}
+	})
+
 	t.Run("Should preserve OpenCode verbose capabilities and advertised custom variants", func(t *testing.T) {
 		t.Parallel()
-		executor := &fakeDiscoveryExecutor{result: DiscoveryCommandResult{Stdout: `openrouter/x-ai/grok-4.6
+		executor := &fakeDiscoveryExecutor{}
+		executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+			if slices.Equal(req.Args, []string{"--version"}) {
+				return DiscoveryCommandResult{Stdout: "opencode v1.18.33\n"}, nil
+			}
+			return DiscoveryCommandResult{Stdout: `openrouter/x-ai/grok-4.6
 {"name":"Grok 4.6","capabilities":{"reasoning":true},"variants":{"low":{},"medium":{},"high":{},"xhigh":{},"provider-next":{}}}
 opencode/provider-managed
 {"capabilities":{"reasoning":true},"variants":{}}
-`}}
+`}, nil
+		}
 		source := newLiveSourceForTest(
 			t,
 			"opencode",
 			compozyconfig.BuiltinProviders()["opencode"],
-			&LiveProviderSourcesConfig{CommandExecutor: executor},
+			&LiveProviderSourcesConfig{BaseEnv: openCodeFixtureEnv(t), CommandExecutor: executor},
 		)
 		rows, err := source.ListModels(t.Context(), ListOptions{Now: testTime(0)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := executor.singleRequest(t)
-		if !slices.Equal(req.Args, []string{"models", "--verbose"}) {
-			t.Fatalf("args = %#v", req.Args)
+		reqs := executor.allRequests(t)
+		if len(reqs) != 2 {
+			t.Fatalf("len(requests) = %d, want version then listing", len(reqs))
+		}
+		if !slices.Equal(reqs[0].Args, []string{"--version"}) {
+			t.Fatalf("version args = %#v, want [--version]", reqs[0].Args)
+		}
+		if !slices.Equal(reqs[1].Args, []string{"models", "--verbose"}) {
+			t.Fatalf("args = %#v", reqs[1].Args)
 		}
 		models := MergeRows(rows, MergeOptions{ReasoningApply: map[string]bool{"opencode": true}})
 		for _, model := range models {
@@ -824,7 +896,7 @@ opencode/provider-managed
 				}
 			}
 		}
-		_, err = parseOpenCodeModelRows("opencode", "provider/model\n{broken json", testTime(0))
+		_, err = parseOpenCodeV1ModelRows("opencode", "provider/model\n{broken json", testTime(0))
 		if err == nil {
 			t.Fatal("malformed metadata published as a capability-free row")
 		}
@@ -865,10 +937,11 @@ opencode/provider-managed
 			result: DiscoveryCommandResult{Stderr: "api_key=opencode-secret missing"},
 			err:    errors.New("exec: opencode not found"),
 		}
-		source := newLiveSourceForTest(t, "opencode", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
-			BaseEnv:         []string{"PATH=/bin"},
-			CommandExecutor: executor,
-		})
+		source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+			&LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
 		store := newMemoryStore()
 		service := newTestService(t, store, []Source{source})
 
@@ -886,6 +959,677 @@ opencode/provider-managed
 		if strings.Contains(status.LastError, "opencode-secret") || !strings.Contains(status.LastError, "[REDACTED]") {
 			t.Fatalf("LastError = %q, want redacted command detail", status.LastError)
 		}
+	})
+
+	const openCodeV2DiscoveryFixture = `{"location":{"directory":"/tmp/opencode"},"data":[
+{"providerID":"openrouter","id":"acme/coding-default","modelID":"acme/coder-api-v7","canonical":"acme/canon","name":"Coding default","enabled":true,"capabilities":{"tools":false},"limit":{"context":262144,"input":200000,"output":32768},"variants":[{"id":"high"},{"id":"low"},{"id":"provider-next"},{"id":"low"}],"settings":{"api_key":"sentinel-v2-settings"},"cost":[{"per_million":1.5}],"headers":{},"body":{}},
+{"providerID":"other","id":"acme/coding-default","name":"Other default","enabled":true,"status":"deprecated"},
+{"providerID":"openrouter","id":"minimal-model","enabled":true,"limit":{"context":0},"variants":[]},
+{"providerID":"openrouter","id":"acme/coding-default","name":"Coding default duplicate","enabled":true,"capabilities":{"tools":false},"limit":{"context":262144,"input":200000,"output":32768},"variants":[{"id":"high"},{"id":"low"},{"id":"provider-next"}]},
+{"providerID":"openrouter","id":"disabled-model","name":"Disabled","enabled":false}
+]}`
+
+	t.Run("Should select exactly one native OpenCode catalog method per major version", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name    string
+			version string
+			major   uint64
+		}{
+			{"plain v1", "1.18.33\n", 1},
+			{"prefixed v1", "v1.18.33", 1},
+			{"native v1", "opencode v1.18.33", 1},
+			{"native v2", "opencode v2.0.32\n", 2},
+			{"plain v2", "2.0.32", 2},
+			{"prerelease v2", "v2.1.0-beta.1+fixture", 2},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				executor := &fakeDiscoveryExecutor{}
+				executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+					switch {
+					case slices.Equal(req.Args, []string{"--version"}):
+						return DiscoveryCommandResult{Stdout: test.version}, nil
+					case len(req.Args) > 0 && req.Args[0] == "models":
+						return DiscoveryCommandResult{Stdout: "openrouter/acme/coding-default\n"}, nil
+					default:
+						return DiscoveryCommandResult{Stdout: openCodeV2DiscoveryFixture}, nil
+					}
+				}
+				workingDir := filepath.Join(t.TempDir(), "catalog café & #1")
+				if err := os.MkdirAll(workingDir, 0o755); err != nil {
+					t.Fatalf("MkdirAll() error = %v", err)
+				}
+				source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+					&LiveProviderSourcesConfig{
+						BaseEnv:         openCodeFixtureEnv(t),
+						CommandExecutor: executor,
+						WorkingDir:      workingDir,
+					})
+				rows, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+				if err != nil {
+					t.Fatalf("ListModels() error = %v", err)
+				}
+				if len(rows) == 0 {
+					t.Fatal("ListModels() returned no rows")
+				}
+				reqs := executor.allRequests(t)
+				if len(reqs) != 2 {
+					t.Fatalf("len(requests) = %d, want version then exactly one listing", len(reqs))
+				}
+				versionReq, listReq := reqs[0], reqs[1]
+				if !slices.Equal(versionReq.Args, []string{"--version"}) {
+					t.Fatalf("version args = %#v, want [--version]", versionReq.Args)
+				}
+				if versionReq.Command != listReq.Command || listReq.Dir != workingDir ||
+					!slices.Equal(versionReq.Env, listReq.Env) || versionReq.Timeout != listReq.Timeout {
+					t.Fatalf("version and listing stages disagree on invocation: %#v vs %#v", versionReq, listReq)
+				}
+				if test.major == 1 {
+					if !slices.Equal(listReq.Args, []string{"models", "--verbose"}) {
+						t.Fatalf("v1 args = %#v, want [models --verbose]", listReq.Args)
+					}
+					if rowModelIDs(rows) != nil && rows[0].ModelID != "openrouter/acme/coding-default" {
+						t.Fatalf("v1 rows = %#v", rows)
+					}
+					return
+				}
+				if len(listReq.Args) != 4 || listReq.Args[0] != "api" || listReq.Args[1] != "--standalone" ||
+					listReq.Args[2] != "GET" {
+					t.Fatalf("v2 args = %#v, want [api --standalone GET <path>]", listReq.Args)
+				}
+				rawQuery, found := strings.CutPrefix(listReq.Args[3], "/api/model?")
+				if !found {
+					t.Fatalf("v2 path = %q, want raw model.list path with encoded location", listReq.Args[3])
+				}
+				values, err := url.ParseQuery(rawQuery)
+				if err != nil {
+					t.Fatalf("ParseQuery() error = %v", err)
+				}
+				if got := values.Get("location[directory]"); got != workingDir {
+					t.Fatalf("location[directory] = %q, want %q", got, workingDir)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject undetectable and unsupported OpenCode versions without listing", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name    string
+			version string
+			want    string
+		}{
+			{"empty output", "", "model catalog: could not determine OpenCode version"},
+			{"development build", "development", "model catalog: could not determine OpenCode version"},
+			{"diagnostic text", "warning version 2.0.32", "model catalog: could not determine OpenCode version"},
+			{
+				"unsupported major",
+				"opencode v3.0.0",
+				"model catalog: unsupported OpenCode major version 3; supported versions are 1 and 2",
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				executor := &fakeDiscoveryExecutor{}
+				executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+					if !slices.Equal(req.Args, []string{"--version"}) {
+						t.Errorf("unexpected listing request %#v after version failure", req.Args)
+					}
+					return DiscoveryCommandResult{Stdout: test.version}, nil
+				}
+				source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+					&LiveProviderSourcesConfig{
+						BaseEnv:         openCodeFixtureEnv(t),
+						CommandExecutor: executor,
+					})
+				_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+				if err == nil || err.Error() != test.want {
+					t.Fatalf("ListModels() error = %v, want %q", err, test.want)
+				}
+				if got := len(executor.allRequests(t)); got != 1 {
+					t.Fatalf("len(requests) = %d, want only the version probe", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should fail version execution without a model command", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{
+			result: DiscoveryCommandResult{Stderr: "boom"},
+			err:    errors.New("discovery command failed: exit status 1"),
+		}
+		source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+			&LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+		_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+		if err == nil || !strings.Contains(err.Error(), "model catalog: could not determine OpenCode version") {
+			t.Fatalf("ListModels() error = %v, want version failure", err)
+		}
+		if got := len(executor.allRequests(t)); got != 1 {
+			t.Fatalf("len(requests) = %d, want only the version probe", got)
+		}
+	})
+
+	t.Run("Should reject a version probe that prints a banner and exits nonzero", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{}
+		executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+			if !slices.Equal(req.Args, []string{"--version"}) {
+				t.Errorf("unexpected listing request %#v after failed version probe", req.Args)
+				return DiscoveryCommandResult{Stdout: `{"data":[]}`}, nil
+			}
+			return DiscoveryCommandResult{Stdout: "opencode v2.0.32\n", ExitCode: 1}, nil
+		}
+		source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+			&LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+		_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+		if err == nil || !strings.Contains(err.Error(), "could not determine OpenCode version") {
+			t.Fatalf("ListModels() error = %v, want version rejection", err)
+		}
+		if got := len(executor.allRequests(t)); got != 1 {
+			t.Fatalf("len(requests) = %d, want only the version probe", got)
+		}
+	})
+
+	t.Run("Should preserve the listing execution error identity without retrying", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{}
+		executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+			if slices.Equal(req.Args, []string{"--version"}) {
+				return DiscoveryCommandResult{Stdout: "opencode v2.0.32\n"}, nil
+			}
+			return DiscoveryCommandResult{Stderr: "listing failed"}, context.DeadlineExceeded
+		}
+		source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+			&LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+		_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("ListModels() error = %v, want listing error identity", err)
+		}
+		if got := len(executor.allRequests(t)); got != 2 {
+			t.Fatalf("len(requests) = %d, want version plus one listing", got)
+		}
+	})
+
+	t.Run("Should reject a mismatched expected OpenCode invocation before execution", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{}
+		executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+			t.Errorf("unexpected discovery request %#v under mismatched fingerprint", req.Args)
+			return DiscoveryCommandResult{}, errors.New("must not execute")
+		}
+		newSource := func(env []string) *LiveProviderSource {
+			return newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+				&LiveProviderSourcesConfig{BaseEnv: env, CommandExecutor: executor})
+		}
+		first := newSource(openCodeFixtureEnv(t))
+		second := newSource(openCodeFixtureEnv(t))
+		firstFingerprint, err := first.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatalf("CatalogExecutionFingerprint() error = %v", err)
+		}
+		secondFingerprint, err := second.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatalf("CatalogExecutionFingerprint() error = %v", err)
+		}
+		if firstFingerprint == "" || firstFingerprint == secondFingerprint {
+			t.Fatal("distinct selectors share an execution fingerprint")
+		}
+		if got := len(executor.allRequests(t)); got != 0 {
+			t.Fatalf("len(requests) = %d, want no subprocess during fingerprinting", got)
+		}
+		_, err = first.ListModels(testutil.Context(t), ListOptions{
+			ExecutionContext: CatalogExecutionContext{CommandFingerprint: secondFingerprint},
+			Now:              testTime(0),
+		})
+		if err == nil || !strings.Contains(err.Error(), "discovery invocation changed") {
+			t.Fatalf("ListModels() error = %v, want invocation-changed failure", err)
+		}
+		if got := len(executor.allRequests(t)); got != 0 {
+			t.Fatalf("len(requests) = %d, want no execution after mismatch", got)
+		}
+	})
+
+	t.Run("Should map OpenCode v2 selectable identity and metadata", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &fakeDiscoveryExecutor{}
+		executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+			if slices.Equal(req.Args, []string{"--version"}) {
+				return DiscoveryCommandResult{Stdout: "opencode v2.0.32\n"}, nil
+			}
+			return DiscoveryCommandResult{Stdout: openCodeV2DiscoveryFixture}, nil
+		}
+		source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+			&LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got, want := rowModelIDs(rows), []string{
+			"openrouter/acme/coding-default",
+			"openrouter/minimal-model",
+			"other/acme/coding-default",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("row ids = %#v, want %#v", got, want)
+		}
+		coding := rows[0]
+		if coding.ProviderID != "opencode" || coding.DisplayName != "Coding default" ||
+			coding.SourceID != "provider_live:opencode" || coding.Priority != PriorityProviderLive ||
+			!coding.RefreshedAt.Equal(testTime(0)) {
+			t.Fatalf("v2 provenance = %#v", coding)
+		}
+		if coding.Available == nil || !*coding.Available {
+			t.Fatalf("Available = %v, want explicit true", coding.Available)
+		}
+		if coding.SupportsTools == nil || *coding.SupportsTools {
+			t.Fatalf("SupportsTools = %v, want explicit false", coding.SupportsTools)
+		}
+		if value := int64(262144); coding.ContextWindow == nil || *coding.ContextWindow != value {
+			t.Fatalf("ContextWindow = %v, want %d", coding.ContextWindow, value)
+		}
+		if value := int64(200000); coding.MaxInputTokens == nil || *coding.MaxInputTokens != value {
+			t.Fatalf("MaxInputTokens = %v, want %d", coding.MaxInputTokens, value)
+		}
+		if value := int64(32768); coding.MaxOutputTokens == nil || *coding.MaxOutputTokens != value {
+			t.Fatalf("MaxOutputTokens = %v, want %d", coding.MaxOutputTokens, value)
+		}
+		if coding.SupportsReasoning == nil || !*coding.SupportsReasoning || coding.DefaultReasoningEffort != nil {
+			t.Fatalf("reasoning profile = %#v, want supported without invented default", coding)
+		}
+		if !slices.Equal(coding.ReasoningEfforts, []ReasoningEffort{"low", "high", "provider-next"}) {
+			t.Fatalf("efforts = %#v, want deduplicated ordered variants", coding.ReasoningEfforts)
+		}
+		if coding.CostInputPerMillion != nil || coding.CostOutputPerMillion != nil ||
+			coding.CostCacheReadPerMillion != nil || coding.CostCacheWritePerMillion != nil ||
+			coding.CostReasoningPerMillion != nil {
+			t.Fatalf("tiered cost became a scalar price: %#v", coding)
+		}
+		if coding.Deprecated != nil {
+			t.Fatalf("Deprecated = %v, want nil without reported status", coding.Deprecated)
+		}
+		minimal := rows[1]
+		if minimal.ContextWindow != nil || minimal.MaxInputTokens != nil || minimal.MaxOutputTokens != nil ||
+			minimal.SupportsTools != nil || minimal.SupportsReasoning != nil ||
+			len(minimal.ReasoningEfforts) != 0 || minimal.DefaultReasoningEffort != nil {
+			t.Fatalf("unknown v2 metadata invented values: %#v", minimal)
+		}
+		other := rows[2]
+		if other.DisplayName != "Other default" || other.Deprecated == nil || !*other.Deprecated {
+			t.Fatalf("reported deprecated status lost: %#v", other)
+		}
+	})
+
+	t.Run("Should reject incomplete and unsafe OpenCode v2 generations", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name   string
+			output string
+			want   string
+		}{
+			{"invalid JSON", "{oops", "model catalog: invalid OpenCode v2 model payload"},
+			{"missing data", `{"location":{}}`, "model catalog: invalid OpenCode v2 model payload"},
+			{"null data", `{"data":null}`, "model catalog: invalid OpenCode v2 model payload"},
+			{"wrong-type data", `{"data":{}}`, "model catalog: invalid OpenCode v2 model payload"},
+			{
+				"empty data",
+				`{"data":[]}`,
+				"model catalog: OpenCode v2 returned no enabled model rows",
+			},
+			{
+				"all disabled",
+				`{"data":[{"providerID":"openrouter","id":"m","enabled":false}]}`,
+				"model catalog: OpenCode v2 returned no enabled model rows",
+			},
+			{
+				"missing enabled",
+				`{"data":[{"providerID":"openrouter","id":"m","settings":{"k":"sentinel-secret"}}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"nonboolean enabled",
+				`{"data":[{"providerID":"openrouter","id":"m","enabled":"yes"}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"blank identity",
+				`{"data":[{"providerID":"","id":"m","enabled":true}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"provider slash",
+				`{"data":[{"providerID":"a/b","id":"m","enabled":true}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"model hash",
+				`{"data":[{"providerID":"a","id":"m#1","enabled":true}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"invalid variant",
+				`{"data":[{"providerID":"a","id":"m","enabled":true,"variants":[{"id":"has space"}]}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"negative limit",
+				`{"data":[{"providerID":"a","id":"m","enabled":true,"limit":{"context":-1}}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"wrong-type limit",
+				`{"data":[{"providerID":"a","id":"m","enabled":true,"limit":{"context":"big"}}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+			{
+				"valid then malformed",
+				`{"data":[{"providerID":"a","id":"m","enabled":true},{"providerID":"a","id":"n"}]}`,
+				"model catalog: invalid OpenCode v2 model payload",
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				rows, err := parseOpenCodeV2ModelRows("opencode", test.output, testTime(0))
+				if err == nil || !strings.HasPrefix(err.Error(), test.want) {
+					t.Fatalf("parseOpenCodeV2ModelRows() error = %v, want prefix %q", err, test.want)
+				}
+				if len(rows) != 0 {
+					t.Fatalf("parseOpenCodeV2ModelRows() rows = %#v, want none", rows)
+				}
+				if strings.Contains(err.Error(), "sentinel-secret") {
+					t.Fatalf("diagnostic leaks native settings: %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should keep OpenCode discovery opt-out and explicit overrides authoritative", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Should keep disabled discovery command-free", func(t *testing.T) {
+			t.Parallel()
+
+			disabled := false
+			provider := compozyconfig.BuiltinProviders()["opencode"]
+			provider.Models.Discovery.Enabled = &disabled
+			executor := &fakeDiscoveryExecutor{}
+			source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+			_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			if !errors.Is(err, ErrSourceDisabled) {
+				t.Fatalf("ListModels() error = %v, want disabled", err)
+			}
+			if got := len(executor.allRequests(t)); got != 0 {
+				t.Fatalf("len(requests) = %d, want none", got)
+			}
+		})
+
+		t.Run("Should execute an explicit discovery command unchanged without version probe", func(t *testing.T) {
+			t.Parallel()
+
+			provider := compozyconfig.BuiltinProviders()["opencode"]
+			provider.Models.Discovery.Command = "opencode models --verbose"
+			executor := &fakeDiscoveryExecutor{}
+			executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+				if slices.Equal(req.Args, []string{"--version"}) {
+					t.Error("explicit discovery must not probe versions")
+				}
+				return DiscoveryCommandResult{Stdout: "acme/model\n"}, nil
+			}
+			source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+			rows, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			if err != nil {
+				t.Fatalf("ListModels() error = %v", err)
+			}
+			if got := rowModelIDs(rows); !slices.Equal(got, []string{"acme/model"}) {
+				t.Fatalf("row ids = %#v", got)
+			}
+			req := executor.singleRequest(t)
+			if req.Command != "opencode" || !slices.Equal(req.Args, []string{"models", "--verbose"}) {
+				t.Fatalf("explicit request = %#v", req)
+			}
+		})
+
+		t.Run("Should keep an opaque wrapper with explicit override authoritative", func(t *testing.T) {
+			t.Parallel()
+
+			provider := compozyconfig.ProviderConfig{Command: "custom-acp-wrapper"}
+			provider.Models.Discovery.Command = "custom-models --account secondary"
+			executor := &fakeDiscoveryExecutor{
+				result: DiscoveryCommandResult{Stdout: "acme/model\n"},
+			}
+			source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+			rows, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			if err != nil {
+				t.Fatalf("ListModels() error = %v", err)
+			}
+			if got := rowModelIDs(rows); !slices.Equal(got, []string{"acme/model"}) {
+				t.Fatalf("row ids = %#v", got)
+			}
+			req := executor.singleRequest(t)
+			if req.Command != "custom-models" || !slices.Equal(req.Args, []string{"--account", "secondary"}) {
+				t.Fatalf("override request = %#v", req)
+			}
+		})
+
+		t.Run("Should fail an opaque wrapper without override actionably without probing", func(t *testing.T) {
+			t.Parallel()
+
+			binDir := writeOpenCodeFixture(t)
+			provider := compozyconfig.ProviderConfig{Command: binDir + "/opencode acp --wrapper-only"}
+			executor := &fakeDiscoveryExecutor{}
+			source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
+				BaseEnv:         []string{"PATH=" + binDir, "HOME=" + t.TempDir()},
+				CommandExecutor: executor,
+			})
+			_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			want := "model catalog: OpenCode launch command requires an explicit " +
+				"models.discovery.command or models.discovery.endpoint"
+			if err == nil || err.Error() != want {
+				t.Fatalf("ListModels() error = %v, want %q", err, want)
+			}
+			if got := len(executor.allRequests(t)); got != 0 {
+				t.Fatalf("len(requests) = %d, want none", got)
+			}
+		})
+
+		t.Run("Should keep the overlay explicit-path requirement without discovery", func(t *testing.T) {
+			t.Parallel()
+
+			provider := compozyconfig.ProviderConfig{RuntimeProvider: "opencode"}
+			executor := &fakeDiscoveryExecutor{}
+			source := newLiveSourceForTest(t, "opencode-extra", provider, &LiveProviderSourcesConfig{
+				BaseEnv:         openCodeFixtureEnv(t),
+				CommandExecutor: executor,
+			})
+			_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			if err == nil || !strings.Contains(err.Error(), "requires models.discovery.command") {
+				t.Fatalf("ListModels() error = %v, want explicit discovery requirement", err)
+			}
+			if got := len(executor.allRequests(t)); got != 0 {
+				t.Fatalf("len(requests) = %d, want none", got)
+			}
+		})
+	})
+
+	t.Run("Should preserve OpenCode discovery deadline, ordering, and redaction", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Should retain deadline identity on version timeout without listing", func(t *testing.T) {
+			t.Parallel()
+
+			executor := &fakeDiscoveryExecutor{}
+			executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+				if !slices.Equal(req.Args, []string{"--version"}) {
+					t.Errorf("unexpected listing request %#v after deadline", req.Args)
+				}
+				return DiscoveryCommandResult{}, context.DeadlineExceeded
+			}
+			source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+				&LiveProviderSourcesConfig{
+					BaseEnv:         openCodeFixtureEnv(t),
+					CommandExecutor: executor,
+					DefaultTimeout:  50 * time.Millisecond,
+				})
+			ctx, cancel := context.WithTimeout(testutil.Context(t), 50*time.Millisecond)
+			defer cancel()
+			_, err := source.ListModels(ctx, ListOptions{Now: testTime(0)})
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("ListModels() error = %v, want deadline identity", err)
+			}
+			if got := len(executor.allRequests(t)); got != 1 {
+				t.Fatalf("len(requests) = %d, want only the version probe", got)
+			}
+		})
+
+		t.Run("Should start no second subprocess on cancellation between stages", func(t *testing.T) {
+			t.Parallel()
+
+			executor := &fakeDiscoveryExecutor{}
+			ctx, cancel := context.WithCancel(testutil.Context(t))
+			executor.handle = func(_ DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+				cancel()
+				return DiscoveryCommandResult{Stdout: "opencode v2.0.32\n"}, nil
+			}
+			source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+				&LiveProviderSourcesConfig{
+					BaseEnv:         openCodeFixtureEnv(t),
+					CommandExecutor: executor,
+				})
+			_, err := source.ListModels(ctx, ListOptions{Now: testTime(0)})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("ListModels() error = %v, want cancellation", err)
+			}
+			if got := len(executor.allRequests(t)); got != 1 {
+				t.Fatalf("len(requests) = %d, want only the version probe", got)
+			}
+		})
+
+		t.Run("Should never echo raw output on stderr-free v2 listing failure", func(t *testing.T) {
+			t.Parallel()
+
+			executor := &fakeDiscoveryExecutor{}
+			executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+				if slices.Equal(req.Args, []string{"--version"}) {
+					return DiscoveryCommandResult{Stdout: "opencode v2.0.32\n"}, nil
+				}
+				return DiscoveryCommandResult{
+					Stdout:   `{"data":[],"settings":{"k":"v"}}`,
+					ExitCode: 1,
+				}, nil
+			}
+			source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+				&LiveProviderSourcesConfig{
+					BaseEnv:         openCodeFixtureEnv(t),
+					CommandExecutor: executor,
+				})
+			_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			if err == nil || !strings.Contains(err.Error(), "no diagnostic output") {
+				t.Fatalf("ListModels() error = %v, want stderr-free listing failure", err)
+			}
+			if strings.Contains(err.Error(), `"data"`) {
+				t.Fatalf("listing diagnostic echoes raw response: %v", err)
+			}
+		})
+
+		t.Run("Should never fall back to npm on native permission failure", func(t *testing.T) {
+			t.Parallel()
+
+			permDir := t.TempDir()
+			if err := os.WriteFile(
+				filepath.Join(permDir, "opencode"),
+				[]byte("#!/bin/sh\nexit 0\n"),
+				0o644,
+			); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+			npxLog := filepath.Join(permDir, "npx-calls.log")
+			npxScript := "#!/bin/sh\necho NPM-CALLED >> " + npxLog + "\nexit 1\n"
+			if err := os.WriteFile(filepath.Join(permDir, "npx"), []byte(npxScript), 0o755); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+			executor := &fakeDiscoveryExecutor{}
+			source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+				&LiveProviderSourcesConfig{
+					BaseEnv:         []string{"PATH=" + permDir, "HOME=" + t.TempDir()},
+					CommandExecutor: executor,
+				})
+			_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			if err == nil || !errors.Is(err, os.ErrPermission) {
+				t.Fatalf("ListModels() error = %v, want native permission failure", err)
+			}
+			if got := len(executor.allRequests(t)); got != 0 {
+				t.Fatalf("len(requests) = %d, want no subprocess after permission failure", got)
+			}
+			if raw, readErr := os.ReadFile(npxLog); readErr == nil && len(bytes.TrimSpace(raw)) != 0 {
+				t.Fatalf("npm fallback executed after native permission failure: %q", raw)
+			} else if readErr != nil && !os.IsNotExist(readErr) {
+				t.Fatalf("ReadFile() error = %v", readErr)
+			}
+		})
+
+		t.Run("Should never retry another version or installation on listing failure", func(t *testing.T) {
+			t.Parallel()
+
+			executor := &fakeDiscoveryExecutor{}
+			executor.handle = func(req DiscoveryCommandRequest) (DiscoveryCommandResult, error) {
+				if slices.Equal(req.Args, []string{"--version"}) {
+					return DiscoveryCommandResult{Stdout: "opencode v2.0.32\n"}, nil
+				}
+				return DiscoveryCommandResult{
+					Stdout:   "SHOULD NOT ECHO STDOUT",
+					Stderr:   "token=sentinel-list-secret leaked?",
+					ExitCode: 1,
+				}, nil
+			}
+			source := newLiveSourceForTest(t, "opencode", compozyconfig.BuiltinProviders()["opencode"],
+				&LiveProviderSourcesConfig{
+					BaseEnv:         openCodeFixtureEnv(t),
+					CommandExecutor: executor,
+				})
+			_, err := source.ListModels(testutil.Context(t), ListOptions{Now: testTime(0)})
+			if err == nil || !strings.Contains(err.Error(), "exited 1") {
+				t.Fatalf("ListModels() error = %v, want listing exit failure", err)
+			}
+			if strings.Contains(err.Error(), "sentinel-list-secret") ||
+				strings.Contains(err.Error(), "SHOULD NOT ECHO STDOUT") {
+				t.Fatalf("listing diagnostic leaks raw output: %v", err)
+			}
+			if got := len(executor.allRequests(t)); got != 2 {
+				t.Fatalf("len(requests) = %d, want version plus one listing", got)
+			}
+		})
 	})
 
 	t.Run("Should fail closed for Pi without configured discovery path", func(t *testing.T) {
@@ -1727,6 +2471,7 @@ type fakeDiscoveryExecutor struct {
 	mu       sync.Mutex
 	result   DiscoveryCommandResult
 	err      error
+	handle   func(DiscoveryCommandRequest) (DiscoveryCommandResult, error)
 	requests []DiscoveryCommandRequest
 }
 
@@ -1770,8 +2515,14 @@ func (e *fakeDiscoveryExecutor) RunDiscoveryCommand(
 ) (DiscoveryCommandResult, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
+	handle := e.handle
+	result := e.result
+	err := e.err
 	e.mu.Unlock()
-	return e.result, e.err
+	if handle != nil {
+		return handle(req)
+	}
+	return result, err
 }
 
 func (e *fakeDiscoveryExecutor) singleRequest(t *testing.T) DiscoveryCommandRequest {
@@ -1783,6 +2534,36 @@ func (e *fakeDiscoveryExecutor) singleRequest(t *testing.T) DiscoveryCommandRequ
 		t.Fatalf("len(requests) = %d, want 1", len(e.requests))
 	}
 	return e.requests[0]
+}
+
+func (e *fakeDiscoveryExecutor) allRequests(t *testing.T) []DiscoveryCommandRequest {
+	t.Helper()
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]DiscoveryCommandRequest(nil), e.requests...)
+}
+
+// writeOpenCodeFixture creates a resolvable native executable placeholder. The
+// fake executor stands in for the subprocess boundary, so the fixture only
+// proves selector resolution without executing anything.
+func writeOpenCodeFixture(t *testing.T) string {
+	t.Helper()
+
+	binDir := t.TempDir()
+	path := filepath.Join(binDir, "opencode")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(opencode fixture) error = %v", err)
+	}
+	return binDir
+}
+
+func openCodeFixtureEnv(t *testing.T, extra ...string) []string {
+	t.Helper()
+
+	binDir := writeOpenCodeFixture(t)
+	env := []string{"PATH=" + binDir, "HOME=" + t.TempDir()}
+	return append(env, extra...)
 }
 
 type blockingProviderSource struct {

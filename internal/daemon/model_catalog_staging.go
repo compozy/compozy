@@ -120,6 +120,14 @@ func refreshStagedLive(
 					err,
 				)
 			}
+			// A changed OpenCode invocation selector partitions rows: prior rows
+			// stay stored but never transfer into the new invocation's
+			// generation. Other providers retain their established stale
+			// transfer behavior.
+			if providerID == "opencode" &&
+				liveInvocationSelectorChanged(live.sources[providerID], live.previous[providerID]) {
+				previousExecutionContext = modelcatalog.CatalogExecutionContext{}
+			}
 			statuses, refreshErr := plan.Refresh(ctx, live.sources[providerID], modelcatalog.RefreshOptions{
 				ProviderID:               providerID,
 				ExecutionContext:         executionContext,
@@ -249,4 +257,25 @@ func previousLiveExecutionContext(
 		return modelcatalog.CatalogExecutionContext{}, err
 	}
 	return executionContext.WithCommandFingerprint(fingerprint)
+}
+
+// liveInvocationSelectorChanged reports whether the staged source resolves a
+// different invocation than the previously published one. Fingerprint errors
+// fail closed: without a stable comparison, no prior rows transfer.
+func liveInvocationSelectorChanged(
+	next *modelcatalog.LiveProviderSource,
+	previous *modelcatalog.LiveProviderSource,
+) bool {
+	if next == nil || previous == nil {
+		return false
+	}
+	nextFingerprint, err := next.CatalogExecutionFingerprint()
+	if err != nil {
+		return true
+	}
+	previousFingerprint, err := previous.CatalogExecutionFingerprint()
+	if err != nil {
+		return true
+	}
+	return nextFingerprint != previousFingerprint
 }

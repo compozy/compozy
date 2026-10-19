@@ -331,6 +331,7 @@ func liveDiscoveryConfigChanged(
 	next compozyconfig.ProviderConfig,
 ) bool {
 	return strings.TrimSpace(current.Command) != strings.TrimSpace(next.Command) ||
+		current.CommandIsBuiltin != next.CommandIsBuiltin ||
 		current.RuntimeProviderName("") != next.RuntimeProviderName("") ||
 		!reflect.DeepEqual(current.Models.Discovery, next.Models.Discovery) ||
 		strings.TrimSpace(current.BaseURL) != strings.TrimSpace(next.BaseURL) ||
@@ -381,6 +382,20 @@ func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) (
 		}
 		return rows, nil
 	case liveDiscoveryCommand:
+		if isAutomaticOpenCodeDiscovery(s.providerID, provider) {
+			rows, err := s.listOpenCode(
+				runCtx,
+				provider,
+				env,
+				opts.ExecutionContext.CommandFingerprint,
+				timeout,
+				now,
+			)
+			if err != nil {
+				return nil, err
+			}
+			return rows, nil
+		}
 		rows, err := s.listCommand(runCtx, target.command, env, timeout, now)
 		if err != nil {
 			return nil, err

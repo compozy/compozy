@@ -34,7 +34,7 @@ The built-in registry lives in `internal/config/provider.go`.
 | `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`                                             | `claude-sonnet-5`           | `native_cli`   | provider login       |
 | `codex`             | `acp`    | `codex`             | `npx -y @agentclientprotocol/codex-acp@latest`                                                    | `gpt-5.6-sol`               | `native_cli`   | provider login       |
 | `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                                                    | `gemini-3.1-pro-preview`    | `native_cli`   | provider login       |
-| `opencode`          | `acp`    | `opencode`          | `npx -y opencode-ai@latest acp`                                                                   | none                        | `native_cli`   | provider login       |
+| `opencode`          | `acp`    | `opencode`          | `opencode acp`                                                                                    | none                        | `native_cli`   | provider login       |
 | `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                                                           | none                        | `native_cli`   | provider login       |
 | `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                                                                | none                        | `native_cli`   | provider login       |
 | `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                                                        | none                        | `native_cli`   | provider login       |
@@ -223,7 +223,14 @@ change is limited to `hidden`, `featured`, `deprecated`, a default reasoning eff
 
 Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Agy inspect a
 short-lived ACP session. Agy publishes the exact advertised model IDs with unobserved pricing, context, reasoning, and speed; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
-logical model IDs, and keeps the alias bindings private. At launch, CompozyOS resolves the selected
+logical model IDs, and keeps the alias bindings private. OpenCode probes the selected
+installation with `--version`, then lists v1 models with `models --verbose` or v2 models through
+`opencode api --standalone`, using the workspace-scoped `model.list` operation from
+[OpenCode's API](https://opencode.ai/v2/docs/api/). The inherited launch prefers an
+installed `opencode acp` and uses the `npx -y opencode-ai@latest acp` runner only when no native
+executable exists. An explicit `command` (including `VAR=value` prefixes and wrapper commands) keeps
+its installation selector and never gains an npm fallback; refresh re-detects the version without
+replacing an active session. At launch, CompozyOS resolves the selected
 logical model plus Reasoning, Fast, and Thinking back to one alias and starts
 `cursor-agent --model <alias> acp`. When discovery fails, the catalog records source status and keeps the
 last successful rows as stale data. Cursor uses the operator home required by its native login.
@@ -606,14 +613,15 @@ For example, this is valid:
 command = "reviewer-acp --profile \"team default\""
 ```
 
-But shell-only behavior is not applied:
+But shell expansion is not applied:
 
 ```toml
 [providers.bad-example]
-command = "MY_FLAG=1 reviewer-acp"
+command = "reviewer-acp --profile $HOME"
 ```
 
-Set environment variables before starting the daemon instead.
+Write literal values instead. Leading `NAME=value` tokens, by contrast, are kept as private
+environment for that subprocess; they are not expanded either.
 
 ## Models and authentication
 

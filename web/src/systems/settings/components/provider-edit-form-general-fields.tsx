@@ -77,7 +77,13 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           <Input
             className="w-72 font-mono"
             data-testid="settings-providers-editor-command-input"
-            onChange={event => onChange(current => ({ ...current, command: event.target.value }))}
+            onChange={event =>
+              onChange(current => ({
+                ...current,
+                command: event.target.value,
+                command_dirty: true,
+              }))
+            }
             placeholder="npx @agentclientprotocol/claude-agent-acp@latest"
             value={draft.command}
           />

@@ -295,6 +295,20 @@ Missing effort metadata is unconfirmed capability, not proof that the provider m
 Confirm a requested effort through effective runtime and ACP current-value readback after a prompt;
 selected intent alone is not evidence that the provider applied it.
 
+For OpenCode, discovery follows the installed major: `opencode --version`, then `models --verbose`
+(v1) or `api --standalone GET /api/model` scoped to the workspace directory (v2). The inherited
+command is `opencode acp` and prefers the installed CLI; the `npx -y opencode-ai@latest acp` runner
+applies only when no native executable exists, and a selected installation's failure never falls back
+to another one. Explicit `command` values (including `VAR=value` prefixes and wrapper commands) keep
+their selector; when no `models.discovery.command` overrides it, the automatic version probe and
+catalog method run through that command, and opaque wrappers cannot prove installation equivalence,
+so actual ACP negotiation stays authoritative. Refresh re-detects the
+version without replacing an active session; a fresh bind or restart re-resolves the current
+configuration. Treat `model_unavailable`/`reasoning_effort_unsupported` as terminal input
+diagnostics: the provider rejected the selection before inference, and no silent substitution
+occurred. Executable presence alone is not authenticated status; run
+`compozy provider auth status opencode` for the selected installation.
+
 Use structured output when agents need to inspect or route results.
 
 ### Session Folders And Manual Order
@@ -744,6 +758,11 @@ and redacts credential material from errors. CLI fallbacks are `compozy provider
 `auth_required` (sign in to the provider), `timeout` (retry discovery), or `refresh_failed`.
 Use that classification for guidance; `last_error` is redacted diagnostic detail. One
 provider's failed discovery does not invalidate other providers or cached/curated rows.
+
+The Web Runtime selector's All models view browses curated rows plus any pinned recent or favorite,
+curated or not. A provider chip or search exposes the full catalog without changing curation,
+including when all curated entries are deprecated.
+Authentication and runtime model validation still apply; OpenCode v1 and v2 share this behavior.
 
 Provider discovery, automatic refresh, stale fallback, logical IDs, private aliases, and curated views
 are defined once in

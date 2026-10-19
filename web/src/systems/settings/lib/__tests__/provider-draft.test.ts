@@ -103,3 +103,34 @@ describe("providerDraft ACP sign-in method", () => {
     expect(emptyProviderDraft().auth_acp_method).toBe("");
   });
 });
+
+describe("providerDraft command authorship", () => {
+  it("omits an untouched inherited command from the request", () => {
+    const draft = providerDraftFromEntry(nativeACPEntry({ command_inherited: true }));
+    expect(draft.command_inherited).toBe(true);
+    expect(providerDraftToRequest(draft).settings).not.toHaveProperty("command");
+  });
+
+  it("submits typed text when the operator edits an inherited command", () => {
+    const draft = {
+      ...providerDraftFromEntry(nativeACPEntry({ command_inherited: true })),
+      command: "npx -y opencode-ai@latest acp",
+      command_dirty: true,
+    };
+    expect(providerDraftToRequest(draft).settings?.command).toBe("npx -y opencode-ai@latest acp");
+  });
+
+  it("keeps an untouched authored command through an unrelated save", () => {
+    const draft = { ...providerDraftFromEntry(nativeACPEntry()), display_name: "Renamed" };
+    expect(providerDraftToRequest(draft).settings?.command).toBe("agy_acp_server.par --uid=");
+  });
+
+  it("omits a cleared authored command so the daemon returns to the default", () => {
+    const draft = {
+      ...providerDraftFromEntry(nativeACPEntry()),
+      command: "",
+      command_dirty: true,
+    };
+    expect(providerDraftToRequest(draft).settings).not.toHaveProperty("command");
+  });
+});

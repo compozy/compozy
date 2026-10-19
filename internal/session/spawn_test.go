@@ -1100,6 +1100,76 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 	}
 }
 
+func TestSpawnProviderRouteOriginInheritance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inherit the creator route command and origin", func(t *testing.T) {
+		t.Parallel()
+
+		binDir := t.TempDir()
+		npxPath := filepath.Join(binDir, "npx")
+		if err := os.WriteFile(npxPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatalf("WriteFile(npx) error = %v", err)
+		}
+
+		h := newHarness(t)
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		provider := workspace.Config.Providers["opencode"]
+		provider.Command = npxPath + " acp"
+		provider.CommandIsBuiltin = false
+		workspace.Config.Providers["opencode"] = provider
+		workspace.Agents = []compozyconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "opencode",
+			Prompt:   "You are a coding assistant.",
+		}}
+		h.resolver.upsert(&workspace)
+
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		parentRouting := parent.providerRoutingSnapshot()
+		if parentRouting.CommandIsBuiltin {
+			t.Fatalf("parent routing = %#v, want the authored installation", parentRouting)
+		}
+		if got, want := parentRouting.Command, npxPath+" acp"; got != want {
+			t.Fatalf("parent command = %q, want %q", got, want)
+		}
+
+		// A configuration edit must not redirect the running creator: the child inherits its route.
+		delete(workspace.Config.Providers, "opencode")
+		h.resolver.upsert(&workspace)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			Workspace:       h.workspaceID,
+			TTL:             time.Minute,
+			ChainOwner:      ChainOwnerCaller,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+
+		childRouting := child.providerRoutingSnapshot()
+		if got := childRouting.Command; got != parentRouting.Command {
+			t.Fatalf("child command = %q, want the inherited creator command %q", got, parentRouting.Command)
+		}
+		if childRouting.CommandIsBuiltin {
+			t.Fatalf("child routing = %#v, want the creator route origin inherited", childRouting)
+		}
+	})
+}
+
 func TestSpawnProviderRouteDiagnostics(t *testing.T) {
 	t.Parallel()
 	t.Run(

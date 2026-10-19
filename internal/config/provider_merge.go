@@ -13,6 +13,7 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	}
 	if strings.TrimSpace(override.Command) != "" {
 		merged.Command = override.Command
+		merged.CommandIsBuiltin = false
 	}
 	if strings.TrimSpace(override.DisplayName) != "" {
 		merged.DisplayName = override.DisplayName

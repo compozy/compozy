@@ -14,6 +14,8 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 )
 
+const noDiscoveryDiagnostic = "no diagnostic output"
+
 func (s *LiveProviderSource) listCommand(
 	ctx context.Context,
 	command string,
@@ -49,7 +51,7 @@ func (s *LiveProviderSource) listCommand(
 			detail = firstNonEmptyLine(result.Stdout)
 		}
 		if detail == "" {
-			detail = "no diagnostic output"
+			detail = noDiscoveryDiagnostic
 		}
 		return nil, fmt.Errorf(
 			"model catalog: discovery command for %q exited %d: %s",

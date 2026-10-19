@@ -13,6 +13,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
+	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -286,6 +287,18 @@ func NativeCLIStatus(
 	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) (*providerauth.NativeCLIStatus, error) {
+	if env != nil && compozyconfig.CanonicalProviderName(env.ProviderName) == "opencode" &&
+		strings.TrimSpace(provider.AuthStatusCmd) == "" {
+		status, err := LaunchCommandStatus(ctx, provider, env)
+		if err != nil {
+			return providerauth.NativeCLIStatusForCommand(
+				strings.TrimSpace(provider.Command),
+				providerauth.NativeCLISourceCommand,
+				func(string) (string, error) { return "", err },
+			)
+		}
+		return status, nil
+	}
 	command, source := providerauth.NativeCLICommand(provider)
 	if source == providerauth.NativeCLISourceAuthStatus && env != nil {
 		prepared, err := PrepareAuthStatusCommand(ctx, provider, env)
@@ -336,6 +349,29 @@ func LaunchCommandStatus(
 			strings.TrimSpace(provider.Command),
 			providerauth.NativeCLISourceCommand,
 			resolved,
+		)
+	}
+	if normalized.ProviderName != "" &&
+		compozyconfig.CanonicalProviderName(normalized.ProviderName) == "opencode" {
+		launch, resolveErr := providerexec.ResolveOpenCodeCommand(
+			provider,
+			normalized.CommandEnv,
+			normalized.CommandDir,
+		)
+		if resolveErr == nil {
+			return nativeCLIStatusForResolvedExecutable(
+				strings.TrimSpace(provider.Command),
+				providerauth.NativeCLISourceCommand,
+				launch.Executable,
+			)
+		}
+		if !errors.Is(resolveErr, exec.ErrNotFound) {
+			return nil, resolveErr
+		}
+		return providerauth.NativeCLIStatusForCommand(
+			strings.TrimSpace(provider.Command),
+			providerauth.NativeCLISourceCommand,
+			func(string) (string, error) { return "", resolveErr },
 		)
 	}
 	lookPath := normalized.LookPath

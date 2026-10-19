@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -31,6 +32,11 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
+	if strings.TrimSpace(startOpts.Command) != strings.TrimSpace(runtime.agent.Command) {
+		runtime.configuredCommand = strings.TrimSpace(runtime.agent.Command)
+		runtime.agent.Command = strings.TrimSpace(startOpts.Command)
+		runtime.agent.CommandIsBuiltin = false
+	}
 	startOpts.Cwd, err = normalizeSessionLaunchCWD(spec, startOpts.Cwd)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook cwd is invalid", err)
@@ -41,29 +47,8 @@ func (m *Manager) prepareSessionLaunch(
 	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, runtime.agent, startOpts)
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
-		tools, toolErr := concreteDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse)
-		if toolErr != nil {
-			return acp.StartOpts{}, startupFailure("session replay tool surface resolution failed", toolErr)
-		}
-		historyAvailable := runtime.agent.SessionMCP && m.hostedMCP != nil &&
-			slices.Contains(tools, toolspkg.ToolIDSessionHistory.String())
-		meta := session.Meta()
-		policy := store.NormalizeSessionLineage(meta.ID, meta.Lineage).PermissionPolicy
-		if len(policy.Tools) > 0 {
-			historyAvailable = historyAvailable && slices.Contains(policy.Tools, toolspkg.ToolIDSessionHistory.String())
-		}
-		options := rebuildReplayContext{
-			workspace: &spec.workspace, historyAvailable: historyAvailable, reason: spec.resumeReplayReason,
-		}
-		if spec.resumeReplayBlock != "" {
-			spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.reboundResumeReplay(
-				session, spec.resumeReplayBlock, options,
-			)
-		} else {
-			spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.buildResumeReplay(ctx, session, options)
-		}
-		if err != nil {
-			return acp.StartOpts{}, startupFailure("session replay preparation failed", err)
+		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {
+			return acp.StartOpts{}, err
 		}
 	}
 	releaseCommit, err := acquireSessionStartLaunchCommit(ctx, run)
@@ -91,6 +76,39 @@ func (m *Manager) prepareSessionLaunch(
 		)
 	}
 	return startOpts, nil
+}
+
+func (m *Manager) prepareSessionReplay(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	session *Session,
+	runtime *sessionStartRuntime,
+) error {
+	tools, err := concreteDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse)
+	if err != nil {
+		return startupFailure("session replay tool surface resolution failed", err)
+	}
+	historyAvailable := runtime.agent.SessionMCP && m.hostedMCP != nil &&
+		slices.Contains(tools, toolspkg.ToolIDSessionHistory.String())
+	meta := session.Meta()
+	policy := store.NormalizeSessionLineage(meta.ID, meta.Lineage).PermissionPolicy
+	if len(policy.Tools) > 0 {
+		historyAvailable = historyAvailable && slices.Contains(policy.Tools, toolspkg.ToolIDSessionHistory.String())
+	}
+	options := rebuildReplayContext{
+		workspace: &spec.workspace, historyAvailable: historyAvailable, reason: spec.resumeReplayReason,
+	}
+	if spec.resumeReplayBlock != "" {
+		spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.reboundResumeReplay(
+			session, spec.resumeReplayBlock, options,
+		)
+	} else {
+		spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.buildResumeReplay(ctx, session, options)
+	}
+	if err != nil {
+		return startupFailure("session replay preparation failed", err)
+	}
+	return nil
 }
 
 func normalizeSessionLaunchCWD(spec *sessionStartSpec, requested string) (string, error) {

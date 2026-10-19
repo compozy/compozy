@@ -9,8 +9,10 @@ import (
 
 // ProviderSettings is the editable provider overlay payload.
 type ProviderSettings struct {
-	SteerCapability  compozyconfig.SteerCapability
-	Command          string
+	SteerCapability compozyconfig.SteerCapability
+	Command         string
+	// CommandInherited reports the inherited builtin default rather than an authored override.
+	CommandInherited bool
 	DisplayName      string
 	Models           compozyconfig.ProviderModelsConfig
 	ModelsSet        bool

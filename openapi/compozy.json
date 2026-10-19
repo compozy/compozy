@@ -27379,6 +27379,9 @@
           "command": {
             "type": "string"
           },
+          "command_inherited": {
+            "type": "boolean"
+          },
           "credential_slots": {
             "items": {
               "$ref": "#/components/schemas/SettingsProviderCredentialSlotPayload"

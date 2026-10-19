@@ -103,20 +103,21 @@ func settingsProviderItemPayload(value *settingspkg.ProviderItem) contract.Setti
 
 func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contract.SettingsProviderSettingsPayload {
 	return contract.SettingsProviderSettingsPayload{
-		Command:         strings.TrimSpace(value.Command),
-		DisplayName:     strings.TrimSpace(value.DisplayName),
-		Models:          settingsProviderModelsPayload(value.Models),
-		Harness:         string(value.Harness),
-		RuntimeProvider: strings.TrimSpace(value.RuntimeProvider),
-		Transport:       strings.TrimSpace(value.Transport),
-		BaseURL:         strings.TrimSpace(value.BaseURL),
-		AuthMode:        string(value.AuthMode),
-		EnvPolicy:       string(value.EnvPolicy),
-		HomePolicy:      string(value.HomePolicy),
-		SteerCapability: value.SteerCapability,
-		AuthStatusCmd:   strings.TrimSpace(value.AuthStatusCmd),
-		AuthACPMethod:   strings.TrimSpace(value.AuthACPMethod),
-		CredentialSlots: settingsProviderCredentialSlotPayloads(value.CredentialSlots),
+		Command:          strings.TrimSpace(value.Command),
+		CommandInherited: value.CommandInherited,
+		DisplayName:      strings.TrimSpace(value.DisplayName),
+		Models:           settingsProviderModelsPayload(value.Models),
+		Harness:          string(value.Harness),
+		RuntimeProvider:  strings.TrimSpace(value.RuntimeProvider),
+		Transport:        strings.TrimSpace(value.Transport),
+		BaseURL:          strings.TrimSpace(value.BaseURL),
+		AuthMode:         string(value.AuthMode),
+		EnvPolicy:        string(value.EnvPolicy),
+		HomePolicy:       string(value.HomePolicy),
+		SteerCapability:  value.SteerCapability,
+		AuthStatusCmd:    strings.TrimSpace(value.AuthStatusCmd),
+		AuthACPMethod:    strings.TrimSpace(value.AuthACPMethod),
+		CredentialSlots:  settingsProviderCredentialSlotPayloads(value.CredentialSlots),
 	}
 }
 

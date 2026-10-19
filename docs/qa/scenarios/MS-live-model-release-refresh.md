@@ -53,3 +53,19 @@ release aliases. Cancelling an ACP inspection returns `context.Canceled` without
 partial snapshot; exhausting only the probe deadline still returns the advertised models. The
 existing `TestInspectSessionModels` subprocess suite covers cancellation during the first and
 last probes, and `TestLiveProviderSources` covers custom-row ordering in the curated view.
+
+QA impact 2026-10-18, opencode-model-discovery Task 03 (fixture proof only; live legs unverified): with the v1 fixture advertising `openrouter/acme/coding-default`, switch the fixture to v2 in place, press the composer picker refresh, and confirm `openai/qa-next` appears and is selectable without a code update. A malformed v2 payload after a valid row must fail the refresh while keeping the last complete rows stale; restoring a valid payload recovers on the next forced refresh. Changing the installation selector partitions rows under the new fingerprint; prior rows stay stored but no longer satisfy live/stale reads for the new invocation. Live vendor release/refresh legs remain unverified (Task 05 / V-001).
+
+QA 2026-10-18, opencode-model-discovery Task 05 (live, installed v2.0.32): forced refresh publishes 92 live rows with no code update; 1s-timeout failure keeps prior rows stale and a forced retry recovers fresh; explicit-selector refresh partitions under the new fingerprint with the same row count. Report: [2026-10-18 task05](../reports/2026-10-18-opencode-model-discovery-task05.md). Live vendor release-delta (a genuinely new advertised model) and browser-picker refresh-button legs stay unverified.
+
+QA impact 2026-10-18, selector follow-up: with an explicit curated set (including one consisting
+entirely of deprecated entries), click the OpenCode chip without entering a search. Refresh under
+v1, then switch the executable fixture to v2 and refresh again. Every advertised enabled model must
+remain browseable and selectable with exact IDs; no curation rewrite or account substitution is
+allowed. The All models curated projection and public catalog views remain unchanged.
+
+Selector retest: **pass** in the daemon-served v1→v2 executable-fixture refresh journey, with
+retired curation and empty-search selection (full provider-override spec 4/4). Live v2.0.32
+picker replay also exposed all 92 available rows. This verifies the browsing regression, not a
+genuinely new vendor release; see the selector follow-up in the
+[2026-10-18 report](../reports/2026-10-18-opencode-model-discovery-task05.md).

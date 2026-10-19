@@ -63,6 +63,19 @@ func TestPreStarter(t *testing.T) {
 		assertMissingCLIReport(t, report)
 	})
 
+	t.Run("Should keep npm-only OpenCode readiness unknown instead of missing", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeExecutableFixtureIn(t, dir, "npx", true)
+		report := NewPreStarter().PreStart(
+			testutil.Context(t),
+			compozyconfig.BuiltinProviders()["opencode"],
+			&ProbeEnv{ProviderName: "opencode", CommandEnv: []string{"PATH=" + dir}},
+		)
+		assertNoPreStartReport(t, report)
+	})
+
 	t.Run("Should return credential unresolved item when required env ref is absent", func(t *testing.T) {
 		t.Parallel()
 

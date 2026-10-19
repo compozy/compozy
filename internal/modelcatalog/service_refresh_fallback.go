@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,7 @@ func (s *CatalogService) recordEmptySourceFailure(
 	historyExecutionContext, err := failureHistoryExecutionContext(
 		executionContext,
 		previousExecutionContext,
+		denyCrossInvocationTransfer(source),
 	)
 	if err != nil {
 		return nil, refreshOutcomeEmpty, err
@@ -79,6 +81,7 @@ func (s *CatalogService) recordEmptySourceFailure(
 func failureHistoryExecutionContext(
 	current CatalogExecutionContext,
 	previous CatalogExecutionContext,
+	denyCrossInvocationTransfer bool,
 ) (CatalogExecutionContext, error) {
 	current, err := NormalizePersistedExecutionContext(current)
 	if err != nil {
@@ -98,5 +101,24 @@ func failureHistoryExecutionContext(
 			"model catalog: previous execution context must match the current ownership scope",
 		)
 	}
+	// A changed OpenCode invocation selector partitions rows: prior rows stay
+	// stored but never prove availability for the new invocation. Explicit
+	// discovery commands on other providers retain their established stale
+	// behavior.
+	if denyCrossInvocationTransfer &&
+		strings.TrimSpace(previous.CommandFingerprint) != strings.TrimSpace(current.CommandFingerprint) {
+		return current, nil
+	}
 	return previous, nil
+}
+
+// denyCrossInvocationTransfer reports whether stale rows must never cross an
+// invocation-selector change. Only the automatic OpenCode partition embeds
+// the resolved selector; other providers keep their established stale
+// transfer behavior.
+func denyCrossInvocationTransfer(source Source) bool {
+	if source == nil {
+		return false
+	}
+	return strings.TrimSpace(source.ID()) == SourceKindProviderLiveID(liveSourcesOpencodeKey)
 }

@@ -6,6 +6,7 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	}
 	if o.Command != nil {
 		dst.Command = *o.Command
+		dst.CommandIsBuiltin = false
 	}
 	if o.DisplayName != nil {
 		dst.DisplayName = *o.DisplayName

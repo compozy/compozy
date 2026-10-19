@@ -3197,6 +3197,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		correctProviderSettingsCommandAuthorship(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3598,6 +3599,24 @@ func addQueuedInputMentions(t *testing.T, baseline map[string]any) {
 	if added == 0 {
 		t.Fatal("approved mentions addition: no queued-input payload schema found in the historical baseline")
 	}
+}
+
+// correctProviderSettingsCommandAuthorship records the read-payload addition the baseline predates.
+func correctProviderSettingsCommandAuthorship(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	addInherited := func(settings any) {
+		properties := settings.(map[string]any)["properties"].(map[string]any)
+		if _, ok := properties["command_inherited"]; !ok {
+			properties["command_inherited"] = map[string]any{"type": "boolean"}
+		}
+	}
+	listItems := paths["/api/settings/providers"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)["properties"].(map[string]any)["providers"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	addInherited(listItems["settings"])
+	addInherited(listItems["fallback"].(map[string]any)["properties"].(map[string]any)["settings"])
+	provider := paths["/api/settings/providers/{name}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)["properties"].(map[string]any)["provider"].(map[string]any)["properties"].(map[string]any)
+	addInherited(provider["settings"])
+	addInherited(provider["fallback"].(map[string]any)["properties"].(map[string]any)["settings"])
 }
 
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {
