@@ -7,15 +7,34 @@ import (
 	"github.com/compozy/compozy/internal/mention"
 )
 
+// MentionReferenceForm names the session-references block form chosen for a dispatch.
+type MentionReferenceForm string
+
+const (
+	// MentionReferenceFormReference tells the agent to read each session with compozy__session_history.
+	MentionReferenceFormReference MentionReferenceForm = "reference"
+	// MentionReferenceFormInline carries a budgeted history tail per referenced session.
+	MentionReferenceFormInline MentionReferenceForm = "inline"
+	// MentionReferenceFormUnavailable lists the references without any history access.
+	MentionReferenceFormUnavailable MentionReferenceForm = "unavailable"
+)
+
+// MentionReferences is the rendered session-references block for one dispatch.
+// Text is empty when no referenced session is still available.
+type MentionReferences struct {
+	Text     string
+	Form     MentionReferenceForm
+	Sessions int // referenced sessions still available and rendered
+}
+
 // MentionReferenceRenderer renders the session-references text block for one dispatch.
 // humanIngress reports whether the prompt came from human operator ingress.
-// It returns "" when no referenced session is still available.
 type MentionReferenceRenderer func(
 	ctx context.Context,
 	target *Session,
 	refs []mention.Mention,
 	humanIngress bool,
-) (string, error)
+) (MentionReferences, error)
 
 // WithMentionReferenceRenderer installs the daemon renderer for session mentions.
 func WithMentionReferenceRenderer(renderer MentionReferenceRenderer) Option {
