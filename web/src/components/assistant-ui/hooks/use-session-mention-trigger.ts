@@ -18,8 +18,9 @@ export function useSessionMentionTrigger() {
   return {
     mentionTrigger: trigger,
     mentionRecents: recents,
-    observeMentionTrigger: (next: SessionMentionTrigger | null) =>
-      store.trigger.observed({ trigger: next }),
+    /** `text` is the full composer text, so dismissals follow their `@` across edits. */
+    observeMentionTrigger: (next: SessionMentionTrigger | null, text?: string) =>
+      store.trigger.observed({ trigger: next, text }),
     /** Closes the open picker for this `@`; false when nothing was open. */
     dismissMentionTrigger: (): boolean => {
       if (activeMentionTrigger(store.getSnapshot().context) === null) return false;

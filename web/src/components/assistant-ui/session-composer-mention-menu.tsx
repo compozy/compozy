@@ -43,7 +43,7 @@ function MatchedText({ text, query }: { text: string; query: string }) {
     <>
       {emphasizeMatch(text, query).map((segment, index) =>
         segment.match ? (
-          <mark key={index} className="bg-transparent font-semibold text-fg-strong">
+          <mark key={index} className="bg-transparent font-[650] text-fg-strong">
             {segment.text}
           </mark>
         ) : (
@@ -67,6 +67,8 @@ function MentionMenuRow({
   if (kind === "session") {
     const titled = item.metadata?.titled === true;
     const updatedAt = typeof item.metadata?.updatedAt === "string" ? item.metadata.updatedAt : "";
+    const agent = item.description ?? "";
+    const updated = updatedAt ? formatRelativeTime(updatedAt) : "";
     return (
       <TriggerMenuRow
         item={item}
@@ -78,17 +80,21 @@ function MentionMenuRow({
         <span
           className={
             titled
-              ? "max-w-[70%] truncate font-medium"
-              : "max-w-[70%] truncate font-mono font-medium"
+              ? "max-w-[70%] shrink-0 truncate font-medium"
+              : "max-w-[70%] shrink-0 truncate font-mono text-meta font-medium"
           }
         >
           <MatchedText text={item.label} query={query} />
         </span>
-        {/* Agent and update time tell same-titled sessions apart (US-003.EC-4). */}
-        <TriggerMenuRowSecondary>
-          <MatchedText text={item.description ?? ""} query={query} />
-          {updatedAt ? ` · ${formatRelativeTime(updatedAt)}` : null}
-        </TriggerMenuRowSecondary>
+        {/* Agent and update time tell same-titled sessions apart (US-003.EC-4);
+            the separator only joins two present parts. */}
+        {agent || updated ? (
+          <TriggerMenuRowSecondary>
+            <MatchedText text={agent} query={query} />
+            {agent && updated ? " · " : null}
+            {updated}
+          </TriggerMenuRowSecondary>
+        ) : null}
       </TriggerMenuRow>
     );
   }
@@ -101,7 +107,7 @@ function MentionMenuRow({
       data-testid="composer-mention-item"
       data-mention-kind={kind === "folder" ? "folder" : "file"}
     >
-      <span className="max-w-[70%] truncate font-medium">
+      <span className="max-w-[70%] shrink-0 truncate font-medium">
         <MatchedText text={item.label} query={nameMatches ? query : ""} />
       </span>
       {item.description ? (
@@ -150,9 +156,10 @@ function MentionMenuGroups({ model, query }: { model: MentionMenuModel; query: s
 }
 
 /**
- * The open listbox renders inside assistant-ui's popover. A settled picker
- * with nothing to pick closes the listbox — so Enter sends the prompt as typed
- * (US-004.AC-3) — and keeps showing each group's message on the same surface.
+ * The open listbox renders inside assistant-ui's popover. A picker with
+ * nothing to pick — still loading its first answer, empty, or failed — keeps
+ * the listbox closed so Enter sends the prompt as typed (US-004.AC-3), and
+ * shows each group's loading, empty or error row on the same surface.
  */
 function MentionMenuBody({
   model,
@@ -220,7 +227,9 @@ export function SessionComposerMentionMenu({
   const files = useSessionFileSearch({ workspaceId, sessionId, query, enabled: active });
   const sessions = useSessionMentionSessions({ workspaceId, sessionId, query, enabled: active });
   const model = buildMentionMenuModel({ query, files, sessions, recents });
-  const listboxOpen = active && (model.items.length > 0 || model.loading);
+  // Only pickable rows open the listbox: an open listbox with no item would
+  // swallow Enter during the first load (US-004.AC-3, VC-04).
+  const listboxOpen = active && model.items.length > 0;
   const adapter = listboxOpen
     ? {
         categories: () => NO_CATEGORIES,

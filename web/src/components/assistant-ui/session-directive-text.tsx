@@ -59,10 +59,18 @@ function MessageTextFragment({ text, streaming }: { text: string; streaming: boo
   const trailingWhitespace = text.match(/\s*$/u)?.[0] ?? "";
   const content = text.slice(leadingWhitespace.length, text.length - trailingWhitespace.length);
 
+  const markdown = content ? <SessionMessageText text={content} streaming={streaming} /> : null;
   return (
     <>
       {leadingWhitespace}
-      {content ? <SessionMessageText text={content} streaming={streaming} /> : null}
+      {/* A one-line fragment flows inline with the chips beside it (VC-18):
+          its markdown wrappers dissolve and its paragraph joins the line. A
+          multi-line fragment keeps its block layout. */}
+      {markdown && !content.includes("\n") ? (
+        <span className="[&_div]:contents [&_p]:inline">{markdown}</span>
+      ) : (
+        markdown
+      )}
       {trailingWhitespace}
     </>
   );
