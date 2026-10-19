@@ -66,6 +66,7 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
         agentName: session.agent_name,
         workspaceId: session.workspace_id,
         desktopId: originDesktopRef.current ?? undefined,
+        created: true,
       }),
     onPickerOpened: () => undefined,
   });

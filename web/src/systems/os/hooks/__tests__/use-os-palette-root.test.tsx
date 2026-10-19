@@ -128,6 +128,9 @@ const paletteMocks = vi.hoisted(() => {
     fallbackAgentEnabled: false,
     fallbackPending: false,
     runFallback: vi.fn(async () => undefined),
+    fallbackOnCreated: null as
+      | ((session: { id: string; agent_name: string; workspace_id: string }) => void)
+      | null,
     openForAgent: vi.fn(),
     pending: false,
     profileAggregate: false,
@@ -195,10 +198,12 @@ vi.mock("@/systems/session", async importOriginal => ({
   getSessionDisplayTitle: (session: { id: string; name: string | null }) =>
     session.name ?? session.id,
   useSessionCreateActions: () => ({ openForAgent: paletteMocks.openForAgent }),
-  useSessionPromptFallback: () => ({
-    pending: paletteMocks.fallbackPending,
-    run: paletteMocks.runFallback,
-  }),
+  useSessionPromptFallback: (options: {
+    onCreated: NonNullable<typeof paletteMocks.fallbackOnCreated>;
+  }) => {
+    paletteMocks.fallbackOnCreated = options.onCreated;
+    return { pending: paletteMocks.fallbackPending, run: paletteMocks.runFallback };
+  },
   useSessionCatalog: (
     workspaceId: string | null,
     filters: { q?: string; badge?: string; attention?: boolean },
@@ -993,6 +998,28 @@ describe("useOsPaletteRoot", () => {
       app: "automations",
       route: { pathname: "/automations", search: { create: "1", start: "event" } },
       stackTargetWindowId: "window:new-tab",
+    });
+  });
+
+  it("Should land a prompt-fallback session as a new session through the shared jump", () => {
+    const onOpenChange = vi.fn();
+    renderRoot(true, onOpenChange);
+
+    act(() =>
+      paletteMocks.fallbackOnCreated?.({
+        id: "session:new",
+        agent_name: "codex",
+        workspace_id: "workspace:alpha",
+      })
+    );
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    // A created session prefers the operator's existing Session window (#825).
+    expect(paletteMocks.jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "session:new",
+      agentName: "codex",
+      workspaceId: "workspace:alpha",
+      created: true,
     });
   });
 

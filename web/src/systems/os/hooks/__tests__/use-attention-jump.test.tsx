@@ -13,6 +13,7 @@ let runtimeWorkspaceId = "ws-alpha";
 let commandWorkspaceId: string | null = "ws-alpha";
 const setActiveWorkspaceId = vi.fn();
 const userOpen = vi.fn(() => Promise.resolve("window-session"));
+const userOpenCreatedSession = vi.fn(() => Promise.resolve("window-session"));
 
 vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -46,7 +47,7 @@ vi.mock("../use-desktop", () => ({
 }));
 
 vi.mock("../use-os-shell", () => ({
-  useOsShell: () => ({ coordinator: { userOpen } }),
+  useOsShell: () => ({ coordinator: { userOpen, userOpenCreatedSession } }),
 }));
 
 import { useAttentionJump } from "../use-attention-jump";
@@ -90,6 +91,30 @@ describe("useAttentionJump", () => {
         },
       });
     });
+  });
+
+  it("Should land a just-created session through the created-session policy", async () => {
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({
+        sessionId: "sess-new",
+        agentName: "claude",
+        workspaceId: "ws-alpha",
+        desktopId: "desktop-origin",
+        created: true,
+      });
+    });
+
+    await waitFor(() => {
+      expect(userOpenCreatedSession).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-new",
+        route: { pathname: "/agents/claude/sessions/sess-new", search: {} },
+        desktopId: "desktop-origin",
+      });
+    });
+    expect(userOpen).not.toHaveBeenCalled();
   });
 
   it("Should resolve the sending session before opening an agent notification", async () => {

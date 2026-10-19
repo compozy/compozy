@@ -204,6 +204,7 @@ export function useOsPaletteRoot({
         sessionId: session.id,
         agentName: session.agent_name,
         workspaceId: session.workspace_id,
+        created: true,
       });
     },
     onPickerOpened: close,

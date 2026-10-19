@@ -178,6 +178,8 @@ describe("OsEmptyDesktop", () => {
       agentName: "general",
       workspaceId: "ws_alpha",
       desktopId: "desktop-origin",
+      // A just-created session prefers an existing Session window (#825).
+      created: true,
     });
     await waitFor(() => expect(composer().getState().text).toBe(""));
     expect(

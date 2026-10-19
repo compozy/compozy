@@ -29,3 +29,5 @@ untested for a complete launch-to-composer replay.
 QA 2026-08-27: a fresh Start session navigated without a launch prompt, the destination composer
 showed Grok 4.5 High/Fast before bind, and its separate first prompt completed once. CLI readback
 kept the same effective runtime after bind.
+
+QA impact 2026-10-19 (#825): a just-created session now lands in an existing Session window on the landing desktop (focused, else empty-state, else most recently focused; pinned and other-desktop windows skipped) instead of opening another window. The window choice is owned by ET-web-new-session-reuses-session-window; replay this scenario's create step with a Session window already open.

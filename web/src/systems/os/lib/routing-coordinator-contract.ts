@@ -39,4 +39,6 @@ export interface RouteReconciliation {
   route: OsWindowRoute;
   desktopDefaultView: boolean;
   inFlight: boolean;
+  /** The route lands a just-created session; retries keep preferring a Session window. */
+  createdSession?: boolean;
 }

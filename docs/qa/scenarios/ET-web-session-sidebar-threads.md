@@ -103,3 +103,5 @@ suite and rendered Storybook evidence (`SessionSidebar/AllProfiles`, `LongAgentN
 keep line 1 with All profiles on; hover and Tab reveal the row actions in the time slot; a child on
 the root's provider renders one line while a Codex child under a Claude root keeps its mark; a
 long agent name truncates before "Needs attention" and the chip/toggle stay whole.
+
+QA impact 2026-10-19 (#825): a just-created session now lands in an existing Session window on the landing desktop (focused, else empty-state, else most recently focused; pinned and other-desktop windows skipped) instead of opening another window. The window choice is owned by ET-web-new-session-reuses-session-window; replay this scenario's create step with a Session window already open.

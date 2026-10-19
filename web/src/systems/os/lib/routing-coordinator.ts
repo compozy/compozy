@@ -2,6 +2,7 @@ import {
   resolveAppDescriptorForPath as resolveAppForPath,
   SESSION_EMPTY_PATH,
 } from "./app-catalog";
+import { createdSessionHostWindow, landCreatedSession } from "./created-session-window";
 import type { OsOpenTarget, OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
 import { mruWindowInstance } from "./window-instance-lookup";
 import type {
@@ -13,6 +14,7 @@ import {
   isDesktopDefaultViewIntent,
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
+import { decideRouteReconciliation } from "./routing-route-decision";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
@@ -46,14 +48,14 @@ export class RoutingCoordinator {
   private nextReconciliationToken = 0;
   private nextUserRetargetToken = 0;
   /**
-   * Bumped by every navigation the coordinator did not write itself and by
-   * every explicit user navigation. A user command that is still waiting on
-   * the daemon compares its token before writing history: a newer intent
-   * already owns the URL, and a late push would drag the window back to a
-   * destination the operator has since left (rule 3 coalescing).
+   * Bumped by every navigation the coordinator did not write itself and by every explicit
+   * user navigation or focus choice. A user command still waiting on the daemon compares its
+   * token before writing history or taking focus: a newer intent already owns the URL, and a
+   * late push would drag the operator back to a destination they left (rule 3 coalescing).
    */
   private nextUserIntentToken = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
+  private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
 
   constructor(manager: RoutingManager, router: OsRouterPort) {
     this.manager = manager;
@@ -179,6 +181,17 @@ export class RoutingCoordinator {
   }
 
   /**
+   * The New session dialog names its session before navigating, so the reconciliation that
+   * lands it prefers an existing Session window (#825). Only that route or a newer
+   * reconciliation consumes the hint; it survives a workspace switch (held deep link).
+   */
+  noteCreatedSession(sessionId: string): void {
+    const instanceKey = sessionId.trim();
+    const afterToken = this.nextReconciliationToken;
+    this.createdSessionIntent = instanceKey ? { instanceKey, afterToken } : null;
+  }
+
+  /**
    * User controls whose destination is safe without a live window-manager
    * client can write URL intent immediately. Route reconciliation keeps that
    * intent pending until the command fence becomes available.
@@ -212,6 +225,24 @@ export class RoutingCoordinator {
     return id;
   }
 
+  /** Launchers that open a just-created session directly: prefer an existing Session window. */
+  async userOpenCreatedSession(
+    target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
+  ): Promise<string | null> {
+    const host = createdSessionHostWindow(this.manager.getState(), target);
+    if (host === null) return this.userOpen(target);
+    const intentToken = ++this.nextUserIntentToken;
+    const isCurrent = () => intentToken === this.nextUserIntentToken;
+    const outcome = landCreatedSession(this.manager, host, target, isCurrent);
+    if (await outcome.completion) {
+      if (isCurrent()) this.pushRoute(target.route);
+      return host.id;
+    }
+    // Another client closed the host first: choose again (a new window when none is left).
+    const hostGone = !this.manager.getState().windows[host.id];
+    return hostGone && isCurrent() ? this.userOpenCreatedSession(target) : null;
+  }
+
   /**
    * Window activation (pointerdown, Tab, Enter — Routing Model rule 5). When
    * the activation target is a link, the link's own navigation writes the one
@@ -222,7 +253,9 @@ export class RoutingCoordinator {
     const win = state.windows[windowId];
     const alreadyActive =
       state.focusedId === windowId && !win?.minimized && win?.stackActive === true;
-    if (!win || opts.viaLink || alreadyActive) return false;
+    if (!win || opts.viaLink) return false;
+    this.nextUserIntentToken += 1;
+    if (alreadyActive) return false;
     const outcome = this.manager.focusWindow(windowId);
     if (!(await outcome.completion)) return false;
     const focused = this.manager.getState().windows[windowId];
@@ -240,6 +273,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
+    this.nextUserIntentToken += 1;
     const outcome = win.minimized
       ? this.manager.restoreWindow(windowId)
       : this.manager.focusWindow(windowId);
@@ -304,6 +338,7 @@ export class RoutingCoordinator {
   async userClose(windowId: string): Promise<boolean> {
     const state = this.manager.getState();
     if (!state.windows[windowId]) return false;
+    this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.closeWindow(windowId))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
@@ -315,6 +350,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win || win.minimized) return false;
+    this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.minimizeWindow(windowId))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
@@ -330,6 +366,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win || win.minimized) return false;
+    this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     const outcome = this.manager.zoomWindow(windowId);
     if (!(await outcome.completion)) return false;
@@ -412,61 +449,25 @@ export class RoutingCoordinator {
       this.routeReconciliation = null;
       return;
     }
-    const { app, instanceKey } = resolved;
-    // Deep links land on the most-recently-used instance of the resolved app
-    // (PRD BR-11): with multi-instance apps there is no longer a single window
-    // an ID can name.
-    const existing = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
-      app: app.id,
-      instanceKey,
+    const intent = this.createdSessionIntent;
+    const matches = intent?.instanceKey === resolved.instanceKey;
+    if (matches || (intent && pending.token > intent.afterToken)) this.createdSessionIntent = null;
+    const createdSession = pending.createdSession === true || matches;
+    const tracked = createdSession ? { ...pending, createdSession } : pending;
+    const intentToken = this.nextUserIntentToken;
+    const outcome = decideRouteReconciliation(this.manager, {
+      resolved,
+      route,
+      desktopDefaultView,
+      mode,
+      createdSession,
+      isCurrent: () => intentToken === this.nextUserIntentToken,
     });
-    if (route.pathname === "/") {
-      // A bare `/` is where an empty desktop lands. Reusing a dashboard on
-      // another desktop would focus it and switch the client straight back, so
-      // only the explicit default-view intent may reach across desktops.
-      const onActiveDesktop = existing?.desktopId === (state.client?.activeDesktopId ?? null);
-      if (!desktopDefaultView && !onActiveDesktop) {
-        this.routeReconciliation = null;
-        return;
-      }
-      if (
-        existing &&
-        state.focusedId === existing.id &&
-        !existing.minimized &&
-        sameOsWindowRoute(existing.route, route)
-      ) {
-        this.routeReconciliation = null;
-        return;
-      }
-      this.startRouteReconciliation(pending, this.manager.openOrFocus({ app: app.id, route }));
-      return;
-    }
-    if (
-      existing &&
-      state.focusedId === existing.id &&
-      !existing.minimized &&
-      sameOsWindowRoute(existing.route, route)
-    ) {
+    if (outcome === null) {
       this.routeReconciliation = null;
       return;
     }
-    // A deep link can leave a different parent in history. Consume the stack
-    // only when it matches the breadcrumb's selected destination.
-    const canPop = sameOsWindowRoute(existing?.navStack.at(-1) ?? null, route);
-    if (mode === "pop" && existing && !existing.minimized && canPop) {
-      const outcome = this.manager.popWindowRoute(existing.id, route);
-      this.startRouteReconciliation(pending, { windowId: existing.id, ...outcome });
-      return;
-    }
-    this.startRouteReconciliation(
-      pending,
-      this.manager.openOrFocus({
-        app: app.id,
-        instanceKey: instanceKey ?? undefined,
-        route,
-        ...(mode === "push" ? { navigateMode: "push" as const } : {}),
-      })
-    );
+    this.startRouteReconciliation(tracked, outcome);
   }
 
   private startRouteReconciliation(

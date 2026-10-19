@@ -26,6 +26,7 @@ import {
   type SessionCreateDialogApi,
 } from "../use-session-create-dialog";
 import type { AgentPayload } from "@/systems/agent";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { WorkspacePayload } from "@/systems/workspace";
 import {
   buildWorktreeFixture,
@@ -175,12 +176,16 @@ const createdSession: SessionPayload = {
   updated_at: "2026-04-20T10:00:01Z",
 };
 
-function createWrapper() {
+function createWrapper(shell: OsShellHandle | null = null) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client: queryClient }, children);
+    createElement(
+      OsShellContext,
+      { value: shell },
+      createElement(QueryClientProvider, { client: queryClient }, children)
+    );
   return { wrapper };
 }
 
@@ -355,6 +360,34 @@ describe("useSessionCreateDialog", () => {
     act(() => result.current.openDialog("codex-agent"));
     await act(async () => result.current.submit());
     await waitFor(() => expect(result.current.restoreFocusOnClose).toBe(false));
+  });
+
+  it("Should name the created session to the shell before it switches workspace and navigates", async () => {
+    const otherWorkspace: WorkspacePayload = { ...activeWorkspace, id: "ws_beta", name: "beta" };
+    mockWorkspaceListRef.current = [activeWorkspace, otherWorkspace];
+    mockMutateAsync.mockResolvedValue({
+      ...createdSession,
+      id: "sess-beta",
+      workspace_id: otherWorkspace.id,
+    });
+    const noteCreatedSession = vi.fn();
+    const shell = { coordinator: { noteCreatedSession } } as unknown as OsShellHandle;
+
+    const { wrapper } = createWrapper(shell);
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent"));
+    await act(async () => result.current.submit());
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    // The coordinator lands the new session in an existing Session window (#825).
+    expect(noteCreatedSession).toHaveBeenCalledExactlyOnceWith("sess-beta");
+    expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith(otherWorkspace.id);
+    expect(noteCreatedSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSetActiveWorkspaceId.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+    );
   });
 
   it("Should activate the created session workspace before navigating", async () => {

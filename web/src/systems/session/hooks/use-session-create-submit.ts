@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { use, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
 import type { AgentPayload } from "@/systems/agent";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalQuote } from "@/systems/terminal/parts";
 import type { WorkspaceScopeMode } from "@/systems/workspace";
 
@@ -49,6 +50,7 @@ export function useSessionCreateSubmit({
   store,
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
+  const shell = use(OsShellContext);
   const createSession = useCreateSession();
   const flow = useSelector(store, snapshot => snapshot.context);
   const pendingSubmit = flow.pendingSubmit;
@@ -73,7 +75,7 @@ export function useSessionCreateSubmit({
           pendingPrompt,
           terminalQuote
         ),
-      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
+      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate, shell),
     });
   }, [
     createSessionAsync,
@@ -82,6 +84,7 @@ export function useSessionCreateSubmit({
     pendingSubmit,
     runtimeWorkspaceId,
     scope,
+    shell,
     store,
     worktreeId,
   ]);
@@ -128,7 +131,7 @@ export function useSessionCreateSubmit({
           validated.pendingPrompt,
           terminalQuote
         ),
-      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
+      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate, shell),
     });
   };
 }
@@ -162,8 +165,12 @@ async function openCreatedSession(
   session: SessionPayload,
   currentWorkspaceId: string | null,
   scope: WorkspaceScopeMode,
-  navigate: ReturnType<typeof useNavigate>
+  navigate: ReturnType<typeof useNavigate>,
+  shell: OsShellHandle | null
 ): Promise<void> {
+  // Named before the workspace switch: the route reconciliation that lands it — after the
+  // target workspace hydrates — prefers the operator's existing Session window (#825).
+  shell?.coordinator.noteCreatedSession(session.id);
   activateCreatedSessionWorkspace(session, currentWorkspaceId, { skip: scope === "global" });
   await navigate({
     to: "/agents/$name/sessions/$id",
