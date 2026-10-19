@@ -249,8 +249,13 @@ func TestInputPreSubmitMentions(t *testing.T) {
 		if len(calls) != 1 || len(calls[0].MentionLinks) != 1 || calls[0].MentionLinks[0].Name != "a.go" {
 			t.Fatalf("links after rewrite = %#v, want only a.go", calls)
 		}
-		if got := mentionTargets(storedInputMentions(t, sess)); !slices.Equal(got, []string{"a.go"}) {
+		stored := storedInputMentions(t, sess)
+		if got := mentionTargets(stored); !slices.Equal(got, []string{"a.go"}) {
 			t.Fatalf("persisted mentions after rewrite = %v, want a.go", got)
+		}
+		// The transcript displays the authored text, so offsets must keep pointing at its token.
+		if stored[0].Start != 0 || stored[0].End != len("@a.go") {
+			t.Fatalf("persisted a.go offsets = [%d,%d), want [0,5) in the authored text", stored[0].Start, stored[0].End)
 		}
 	})
 }

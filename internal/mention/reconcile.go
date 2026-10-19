@@ -1,35 +1,32 @@
 package mention
 
-import "slices"
-
 // Reconcile narrows admitted mentions to those whose exact Token still parses
 // as a token in text, typically after an input.pre_submit hook rewrite
-// (Business Rule 9). Offsets move to the new positions; hooks can never add
-// mentions, so the result is always a subset of admitted.
+// (Business Rule 9). Hooks can never add mentions, so the result is always a
+// subset of admitted.
 //
-// Repeated tokens pair in order: the n-th admitted mention carrying a token
-// takes the n-th occurrence of that token in text, so each occurrence keeps
-// its own entry and surplus admitted entries drop. The result is in text order.
+// Surviving mentions keep their admitted offsets: those point into the
+// authored text, which is what the transcript displays and renders chips
+// over, even when a hook rewrote the delivered message.
+//
+// Repeated tokens pair in order: each occurrence of a token in text keeps one
+// admitted mention carrying it, earliest first, and surplus admitted entries
+// drop. The result keeps admitted order.
 func Reconcile(text string, admitted []Mention) []Mention {
 	if len(admitted) == 0 {
 		return nil
 	}
-	occurrences := make(map[string][]Token)
+	remaining := make(map[string]int)
 	for _, token := range Parse(text) {
-		occurrences[token.Raw] = append(occurrences[token.Raw], token)
+		remaining[token.Raw]++
 	}
 	reconciled := make([]Mention, 0, len(admitted))
 	for _, mention := range admitted {
-		queue := occurrences[mention.Token]
-		if len(queue) == 0 {
+		if remaining[mention.Token] == 0 {
 			continue
 		}
-		mention.Start, mention.End = queue[0].Start, queue[0].End
-		occurrences[mention.Token] = queue[1:]
+		remaining[mention.Token]--
 		reconciled = append(reconciled, mention)
 	}
-	slices.SortStableFunc(reconciled, func(left, right Mention) int {
-		return left.Start - right.Start
-	})
 	return reconciled
 }

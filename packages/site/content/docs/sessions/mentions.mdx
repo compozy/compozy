@@ -252,7 +252,8 @@ Each user message that had verified mentions carries a `mentions` list next to i
   session id. Absolute paths never appear here.
 - `label` is the file or folder name, or the session title when you sent the message (its id when it
   had no title).
-- `start` and `end` are UTF-16 offsets into the message text, end exclusive.
+- `start` and `end` are UTF-16 offsets into the message text you wrote, end exclusive. They keep
+  pointing at your text even when an `input.pre_submit` hook rewrote what the agent received.
 
 A message without mentions has no `mentions` field. The same list appears in
 `compozy session events --json`, in the transcript API (`metadata.mentions`), and on queued messages

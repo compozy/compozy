@@ -220,13 +220,13 @@ func TestReconcile(t *testing.T) {
 		want     []mention.Mention
 	}{
 		{
-			name: "Should keep surviving mentions at their new offsets and drop removed ones",
+			name: "Should keep surviving mentions at their authored offsets and drop removed ones",
 			text: "Prefix: check @b.go",
 			admitted: []mention.Mention{
 				file("@a.go", "a.go", 0, 5),
 				file("@b.go", "b.go", 10, 15),
 			},
-			want: []mention.Mention{file("@b.go", "b.go", 14, 19)},
+			want: []mention.Mention{file("@b.go", "b.go", 10, 15)},
 		},
 		{
 			name:     "Should never add a token that was not admitted",
@@ -235,14 +235,14 @@ func TestReconcile(t *testing.T) {
 			want:     []mention.Mention{file("@a.go", "a.go", 0, 5)},
 		},
 		{
-			name: "Should pair repeated tokens with occurrences in order",
+			name: "Should keep one admitted mention per surviving occurrence of a repeated token",
 			text: "@a.go x @a.go",
 			admitted: []mention.Mention{
 				file("@a.go", "a.go", 0, 5),
 				file("@a.go", "a.go", 6, 11),
 				file("@a.go", "a.go", 12, 17),
 			},
-			want: []mention.Mention{file("@a.go", "a.go", 0, 5), file("@a.go", "a.go", 8, 13)},
+			want: []mention.Mention{file("@a.go", "a.go", 0, 5), file("@a.go", "a.go", 6, 11)},
 		},
 		{
 			name: "Should drop a token a hook moved into a code span",
@@ -251,18 +251,18 @@ func TestReconcile(t *testing.T) {
 				file("@a.go", "a.go", 4, 9),
 				file("@b.go", "b.go", 14, 19),
 			},
-			want: []mention.Mention{file("@b.go", "b.go", 16, 21)},
+			want: []mention.Mention{file("@b.go", "b.go", 14, 19)},
 		},
 		{
-			name: "Should return mentions in text order after a reorder",
+			name: "Should keep authored order and offsets when a hook reorders tokens",
 			text: "@b.go then @session:sess-1",
 			admitted: []mention.Mention{
 				sessionMention(0, 15),
 				file("@b.go", "b.go", 16, 21),
 			},
 			want: []mention.Mention{
-				file("@b.go", "b.go", 0, 5),
-				sessionMention(11, 26),
+				sessionMention(0, 15),
+				file("@b.go", "b.go", 16, 21),
 			},
 		},
 		{
