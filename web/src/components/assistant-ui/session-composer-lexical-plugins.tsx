@@ -6,7 +6,6 @@ import {
   $createTextNode,
   $getRoot,
   $getSelection,
-  $isElementNode,
   $isRangeSelection,
   $isTextNode,
   COMMAND_PRIORITY_CRITICAL,
@@ -14,10 +13,13 @@ import {
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
   PASTE_COMMAND,
-  type RangeSelection,
+  type BaseSelection,
+  type EditorState,
+  type UpdateListenerPayload,
 } from "lexical";
 import { useEffect, useEffectEvent } from "react";
 
+import { readCursorSnapshot, type EditorCursorSnapshot } from "./session-composer-cursor-snapshot";
 import { detectMentionTrigger, type SessionMentionTrigger } from "./session-mention-model";
 
 export interface SessionComposerInputHandle {
@@ -185,47 +187,51 @@ function detectSlashTriggerOffset(text: string, cursor: number): number | null {
   return null;
 }
 
-interface EditorCursorSnapshot {
-  text: string;
-  cursor: number;
+type ComposerCursorRead =
+  /** Neither the text nor the selection moved since the previous update. */
+  | { changed: false }
+  /** `snapshot` is null without a collapsed, readable caret. */
+  | { changed: true; snapshot: EditorCursorSnapshot | null };
+
+const cursorReads = new WeakMap<EditorState, ComposerCursorRead>();
+
+function sameSelection(a: BaseSelection | null, b: BaseSelection | null): boolean {
+  return a === b || (a !== null && b !== null && a.is(b));
 }
 
-function readCursorSnapshot(selection: RangeSelection): EditorCursorSnapshot | null {
-  const anchor = selection.anchor;
-  const anchorNode = anchor.getNode();
-  const root = $getRoot();
-  let text = "";
-  let cursor = -1;
-  let paragraphIndex = 0;
-
-  for (const paragraph of root.getChildren()) {
-    if (paragraphIndex > 0) text += "\n";
-    paragraphIndex += 1;
-    if (!$isElementNode(paragraph)) continue;
-
-    if (anchor.type === "element" && anchorNode === paragraph) {
-      // Element anchor: offset counts children before the caret.
-      const paragraphStart = text.length;
-      let cursorInParagraph = 0;
-      let childIndex = 0;
-      for (const child of paragraph.getChildren()) {
-        if (childIndex < anchor.offset) cursorInParagraph += child.getTextContent().length;
-        text += child.getTextContent();
-        childIndex += 1;
-      }
-      cursor = paragraphStart + cursorInParagraph;
-      continue;
-    }
-
-    for (const child of paragraph.getChildren()) {
-      if (anchor.type === "text" && child === anchorNode) {
-        cursor = text.length + anchor.offset;
-      }
-      text += child.getTextContent();
-    }
+/**
+ * One text/caret read per committed editor state, shared by the `/` scope and
+ * `@` trigger detectors: the first listener walks the document, the next one
+ * reuses the result. An update that dirtied no node and kept the selection
+ * (Lexical marks the root dirty for `setEditorState`) reports `changed: false`
+ * so both detectors skip it — their previous answer still holds.
+ */
+function readComposerCursor({
+  dirtyElements,
+  dirtyLeaves,
+  editorState,
+  prevEditorState,
+}: UpdateListenerPayload): ComposerCursorRead {
+  const cached = cursorReads.get(editorState);
+  if (cached) return cached;
+  const selection = editorState.read(() => $getSelection());
+  let read: ComposerCursorRead;
+  if (
+    dirtyElements.size === 0 &&
+    dirtyLeaves.size === 0 &&
+    sameSelection(
+      prevEditorState.read(() => $getSelection()),
+      selection
+    )
+  ) {
+    read = { changed: false };
+  } else if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+    read = { changed: true, snapshot: null };
+  } else {
+    read = { changed: true, snapshot: editorState.read(() => readCursorSnapshot(selection)) };
   }
-  if (cursor < 0) return null;
-  return { text, cursor };
+  cursorReads.set(editorState, read);
+  return read;
 }
 
 /**
@@ -242,20 +248,17 @@ export function SessionCommandScopePlugin({
   const updateScope = useEffectEvent(setScope);
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection) || !selection.isCollapsed()) return;
-        const snapshot = readCursorSnapshot(selection);
-        if (!snapshot) return;
-        const triggerOffset = detectSlashTriggerOffset(snapshot.text, snapshot.cursor);
-        if (triggerOffset === null) {
-          updateScope("inline");
-          return;
-        }
-        const prefix = snapshot.text.slice(0, triggerOffset);
-        updateScope(prefix.trim().length === 0 ? "standalone" : "inline");
-      });
+    return editor.registerUpdateListener(update => {
+      const read = readComposerCursor(update);
+      if (!read.changed || !read.snapshot) return;
+      const { text, cursor } = read.snapshot;
+      const triggerOffset = detectSlashTriggerOffset(text, cursor);
+      if (triggerOffset === null) {
+        updateScope("inline");
+        return;
+      }
+      const prefix = text.slice(0, triggerOffset);
+      updateScope(prefix.trim().length === 0 ? "standalone" : "inline");
     });
   }, [editor]);
 
@@ -285,20 +288,14 @@ export function SessionMentionTriggerPlugin({
   const escape = useEffectEvent(onEscape);
 
   useEffect(() => {
-    const unregisterUpdate = editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
-          publish(null);
-          return;
-        }
-        const snapshot = readCursorSnapshot(selection);
-        if (!snapshot) {
-          publish(null);
-          return;
-        }
-        publish(detectMentionTrigger(snapshot.text, snapshot.cursor), snapshot.text);
-      });
+    const unregisterUpdate = editor.registerUpdateListener(update => {
+      const read = readComposerCursor(update);
+      if (!read.changed) return;
+      if (!read.snapshot) {
+        publish(null);
+        return;
+      }
+      publish(detectMentionTrigger(read.snapshot.text, read.snapshot.cursor), read.snapshot.text);
     });
     const unregisterEscape = editor.registerCommand(
       KEY_ESCAPE_COMMAND,
