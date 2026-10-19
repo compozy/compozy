@@ -461,6 +461,7 @@ export * from "./environment";
 export * from "./derive";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export * from "./quote";
+export * from "./mentions";
 export type { SessionSendAction } from "./lib/session-busy-input";
 export * from "./hooks";
 
