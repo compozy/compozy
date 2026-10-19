@@ -322,6 +322,47 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop the walk at the visited-entry cap counting directories", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for i := range 30 {
+			if err := os.Mkdir(filepath.Join(root, fmt.Sprintf("d%02d", i)), 0o755); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+		}
+		writeFiles(t, root, map[string]string{"z.go": "x"})
+
+		result, err := New(nil, WithMaxWalkEntries(10)).Search(t.Context(), root, "", 100)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(result.Entries) != 0 || !result.Truncated {
+			t.Fatalf("Search() = %v truncated=%v, want no entries and truncated after 10 directories",
+				entryPaths(result.Entries), result.Truncated)
+		}
+	})
+
+	t.Run("Should end the shared build at its deadline with a truncated index", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeFiles(t, root, map[string]string{"a.go": "x"})
+		runner := &fakeGitRunner{blockUntilDone: true}
+		idx := New(runner, WithGitTimeout(time.Hour), WithBuildTimeout(50*time.Millisecond))
+
+		started := time.Now()
+		result, err := idx.Search(t.Context(), root, "", 10)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if !result.Truncated || len(result.Entries) != 0 {
+			t.Fatalf("Search() = %v truncated=%v, want an empty truncated index", entryPaths(result.Entries),
+				result.Truncated)
+		}
+		if elapsed := time.Since(started); elapsed > 5*time.Second {
+			t.Fatalf("Search() took %v, want it bounded by the build deadline", elapsed)
+		}
+	})
+
 	t.Run("Should cap the index and report truncation", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -495,6 +536,47 @@ func TestIndexSearchCache(t *testing.T) {
 		}
 		if calls := runner.listCalls.Load(); calls != 1 {
 			t.Fatalf("git ls-files builds = %d, want 1", calls)
+		}
+	})
+
+	t.Run("Should let a canceled first caller stop waiting while the build serves others", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		createListedFiles(t, root, []string{"a.go"})
+		release := make(chan struct{})
+		runner := &fakeGitRunner{files: []string{"a.go"}, release: release}
+		idx := New(runner)
+
+		firstCtx, cancelFirst := context.WithCancel(t.Context())
+		firstErr := make(chan error, 1)
+		go func() {
+			_, err := idx.Search(firstCtx, root, "a", 10)
+			firstErr <- err
+		}()
+		waitFor(t, func() bool { return runner.listCalls.Load() == 1 })
+		second := make(chan Result, 1)
+		go func() {
+			result, err := idx.Search(t.Context(), root, "a", 10)
+			if err != nil {
+				t.Errorf("second Search() error = %v", err)
+			}
+			second <- result
+		}()
+		cancelFirst()
+		select {
+		case err := <-firstErr:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("first Search() error = %v, want context.Canceled", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("first Search() kept waiting for the build after its context was canceled")
+		}
+		close(release)
+		if got := entryPaths((<-second).Entries); !slices.Equal(got, []string{"a.go"}) {
+			t.Fatalf("second Search() = %v, want [a.go] from the shared build", got)
+		}
+		if calls := runner.listCalls.Load(); calls != 1 {
+			t.Fatalf("git ls-files builds = %d, want 1 shared build", calls)
 		}
 	})
 
