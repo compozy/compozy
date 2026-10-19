@@ -14,15 +14,11 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
   const runtime = useSessionPromptRuntime(runtimeStore);
   const disabled = !canPrompt || !runtime.canSelectRuntime;
   const catalogStatus =
-    runtime.catalog.error || runtime.catalog.refreshError ? (
-      <p className="px-3 py-2 text-form-hint text-danger" role="status">
-        {runtime.catalog.refreshError ?? runtime.catalog.error}
-      </p>
-    ) : runtime.catalog.stale && Object.keys(runtime.catalog.providerIssues).length === 0 ? (
-      <p className="px-3 py-2 text-form-hint text-warning" role="status">
-        Model catalog may be out of date.
-      </p>
-    ) : undefined;
+    runtime.catalog.refreshError ||
+    runtime.catalog.error ||
+    (runtime.catalog.stale && Object.keys(runtime.catalog.providerIssues).length === 0
+      ? "Model catalog may be out of date."
+      : null);
 
   return (
     <div className="flex min-w-0 items-center gap-1">
