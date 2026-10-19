@@ -172,8 +172,10 @@ export const RuntimeCatalogUnavailable: Story = {
     const selector = await canvas.findByTestId("loop-run-field-input-runtime");
     await expect(selector.tagName).toBe("BUTTON");
     await userEvent.click(selector);
+    const body = within(document.body);
+    await userEvent.click(await body.findByRole("button", { name: "Model list issues" }));
     await expect(
-      await within(document.body).findByTestId("runtime-selector-status")
+      await body.findByTestId("runtime-selector-catalog-issues-popup")
     ).toHaveTextContent("Workspace not found: ws_missing");
   },
 };

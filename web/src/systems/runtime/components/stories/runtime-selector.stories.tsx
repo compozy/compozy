@@ -384,30 +384,95 @@ export const PopupFavoritesRail: Story = {
   },
 };
 
+const manyIssueProviders = [
+  ...providers,
+  ...Array.from({ length: 12 }, (_, index) => ({
+    id: `offline-${index}`,
+    name: `Offline provider ${index}`,
+    runtime_provider: "codex",
+  })),
+];
+const manyProviderIssues: Record<string, string> = Object.fromEntries([
+  ["cursor", "Sign in to update the model list."],
+  ...Array.from({ length: 12 }, (_, index) => [
+    `offline-${index}`,
+    "Could not update the model list. Try refreshing again.",
+  ]),
+]);
+
+/** One provider needs sign-in: the header carries the warning mark before refresh. */
+export const PopupCatalogIssue: Story = {
+  tags: ["play-fn"],
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    providerCatalogIssues: { cursor: "Sign in to update the model list." },
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    await expect(body.getByRole("button", { name: "Model list issues" })).toBeInTheDocument();
+    await expect(body.queryByText("Sign in to update the model list.")).not.toBeInTheDocument();
+  },
+};
+
+/** The warning mark's popover lists each provider's model list problem in provider order. */
+export const PopupCatalogIssuesOpen: Story = {
+  tags: ["play-fn"],
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    providerCatalogIssues: {
+      claude: "The model list took too long to update. Try refreshing again.",
+      openrouter: "Could not update the model list. Try refreshing again.",
+      cursor: "Sign in to update the model list.",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    await userEvent.click(body.getByRole("button", { name: "Model list issues" }));
+    const issues = within(await body.findByTestId("runtime-selector-catalog-issues-popup"));
+    await expect(issues.getAllByRole("listitem")).toHaveLength(3);
+    await expect(issues.getByText("Sign in to update the model list.")).toBeInTheDocument();
+  },
+};
+
+/** Many failing providers: the issues popover scrolls inside its own bound. */
+export const PopupManyCatalogIssuesOpen: Story = {
+  tags: ["play-fn"],
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    providers: manyIssueProviders,
+    providerCatalogIssues: manyProviderIssues,
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    await userEvent.click(body.getByRole("button", { name: "Model list issues" }));
+    const issues = await body.findByTestId("runtime-selector-catalog-issues-popup");
+    await expect(within(issues).getAllByRole("listitem")).toHaveLength(13);
+    await expect(issues.scrollHeight).toBeGreaterThan(issues.clientHeight);
+  },
+};
+
 export const ProviderAuthRequired: Story = {
   tags: ["play-fn"],
   args: {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
-    providers: [
-      ...providers,
-      ...Array.from({ length: 12 }, (_, index) => ({
-        id: `offline-${index}`,
-        name: `Offline provider ${index}`,
-        runtime_provider: "codex",
-      })),
-    ],
-    providerCatalogIssues: Object.fromEntries([
-      ["cursor", "Sign in to update the model list."],
-      ...Array.from({ length: 12 }, (_, index) => [
-        `offline-${index}`,
-        "Could not update the model list. Try refreshing again.",
-      ]),
-    ]),
+    providers: manyIssueProviders,
+    providerCatalogIssues: manyProviderIssues,
   },
-  // Invariant: discovery guidance cannot cover a healthy model's pointer target.
-  // Owner: rendered RuntimeSelector; canonical suite: this browser interaction story.
+  // Invariant: discovery guidance stays behind the header mark (issue #827), its nested
+  // popover dismisses before the selector, and no guidance covers a healthy model's
+  // pointer target. Owner: rendered RuntimeSelector; canonical suite: this browser story.
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
+    await expect(body.queryByText("Sign in to update the model list.")).not.toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Model list issues" }));
+    const issues = await body.findByTestId("runtime-selector-catalog-issues-popup");
+    await expect(within(issues).getAllByRole("listitem")).toHaveLength(13);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByTestId("runtime-selector-catalog-issues-popup")).not.toBeInTheDocument()
+    );
+    await expect(body.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+
     await userEvent.type(body.getByTestId("runtime-selector-search"), "GPT-5.6 Sol");
     const option = body.getByRole("option", { name: /GPT-5.6 Sol from Codex/ });
     option.scrollIntoView({ block: "nearest" });

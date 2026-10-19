@@ -2306,25 +2306,140 @@ describe("RuntimeSelector composer variant", () => {
   });
 });
 
-// Invariant: a provider discovery failure remains attributed while healthy models stay selectable.
+// Invariant: model list problems stay attributed behind the header warning mark (issue #827),
+// nested inside the selector, while healthy models stay selectable.
 // Owner: RuntimeSelector presentation; canonical suite: runtime-selector.test.tsx.
-describe("provider catalog failures", () => {
-  it("Should show calm provider guidance and keep other provider models selectable", async () => {
-    const user = userEvent.setup();
-    const { onChange } = renderSelector({
+describe("model list issues", () => {
+  const cursorProvider: RuntimeProviderOption = { id: "cursor", name: "Cursor" };
+  const issueProps: Partial<RuntimeSelectorProps> = {
+    onRefreshCatalog: vi.fn(),
+    providerCatalogIssues: {
+      cursor: "Sign in to update the model list.",
+      claude: "Could not update the model list. Try refreshing again.",
+    },
+  };
+
+  function renderWithIssues(props: Partial<RuntimeSelectorProps> = issueProps) {
+    return renderSelector({
       value: { provider: "codex", model: "gpt-test", reasoning_effort: "" },
-      providers: [codexProvider, { id: "cursor", name: "Cursor" }],
-      models: [model("gpt-test"), model("cursor-test", { provider: "cursor" })],
-      props: { providerCatalogIssues: { cursor: "Sign in to update the model list." } },
+      providers: [codexProvider, claudeProvider, cursorProvider],
+      models: [
+        model("gpt-test"),
+        model("claude-test", { provider: "claude" }),
+        model("cursor-test", { provider: "cursor" }),
+      ],
+      props,
     });
+  }
+
+  function issuesMark(): HTMLElement {
+    return screen.getByRole("button", { name: "Model list issues" });
+  }
+
+  it("Should render no mark and no inline guidance while the catalog is healthy", async () => {
+    const user = userEvent.setup();
+    renderWithIssues({ onRefreshCatalog: vi.fn() });
+
     await openSelector(user);
+    expect(screen.queryByRole("button", { name: "Model list issues" })).toBeNull();
+    expect(screen.getByTestId("runtime-selector-refresh")).toBeInTheDocument();
+  });
+
+  it("Should place the mark before refresh and list every issue behind it, never inline", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderWithIssues({
+      ...issueProps,
+      catalogStatus: "Model catalog may be out of date.",
+    });
+
+    const popup = await openSelector(user);
+    expect(within(popup).queryByText(/Sign in to update the model list/)).toBeNull();
+    expect(within(popup).queryByText(/Model catalog may be out of date/)).toBeNull();
+    const mark = issuesMark();
+    expect(mark.compareDocumentPosition(screen.getByTestId("runtime-selector-refresh"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+
+    // A provider rail does not narrow the list: the mark reports the whole catalog.
+    await user.click(within(popup).getByRole("radio", { name: "Codex" }));
+    await user.click(mark);
+    const issues = await screen.findByTestId("runtime-selector-catalog-issues-popup");
+    expect(issues).toHaveAccessibleName("Model list issues");
     expect(
-      screen.getByText("Sign in to update the model list.", { exact: false })
-    ).toHaveTextContent("Cursor");
-    expect(screen.queryByTestId("runtime-selector-status")).not.toBeInTheDocument();
+      within(issues)
+        .getAllByRole("listitem")
+        .map(item => item.textContent)
+    ).toEqual([
+      "Model catalog may be out of date.",
+      "ClaudeCould not update the model list. Try refreshing again.",
+      "CursorSign in to update the model list.",
+    ]);
+
+    await user.click(mark);
+    await waitFor(() =>
+      expect(screen.queryByTestId("runtime-selector-catalog-issues-popup")).toBeNull()
+    );
     await user.click(row("gpt-test"));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ provider: "codex", model: "gpt-test" })
     );
+  });
+
+  it("Should ignore issues for providers the selector does not list", async () => {
+    const user = userEvent.setup();
+    renderWithIssues({ providerCatalogIssues: { gone: "Sign in to update the model list." } });
+
+    await openSelector(user);
+    expect(screen.queryByRole("button", { name: "Model list issues" })).toBeNull();
+  });
+
+  it("Should close only the issues popover on Escape and return focus to the mark", async () => {
+    const user = userEvent.setup();
+    renderWithIssues();
+
+    await openSelector(user);
+    await user.click(issuesMark());
+    await screen.findByTestId("runtime-selector-catalog-issues-popup");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByTestId("runtime-selector-catalog-issues-popup")).toBeNull()
+    );
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+    await waitFor(() => expect(issuesMark()).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("runtime-selector-popup")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("rt-trigger")).toHaveFocus());
+  });
+
+  it("Should close only the issues popover on a press elsewhere in the selector", async () => {
+    const user = userEvent.setup();
+    renderWithIssues();
+
+    await openSelector(user);
+    await user.click(issuesMark());
+    await screen.findByTestId("runtime-selector-catalog-issues-popup");
+
+    await user.click(screen.getByTestId("runtime-selector-search"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("runtime-selector-catalog-issues-popup")).toBeNull()
+    );
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+    await user.keyboard("cursor");
+    expect(screen.getByTestId("runtime-selector-search")).toHaveValue("cursor");
+  });
+
+  it("Should keep the selector open while the issues popover takes a press inside it", async () => {
+    const user = userEvent.setup();
+    renderWithIssues();
+
+    await openSelector(user);
+    await user.click(issuesMark());
+    const issues = await screen.findByTestId("runtime-selector-catalog-issues-popup");
+
+    await user.click(within(issues).getByText("Cursor"));
+    expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
+    expect(screen.getByTestId("runtime-selector-catalog-issues-popup")).toBeInTheDocument();
   });
 });

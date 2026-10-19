@@ -272,6 +272,15 @@ A session message is a prompt one agent session sends to another; a reply wake b
 - Isolated subagent facts follow the Subagent Terms line above: "PR status unknown" when CompozyOS could not check, never "No PR"; "No pull request" only when the forge answered.
 - Never in this feature's copy: "thread", "worker", "inbox", "DM", "chat", or "No PR".
 
+### Model List Issue Terms
+
+The runtime selector reports provider model list problems behind one warning mark in its search header, placed before the refresh control. Nothing appears while every model list is healthy.
+
+- Warning mark: aria and hover title "Model list issues". Its popover has the label "Model list issues", then the catalog-wide message without a provider name, then one row per provider: the provider name above its message.
+- Provider messages: "Sign in to update the model list." (sign-in required) · "The model list took too long to update. Try refreshing again." (timeout) · "Could not update the model list. Try refreshing again." (any other failure).
+- Catalog-wide messages: the surface's read error, "Could not refresh the model list. Try again." for a refresh no provider row explains, or "Model catalog may be out of date." when the list is stale and no provider reported a problem.
+- Never in this feature's copy: raw subprocess output, a count badge on the mark, or the old inline guidance under the provider chips.
+
 ### Surface Aliases
 
 Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**
