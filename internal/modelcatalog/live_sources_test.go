@@ -1572,6 +1572,9 @@ opencode/provider-managed
 
 		t.Run("Should never fall back to npm on native permission failure", func(t *testing.T) {
 			t.Parallel()
+			if runtime.GOOS == "windows" {
+				t.Skip("permission failure fixture requires Unix mode bits")
+			}
 
 			permDir := t.TempDir()
 			if err := os.WriteFile(
@@ -2556,7 +2559,11 @@ func writeOpenCodeFixture(t *testing.T) string {
 	t.Helper()
 
 	binDir := t.TempDir()
-	path := filepath.Join(binDir, "opencode")
+	name := "opencode"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	path := filepath.Join(binDir, name)
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("WriteFile(opencode fixture) error = %v", err)
 	}

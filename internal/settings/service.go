@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	authproviders "github.com/compozy/compozy/internal/providers"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -257,7 +257,9 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 
 	commandLookPath := deps.CommandLookPath
 	if commandLookPath == nil {
-		commandLookPath = exec.LookPath
+		commandLookPath = func(command string) (string, error) {
+			return subprocess.ResolveExecutable(command, os.Environ(), "")
+		}
 	}
 	providerAuthCommandResolver := deps.ProviderAuthCommandResolver
 	if providerAuthCommandResolver == nil {

@@ -1,14 +1,13 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
-
+	"os/exec"
 	"path/filepath"
-
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
@@ -109,10 +108,14 @@ func mcpAuthMap(auth compozyconfig.MCPAuthConfig) map[string]any {
 // providerLaunchAvailable reports resolvability of the command the start path would launch.
 func (s *service) providerLaunchAvailable(name string, provider compozyconfig.ProviderConfig) bool {
 	if provider.CommandIsBuiltin && compozyconfig.CanonicalProviderName(name) == "opencode" {
-		if _, err := s.commandLookPath("opencode"); err == nil {
+		_, err := s.commandLookPath("opencode")
+		if err == nil {
 			return true
 		}
-		_, err := s.commandLookPath("npx")
+		if !errors.Is(err, exec.ErrNotFound) {
+			return false
+		}
+		_, err = s.commandLookPath("npx")
 		return err == nil
 	}
 	return s.commandAvailable(provider.Command)

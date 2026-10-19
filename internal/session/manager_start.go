@@ -19,17 +19,6 @@ type sessionStartRuntime struct {
 	agent           compozyconfig.ResolvedAgent
 	agentDef        compozyconfig.AgentDef
 	mcpServers      []compozyconfig.MCPServer
-	// configuredCommand is the config-resolved command a pre-start hook may rewrite.
-	configuredCommand string
-}
-
-// routeAgent returns the config-derived agent the accepted route records.
-func (r *sessionStartRuntime) routeAgent() compozyconfig.ResolvedAgent {
-	agent := r.agent
-	if r.configuredCommand != "" {
-		agent.Command = r.configuredCommand
-	}
-	return agent
 }
 
 type sessionStartStorage struct {

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -5401,14 +5403,32 @@ func TestProviderListCommandAvailableHonorsOpenCodeNPMLaunchFallback(t *testing.
 	t.Parallel()
 
 	for _, test := range []struct {
-		name      string
-		lookPath  map[string]string
-		wantAvail bool
+		name        string
+		lookPath    map[string]string
+		lookPathErr error
+		wantAvail   bool
 	}{
+		{
+			name:      "Should report the inherited builtin available through the native command",
+			lookPath:  map[string]string{"opencode": "/bin/opencode"},
+			wantAvail: true,
+		},
 		{
 			name:      "Should report the inherited builtin available through the npx fallback",
 			lookPath:  map[string]string{"npx": "/bin/npx"},
 			wantAvail: true,
+		},
+		{
+			name:        "Should report the inherited builtin unavailable on a native permission error despite npx",
+			lookPath:    map[string]string{"npx": "/bin/npx"},
+			lookPathErr: &exec.Error{Name: "opencode", Err: os.ErrPermission},
+			wantAvail:   false,
+		},
+		{
+			name:        "Should report the inherited builtin unavailable on a relative native path despite npx",
+			lookPath:    map[string]string{"npx": "/bin/npx"},
+			lookPathErr: &exec.Error{Name: "opencode", Err: exec.ErrDot},
+			wantAvail:   false,
 		},
 		{
 			name:      "Should report the inherited builtin unavailable without any launch candidate",
@@ -5426,7 +5446,10 @@ func TestProviderListCommandAvailableHonorsOpenCodeNPMLaunchFallback(t *testing.
 					if resolved, ok := test.lookPath[command]; ok {
 						return resolved, nil
 					}
-					return "", os.ErrNotExist
+					if test.lookPathErr != nil {
+						return "", test.lookPathErr
+					}
+					return "", &exec.Error{Name: command, Err: exec.ErrNotFound}
 				},
 			})
 
@@ -5442,4 +5465,39 @@ func TestProviderListCommandAvailableHonorsOpenCodeNPMLaunchFallback(t *testing.
 			}
 		})
 	}
+}
+
+func TestProviderListCommandAvailableRejectsNonExecutableOpenCode(t *testing.T) {
+	t.Run("Should report a non-executable native command unavailable despite executable npx", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("permission bits are not enforced on Windows")
+		}
+
+		binDir := t.TempDir()
+		writeFile(t, filepath.Join(binDir, "opencode"), "#!/bin/sh\nexit 0\n")
+		npxPath := filepath.Join(binDir, "npx")
+		writeFile(t, npxPath, "#!/bin/sh\nexit 0\n")
+		if err := os.Chmod(npxPath, 0o755); err != nil {
+			t.Fatalf("Chmod(npx) error = %v", err)
+		}
+		t.Setenv("PATH", binDir)
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service, err := NewService(homePaths, Dependencies{
+			ProfileResolver:         settingsTestProfileResolver{},
+			AttentionWorkspaceMutes: &settingsTestAttentionMuteStore{byProfile: make(map[string][]string)},
+		})
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		if mustFindProviderItem(t, envelope.Providers, "opencode").CommandAvailable {
+			t.Fatal("opencode command available = true, want false")
+		}
+	})
 }

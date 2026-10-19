@@ -34,8 +34,6 @@ func (m *Manager) prepareSessionLaunch(
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
 	if strings.TrimSpace(startOpts.Command) != preHookCommand {
-		runtime.configuredCommand = strings.TrimSpace(runtime.agent.Command)
-		runtime.agent.Command = strings.TrimSpace(startOpts.Command)
 		runtime.agent.CommandIsBuiltin = false
 	}
 	startOpts.Cwd, err = normalizeSessionLaunchCWD(spec, startOpts.Cwd)

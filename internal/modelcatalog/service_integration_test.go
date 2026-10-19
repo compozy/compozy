@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -176,6 +177,9 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 
 	t.Run("Should transition OpenCode versions and isolate invocation partitions", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("OpenCode integration fixture requires /bin/sh")
+		}
 
 		ctx := testutil.Context(t)
 		fixtureDir := writeOpenCodeNativeFixture(t)
@@ -621,6 +625,82 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 		}
 		if !retainedLiveRows {
 			t.Fatalf("old-selector live rows were pruned instead of retained: %#v", retained)
+		}
+
+		// Step 7: a successful switch must keep both installations' last complete generations.
+		writeOpenCodeFixtureFile(t, nextFixture, "v2.json", `{"data":[
+{"providerID":"openai","id":"installation-b","name":"Installation B","enabled":true}]}`)
+		serviceRefresh(nextService, integrationTime(48))
+		installationB, err := nextService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			SourceID:         liveSource.ID(),
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(48),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(installation B) error = %v", err)
+		}
+		if len(installationB) != 1 || installationB[0].ModelID != "openai/installation-b" ||
+			installationB[0].Stale {
+			t.Fatalf("installation B models = %#v, want its fresh generation only", installationB)
+		}
+
+		writeOpenCodeFixtureFile(t, fixtureDir, "version", "development\n")
+		nextContext, err := execution.WithCommandFingerprint(nextFingerprint)
+		if err != nil {
+			t.Fatalf("WithCommandFingerprint() error = %v", err)
+		}
+		statuses, refreshErr = oldService.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID:               "opencode",
+			SourceID:                 liveSource.ID(),
+			ExecutionContext:         execution,
+			PreviousExecutionContext: nextContext,
+			Force:                    true,
+			Now:                      integrationTime(49),
+		})
+		if refreshErr == nil || !strings.Contains(refreshErr.Error(), "could not determine OpenCode version") {
+			t.Fatalf("Refresh(installation A) error = %v, want version detection failure", refreshErr)
+		}
+		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateFailed ||
+			!statuses[0].Stale || statuses[0].RowCount != 1 ||
+			!statuses[0].LastSuccess.Equal(integrationTime(46)) {
+			t.Fatalf("installation A statuses = %#v, want stale fallback with its last success", statuses)
+		}
+		installationA, err := oldService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			SourceID:         liveSource.ID(),
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(49),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(installation A) error = %v", err)
+		}
+		if len(installationA) != 1 || installationA[0].ModelID != "openrouter/acme/coding-default" ||
+			!installationA[0].Stale || installationA[0].LastError == "" ||
+			installationA[0].AvailabilityState != modelcatalog.AvailabilityStateAvailableStale ||
+			!slices.ContainsFunc(installationA[0].Sources, func(ref modelcatalog.SourceRef) bool {
+				return ref.SourceID == liveSource.ID() && ref.Stale && ref.RefreshedAt.Equal(integrationTime(46))
+			}) {
+			t.Fatalf("installation A models = %#v, want its preserved stale generation only", installationA)
+		}
+		installationB, err = nextService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			SourceID:         liveSource.ID(),
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(49),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(installation B after A failure) error = %v", err)
+		}
+		if len(installationB) != 1 || installationB[0].ModelID != "openai/installation-b" ||
+			installationB[0].Stale {
+			t.Fatalf("installation B models after A failure = %#v, want its fresh generation", installationB)
 		}
 	})
 

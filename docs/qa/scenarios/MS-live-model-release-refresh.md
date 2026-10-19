@@ -69,3 +69,10 @@ retired curation and empty-search selection (full provider-override spec 4/4). L
 picker replay also exposed all 92 available rows. This verifies the browsing regression, not a
 genuinely new vendor release; see the selector follow-up in the
 [2026-10-18 report](../reports/2026-10-18-opencode-model-discovery-task05.md).
+
+QA regression 2026-10-19 (executable fixtures + SQLite): discover installation A successfully, switch
+to B and refresh successfully, then return to A with version detection failing. A must return only
+its own last complete live generation as `available_stale`, preserving its live-source refresh time
+and last-success time; B must retain its fresh generation. The existing
+`TestCatalogServiceGlobalDBIntegration/Should_transition_OpenCode_versions_and_isolate_invocation_partitions`
+case verifies this sequence. No live-provider or browser re-walk is claimed.

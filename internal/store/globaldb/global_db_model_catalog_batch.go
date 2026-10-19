@@ -88,8 +88,8 @@ func replaceModelCatalogSourceRows(
 	if err != nil {
 		return err
 	}
-	// An empty (failed or zero-row) generation must not delete another partition.
-	if len(rows) > 0 {
+	// OpenCode partitions must survive installation switches for same-invocation stale fallback.
+	if len(rows) > 0 && status.SourceID != modelcatalog.SourceKindProviderLiveID("opencode") {
 		if err := pruneSupersededModelCatalogSourceContexts(
 			ctx,
 			exec,
