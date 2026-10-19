@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Composer mentions — @ picker, chips, transcript</title>
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<style>
+/* ============================================================
+   COMPOSER MENTIONS — board-local lane.
+   Product classes are named after the production component:
+     .tm-*   → shared trigger-menu rows, extracted from
+               assistant-ui/session-composer-command-menu.tsx (popover,
+               group header, row, empty/error/loading row, footer)
+     .smm    → SessionComposerMentionMenu (new, session-composer-mention-menu.tsx)
+     .smc    → SessionMentionChip (new, session-composer-mention-chip.tsx)
+     .scc    → SessionCommandChip (reuse, session-composer-chip.tsx)
+     .sc-*   → session-composer.tsx + session-composer-action-row.tsx (host)
+     .um-*   → session-user-message.tsx bubble + SessionDirectiveText
+     .tip    → @compozy/ui Tooltip
+   Lab chrome is prefixed `lab-` and is NEVER product UI.
+   ============================================================ */
+body{background:var(--desk);color:var(--fg);margin:0}
+.lab{max-width:1180px;margin:0 auto;padding:48px 32px 96px}
+.lab h1{font-size:28px;letter-spacing:-.015em;margin:0 0 8px;font-weight:600;color:var(--fg-strong)}
+.lab h2{font-size:var(--text-heading);margin:0 0 4px;font-weight:600;color:var(--fg-strong)}
+.lab p{color:var(--muted);max-width:72ch;line-height:1.55;margin:0 0 12px}
+.lab code{font-family:var(--font-mono);font-size:.9em;color:var(--fg-2)}
+.lab-lead{font-size:15px}
+.lab-section{margin-top:56px;padding-top:28px;border-top:1px solid var(--line-soft)}
+.lab-tag{font-family:var(--font-mono);font-size:11px;color:var(--subtle);letter-spacing:.02em}
+.lab-top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
+
+/* contract block */
+.lab-contract{display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:24px;margin-top:24px;background:var(--canvas);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px 24px}
+.lab-contract h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin:0 0 10px;font-weight:600}
+.lab-contract ul{list-style:none;margin:0;padding:0;display:grid;gap:7px;font-size:13px;color:var(--fg-2);line-height:1.45}
+.lab-contract p{font-size:13px;color:var(--fg-2)}
+.lab-contract b{color:var(--fg);font-weight:500}
+.lab-contract i{font-style:normal;font-family:var(--font-mono);font-size:11px;color:var(--subtle);display:block;margin-left:54px;overflow-wrap:anywhere}
+.lab-mod{display:inline-block;min-width:46px;font-family:var(--font-mono);font-size:10px;padding:1px 6px;border-radius:4px;margin-right:8px;text-align:center}
+.lab-mod--modify{background:var(--warning-tint);color:var(--warning)}
+.lab-mod--reuse{background:var(--neutral-tint);color:var(--muted)}
+.lab-mod--new{background:var(--info-tint);color:var(--info)}
+.lab-vc{font-family:var(--font-mono);font-size:11px;color:var(--fg-2);background:var(--surface-2);border-radius:4px;padding:1px 5px;margin-right:6px}
+.lab-provisional{font-size:10px;font-family:var(--font-mono);color:var(--warning);border:1px solid color-mix(in srgb,var(--warning) 40%,transparent);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+@media (max-width:960px){.lab-contract{grid-template-columns:1fr}}
+
+/* lab controls */
+.lab-seg{display:inline-flex;background:var(--input-fill);border:1px solid var(--line);border-radius:999px;padding:2px}
+.lab-seg button{all:unset;cursor:pointer;font-size:12.5px;padding:5px 12px;border-radius:999px;color:var(--muted)}
+.lab-seg button[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong)}
+.lab-seg button:focus-visible{outline:2px solid var(--line-focus);outline-offset:1px}
+.lab-toggles{display:flex;flex-wrap:wrap;gap:6px 16px;margin:14px 0 0;font-size:12.5px;color:var(--muted)}
+.lab-toggles label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.lab-toggles input{accent-color:var(--fg-2);margin:0}
+
+/* live prototype */
+.lab-live{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;margin-top:20px;align-items:start}
+@media (max-width:960px){.lab-live{grid-template-columns:1fr}}
+.lab-wire{background:var(--canvas);border:1px dashed var(--line-strong);border-radius:var(--radius-lg);padding:14px 16px;font-size:12.5px;color:var(--fg-2);line-height:1.5}
+.lab-wire h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);font-weight:600}
+.lab-wire pre{margin:0 0 12px;font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--fg-2);background:var(--sunken);border-radius:var(--radius-sm);padding:8px 10px}
+.lab-wire .lab-empty{color:var(--subtle)}
+.lab-keys{margin-top:10px;font-size:12px;color:var(--muted);display:grid;gap:4px}
+.lab-keys kbd{font-family:var(--font-keys,var(--font-mono));font-size:10.5px;border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--fg-2);background:var(--input-fill)}
+.lab-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--elevated);color:var(--fg);box-shadow:var(--shadow-pop);border-radius:var(--radius-md);padding:8px 14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity var(--dur) var(--ease);z-index:50}
+.lab-toast[data-show]{opacity:1}
+
+/* specimens */
+.lab-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:32px 28px;margin-top:20px}
+.lab-spec{margin:0;min-width:0}
+.lab-stage{position:relative;background:var(--canvas);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:20px 18px 18px 30px}
+.lab-spec figcaption{margin-top:10px;font-size:12.5px;color:var(--fg-2);line-height:1.45}
+.lab-spec figcaption > b{color:var(--fg-strong);font-weight:500}
+.lab-spec ol{margin:6px 0 0;padding-left:0;list-style:none;display:grid;gap:4px;color:var(--muted)}
+.lab-spec li{display:flex;gap:6px;align-items:flex-start}
+.lab-n{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--info);color:var(--rail);font:600 9.5px/1 var(--font-mono);font-style:normal;flex:none;margin-top:1px}
+.lab-stage > .lab-n{position:absolute;z-index:30;pointer-events:none;box-shadow:0 0 0 2px var(--canvas);margin:0}
+.lab-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.lab-tags span{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);border:1px solid var(--line-soft);border-radius:4px;padding:0 5px}
+.lab-table{border-collapse:collapse;font-size:13px;margin-top:12px;width:100%}
+.lab-table th,.lab-table td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.lab-table th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--subtle);font-weight:600}
+.lab-table td{color:var(--fg-2)}
+.lab-table td:first-child{color:var(--fg);white-space:nowrap}
+.lab-table code{font-size:11.5px}
+.lab-scroll{overflow-x:auto}
+
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ============ product: session window (host, unchanged) ============ */
+.sw{background:var(--canvas);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-height:520px;overflow:hidden}
+.sw-bar{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-bottom:1px solid var(--line-soft);font-size:12.5px;color:var(--muted)}
+.sw-bar b{color:var(--fg);font-weight:500}
+.sw-thread{flex:1;padding:18px 20px 6px;overflow-y:auto;min-height:300px;max-height:420px;display:flex;flex-direction:column}
+.sw-zone{position:relative;padding:6px 16px 16px}
+
+/* assistant prose (bare column) */
+.am-prose{font-size:var(--text-card-title);line-height:1.55;color:var(--fg);max-width:72ch;margin:0 0 18px}
+
+/* ============ product: user message (session-user-message.tsx) ============ */
+.um{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding:4px 0 18px}
+.um-bubble{width:fit-content;max-width:80%;min-width:0;padding:7px 12px;border-radius:var(--radius-lg);background:var(--row-hover);font-size:var(--text-small-body);line-height:1.5;color:var(--fg);overflow-wrap:anywhere;white-space:pre-wrap}
+.um-bubble code{font-family:var(--font-mono);font-size:.92em;background:var(--surface-2);border-radius:4px;padding:0 4px}
+
+/* ============ product: composer card (session-composer.tsx) ============ */
+.sc{position:relative;display:flex;flex-direction:column;gap:7px;padding:11px 10px 8px 14px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--elevated);box-shadow:var(--highlight);transition:border-color var(--dur) var(--ease)}
+.sc:hover{border-color:var(--line-strong)}
+.sc:focus-within{border-color:var(--accent-dim)}
+.sc-input{min-height:24px;max-height:288px;overflow-y:auto;font-size:var(--text-small-body);line-height:1.5;color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere;outline:none;caret-color:var(--fg)}
+.sc-input:focus,.sc-input:focus-visible{outline:none;box-shadow:none}
+.sc-input[data-empty]::before{content:attr(data-placeholder);color:var(--subtle);pointer-events:none}
+.sc-row{display:flex;align-items:center;gap:8px;min-height:28px}
+.sc-row .sp{flex:1}
+.sc-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 6px;border-radius:var(--radius-sm);background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:11.5px;font-weight:510;color:var(--muted);white-space:nowrap}
+.sc-chip svg{width:12px;height:12px}
+.sc-icon{all:unset;width:24px;height:24px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--muted)}
+.sc-icon svg{width:14px;height:14px}
+.sc-hint{font-size:var(--text-micro);color:var(--faint);white-space:nowrap}
+.sc-send{all:unset;cursor:pointer;width:28px;height:28px;border-radius:999px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight);flex:none}
+.sc-send svg{width:14px;height:14px}
+.sc-send:focus-visible{box-shadow:var(--focus-ring)}
+
+/* ============ product: shared trigger-menu rows (extracted) ============
+   Provenance: production — session-composer-command-menu.tsx. Popover absolute
+   inset-x-0 bottom-full mb-2, rounded-lg, bg-popover (= elevated), shadow-pop;
+   items max-h-72 (288) p-1; row gap-2 rounded-md px-2 py-1.5 13.5px, highlighted
+   bg-surface-2; icon well 16 / glyph 14 muted→fg; title font-medium; secondary
+   11px subtle truncate; eyebrow header px-2 pt-2 pb-1 muted; group divider -mx-1
+   my-1 h-px line; empty row px-2 py-4 centered 13.5px muted. */
+.tm-pop{position:absolute;left:16px;right:16px;bottom:100%;margin-bottom:8px;z-index:20;overflow:hidden;border-radius:var(--radius-lg);background:var(--elevated);box-shadow:var(--shadow-pop)}
+.tm-pop[hidden]{display:none}
+.tm-pop.is-static{position:relative;left:auto;right:auto;bottom:auto;margin:0 0 8px}
+.tm-items{max-height:288px;overflow-y:auto;overscroll-behavior:contain;padding:4px}
+.tm-head{padding:8px 8px 4px}
+.tm-div{margin:4px -4px;height:1px;background:var(--line)}
+.tm-row{all:unset;box-sizing:border-box;display:flex;width:100%;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius-md);font-size:var(--text-small-body);line-height:1.35;color:var(--fg);cursor:default;user-select:none;transition:background var(--dur-fast) var(--ease)}
+.tm-row[data-highlighted]{background:var(--surface-2)}
+.tm-ico{display:flex;width:16px;height:16px;align-items:center;justify-content:center;color:var(--muted);flex:none}
+.tm-ico svg{width:14px;height:14px}
+.tm-row[data-highlighted] .tm-ico{color:var(--fg)}
+.tm-main{display:flex;min-width:0;flex:1;align-items:baseline;gap:6px}
+.tm-title{flex:none;max-width:70%;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-title.is-id{font-family:var(--font-mono);font-size:12.5px}
+/* delta: matched characters emphasized — weight + strong ink, never a hue */
+.tm-title mark,.tm-sub mark{background:none;color:var(--fg-strong);font-weight:650}
+.tm-sub{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--subtle)}
+.tm-empty{margin:0;padding:16px 8px;text-align:center;font-size:var(--text-small-body);color:var(--muted)}
+.tm-foot{margin:2px 0 0;padding:6px 8px 4px;font-size:11px;color:var(--muted);border-top:1px solid var(--line-soft)}
+
+/* ============ product: chips ============
+   .scc  SessionCommandChip — no fill, text-info, font-medium, icon 1em (reuse)
+   .smc  SessionMentionChip — same anatomy, neutral ink (text-foreground), kind by icon */
+.scc,.smc{display:inline;margin:0 2px;font-weight:500;align-items:baseline;user-select:none;white-space:nowrap}
+.scc{color:var(--info)}
+.smc{color:var(--fg)}
+.scc svg,.smc svg{display:inline-block;width:1em;height:1em;margin-right:4px;vertical-align:middle;transform:translateY(-1px);stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.smc svg{color:var(--muted)}
+button.smc{all:unset;display:inline;margin:0 2px;font-weight:500;color:var(--fg);cursor:pointer;border-radius:3px;text-underline-offset:3px;text-decoration-thickness:1px}
+button.smc svg{display:inline-block;width:1em;height:1em;margin-right:4px;vertical-align:middle;transform:translateY(-1px);stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}
+button.smc:hover,button.smc:focus-visible,button.smc.is-hover{text-decoration:underline;text-decoration-color:var(--line-focus)}
+button.smc:focus-visible{outline:2px solid var(--line-focus);outline-offset:1px}
+
+/* ============ product: Tooltip (@compozy/ui) ============ */
+.tip{position:fixed;z-index:60;max-width:360px;padding:4px 8px;border-radius:var(--radius-sm);background:var(--elevated);box-shadow:var(--shadow-pop);font-family:var(--font-mono);font-size:11px;line-height:1.4;color:var(--fg);pointer-events:none;opacity:0;transition:opacity var(--dur-fast) var(--ease);overflow-wrap:anywhere}
+.tip[data-show]{opacity:1}
+.tip.is-static{position:absolute;opacity:1}
+@media (prefers-reduced-motion:reduce){.tip,.lab-toast,.tm-row,.sc{transition:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-session" viewBox="0 0 24 24"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></symbol>
+  <symbol id="i-blocks" viewBox="0 0 24 24"><rect width="7" height="7" x="14" y="3" rx="1"/><path d="M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></symbol>
+</svg>
+
+<main class="lab" data-od-id="board">
+  <header class="lab-top">
+    <div>
+      <div class="lab-tag">docs/design/opendesign/composer-mentions · spec .compozy/tasks/composer-mentions</div>
+      <h1>Composer mentions</h1>
+      <p class="lab-lead">Type <code>@</code> in the session composer to point the agent at a file, a folder, or another session of the same workspace. The picker reuses the <code>/</code> menu's grammar; picked targets become text-weight chips; sent mentions come back as chips in the transcript only when the daemon verified them.</p>
+    </div>
+    <div class="lab-seg" role="group" aria-label="Theme" data-od-id="theme-toggle">
+      <button type="button" aria-pressed="true" data-theme-btn="dark">Dark</button>
+      <button type="button" aria-pressed="false" data-theme-btn="light">Light</button>
+    </div>
+  </header>
+
+  <section class="lab-contract" data-od-id="contract" aria-label="Board contract">
+    <div>
+      <h3>What this is</h3>
+      <p>The four surfaces of <code>_uiux.md</code>: the <b>@ picker</b> (S1), the <b>mention chip</b> in the editor (S2), the <b>placeholder</b> (S3) and <b>verified chips in the user message</b> (S4). The empty-desktop composer (S5) is unchanged and has no picker.</p>
+      <p>No new visual language: rows, headers, empty rows and the popover surface are the <code>/</code> menu's; chips are the skill chip's anatomy in neutral ink. All file paths are real repo paths; sessions, agents and times are <b>illustrative</b>.</p>
+    </div>
+    <div>
+      <h3>Production components</h3>
+      <ul>
+        <li><span class="lab-mod lab-mod--new">new</span><b>SessionComposerMentionMenu</b><i>web/src/components/assistant-ui/session-composer-mention-menu.tsx</i></li>
+        <li><span class="lab-mod lab-mod--new">new</span><b>SessionMentionChip</b><i>web/src/components/assistant-ui/session-composer-mention-chip.tsx</i></li>
+        <li><span class="lab-mod lab-mod--new">new</span><b>Shared trigger-menu rows</b><span class="lab-provisional">file name TBD</span><i>extracted from session-composer-command-menu.tsx</i></li>
+        <li><span class="lab-mod lab-mod--new">new</span><b>useSessionFileSearch · mention recents</b><i>web/src/systems/session/hooks/use-session-file-search.ts · lib/session-mention-recents.ts</i></li>
+        <li><span class="lab-mod lab-mod--modify">modify</span><b>session-composer.tsx</b> — second trigger, chip dispatch, placeholder</li>
+        <li><span class="lab-mod lab-mod--modify">modify</span><b>session-composer-command-menu.tsx</b> — imports the shared rows</li>
+        <li><span class="lab-mod lab-mod--modify">modify</span><b>session-directive-registry.ts · session-directive-text.tsx</b> — read and render <code>mentions</code></li>
+        <li><span class="lab-mod lab-mod--reuse">reuse</span><b>SessionCommandChip · Tooltip · Unstable_TriggerPopover</b></li>
+      </ul>
+    </div>
+    <div>
+      <h3>States</h3>
+      <ul>
+        <li><span class="lab-vc">VC-01–10</span>S1 picker: results, recents, loading, empty, errors, truncation, duplicates, dismissed</li>
+        <li><span class="lab-vc">VC-11–16</span>S2 chips: file, folder, session, tooltip, quoted path, backspace</li>
+        <li><span class="lab-vc">VC-17</span>S3 placeholder</li>
+        <li><span class="lab-vc">VC-18–22</span>S4 transcript: resolved, session chip, unresolved, renamed, pre-feature</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= LIVE PROTOTYPE ================= -->
+  <section class="lab-section" data-od-id="live">
+    <h2>Live prototype</h2>
+    <p>Click the composer and type <code>@</code>. Try <code>@client</code>, <code>@web/</code>, <code>@login</code>, <code>@notes</code>, then send. Local state only; nothing leaves this page. The simulation toggles below drive the picker's failure and loading states.</p>
+    <div class="lab-toggles" data-od-id="sim-toggles">
+      <label><input type="checkbox" data-sim="filesError"> File search fails</label>
+      <label><input type="checkbox" data-sim="sessionsError"> Session list fails</label>
+      <label><input type="checkbox" data-sim="truncated"> Directory over 25,000 files</label>
+      <label><input type="checkbox" data-sim="slow"> Slow search (900 ms)</label>
+    </div>
+    <div class="lab-live">
+      <div class="sw" data-od-id="live-window">
+        <div class="sw-bar"><svg class="i" style="width:14px;height:14px"><use href="#i-session"/></svg><b>Composer @ mentions board</b><span>· claude</span></div>
+        <div class="sw-thread" id="thread" data-od-id="live-thread" aria-live="polite">
+          <div class="um"><div class="um-bubble">Why does the login redirect loop after the token refresh? It started after we touched the @Override handler.</div></div>
+          <p class="am-prose">The refresh path re-enters the guard before the new token is stored, so the guard sees the old token and redirects again. Moving the store before the redirect fixes it.</p>
+        </div>
+        <div class="sw-zone">
+          <div class="tm-pop smm" id="picker" role="listbox" aria-label="Mentions" hidden data-od-id="live-picker"></div>
+          <div class="sc" data-od-id="live-composer">
+            <div class="sc-input" id="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Session prompt" aria-autocomplete="list" aria-controls="picker" data-placeholder="Send a message — type / for commands, @ to mention" data-empty spellcheck="false"></div>
+            <div class="sc-row">
+              <span class="sc-chip"><svg class="i"><use href="#i-bot"/></svg>Claude · Opus</span>
+              <span class="sc-icon" aria-hidden="true"><svg class="i"><use href="#i-clip"/></svg></span>
+              <span class="sc-hint">⏎ send</span>
+              <span class="sp"></span>
+              <button class="sc-send" type="button" id="send" aria-label="Send" data-od-id="live-send"><svg class="i"><use href="#i-up"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="lab-wire" data-od-id="wire-panel" aria-label="What the daemon receives (lab)">
+        <h4>Lab · sent text</h4>
+        <pre id="wire-text"><span class="lab-empty">Send a prompt to see the token form.</span></pre>
+        <h4>Lab · ACP blocks after the text</h4>
+        <pre id="wire-blocks"><span class="lab-empty">—</span></pre>
+        <div class="lab-keys">
+          <div><kbd>↑</kbd> <kbd>↓</kbd> move, wraps at both ends</div>
+          <div><kbd>Enter</kbd> <kbd>Tab</kbd> pick · <kbd>Enter</kbd> with no rows sends</div>
+          <div><kbd>Esc</kbd> closes for this <code>@</code> only</div>
+          <div><kbd>Space</kbd> after <code>@query</code> keeps the text</div>
+          <div><kbd>⌫</kbd> after a chip removes the whole chip</div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= S1 ================= -->
+  <section class="lab-section" data-od-id="s1">
+    <h2>S1 · The @ picker</h2>
+    <p>A second <code>Unstable_TriggerPopover</code> with <code>char="@"</code> inside the existing trigger root. Two groups in fixed order — Files (files and folders, up to 50) then Sessions (up to 5, current session excluded). Each group owns its own empty, error and loading row, so one failing source never hides the other.</p>
+    <div class="lab-grid" id="s1-grid"></div>
+  </section>
+
+  <!-- ================= S2 + S3 ================= -->
+  <section class="lab-section" data-od-id="s2">
+    <h2>S2 · Mention chips · S3 · Placeholder</h2>
+    <p>The chip renderer dispatches on <code>directiveType</code>: a skill keeps <code>SessionCommandChip</code>; a mention renders <code>SessionMentionChip</code>. Mentions use neutral ink so they never read as a runnable command; the icon carries the kind.</p>
+    <div class="lab-grid" id="s2-grid"></div>
+  </section>
+
+  <!-- ================= S4 ================= -->
+  <section class="lab-section" data-od-id="s4">
+    <h2>S4 · Transcript user message</h2>
+    <p>History chips render only from daemon-verified <code>mentions</code> metadata. A token that did not resolve stays plain text. The session chip is the only interactive chip in v1: it opens that session's window.</p>
+    <div class="lab-grid" id="s4-grid"></div>
+  </section>
+
+  <!-- ================= MATRIX ================= -->
+  <section class="lab-section" data-od-id="matrix">
+    <h2>Surface → component → VC</h2>
+    <div class="lab-scroll">
+    <table class="lab-table">
+      <thead><tr><th>Surface</th><th>Component</th><th>VC</th><th>Stories</th></tr></thead>
+      <tbody>
+        <tr><td>S1 @ picker</td><td><code>SessionComposerMentionMenu</code> + shared rows</td><td>VC-01 – VC-10</td><td>US-001, US-003, US-004</td></tr>
+        <tr><td>S2 mention chip</td><td><code>SessionMentionChip</code> (editor), <code>SessionCommandChip</code> unchanged</td><td>VC-11 – VC-16</td><td>US-002</td></tr>
+        <tr><td>S3 placeholder</td><td><code>session-composer.tsx</code> copy</td><td>VC-17</td><td>US-001</td></tr>
+        <tr><td>S4 user message</td><td><code>SessionDirectiveText</code> via registry + <code>SessionMentionChip</code></td><td>VC-18 – VC-22</td><td>US-008</td></tr>
+        <tr><td>S5 empty desktop</td><td>unchanged — no picker; typed tokens resolve once the session starts</td><td>—</td><td>US-007</td></tr>
+        <tr><td>Worktree-bound session</td><td>no visual difference; rows come from the worktree</td><td>—</td><td>US-001.AC-4, EC-9</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+</main>
+
+<div class="tip" id="tip" role="tooltip"></div>
+<div class="lab-toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- data: real repo paths; sessions are illustrative ---------- */
+const FILES = [
+  "README.md","CLAUDE.md","COPY.md","Makefile","go.mod",
+  "cmd/","cmd/compozy/","cmd/compozy/main.go",
+  "docs/","docs/My Notes.md","docs/_memory/","docs/_memory/glossary.md",
+  "internal/","internal/acp/","internal/acp/client.go","internal/acp/client_prompt.go","internal/acp/client_steer.go","internal/acp/agent_process_prompt.go",
+  "internal/api/","internal/hooks/","internal/store/",
+  "packages/","packages/ui/","packages/ui/src/","packages/ui/src/tokens.css",
+  "web/","web/src/","web/src/systems/","web/src/systems/session/",
+  "web/src/components/","web/src/components/assistant-ui/",
+  "web/src/components/assistant-ui/session-composer.tsx",
+  "web/src/components/assistant-ui/session-composer-chip.tsx",
+  "web/src/components/assistant-ui/session-composer-command-menu.tsx",
+  "web/src/components/assistant-ui/session-user-message.tsx"
+];
+const SESSIONS = [
+  {id:"sess-1a2b3c",title:"Fix login bug",agent:"codex",ago:"4m ago",rank:1},
+  {id:"sess-7f9e21",title:"Review ACP prompt contract",agent:"claude",ago:"18m ago",rank:2},
+  {id:"sess-c04d55",title:"Fix login bug",agent:"claude",ago:"2h ago",rank:3},
+  {id:"sess-88aa10",title:"",agent:"opencode",ago:"1d ago",rank:4},
+  {id:"sess-5b6c7d",title:"Composer mentions spec",agent:"claude",ago:"3d ago",rank:5},
+  {id:"sess-2e3f4a",title:"Release notes draft",agent:"codex",ago:"5d ago",rank:6},
+  {id:"sess-current",title:"Composer @ mentions board",agent:"claude",ago:"now",rank:0,current:true},
+  {id:"sess-0ld999",title:"Old spike",agent:"codex",ago:"30d ago",rank:9,archived:true}
+];
+
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const isDir = p => p.endsWith("/");
+const depth = p => p.replace(/\/$/,"").split("/").length;
+const nameOf = p => { const t = p.replace(/\/$/,""); return t.slice(t.lastIndexOf("/")+1) + (isDir(p) ? "/" : ""); };
+const parentOf = p => { const t = p.replace(/\/$/,""); const i = t.lastIndexOf("/"); return i < 0 ? "" : t.slice(0,i); };
+const icon = id => `<svg class="i" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+function hl(text, q){
+  if(!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if(i < 0) return esc(text);
+  return esc(text.slice(0,i)) + "<mark>" + esc(text.slice(i,i+q.length)) + "</mark>" + esc(text.slice(i+q.length));
+}
+
+/* ---------- ranking: name matches > dir-only matches, shallow > deep ---------- */
+function searchFiles(q, recents){
+  if(!q){
+    const out = [...recents];
+    FILES.filter(p => !out.includes(p)).sort((a,b) => depth(a)-depth(b) || a.localeCompare(b)).forEach(p => out.push(p));
+    return out.slice(0,50).map(p => ({path:p, tier: recents.includes(p) ? "recent" : "path"}));
+  }
+  const ql = q.toLowerCase();
+  return FILES.map(p => {
+    const inName = nameOf(p).toLowerCase().includes(ql);
+    const inPath = p.toLowerCase().includes(ql);
+    return inName ? {path:p,tier:0} : inPath ? {path:p,tier:1} : null;
+  }).filter(Boolean)
+    .sort((a,b) => a.tier-b.tier || depth(a.path)-depth(b.path) || a.path.localeCompare(b.path))
+    .slice(0,50);
+}
+function searchSessions(q){
+  const ql = (q||"").toLowerCase();
+  return SESSIONS.filter(s => !s.current && !s.archived)
+    .filter(s => !ql || s.title.toLowerCase().includes(ql) || s.id.includes(ql) || s.agent.includes(ql))
+    .sort((a,b) => a.rank-b.rank).slice(0,5);
+}
+
+/* ---------- shared trigger-menu rendering (one source for live + specimens) ---------- */
+function fileRow(r, q, idx, hi){
+  const p = r.path, name = nameOf(p), parent = parentOf(p);
+  const nameHtml = r.tier === 0 ? hl(name,q) : esc(name);
+  const subHtml = r.tier === 1 ? hl(parent,q) : esc(parent);
+  return `<div class="tm-row" role="option" id="opt-${idx}" data-idx="${idx}" ${idx===hi?'data-highlighted aria-selected="true"':'aria-selected="false"'}>
+    <span class="tm-ico">${icon(isDir(p)?"folder":"file")}</span>
+    <span class="tm-main"><span class="tm-title">${nameHtml}</span>${parent?`<span class="tm-sub">${subHtml}</span>`:""}</span></div>`;
+}
+function sessionRow(s, q, idx, hi){
+  const title = s.title ? `<span class="tm-title">${hl(s.title,q)}</span>` : `<span class="tm-title is-id">${hl(s.id,q)}</span>`;
+  return `<div class="tm-row" role="option" id="opt-${idx}" data-idx="${idx}" ${idx===hi?'data-highlighted aria-selected="true"':'aria-selected="false"'}>
+    <span class="tm-ico">${icon("session")}</span>
+    <span class="tm-main">${title}<span class="tm-sub">${hl(s.agent,q)} · ${s.ago}</span></span></div>`;
+}
+/* m = {query, highlighted, files:{state,rows,truncated}, sessions:{state,rows}} */
+function menuHTML(m){
+  let idx = 0, html = "";
+  const files = m.files, sess = m.sessions;
+  html += `<div class="tm-head eyebrow" role="presentation">Files</div>`;
+  if(files.state === "error") html += `<p class="tm-empty">Couldn't search files</p>`;
+  else if(files.rows.length === 0) html += `<p class="tm-empty">${files.state === "loading" ? "Loading files…" : "No matching files"}</p>`;
+  else {
+    files.rows.forEach(r => { html += fileRow(r, m.query, idx, m.highlighted); idx++; });
+    if(files.truncated) html += `<p class="tm-foot">Showing results from the first 25,000 files</p>`;
+  }
+  html += `<div class="tm-div" role="presentation"></div><div class="tm-head eyebrow" role="presentation">Sessions</div>`;
+  if(sess.state === "error") html += `<p class="tm-empty">Couldn't load sessions</p>`;
+  else if(sess.rows.length === 0) html += `<p class="tm-empty">No matching sessions</p>`;
+  else sess.rows.forEach(s => { html += sessionRow(s, m.query, idx, m.highlighted); idx++; });
+  return `<div class="tm-items">${html}</div>`;
+}
+
+/* ---------- chips ---------- */
+function chipFor(kind, target, label){
+  if(kind === "session") return {kind, token:"@session:"+target.id, label: target.title || target.id, tip: target.id};
+  const quoted = /\s/.test(target);
+  return {kind, token: quoted ? `@"${target}"` : "@"+target, label: nameOf(target), tip: target};
+}
+function editorChipHTML(c){
+  return `<span class="smc" contenteditable="false" data-token="${esc(c.token)}" data-kind="${c.kind}" data-tip="${esc(c.tip)}">${icon(c.kind==="session"?"session":c.kind==="folder"?"folder":"file")}${esc(c.label)}</span>`;
+}
+function historyChipHTML(c){
+  const ic = icon(c.kind==="session"?"session":c.kind==="folder"?"folder":"file");
+  if(c.kind === "session") return `<button type="button" class="smc" data-tip="${esc(c.tip)}" data-open-session="${esc(c.tip)}" data-label="${esc(c.label)}">${ic}${esc(c.label)}</button>`;
+  return `<span class="smc" data-tip="${esc(c.tip)}">${ic}${esc(c.label)}</span>`;
+}
+
+/* ---------- daemon-side resolution (simulated): tokens → verified mentions ---------- */
+function resolveToken(raw){
+  if(raw.startsWith("session:")){
+    const s = SESSIONS.find(x => x.id === raw.slice(8));
+    if(!s || s.current) return null;
+    return chipFor("session", s);
+  }
+  if(raw.startsWith("/")) return null;
+  if(FILES.includes(raw)) return chipFor(isDir(raw)?"folder":"file", raw);
+  if(!raw.endsWith("/") && FILES.includes(raw+"/")) return chipFor("folder", raw+"/");
+  return null;
+}
+function parseMentions(text){
+  /* returns segments [{t:"text"|"code"|"chip", v, chip}] — code spans are never mentions */
+  const segs = [];
+  text.split(/(`[^`]*`)/).forEach(part => {
+    if(!part) return;
+    if(part.startsWith("`") && part.endsWith("`") && part.length > 1){ segs.push({t:"code", v:part}); return; }
+    const re = /(^|\s)@("([^"\n]+)"|[^\s`]+)/g;
+    let last = 0, m;
+    while((m = re.exec(part))){
+      let tok = m[3] !== undefined ? m[3] : m[2];
+      let trail = "";
+      if(m[3] === undefined){ const tm = /[.,;:!?)]+$/.exec(tok); if(tm){ trail = tm[0]; tok = tok.slice(0,-trail.length); } }
+      const chip = resolveToken(tok);
+      const start = m.index + m[1].length;
+      if(!chip) continue;
+      segs.push({t:"text", v: part.slice(last, start)});
+      segs.push({t:"chip", v: m[0].slice(m[1].length, m[0].length - trail.length), chip});
+      last = start + m[0].length - m[1].length - trail.length;
+    }
+    segs.push({t:"text", v: part.slice(last)});
+  });
+  return segs;
+}
+function bubbleHTML(segs){
+  return segs.map(s => s.t === "chip" ? historyChipHTML(s.chip) : s.t === "code" ? `<code>${esc(s.v.slice(1,-1))}</code>` : esc(s.v)).join("");
+}
+
+/* ================= LIVE PROTOTYPE ================= */
+const editor = document.getElementById("editor");
+const picker = document.getElementById("picker");
+const thread = document.getElementById("thread");
+const sim = {filesError:false, sessionsError:false, truncated:false, slow:false};
+const recents = ["internal/acp/client_prompt.go","web/src/"];
+const dismissed = new WeakMap();
+let st = {open:false, node:null, at:0, query:null, highlighted:0, fileRows:[], fileState:"ok", lastShown:false};
+let timer = null, seq = 0;
+
+function updateEmpty(){
+  if(serialize().trim() === "" && !editor.querySelector(".smc")) editor.setAttribute("data-empty",""); else editor.removeAttribute("data-empty");
+}
+function serialize(){
+  let out = "";
+  const walk = n => n.childNodes.forEach(c => {
+    if(c.nodeType === 3) out += c.data.replace(/ /g," ");
+    else if(c.classList && c.classList.contains("smc")) out += c.dataset.token;
+    else if(c.nodeName === "BR") out += "\n";
+    else { if(c.nodeName === "DIV" && out && !out.endsWith("\n")) out += "\n"; walk(c); }
+  });
+  walk(editor);
+  return out;
+}
+function liveModel(){
+  const sessRows = searchSessions(st.query);
+  return {
+    query: st.query, highlighted: st.highlighted,
+    files: {state: sim.filesError ? "error" : st.fileState, rows: sim.filesError ? [] : st.fileRows, truncated: sim.truncated},
+    sessions: {state: sim.sessionsError ? "error" : "ok", rows: sim.sessionsError ? [] : sessRows}
+  };
+}
+function selectable(m){ return (m.files.state==="error"?[]:m.files.rows.map(r=>({k:"file",r}))).concat(m.sessions.state==="error"?[]:m.sessions.rows.map(s=>({k:"session",s}))); }
+function render(){
+  if(!st.open){ picker.hidden = true; editor.setAttribute("aria-expanded","false"); editor.removeAttribute("aria-activedescendant"); return; }
+  const m = liveModel();
+  const n = selectable(m).length;
+  if(st.highlighted >= n) st.highlighted = 0;
+  m.highlighted = st.highlighted;
+  picker.innerHTML = menuHTML(m);
+  picker.hidden = false;
+  editor.setAttribute("aria-expanded","true");
+  if(n){ editor.setAttribute("aria-activedescendant","opt-"+st.highlighted); const el = picker.querySelector("[data-highlighted]"), box = picker.querySelector(".tm-items");
+    if(el && box){ const top = el.offsetTop - box.offsetTop, bottom = top + el.offsetHeight;
+      if(top < box.scrollTop) box.scrollTo({top: top - 4}); else if(bottom > box.scrollTop + box.clientHeight) box.scrollTo({top: bottom - box.clientHeight + 4}); } }
+  else editor.removeAttribute("aria-activedescendant");
+}
+function runSearch(q){
+  clearTimeout(timer);
+  const my = ++seq;
+  if(st.fileRows.length === 0) st.fileState = "loading";
+  else st.fileState = "loading"; /* previous rows stay visible (EC-6) */
+  render();
+  timer = setTimeout(() => {
+    setTimeout(() => {
+      if(my !== seq || !st.open) return; /* stale response discarded (EC-7) */
+      st.fileRows = searchFiles(q, recents);
+      st.fileState = "ok";
+      render();
+    }, sim.slow ? 900 : 160);
+  }, 120);
+}
+function detect(){
+  const sel = window.getSelection();
+  if(!sel.rangeCount || !sel.isCollapsed || !editor.contains(sel.anchorNode)) return close();
+  const node = sel.anchorNode;
+  if(node.nodeType !== 3) return close();
+  const before = node.data.slice(0, sel.anchorOffset);
+  const m = /(^|[\s ])@([^\s @"]*)$/.exec(before);
+  if(!m) return close();
+  const at = m.index + m[1].length;
+  if(at === 0){
+    const prev = node.previousSibling;
+    if(prev && prev.nodeType === 3 && !/[\s ]$/.test(prev.data)) return close();
+  }
+  const set = dismissed.get(node);
+  if(set && set.has(at)) return close();
+  const q = m[2];
+  const reopened = !st.open || st.node !== node || st.at !== at;
+  st.open = true; st.node = node; st.at = at;
+  if(reopened){ st.highlighted = 0; }
+  if(q !== st.query || reopened){ st.query = q; st.highlighted = 0; runSearch(q); }
+  else render();
+}
+function close(){ if(st.open){ st.open = false; st.query = null; seq++; render(); } }
+function dismiss(){
+  if(!st.node) return;
+  let set = dismissed.get(st.node); if(!set){ set = new Set(); dismissed.set(st.node,set); }
+  set.add(st.at); close();
+}
+function placeCaretAfter(node, offset){
+  const r = document.createRange(); r.setStart(node, offset); r.collapse(true);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
+function pick(i){
+  const m = liveModel(); const it = selectable(m)[i]; if(!it) return;
+  const chip = it.k === "file" ? chipFor(isDir(it.r.path)?"folder":"file", it.r.path) : chipFor("session", it.s);
+  if(it.k === "file"){ const p = it.r.path; const k = recents.indexOf(p); if(k>=0) recents.splice(k,1); recents.unshift(p); recents.length = Math.min(recents.length, 8); }
+  const node = st.node, sel = window.getSelection(), end = sel.anchorOffset;
+  const after = node.data.slice(end);
+  node.data = node.data.slice(0, st.at);
+  const tmp = document.createElement("span"); tmp.innerHTML = editorChipHTML(chip);
+  const chipEl = tmp.firstChild;
+  const tail = document.createTextNode(" " + after);
+  node.parentNode.insertBefore(tail, node.nextSibling);
+  node.parentNode.insertBefore(chipEl, tail);
+  close();
+  placeCaretAfter(tail, 1);
+  updateEmpty();
+}
+function send(){
+  const text = serialize().replace(/ /g," ").trim();
+  if(!text) return;
+  const segs = parseMentions(text);
+  const div = document.createElement("div"); div.className = "um";
+  div.innerHTML = `<div class="um-bubble">${bubbleHTML(segs)}</div>`;
+  thread.appendChild(div); thread.scrollTop = thread.scrollHeight;
+  const chips = segs.filter(s => s.t === "chip").map(s => s.chip);
+  const seen = new Set(), links = [], refs = [];
+  chips.forEach(c => { if(seen.has(c.token)) return; seen.add(c.token); (c.kind === "session" ? refs : links).push(c); });
+  document.getElementById("wire-text").textContent = text;
+  let blocks = links.map(c => `resource_link\n  name ${c.tip}\n  uri  file:///<session dir>/${c.tip.split("/").map(encodeURIComponent).join("/")}`).join("\n");
+  if(refs.length) blocks += (blocks ? "\n" : "") + `<compozy_session_references>\n` + refs.map(c => `  ${c.tip} · ${c.label}`).join("\n") + `\n  → call compozy__session_history; untrusted data`;
+  document.getElementById("wire-blocks").textContent = blocks || "No mentions resolved — text only.";
+  editor.innerHTML = ""; updateEmpty(); close(); editor.focus();
+}
+
+editor.addEventListener("input", () => { updateEmpty(); detect(); });
+editor.addEventListener("click", detect);
+editor.addEventListener("keyup", e => { if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) detect(); });
+editor.addEventListener("blur", () => setTimeout(() => { if(document.activeElement !== editor) close(); }, 120));
+editor.addEventListener("paste", e => { e.preventDefault(); document.execCommand("insertText", false, (e.clipboardData||window.clipboardData).getData("text/plain")); });
+editor.addEventListener("keydown", e => {
+  if(e.isComposing || e.keyCode === 229) return; /* IME wins (US-004.EC-1) */
+  if(st.open){
+    const n = selectable(liveModel()).length;
+    if(e.key === "ArrowDown" && n){ e.preventDefault(); st.highlighted = (st.highlighted+1)%n; render(); return; }
+    if(e.key === "ArrowUp" && n){ e.preventDefault(); st.highlighted = (st.highlighted-1+n)%n; render(); return; }
+    if((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && n){ e.preventDefault(); pick(st.highlighted); return; }
+    if(e.key === "Escape"){ e.preventDefault(); dismiss(); return; }
+  }
+  if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); send(); return; }
+  if(e.key === "Backspace"){
+    const sel = window.getSelection(); if(!sel.isCollapsed) return;
+    let prev = null; const a = sel.anchorNode;
+    if(a.nodeType === 3 && sel.anchorOffset === 0) prev = a.previousSibling;
+    else if(a === editor && sel.anchorOffset > 0) prev = editor.childNodes[sel.anchorOffset-1];
+    if(prev && prev.classList && prev.classList.contains("smc")){ e.preventDefault(); prev.remove(); updateEmpty(); }
+  }
+});
+picker.addEventListener("mousedown", e => e.preventDefault());
+picker.addEventListener("click", e => { const row = e.target.closest(".tm-row"); if(row) pick(+row.dataset.idx); });
+picker.addEventListener("mousemove", e => { const row = e.target.closest(".tm-row"); if(row && +row.dataset.idx !== st.highlighted){ st.highlighted = +row.dataset.idx; render(); } });
+document.getElementById("send").addEventListener("click", send);
+document.querySelectorAll("[data-sim]").forEach(cb => cb.addEventListener("change", () => { sim[cb.dataset.sim] = cb.checked; render(); }));
+
+/* session chip in history opens that session (local demo) */
+const toast = document.getElementById("toast"); let toastT;
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-open-session]"); if(!b) return;
+  toast.textContent = `Opens session window: ${b.dataset.label} (${b.dataset.openSession})`;
+  toast.setAttribute("data-show",""); clearTimeout(toastT); toastT = setTimeout(() => toast.removeAttribute("data-show"), 2200);
+});
+
+/* tooltip (@compozy/ui Tooltip stand-in) */
+const tip = document.getElementById("tip");
+function showTip(el){
+  if(!el || el.closest(".lab-stage[data-static-tip]")) return;
+  tip.textContent = el.dataset.tip; tip.setAttribute("data-show","");
+  const r = el.getBoundingClientRect(), tr = tip.getBoundingClientRect();
+  tip.style.left = Math.max(8, Math.min(window.innerWidth - tr.width - 8, r.left + r.width/2 - tr.width/2)) + "px";
+  tip.style.top = (r.top - tr.height - 6) + "px";
+}
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if(el) showTip(el); else tip.removeAttribute("data-show"); });
+document.addEventListener("focusin", e => { const el = e.target.closest && e.target.closest("[data-tip]"); if(el) showTip(el); });
+document.addEventListener("focusout", () => tip.removeAttribute("data-show"));
+window.addEventListener("scroll", () => tip.removeAttribute("data-show"), {passive:true});
+
+/* theme */
+document.querySelectorAll("[data-theme-btn]").forEach(b => b.addEventListener("click", () => {
+  const t = b.dataset.themeBtn;
+  if(t === "light") document.documentElement.setAttribute("data-theme","light"); else document.documentElement.removeAttribute("data-theme");
+  document.querySelectorAll("[data-theme-btn]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  placeAllMarks();
+}));
+
+/* ================= SPECIMENS ================= */
+const PH = "Send a message — type / for commands, @ to mention";
+function composer(inner, {placeholder=false, focus=false}={}){
+  return `<div class="sc"${focus?' style="border-color:var(--accent-dim)"':""}>
+    <div class="sc-input"${placeholder?` data-empty data-placeholder="${PH}"`:""}>${inner}</div>
+    <div class="sc-row"><span class="sc-chip">${icon("bot")}Claude · Opus</span><span class="sc-icon">${icon("clip")}</span><span class="sc-hint">⏎ send</span><span class="sp"></span><span class="sc-send">${icon("up")}</span></div></div>`;
+}
+const pop = m => `<div class="tm-pop smm is-static" role="listbox" aria-label="Mentions">${menuHTML(m)}</div>`;
+const caret = `<span style="display:inline-block;width:1px;height:1.1em;background:var(--fg);vertical-align:-2px;margin-left:1px"></span>`;
+const ed = q => `Review @${esc(q)}${caret}`;
+const S = id => SESSIONS.find(s => s.id === id);
+const mm = (q, files, sessions, hi=0) => ({query:q, highlighted:hi, files, sessions});
+const ok = rows => ({state:"ok", rows});
+
+const S1 = [
+  {vc:"VC-01", title:"Open with results", story:"US-001.AC-1/2 · US-003.AC-1",
+   html: pop(mm("client", ok(searchFiles("client",[])), ok(searchSessions("client")))) + composer(ed("client"),{focus:true}),
+   marks:[[".tm-head",1],[".tm-row mark",2,"t"],[".tm-sub",3,"t"],[".tm-div",4]],
+   legend:["Group header — <code>eyebrow px-2 pt-2 pb-1 text-muted</code>, the <code>/</code> menu's header (production).","Matched characters: weight 650 + <code>fg-strong</code>; no hue, so accent stays reserved (delta).","Secondary = parent directory, 11px <code>text-subtle</code>, truncates first (production slot).","Sessions has no match for “client” → its own empty row; Files still works (spec)."],
+   tags:["query","SessionComposerMentionMenu","VC-01","neutral"]},
+  {vc:"VC-02", title:"Bare @ — recents first", story:"US-001.AC-3 · US-003.AC-2",
+   html: pop(mm("", ok(searchFiles("",["internal/acp/client_prompt.go","web/src/"]).slice(0,4)), ok(searchSessions("")))) + composer(`Look at @${caret}`,{focus:true}),
+   marks:[[".tm-row",1],[".tm-row:nth-of-type(3)",2],[".tm-row[data-idx='4']",3]],
+   legend:["Up to 8 recent mentions of this workspace, newest first (localStorage, per workspace).","Then the shallowest paths of the session's working directory.","Sessions: the 5 most recently updated, current session excluded; untitled shows its id in mono."],
+   tags:["bare","recents","VC-02"]},
+  {vc:"VC-03", title:"Loading keeps previous rows", story:"US-001.EC-6 · EC-7",
+   html: pop(mm("client_p", {state:"loading", rows: searchFiles("client",[])}, ok([])) ) + composer(ed("client_p"),{focus:true}),
+   marks:[[".tm-row",1]],
+   legend:["Query moved from “client” to “client_p”; the “client” rows stay until the new response lands. No spinner, no dimming. A stale response for an older query is discarded."],
+   tags:["loading","isLoading","VC-03"]},
+  {vc:"VC-04", title:"First load — loading row", story:"US-001.EC-6",
+   html: pop(mm("", {state:"loading", rows:[]}, ok(searchSessions("")))) + composer(`@${caret}`,{focus:true}),
+   marks:[[".tm-empty",1]],
+   legend:["Only with no previous rows: the empty-row element reads “Loading files…” (mirrors “Loading commands…”). Sessions already cached render immediately."],
+   tags:["loading","first-open","VC-04"], provisional:"“Loading files…” copy"},
+  {vc:"VC-05", title:"Empty per group", story:"US-001.EC-2 · US-004.AC-3",
+   html: pop(mm("zzq", ok([]), ok([]))) + composer(ed("zzq"),{focus:true}),
+   marks:[[".tm-empty",1],[".tm-empty:last-of-type",2]],
+   legend:["“No matching files” — same element and tokens as <code>composer-command-empty</code>.","“No matching sessions”. With no rows, Enter sends the prompt as typed."],
+   tags:["empty","VC-05"]},
+  {vc:"VC-06", title:"File search fails", story:"US-001.EC-3",
+   html: pop(mm("login", {state:"error", rows:[]}, ok(searchSessions("login")))) + composer(ed("login"),{focus:true}),
+   marks:[[".tm-empty",1],[".tm-row",2]],
+   legend:["“Couldn't search files” in the empty-row slot; neutral, no icon. The composer still accepts text and Enter.","Sessions keeps working and stays pickable."],
+   tags:["error","files","VC-06"]},
+  {vc:"VC-07", title:"Session list fails", story:"US-003.EC-3",
+   html: pop(mm("composer", ok(searchFiles("composer",[]).slice(0,4)), {state:"error", rows:[]})) + composer(ed("composer"),{focus:true}),
+   marks:[[".tm-empty",1]],
+   legend:["“Couldn't load sessions”; files still work."],
+   tags:["error","sessions","VC-07"]},
+  {vc:"VC-08", title:"Truncated index", story:"US-001.EC-4",
+   html: pop(mm("session", {state:"ok", rows: searchFiles("session",[]).slice(0,4), truncated:true}, ok(searchSessions("session")))) + composer(ed("session"),{focus:true}),
+   marks:[[".tm-foot",1]],
+   legend:["Muted footer inside the Files group, <code>text-muted-foreground</code> 11px: “Showing results from the first 25,000 files”."],
+   tags:["truncated","25k cap","VC-08"]},
+  {vc:"VC-09", title:"Duplicate titles", story:"US-003.EC-4",
+   html: pop(mm("login", ok([]), ok(searchSessions("login")), 0)) + composer(ed("login"),{focus:true}),
+   marks:[[".tm-row .tm-sub",1,"t"],[".tm-row[data-idx='1'] .tm-sub",2,"t"]],
+   legend:["Two “Fix login bug” rows: the secondary “agent · relative time” tells them apart — always shown, so no layout shift when a duplicate appears.","Ordered by most recently updated."],
+   tags:["sessions","disambiguation","VC-09"]},
+  {vc:"VC-10", title:"Dismissed occurrence", story:"US-004.AC-1/2/4",
+   html: composer(`The @Override annotation on the handler, and @Deprecated${caret}`,{focus:true}),
+   marks:[[".sc-input",1,"t"]],
+   legend:["Esc closed the picker for <code>@Override</code>; typing after it never reopens it. A new <code>@</code> after whitespace opens again; a space after <code>@query</code> closes and keeps the text."],
+   tags:["dismissed","literal @","VC-10"]}
+];
+
+const C = {
+  file: chipFor("file","internal/acp/client_prompt.go"),
+  folder: chipFor("folder","web/src/"),
+  session: chipFor("session", S("sess-1a2b3c")),
+  quoted: chipFor("file","docs/My Notes.md"),
+  untitled: chipFor("session", S("sess-88aa10"))
+};
+const skill = `<span class="scc">${icon("blocks")}/deep-review</span>`;
+const S2 = [
+  {vc:"VC-11 · 12 · 13", title:"File, folder and session chips", story:"US-002.AC-1/2 · US-003.AC-3",
+   html: composer(`Compare ${editorChipHTML(C.file)} with what ${editorChipHTML(C.session)} found under ${editorChipHTML(C.folder)}${caret}`,{focus:true}),
+   marks:[[".smc[data-kind='file']",1,"t"],[".smc[data-kind='session']",2,"t"],[".smc[data-kind='folder']",3,"t"]],
+   legend:["File: lucide <code>File</code> at 1em in <code>text-muted</code>, label = file name, <code>font-medium text-foreground</code>.","Session: lucide <code>MessagesSquare</code>, label = title (id when untitled). Sends <code>@session:sess-1a2b3c</code>.","Folder: lucide <code>Folder</code>, label ends in <code>/</code>."],
+   tags:["chip","SessionMentionChip","VC-11","VC-12","VC-13"]},
+  {vc:"VC-14", title:"Hover tooltip", story:"US-002.AC-3", staticTip:true,
+   html: `<div style="height:30px"></div>` + composer(`Review ${editorChipHTML(C.file)} first${caret}`,{focus:true}),
+   after: stage => { const chip = stage.querySelector(".smc"); const t = document.createElement("div"); t.className="tip is-static"; t.textContent = C.file.tip; stage.appendChild(t); const r = chip.getBoundingClientRect(), s = stage.getBoundingClientRect(); t.style.left = (r.left - s.left) + "px"; t.style.top = (r.top - s.top - t.offsetHeight - 6) + "px"; },
+   marks:[[".tip",1,"t"]],
+   legend:["<code>Tooltip</code> from <code>@compozy/ui</code>: full path relative to the session's working directory (session id for a session chip). Hover the chips in the live prototype."],
+   tags:["tooltip","Tooltip","VC-14"]},
+  {vc:"VC-15", title:"Quoted path shows the plain name", story:"US-002.EC-1 · AC-5",
+   html: composer(`Summarize ${editorChipHTML(C.quoted)}${caret}`,{focus:true}) + `<p class="lab-tag" style="margin:10px 0 0">sends: Summarize @"docs/My Notes.md"</p>`,
+   marks:[[".smc",1,"t"]],
+   legend:["A path with a space is serialized quoted; the chip never shows the quotes. Paths with <code>\"</code> or a newline are never listed."],
+   tags:["chip","quoted","VC-15"]},
+  {vc:"VC-16", title:"Backspace removes the whole chip", story:"US-002.AC-4",
+   html: composer(`Review ${editorChipHTML(C.file)}${caret}`,{focus:true}) + `<div style="height:10px"></div>` + composer(`Review ${caret}`,{focus:true}),
+   marks:[[".sc",1],[".sc:last-of-type",2]],
+   legend:["Caret right after the chip.","One Backspace: the chip is gone as a unit, never half a path."],
+   tags:["chip","keyboard","VC-16"]},
+  {vc:"reuse", title:"Mention vs skill chip", story:"_uiux.md design constraint",
+   html: composer(`${skill} ${editorChipHTML(C.folder)}${caret}`,{focus:true}),
+   marks:[[".scc",1,"t"],[".smc",2,"t"]],
+   legend:["Skill chip keeps <code>text-info</code> + <code>Blocks</code>: it runs something (unchanged).","A mention never borrows info ink — it points, it doesn't run."],
+   tags:["SessionCommandChip","reuse","tone"]},
+  {vc:"VC-17", title:"Placeholder", story:"US-001",
+   html: composer("",{placeholder:true}),
+   marks:[[".sc-input",1,"t"]],
+   legend:["“Send a message — type / for commands, @ to mention” (was “… type / for commands”). No helper prose elsewhere."],
+   tags:["copy","session-composer.tsx","VC-17"]}
+];
+
+const bubble = (inner, extra="") => `<div class="um" style="padding-bottom:0"><div class="um-bubble"${extra}>${inner}</div></div>`;
+const renamed = {kind:"session", token:"@session:sess-7f9e21", label:"Review ACP prompt contract", tip:"sess-7f9e21"};
+const S4 = [
+  {vc:"VC-18", title:"Resolved mentions render as chips", story:"US-008.AC-1 · AC-3",
+   html: bubble(bubbleHTML(parseMentions("Compare @internal/acp/client_prompt.go with what @session:sess-1a2b3c found under @web/src/"))),
+   marks:[[".smc",1,"t"],["button.smc",2,"t"]],
+   legend:["File and folder chips: same <code>SessionMentionChip</code>, not interactive in v1 (tooltip only).","Session chip is a button. Copying the message copies the raw token text."],
+   tags:["history","SessionDirectiveText","VC-18"]},
+  {vc:"VC-19", title:"Session chip — hover and open", story:"US-008.AC-2",
+   html: bubble(bubbleHTML(parseMentions("Pick up from @session:sess-1a2b3c please"))),
+   after: stage => stage.querySelector("button.smc").classList.add("is-hover"),
+   marks:[["button.smc",1,"t"]],
+   legend:["Underline on hover/focus (<code>line-focus</code>), focus ring on keyboard focus; click opens that session's window. Try it in the live prototype."],
+   tags:["history","button","VC-19"]},
+  {vc:"VC-20", title:"Unresolved token stays text", story:"US-008.EC-1 · US-007.EC-1–4",
+   html: bubble(bubbleHTML(parseMentions("Check @scope/pkg and @README.md, not `@Component` or @/etc/hosts."))),
+   marks:[[".um-bubble",1,"t"],[".smc",2,"t"]],
+   legend:["<code>@scope/pkg</code> (no such path), <code>@/etc/hosts</code> (absolute) and code spans render as plain text — the UI never claims what the daemon didn't verify.","<code>@README.md,</code> resolved; trailing punctuation is not part of the path."],
+   tags:["history","truthful","VC-20"]},
+  {vc:"VC-21", title:"Renamed session keeps its recorded title", story:"US-008.EC-2",
+   html: bubble(`What did ${historyChipHTML(renamed)} conclude?`) + `<p class="lab-tag" style="margin:10px 0 0;text-align:right">session now titled “ACP contract — final”</p>`,
+   marks:[["button.smc",1,"t"]],
+   legend:["The chip shows the title recorded at send time from <code>mentions</code> metadata, not the live title."],
+   tags:["history","metadata","VC-21"]},
+  {vc:"VC-22", title:"Pre-feature message unchanged", story:"US-008.EC-3",
+   html: bubble("It started after we touched the @Override handler in internal/acp/client.go"),
+   marks:[[".um-bubble",1,"t"]],
+   legend:["No <code>mentions</code> metadata → rendered exactly as before, even if the text looks like a path."],
+   tags:["history","compat","VC-22"]}
+];
+
+function mountSpecs(gridId, specs){
+  const grid = document.getElementById(gridId);
+  specs.forEach((s,i) => {
+    const fig = document.createElement("figure"); fig.className = "lab-spec"; fig.dataset.odId = `${gridId}-${i+1}`;
+    fig.innerHTML = `<div class="lab-stage"${s.staticTip?" data-static-tip":""} aria-hidden="true">${s.html}</div>
+      <figcaption><b>${s.vc} · ${s.title}</b>${s.provisional?`<span class="lab-provisional">provisional: ${s.provisional}</span>`:""} <span class="lab-tag">${s.story}</span>
+      <ol>${s.legend.map((l,k) => `<li><i class="lab-n">${k+1}</i><span>${l}</span></li>`).join("")}</ol>
+      <div class="lab-tags">${s.tags.map(t => `<span>${t}</span>`).join("")}</div></figcaption>`;
+    grid.appendChild(fig);
+    const stage = fig.querySelector(".lab-stage");
+    stage._spec = s;
+    if(s.after) s.after(stage);
+  });
+}
+function placeMarks(stage){
+  stage.querySelectorAll(":scope > .lab-n").forEach(n => n.remove());
+  const s = stage._spec, sr = stage.getBoundingClientRect();
+  const used = [];
+  (s.marks||[]).forEach(([sel,n]) => {
+    let el;
+    if(sel.includes(":last-of-type")){ const all = stage.querySelectorAll(sel.replace(":last-of-type","")); el = all[all.length-1]; }
+    else if(sel.includes(":nth-of-type(")){ const k = +/\((\d+)\)/.exec(sel)[1]; el = stage.querySelectorAll(sel.replace(/:nth-of-type\(\d+\)/,""))[k-1]; }
+    else el = stage.querySelector(sel);
+    if(!el) return;
+    /* every callout sits in the stage's left gutter, level with the target's first line */
+    const r = el.getClientRects()[0] || el.getBoundingClientRect(), b = document.createElement("i");
+    b.className = "lab-n"; b.textContent = n;
+    let y = r.top - sr.top + Math.min(r.height, 22)/2 - 7;
+    while(used.some(u => Math.abs(u - y) < 17)) y += 17;
+    used.push(y);
+    b.style.left = "8px"; b.style.top = y + "px";
+    stage.appendChild(b);
+  });
+}
+function placeAllMarks(){ document.querySelectorAll(".lab-stage").forEach(placeMarks); }
+mountSpecs("s1-grid", S1); mountSpecs("s2-grid", S2); mountSpecs("s4-grid", S4);
+requestAnimationFrame(placeAllMarks);
+window.addEventListener("resize", () => { clearTimeout(window.__rz); window.__rz = setTimeout(placeAllMarks, 80); });
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(placeAllMarks);
+})();
+</script>
+</body>
+</html>
