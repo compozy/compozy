@@ -159,7 +159,9 @@ func resolveSymlink(root string, rel string) (string, bool) {
 	}
 }
 
-// indexablePath rejects paths a mention token cannot carry.
+// indexablePath rejects paths a mention token cannot carry: a quote or line
+// break ends the quoted form, and a backtick can pair with another one in the
+// message into a code span that cuts the token short (Business Rule 3).
 func indexablePath(path string) bool {
-	return path != "" && !strings.ContainsAny(path, "\"\n\r")
+	return path != "" && !strings.ContainsAny(path, "\"\n\r`")
 }

@@ -426,6 +426,8 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 			"web/node_modules/b/i.js":  "x",
 			".github/workflows/ci.yml": "x",
 			"bad\"name.txt":            "x",
+			"a`x`.md":                  "x",
+			"tick`dir/inner.go":        "x",
 		})
 
 		result, err := New(realGitRunner(t)).Search(t.Context(), root, "", 100)
