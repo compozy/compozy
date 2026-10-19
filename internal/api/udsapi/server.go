@@ -78,6 +78,7 @@ type Server struct {
 	tools                 core.ToolRegistry
 	toolArtifacts         toolspkg.ToolArtifactStore
 	sessionAttachments    core.SessionAttachmentStore
+	sessionFiles          core.SessionFileSearcher
 	toolsets              core.ToolsetRegistry
 	toolApprovals         core.ToolApprovalIssuer
 	approvalGrants        core.ToolApprovalGrantService

@@ -46,6 +46,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Tools:                        cfg.tools,
 		ToolArtifacts:                cfg.toolArtifacts,
 		SessionAttachments:           cfg.sessionAttachments,
+		SessionFiles:                 cfg.sessionFiles,
 		Toolsets:                     cfg.toolsets,
 		ToolApprovals:                cfg.toolApprovals,
 		ApprovalGrants:               cfg.approvalGrants,

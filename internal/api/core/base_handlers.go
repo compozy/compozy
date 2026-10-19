@@ -42,6 +42,7 @@ type BaseHandlerConfig struct {
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
+	SessionFiles                 SessionFileSearcher
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -128,6 +129,7 @@ type BaseHandlers struct {
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
+	SessionFiles                 SessionFileSearcher
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -240,6 +242,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Tools:                        cfg.Tools,
 		ToolArtifacts:                cfg.ToolArtifacts,
 		SessionAttachments:           cfg.SessionAttachments,
+		SessionFiles:                 cfg.SessionFiles,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,
 		ApprovalCoordinator:          cfg.ApprovalCoordinator,
