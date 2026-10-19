@@ -33,6 +33,7 @@ func (d *Daemon) runtimeDeps(
 		Sessions:           sessions,
 		Subagents:          state.subagents,
 		SessionAttachments: state.sessionAttachments,
+		SessionFiles:       newSessionFileIndex(state.logger),
 		DrainController:    d,
 
 		Registry:              state.registry,

@@ -11,6 +11,14 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import {
+  $getRoot,
+  $getSelection,
+  $isTextNode,
+  $setSelection,
+  getNearestEditorFromDOMNode,
+  type ElementNode,
+} from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { OverlayContainerContext } from "@compozy/ui";
@@ -54,6 +62,7 @@ import {
 import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
 import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
+import { readCursorSnapshot } from "../session-composer-cursor-snapshot";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { SessionThinkingRow } from "@/systems/session/components/session-thinking-row";
 import {
@@ -77,6 +86,12 @@ vi.mock("sonner", () => ({
     warning: vi.fn(),
   },
 }));
+
+// Spied so the composer suites can count document walks per editor update.
+vi.mock("../session-composer-cursor-snapshot", async importOriginal => {
+  const actual = await importOriginal<typeof import("../session-composer-cursor-snapshot")>();
+  return { ...actual, readCursorSnapshot: vi.fn(actual.readCursorSnapshot) };
+});
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -431,6 +446,7 @@ interface ThreadStateOptions {
   origin?: SessionOriginContextValue | null;
   /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
   forkRequest?: SessionForkRequest | null;
+  subagentNavigation?: ComponentProps<typeof SessionThread>["subagentNavigation"];
 }
 
 function threadStateElement(
@@ -455,6 +471,7 @@ function threadStateElement(
     subagentControl,
     origin = null,
     forkRequest = null,
+    subagentNavigation = null,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -516,6 +533,7 @@ function threadStateElement(
                 liveDataEnabled={liveDataEnabled}
                 contextControl={contextControl}
                 subagentControl={subagentControl}
+                subagentNavigation={subagentNavigation}
               />
             </SessionForkContext>
           </SessionOriginContext>
@@ -2290,6 +2308,227 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("user-message-bubble").textContent).toBe("/review /review");
   });
 
+  // Invariant: only daemon-verified `mentions` render as chips, at their offsets;
+  // a session chip opens that session (US-008.AC-1/2, EC-1/3). Owner: user message.
+  it("Should render verified mentions as chips and open a mentioned session", async () => {
+    const user = userEvent.setup();
+    const openSession = vi.fn();
+    const text =
+      "Compare @internal/acp/client_prompt.go with @session:sess-a under @web/src/ and @nope.md";
+    const transcript = [
+      {
+        id: "user-mentions",
+        role: "user",
+        content: text,
+        metadata: {
+          mentions: [
+            {
+              kind: "file",
+              token: "@internal/acp/client_prompt.go",
+              target: "internal/acp/client_prompt.go",
+              label: "client_prompt.go",
+              start: 8,
+              end: 38,
+            },
+            {
+              kind: "session",
+              token: "@session:sess-a",
+              target: "sess-a",
+              label: "Fix login bug",
+              start: 44,
+              end: 59,
+            },
+            {
+              kind: "folder",
+              token: "@web/src/",
+              target: "web/src/",
+              label: "src/",
+              start: 66,
+              end: 75,
+            },
+            { kind: "file", token: "@broken", start: 3 },
+          ],
+        },
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      subagentNavigation: { openSession },
+    });
+
+    const chips = await screen.findAllByTestId("session-mention-chip");
+    expect(chips.map(chip => chip.getAttribute("data-mention-kind"))).toEqual([
+      "file",
+      "session",
+      "folder",
+    ]);
+    expect(chips[0]).toHaveTextContent("client_prompt.go");
+    // A plain span carries no accessible name; screen readers read hidden text instead.
+    expect(within(chips[0]!).getByText("File internal/acp/client_prompt.go")).toHaveClass(
+      "sr-only"
+    );
+    expect(chips[0]!.tagName).toBe("SPAN");
+    expect(chips[2]).toHaveTextContent("src/");
+    // The unresolved token stays text: the UI never claims what the daemon did not verify.
+    expect(screen.getByTestId("user-message-bubble")).toHaveTextContent("and @nope.md");
+
+    await user.click(screen.getByRole("button", { name: "Session Fix login bug (sess-a)" }));
+    expect(openSession).toHaveBeenCalledWith(
+      { sessionId: "sess-a", agentName: "", workspaceId: fixtureWorkspaceId() },
+      { newWindow: false }
+    );
+  });
+
+  it("Should render a message without mention metadata exactly as before", async () => {
+    const text = "It started after the @Override handler in @internal/acp/client.go";
+    const transcript = [
+      {
+        id: "user-pre-mentions",
+        role: "user",
+        content: text,
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-bubble")).toHaveTextContent(text);
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+  });
+
+  function mentionMessage(id: string, text: string, token: string): SessionMessage {
+    const start = text.indexOf(token);
+    return {
+      id,
+      role: "user",
+      content: text,
+      metadata: {
+        mentions: [
+          { kind: "file", token, target: "a.go", label: "a.go", start, end: start + token.length },
+        ],
+      },
+      parts: [{ type: "text", text, state: "done" }],
+    } as SessionMessage;
+  }
+
+  // Invariant (VC-18): a chip sits inside the markdown the author wrote around
+  // its token, so emphasis and lists still form. Owner: user message.
+  it("Should keep the markdown around a mention chip", async () => {
+    const text = "**Read @a.go now**\n\n- check @a.go first";
+    const message = mentionMessage("user-mention-markdown", text, "@a.go");
+    const secondStart = text.lastIndexOf("@a.go");
+    (message.metadata as { mentions: unknown[] }).mentions.push({
+      kind: "file",
+      token: "@a.go",
+      target: "a.go",
+      label: "a.go",
+      start: secondStart,
+      end: secondStart + 5,
+    });
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages([message]) });
+
+    const chips = await screen.findAllByTestId("session-mention-chip");
+    expect(chips).toHaveLength(2);
+    expect(chips[0]!.closest("strong")).toHaveTextContent("Read a.go");
+    expect(chips[1]!.closest("li")).toHaveTextContent("check a.go");
+    expect(screen.getByTestId("user-message-bubble")).not.toHaveTextContent("**");
+  });
+
+  // Invariant (BR-3): the daemon only skips inline and fenced code, so it can
+  // verify a token inside an indented block; there it reads as its literal
+  // token in code, never a chip or the slot placeholder. Owner: user message.
+  it("Should render a verified mention inside indented code as its literal token", async () => {
+    const text = "Run this:\n\n    cat @a.go\n";
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([mentionMessage("user-mention-code", text, "@a.go")]),
+    });
+
+    const bubble = await screen.findByTestId("user-message-bubble");
+    expect(bubble.querySelector("code")).toHaveTextContent("cat @a.go");
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+    expect(bubble).not.toHaveTextContent("compozy-directive");
+  });
+
+  // Invariant (US-008): copying a selection across a chip yields its raw
+  // token, so the pasted text still mentions the same target. Owner: user message.
+  it("Should copy a selected mention chip as its raw token", async () => {
+    const text = "Read @a.go now";
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([mentionMessage("user-mention-copy", text, "@a.go")]),
+    });
+
+    const chip = await screen.findByTestId("session-mention-chip");
+    const paragraph = chip.closest("p")!;
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const setData = vi.fn();
+
+    fireEvent.copy(paragraph, { clipboardData: { setData } });
+
+    expect(setData).toHaveBeenCalledWith("text/plain", "Read @a.go now");
+    selection.removeAllRanges();
+  });
+
+  // Invariant (US-008.EC-2, VC-21): a session chip shows the title recorded at
+  // send time, even after that session was renamed. Owner: user message.
+  it("Should keep the recorded session title after the session is renamed", async () => {
+    const base = createFetchMock();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+        getPathname(input) === "/api/sessions"
+          ? jsonResponse({
+              sessions: [
+                { ...primarySessionFixture, id: "sess-7f9e21", name: "ACP contract — final" },
+              ],
+              page: { has_more: false, limit: 50 },
+            })
+          : base(input, init)
+      )
+    );
+    const text = "What did @session:sess-7f9e21 conclude?";
+    const transcript = [
+      {
+        id: "user-renamed-mention",
+        role: "user",
+        content: text,
+        metadata: {
+          mentions: [
+            {
+              kind: "session",
+              token: "@session:sess-7f9e21",
+              target: "sess-7f9e21",
+              label: "Review ACP prompt contract",
+              start: 9,
+              end: 29,
+            },
+          ],
+        },
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      subagentNavigation: { openSession: vi.fn() },
+    });
+
+    const chip = await screen.findByRole("button", {
+      name: "Session Review ACP prompt contract (sess-7f9e21)",
+    });
+    expect(chip).toHaveTextContent("Review ACP prompt contract");
+    expect(screen.getByTestId("user-message-bubble")).not.toHaveTextContent("ACP contract — final");
+  });
+
   it("Should render the attachment gallery above the user text bubble", async () => {
     const workspaceId = fixtureWorkspaceId();
     const sessionId = primarySessionFixture.id;
@@ -2542,6 +2781,63 @@ describe("SessionThread transcript states", () => {
         expect(writeText).toHaveBeenCalledWith("Flatten both.");
       });
       expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Message copied");
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
+  });
+
+  // US-008.AC-3: copying a message with mention chips copies the raw token text, not the
+  // chip labels. Owner: user message actions.
+  it("Should copy the raw token text of a message rendered with mention chips", async () => {
+    const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const text = "Compare @internal/acp/client_prompt.go with @session:sess-a";
+    const transcript = [
+      {
+        id: "user-copy-with-mentions",
+        role: "user",
+        content: text,
+        metadata: {
+          mentions: [
+            {
+              kind: "file",
+              token: "@internal/acp/client_prompt.go",
+              target: "internal/acp/client_prompt.go",
+              label: "client_prompt.go",
+              start: 8,
+              end: 38,
+            },
+            {
+              kind: "session",
+              token: "@session:sess-a",
+              target: "sess-a",
+              label: "Fix login bug",
+              start: 44,
+              end: 59,
+            },
+          ],
+        },
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    try {
+      renderThreadState({
+        status: "success",
+        messages: toReadonlyThreadMessages(transcript),
+        subagentNavigation: { openSession: vi.fn() },
+      });
+
+      expect(await screen.findAllByTestId("session-mention-chip")).toHaveLength(2);
+      fireEvent.click(await screen.findByTestId("user-message-actions-copy"));
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(text);
+      });
     } finally {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
@@ -6844,5 +7140,593 @@ describe("SessionThread session messages", () => {
     expect(
       await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
     ).toBeInTheDocument();
+  });
+});
+
+// Invariant: the `@` trigger lists the session's files and same-workspace
+// sessions through the daemon routes, inserts the picked target as its token,
+// dismisses per occurrence, and never traps Enter when nothing is pickable
+// (US-001..US-004). Owning layer: composer integration (owns `/` today).
+describe("SessionThread composer mentions", () => {
+  const workspaceId = fixtureWorkspaceId();
+  const filesPath = `/api/workspaces/${workspaceId}/sessions/${primarySessionFixture.id}/files`;
+  const otherSession = {
+    ...primarySessionFixture,
+    id: "sess-a",
+    name: "Fix login bug",
+    agent_name: "codex",
+    updated_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+  };
+
+  type MentionFileEntry = { path: string; name: string; kind: "file" | "folder" };
+
+  interface MentionFetchOptions {
+    files?: MentionFileEntry[];
+    /** Answers per query; a pending promise holds that query's response. */
+    filesFor?: (query: string) => MentionFileEntry[] | Promise<MentionFileEntry[]>;
+    filesStatus?: number;
+    sessionsStatus?: number;
+    sessions?: (typeof primarySessionFixture)[];
+  }
+
+  function requestUrl(input: RequestInfo | URL): URL {
+    const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    return new URL(href, "http://localhost");
+  }
+
+  function createMentionFetchMock(
+    options: MentionFetchOptions = {},
+    fileQueries: URLSearchParams[] = [],
+    promptCalls: string[] = []
+  ) {
+    const base = createPromptRecordingFetchMock(promptCalls);
+    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.pathname === filesPath) {
+        fileQueries.push(url.searchParams);
+        if (options.filesStatus) {
+          return jsonResponse({ error: "boom" }, { status: options.filesStatus });
+        }
+        const entries = options.filesFor
+          ? await options.filesFor(url.searchParams.get("q") ?? "")
+          : (options.files ?? []);
+        return jsonResponse({ entries, truncated: false });
+      }
+      if (
+        url.pathname === "/api/sessions" &&
+        url.searchParams.get("workspace_id") === workspaceId
+      ) {
+        if (options.sessionsStatus) {
+          return jsonResponse({ error: "boom" }, { status: options.sessionsStatus });
+        }
+        // The catalog honors `limit` the way the daemon does.
+        const limit = Number(url.searchParams.get("limit") ?? 50);
+        const sessions = options.sessions ?? [primarySessionFixture, otherSession];
+        return jsonResponse({
+          sessions: sessions.slice(0, limit),
+          page: { has_more: sessions.length > limit, limit },
+        });
+      }
+      return base(input, init);
+    });
+  }
+
+  beforeEach(() => {
+    composerAui = null;
+    sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+  });
+
+  it("Should list files and other sessions and insert a picked file as its token", async () => {
+    const user = userEvent.setup();
+    const fileQueries: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock(
+        {
+          files: [
+            { path: "internal/acp/client_prompt.go", name: "client_prompt.go", kind: "file" },
+            { path: "web/src/", name: "src", kind: "folder" },
+          ],
+        },
+        fileQueries
+      )
+    );
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Review @clie");
+
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    const fileRow = await within(menu).findByRole("option", { name: /client_prompt\.go/ });
+    expect(within(menu).getByTestId("composer-mention-group-files")).toHaveTextContent("Files");
+    // The current session is never offered; the other one shows agent and time.
+    const sessions = within(menu).getByTestId("composer-mention-group-sessions");
+    await within(sessions).findByRole("option", { name: /Fix login bug/ });
+    expect(within(sessions).getAllByRole("option")).toHaveLength(1);
+    expect(sessions).toHaveTextContent("codex · 4m ago");
+    // Debounced: the settled query reaches the daemon with the picker's 50-row limit.
+    await waitFor(() => expect(fileQueries.at(-1)?.get("q")).toBe("clie"));
+    expect(fileQueries.at(-1)?.get("limit")).toBe("50");
+
+    await user.click(fileRow);
+
+    await waitFor(() => expect(composerText()).toBe("Review @internal/acp/client_prompt.go "));
+    const chip = await screen.findByTestId("session-mention-chip");
+    expect(chip).toHaveAttribute("data-mention-kind", "file");
+    expect(chip).toHaveTextContent("client_prompt.go");
+    expect(screen.queryByRole("listbox", { name: "Mentions" })).not.toBeInTheDocument();
+    expect(
+      JSON.parse(window.localStorage.getItem(`compozy.mentions.recent.${workspaceId}`) ?? "[]")
+    ).toEqual([{ path: "internal/acp/client_prompt.go", kind: "file" }]);
+  });
+
+  it("Should insert a picked session as a session token with its title chip", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createMentionFetchMock());
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Ask @");
+
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    await user.click(await within(menu).findByRole("option", { name: /Fix login bug/ }));
+    expect(within(menu).getByTestId("composer-mention-group-files")).toHaveTextContent(
+      "No matching files"
+    );
+
+    await waitFor(() => expect(composerText()).toBe("Ask @session:sess-a "));
+    const chip = await screen.findByTestId("session-mention-chip");
+    expect(chip).toHaveAttribute("data-mention-kind", "session");
+    expect(chip).toHaveTextContent("Fix login bug");
+  });
+
+  it("Should keep a dismissed @ closed while typing and reopen for a new @", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [{ path: "Override.java", name: "Override.java", kind: "file" }],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("@Over");
+    expect(await screen.findByRole("listbox", { name: "Mentions" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Escape" });
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-mention-menu")).not.toBeInTheDocument()
+    );
+
+    await setComposerText("@Override");
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    });
+    expect(screen.queryByTestId("composer-mention-menu")).not.toBeInTheDocument();
+
+    await setComposerText("@Override @");
+    expect(await screen.findByRole("listbox", { name: "Mentions" })).toBeInTheDocument();
+  });
+
+  it("Should report each failing source in its own group", async () => {
+    vi.stubGlobal("fetch", createMentionFetchMock({ filesStatus: 500, sessionsStatus: 500 }));
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("@login");
+
+    await waitFor(() => {
+      const menu = screen.getByTestId("composer-mention-menu");
+      expect(within(menu).getByTestId("composer-mention-group-files")).toHaveTextContent(
+        "Couldn't search files"
+      );
+      expect(within(menu).getByTestId("composer-mention-group-sessions")).toHaveTextContent(
+        "Couldn't load sessions"
+      );
+    });
+  });
+
+  it("Should send the prompt as typed when Enter meets a picker with no rows", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createMentionFetchMock({ sessions: [] }, [], promptCalls));
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("Check @zzq");
+    await waitFor(() => {
+      const menu = screen.getByTestId("composer-mention-menu");
+      expect(menu).toHaveTextContent("No matching files");
+      expect(menu).toHaveTextContent("No matching sessions");
+    });
+
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toContain("Check @zzq");
+  });
+
+  it("Should leave Enter, ArrowDown and Tab to the IME while a composition is in progress", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [
+          { path: "README.md", name: "README.md", kind: "file" },
+          { path: "docs/readme-notes.md", name: "readme-notes.md", kind: "file" },
+        ],
+        sessions: [],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("@read");
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    const first = await within(menu).findByRole("option", { name: /README\.md/ });
+    const second = await within(menu).findByRole("option", { name: /readme-notes\.md/ });
+    // The "read" rows have landed: the first one is highlighted.
+    await waitFor(() => expect(first).toHaveAttribute("data-highlighted"));
+
+    await act(async () => {
+      fireEvent.compositionStart(editable, { data: "" });
+      for (const key of ["ArrowDown", "Tab", "Enter"]) {
+        fireEvent.keyDown(editable, { key, isComposing: true, keyCode: 229 });
+      }
+    });
+
+    // The highlight did not move and nothing was picked.
+    expect(first).toHaveAttribute("data-highlighted");
+    expect(second).not.toHaveAttribute("data-highlighted");
+    expect(composerText()).toBe("@read");
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+  });
+
+  // US-001.AC-5: ArrowUp/ArrowDown move the highlight and wrap at both ends.
+  it("Should move the highlight with the arrow keys and wrap at both ends", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [
+          { path: "README.md", name: "README.md", kind: "file" },
+          { path: "docs/readme-notes.md", name: "readme-notes.md", kind: "file" },
+          { path: "docs/readme-old.md", name: "readme-old.md", kind: "file" },
+        ],
+        sessions: [],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("@read");
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    const rows = [
+      await within(menu).findByRole("option", { name: /README\.md/ }),
+      await within(menu).findByRole("option", { name: /readme-notes\.md/ }),
+      await within(menu).findByRole("option", { name: /readme-old\.md/ }),
+    ];
+    const highlighted = () => rows.findIndex(row => row.hasAttribute("data-highlighted"));
+    const press = async (key: "ArrowDown" | "ArrowUp") => {
+      await act(async () => {
+        fireEvent.keyDown(editable, { key });
+      });
+    };
+    // The "read" rows have landed: the first one is highlighted.
+    await waitFor(() => expect(highlighted()).toBe(0));
+
+    await press("ArrowDown");
+    await waitFor(() => expect(highlighted()).toBe(1));
+    await press("ArrowUp");
+    await waitFor(() => expect(highlighted()).toBe(0));
+    // Wrap at the top: ArrowUp from the first row lands on the last.
+    await press("ArrowUp");
+    await waitFor(() => expect(highlighted()).toBe(2));
+    // Wrap at the bottom: ArrowDown from the last row lands on the first.
+    await press("ArrowDown");
+    await waitFor(() => expect(highlighted()).toBe(0));
+    expect(composerText()).toBe("@read");
+  });
+
+  // VC-04 / US-004.AC-3: the first load has nothing to pick, so the listbox
+  // stays closed — the loading row shows in status mode and Enter sends.
+  it("Should send on Enter while the first file search is still loading", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock(
+        { filesFor: () => new Promise<MentionFileEntry[]>(() => undefined), sessions: [] },
+        [],
+        promptCalls
+      )
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("Check @clie");
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-mention-group-files")).toHaveTextContent("Loading files…")
+    );
+    expect(screen.queryByRole("listbox", { name: "Mentions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Mentions" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toContain("Check @clie");
+  });
+
+  // UT-044 (US-001.EC-6/EC-7): previous rows stay while a newer query loads,
+  // and an older response that lands after a newer one is discarded.
+  it("Should keep previous rows while loading and discard a stale late response", async () => {
+    const entry = (path: string): MentionFileEntry => ({
+      path,
+      name: path.slice(path.lastIndexOf("/") + 1),
+      kind: "file",
+    });
+    let releaseStale: (entries: MentionFileEntry[]) => void = () => undefined;
+    const fileQueries: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock(
+        {
+          sessions: [],
+          filesFor: query => {
+            if (query === "client_") {
+              return new Promise<MentionFileEntry[]>(resolve => {
+                releaseStale = resolve;
+              });
+            }
+            if (query === "client_p") return [entry("internal/acp/client_prompt.go")];
+            return [entry("internal/acp/client.go"), entry("internal/acp/client_prompt.go")];
+          },
+        },
+        fileQueries
+      )
+    );
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("@client");
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    await within(menu).findByRole("option", { name: /^client\.go/ });
+
+    // The slow query keeps the "client" rows on screen, with no loading row.
+    await setComposerText("@client_");
+    await waitFor(() => expect(fileQueries.some(q => q.get("q") === "client_")).toBe(true));
+    expect(within(menu).getByRole("option", { name: /^client\.go/ })).toBeInTheDocument();
+    expect(menu).not.toHaveTextContent("Loading files…");
+    // Those rows answer "client", not "client_": none is highlighted, and Enter neither picks
+    // one nor sends the prompt while the current answer is pending.
+    expect(menu).toHaveAttribute("aria-busy", "true");
+    for (const option of within(menu).getAllByRole("option")) {
+      expect(option).toHaveAttribute("aria-selected", "false");
+    }
+    await act(async () => {
+      fireEvent.keyDown(await findComposerEditable(), { key: "Enter" });
+    });
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+    expect(composerText()).toBe("@client_");
+
+    // A newer fast query answers first.
+    await setComposerText("@client_p");
+    await waitFor(() =>
+      expect(within(menu).queryByRole("option", { name: /^client\.go/ })).not.toBeInTheDocument()
+    );
+    expect(within(menu).getAllByRole("option")).toHaveLength(1);
+
+    // The stale "client_" answer arrives late and never replaces the current rows.
+    await act(async () => {
+      releaseStale([entry("internal/acp/client_steer.go")]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+    expect(
+      within(menu).queryByRole("option", { name: /client_steer\.go/ })
+    ).not.toBeInTheDocument();
+    const current = within(menu).getByRole("option", { name: /client_prompt\.go/ });
+    // The current query's own row is highlighted, and Enter picks exactly it.
+    expect(menu).not.toHaveAttribute("aria-busy");
+    expect(current).toHaveAttribute("aria-selected", "true");
+    await act(async () => {
+      fireEvent.keyDown(await findComposerEditable(), { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-mention-chip")).toHaveAttribute(
+        "data-mention-target",
+        "internal/acp/client_prompt.go"
+      )
+    );
+  });
+
+  // UT-042: the search waits out the 120 ms debounce before asking the daemon.
+  it("Should debounce the file search for 120 ms before requesting it", async () => {
+    const fileQueries: URLSearchParams[] = [];
+    vi.stubGlobal("fetch", createMentionFetchMock({ sessions: [] }, fileQueries));
+    renderComposer({});
+    await findComposerEditable();
+
+    vi.useFakeTimers();
+    try {
+      await setComposerText("@clie");
+      const clieRequests = () => fileQueries.filter(q => q.get("q") === "clie").length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(119);
+      });
+      expect(clieRequests()).toBe(0);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20);
+      });
+      expect(clieRequests()).toBe(1);
+      expect(fileQueries.find(q => q.get("q") === "clie")?.get("limit")).toBe("50");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // UT-048 (US-003.AC-1/4): at most five sessions, never the current one.
+  it("Should list at most five other sessions and never the current one", async () => {
+    const sessions: (typeof primarySessionFixture)[] = Array.from({ length: 6 }, (_, index) => ({
+      ...otherSession,
+      id: `sess-${index + 1}`,
+      name: `Session ${index + 1}`,
+    }));
+    sessions.splice(1, 0, primarySessionFixture);
+    vi.stubGlobal("fetch", createMentionFetchMock({ sessions }));
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("@");
+
+    // The group remounts when the listbox opens, so read it once rows are listed.
+    const listbox = await screen.findByRole("listbox", { name: "Mentions" });
+    const group = within(listbox).getByTestId("composer-mention-group-sessions");
+    await waitFor(() => expect(within(group).getAllByRole("option")).toHaveLength(5));
+    expect(
+      within(group)
+        .getAllByRole("option")
+        .map(option => option.textContent)
+    ).toEqual([1, 2, 3, 4, 5].map(index => expect.stringContaining(`Session ${index}`)));
+    expect(group).not.toHaveTextContent(primarySessionFixture.name ?? primarySessionFixture.id);
+  });
+
+  // UT-047 (US-002.AC-4, VC-16): Backspace right after a chip removes it whole.
+  it("Should remove a picked mention chip as a unit with Backspace", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [{ path: "internal/acp/client_prompt.go", name: "client_prompt.go", kind: "file" }],
+        sessions: [],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("Review @clie");
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    await user.click(await within(menu).findByRole("option", { name: /client_prompt\.go/ }));
+    await waitFor(() => expect(composerText()).toBe("Review @internal/acp/client_prompt.go "));
+
+    // Drop the boundary space so the caret sits right after the chip (VC-16).
+    // jsdom has no Selection.modify, so a character-wise Backspace over plain
+    // text cannot run here; the chip's removal is pure editor-model logic.
+    const editor = getNearestEditorFromDOMNode(editable);
+    if (!editor) throw new Error("composer editor is not mounted");
+    await act(async () => {
+      editor.update(
+        () => {
+          const paragraph = $getRoot().getFirstChildOrThrow<ElementNode>();
+          const boundary = paragraph.getLastChild();
+          if ($isTextNode(boundary) && boundary.getTextContent() === " ") boundary.remove();
+          paragraph.selectEnd();
+        },
+        { discrete: true }
+      );
+    });
+    await waitFor(() => expect(composerText()).toBe("Review @internal/acp/client_prompt.go"));
+
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Backspace", code: "Backspace", keyCode: 8 });
+    });
+
+    await waitFor(() => expect(composerText()).toBe("Review "));
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+  });
+
+  // Invariant: the `/` scope and `@` trigger detectors share one text/caret
+  // walk per committed editor update, and an update that changes neither the
+  // text nor the selection walks nothing — while both triggers keep working.
+  it("Should read the composer text once per update for both / and @ detectors", async () => {
+    const fileQueries: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock(
+        { files: [{ path: "Override.java", name: "Override.java", kind: "file" }] },
+        fileQueries
+      )
+    );
+    renderComposer({
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [{ id: "goal", token: "/goal", label: "Goal", lane: "builtin" as const }],
+          },
+        ],
+        inlineSkills: [
+          {
+            id: "frontend-qa",
+            token: "/frontend-qa",
+            label: "Frontend QA",
+            lane: "skill" as const,
+          },
+        ],
+      },
+    });
+
+    const editable = await findComposerEditable();
+    const editor = getNearestEditorFromDOMNode(editable);
+    if (!editor) throw new Error("composer editor is not mounted");
+    const reads = vi.mocked(readCursorSnapshot);
+    // Registered after the composer plugins, so it runs after both detectors and
+    // attributes the walks of each committed update to that update's tag.
+    const readsByTag = new Map<string, number>();
+    const walksPerUpdate: number[] = [];
+    let readsSeen = reads.mock.calls.length;
+    const unregister = editor.registerUpdateListener(({ tags }) => {
+      const walks = reads.mock.calls.length - readsSeen;
+      readsSeen = reads.mock.calls.length;
+      walksPerUpdate.push(walks);
+      for (const tag of tags) readsByTag.set(tag, walks);
+    });
+    const commit = async (tag: string, fn: () => void) => {
+      await act(async () => {
+        editor.update(fn, { discrete: true, tag });
+      });
+      return readsByTag.get(tag);
+    };
+
+    await setComposerText("@Ov");
+    expect(await screen.findByRole("listbox", { name: "Mentions" })).toBeInTheDocument();
+
+    // One text edit: one walk serves both detectors and the picker follows it.
+    const edited = await commit("test-edit", () => {
+      const paragraph = $getRoot().getFirstChildOrThrow<ElementNode>();
+      const text = paragraph.getLastChild();
+      if ($isTextNode(text)) text.setTextContent("@Over");
+      paragraph.selectEnd();
+    });
+    expect(edited).toBe(1);
+    await waitFor(() => expect(fileQueries.at(-1)?.get("q")).toBe("Over"));
+
+    // Re-selecting the caret exactly where it is changes nothing: no walk.
+    const unchanged = await commit("test-noop", () => {
+      const selection = $getSelection();
+      if (selection) $setSelection(selection.clone());
+    });
+    expect(unchanged).toBe(0);
+
+    // A selection-only move re-detects with one walk: the picker searches "O".
+    const moved = await commit("test-move", () => {
+      const text = $getRoot().getFirstChildOrThrow<ElementNode>().getFirstChild();
+      if ($isTextNode(text)) text.select(2, 2);
+    });
+    expect(moved).toBe(1);
+    await waitFor(() => expect(fileQueries.at(-1)?.get("q")).toBe("O"));
+
+    // The `/` detector still scopes from the shared walk: mid-text is inline-only.
+    await setComposerText("@Over /");
+    const menu = await screen.findByTestId("composer-command-menu");
+    expect(within(menu).getByRole("option", { name: /Frontend QA/i })).toBeInTheDocument();
+    expect(within(menu).queryByRole("option", { name: /Goal/i })).not.toBeInTheDocument();
+    unregister();
+    expect(Math.max(...walksPerUpdate)).toBe(1);
   });
 });

@@ -597,6 +597,100 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: adding mentions_json and human_ingress keeps every admission and queue row and defaults
+	// them to no mentions and unknown (not human) authorship.
+	t.Run("Should keep admissions and queue rows with empty mentions across 00142 and 00143", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00142_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('mention-ws', '/mention', 'mention', '2026-10-19', '2026-10-19')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at)
+			 VALUES ('mention-session', '00000000000000000000000000', 'coder', 'mention-ws', 'stopped', '2026-10-19', '2026-10-19')`,
+			`INSERT INTO session_prompt_admissions (id, workspace_id, session_id, message_id, idempotency_key, operation,
+			   fingerprint_version, request_fingerprint, state, authored_text, skill_invocations_json, turn_id, event_id,
+			   created_at, updated_at)
+			 VALUES ('mention-admission', 'mention-ws', 'mention-session', 'msg-1', 'key-1', 'prompt', 'v1', 'fp',
+			   'reserved', 'Read @docs/a.md', '[{"name":"review"}]', 'turn-1', 'event-1', '2026-10-19', '2026-10-19')`,
+			`INSERT INTO session_input_queue (id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at)
+			 VALUES ('mention-input', 'mention-session', 'mention-admission', 'queued', 'queue', 'Read @docs/a.md',
+			   '2026-10-19', '2026-10-19')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retainedAdmissions = `SELECT json_group_array(json_array(id, message_id, state, authored_text,
+			skill_invocations_json)) FROM session_prompt_admissions`
+		const retainedQueue = `SELECT json_group_array(json_array(rowid, id, prompt_admission_id, status, text))
+			FROM session_input_queue`
+		var beforeAdmissions, beforeQueue string
+		if err := prior.QueryRowContext(ctx, retainedAdmissions).Scan(&beforeAdmissions); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.QueryRowContext(ctx, retainedQueue).Scan(&beforeQueue); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var afterAdmissions, afterQueue, admissionMentions, queueMentions string
+		if err := upgraded.db.QueryRowContext(ctx, retainedAdmissions).Scan(&afterAdmissions); err != nil {
+			t.Fatal(err)
+		}
+		if err := upgraded.db.QueryRowContext(ctx, retainedQueue).Scan(&afterQueue); err != nil {
+			t.Fatal(err)
+		}
+		if afterAdmissions != beforeAdmissions || afterQueue != beforeQueue {
+			t.Fatalf("rows changed across upgrade: admissions %s -> %s, queue %s -> %s",
+				beforeAdmissions, afterAdmissions, beforeQueue, afterQueue)
+		}
+		if err := upgraded.db.QueryRowContext(ctx,
+			`SELECT mentions_json FROM session_prompt_admissions WHERE id = 'mention-admission'`,
+		).Scan(&admissionMentions); err != nil {
+			t.Fatal(err)
+		}
+		if err := upgraded.db.QueryRowContext(ctx,
+			`SELECT mentions_json FROM session_input_queue WHERE id = 'mention-input'`,
+		).Scan(&queueMentions); err != nil {
+			t.Fatal(err)
+		}
+		if admissionMentions != "[]" || queueMentions != "[]" {
+			t.Fatalf("mentions_json defaults = admission %q, queue %q, want []", admissionMentions, queueMentions)
+		}
+		var admissionHuman, queueHuman int
+		if err := upgraded.db.QueryRowContext(ctx, `SELECT
+			(SELECT human_ingress FROM session_prompt_admissions WHERE id = 'mention-admission'),
+			(SELECT human_ingress FROM session_input_queue WHERE id = 'mention-input')`,
+		).Scan(&admissionHuman, &queueHuman); err != nil {
+			t.Fatal(err)
+		}
+		if admissionHuman != 0 || queueHuman != 0 {
+			t.Fatalf("human_ingress defaults = admission %d, queue %d, want 0", admissionHuman, queueHuman)
+		}
+		if _, err := upgraded.db.ExecContext(ctx,
+			`UPDATE session_input_queue SET mentions_json = 'not json' WHERE id = 'mention-input'`,
+		); err == nil {
+			t.Fatal("invalid mentions_json accepted after upgrade")
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+	})
 	// Invariant: contention indexes preserve session, task, and observability history across upgrades.
 	t.Run("Should preserve history while adding contention indexes", func(t *testing.T) {
 		t.Parallel()

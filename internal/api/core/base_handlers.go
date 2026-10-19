@@ -19,6 +19,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/compozy/compozy/internal/workspacefiles"
 	"github.com/gin-gonic/gin"
 )
 
@@ -42,6 +43,7 @@ type BaseHandlerConfig struct {
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
+	SessionFiles                 SessionFileSearcher
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -128,6 +130,7 @@ type BaseHandlers struct {
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
 	SessionAttachments           SessionAttachmentStore
+	SessionFiles                 SessionFileSearcher
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalCoordinator          toolspkg.ApprovalCoordinator
@@ -240,6 +243,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Tools:                        cfg.Tools,
 		ToolArtifacts:                cfg.ToolArtifacts,
 		SessionAttachments:           cfg.SessionAttachments,
+		SessionFiles:                 cfg.SessionFiles,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,
 		ApprovalCoordinator:          cfg.ApprovalCoordinator,
@@ -348,6 +352,10 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	}
 	if cfg.StreamDone == nil {
 		cfg.StreamDone = make(chan struct{})
+	}
+	if cfg.SessionFiles == nil {
+		// Without an injected runner the index serves the bounded directory walk only.
+		cfg.SessionFiles = workspacefiles.New(nil, workspacefiles.WithLogger(logger))
 	}
 	return baseHandlerDefaults{
 		logger:                      logger,

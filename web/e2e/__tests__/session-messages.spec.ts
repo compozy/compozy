@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -211,4 +212,197 @@ test("E2E-003: the sender sees Sent to, Waiting for reply, then the Reply from c
   await expect(sent).toContainText("Replied");
   // The reply wake started a turn on the sender with the answer.
   await expect(sender.window.getByText("The reviewer answered: per job.")).toBeVisible();
+});
+
+// Composer mentions (`.compozy/tasks/composer-mentions/_tests.md` E2E-001…E2E-003, titled
+// CM-E2E-001…CM-E2E-003 so they stay distinct from the agent-collaboration journeys above): the
+// `@` picker reads the real `searchSessionFiles` route and session catalog, the daemon resolves
+// the sent tokens, and the transcript renders only what it verified. The daemon persists
+// no absolute path and no references text — the prompt delivery manifest records what each
+// turn delivered (`mentions.links`, `mentions.sessions`, `mentions.references_form`).
+test.describe("composer mentions", () => {
+  const mentionFixturePath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../../internal/testutil/acpmock/testdata/browser_composer_mentions_fixture.json"
+  );
+  const mentionAgent = "composer-mentions-agent";
+  const promptPath = "internal/acp/client_prompt.go";
+
+  test.use({
+    runtimeOptions: {
+      seed: { mockAgents: [{ fixturePath: mentionFixturePath, fixtureAgent: mentionAgent }] },
+    },
+  });
+
+  interface DeliveredMentions {
+    links: number;
+    sessions: number;
+    references_form?: string;
+  }
+
+  interface RecordedMention {
+    kind: string;
+    target: string;
+  }
+
+  /** Every value under `key` anywhere in the session's event envelope. */
+  function valuesUnder(value: unknown, key: string, found: unknown[] = []): unknown[] {
+    if (Array.isArray(value)) {
+      for (const item of value) valuesUnder(item, key, found);
+    } else if (value !== null && typeof value === "object") {
+      for (const [entryKey, entry] of Object.entries(value)) {
+        if (entryKey === key) found.push(entry);
+        valuesUnder(entry, key, found);
+      }
+    }
+    return found;
+  }
+
+  async function sessionEvents(scene: Scene, sessionId: string): Promise<unknown> {
+    return scene.runtime.requestJSON<unknown>(
+      sessionAPIPath(scene.workspaceId, sessionId, "/events")
+    );
+  }
+
+  /** The prompt delivery manifests' mention counts for this session. */
+  async function deliveredMentions(scene: Scene, sessionId: string): Promise<DeliveredMentions[]> {
+    return valuesUnder(await sessionEvents(scene, sessionId), "mentions").filter(
+      (value): value is DeliveredMentions =>
+        value !== null && typeof value === "object" && !Array.isArray(value) && "links" in value
+    );
+  }
+
+  /** The daemon-verified mentions recorded on this session's input events. */
+  async function recordedMentions(scene: Scene, sessionId: string): Promise<RecordedMention[]> {
+    return valuesUnder(await sessionEvents(scene, sessionId), "mentions")
+      .filter(Array.isArray)
+      .flat()
+      .filter(
+        (value): value is RecordedMention =>
+          value !== null && typeof value === "object" && "kind" in value && "target" in value
+      );
+  }
+
+  async function prepareMentions(appPage: Page, runtime: BrowserRuntime): Promise<Scene> {
+    if (!runtime.paths) throw new Error("composer mention E2E requires an isolated runtime");
+    const workspaceDir = runtime.paths.workspaceDir;
+    await mkdir(path.join(workspaceDir, "internal", "acp"), { recursive: true });
+    await writeFile(path.join(workspaceDir, promptPath), "package acp\n", "utf8");
+    await writeFile(path.join(workspaceDir, "README.md"), "# Mentions\n", "utf8");
+    return prepare(appPage, runtime);
+  }
+
+  test("CM-E2E-001: picking a file from the @ picker sends its token and the transcript keeps the chip", async ({
+    appPage,
+    runtime,
+  }) => {
+    const scene = await prepareMentions(appPage, runtime);
+    const sessionId = await createSession(scene, mentionAgent, "Review the prompt builder");
+    const { window } = await openSession(scene, mentionAgent, sessionId);
+    const ui = sessionWindowSelectors(window, appPage);
+
+    await ui.composerTextarea.click();
+    await ui.composerTextarea.pressSequentially("Review @clie");
+    const picker = window.getByRole("listbox", { name: "Mentions" });
+    const row = picker.getByRole("option", { name: /client_prompt\.go/ });
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("internal/acp");
+    // Rows from an earlier query stay visible but the keyboard never picks them; Enter commits
+    // only once the typed query's own rows have landed and the target is highlighted.
+    await expect(picker).not.toHaveAttribute("aria-busy", "true");
+    await expect(row).toHaveAttribute("aria-selected", "true");
+    await ui.composerTextarea.press("Enter");
+
+    const composerChip = window.getByTestId("composer-input").getByTestId("session-mention-chip");
+    await expect(composerChip).toHaveAttribute("data-mention-target", promptPath);
+    await expect(composerChip).toContainText("client_prompt.go");
+    await expect(picker).toHaveCount(0);
+    await ui.composerTextarea.press("Enter");
+
+    const bubble = window.getByTestId("user-message-bubble");
+    await expect(bubble).toContainText("Review client_prompt.go");
+    await expect(window.getByText("Read the mentioned context.")).toBeVisible();
+
+    await appPage.reload();
+    const historyChip = window
+      .getByTestId("user-message-bubble")
+      .getByTestId("session-mention-chip")
+      .filter({ hasText: "client_prompt.go" });
+    await expect(historyChip).toHaveAttribute("data-mention-target", promptPath);
+
+    // The input event recorded the verified file, and the turn delivered one resource_link.
+    await expect
+      .poll(async () => (await recordedMentions(scene, sessionId)).map(m => m.target))
+      .toContain(promptPath);
+    await expect
+      .poll(async () => (await deliveredMentions(scene, sessionId)).map(m => m.links))
+      .toContain(1);
+  });
+
+  test("CM-E2E-002: a session picked from the @ picker renders as its title, opens that session, and reaches the agent as a reference", async ({
+    appPage,
+    runtime,
+  }) => {
+    const scene = await prepareMentions(appPage, runtime);
+    const referencedId = await createSession(scene, mentionAgent, "Fix login bug");
+    const sessionId = await createSession(scene, mentionAgent, "Pick up the login fix");
+    const { window } = await openSession(scene, mentionAgent, sessionId);
+    const ui = sessionWindowSelectors(window, appPage);
+
+    await ui.composerTextarea.click();
+    await ui.composerTextarea.pressSequentially("Continue from @Fix");
+    const sessions = window.getByTestId("composer-mention-group-sessions");
+    await expect(sessions.getByRole("option", { name: /Fix login bug/ })).toBeVisible();
+    // The session being prompted is never offered.
+    await expect(sessions.getByRole("option", { name: /Pick up the login fix/ })).toHaveCount(0);
+    await sessions.getByRole("option", { name: /Fix login bug/ }).click();
+    await ui.composerTextarea.press("Enter");
+
+    const chip = window
+      .getByTestId("user-message-bubble")
+      .getByRole("button", { name: `Session Fix login bug (${referencedId})` });
+    await expect(chip).toBeVisible();
+
+    // B's turn carried the <compozy_session_references> block for A: the input event
+    // recorded the verified session, and the delivery manifest counts one reference in
+    // the tool-reading form.
+    await expect
+      .poll(async () =>
+        (await recordedMentions(scene, sessionId))
+          .filter(m => m.kind === "session")
+          .map(m => m.target)
+      )
+      .toContain(referencedId);
+    await expect
+      .poll(async () =>
+        (await deliveredMentions(scene, sessionId)).map(
+          m => `${m.sessions}:${m.references_form ?? ""}`
+        )
+      )
+      .toContain("1:reference");
+
+    await chip.click();
+    await expect(sessionWindow(appPage, referencedId)).toBeVisible();
+  });
+
+  test("CM-E2E-003: a typed token without the picker still resolves to a verified chip", async ({
+    appPage,
+    runtime,
+  }) => {
+    const scene = await prepareMentions(appPage, runtime);
+    const sessionId = await createSession(scene, mentionAgent, "Typed mention");
+    const { window } = await openSession(scene, mentionAgent, sessionId);
+    const ui = sessionWindowSelectors(window, appPage);
+
+    // The trailing space ends the token, so the picker is closed when Enter sends.
+    await ui.composerTextarea.fill("Check @README.md ");
+    await ui.composerTextarea.press("Enter");
+
+    const chip = window
+      .getByTestId("user-message-bubble")
+      .getByTestId("session-mention-chip")
+      .filter({ hasText: "README.md" });
+    await expect(chip).toHaveAttribute("data-mention-kind", "file");
+    await expect(window.getByTestId("composer-input")).not.toContainText("README.md");
+  });
 });

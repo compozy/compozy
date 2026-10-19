@@ -72,6 +72,63 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		requireDecisionReason(t, decision, ReasonPolicyDenied)
 	})
 
+	t.Run("Should report policy denials beside the disabled source when tools are disabled", func(t *testing.T) {
+		t.Parallel()
+
+		denyPattern, err := ParseToolPattern("compozy__task_update")
+		if err != nil {
+			t.Fatalf("ParseToolPattern(deny) error = %v", err)
+		}
+		for _, tc := range []struct {
+			name   string
+			inputs PolicyInputs
+			want   []ReasonCode
+		}{
+			{
+				name:   "no other restriction",
+				inputs: PolicyInputs{ToolsDisabled: true},
+				want:   []ReasonCode{ReasonSourceDisabled},
+			},
+			{
+				name:   "operator deny list",
+				inputs: PolicyInputs{ToolsDisabled: true, DenyTools: []ToolPattern{denyPattern}},
+				want:   []ReasonCode{ReasonSourceDisabled, ReasonPolicyDenied},
+			},
+			{
+				name:   "agent deny list",
+				inputs: PolicyInputs{ToolsDisabled: true, Agent: AgentToolPolicy{DenyTools: []ToolPattern{denyPattern}}},
+				want:   []ReasonCode{ReasonSourceDisabled, ReasonPolicyDenied},
+			},
+			{
+				name:   "enforced session allowlist",
+				inputs: PolicyInputs{ToolsDisabled: true, Session: SessionToolPolicy{Enforced: true}},
+				want:   []ReasonCode{ReasonSourceDisabled, ReasonSessionDenied},
+			},
+		} {
+			t.Run("Should report "+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				evaluator, err := NewEffectivePolicyEvaluator(tc.inputs, ToolsetCatalog{}, []ToolID{builtinWrite.ID})
+				if err != nil {
+					t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
+				}
+				decision, err := evaluator.Evaluate(ctx, Scope{}, builtinWrite)
+				if err != nil {
+					t.Fatalf("Evaluate() error = %v", err)
+				}
+				if decision.Callable || decision.VisibleToSession {
+					t.Fatalf("decision = %#v, want denied and hidden", decision)
+				}
+				if decision.RegistryPolicyResult != policyResultDisabled {
+					t.Fatalf("RegistryPolicyResult = %q, want %q", decision.RegistryPolicyResult, policyResultDisabled)
+				}
+				if !slices.Equal(decision.ReasonCodes, tc.want) {
+					t.Fatalf("ReasonCodes = %v, want %v", decision.ReasonCodes, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should not approve untrusted external read only tools with approve reads", func(t *testing.T) {
 		t.Parallel()
 

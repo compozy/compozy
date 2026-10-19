@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/mention"
 )
 
 func (m *Manager) dispatchInputPreSubmit(
@@ -20,6 +21,7 @@ func (m *Manager) dispatchInputPreSubmit(
 	turnSource TurnSource,
 	message string,
 	attachments []AttachmentMeta,
+	mentions []mention.Mention,
 ) (string, error) {
 	if m == nil {
 		return message, nil
@@ -34,6 +36,7 @@ func (m *Manager) dispatchInputPreSubmit(
 		InputClass:     inputClassForTurnSource(turnSource),
 		Message:        message,
 		Attachments:    hookAttachmentMetadata(attachments),
+		Mentions:       hookspkg.InputMentionsFromDomain(mentions),
 	})
 	if err != nil {
 		return "", fmt.Errorf("session: dispatch input.pre_submit: %w", err)

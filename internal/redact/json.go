@@ -33,14 +33,14 @@ func (e *Engine) RedactJSONWithProtectedStrings(
 }
 
 // RedactJSONWithProtection extends RedactJSONWithProtectedStrings with a
-// structural-object predicate. The object predicate is consulted only for a
-// sensitive field name; accepted objects are traversed normally instead of
-// being replaced wholesale.
+// structural predicate. It is consulted only for a sensitive field name, with
+// that field's path; an accepted value is traversed normally instead of being
+// replaced wholesale, so its strings still get exact secret redaction.
 func (e *Engine) RedactJSONWithProtection(
 	raw json.RawMessage,
 	fields []string,
 	protectString func(path []string, value string) bool,
-	protectObject func(key string, value any) bool,
+	protectObject func(path []string, value any) bool,
 ) json.RawMessage {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
@@ -76,7 +76,7 @@ func (e *Engine) redactJSONValue(
 	namedFields map[string]struct{},
 	heuristic bool,
 	protectString func(path []string, value string) bool,
-	protectObject func(key string, value any) bool,
+	protectObject func(path []string, value any) bool,
 ) any {
 	key := ""
 	if len(path) > 0 {
@@ -105,7 +105,7 @@ func (e *Engine) redactJSONValue(
 			return value
 		}
 	}
-	if IsSensitiveKey(key) && (protectObject == nil || !protectObject(key, value)) {
+	if IsSensitiveKey(key) && (protectObject == nil || !protectObject(path, value)) {
 		return redactSensitiveJSONValue(value)
 	}
 	if _, ok := namedFields[normalizedKey]; ok {

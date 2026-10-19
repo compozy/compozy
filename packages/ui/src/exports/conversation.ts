@@ -5,6 +5,11 @@ export {
   type MarkdownProps,
 } from "../components/custom/markdown";
 export { StreamMarkdown, type StreamMarkdownProps } from "../components/custom/stream-markdown";
+export {
+  markdownSlotSource,
+  type StreamMarkdownSlot,
+  type StreamMarkdownSlots,
+} from "../components/custom/markdown-slots";
 export { DescriptionCard, type DescriptionCardProps } from "../components/custom/description-card";
 export {
   RUN_STATUS_LABEL,

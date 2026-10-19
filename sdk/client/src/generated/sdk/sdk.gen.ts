@@ -1188,6 +1188,9 @@ import type {
   SearchGlobalSessionTranscriptData,
   SearchGlobalSessionTranscriptErrors,
   SearchGlobalSessionTranscriptResponses,
+  SearchSessionFilesData,
+  SearchSessionFilesErrors,
+  SearchSessionFilesResponses,
   SearchSessionToolsData,
   SearchSessionToolsErrors,
   SearchSessionToolsResponses,
@@ -8059,6 +8062,24 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
+      ...options,
+    });
+  }
+
+  /**
+   * Search files and folders under a session's working directory
+   */
+  public searchSessionFiles<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionFilesData, ThrowOnError>
+  ): RequestResult<SearchSessionFilesResponses, SearchSessionFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      SearchSessionFilesResponses,
+      SearchSessionFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files",
       ...options,
     });
   }

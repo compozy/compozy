@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -383,6 +384,13 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 			Start: 7,
 			End:   18,
 		}}
+		wantMentions := []mention.Mention{
+			{
+				Kind: mention.KindFile, Token: "@internal/acp/client_prompt.go",
+				Target: "internal/acp/client_prompt.go", Label: "client_prompt.go", Start: 7, End: 37,
+			},
+			{Kind: mention.KindFolder, Token: "@web/src", Target: "web/src/", Label: "src/", Start: 42, End: 50},
+		}
 		event := (acp.AgentEvent{
 			Type:             acp.EventTypeAgentMessage,
 			SessionID:        "acp-1",
@@ -397,7 +405,7 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 			{Name: "compact", Description: "Compact context"},
 			{Name: "review", Description: "Review changes"},
 		}).WithRequestID("req-1").WithAttachments(wantAttachments).
-			WithSkillInvocations(wantInvocations).WithPromptRuntime(&acp.PromptRuntime{
+			WithSkillInvocations(wantInvocations).WithMentions(wantMentions).WithPromptRuntime(&acp.PromptRuntime{
 			Provider:        "codex",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
@@ -462,6 +470,9 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		}
 		if !slices.Equal(event.SkillInvocations(), wantInvocations) {
 			t.Fatalf("SkillInvocations = %#v, want %#v", event.SkillInvocations(), wantInvocations)
+		}
+		if !slices.Equal(event.Mentions(), wantMentions) {
+			t.Fatalf("Mentions = %#v, want %#v", event.Mentions(), wantMentions)
 		}
 		if got := event.Attachments(); !slices.Equal(got, wantAttachments) {
 			t.Fatalf("Attachments = %#v, want %#v", got, wantAttachments)

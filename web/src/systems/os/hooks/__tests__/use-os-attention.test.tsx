@@ -139,6 +139,7 @@ function sessionsQuery({
     sessions: data ?? [],
     failed: isError || data === undefined,
     loading: isLoading,
+    placeholder: false,
     next: false,
     previous: false,
     paging: false,

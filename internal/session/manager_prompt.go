@@ -104,6 +104,11 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return nil, err
 	}
+	// Daemon-local callers (automations, wakes, judges, extensions) are never human ingress, but their
+	// mentions still resolve against the target session like every other admission path.
+	if req.delivery != PromptDeliveryMaintenance {
+		m.prepareMentions(ctx, &req)
+	}
 
 	return m.submitPromptRequest(ctx, req)
 }

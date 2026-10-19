@@ -26,6 +26,7 @@ type promptRecoveryEventData struct {
 func clonePromptRecoveryRequest(request acp.PromptRequest) acp.PromptRequest {
 	cloned := request
 	cloned.Sections = slices.Clone(request.Sections)
+	cloned.MentionLinks = slices.Clone(request.MentionLinks)
 	cloned.Attachments = make([]acp.PromptAttachment, len(request.Attachments))
 	for index, attachment := range request.Attachments {
 		cloned.Attachments[index] = attachment

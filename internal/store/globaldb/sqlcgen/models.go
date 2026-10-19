@@ -1537,6 +1537,8 @@ type SessionInputQueue struct {
 	Priority                 int64          `json:"priority"`
 	OriginClass              string         `json:"origin_class"`
 	OriginSessionID          string         `json:"origin_session_id"`
+	MentionsJson             string         `json:"mentions_json"`
+	HumanIngress             int64          `json:"human_ingress"`
 }
 
 type SessionPendingInteraction struct {
@@ -1591,6 +1593,8 @@ type SessionPromptAdmission struct {
 	DispatchCommittedAt    sql.NullString `json:"dispatch_committed_at"`
 	CompletedAt            sql.NullString `json:"completed_at"`
 	UpdatedAt              string         `json:"updated_at"`
+	MentionsJson           string         `json:"mentions_json"`
+	HumanIngress           int64          `json:"human_ingress"`
 }
 
 type SessionPromptReplyWatch struct {

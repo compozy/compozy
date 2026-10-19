@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -32,6 +33,7 @@ type agentEventPayload struct {
 	promptRuntime      *PromptRuntime
 	availableCommands  *AvailableCommandSet
 	skillInvocations   []commandpkg.Invocation
+	mentions           []mention.Mention
 	attachments        []EventAttachment
 }
 
@@ -63,6 +65,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 		cloned.availableCommands = NewAvailableCommandSet(e.payload.availableCommands.Values())
 	}
 	cloned.skillInvocations = append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
+	cloned.mentions = append([]mention.Mention(nil), e.payload.mentions...)
 	cloned.attachments = append([]EventAttachment(nil), e.payload.attachments...)
 	return &cloned
 }
@@ -74,7 +77,7 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 		len(payload.sessionMessageCard) == 0 &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
 		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil && payload.origin == nil &&
-		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
+		len(payload.skillInvocations) == 0 && len(payload.mentions) == 0 && len(payload.attachments) == 0 {
 		return nil
 	}
 	return payload
@@ -115,6 +118,22 @@ func (e AgentEvent) SkillInvocations() []commandpkg.Invocation {
 		return nil
 	}
 	return append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
+}
+
+// WithMentions returns an event carrying isolated verified mention metadata.
+func (e AgentEvent) WithMentions(mentions []mention.Mention) AgentEvent {
+	payload := e.clonePayload()
+	payload.mentions = append([]mention.Mention(nil), mentions...)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// Mentions returns an isolated copy of verified mention metadata.
+func (e AgentEvent) Mentions() []mention.Mention {
+	if e.payload == nil {
+		return nil
+	}
+	return append([]mention.Mention(nil), e.payload.mentions...)
 }
 
 // WithAttachments returns an event carrying isolated attachment metadata.

@@ -57,7 +57,10 @@ func (m *Manager) activateSteeringInputText(
 	}
 	delivery := store.SteerDeliveryInterruptFallback
 	var completion <-chan error
-	if steerer, ok := m.injectedSteerer(proc); ok && session.CurrentTurnID() == entry.TargetTurnID &&
+	// Live injection carries text and attachments only; guidance with mentions takes the prompt path so
+	// its resource links and session references reach the agent.
+	if steerer, ok := m.injectedSteerer(proc); ok && !hasStoredMentions(entry.MentionsJSON) &&
+		session.CurrentTurnID() == entry.TargetTurnID &&
 		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
 		origin, originErr := decodePromptOrigin(entry.Origin)
@@ -272,6 +275,8 @@ func (m *Manager) injectedSteerInputRequest(
 		message: entry.Text, authoredMessage: entry.Text,
 		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
+		mentions:        storedMentions(entry.MentionsJSON),
+		humanIngress:    entry.HumanIngress,
 		inputIdempotent: true, attachments: attachmentMetaFromStore(entry.Attachments),
 	}, nil
 }

@@ -206,7 +206,9 @@ type ParameterSpec struct {
 	Enum        []string
 	Pattern     string
 	MaxLength   *uint64
+	Minimum     *float64
 	Maximum     *float64
+	Default     any
 }
 
 // ResponseSpec describes one OpenAPI response.
