@@ -29,8 +29,10 @@ type indexedEntry struct {
 
 // snapshot is an immutable index of one root.
 type snapshot struct {
-	entries   []indexedEntry
-	truncated bool
+	entries []indexedEntry
+	// emptyOrder lists every entry in empty-query order (depth, then path), computed once per build.
+	emptyOrder []*indexedEntry
+	truncated  bool
 }
 
 // newSnapshot builds file entries and derives one folder entry per distinct parent directory.
@@ -56,7 +58,15 @@ func newSnapshot(files []string, truncated bool) *snapshot {
 			entries = append(entries, newIndexedEntry(dir+"/", path.Base(dir), KindFolder))
 		}
 	}
-	return &snapshot{entries: entries, truncated: truncated}
+	snap := &snapshot{entries: entries, truncated: truncated}
+	snap.emptyOrder = make([]*indexedEntry, len(snap.entries))
+	for i := range snap.entries {
+		snap.emptyOrder[i] = &snap.entries[i]
+	}
+	slices.SortFunc(snap.emptyOrder, func(a, b *indexedEntry) int {
+		return cmp.Or(cmp.Compare(a.depth, b.depth), cmp.Compare(a.entry.Path, b.entry.Path))
+	})
+	return snap
 }
 
 func newIndexedEntry(entryPath string, name string, kind EntryKind) indexedEntry {
@@ -76,43 +86,86 @@ type rankedEntry struct {
 
 // rank returns at most limit entries ordered by tier, then depth, then path
 // length, then path. An empty query orders every entry by depth, then path.
+//
+// The empty-query order is precomputed per snapshot; a query keeps only the best
+// limit matches in a bounded max-heap and sorts just those, which yields the
+// same entries as sorting every match because the order is total (paths are unique).
 func (s *snapshot) rank(query string, limit int) []Entry {
 	if limit <= 0 {
 		return []Entry{}
 	}
 	normalized := strings.TrimSpace(strings.ToLower(strings.ReplaceAll(query, "\\", "/")))
+	if normalized == "" {
+		ordered := s.emptyOrder[:min(limit, len(s.emptyOrder))]
+		result := make([]Entry, 0, len(ordered))
+		for _, item := range ordered {
+			result = append(result, item.entry)
+		}
+		return result
+	}
 	nameQuery := strings.TrimSuffix(normalized, "/")
-	ranked := make([]rankedEntry, 0, min(len(s.entries), 1024))
+	best := make([]rankedEntry, 0, min(limit, len(s.entries)))
 	for i := range s.entries {
 		item := &s.entries[i]
-		tier := tierExactName
-		if normalized != "" {
-			tier = matchTier(item, normalized, nameQuery)
+		tier := matchTier(item, normalized, nameQuery)
+		if tier == tierNoMatch {
+			continue
 		}
-		if tier != tierNoMatch {
-			ranked = append(ranked, rankedEntry{item: item, tier: tier})
+		candidate := rankedEntry{item: item, tier: tier}
+		switch {
+		case len(best) < limit:
+			best = append(best, candidate)
+			siftUpWorst(best, len(best)-1)
+		case compareRanked(candidate, best[0]) < 0:
+			best[0] = candidate
+			siftDownWorst(best, 0)
 		}
 	}
-	emptyQuery := normalized == ""
-	slices.SortFunc(ranked, func(a, b rankedEntry) int {
-		if order := cmp.Compare(a.tier, b.tier); order != 0 {
-			return order
-		}
-		if order := cmp.Compare(a.item.depth, b.item.depth); order != 0 {
-			return order
-		}
-		if !emptyQuery {
-			if order := cmp.Compare(len(a.item.entry.Path), len(b.item.entry.Path)); order != 0 {
-				return order
-			}
-		}
-		return cmp.Compare(a.item.entry.Path, b.item.entry.Path)
-	})
-	result := make([]Entry, 0, min(limit, len(ranked)))
-	for _, candidate := range ranked[:min(limit, len(ranked))] {
+	slices.SortFunc(best, compareRanked)
+	result := make([]Entry, 0, len(best))
+	for _, candidate := range best {
 		result = append(result, candidate.item.entry)
 	}
 	return result
+}
+
+// compareRanked orders query matches by tier, then depth, then path length, then path.
+func compareRanked(a, b rankedEntry) int {
+	return cmp.Or(
+		cmp.Compare(a.tier, b.tier),
+		cmp.Compare(a.item.depth, b.item.depth),
+		cmp.Compare(len(a.item.entry.Path), len(b.item.entry.Path)),
+		cmp.Compare(a.item.entry.Path, b.item.entry.Path),
+	)
+}
+
+// siftUpWorst and siftDownWorst keep heap[0] the worst-ranked of the kept matches.
+func siftUpWorst(heap []rankedEntry, child int) {
+	for child > 0 {
+		parent := (child - 1) / 2
+		if compareRanked(heap[child], heap[parent]) <= 0 {
+			return
+		}
+		heap[child], heap[parent] = heap[parent], heap[child]
+		child = parent
+	}
+}
+
+func siftDownWorst(heap []rankedEntry, parent int) {
+	for {
+		worst := parent
+		if left := 2*parent + 1; left < len(heap) && compareRanked(heap[left], heap[worst]) > 0 {
+			worst = left
+		}
+		if right := 2*parent + 2; right < len(heap) && compareRanked(heap[right], heap[worst]) > 0 {
+			worst = right
+		}
+		if worst == parent {
+			return
+		}
+		heap[parent], heap[worst] = heap[worst], heap[parent]
+		parent = worst
+	}
 }
 
 func matchTier(item *indexedEntry, query string, nameQuery string) int {

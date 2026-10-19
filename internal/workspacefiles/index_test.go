@@ -2,11 +2,13 @@ package workspacefiles
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"slices"
@@ -104,6 +106,86 @@ func TestSnapshotRank(t *testing.T) {
 			t.Fatalf("rank(acp\\client) = %v, want the file", got)
 		}
 	})
+}
+
+func TestSnapshotRankMatchesFullSort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the same entries as sorting every match", func(t *testing.T) {
+		t.Parallel()
+		snap := newSnapshot(rankFixtureFiles(3_000), false)
+		for _, query := range []string{"", "a", "main", "go", "pkg/", "\\Seg", "zz", "x9", "notfound"} {
+			for _, limit := range []int{1, 7, 50, 10_000} {
+				got := snap.rank(query, limit)
+				want := fullSortRank(snap, query, limit)
+				if !slices.Equal(got, want) {
+					t.Fatalf("rank(%q, %d) = %v, want full-sort order %v", query, limit, got, want)
+				}
+			}
+		}
+	})
+}
+
+// fullSortRank is the reference ranking: every match sorted by tier, depth, path length (non-empty
+// queries only), then path.
+func fullSortRank(snap *snapshot, query string, limit int) []Entry {
+	normalized := strings.TrimSpace(strings.ToLower(strings.ReplaceAll(query, "\\", "/")))
+	nameQuery := strings.TrimSuffix(normalized, "/")
+	ranked := make([]rankedEntry, 0)
+	for i := range snap.entries {
+		tier := tierExactName
+		if normalized != "" {
+			tier = matchTier(&snap.entries[i], normalized, nameQuery)
+		}
+		if tier != tierNoMatch {
+			ranked = append(ranked, rankedEntry{item: &snap.entries[i], tier: tier})
+		}
+	}
+	slices.SortFunc(ranked, func(a, b rankedEntry) int {
+		order := cmp.Or(cmp.Compare(a.tier, b.tier), cmp.Compare(a.item.depth, b.item.depth))
+		if order == 0 && normalized != "" {
+			order = cmp.Compare(len(a.item.entry.Path), len(b.item.entry.Path))
+		}
+		return cmp.Or(order, cmp.Compare(a.item.entry.Path, b.item.entry.Path))
+	})
+	entries := make([]Entry, 0, min(limit, len(ranked)))
+	for _, candidate := range ranked[:min(limit, len(ranked))] {
+		entries = append(entries, candidate.item.entry)
+	}
+	return entries
+}
+
+// rankFixtureFiles builds a deterministic tree with mixed depths, shared basenames, and prefixes.
+func rankFixtureFiles(count int) []string {
+	random := rand.New(rand.NewPCG(1, 2))
+	segments := []string{"pkg", "internal", "main", "web", "a", "x9", "Seg", "zz", "docs"}
+	files := make([]string, 0, count)
+	seen := make(map[string]bool, count)
+	for len(files) < count {
+		parts := make([]string, 0, 4)
+		for range random.IntN(4) {
+			parts = append(parts, segments[random.IntN(len(segments))])
+		}
+		name := fmt.Sprintf("%s_%d.go", segments[random.IntN(len(segments))], random.IntN(500))
+		file := strings.Join(append(parts, name), "/")
+		if !seen[file] {
+			seen[file] = true
+			files = append(files, file)
+		}
+	}
+	return files
+}
+
+func BenchmarkSnapshotRankBroadQuery(b *testing.B) {
+	snap := newSnapshot(rankFixtureFiles(DefaultMaxFiles), false)
+	for _, query := range []string{"", "go", "main"} {
+		b.Run("query="+query, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				snap.rank(query, 50)
+			}
+		})
+	}
 }
 
 func TestIndexSearchGitRepository(t *testing.T) {
