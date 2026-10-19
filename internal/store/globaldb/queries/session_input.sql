@@ -181,7 +181,7 @@ INSERT INTO session_input_queue (
   status, mode, delivery, steer_delivery, text, owner_kind, synthetic_prompt_json, skill_invocations_json, mentions_json, attachments_json, origin_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   session_generation, task_run_id, run_generation,
-  attempt_count, enqueued_at, updated_at, dispatchable, origin_class, origin_session_id
+  attempt_count, enqueued_at, updated_at, dispatchable, origin_class, origin_session_id, human_ingress
 ) VALUES (
   sqlc.arg(priority), sqlc.arg(id), sqlc.arg(session_id), sqlc.narg(prompt_admission_id),
   sqlc.arg(message_id), sqlc.arg(idempotency_key), sqlc.arg(turn_id), sqlc.arg(target_turn_id), sqlc.arg(event_id),
@@ -192,7 +192,7 @@ INSERT INTO session_input_queue (
   sqlc.arg(session_generation), sqlc.arg(task_run_id), sqlc.narg(run_generation),
   0, sqlc.arg(enqueued_at), sqlc.arg(updated_at),
   CASE WHEN sqlc.arg(mode) = 'steer' AND sqlc.narg(steer_delivery) IS NULL THEN 0 ELSE 1 END,
-  sqlc.arg(origin_class), sqlc.arg(origin_session_id)
+  sqlc.arg(origin_class), sqlc.arg(origin_session_id), sqlc.arg(human_ingress)
 );
 
 -- name: CountPendingSessionInputs :one

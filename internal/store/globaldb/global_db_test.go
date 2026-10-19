@@ -597,8 +597,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			}
 		}
 	})
-	// Invariant: adding mentions_json keeps every admission and queue row and defaults them to no mentions.
-	t.Run("Should keep admissions and queue rows with empty mentions across 00142", func(t *testing.T) {
+	// Invariant: adding mentions_json and human_ingress keeps every admission and queue row and defaults
+	// them to no mentions and unknown (not human) authorship.
+	t.Run("Should keep admissions and queue rows with empty mentions across 00142 and 00143", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
@@ -670,6 +671,16 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		}
 		if admissionMentions != "[]" || queueMentions != "[]" {
 			t.Fatalf("mentions_json defaults = admission %q, queue %q, want []", admissionMentions, queueMentions)
+		}
+		var admissionHuman, queueHuman int
+		if err := upgraded.db.QueryRowContext(ctx, `SELECT
+			(SELECT human_ingress FROM session_prompt_admissions WHERE id = 'mention-admission'),
+			(SELECT human_ingress FROM session_input_queue WHERE id = 'mention-input')`,
+		).Scan(&admissionHuman, &queueHuman); err != nil {
+			t.Fatal(err)
+		}
+		if admissionHuman != 0 || queueHuman != 0 {
+			t.Fatalf("human_ingress defaults = admission %d, queue %d, want 0", admissionHuman, queueHuman)
 		}
 		if _, err := upgraded.db.ExecContext(ctx,
 			`UPDATE session_input_queue SET mentions_json = 'not json' WHERE id = 'mention-input'`,

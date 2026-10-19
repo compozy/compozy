@@ -16,7 +16,7 @@ INSERT INTO session_prompt_admissions (
   fingerprint_version, request_fingerprint, state, mode, authored_text,
 	 skill_invocations_json, mentions_json, attachments_json, origin_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
-  turn_id, event_id, created_at, updated_at
+  turn_id, event_id, created_at, updated_at, human_ingress
 ) VALUES (
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(session_id), sqlc.arg(message_id),
   sqlc.arg(idempotency_key), sqlc.arg(operation), sqlc.arg(fingerprint_version),
@@ -24,7 +24,7 @@ INSERT INTO session_prompt_admissions (
 	 sqlc.arg(skill_invocations_json), sqlc.arg(mentions_json), sqlc.arg(attachments_json), sqlc.narg(origin_json),
   sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort),
   sqlc.arg(runtime_speed), sqlc.arg(runtime_acp_options_json), sqlc.arg(turn_id), sqlc.arg(event_id),
-  sqlc.arg(created_at), sqlc.arg(updated_at)
+  sqlc.arg(created_at), sqlc.arg(updated_at), sqlc.arg(human_ingress)
 );
 
 -- name: CommitSessionPromptDispatch :execrows

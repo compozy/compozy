@@ -386,6 +386,7 @@ func insertSessionInputQueueEntry(
 		SyntheticPromptJson:    syntheticJSON,
 		SkillInvocationsJson:   string(skillInvocationsJSON),
 		MentionsJson:           store.NormalizeMentionsJSON(normalized.MentionsJSON),
+		HumanIngress:           boolToInt64(normalized.HumanIngress),
 		OriginJson:             sql.NullString{String: string(normalized.Origin), Valid: len(normalized.Origin) > 0},
 		AttachmentsJson:        attachmentsJSON,
 		RuntimeProvider:        normalized.Runtime.Provider,

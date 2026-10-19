@@ -96,7 +96,9 @@ type SessionInputQueueEntry struct {
 	Runtime           SessionInputRuntime
 	SkillInvocations  []commandpkg.Invocation
 	// MentionsJSON is the JSON array of resolved composer mentions; blank persists as [].
-	MentionsJSON             string
+	MentionsJSON string
+	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
+	HumanIngress             bool
 	Origin                   json.RawMessage
 	OriginClass              string
 	OriginSessionID          string
@@ -177,7 +179,9 @@ type SessionInputQueueInsert struct {
 	OriginSessionID string
 	// Supersede cancels the same sender's older undispatched messages to this session in the
 	// transaction that inserts this agent-authored queue entry.
-	Supersede         bool
+	Supersede bool
+	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
+	HumanIngress      bool
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64
 	TaskRunID         string

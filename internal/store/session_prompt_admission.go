@@ -69,7 +69,9 @@ type SessionPromptAdmission struct {
 	Runtime            SessionInputRuntime
 	SkillInvocations   []commandpkg.Invocation
 	// MentionsJSON is the JSON array of resolved composer mentions; blank persists as [].
-	MentionsJSON        string
+	MentionsJSON string
+	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
+	HumanIngress        bool
 	Origin              json.RawMessage
 	Attachments         []SessionInputAttachment
 	TurnID              string
@@ -99,6 +101,8 @@ type SessionPromptAdmissionRequest struct {
 	SkillInvocations         []commandpkg.Invocation
 	// MentionsJSON is the JSON array of resolved composer mentions; blank persists as [].
 	MentionsJSON string
+	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
+	HumanIngress bool
 	Origin       json.RawMessage
 	Attachments  []SessionInputAttachment
 	TurnID       string

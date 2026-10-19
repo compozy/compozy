@@ -35,6 +35,7 @@ func sessionPromptAdmissionFromGenerated(
 		EventID:             strings.TrimSpace(row.EventID),
 		IndeterminateReason: strings.TrimSpace(row.IndeterminateReason),
 		MentionsJSON:        store.NormalizeMentionsJSON(row.MentionsJson),
+		HumanIngress:        row.HumanIngress != 0,
 	}
 	if err := json.Unmarshal([]byte(row.SkillInvocationsJson), &admission.SkillInvocations); err != nil {
 		return store.SessionPromptAdmission{}, fmt.Errorf(

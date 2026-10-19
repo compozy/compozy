@@ -446,7 +446,8 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}
 	})
 
-	// Invariant: resolved mentions persist on the admission and its bound queue row; none persist as [].
+	// Invariant: resolved mentions and human ingress persist on the admission and its bound queue row;
+	// none persist as [] and unknown authorship as not human.
 	t.Run("Should preserve mentions from admission through queue lease", func(t *testing.T) {
 		t.Parallel()
 
@@ -457,6 +458,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		const want = `[{"kind":"file","token":"@docs/a.md","target":"docs/a.md","label":"a.md","start":5,"end":15}]`
 		request := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "mentions", now)
 		request.MentionsJSON = "  " + want + "\n"
+		request.HumanIngress = true
 		admission, entry, _, created, err := globalDB.EnqueueAdmittedSessionInput(ctx, request,
 			store.SessionInputQueueInsert{
 				ID: "inq-mentions", SessionID: sessionID, Text: request.AuthoredText, QueueCap: 10, Now: now,
@@ -464,17 +466,19 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if err != nil || !created {
 			t.Fatalf("EnqueueAdmittedSessionInput() = created %v, error %v", created, err)
 		}
-		if admission.MentionsJSON != want || entry.MentionsJSON != want {
-			t.Fatalf("admitted mentions = %s / %s, want %s", admission.MentionsJSON, entry.MentionsJSON, want)
+		if admission.MentionsJSON != want || entry.MentionsJSON != want || !admission.HumanIngress ||
+			!entry.HumanIngress {
+			t.Fatalf("admitted mentions = %s / %s (human %v / %v), want %s from a human",
+				admission.MentionsJSON, entry.MentionsJSON, admission.HumanIngress, entry.HumanIngress, want)
 		}
 		loaded, found, err := globalDB.LookupSessionPromptAdmission(
 			ctx, request.WorkspaceID, sessionID, request.IdempotencyKey,
 		)
-		if err != nil || !found || loaded.MentionsJSON != want {
+		if err != nil || !found || loaded.MentionsJSON != want || !loaded.HumanIngress {
 			t.Fatalf("LookupSessionPromptAdmission() = %s, %v, %v", loaded.MentionsJSON, found, err)
 		}
 		claimed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
-		if err != nil || !ok || claimed.MentionsJSON != want {
+		if err != nil || !ok || claimed.MentionsJSON != want || !claimed.HumanIngress {
 			t.Fatalf("claimed mentions = %s, ok %v, error %v", claimed.MentionsJSON, ok, err)
 		}
 
@@ -490,7 +494,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		).Scan(&raw); err != nil {
 			t.Fatal(err)
 		}
-		if raw != store.EmptyMentionsJSON || plain.MentionsJSON != store.EmptyMentionsJSON {
+		if raw != store.EmptyMentionsJSON || plain.MentionsJSON != store.EmptyMentionsJSON || plain.HumanIngress {
 			t.Fatalf("mention-free row = raw %q, entry %q, want []", raw, plain.MentionsJSON)
 		}
 		if _, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
