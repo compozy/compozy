@@ -109,12 +109,8 @@ func (r *mentionReferenceRenderer) Render(
 		return session.MentionReferences{}, err
 	}
 	if form == session.MentionReferenceFormInline {
-		for index := range entries {
-			history, err := readMentionHistory(ctx, sessions, entries[index].info.ID)
-			if err != nil {
-				return session.MentionReferences{}, err
-			}
-			entries[index].history = history
+		if err := loadMentionHistories(ctx, sessions, entries); err != nil {
+			return session.MentionReferences{}, err
 		}
 	}
 	ids := make([]string, 0, len(entries))
@@ -212,44 +208,28 @@ func allReasons(codes []toolspkg.ReasonCode, want toolspkg.ReasonCode) bool {
 	return true
 }
 
-// readMentionHistory reads the newest user/assistant text messages through the same bounded turn
-// history page compozy__session_history serves.
-func readMentionHistory(
+// loadMentionHistories reads each session's history in mention order, spending the block budget as
+// it goes; sessions past the spent budget are not read and render "history omitted: budget reached".
+func loadMentionHistories(
 	ctx context.Context,
 	reader nativeSessionPageReader,
-	sessionID string,
-) ([]transcript.Message, error) {
-	turns, _, err := readNativeSessionHistoryPage(
-		ctx,
-		reader,
-		sessionID,
-		store.EventQuery{Limit: mentionHistoryMessageLimit},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: read mentioned session %q history: %w", sessionID, err)
-	}
-	events := make([]store.SessionEvent, 0)
-	for _, turn := range turns {
-		events = append(events, turn.Events...)
-	}
-	messages, err := transcript.Assemble(events)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: assemble mentioned session %q history: %w", sessionID, err)
-	}
-	kept := make([]transcript.Message, 0, len(messages))
-	for _, message := range messages {
-		if message.Role != transcript.RoleUser && message.Role != transcript.RoleAssistant {
-			continue
+	entries []mentionReferenceEntry,
+) error {
+	blockRemaining := mentionHistoryBlockChars
+	for index := range entries {
+		budget := min(mentionHistorySessionChars, blockRemaining)
+		if budget <= 0 {
+			return nil
 		}
-		if strings.TrimSpace(message.Content) == "" {
-			continue
+		history, err := readMentionHistory(ctx, reader, entries[index].info.ID, budget)
+		if err != nil {
+			return err
 		}
-		kept = append(kept, message)
+		entries[index].history = history
+		_, used := selectMentionHistory(history, budget)
+		blockRemaining -= used
 	}
-	if len(kept) > mentionHistoryMessageLimit {
-		kept = kept[len(kept)-mentionHistoryMessageLimit:]
-	}
-	return kept, nil
+	return nil
 }
 
 func renderMentionReferences(form session.MentionReferenceForm, entries []mentionReferenceEntry) string {
@@ -324,31 +304,11 @@ func writeMentionHistory(b *strings.Builder, history []transcript.Message, block
 		b.WriteString("  " + mentionHistoryEmpty + "\n")
 		return 0
 	}
-	selected := make([]string, 0, len(history))
-	used := 0
-	for _, message := range slices.Backward(history) {
-		if used >= budget {
-			break
-		}
-		text, size := truncateMentionText(message.Content, min(mentionHistoryMessageChars, budget-used))
-		used += size
-		selected = append(selected, "["+string(message.Role)+"] "+text)
-	}
+	selected, used := selectMentionHistory(history, budget)
 	for _, entry := range slices.Backward(selected) {
 		for line := range strings.SplitSeq(mentionTextEscaper.Replace(entry), "\n") {
 			b.WriteString("  " + line + "\n")
 		}
 	}
 	return used
-}
-
-// truncateMentionText cuts text to limit characters, appending the truncation suffix when cut, and
-// returns the kept text plus the number of content characters it consumed.
-func truncateMentionText(text string, limit int) (string, int) {
-	text = strings.TrimSpace(text)
-	runes := []rune(text)
-	if len(runes) <= limit {
-		return text, len(runes)
-	}
-	return string(runes[:limit]) + mentionHistoryTruncatedSuffix, limit
 }
