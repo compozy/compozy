@@ -179,6 +179,32 @@ describe("subagent roster control poll", () => {
     queryClient.clear();
   });
 
+  // Invariant: a transient failure of the stopped-history one-shot read must not
+  // hide saved child states until a refocus; it retries until the read loads.
+  it("Should retry settled history after a transient failure and stop once it loads", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionSubagents)
+      .mockRejectedValueOnce(new SessionApiError("Unavailable", 503, SESSION))
+      .mockResolvedValue({ subagents: [row("sub-native", "completed")], next_cursor: null });
+    const queryClient = setup(true, false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(
+      queryClient
+        .getQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE, SESSION))
+        ?.rows.map(view => [view.id, view.status])
+    ).toEqual([["sub-native", "completed"]]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(2);
+    queryClient.clear();
+  });
+
   it("Should not poll outside a prompt", async () => {
     const queryClient = setup(false);
     await new Promise(resolve => setTimeout(resolve, 20));

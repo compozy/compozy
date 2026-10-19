@@ -238,9 +238,12 @@ export class RoutingCoordinator {
       if (isCurrent()) this.pushRoute(target.route);
       return host.id;
     }
+    // A newer gesture owns focus now; leave it alone.
+    if (!isCurrent()) return null;
     // Another client closed the host first: choose again (a new window when none is left).
-    const hostGone = !this.manager.getState().windows[host.id];
-    return hostGone && isCurrent() ? this.userOpenCreatedSession(target) : null;
+    if (!this.manager.getState().windows[host.id]) return this.userOpenCreatedSession(target);
+    // The host survived but refused the landing: open the session the ordinary way.
+    return this.userOpen(target);
   }
 
   /**

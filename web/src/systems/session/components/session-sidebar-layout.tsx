@@ -8,13 +8,13 @@ import {
   SESSION_SIDEBAR_PANEL_ID,
   useSessionSidebarLayout,
 } from "../hooks/use-session-sidebar-layout";
-import { SESSION_SIDEBAR_MAX_WIDTH, SESSION_SIDEBAR_MIN_WIDTH } from "../lib/session-sidebar-width";
+import { SESSION_SIDEBAR_MAX_WIDTH } from "../lib/session-sidebar-width";
 
 /**
  * Session window body: the sessions rail and the session pane split by a
- * resize handle. The rail's open state and width are one operator preference
- * shared by every session window; the width holds in pixels when the window
- * resizes, within its bounds and never past half the window.
+ * resize handle. The rail's open state and width belong to this session
+ * window; the width holds in pixels when the window resizes, within its bounds
+ * and never past half the window.
  */
 export function SessionSidebarLayout({
   sidebar,
@@ -42,7 +42,7 @@ export function SessionSidebarLayout({
         collapsible
         collapsedSize={0}
         defaultSize={layout.mountSize}
-        minSize={SESSION_SIDEBAR_MIN_WIDTH}
+        minSize={layout.railMinSize}
         maxSize={SESSION_SIDEBAR_MAX_WIDTH}
         groupResizeBehavior="preserve-pixel-size"
         style={{ overflow: "hidden" }}

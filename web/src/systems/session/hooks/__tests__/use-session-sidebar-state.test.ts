@@ -11,7 +11,7 @@
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
 import { createElement, type ReactNode } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const STORAGE_KEY = "compozy:session:sidebar:v1";
@@ -157,6 +157,34 @@ describe("useSessionSidebarState", () => {
     expect(byScope[WINDOW_TWO]?.collapsedFolders).toEqual({ "sfold-b": true });
   });
 
+  it("Should drop a window closed after a reload that preceded any other gesture", async () => {
+    const sidebar = await loadFreshSidebarState();
+    const one = renderInScopeMounted(sidebar, WINDOW_ONE);
+    renderInScope(sidebar, WINDOW_TWO);
+    act(() => {
+      one.result.current.toggleFolder("sfold-a");
+    });
+    // The snapshot claims both windows; no gesture follows before the reload.
+    act(() => {
+      sidebar.pruneSessionSidebarScopes(PARTITION_A, [WINDOW_ONE, WINDOW_TWO]);
+    });
+
+    const reloaded = await loadFreshSidebarState();
+    act(() => {
+      reloaded.pruneSessionSidebarScopes(PARTITION_A, [WINDOW_TWO]);
+    });
+    expect(Object.keys(reloaded.sessionSidebarStore.getSnapshot().context.byScope)).not.toContain(
+      WINDOW_ONE
+    );
+
+    // The cleanup itself survives the next reload too.
+    const again = await loadFreshSidebarState();
+    expect(Object.keys(again.sessionSidebarStore.getSnapshot().context.byScope)).not.toContain(
+      WINDOW_ONE
+    );
+    expect(persistedContext().partitionByScope).toEqual({ [WINDOW_TWO]: PARTITION_A });
+  });
+
   it("Should keep another workspace's windows when switching away and back", async () => {
     const sidebar = await loadFreshSidebarState();
     const one = renderInScopeMounted(sidebar, WINDOW_ONE);
@@ -254,6 +282,22 @@ describe("useSessionSidebarState", () => {
     });
     expect(afterReload.current.width).toBe(264);
     expect(persistedContext()).toMatchObject({ byScope: { [WINDOW_ONE]: { width: null } } });
+  });
+
+  it("Should follow a width reset made in another tab", async () => {
+    const loaded = await loadFreshSidebarState();
+    const result = renderInScope(loaded, WINDOW_ONE);
+    act(() => {
+      result.current.setWidth(400);
+    });
+    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}");
+    stored.context.byScope[WINDOW_ONE].width = null;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.width).toBe(264));
   });
 
   it.each([

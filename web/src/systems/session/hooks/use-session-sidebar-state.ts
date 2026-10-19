@@ -131,6 +131,37 @@ function toggledFlag(flags: Record<string, boolean>, id: string): Record<string,
   return { ...flags, [id]: !(flags[id] ?? false) };
 }
 
+/**
+ * Live scopes are claimed for the snapshot's partition; a closed scope is
+ * dropped only when that same partition claimed it. `undefined` = no change.
+ */
+function prunedSessionSidebarScopes(
+  context: SessionSidebarContext,
+  partition: string,
+  liveScopeIds: readonly string[]
+): SessionSidebarContext | undefined {
+  const live = new Set(liveScopeIds);
+  const byScope = { ...context.byScope };
+  const partitionByScope = { ...context.partitionByScope };
+  let changed = false;
+  // Claim before seeding: a window can appear in the snapshot a commit
+  // before its rail mounts and seeds an entry.
+  for (const scopeId of live) {
+    if (partitionByScope[scopeId] !== partition) {
+      partitionByScope[scopeId] = partition;
+      changed = true;
+    }
+  }
+  for (const [scopeId, owner] of Object.entries(partitionByScope)) {
+    if (owner === partition && !live.has(scopeId)) {
+      delete partitionByScope[scopeId];
+      delete byScope[scopeId];
+      changed = true;
+    }
+  }
+  return changed ? { byScope, partitionByScope } : undefined;
+}
+
 export const sessionSidebarLogic = createStoreLogic({
   context: (): SessionSidebarContext => ({ byScope: {}, partitionByScope: {} }),
   on: {
@@ -191,34 +222,9 @@ export const sessionSidebarLogic = createStoreLogic({
     /**
      * Windows close from any client, so no single owner can release a scope
      * deterministically — the shell prunes against the live window set instead.
-     * Live scopes are claimed for the snapshot's partition; a closed scope is
-     * dropped only when that same partition claimed it.
      */
-    scopesPruned: (context, event: { partition: string; liveScopeIds: readonly string[] }) => {
-      const live = new Set(event.liveScopeIds);
-      const byScope = { ...context.byScope };
-      const partitionByScope = { ...context.partitionByScope };
-      let changed = false;
-      // Claim before seeding: a window can appear in the snapshot a commit
-      // before its rail mounts and seeds an entry.
-      for (const scopeId of live) {
-        if (partitionByScope[scopeId] !== event.partition) {
-          partitionByScope[scopeId] = event.partition;
-          changed = true;
-        }
-      }
-      for (const [scopeId, owner] of Object.entries(partitionByScope)) {
-        if (owner === event.partition && !live.has(scopeId)) {
-          delete partitionByScope[scopeId];
-          delete byScope[scopeId];
-          changed = true;
-        }
-      }
-      if (!changed) {
-        return;
-      }
-      return { byScope, partitionByScope };
-    },
+    scopesPruned: (context, event: { partition: string; liveScopeIds: readonly string[] }) =>
+      prunedSessionSidebarScopes(context, event.partition, event.liveScopeIds),
   },
 });
 
@@ -272,6 +278,45 @@ export function pruneSessionSidebarScopes(
   liveScopeIds: readonly string[]
 ): void {
   sessionSidebarStore.trigger.scopesPruned({ partition, liveScopeIds });
+  persistSessionSidebarPrune(partition, liveScopeIds);
+}
+
+/**
+ * The store's persist filter skips `scopesPruned` so this document's possibly
+ * stale rail choices never overwrite another tab's. The claims and cleanup
+ * still have to survive a reload — otherwise a window closed before the next
+ * gesture keeps its entry forever — so apply the same prune to the stored
+ * blob alone, leaving every stored choice as it is.
+ */
+function persistSessionSidebarPrune(partition: string, liveScopeIds: readonly string[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const raw = window.localStorage.getItem(SESSION_SIDEBAR_STORAGE_KEY);
+    const stored: unknown = raw === null ? null : JSON.parse(raw);
+    if (
+      !isRecord(stored) ||
+      stored.version !== SESSION_SIDEBAR_SCHEMA_VERSION ||
+      !isRecord(stored.context)
+    ) {
+      // Nothing stored yet, or an older schema the next gesture migrates.
+      return;
+    }
+    const persisted = mergeSessionSidebarPreferences(stored.context, {
+      byScope: {},
+      partitionByScope: {},
+    });
+    const next = prunedSessionSidebarScopes(persisted, partition, liveScopeIds);
+    if (next) {
+      window.localStorage.setItem(
+        SESSION_SIDEBAR_STORAGE_KEY,
+        JSON.stringify({ ...stored, context: next })
+      );
+    }
+  } catch {
+    // Storage unavailable or corrupt: the next gesture rewrites the blob.
+  }
 }
 
 if (typeof window !== "undefined") {

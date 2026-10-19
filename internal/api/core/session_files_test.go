@@ -7,9 +7,11 @@ package core_test
 // Boundary OUT: HTTP/UDS registration parity (internal/api/testutil) and index ranking (workspacefiles).
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -172,7 +174,7 @@ func TestSearchSessionFilesHandler(t *testing.T) {
 
 	t.Run("Should answer 500 with a path-free message when a lookup or the index fails", func(t *testing.T) {
 		t.Parallel()
-		failing, _ := newSessionFilesHandlerEngine(t, root, failingSessionFileSearcher{root: root})
+		failing, calls := newSessionFilesHandlerEngine(t, root, failingSessionFileSearcher{root: root})
 		for _, id := range []string{"sess-ok", "sess-broken"} {
 			response := serveSessionFilesRequest(t, failing, "/api/workspaces/workspace/sessions/"+id+"/files")
 			if response.Code != http.StatusInternalServerError {
@@ -180,6 +182,9 @@ func TestSearchSessionFilesHandler(t *testing.T) {
 			}
 			if body := response.Body.String(); strings.Contains(body, root) {
 				t.Fatalf("%s body = %s, want no absolute root", id, body)
+			}
+			if logged := calls.logs.String(); strings.Contains(logged, root) {
+				t.Fatalf("%s logs = %s, want no absolute root", id, logged)
 			}
 			var payload contract.ErrorPayload
 			testutil.DecodeJSONResponse(t, response, &payload)
@@ -204,6 +209,7 @@ func (s failingSessionFileSearcher) Search(context.Context, string, string, int)
 
 type workingDirCallLog struct {
 	calls chan string
+	logs  *bytes.Buffer
 }
 
 func (l workingDirCallLog) count(id string) int {
@@ -241,7 +247,7 @@ func newSessionFilesHandlerEngine(
 		infos[id] = info
 	}
 	infos["sess-other-profile"].ProfileID = "prof-other"
-	log := workingDirCallLog{calls: make(chan string, 64)}
+	log := workingDirCallLog{calls: make(chan string, 64), logs: &bytes.Buffer{}}
 	manager := testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			info, ok := infos[id]
@@ -283,6 +289,7 @@ func newSessionFilesHandlerEngine(
 		Sessions:     manager,
 		Workspaces:   workspaces,
 		SessionFiles: searcher,
+		Logger:       slog.New(slog.NewTextHandler(log.logs, nil)),
 	})
 	engine := gin.New()
 	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files", handlers.SearchSessionFiles)

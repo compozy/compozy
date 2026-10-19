@@ -1,6 +1,8 @@
 // Suite: desktop chrome boot
 // Invariant: useDesktopChrome owns OsShellHandle and mounts without OsShellContext;
-// the settings read that names this client waits for its registration.
+// the settings read that names this client waits for its registration; per-window
+// sessions-rail state is pruned only against a snapshot fresh since mount, never
+// the cached window list a returning workspace starts from.
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryOptionsSeen = vi.hoisted(() => [] as Array<{ queryKey: unknown; enabled?: unknown }>);
 const registration = vi.hoisted(() => ({ status: "idle" as string }));
+const pruneSessionSidebarScopes = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
@@ -39,6 +42,7 @@ vi.mock("@/systems/workspace", async importOriginal => {
 
 vi.mock("@/systems/session", () => ({
   useSession: () => ({ data: undefined }),
+  pruneSessionSidebarScopes,
 }));
 
 vi.mock("../use-window-manager-client", () => ({
@@ -60,7 +64,9 @@ vi.mock("../use-global-shortcut-reconciliation", () => ({
   useGlobalShortcutReconciliation: () => ({ registrations: [] }),
 }));
 
+import type { WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { useDesktopChrome } from "../use-desktop-chrome";
+import { useSessionSidebarScopePruning } from "../use-session-sidebar-scope-pruning";
 
 function wrapper() {
   const queryClient = new QueryClient({
@@ -102,5 +108,30 @@ describe("useDesktopChrome", () => {
     queryOptionsSeen.length = 0;
     rerender();
     expect(settingsReads().at(-1)?.enabled).toBe(true);
+  });
+});
+
+describe("useSessionSidebarScopePruning", () => {
+  beforeEach(() => {
+    pruneSessionSidebarScopes.mockClear();
+  });
+
+  it("Should wait for a fresh snapshot before pruning against the cached window list", () => {
+    const snapshot = {
+      workspaceId: "ws_a",
+      windows: { win_one: {}, win_two: {} },
+    } as unknown as WindowManagerSnapshot;
+    const { rerender } = renderHook(
+      ({ fresh }) =>
+        useSessionSidebarScopePruning("default", { data: snapshot, isFetchedAfterMount: fresh }),
+      { initialProps: { fresh: false } }
+    );
+    expect(pruneSessionSidebarScopes).not.toHaveBeenCalled();
+
+    rerender({ fresh: true });
+    expect(pruneSessionSidebarScopes).toHaveBeenCalledExactlyOnceWith("ws_a\u0000default", [
+      "win_one",
+      "win_two",
+    ]);
   });
 });
