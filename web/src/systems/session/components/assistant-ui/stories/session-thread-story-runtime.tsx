@@ -10,6 +10,7 @@ import { HttpResponse } from "msw";
 import { RuntimeSelector } from "@/systems/runtime";
 import { SessionContextControl } from "@/systems/session/components/session-context-control";
 import { SessionEnvironmentChip } from "@/systems/session/components/session-environment-chip";
+import { SubagentComposerControl } from "@/systems/session/components/subagents/subagent-composer-control";
 import { deriveSessionContext } from "@/systems/session/lib/session-context";
 import { sessionContextFixture } from "@/systems/session/mocks/context-fixtures";
 import { transcriptPayload } from "./session-thread-story-transcripts";
@@ -42,7 +43,7 @@ export const baseArgs = {
   onCancelPrompt: () => undefined,
 };
 
-/** The composer toolbar the session window mounts: model picker, folder and context ring. */
+/** The composer toolbar the session window mounts: model picker, folder, context ring and subagents. */
 export const composerToolbarArgs = {
   runtimeControl: (
     <RuntimeSelector
@@ -67,6 +68,12 @@ export const composerToolbarArgs = {
     <SessionContextControl
       context={deriveSessionContext(sessionContextFixture)}
       onOpen={() => undefined}
+    />
+  ),
+  subagentControl: (
+    <SubagentComposerControl
+      subagents={[]}
+      counts={{ live: 0, total: 0, failed: 0, attention: 0 }}
     />
   ),
 } satisfies Partial<ComponentProps<typeof SessionThread>>;

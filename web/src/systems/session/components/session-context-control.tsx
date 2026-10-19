@@ -1,5 +1,5 @@
 import { useId, useState, type ComponentProps } from "react";
-import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
+import { InputGroupButton, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 import type { SessionContextRingState, SessionContextView } from "../lib/session-context";
 import {
   describeSessionContextControl,
@@ -130,10 +130,9 @@ export function SessionContextControl({
     <Tooltip open={tipOpen} onOpenChange={setTipOpen}>
       <TooltipTrigger
         render={
-          <Button
+          <InputGroupButton
             type="button"
-            variant="quiet"
-            size="icon"
+            size="tool-icon"
             aria-label={`${view.label}${context.stale ? ", may be out of date" : ""}`}
             aria-describedby={tipOpen ? tooltipId : undefined}
             aria-busy={context.loading}
@@ -141,7 +140,7 @@ export function SessionContextControl({
             data-testid="composer-context-button"
             data-state={view.state}
             className={cn(
-              "shrink-0 text-fg-2 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
+              "shrink-0 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
               open && "bg-surface-2 text-fg"
             )}
           />

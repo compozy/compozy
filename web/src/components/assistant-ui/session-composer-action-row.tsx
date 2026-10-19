@@ -1,12 +1,10 @@
 import { CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
 import { primaryShortcutModifier } from "@/systems/os";
 import type { SessionSteerDelivery } from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import {
-  Button,
   InputGroupButton,
   Kbd,
   Spinner,
@@ -75,20 +73,19 @@ function SessionComposerStopControl({
 }) {
   if (stopping) {
     return (
-      <Button
-        type="button"
+      <InputGroupButton
         variant="secondary"
-        size="sm"
+        size="tool"
         aria-busy="true"
         aria-disabled="true"
         aria-live="polite"
         data-state="stopping"
         data-testid="composer-stop-button"
-        className="h-(--size-button-icon-default) cursor-default text-subtle hover:bg-surface-2 hover:shadow-none"
+        className="cursor-default text-subtle hover:bg-surface-2 hover:text-subtle hover:shadow-none"
       >
         <Spinner aria-hidden="true" className="size-3" />
         Stopping…
-      </Button>
+      </InputGroupButton>
     );
   }
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -137,23 +134,17 @@ function modifierKeyLabel(): string {
 }
 
 /**
- * What Enter does right now, and the one-shot opposite the modifier applies.
- * Idle, Enter just sends — nothing worth a visible line — so the hint stays
- * for assistive tech only and shows once a turn runs and Enter means more.
+ * What Enter does right now, and the one-shot opposite the modifier applies,
+ * for assistive tech only. The Queue and Steer buttons already name the busy
+ * verbs on screen, so the row carries no visible shortcut badges (#826).
  */
-function SessionComposerEnterHintLabel({
-  enterHint,
-  visible,
-}: {
-  enterHint: SessionComposerEnterHint;
-  visible: boolean;
-}) {
+function SessionComposerEnterHintLabel({ enterHint }: { enterHint: SessionComposerEnterHint }) {
   return (
     <span
       data-testid="composer-enter-hint"
       data-enter={enterHint.enter}
       data-modifier={enterHint.modifier ?? undefined}
-      className={cn(visible ? "inline-flex items-center gap-1 text-micro text-faint" : "sr-only")}
+      className="sr-only"
     >
       <Kbd>⏎</Kbd>
       {enterHint.enter}
@@ -185,10 +176,8 @@ function SessionComposerSteerButton({
   onClick: () => void;
 }) {
   const button = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
+    <InputGroupButton
+      size="tool"
       onClick={onClick}
       disabled={disabled}
       aria-description={capability}
@@ -197,7 +186,7 @@ function SessionComposerSteerButton({
     >
       <CornerDownRight aria-hidden="true" />
       Steer
-    </Button>
+    </InputGroupButton>
   );
   if (!capability) return button;
   return (
@@ -210,7 +199,10 @@ function SessionComposerSteerButton({
   );
 }
 
-/** The busy-turn cluster: queue, steer, and interrupt as the session offers them, then the stop control. */
+/**
+ * The busy-turn cluster: queue, steer, and interrupt as the session offers them,
+ * then the stop control — one group on the same 4 px rhythm as the tool group.
+ */
 function SessionComposerBusyActions({
   busyInputSteerDelivery,
   canSubmitBusyInput,
@@ -234,19 +226,17 @@ function SessionComposerBusyActions({
   | "onSteerPrompt"
 > & { canSubmitBusyInput: boolean; stopping: boolean }) {
   return (
-    <>
+    <div className="flex items-center gap-1">
       {onQueuePrompt ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+        <InputGroupButton
+          size="tool"
           onClick={handleQueueAction}
           disabled={!canSubmitBusyInput}
           data-testid="composer-queue-button"
         >
           <ListPlus aria-hidden="true" />
           Queue
-        </Button>
+        </InputGroupButton>
       ) : null}
       {onSteerPrompt ? (
         <SessionComposerSteerButton
@@ -257,20 +247,18 @@ function SessionComposerBusyActions({
         />
       ) : null}
       {onInterruptPrompt ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+        <InputGroupButton
+          size="tool"
           onClick={handleInterruptAction}
           disabled={!canSubmitBusyInput}
           data-testid="composer-interrupt-button"
         >
           <Scissors aria-hidden="true" />
           Interrupt
-        </Button>
+        </InputGroupButton>
       ) : null}
       <SessionComposerStopControl onCancelPrompt={onCancelPrompt} stopping={stopping} />
-    </>
+    </div>
   );
 }
 
@@ -297,24 +285,26 @@ export function SessionComposerActionRow({
 }: SessionComposerActionRowProps) {
   const canPrompt = actionState.prompt === "enabled";
   const busyControls = actionState.controls.kind === "busy" ? actionState.controls : null;
+  const attachControl = canPrompt && attachments ? <SessionAttachButton /> : null;
 
+  // Every control is 28 px tall (`tool-icon` squares, `tool` pills, the send disc).
+  // Controls inside a group sit 4 px apart; the tool and action groups 8 px apart.
   return (
     <div className="flex min-h-(--size-button-icon-default) flex-wrap items-center gap-2">
-      {runtimeControl || environmentControl || contextControl || subagentControl ? (
+      {runtimeControl ||
+      environmentControl ||
+      contextControl ||
+      subagentControl ||
+      attachControl ? (
         <div className="flex min-w-0 items-center gap-1">
           {runtimeControl}
           {environmentControl}
           {contextControl}
           {subagentControl}
+          {attachControl}
         </div>
       ) : null}
-      {canPrompt && attachments ? <SessionAttachButton /> : null}
-      {canPrompt ? (
-        <SessionComposerEnterHintLabel
-          enterHint={actionState.enterHint}
-          visible={busyControls !== null}
-        />
-      ) : null}
+      {canPrompt ? <SessionComposerEnterHintLabel enterHint={actionState.enterHint} /> : null}
       <span className="flex-1" />
       {busyControls ? (
         <SessionComposerBusyActions

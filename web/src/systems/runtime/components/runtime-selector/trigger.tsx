@@ -35,7 +35,8 @@ export interface RuntimeSelectorTriggerProps extends Omit<
 
 /**
  * Keeps the composer trigger chromeless inside the prompt frame, on the 28px
- * composer toolbar row (tool pills and icon controls share that height).
+ * composer toolbar row with the `tool` pill's padding and inner gap (tool pills
+ * and icon controls share that height).
  */
 function triggerSurfaceClass(
   variant: RuntimeSelectorVariant,
@@ -44,7 +45,7 @@ function triggerSurfaceClass(
 ): string {
   if (variant === "composer") {
     return cn(
-      "group h-(--size-button-icon-default) gap-2 border-0 bg-transparent px-2 shadow-none",
+      "group h-(--size-button-icon-default) gap-1.5 border-0 bg-transparent px-2.5 shadow-none",
       "hover:bg-transparent focus-visible:shadow-focus-ring",
       inert && "cursor-not-allowed opacity-60"
     );

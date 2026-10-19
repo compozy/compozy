@@ -13,6 +13,7 @@ import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { SubagentComposerControl } from "@/systems/session/components/subagents/subagent-composer-control";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
@@ -62,7 +63,7 @@ const meta: Meta<typeof SessionThread> = {
     docs: {
       description: {
         component:
-          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The transcript and composer span the full pane width, sharing only the inset padding; the composer is the raised InputGroup `composer` plate (`--canvas-soft` + `--line` hairline, plus `shadow-card` in light; focus deepens the hairline to `--line-strong`). The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows the round inverted send (`--primary`); while a turn runs the primary disc becomes a Stop, Enter queues the draft (with a visible hint), and queued prompts sit in a sunken panel above the composer as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
+          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The transcript and composer span the full pane width, sharing only the inset padding; the composer is the raised InputGroup `composer` plate (`--canvas-soft` + `--line` hairline, plus `shadow-card` in light; focus deepens the hairline to `--line-strong`). The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows the round inverted send (`--primary`); while a turn runs the primary disc becomes a Stop, Enter queues the draft (the Enter hint stays for screen readers, with no visible shortcut badges), and queued prompts sit in a sunken panel above the composer as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
       },
     },
   },
@@ -340,10 +341,38 @@ export const BusyInputControls: Story = {
   },
 };
 
-/** Composer toolbar — model picker, folder and context ring on the raised composer plate. */
+/**
+ * Composer toolbar — model picker, folder, context ring, subagents and attach on
+ * the raised composer plate. Every control is 28 px tall: icon-only tools are
+ * the `tool-icon` square, labeled ones the `tool` pill, 4 px apart in one group.
+ */
 export const ComposerToolbar: Story = {
   ...BusyInputControls,
   args: { ...baseArgs, ...composerToolbarArgs },
+};
+
+/**
+ * Composer toolbar while a turn runs — the live subagents count widens its tool
+ * into a pill, and Queue, Steer, Interrupt and Stop share the 28 px row with no
+ * visible shortcut badges (the Enter hint stays for screen readers).
+ */
+export const ComposerToolbarBusy: Story = {
+  ...BusyInputControls,
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    subagentControl: (
+      <SubagentComposerControl
+        subagents={[]}
+        counts={{ live: 2, total: 3, failed: 0, attention: 0 }}
+      />
+    ),
+    isSessionRunning: true,
+    allowBusyInput: true,
+    onQueuePrompt: () => undefined,
+    onInterruptPrompt: () => undefined,
+    onSteerPrompt: () => undefined,
+  },
 };
 
 /**
