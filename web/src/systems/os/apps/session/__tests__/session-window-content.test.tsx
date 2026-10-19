@@ -108,6 +108,7 @@ vi.mock("@/systems/session", async () => ({
     </div>
   ),
   SessionSidebar: () => null,
+  SessionSidebarLayout: ({ children }: { children: ReactNode }) => children,
   SessionDeriveHost: ({ children }: { children: ReactNode }) => children,
   SessionOriginContext: createContext(null),
   useCreateSession: () => mocks.forkMutation,

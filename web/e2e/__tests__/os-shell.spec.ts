@@ -1881,6 +1881,100 @@ test("E2E-028: the structural seam resizes both siblings and persists its weight
   await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
 });
 
+// Invariant: the sessions rail width is one persisted operator preference, set by
+// pointer or keyboard within 200–480 px, reset by double-click, and never wider
+// than half of a narrow session window.
+test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and resets", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const session = await createNamedSession(runtime, workspace.id, "Resizable rail target");
+  const windowId = await openSessionWindowInAuthority(runtime, workspace.id, session);
+  const sessionWin = sessionWindow(appPage, session.id);
+  await expect(sessionWin).toBeVisible();
+  await moveWindowToNormalizedRect(runtime, workspace.id, windowId, {
+    x: 0.04,
+    y: 0.04,
+    width: 0.9,
+    height: 0.86,
+  });
+
+  const rail = sessionWin.getByTestId("session-sidebar");
+  const handle = sessionWin.getByRole("separator", { name: "Resize sessions sidebar" });
+  const railWidth = async () => Math.round((await rail.boundingBox())?.width ?? 0);
+  const dragHandleBy = async (deltaX: number) => {
+    const box = await handle.boundingBox();
+    if (!box) throw new Error("the rail resize handle must be visible");
+    const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await appPage.mouse.move(start.x, start.y);
+    await appPage.mouse.down();
+    await appPage.mouse.move(start.x + deltaX, start.y, { steps: 8 });
+    await appPage.mouse.up();
+  };
+  await expect.poll(railWidth).toBe(264);
+  await browserArtifacts.captureScreenshot("rail-default", appPage);
+
+  await dragHandleBy(96);
+  await expect.poll(railWidth).toBeCloseTo(360, -1);
+  await browserArtifacts.captureScreenshot("rail-dragged", appPage);
+  await dragHandleBy(400);
+  await expect.poll(railWidth).toBe(480);
+  await browserArtifacts.captureScreenshot("rail-max", appPage);
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(sessionWin).toBeVisible();
+  await expect.poll(railWidth).toBe(480);
+
+  await handle.focus();
+  await appPage.keyboard.press("ArrowLeft");
+  await expect.poll(railWidth).toBeLessThan(480);
+  const stepped = await railWidth();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(sessionWin).toBeVisible();
+  await expect.poll(railWidth).toBe(stepped);
+
+  // Pointer double-click at the handle, as an operator does: the transcript may cover the 1px line.
+  const handleBox = await handle.boundingBox();
+  if (!handleBox) throw new Error("the rail resize handle must be visible");
+  await appPage.mouse.dblclick(
+    handleBox.x + handleBox.width / 2,
+    handleBox.y + handleBox.height / 2
+  );
+  await expect.poll(railWidth).toBe(264);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(sessionWin).toBeVisible();
+  await expect.poll(railWidth).toBe(264);
+
+  // Collapse and reopen keep the chosen width; the handle leaves with the rail.
+  await dragHandleBy(-24);
+  await expect.poll(railWidth).toBeCloseTo(240, -1);
+  const chosen = await railWidth();
+  const railToggle = sessionWin.getByTestId("session-sidebar-toggle");
+  await railToggle.click();
+  await expect(rail).toBeHidden();
+  await expect(handle).toBeHidden();
+  await railToggle.click();
+  await expect.poll(railWidth).toBe(chosen);
+
+  // A narrow window keeps at least half its width for the session pane.
+  await moveWindowToNormalizedRect(runtime, workspace.id, windowId, {
+    x: 0.04,
+    y: 0.04,
+    width: 0.3,
+    height: 0.86,
+  });
+  await expect
+    .poll(async () => {
+      const windowWidth = (await sessionWin.boundingBox())?.width ?? 0;
+      return (await railWidth()) <= Math.ceil(windowWidth / 2);
+    })
+    .toBe(true);
+  await browserArtifacts.captureScreenshot("rail-narrow-window", appPage);
+});
+
 test("E2E-029: dropping onto a tiled window splits its group and the zoom menu arranges presets", async ({
   appPage,
   runtime,
