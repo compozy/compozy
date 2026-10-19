@@ -16,6 +16,8 @@ export type WorktreeStatusPayload = OperationResponse<"getWorktreeStatus", 200>;
 export type WorktreeCatalogEventPayload = OperationResponse<"streamWorktreeCatalog", 200>;
 
 export type WorktreeInspectionPayload = OperationResponse<"inspectWorktree", 200>;
+/** Result of an opted-in local branch deletion that followed a removal or dismissal. */
+export type WorktreeBranchOutcome = NonNullable<OperationResponse<"removeWorktree", 200>["branch"]>;
 /** Git facts for one worktree. Every numeric field is nullable — unknown is never zero. */
 export type WorktreeGitStatus = WorktreeStatusPayload["status"];
 export type WorktreeForgeStatus = NonNullable<WorktreeStatusPayload["forge"]>;

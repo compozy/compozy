@@ -169,13 +169,17 @@ func sdkGoSample(operation spec.OperationSpec, kind, body string) string {
 			"  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n" +
 			"  if err != nil { return err }\n  fmt.Println(frame.Data)\n}"
 	}
+	// Mirror the client generator: any success body gives the method a result,
+	// even when a body-less success (such as 204) is declared first.
+	success, result := false, false
 	for _, response := range operation.Responses {
 		if response.Status >= 200 && response.Status < 300 {
-			if len(response.BodyTypes()) == 0 {
-				return "err = " + call + "\nif err != nil { return err }"
-			}
-			break
+			success = true
+			result = result || len(response.BodyTypes()) > 0
 		}
+	}
+	if success && !result {
+		return "err = " + call + "\nif err != nil { return err }"
 	}
 	return "result, err := " + call + "\nif err != nil { return err }\nfmt.Println(result)"
 }

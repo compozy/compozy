@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// GetCmdPaletteViewParams carries the path, query, and header parameters.
+type GetCmdPaletteViewParams struct {
+	ID          string  `url:"id"`
+	Workspace   string  `url:"workspace"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetCmdPaletteView Get one declarative command palette view
 func (c *Client) GetCmdPaletteView(ctx context.Context, params GetCmdPaletteViewParams) (*CmdPaletteViewEnvelope, error) {
 	path := "/api/cmd-palette/views/{id}"

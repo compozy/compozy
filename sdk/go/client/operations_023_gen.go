@@ -108,14 +108,15 @@ func (c *Client) RemoveTaskDependency(ctx context.Context, params RemoveTaskDepe
 
 // RemoveWorktreeParams carries the path, query, and header parameters.
 type RemoveWorktreeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	WorktreeID  string  `url:"worktree_id"`
-	Force       *bool   `url:"force"`
-	Profile     *string `url:"profile"`
+	WorkspaceID  string  `url:"workspace_id"`
+	WorktreeID   string  `url:"worktree_id"`
+	Force        *bool   `url:"force"`
+	DeleteBranch *bool   `url:"delete_branch"`
+	Profile      *string `url:"profile"`
 }
 
 // RemoveWorktree Remove a worktree
-func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams) error {
+func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams) (*WorktreeCleanupResponse, error) {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
@@ -123,13 +124,20 @@ func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams
 	if params.Force != nil {
 		query.Set("force", strconv.FormatBool(*params.Force))
 	}
+	if params.DeleteBranch != nil {
+		query.Set("delete_branch", strconv.FormatBool(*params.DeleteBranch))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+	var out WorktreeCleanupResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // RenameGatewayDeviceParams carries the path, query, and header parameters.

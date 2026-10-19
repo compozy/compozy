@@ -34,3 +34,22 @@ Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rend
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+2026-10-19 #813 impact: row cleanup now follows the row owner instead of the active profile, so a
+missing row owned by another profile keeps **Clean up missing record…** enabled (it acts with that
+owner's selector). A refused cleanup (archived or unknown owner, active session) stays visible as a
+disabled item naming the reason. Missing rows join ready rows in selection mode. Single remove, the
+missing-record dialog and the bulk confirmation offer an unchecked **Also delete local branch(es)**
+opt-in; the daemon keeps the root checkout's HEAD branch, the default branch and unmerged branches
+(reported per row; single cleanup offers **Delete anyway** for unmerged). Targeted isolated-lab walk
+on 2026-10-19 (headless Chromium against a disposable daemon and throwaway repository): cross-owner
+missing dismissal with branch deletion, archived-owner disabled reason, single removal with an
+unmerged refusal then forced retry, and a mixed ready+missing bulk batch with per-row branch outcomes
+all passed; Git state was verified after each step and the lab teardown was clean. Evidence is in
+the PR description.
+
+2026-10-19 merge-train review follow-up: when the post-cleanup branch read fails and the
+response has `reason: delete_failed` without a branch name, single and bulk cleanup must report
+that branch deletion failed and its result is unconfirmed. It must never report that the worktree
+had no branch. The lifecycle notification regression passes in the existing `use-worktrees` suite;
+full integration validation remains owned by current-head PR CI.

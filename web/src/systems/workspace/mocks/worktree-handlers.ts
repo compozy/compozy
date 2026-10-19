@@ -19,6 +19,14 @@ import {
  * Only the story's git-backed workspace has worktrees; the rest answer
  * truthfully with a non-git repo so their nests stay absent.
  */
+/** Plain cleanup keeps 204; an opted-in branch deletion reports its outcome. */
+function cleanupBranch(request: Request, worktreeId: string) {
+  if (new URL(request.url).searchParams.get("delete_branch") !== "true") return null;
+  const name =
+    worktreeListingFixture.worktrees.find(worktree => worktree.id === worktreeId)?.branch ?? "";
+  return { name, deleted: true };
+}
+
 export const worktreeHandlers: HttpHandler[] = [
   compozyApiMock.get("/api/workspaces/{workspace_id}/worktrees", ({ params }) => {
     const workspaceId = String(params.workspace_id);
@@ -90,12 +98,15 @@ export const worktreeHandlers: HttpHandler[] = [
 
   compozyApiMock.post(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss",
-    () => new HttpResponse(null, { status: 204 })
+    ({ request, params, response }) => {
+      const branch = cleanupBranch(request, String(params.worktree_id));
+      return branch ? response(200).json({ branch }) : response(204).empty();
+    }
   ),
 
   compozyApiMock.delete(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}",
-    ({ request, params }) => {
+    ({ request, params, response }) => {
       const force = new URL(request.url).searchParams.get("force") === "true";
       const worktreeId = String(params.worktree_id);
       const dirty = worktreeListingFixture.worktrees.find(
@@ -121,7 +132,8 @@ export const worktreeHandlers: HttpHandler[] = [
         );
       }
 
-      return new HttpResponse(null, { status: 204 });
+      const branch = cleanupBranch(request, worktreeId);
+      return branch ? response(200).json({ branch }) : response(204).empty();
     }
   ),
 

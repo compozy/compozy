@@ -4,30 +4,26 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 import type { WorktreeNestEntry } from "@/systems/workspace/lib/worktree-display";
 import type { WorktreePayload } from "@/systems/workspace/types";
 
-export interface WorktreeRemovalProfile {
-  id: string;
-  name: string;
-  archived: boolean;
-}
-
 export interface WorktreeRemovalBatch {
   workspaceId: string;
-  profile: WorktreeRemovalProfile;
+  /** Frozen rows; each target acts with its own owner profile, as single cleanup does. */
   worktrees: readonly WorktreePayload[];
 }
 
-/** Explains why a represented row lacks cleanup authority; catalog visibility alone is insufficient. */
+/**
+ * Explains why a represented row cannot be cleaned up, or `null` when it can.
+ * Cleanup acts with the row's owner profile, so ownership refuses only when that
+ * owner is unresolvable or archived — never because another profile is active.
+ */
 export function worktreeCleanupReason(
   entry: WorktreeNestEntry,
-  workspaceId: string,
-  profile: WorktreeRemovalProfile | null | undefined
+  workspaceId: string
 ): string | null {
   const row = entry.worktree;
   if (!row) return "Discovered checkout — adopt individually before removal";
   if (row.workspace_id !== workspaceId) return "Belongs to another workspace";
-  if (!profile || row.profile_id !== profile.id) return "Switch to the owning profile to remove";
-  if (profile.archived || row.profile_archived)
-    return "Archived profile — restore the profile first";
+  if (!row.profile_name) return "Owning profile is unavailable";
+  if (row.profile_archived) return "Archived profile — restore the profile first";
   if (row.agent_activity !== "idle") return "Worktree has an active session";
   if (row.state !== "ready" && row.state !== "missing") return "Worktree is not ready for removal";
   return null;
@@ -67,27 +63,21 @@ const selectionLogic = createStoreLogic({
 });
 
 /**
- * Holds copied row identities within one workspace/profile selection scope.
- * Select-all includes only currently represented eligible rows; later catalog
- * updates never silently add targets or replace the saved selection payloads.
+ * Holds copied row identities within one workspace selection scope. Select-all
+ * includes only currently represented eligible rows; later catalog updates
+ * never silently add targets or replace the saved selection payloads.
  */
 export function useWorktreeRemovalSelection(
   workspaceId: string,
   entries: readonly WorktreeNestEntry[],
-  profile: WorktreeRemovalProfile | null | undefined,
   onRemove: ((batch: WorktreeRemovalBatch) => void) | undefined
 ) {
-  const { store } = useStoreBinding(
-    JSON.stringify([workspaceId, profile?.id, profile?.name, profile?.archived]),
-    () => selectionLogic.createStore()
-  );
+  const { store } = useStoreBinding(workspaceId, () => selectionLogic.createStore());
   const context = useSelector(store, snapshot => snapshot.context);
-  const eligible = entries.filter(
-    entry => worktreeCleanupReason(entry, workspaceId, profile) === null
-  );
+  const eligible = entries.filter(entry => worktreeCleanupReason(entry, workspaceId) === null);
   const selectedIds = new Set(context.selected.map(row => row.id));
   const toggle = (entry: WorktreeNestEntry, shift = false) => {
-    if (!entry.worktree || worktreeCleanupReason(entry, workspaceId, profile)) return;
+    if (!entry.worktree || worktreeCleanupReason(entry, workspaceId)) return;
     const anchor = eligible.findIndex(row => row.key === context.anchor);
     const end = eligible.findIndex(row => row.key === entry.key);
     const range =
@@ -104,23 +94,19 @@ export function useWorktreeRemovalSelection(
     });
   const clear = () => store.trigger.clear();
   return {
-    enabled: Boolean(onRemove && profile && !profile.archived),
+    enabled: Boolean(onRemove),
     mode: context.mode,
     count: context.selected.length,
     eligibleCount: eligible.length,
     selectedIds,
-    reason: (entry: WorktreeNestEntry) => worktreeCleanupReason(entry, workspaceId, profile),
+    reason: (entry: WorktreeNestEntry) => worktreeCleanupReason(entry, workspaceId),
     start: () => store.trigger.start(),
     clear,
     selectAll,
     toggle,
     confirm: () => {
-      if (profile && context.selected.length)
-        onRemove?.({
-          workspaceId,
-          profile: { ...profile },
-          worktrees: context.selected.map(row => ({ ...row })),
-        });
+      if (context.selected.length)
+        onRemove?.({ workspaceId, worktrees: context.selected.map(row => ({ ...row })) });
     },
     onKeyDown: (event: React.KeyboardEvent) => {
       if (

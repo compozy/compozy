@@ -134,6 +134,7 @@ export {
   WORKTREE_ERROR_CODES,
 } from "./lib/worktree-refusal";
 export type { WorktreeRefusal, WorktreeRemovalRisk } from "./lib/worktree-refusal";
+export { describeBranchOutcome } from "./lib/worktree-branch-outcome";
 export { groupWorkspaceTree } from "./lib/workspace-tree";
 export type { WorkspaceTreeNode, WorktreeListingByWorkspace } from "./lib/workspace-tree";
 
@@ -324,10 +325,7 @@ export { toWorktreePrDialogModel } from "./lib/worktree-pr-rows";
 export type { WorktreePrDialogMode, WorktreePrDialogModel } from "./lib/worktree-pr-rows";
 
 export { useWorktreeRemovalSelection } from "./hooks/use-worktree-removal-selection";
-export type {
-  WorktreeRemovalBatch,
-  WorktreeRemovalProfile,
-} from "./hooks/use-worktree-removal-selection";
+export type { WorktreeRemovalBatch } from "./hooks/use-worktree-removal-selection";
 export { WorktreeSelectionToolbar } from "./components/worktree-selection-toolbar";
 
 export { WorktreeBulkRemoveDialog } from "./components/worktree-bulk-remove-dialog";

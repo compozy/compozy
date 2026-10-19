@@ -29,6 +29,8 @@ export interface OsWorkspacesWorktreeRowProps {
   /** Delete stays gated to adopted, ready records — the remove flow's gate. */
   onResolveMissing?: () => void;
   onDelete?: () => void;
+  /** Why cleanup is refused; the offered action stays visible but disabled. */
+  cleanupReason?: string | null;
   registerRow: (element: HTMLElement | null) => void;
   onSelect?: () => void;
 }
@@ -47,6 +49,7 @@ export function OsWorkspacesWorktreeRow({
   onActionsOpenChange,
   onDelete,
   onResolveMissing,
+  cleanupReason = null,
   registerRow,
   onSelect,
 }: OsWorkspacesWorktreeRowProps) {
@@ -116,20 +119,40 @@ export function OsWorkspacesWorktreeRow({
             Copy path
           </DropdownMenuItem>
           {onResolveMissing ? (
-            <DropdownMenuItem onClick={onResolveMissing}>Clean up missing record…</DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`os-workspaces-worktree-resolve-${entry.key}`}
+              disabled={Boolean(cleanupReason)}
+              onClick={onResolveMissing}
+            >
+              <RefusalLabel reason={cleanupReason}>Clean up missing record…</RefusalLabel>
+            </DropdownMenuItem>
           ) : null}
           {onDelete ? (
             <DropdownMenuItem
               variant="destructive"
               data-testid={`os-workspaces-worktree-delete-${entry.key}`}
+              disabled={Boolean(cleanupReason)}
               onClick={onDelete}
             >
               <Trash2 className="size-deck-glyph" />
-              Delete worktree…
+              <RefusalLabel reason={cleanupReason}>Delete worktree…</RefusalLabel>
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+/** Names why a visible action is disabled on a second line under its label. */
+function RefusalLabel({ reason, children }: { reason: string | null; children: string }) {
+  if (!reason) return children;
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span>{children}</span>
+      <span data-slot="worktree-action-reason" className="text-form-hint text-subtle">
+        {reason}
+      </span>
+    </span>
   );
 }

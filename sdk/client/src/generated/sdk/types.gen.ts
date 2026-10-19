@@ -11268,6 +11268,17 @@ export type WorktreeBindingsPayload = {
   agent_activity: string;
 };
 
+export type WorktreeBranchOutcomePayload = {
+  deleted: boolean;
+  detail?: string;
+  name: string;
+  reason?: string;
+};
+
+export type WorktreeCleanupResponse = {
+  branch?: WorktreeBranchOutcomePayload | null;
+};
+
 export type WorktreeExitActionPlan = {
   action: string;
   blocked_reason?: string;
@@ -35576,9 +35587,13 @@ export type RemoveWorktreeData = {
   };
   query?: {
     /**
-     * Confirm destructive removal
+     * Confirm destructive removal; with delete_branch, also delete an unmerged branch
      */
     force?: boolean;
+    /**
+     * Also delete the recorded local branch after cleanup. The root checkout HEAD and default branches are kept; an unmerged branch is kept unless force is set.
+     */
+    delete_branch?: boolean;
     /**
      * Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.
      */
@@ -35617,6 +35632,10 @@ export type RemoveWorktreeErrors = {
 export type RemoveWorktreeError = RemoveWorktreeErrors[keyof RemoveWorktreeErrors];
 
 export type RemoveWorktreeResponses = {
+  /**
+   * Cleaned up; reports the requested local branch deletion
+   */
+  200: WorktreeCleanupResponse;
   /**
    * No Content
    */
@@ -35741,6 +35760,14 @@ export type DismissWorktreeData = {
   };
   query?: {
     /**
+     * Also delete the recorded local branch after cleanup. The root checkout HEAD and default branches are kept; an unmerged branch is kept unless force is set.
+     */
+    delete_branch?: boolean;
+    /**
+     * With delete_branch, also delete an unmerged branch
+     */
+    force?: boolean;
+    /**
      * Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.
      */
     profile?: string;
@@ -35782,6 +35809,10 @@ export type DismissWorktreeErrors = {
 export type DismissWorktreeError = DismissWorktreeErrors[keyof DismissWorktreeErrors];
 
 export type DismissWorktreeResponses = {
+  /**
+   * Cleaned up; reports the requested local branch deletion
+   */
+  200: WorktreeCleanupResponse;
   /**
    * No Content
    */

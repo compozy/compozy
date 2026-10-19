@@ -93,7 +93,7 @@ func newWorktreeCancelCommand(deps commandDeps) *cobra.Command {
 			if err := client.CancelWorktreeCreate(cmd.Context(), workspaceID, item.ID); err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, worktreeMutationBundle("canceled", item))
+			return writeCommandOutput(cmd, worktreeMutationBundle("canceled", item, nil))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
@@ -165,7 +165,7 @@ func newWorktreeStatusCommand(deps commandDeps) *cobra.Command {
 
 func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
-	var force bool
+	var opts WorktreeCleanupOptions
 	cmd := &cobra.Command{
 		Use: "remove <ref>", Short: "Remove a worktree", Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -177,20 +177,24 @@ func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.RemoveWorktree(cmd.Context(), workspaceID, item.ID, force); err != nil {
+			branch, err := client.RemoveWorktree(cmd.Context(), workspaceID, item.ID, opts)
+			if err != nil {
 				return err
 			}
 			item.State = lifecycleRemovedKey
-			return writeCommandOutput(cmd, worktreeMutationBundle(lifecycleRemovedKey, item))
+			return writeCommandOutput(cmd, worktreeMutationBundle(lifecycleRemovedKey, item, branch))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
-	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive removal")
+	cmd.Flags().BoolVar(&opts.Force, "force", false,
+		"Confirm destructive removal; with --delete-branch, also delete an unmerged branch")
+	addWorktreeDeleteBranchFlag(cmd, &opts.DeleteBranch)
 	return cmd
 }
 
 func newWorktreeDismissCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
+	var opts WorktreeCleanupOptions
 	cmd := &cobra.Command{
 		Use: "dismiss <ref>", Short: "Dismiss a worktree tombstone", Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -202,15 +206,23 @@ func newWorktreeDismissCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.DismissWorktree(cmd.Context(), workspaceID, item.ID); err != nil {
+			branch, err := client.DismissWorktree(cmd.Context(), workspaceID, item.ID, opts)
+			if err != nil {
 				return err
 			}
 			item.State = lifecycleDismissedKey
-			return writeCommandOutput(cmd, worktreeMutationBundle(lifecycleDismissedKey, item))
+			return writeCommandOutput(cmd, worktreeMutationBundle(lifecycleDismissedKey, item, branch))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
+	addWorktreeDeleteBranchFlag(cmd, &opts.DeleteBranch)
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "With --delete-branch, also delete an unmerged branch")
 	return cmd
+}
+
+func addWorktreeDeleteBranchFlag(cmd *cobra.Command, target *bool) {
+	cmd.Flags().BoolVar(target, "delete-branch", false,
+		"Also delete the local branch; root HEAD and default branches are kept, unmerged ones need --force")
 }
 
 func worktreeCommandContext(

@@ -20,7 +20,8 @@ import { workspaceKeys } from "../lib/query-keys";
 import { worktreesListOptions } from "../lib/query-options";
 import { reconcileWorktreeList, removeWorktreeFromList } from "../lib/worktree-list-reconciliation";
 import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
-import type { WorktreePayload, WorktreesResponse } from "../types";
+import { describeBranchOutcome } from "../lib/worktree-branch-outcome";
+import type { WorktreeBranchOutcome, WorktreePayload, WorktreesResponse } from "../types";
 import { notifyUser } from "@/lib/user-feedback";
 import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 
@@ -124,14 +125,60 @@ export function useAdoptWorktree(workspaceID: string, profile?: string) {
   });
 }
 
+interface WorktreeCleanupVariables {
+  worktreeID: string;
+  force?: boolean;
+  /** Opt-in: also delete the recorded local branch after cleanup. */
+  deleteBranch?: boolean;
+}
+
+/**
+ * Reports an opted-in branch deletion. An unmerged branch offers one forced
+ * retry: cleanup is already done, so repeating it only re-runs the branch step.
+ */
+function reportBranchOutcome(
+  outcome: WorktreeBranchOutcome | null,
+  forced: boolean,
+  forceDelete: () => Promise<WorktreeBranchOutcome | null>
+): void {
+  if (!outcome) return;
+  const retry = !outcome.deleted && outcome.reason === "not_fully_merged" && !forced;
+  notifyUser({
+    message: describeBranchOutcome(outcome),
+    tone: outcome.deleted ? "success" : "warning",
+    action: retry
+      ? {
+          label: "Delete anyway",
+          onClick: () => {
+            void forceDelete().then(
+              next => reportBranchOutcome(next, true, forceDelete),
+              (error: unknown) =>
+                notifyUser({
+                  message: error instanceof Error ? error.message : "Branch deletion failed.",
+                  tone: "error",
+                })
+            );
+          },
+        }
+      : undefined,
+  });
+}
+
 /** Removes one authorized checkout and clears only its matching UI scope after success. */
 export function useRemoveWorktree(workspaceID: string, profile?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ worktreeID, force }: { worktreeID: string; force?: boolean }) =>
-      removeWorktree(workspaceID, worktreeID, { force, profile }),
-    onSuccess: (_data, variables) => {
+    mutationFn: ({ worktreeID, force, deleteBranch }: WorktreeCleanupVariables) =>
+      removeWorktree(workspaceID, worktreeID, { force, deleteBranch, profile }),
+    onSuccess: (outcome, variables) => {
+      reportBranchOutcome(outcome, Boolean(variables.force), () =>
+        removeWorktree(workspaceID, variables.worktreeID, {
+          force: true,
+          deleteBranch: true,
+          profile,
+        })
+      );
       activeWorkspaceStore.trigger.worktreeRemoved({
         workspaceId: workspaceID,
         worktreeId: variables.worktreeID,
@@ -152,15 +199,22 @@ export function useDismissWorktree(workspaceID: string, profile?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (worktreeID: string) =>
-      dismissWorktree(workspaceID, worktreeID, undefined, profile),
-    onSuccess: (_data, worktreeID) => {
+    mutationFn: ({ worktreeID, force, deleteBranch }: WorktreeCleanupVariables) =>
+      dismissWorktree(workspaceID, worktreeID, { force, deleteBranch, profile }),
+    onSuccess: (outcome, variables) => {
+      reportBranchOutcome(outcome, Boolean(variables.force), () =>
+        dismissWorktree(workspaceID, variables.worktreeID, {
+          force: true,
+          deleteBranch: true,
+          profile,
+        })
+      );
       activeWorkspaceStore.trigger.worktreeRemoved({
         workspaceId: workspaceID,
-        worktreeId: worktreeID,
+        worktreeId: variables.worktreeID,
       });
       queryClient.setQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceID), current =>
-        removeWorktreeFromList(current, worktreeID)
+        removeWorktreeFromList(current, variables.worktreeID)
       );
       return queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID) });
     },

@@ -20,6 +20,7 @@ type WorktreeService interface {
 	CancelExitAction(context.Context, string, string, string) error
 	Remove(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	Dismiss(context.Context, string, string) error
+	DeleteLocalBranch(context.Context, string, string, bool) (worktree.BranchOutcome, error)
 }
 
 type WorktreeCatalogEventSubscriber interface {

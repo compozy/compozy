@@ -3386,6 +3386,8 @@ export type {
   WorkspaceSkillPayload,
   WorkspacesResponse,
   WorktreeBindingsPayload,
+  WorktreeBranchOutcomePayload,
+  WorktreeCleanupResponse,
   WorktreeExitActionPlan,
   WorktreeExitCleanupEvidence,
   WorktreeExitCommitScope,

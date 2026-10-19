@@ -14,7 +14,8 @@ compozy worktree remove <ref> [flags]
 ### Options
 
 ```
-      --force              Confirm destructive removal
+      --delete-branch      Also delete the local branch; root HEAD and default branches are kept, unmerged ones need --force
+      --force              Confirm destructive removal; with --delete-branch, also delete an unmerged branch
   -h, --help               help for remove
       --workspace string   Override workspace context (ID, name, or path)
 ```

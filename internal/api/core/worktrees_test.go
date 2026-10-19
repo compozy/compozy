@@ -31,6 +31,7 @@ type worktreeServiceStub struct {
 	adopt          func(context.Context, string, string, string) (*worktree.Worktree, error)
 	listDetails    func(context.Context, string, bool) (*worktree.DetailedListing, error)
 	remove         func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	deleteBranch   func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
 	inspect        func(context.Context, string, string) (*worktree.Inspection, error)
 	exitPlan       func(context.Context, string, string) (*worktree.ExitPlan, error)
 	exitPlanPaths  func(context.Context, string, string, []string) (*worktree.ExitPlan, error)
@@ -472,6 +473,17 @@ func (s worktreeServiceStub) Dismiss(ctx context.Context, workspaceID, id string
 		return s.dismiss(ctx, workspaceID, id)
 	}
 	return fmt.Errorf("unexpected Dismiss call")
+}
+
+func (s worktreeServiceStub) DeleteLocalBranch(
+	ctx context.Context,
+	workspaceID, id string,
+	force bool,
+) (worktree.BranchOutcome, error) {
+	if s.deleteBranch != nil {
+		return s.deleteBranch(ctx, workspaceID, id, force)
+	}
+	return worktree.BranchOutcome{}, fmt.Errorf("unexpected DeleteLocalBranch call")
 }
 
 func (s worktreeServiceStub) SubscribeWorktreeCatalogEvents(
@@ -1219,6 +1231,117 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should delete the local branch only after a successful opted-in cleanup", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, method, suffix, query string
+			refuse                      bool
+			branchErr                   error
+			wantStatus                  int
+			wantBody                    string
+			wantForce                   bool
+			wantDeletions               int
+		}{
+			{
+				name: "Should keep plain removal on 204", method: http.MethodDelete,
+				wantStatus: http.StatusNoContent,
+			},
+			{
+				name: "Should report the removal branch outcome", method: http.MethodDelete,
+				query: "?delete_branch=true&force=true", wantStatus: http.StatusOK, wantForce: true,
+				wantBody: `{"branch":{"name":"fix/a","deleted":true}}`,
+			},
+			{
+				name: "Should report a kept branch after dismissal", method: http.MethodPost, suffix: "/dismiss",
+				query: "?delete_branch=true", wantStatus: http.StatusOK,
+				wantBody: `{"branch":{"name":"fix/a","deleted":false,"reason":"not_fully_merged"}}`,
+			},
+			{
+				name: "Should not touch the branch when removal is refused", method: http.MethodDelete,
+				query: "?delete_branch=true", refuse: true, wantStatus: http.StatusConflict,
+			},
+			{
+				name: "Should report a failed branch step as kept without failing the cleanup", method: http.MethodDelete,
+				query: "?delete_branch=true", branchErr: worktree.ErrOperationInProgress, wantStatus: http.StatusOK,
+				wantBody: `{"branch":{"name":"fix/a","deleted":false,"reason":"delete_failed",` +
+					`"detail":"worktree_operation_in_progress"}}`,
+			},
+			{
+				name: "Should keep a branch precondition failure as an error", method: http.MethodDelete,
+				query: "?delete_branch=true", branchErr: worktree.ErrNotReady, wantStatus: http.StatusConflict,
+				wantDeletions: 1,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				deletions := 0
+				h := &BaseHandlers{
+					Workspaces: workspaceServiceStub{
+						resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+							return workspacepkg.ResolvedWorkspace{
+								ID: "registry-alpha", Name: ref, WorkspaceID: "registry-alpha",
+							}, nil
+						},
+					},
+					Worktrees: worktreeServiceStub{
+						resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
+							return &worktree.Worktree{
+								ID: id, WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID,
+							}, nil
+						},
+						remove: func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error) {
+							if tc.refuse {
+								return &worktree.RemovalRefusal{Code: worktree.ErrDirtyRequiresForce.Error()},
+									worktree.ErrDirtyRequiresForce
+							}
+							return nil, nil
+						},
+						dismiss: func(context.Context, string, string) error { return nil },
+						deleteBranch: func(
+							_ context.Context,
+							workspaceID, id string,
+							force bool,
+						) (worktree.BranchOutcome, error) {
+							deletions++
+							if workspaceID != "registry-alpha" || id != "wt-a" || force != tc.wantForce {
+								t.Fatalf("DeleteLocalBranch() args = %q, %q, %t", workspaceID, id, force)
+							}
+							if tc.branchErr != nil {
+								return worktree.BranchOutcome{Name: "fix/a"}, tc.branchErr
+							}
+							if tc.method == http.MethodPost {
+								return worktree.BranchOutcome{
+									Name: "fix/a", Reason: worktree.BranchKeptNotFullyMerged,
+								}, nil
+							}
+							return worktree.BranchOutcome{Name: "fix/a", Deleted: true}, nil
+						},
+					},
+				}
+				router := gin.New()
+				router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", h.RemoveWorktree)
+				router.POST("/workspaces/:workspace_id/worktrees/:worktree_id/dismiss", h.DismissWorktree)
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, httptest.NewRequestWithContext(
+					t.Context(), tc.method, "/workspaces/registry-alpha/worktrees/wt-a"+tc.suffix+tc.query, http.NoBody,
+				))
+				if response.Code != tc.wantStatus {
+					t.Fatalf("status = %d, want %d; body=%s", response.Code, tc.wantStatus, response.Body.String())
+				}
+				if tc.wantBody != "" && response.Body.String() != tc.wantBody {
+					t.Fatalf("body = %s, want %s", response.Body.String(), tc.wantBody)
+				}
+				wantDeletions := tc.wantDeletions
+				if tc.wantBody != "" {
+					wantDeletions = 1
+				}
+				if deletions != wantDeletions {
+					t.Fatalf("branch deletions = %d, want %d", deletions, wantDeletions)
+				}
+			})
+		}
+	})
 
 	t.Run("Should return the exact risk inventory with status 409", func(t *testing.T) {
 		t.Parallel()

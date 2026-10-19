@@ -10,7 +10,11 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { WorkspacePayload, WorktreeListingByWorkspace } from "@/systems/workspace";
+import type {
+  WorkspacePayload,
+  WorktreeListingByWorkspace,
+  WorktreesResponse,
+} from "@/systems/workspace";
 import {
   discoveredWorktreeFixture,
   emptyWorktreeListingFixture,
@@ -45,8 +49,16 @@ const COMPOZY = workspace("ws_compozy", "compozy", "/Users/ada/dev/compozy");
 const BRANAS = workspace("ws_branas_site", "branas-site", "/Users/ada/dev/branas/site");
 const NOTES = workspace("ws_notes", "notes", "/Users/ada/notes");
 
+/** Listed rows belong to the workspace that lists them, as the daemon guarantees. */
+function listedIn(workspaceId: string, listing: WorktreesResponse): WorktreesResponse {
+  return {
+    ...listing,
+    worktrees: listing.worktrees.map(row => ({ ...row, workspace_id: workspaceId })),
+  };
+}
+
 const LISTINGS: WorktreeListingByWorkspace = {
-  [COMPOZY.id]: worktreeListingFixture,
+  [COMPOZY.id]: listedIn(COMPOZY.id, worktreeListingFixture),
   [BRANAS.id]: emptyWorktreeListingFixture,
   [NOTES.id]: nonGitWorktreeListingFixture,
 };
@@ -113,7 +125,6 @@ describe("OsWorkspacesOverview", () => {
     const missing = { ...worktreeMissingFixture, workspace_id: COMPOZY.id };
     const ready = { ...worktreeBehindFixture, workspace_id: COMPOZY.id };
     const callbacks = renderOverview({
-      removalProfile: { id: missing.profile_id, name: missing.profile_name, archived: false },
       onRemoveWorktrees,
       worktreesByWorkspace: {
         [COMPOZY.id]: {
@@ -140,7 +151,6 @@ describe("OsWorkspacesOverview", () => {
       const user = userEvent.setup();
       const ready = { ...worktreeBehindFixture, workspace_id: COMPOZY.id };
       const callbacks = renderOverview({
-        removalProfile: { id: ready.profile_id, name: ready.profile_name, archived: false },
         onRemoveWorktrees: vi.fn(),
         worktreesByWorkspace: {
           [COMPOZY.id]: {
@@ -566,19 +576,23 @@ describe("OsWorkspacesOverview", () => {
     );
 
     callbacks.rerenderOverview({ worktreesByWorkspace: LISTINGS, open: true });
-    const actions = screen.getByTestId(
-      `os-workspaces-worktree-actions-${worktreeReadyDirtyRunningFixture.id}`
-    );
-    await user.click(actions);
     await user.click(
-      await screen.findByTestId(
-        `os-workspaces-worktree-delete-${worktreeReadyDirtyRunningFixture.id}`
-      )
+      screen.getByTestId(`os-workspaces-worktree-actions-${worktreeReadyDirtyRunningFixture.id}`)
+    );
+    const busy = await screen.findByTestId(
+      `os-workspaces-worktree-delete-${worktreeReadyDirtyRunningFixture.id}`
+    );
+    expect(busy).toHaveAttribute("data-disabled");
+    expect(busy).toHaveTextContent("Worktree has an active session");
+    await user.keyboard("{Escape}");
+    await user.click(
+      screen.getByTestId(`os-workspaces-worktree-actions-${worktreeBehindFixture.id}`)
+    );
+    await user.click(
+      await screen.findByTestId(`os-workspaces-worktree-delete-${worktreeBehindFixture.id}`)
     );
     expect(callbacks.onRemoveWorktree).toHaveBeenCalledTimes(1);
-    expect(callbacks.onRemoveWorktree.mock.calls[0]?.[1]?.key).toBe(
-      worktreeReadyDirtyRunningFixture.id
-    );
+    expect(callbacks.onRemoveWorktree.mock.calls[0]?.[1]?.key).toBe(worktreeBehindFixture.id);
   });
 
   it("Should show no current marker anywhere while Global is on", async () => {

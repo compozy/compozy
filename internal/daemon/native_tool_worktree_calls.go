@@ -29,9 +29,10 @@ type nativeWorktreeCreateInput struct {
 }
 
 type nativeWorktreeRemoveInput struct {
-	Workspace string `json:"workspace"`
-	Ref       string `json:"ref"`
-	Force     bool   `json:"force"`
+	Workspace    string `json:"workspace"`
+	Ref          string `json:"ref"`
+	Force        bool   `json:"force"`
+	DeleteBranch bool   `json:"delete_branch"`
 }
 
 func (n *daemonNativeTools) worktreeList(
@@ -132,10 +133,19 @@ func (n *daemonNativeTools) worktreeRemove(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
 	}
-	return structuredResult(
-		map[string]any{"worktree_id": worktreeID, nativePayloadStateKey: string(worktree.StateRemoved)},
-		worktreeID,
-	)
+	result := map[string]any{"worktree_id": worktreeID, nativePayloadStateKey: string(worktree.StateRemoved)}
+	if input.DeleteBranch {
+		branch, err := core.CleanupBranchOutcome(ctx, n.deps.Worktrees, workspaceID, worktreeID, input.Force)
+		if err != nil {
+			partial, marshalErr := structuredResult(result, worktreeID)
+			if marshalErr != nil {
+				return toolspkg.ToolResult{}, marshalErr
+			}
+			return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err).WithPartialResult(partial)
+		}
+		result["branch"] = branch
+	}
+	return structuredResult(result, worktreeID)
 }
 
 func (n *daemonNativeTools) nativeWorktreeTarget(

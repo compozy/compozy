@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// ForceReleaseTaskRunParams carries the path, query, and header parameters.
+type ForceReleaseTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // ForceReleaseTaskRun Force release one claimed task run
 func (c *Client) ForceReleaseTaskRun(ctx context.Context, params ForceReleaseTaskRunParams, body ForceReleaseTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/runs/{id}/release"
@@ -436,12 +442,4 @@ func (c *Client) GetCmdPaletteRankSignals(ctx context.Context, params GetCmdPale
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetCmdPaletteViewParams carries the path, query, and header parameters.
-type GetCmdPaletteViewParams struct {
-	ID          string  `url:"id"`
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

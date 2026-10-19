@@ -1,7 +1,11 @@
 package core
 
 import (
+	"context"
+	"errors"
+
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -107,4 +111,33 @@ func WorktreeRemovalRefusalPayload(
 		},
 		Downgrade: refusal.Downgrade,
 	}
+}
+
+// WorktreeBranchOutcomePayload maps an opt-in branch deletion outcome to its wire shape.
+func WorktreeBranchOutcomePayload(outcome worktree.BranchOutcome) contract.WorktreeBranchOutcomePayload {
+	return contract.WorktreeBranchOutcomePayload{
+		Name: outcome.Name, Deleted: outcome.Deleted, Reason: outcome.Reason, Detail: outcome.Detail,
+	}
+}
+
+// CleanupBranchOutcome runs the opted-in branch step after a successful removal
+// or dismissal. Only precondition failures stay errors; any other failure is a
+// kept-branch outcome, so callers never mistake a completed cleanup for a failed one.
+func CleanupBranchOutcome(
+	ctx context.Context,
+	worktrees WorktreeService,
+	workspaceID, id string,
+	force bool,
+) (*contract.WorktreeBranchOutcomePayload, error) {
+	outcome, err := worktrees.DeleteLocalBranch(ctx, workspaceID, id, force)
+	if errors.Is(err, worktree.ErrNotReady) || errors.Is(err, worktree.ErrNotFound) {
+		return nil, err
+	}
+	if err != nil {
+		outcome.Deleted = false
+		outcome.Reason = worktree.BranchKeptDeleteFailed
+		outcome.Detail = diagnostics.RedactAndBound(err.Error(), 2048)
+	}
+	payload := WorktreeBranchOutcomePayload(outcome)
+	return &payload, nil
 }

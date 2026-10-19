@@ -288,6 +288,7 @@ func (h *BaseHandlers) CancelWorktreeCreate(c *gin.Context) {
 
 // RemoveWorktree authorizes the saved target before delegating checkout removal.
 // Lifecycle refusals retain their structured 409 payload, including force risks.
+// An explicit delete_branch request answers 200 with the branch outcome.
 func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 	scope, id, ok := h.worktreeRoute(c)
 	if !ok {
@@ -301,6 +302,10 @@ func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 	if !ok {
 		return
 	}
+	deleteBranch, ok := h.worktreeBoolQuery(c, worktreeDeleteBranchQuery)
+	if !ok {
+		return
+	}
 	refusal, err := h.Worktrees.Remove(c.Request.Context(), scope.RegistryID, id, force)
 	if refusal != nil {
 		c.JSON(http.StatusConflict, WorktreeRemovalRefusalPayload(*refusal))
@@ -310,11 +315,12 @@ func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	h.respondWorktreeCleanup(c, scope.RegistryID, id, deleteBranch, force)
 }
 
 // DismissWorktree authorizes metadata cleanup without deleting files or history.
 // The lifecycle service owns repeated-request and concurrent-state handling.
+// Only an explicit delete_branch request touches Git, after the record is dismissed.
 func (h *BaseHandlers) DismissWorktree(c *gin.Context) {
 	scope, id, ok := h.worktreeRoute(c)
 	if !ok {
@@ -324,11 +330,36 @@ func (h *BaseHandlers) DismissWorktree(c *gin.Context) {
 	if !ok {
 		return
 	}
+	deleteBranch, ok := h.worktreeBoolQuery(c, worktreeDeleteBranchQuery)
+	if !ok {
+		return
+	}
+	force, ok := h.worktreeBoolQuery(c, "force")
+	if !ok {
+		return
+	}
 	if err := h.Worktrees.Dismiss(c.Request.Context(), scope.RegistryID, id); err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	h.respondWorktreeCleanup(c, scope.RegistryID, id, deleteBranch, force)
+}
+
+const worktreeDeleteBranchQuery = "delete_branch"
+
+// respondWorktreeCleanup completes a successful removal or dismissal. Callers
+// that did not opt into branch deletion keep the established 204 response.
+func (h *BaseHandlers) respondWorktreeCleanup(c *gin.Context, workspaceID, id string, deleteBranch, force bool) {
+	if !deleteBranch {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	branch, err := CleanupBranchOutcome(c.Request.Context(), h.Worktrees, workspaceID, id, force)
+	if err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.WorktreeCleanupResponse{Branch: branch})
 }
 
 func (h *BaseHandlers) worktreeWorkspaceScope(c *gin.Context) (workspaceScope, bool) {

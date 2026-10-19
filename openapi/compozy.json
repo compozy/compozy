@@ -42091,6 +42091,27 @@
         ],
         "type": "object"
       },
+      "WorktreeBranchOutcomePayload": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deleted",
+          "name"
+        ],
+        "type": "object"
+      },
       "WorktreeCatalogEventPayload": {
         "properties": {
           "error": {
@@ -42111,6 +42132,24 @@
           "workspace_id",
           "worktree_id"
         ],
+        "type": "object"
+      },
+      "WorktreeCleanupResponse": {
+        "properties": {
+          "branch": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorktreeBranchOutcomePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          }
+        },
         "type": "object"
       },
       "WorktreeExitActionPlan": {
@@ -89794,9 +89833,17 @@
             }
           },
           {
-            "description": "Confirm destructive removal",
+            "description": "Confirm destructive removal; with delete_branch, also delete an unmerged branch",
             "in": "query",
             "name": "force",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Also delete the recorded local branch after cleanup. The root checkout HEAD and default branches are kept; an unmerged branch is kept unless force is set.",
+            "in": "query",
+            "name": "delete_branch",
             "schema": {
               "type": "boolean"
             }
@@ -89811,6 +89858,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorktreeCleanupResponse"
+                }
+              }
+            },
+            "description": "Cleaned up; reports the requested local branch deletion"
+          },
           "204": {
             "description": "No Content"
           },
@@ -90092,6 +90149,22 @@
             }
           },
           {
+            "description": "Also delete the recorded local branch after cleanup. The root checkout HEAD and default branches are kept; an unmerged branch is kept unless force is set.",
+            "in": "query",
+            "name": "delete_branch",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "With delete_branch, also delete an unmerged branch",
+            "in": "query",
+            "name": "force",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.",
             "in": "query",
             "name": "profile",
@@ -90101,6 +90174,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorktreeCleanupResponse"
+                }
+              }
+            },
+            "description": "Cleaned up; reports the requested local branch deletion"
+          },
           "204": {
             "description": "No Content"
           },

@@ -436,7 +436,9 @@ func (c *Client) DismissTask(ctx context.Context, params DismissTaskParams) (*Ta
 
 // DismissWorktreeParams carries the path, query, and header parameters.
 type DismissWorktreeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	WorktreeID  string  `url:"worktree_id"`
-	Profile     *string `url:"profile"`
+	WorkspaceID  string  `url:"workspace_id"`
+	WorktreeID   string  `url:"worktree_id"`
+	DeleteBranch *bool   `url:"delete_branch"`
+	Force        *bool   `url:"force"`
+	Profile      *string `url:"profile"`
 }

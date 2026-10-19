@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3344,6 +3345,52 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 		)
 		if err != nil || repaired.SessionID != "sess-1" || len(repaired.Actions) != 1 {
 			t.Fatalf("RepairSession() = %#v, %v", repaired, err)
+		}
+	})
+}
+
+// Invariant: worktree cleanup sends delete_branch only on opt-in and decodes the
+// branch outcome; plain cleanup keeps the 204 shape. Owning layer: CLI client.
+func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T, wantPath string, wantQuery url.Values, status int, body string) *daemonClient {
+		t.Helper()
+		return &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.URL.Path != wantPath {
+						t.Fatalf("cleanup path = %q, want %q", req.URL.Path, wantPath)
+					}
+					if got := req.URL.Query(); !reflect.DeepEqual(got, wantQuery) {
+						t.Fatalf("cleanup query = %#v, want %#v", got, wantQuery)
+					}
+					return newHTTPResponse(status, body), nil
+				}),
+			},
+		}
+	}
+
+	t.Run("Should keep plain removal on the no-content contract", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, "/api/workspaces/ws-1/worktrees/wt-1", url.Values{}, http.StatusNoContent, "")
+		branch, err := client.RemoveWorktree(t.Context(), "ws-1", "wt-1", WorktreeCleanupOptions{})
+		if err != nil || branch != nil {
+			t.Fatalf("RemoveWorktree() = %#v, %v, want no branch outcome", branch, err)
+		}
+	})
+
+	t.Run("Should send the dismissal opt-in and decode the branch outcome", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, "/api/workspaces/ws-1/worktrees/wt-1/dismiss",
+			url.Values{"delete_branch": {"true"}, "force": {"true"}}, http.StatusOK,
+			`{"branch":{"name":"fix/a","deleted":true}}`)
+		branch, err := client.DismissWorktree(
+			t.Context(), "ws-1", "wt-1", WorktreeCleanupOptions{Force: true, DeleteBranch: true},
+		)
+		if err != nil || branch == nil || branch.Name != "fix/a" || !branch.Deleted {
+			t.Fatalf("DismissWorktree() = %#v, %v, want deleted fix/a", branch, err)
 		}
 	})
 }

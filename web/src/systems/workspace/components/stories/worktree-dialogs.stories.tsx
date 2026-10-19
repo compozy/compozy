@@ -109,6 +109,29 @@ export const RemoveClean: Story = {
         forceRequested={false}
         onRequestForce={fn()}
         isRemoving={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
+        onConfirm={fn()}
+      />
+    </StorySurface>
+  ),
+};
+
+/** Issue #813 — the explicit opt-in to delete the local branch after removal. */
+export const RemoveWithBranchDeletion: Story = {
+  args: {},
+  render: () => (
+    <StorySurface>
+      <WorktreeRemoveDialog
+        open
+        onOpenChange={fn()}
+        worktree={cleanWorktree}
+        refusal={null}
+        forceRequested={false}
+        onRequestForce={fn()}
+        isRemoving={false}
+        deleteBranch
+        onDeleteBranchChange={fn()}
         onConfirm={fn()}
       />
     </StorySurface>
@@ -129,6 +152,8 @@ export const RemoveBoundIdle: Story = {
         onRequestForce={fn()}
         boundSessions={{ running: 0, idle: 1 }}
         isRemoving={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
         onConfirm={fn()}
       />
     </StorySurface>
@@ -149,6 +174,8 @@ export const RemoveBoundRunning: Story = {
         onRequestForce={fn()}
         boundSessions={{ running: 1, idle: 0 }}
         isRemoving={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
         onConfirm={fn()}
         onOpenSession={fn()}
       />
@@ -169,6 +196,8 @@ export const RemoveDirtyRefusal: Story = {
         forceRequested={false}
         onRequestForce={fn()}
         isRemoving={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
         onConfirm={fn()}
         onCommitAndPush={fn()}
       />
@@ -189,6 +218,8 @@ export const RemoveForce: Story = {
         forceRequested
         onRequestForce={fn()}
         isRemoving={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
         onConfirm={fn()}
       />
     </StorySurface>
@@ -211,6 +242,8 @@ export const RemoveRemoteDowngrade: Story = {
         forceRequested={false}
         onRequestForce={fn()}
         isRemoving={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
         onConfirm={fn()}
       />
     </StorySurface>
@@ -229,6 +262,8 @@ export const MissingResolution: Story = {
         outcome={null}
         refusal={null}
         isPending={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
         onDismissRecord={fn()}
         onRestore={fn()}
       />
@@ -248,6 +283,8 @@ export const MissingResolutionIdempotentOutcome: Story = {
         outcome="Nothing to clean up — no branch, worktree directory, or instance data found."
         refusal={null}
         isPending={false}
+        deleteBranch={false}
+        onDeleteBranchChange={fn()}
         onDismissRecord={fn()}
         onRestore={fn()}
       />
